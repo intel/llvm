@@ -226,6 +226,10 @@ printFlag<ur_exp_device_2d_block_array_capability_flag_t>(std::ostream &os,
                                                           uint32_t flag);
 
 template <>
+inline ur_result_t printFlag<ur_exp_async_usm_alloc_flag_t>(std::ostream &os,
+                                                            uint32_t flag);
+
+template <>
 inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os,
                                                        uint32_t flag);
 
@@ -502,6 +506,11 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            enum ur_exp_device_2d_block_array_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_async_usm_alloc_flag_t value);
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_exp_async_usm_alloc_properties_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
 inline std::ostream &
@@ -1177,6 +1186,42 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_PHYSICAL_MEM_GET_INFO:
     os << "UR_FUNCTION_PHYSICAL_MEM_GET_INFO";
     break;
+  case UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP:
+    os << "UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_USM_SHARED_ALLOC_EXP:
+    os << "UR_FUNCTION_ENQUEUE_USM_SHARED_ALLOC_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_USM_HOST_ALLOC_EXP:
+    os << "UR_FUNCTION_ENQUEUE_USM_HOST_ALLOC_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_USM_FREE_EXP:
+    os << "UR_FUNCTION_ENQUEUE_USM_FREE_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_CREATE_EXP:
+    os << "UR_FUNCTION_USM_POOL_CREATE_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_DESTROY_EXP:
+    os << "UR_FUNCTION_USM_POOL_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP:
+    os << "UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP:
+    os << "UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_SET_DEVICE_POOL_EXP:
+    os << "UR_FUNCTION_USM_POOL_SET_DEVICE_POOL_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_GET_DEVICE_POOL_EXP:
+    os << "UR_FUNCTION_USM_POOL_GET_DEVICE_POOL_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_TRIM_TO_EXP:
+    os << "UR_FUNCTION_USM_POOL_TRIM_TO_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_GET_INFO_EXP:
+    os << "UR_FUNCTION_USM_POOL_GET_INFO_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -1333,6 +1378,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION:
     os << "UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION";
+    break;
+  case UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES:
+    os << "UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES";
     break;
   case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES:
     os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES";
@@ -1630,6 +1678,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION: {
     const ur_exp_image_copy_region_t *pstruct =
         (const ur_exp_image_copy_region_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES: {
+    const ur_exp_async_usm_alloc_properties_t *pstruct =
+        (const ur_exp_async_usm_alloc_properties_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -2974,6 +3028,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     os << "UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP";
+    break;
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP:
+    os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -4963,6 +5020,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     ur::details::printFlag<ur_exp_device_2d_block_array_capability_flag_t>(
         os, *tptr);
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
 
     os << ")";
   } break;
@@ -7188,6 +7258,12 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK:
     os << "UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK";
     break;
+  case UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP:
+    os << "UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP";
+    break;
+  case UR_USM_POOL_FLAG_READ_ONLY_EXP:
+    os << "UR_USM_POOL_FLAG_READ_ONLY_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -7213,6 +7289,28 @@ inline ur_result_t printFlag<ur_usm_pool_flag_t>(std::ostream &os,
       first = false;
     }
     os << UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK;
+  }
+
+  if ((val & UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP) ==
+      (uint32_t)UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP) {
+    val ^= (uint32_t)UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP;
+  }
+
+  if ((val & UR_USM_POOL_FLAG_READ_ONLY_EXP) ==
+      (uint32_t)UR_USM_POOL_FLAG_READ_ONLY_EXP) {
+    val ^= (uint32_t)UR_USM_POOL_FLAG_READ_ONLY_EXP;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_POOL_FLAG_READ_ONLY_EXP;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
@@ -7807,6 +7905,24 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_USM_POOL_INFO_CONTEXT:
     os << "UR_USM_POOL_INFO_CONTEXT";
     break;
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    os << "UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP";
+    break;
+  case UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP:
+    os << "UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP";
+    break;
+  case UR_USM_POOL_INFO_RESERVED_CURRENT_EXP:
+    os << "UR_USM_POOL_INFO_RESERVED_CURRENT_EXP";
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    os << "UR_USM_POOL_INFO_RESERVED_HIGH_EXP";
+    break;
+  case UR_USM_POOL_INFO_USED_CURRENT_EXP:
+    os << "UR_USM_POOL_INFO_USED_CURRENT_EXP";
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    os << "UR_USM_POOL_INFO_USED_HIGH_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -7847,6 +7963,84 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << (const void *)(tptr) << " (";
 
     ur::details::printPtr(os, *tptr);
+
+    os << ")";
+  } break;
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP: {
+    const size_t *tptr = (const size_t *)ptr;
+    if (sizeof(size_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP: {
+    const size_t *tptr = (const size_t *)ptr;
+    if (sizeof(size_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_USM_POOL_INFO_RESERVED_CURRENT_EXP: {
+    const size_t *tptr = (const size_t *)ptr;
+    if (sizeof(size_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP: {
+    const size_t *tptr = (const size_t *)ptr;
+    if (sizeof(size_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_USM_POOL_INFO_USED_CURRENT_EXP: {
+    const size_t *tptr = (const size_t *)ptr;
+    if (sizeof(size_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP: {
+    const size_t *tptr = (const size_t *)ptr;
+    if (sizeof(size_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
 
     os << ")";
   } break;
@@ -9914,6 +10108,18 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
   case UR_COMMAND_ENQUEUE_NATIVE_EXP:
     os << "UR_COMMAND_ENQUEUE_NATIVE_EXP";
     break;
+  case UR_COMMAND_ENQUEUE_USM_DEVICE_ALLOC_EXP:
+    os << "UR_COMMAND_ENQUEUE_USM_DEVICE_ALLOC_EXP";
+    break;
+  case UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP:
+    os << "UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP";
+    break;
+  case UR_COMMAND_ENQUEUE_USM_HOST_ALLOC_EXP:
+    os << "UR_COMMAND_ENQUEUE_USM_HOST_ALLOC_EXP";
+    break;
+  case UR_COMMAND_ENQUEUE_USM_FREE_EXP:
+    os << "UR_COMMAND_ENQUEUE_USM_FREE_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -10406,6 +10612,80 @@ printFlag<ur_exp_device_2d_block_array_capability_flag_t>(std::ostream &os,
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_async_usm_alloc_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_exp_async_usm_alloc_flag_t value) {
+  switch (value) {
+  case UR_EXP_ASYNC_USM_ALLOC_FLAG_TBD:
+    os << "UR_EXP_ASYNC_USM_ALLOC_FLAG_TBD";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_async_usm_alloc_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_async_usm_alloc_flag_t>(std::ostream &os,
+                                                            uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_EXP_ASYNC_USM_ALLOC_FLAG_TBD) ==
+      (uint32_t)UR_EXP_ASYNC_USM_ALLOC_FLAG_TBD) {
+    val ^= (uint32_t)UR_EXP_ASYNC_USM_ALLOC_FLAG_TBD;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_EXP_ASYNC_USM_ALLOC_FLAG_TBD;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_async_usm_alloc_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_async_usm_alloc_properties_t params) {
+  os << "(struct ur_exp_async_usm_alloc_properties_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".flags = ";
+
+  ur::details::printFlag<ur_exp_async_usm_alloc_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_image_copy_flag_t type
 /// @returns
@@ -16206,6 +16486,243 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_usm_device_alloc_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_usm_device_alloc_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".pPool = ";
+
+  ur::details::printPtr(os, *(params->ppPool));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  os << ", ";
+  os << ".pProperties = ";
+
+  ur::details::printPtr(os, *(params->ppProperties));
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  ur::details::printPtr(os, *(params->pppMem));
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_usm_shared_alloc_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_usm_shared_alloc_exp_params_t
+        *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".pPool = ";
+
+  ur::details::printPtr(os, *(params->ppPool));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  os << ", ";
+  os << ".pProperties = ";
+
+  ur::details::printPtr(os, *(params->ppProperties));
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  ur::details::printPtr(os, *(params->pppMem));
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_usm_host_alloc_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_enqueue_usm_host_alloc_exp_params_t
+               *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".pPool = ";
+
+  ur::details::printPtr(os, *(params->ppPool));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  os << ", ";
+  os << ".pProperties = ";
+
+  ur::details::printPtr(os, *(params->ppProperties));
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  ur::details::printPtr(os, *(params->pppMem));
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_usm_free_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_enqueue_usm_free_exp_params_t *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".pPool = ";
+
+  ur::details::printPtr(os, *(params->ppPool));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, *(params->ppMem));
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
 /// ur_enqueue_cooperative_kernel_launch_exp_params_t type
 /// @returns
@@ -16394,6 +16911,595 @@ operator<<(std::ostream &os,
   os << ".phEvent = ";
 
   ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_host_alloc_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_host_alloc_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pUSMDesc = ";
+
+  ur::details::printPtr(os, *(params->ppUSMDesc));
+
+  os << ", ";
+  os << ".pool = ";
+
+  ur::details::printPtr(os, *(params->ppool));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  ur::details::printPtr(os, *(params->pppMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_device_alloc_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_device_alloc_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pUSMDesc = ";
+
+  ur::details::printPtr(os, *(params->ppUSMDesc));
+
+  os << ", ";
+  os << ".pool = ";
+
+  ur::details::printPtr(os, *(params->ppool));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  ur::details::printPtr(os, *(params->pppMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_shared_alloc_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_shared_alloc_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pUSMDesc = ";
+
+  ur::details::printPtr(os, *(params->ppUSMDesc));
+
+  os << ", ";
+  os << ".pool = ";
+
+  ur::details::printPtr(os, *(params->ppool));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  ur::details::printPtr(os, *(params->pppMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_free_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_free_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, *(params->ppMem));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_get_mem_alloc_info_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_get_mem_alloc_info_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, *(params->ppMem));
+
+  os << ", ";
+  os << ".propName = ";
+
+  os << *(params->ppropName);
+
+  os << ", ";
+  os << ".propSize = ";
+
+  os << *(params->ppropSize);
+
+  os << ", ";
+  os << ".pPropValue = ";
+  ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName),
+                           *(params->ppropSize));
+
+  os << ", ";
+  os << ".pPropSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_create_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_create_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pPoolDesc = ";
+
+  ur::details::printPtr(os, *(params->ppPoolDesc));
+
+  os << ", ";
+  os << ".ppPool = ";
+
+  ur::details::printPtr(os, *(params->pppPool));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_retain_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_retain_params_t *params) {
+
+  os << ".pPool = ";
+
+  ur::details::printPtr(os, *(params->ppPool));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_release_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_release_params_t *params) {
+
+  os << ".pPool = ";
+
+  ur::details::printPtr(os, *(params->ppPool));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_get_info_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pool_get_info_params_t *params) {
+
+  os << ".hPool = ";
+
+  ur::details::printPtr(os, *(params->phPool));
+
+  os << ", ";
+  os << ".propName = ";
+
+  os << *(params->ppropName);
+
+  os << ", ";
+  os << ".propSize = ";
+
+  os << *(params->ppropSize);
+
+  os << ", ";
+  os << ".pPropValue = ";
+  ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName),
+                           *(params->ppropSize));
+
+  os << ", ";
+  os << ".pPropSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_create_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pool_create_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pPoolDesc = ";
+
+  ur::details::printPtr(os, *(params->ppPoolDesc));
+
+  os << ", ";
+  os << ".pPool = ";
+
+  ur::details::printPtr(os, *(params->ppPool));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_destroy_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pool_destroy_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".hPool = ";
+
+  ur::details::printPtr(os, *(params->phPool));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_set_threshold_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_set_threshold_exp_params_t
+               *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".hPool = ";
+
+  ur::details::printPtr(os, *(params->phPool));
+
+  os << ", ";
+  os << ".newThreshold = ";
+
+  os << *(params->pnewThreshold);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_usm_pool_get_default_device_pool_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_usm_pool_get_default_device_pool_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pPool = ";
+
+  ur::details::printPtr(os, *(params->ppPool));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_get_info_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pool_get_info_exp_params_t *params) {
+
+  os << ".hPool = ";
+
+  ur::details::printPtr(os, *(params->phPool));
+
+  os << ", ";
+  os << ".propName = ";
+
+  os << *(params->ppropName);
+
+  os << ", ";
+  os << ".pPropValue = ";
+
+  ur::details::printPtr(os, *(params->ppPropValue));
+
+  os << ", ";
+  os << ".pPropSizeRet = ";
+
+  ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_set_device_pool_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pool_set_device_pool_exp_params_t
+        *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".hPool = ";
+
+  ur::details::printPtr(os, *(params->phPool));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_get_device_pool_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pool_get_device_pool_exp_params_t
+        *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pPool = ";
+
+  ur::details::printPtr(os, *(params->ppPool));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_trim_to_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pool_trim_to_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".hPool = ";
+
+  ur::details::printPtr(os, *(params->phPool));
+
+  os << ", ";
+  os << ".minBytesToKeep = ";
+
+  os << *(params->pminBytesToKeep);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pitched_alloc_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pitched_alloc_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".hDevice = ";
+
+  ur::details::printPtr(os, *(params->phDevice));
+
+  os << ", ";
+  os << ".pUSMDesc = ";
+
+  ur::details::printPtr(os, *(params->ppUSMDesc));
+
+  os << ", ";
+  os << ".pool = ";
+
+  ur::details::printPtr(os, *(params->ppool));
+
+  os << ", ";
+  os << ".widthInBytes = ";
+
+  os << *(params->pwidthInBytes);
+
+  os << ", ";
+  os << ".height = ";
+
+  os << *(params->pheight);
+
+  os << ", ";
+  os << ".elementSizeBytes = ";
+
+  os << *(params->pelementSizeBytes);
+
+  os << ", ";
+  os << ".ppMem = ";
+
+  ur::details::printPtr(os, *(params->pppMem));
+
+  os << ", ";
+  os << ".pResultPitch = ";
+
+  ur::details::printPtr(os, *(params->ppResultPitch));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_import_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_import_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, *(params->ppMem));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << *(params->psize);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_release_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_release_exp_params_t *params) {
+
+  os << ".hContext = ";
+
+  ur::details::printPtr(os, *(params->phContext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, *(params->ppMem));
 
   return os;
 }
@@ -17106,371 +18212,6 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
   os << ".phEvent = ";
 
   ur::details::printPtr(os, *(params->pphEvent));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_host_alloc_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_host_alloc_params_t *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".pUSMDesc = ";
-
-  ur::details::printPtr(os, *(params->ppUSMDesc));
-
-  os << ", ";
-  os << ".pool = ";
-
-  ur::details::printPtr(os, *(params->ppool));
-
-  os << ", ";
-  os << ".size = ";
-
-  os << *(params->psize);
-
-  os << ", ";
-  os << ".ppMem = ";
-
-  ur::details::printPtr(os, *(params->pppMem));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_device_alloc_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_device_alloc_params_t *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".hDevice = ";
-
-  ur::details::printPtr(os, *(params->phDevice));
-
-  os << ", ";
-  os << ".pUSMDesc = ";
-
-  ur::details::printPtr(os, *(params->ppUSMDesc));
-
-  os << ", ";
-  os << ".pool = ";
-
-  ur::details::printPtr(os, *(params->ppool));
-
-  os << ", ";
-  os << ".size = ";
-
-  os << *(params->psize);
-
-  os << ", ";
-  os << ".ppMem = ";
-
-  ur::details::printPtr(os, *(params->pppMem));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_shared_alloc_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_shared_alloc_params_t *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".hDevice = ";
-
-  ur::details::printPtr(os, *(params->phDevice));
-
-  os << ", ";
-  os << ".pUSMDesc = ";
-
-  ur::details::printPtr(os, *(params->ppUSMDesc));
-
-  os << ", ";
-  os << ".pool = ";
-
-  ur::details::printPtr(os, *(params->ppool));
-
-  os << ", ";
-  os << ".size = ";
-
-  os << *(params->psize);
-
-  os << ", ";
-  os << ".ppMem = ";
-
-  ur::details::printPtr(os, *(params->pppMem));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_free_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_free_params_t *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".pMem = ";
-
-  ur::details::printPtr(os, *(params->ppMem));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_get_mem_alloc_info_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_usm_get_mem_alloc_info_params_t *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".pMem = ";
-
-  ur::details::printPtr(os, *(params->ppMem));
-
-  os << ", ";
-  os << ".propName = ";
-
-  os << *(params->ppropName);
-
-  os << ", ";
-  os << ".propSize = ";
-
-  os << *(params->ppropSize);
-
-  os << ", ";
-  os << ".pPropValue = ";
-  ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName),
-                           *(params->ppropSize));
-
-  os << ", ";
-  os << ".pPropSizeRet = ";
-
-  ur::details::printPtr(os, *(params->ppPropSizeRet));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_pool_create_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_pool_create_params_t *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".pPoolDesc = ";
-
-  ur::details::printPtr(os, *(params->ppPoolDesc));
-
-  os << ", ";
-  os << ".ppPool = ";
-
-  ur::details::printPtr(os, *(params->pppPool));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_pool_retain_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_pool_retain_params_t *params) {
-
-  os << ".pPool = ";
-
-  ur::details::printPtr(os, *(params->ppPool));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_pool_release_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_pool_release_params_t *params) {
-
-  os << ".pPool = ";
-
-  ur::details::printPtr(os, *(params->ppPool));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_pool_get_info_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_usm_pool_get_info_params_t *params) {
-
-  os << ".hPool = ";
-
-  ur::details::printPtr(os, *(params->phPool));
-
-  os << ", ";
-  os << ".propName = ";
-
-  os << *(params->ppropName);
-
-  os << ", ";
-  os << ".propSize = ";
-
-  os << *(params->ppropSize);
-
-  os << ", ";
-  os << ".pPropValue = ";
-  ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName),
-                           *(params->ppropSize));
-
-  os << ", ";
-  os << ".pPropSizeRet = ";
-
-  ur::details::printPtr(os, *(params->ppPropSizeRet));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_pitched_alloc_exp_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(
-    std::ostream &os,
-    [[maybe_unused]] const struct ur_usm_pitched_alloc_exp_params_t *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".hDevice = ";
-
-  ur::details::printPtr(os, *(params->phDevice));
-
-  os << ", ";
-  os << ".pUSMDesc = ";
-
-  ur::details::printPtr(os, *(params->ppUSMDesc));
-
-  os << ", ";
-  os << ".pool = ";
-
-  ur::details::printPtr(os, *(params->ppool));
-
-  os << ", ";
-  os << ".widthInBytes = ";
-
-  os << *(params->pwidthInBytes);
-
-  os << ", ";
-  os << ".height = ";
-
-  os << *(params->pheight);
-
-  os << ", ";
-  os << ".elementSizeBytes = ";
-
-  os << *(params->pelementSizeBytes);
-
-  os << ", ";
-  os << ".ppMem = ";
-
-  ur::details::printPtr(os, *(params->pppMem));
-
-  os << ", ";
-  os << ".pResultPitch = ";
-
-  ur::details::printPtr(os, *(params->ppResultPitch));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_import_exp_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_import_exp_params_t *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".pMem = ";
-
-  ur::details::printPtr(os, *(params->ppMem));
-
-  os << ", ";
-  os << ".size = ";
-
-  os << *(params->psize);
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_release_exp_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_release_exp_params_t *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".pMem = ";
-
-  ur::details::printPtr(os, *(params->ppMem));
 
   return os;
 }
@@ -19890,6 +20631,18 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     os << (const struct ur_enqueue_events_wait_with_barrier_ext_params_t *)
             params;
   } break;
+  case UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP: {
+    os << (const struct ur_enqueue_usm_device_alloc_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_ENQUEUE_USM_SHARED_ALLOC_EXP: {
+    os << (const struct ur_enqueue_usm_shared_alloc_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_ENQUEUE_USM_HOST_ALLOC_EXP: {
+    os << (const struct ur_enqueue_usm_host_alloc_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_ENQUEUE_USM_FREE_EXP: {
+    os << (const struct ur_enqueue_usm_free_exp_params_t *)params;
+  } break;
   case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
     os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)
             params;
@@ -19899,6 +20652,67 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP: {
     os << (const struct ur_enqueue_native_command_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_HOST_ALLOC: {
+    os << (const struct ur_usm_host_alloc_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_DEVICE_ALLOC: {
+    os << (const struct ur_usm_device_alloc_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_SHARED_ALLOC: {
+    os << (const struct ur_usm_shared_alloc_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_FREE: {
+    os << (const struct ur_usm_free_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_GET_MEM_ALLOC_INFO: {
+    os << (const struct ur_usm_get_mem_alloc_info_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_CREATE: {
+    os << (const struct ur_usm_pool_create_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_RETAIN: {
+    os << (const struct ur_usm_pool_retain_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_RELEASE: {
+    os << (const struct ur_usm_pool_release_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_GET_INFO: {
+    os << (const struct ur_usm_pool_get_info_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_CREATE_EXP: {
+    os << (const struct ur_usm_pool_create_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_DESTROY_EXP: {
+    os << (const struct ur_usm_pool_destroy_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP: {
+    os << (const struct ur_usm_pool_set_threshold_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP: {
+    os << (const struct ur_usm_pool_get_default_device_pool_exp_params_t *)
+            params;
+  } break;
+  case UR_FUNCTION_USM_POOL_GET_INFO_EXP: {
+    os << (const struct ur_usm_pool_get_info_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_SET_DEVICE_POOL_EXP: {
+    os << (const struct ur_usm_pool_set_device_pool_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_GET_DEVICE_POOL_EXP: {
+    os << (const struct ur_usm_pool_get_device_pool_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_TRIM_TO_EXP: {
+    os << (const struct ur_usm_pool_trim_to_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_PITCHED_ALLOC_EXP: {
+    os << (const struct ur_usm_pitched_alloc_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_IMPORT_EXP: {
+    os << (const struct ur_usm_import_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_RELEASE_EXP: {
+    os << (const struct ur_usm_release_exp_params_t *)params;
   } break;
   case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP: {
     os << (const struct
@@ -19968,42 +20782,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP: {
     os << (const struct
            ur_bindless_images_signal_external_semaphore_exp_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_HOST_ALLOC: {
-    os << (const struct ur_usm_host_alloc_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_DEVICE_ALLOC: {
-    os << (const struct ur_usm_device_alloc_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_SHARED_ALLOC: {
-    os << (const struct ur_usm_shared_alloc_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_FREE: {
-    os << (const struct ur_usm_free_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_GET_MEM_ALLOC_INFO: {
-    os << (const struct ur_usm_get_mem_alloc_info_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_POOL_CREATE: {
-    os << (const struct ur_usm_pool_create_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_POOL_RETAIN: {
-    os << (const struct ur_usm_pool_retain_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_POOL_RELEASE: {
-    os << (const struct ur_usm_pool_release_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_POOL_GET_INFO: {
-    os << (const struct ur_usm_pool_get_info_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_PITCHED_ALLOC_EXP: {
-    os << (const struct ur_usm_pitched_alloc_exp_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_IMPORT_EXP: {
-    os << (const struct ur_usm_import_exp_params_t *)params;
-  } break;
-  case UR_FUNCTION_USM_RELEASE_EXP: {
-    os << (const struct ur_usm_release_exp_params_t *)params;
   } break;
   case UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP: {
     os << (const struct ur_command_buffer_create_exp_params_t *)params;

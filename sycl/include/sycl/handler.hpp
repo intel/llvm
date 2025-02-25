@@ -155,6 +155,11 @@ namespace ext ::oneapi ::experimental {
 template <typename, typename>
 class work_group_memory;
 struct image_descriptor;
+__SYCL_EXPORT void async_free(handler &h, void *ptr);
+__SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
+                                 size_t size);
+__SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
+                                           memory_pool &pool);
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
@@ -3881,6 +3886,18 @@ private:
                                   int Dims);
 
   friend class detail::HandlerAccess;
+
+  // Friend free-functions for asynchronous allocation and freeing.
+  __SYCL_EXPORT friend void
+  ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);
+
+  __SYCL_EXPORT friend void *
+  ext::oneapi::experimental::async_malloc(sycl::handler &h,
+                                          sycl::usm::alloc kind, size_t size);
+
+  __SYCL_EXPORT friend void *ext::oneapi::experimental::async_malloc_from_pool(
+      sycl::handler &h, size_t size,
+      ext::oneapi::experimental::memory_pool &pool);
 
 protected:
   /// Registers event dependencies in this command group.
