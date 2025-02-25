@@ -1,5 +1,4 @@
-// UNSUPPORTED: cuda || hip
-// CUDA and HIP don't support SPIR-V.
+// REQUIRES: target-spir
 //
 // FIXME Disabled fallback assert as it'll require either online linking or
 // explicit offline linking step here
