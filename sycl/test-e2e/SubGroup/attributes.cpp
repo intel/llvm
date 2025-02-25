@@ -1,5 +1,11 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %{run} %t.out
+// RUN: %if (!target-nvidia && !target-amd) %{ %{build} -fsycl-device-code-split=per_kernel -o %t_non_gpu.out %}
+// RUN: %if target-nvidia %{ %{build} -fsycl-device-code-split=per_kernel -DBUILD_FOR_CUDA -o %t_cuda.out %}
+// RUN: %if target-amd %{ %{build} -fsycl-device-code-split=per_kernel -DBUILD_FOR_HIP -o %t_hip.out %}
+
+// RUN: %if (!target-nvidia && !target-amd) %{ %{run} %t_non_gpu.out %}
+// RUN: %if target-nvidia %{ %{run} %t_cuda.out %}
+// RUN: %if target-amd %{ %{run} %t_hip.out %}
+
 //==------- attributes.cpp - SYCL sub_group attributes test ----*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -19,6 +25,11 @@
     }                                                                          \
   };
 
+#ifdef BUILD_FOR_CUDA
+KERNEL_FUNCTOR_WITH_SIZE(32);
+#elif defined BUILD_FOR_HIP
+KERNEL_FUNCTOR_WITH_SIZE(32);
+#else
 KERNEL_FUNCTOR_WITH_SIZE(1);
 KERNEL_FUNCTOR_WITH_SIZE(2);
 KERNEL_FUNCTOR_WITH_SIZE(4);
@@ -26,6 +37,7 @@ KERNEL_FUNCTOR_WITH_SIZE(8);
 KERNEL_FUNCTOR_WITH_SIZE(16);
 KERNEL_FUNCTOR_WITH_SIZE(32);
 KERNEL_FUNCTOR_WITH_SIZE(64);
+#endif
 
 #undef KERNEL_FUNCTOR_WITH_SIZE
 

@@ -282,8 +282,8 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
             KernelReqdSubGroupSizeMap.find(hKernel->getName());
         KernelReqdSubGroupSize != KernelReqdSubGroupSizeMap.end())
       return ReturnValue(KernelReqdSubGroupSize->second);
-    else
-      return ReturnValue(0);
+
+    return ReturnValue(0);
   }
   default:
     break;
