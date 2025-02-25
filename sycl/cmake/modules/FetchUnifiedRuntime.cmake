@@ -249,7 +249,7 @@ if(TARGET UnifiedRuntimeLoader)
     ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
     RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
   )
-  if(UR_ENABLE_SYMBOLIZER)
+  if(UR_ENABLE_SYMBOLIZER and CMAKE_SYSTEM_NAME STREQUAL Linux)
     install(TARGETS ur_sanitizer_symbolizer
       LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
       ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
