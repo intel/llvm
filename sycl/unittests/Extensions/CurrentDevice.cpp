@@ -62,16 +62,14 @@ protected:
 
 void callable_set_get_eq(sycl::device dev) {
   sycl::ext::oneapi::experimental::this_thread::set_current_device(dev);
-  ASSERT_NO_FATAL_FAILURE(
-      sycl::ext::oneapi::experimental::this_thread::get_current_device() ==
-      dev);
+  ASSERT_EQ(sycl::ext::oneapi::experimental::this_thread::get_current_device(),
+            dev);
 }
 
 TEST_F(CurrentDeviceTest,
        CheckGetCurrentDeviceReturnDefaultDeviceInHostThread) {
-  ASSERT_NO_FATAL_FAILURE(
-      sycl::ext::oneapi::experimental::this_thread::get_current_device() ==
-      sycl::device{sycl::default_selector_v});
+  ASSERT_EQ(sycl::ext::oneapi::experimental::this_thread::get_current_device(),
+            sycl::device{sycl::default_selector_v});
 }
 
 TEST_F(CurrentDeviceTest,

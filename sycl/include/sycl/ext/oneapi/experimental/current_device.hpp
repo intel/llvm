@@ -31,7 +31,9 @@ inline sycl::device get_current_device() { return detail::current_device; }
 ///
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
-inline void set_current_device(sycl::device dev) { detail::current_device = dev; }
+inline void set_current_device(sycl::device dev) {
+  detail::current_device = dev;
+}
 
 } // namespace ext::oneapi::experimental::this_thread
 } // namespace _V1

@@ -1,7 +1,7 @@
 // REQUIRES: any-device-is-cpu, any-device-is-gpu
 
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.outt %threads_lib
+// RUN: %{run-unfiltered-devices} %t.out %threads_lib
 
 // E2E tests for sycl_ext_oneapi_current_device
 
@@ -20,7 +20,7 @@ void check_get_ne(sycl::device dev) {
   auto device =
       sycl::ext::oneapi::experimental::this_thread::get_current_device();
   if (device == dev)
-  assert(false && "check_get_ne failed.");
+    assert(false && "check_get_ne failed.");
 }
 
 void check_set_get_eq(sycl::device dev) {
@@ -28,7 +28,7 @@ void check_set_get_eq(sycl::device dev) {
   auto device =
       sycl::ext::oneapi::experimental::this_thread::get_current_device();
   if (device != dev)
-  assert(false && "check_set_get_eq failed.");
+    assert(false && "check_set_get_eq failed.");
 }
 
 int main() {
