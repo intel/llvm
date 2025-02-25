@@ -393,7 +393,7 @@ etors:
     - name: GPU_HW_THREADS_PER_EU
       desc: "[uint32_t][optional-query] return Intel GPU number of threads per EU"
     - name: MAX_MEMORY_BANDWIDTH
-      desc: "[uint32_t][optional-query] return max memory bandwidth in Mb/s"
+      desc: "[uint64_t][optional-query] return max memory bandwidth in B/s"
     - name: IMAGE_SRGB
       desc: "[$x_bool_t] device supports sRGB images"
     - name: BUILD_ON_SUBDEVICE

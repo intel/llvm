@@ -2123,7 +2123,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 94,
   /// [uint32_t][optional-query] return Intel GPU number of threads per EU
   UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 95,
-  /// [uint32_t][optional-query] return max memory bandwidth in Mb/s
+  /// [uint64_t][optional-query] return max memory bandwidth in B/s
   UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 96,
   /// [::ur_bool_t] device supports sRGB images
   UR_DEVICE_INFO_IMAGE_SRGB = 97,

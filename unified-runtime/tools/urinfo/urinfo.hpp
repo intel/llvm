@@ -271,7 +271,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU);
   std::cout << prefix;
-  printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
+  printDeviceInfo<uint64_t>(hDevice, UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IMAGE_SRGB);
   std::cout << prefix;
