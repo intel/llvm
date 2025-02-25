@@ -22,6 +22,9 @@ function(set_sanitizer_test_properties name)
     set_tests_properties(${name} PROPERTIES LABELS "sanitizer")
     set_property(TEST ${name} PROPERTY ENVIRONMENT
         "UR_LOG_SANITIZER=level:debug\;flush:debug\;output:stdout")
+    target_include_directories(${name} PRIVATE
+        ${PROJECT_SOURCE_DIR}/source/loader/layers/sanitizer/sanitizer_common
+    )
 endfunction()
 
 function(add_sanitizer_test name)
