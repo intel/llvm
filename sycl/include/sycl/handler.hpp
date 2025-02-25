@@ -425,8 +425,6 @@ std::vector<kernel_param_desc_t> getKernelParamDescs() {
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
-  handler() {}
-
   /// Constructs SYCL handler from queue.
   ///
   /// \param Queue is a SYCL queue.
@@ -3454,6 +3452,8 @@ private:
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
+  // to support releasing of queue_impl::MHandler
+  friend struct std::default_delete<sycl::handler>;
   // Make accessor class friend to keep the list of associated accessors.
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder,
