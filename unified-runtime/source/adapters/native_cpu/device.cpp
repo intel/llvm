@@ -154,10 +154,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(bool{1});
   case UR_DEVICE_INFO_EXTENSIONS:
-    // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
-    // cl_khr_fp64, cl_khr_int64_base_atomics,
-    // cl_khr_int64_extended_atomics
-    return ReturnValue("cl_khr_fp16, cl_khr_fp64 ");
+    return ReturnValue("");
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("0.1");
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
@@ -193,19 +190,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
     // Default minimum values required by the SYCL specification.
     return ReturnValue(size_t{2048});
-  case UR_DEVICE_INFO_HALF_FP_CONFIG: {
-    // todo:
-    ur_device_fp_capability_flags_t HalfFPValue = 0;
-    return ReturnValue(HalfFPValue);
-  }
-  case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
-    // todo
-    ur_device_fp_capability_flags_t SingleFPValue = 0;
-    return ReturnValue(SingleFPValue);
-  }
+  case UR_DEVICE_INFO_HALF_FP_CONFIG:
+  case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
-    ur_device_fp_capability_flags_t DoubleFPValue = 0;
-    return ReturnValue(DoubleFPValue);
+    // All fp types are supported, return minimum flags to indicate support.
+    // TODO: look at this in more detail.
+    ur_device_fp_capability_flags_t SupportedFlags =
+        UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+        UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
+        UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+    ;
+    return ReturnValue(SupportedFlags);
   }
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
     return ReturnValue(uint32_t{3});
