@@ -29,13 +29,10 @@
 
 #include "common.hpp"
 
-constexpr size_t TM = 8;
-constexpr size_t TN = 16;
-constexpr size_t TK = 16;
+template <typename T, size_t TM, size_t TN, size_t TK> class imatrix;
 
-template <typename T> class imatrix;
-
-template <typename T1, typename T2, size_t M, size_t N, size_t K>
+template <size_t TM, size_t TN, size_t TK, typename T1, typename T2, size_t M,
+          size_t N, size_t K>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                      big_matrix<T2, K, N> &B) {
   size_t NDRangeM = M / TM;
@@ -45,7 +42,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
-  size_t sg_size = get_sg_size<class imatrix<T2>>(q);
+  size_t sg_size = get_sg_size<class imatrix<T2, TM, TN, TK>>(q);
   std::cout << "subgroup size " << sg_size << " ";
 
   q.submit([&](handler &cgh) {
@@ -53,7 +50,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
      auto accA = bufA.template get_access<access::mode::read_write>(cgh);
      auto accB = bufB.template get_access<access::mode::read_write>(cgh);
 
-     cgh.parallel_for<class imatrix<T2>>(
+     cgh.parallel_for<class imatrix<T2, TM, TN, TK>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
@@ -100,10 +97,13 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
    }).wait();
 }
 
-template <typename T> void test() {
+template <typename T, size_t TM, size_t TN, size_t TK> void test() {
+  std::cout << TM << "x" << TN << "x" << TK << " ";
+
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
+
   T A[MATRIX_K][MATRIX_M];
   T B[MATRIX_N][MATRIX_K];
   float C[MATRIX_M][MATRIX_N];
@@ -120,7 +120,7 @@ template <typename T> void test() {
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
   big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
   big_matrix<T, MATRIX_K, MATRIX_N> MB((T *)&B);
-  matrix_multiply(MC, MA, MB);
+  matrix_multiply<TM, TN, TK>(MC, MA, MB);
   matrix_multiply_ref((T *)A, (T *)B, (float *)D, MATRIX_M, MATRIX_N, MATRIX_K,
                       false, true, true);
 
@@ -138,13 +138,27 @@ int main() {
   for (auto &combination : combinations) {
     if (!bf16_run && combination.atype == matrix_type::bf16) {
       std::cout << "bf16 ";
-      test<bfloat16>();
+      test<bfloat16, 8, 16, 16>();
+#ifdef BIG_SHAPES
+      test<bfloat16, 16, 16, 16>();
+      test<bfloat16, 1, 64, 16>();
+      test<bfloat16, 1, 64, 32>();
+      test<bfloat16, 32, 64, 16>();
+      test<bfloat16, 32, 64, 32>();
+#endif
       bf16_run = true;
     }
 
     if (!half_run && combination.atype == matrix_type::fp16) {
       std::cout << "half ";
-      test<half>();
+      test<half, 8, 16, 16>();
+#ifdef BIG_SHAPES
+      test<half, 16, 16, 16>();
+      test<half, 1, 64, 16>();
+      test<half, 1, 64, 32>();
+      test<half, 32, 64, 16>();
+      test<half, 32, 64, 32>();
+#endif
       half_run = true;
     }
 
