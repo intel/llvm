@@ -30,20 +30,11 @@ constexpr uptr DG2_DEVICE_USM_MASK = 0xffff'0000'0000'0000ULL;
 constexpr uptr DG2_DEVICE_USM_BEGIN = 0xffff'8000'0000'0000ULL;
 constexpr uptr DG2_DEVICE_USM_END = 0xffff'ffff'ffff'ffffULL;
 
-const __SYCL_CONSTANT__ char __msan_print_warning_return[] =
-    "[kernel] !!! msan warning return\n";
-
 const __SYCL_CONSTANT__ char __msan_print_shadow[] =
     "[kernel] __msan_get_shadow(addr=%p, as=%d) = %p: %02X\n";
 
-const __SYCL_CONSTANT__ char __msan_print_warning_nolaunchinfo[] =
-    "[kernel] !!! __mem_warning_nolaunchinfo\n";
-
 const __SYCL_CONSTANT__ char __msan_print_launchinfo[] =
     "[kernel] !!! launchinfo %p (GlobalShadow=%p)\n";
-
-const __SYCL_CONSTANT__ char __msan_print_report[] =
-    "[kernel] %d bytes uninitialized at kernel %s\n";
 
 const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
@@ -51,11 +42,9 @@ const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
 const __SYCL_CONSTANT__ char __msan_print_generic_to[] =
     "[kernel] %p(4) - %p(%d)\n";
 
-__SYCL_CONSTANT__ const char __mem_func_beg[] =
-    "[kernel] ===== %s() begin\n";
+const __SYCL_CONSTANT__ char __msan_print_func_beg[] = "[kernel] ===== %s() begin\n";
 
-__SYCL_CONSTANT__ const char __mem_func_end[] =
-    "[kernel] ===== %s() end\n";
+const __SYCL_CONSTANT__ char __msan_print_func_end[] = "[kernel] ===== %s() end\n";
 
 } // namespace
 
@@ -280,7 +269,7 @@ static __SYCL_CONSTANT__ const char __mem_memset[] =
   DEVICE_EXTERN_C_NOINLINE                                                     \
   __attribute__((address_space(as))) void *__msan_memset_p##as(                \
       __attribute__((address_space(as))) char *dest, int val, size_t size) {   \
-    MSAN_DEBUG(__spirv_ocl_printf(__mem_func_beg, "__msan_memset"));           \
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_memset"));           \
     uptr shadow = __msan_get_shadow((uptr)dest, as);                           \
     for (size_t i = 0; i < size; i++) {                                        \
       dest[i] = val;                                                           \
@@ -288,7 +277,7 @@ static __SYCL_CONSTANT__ const char __mem_memset[] =
     }                                                                          \
     MSAN_DEBUG(                                                                \
         __spirv_ocl_printf(__mem_memset, dest, shadow, shadow + size - 1));    \
-    MSAN_DEBUG(__spirv_ocl_printf(__mem_func_end, "__msan_memset"));           \
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_memset"));           \
     return dest;                                                               \
   }
 
@@ -376,7 +365,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_set_shadow_static_local(uptr ptr,
       return;
 
     MSAN_DEBUG(
-        __spirv_ocl_printf(__mem_func_beg, "__msan_set_shadow_static_local"));
+        __spirv_ocl_printf(__msan_print_func_beg, "__msan_set_shadow_static_local"));
 
     auto shadow_address = __msan_get_shadow(ptr, ADDRESS_SPACE_LOCAL);
     if (shadow_address == GetMsanLaunchInfo->CleanShadow)
@@ -389,7 +378,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_set_shadow_static_local(uptr ptr,
     MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
                                   shadow_address + size, 0xff));
     MSAN_DEBUG(
-        __spirv_ocl_printf(__mem_func_end, "__msan_set_shadow_static_local"));
+        __spirv_ocl_printf(__msan_print_func_end, "__msan_set_shadow_static_local"));
   }
 }
 
@@ -402,7 +391,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_shadow_static_local(uptr ptr,
     if (!GetMsanLaunchInfo)
       return;
 
-    MSAN_DEBUG(__spirv_ocl_printf(__mem_func_beg,
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
                                   "__msan_unpoison_shadow_static_local"));
 
     auto shadow_address = __msan_get_shadow(ptr, ADDRESS_SPACE_LOCAL);
@@ -415,7 +404,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_shadow_static_local(uptr ptr,
 
     MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
                                   shadow_address + size, 0));
-    MSAN_DEBUG(__spirv_ocl_printf(__mem_func_end,
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
                                   "__msan_unpoison_shadow_static_local"));
   }
 }
