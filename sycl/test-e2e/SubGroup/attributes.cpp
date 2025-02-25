@@ -1,10 +1,11 @@
-// TODO: Despite using a supported required subgroup size compile_sub_group_size
-// reports as 0 on cuda and hip
-// XFAIL: target-nvidia || target-amd
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14357
+// RUN: %if (!target-nvidia && !target-amd) %{ %{build} -fsycl-device-code-split=per_kernel -o %t_non_gpu.out %}
+// RUN: %if target-nvidia %{ %{build} -fsycl-device-code-split=per_kernel -DBUILD_FOR_CUDA -o %t_cuda.out %}
+// RUN: %if target-amd %{ %{build} -fsycl-device-code-split=per_kernel -DBUILD_FOR_HIP -o %t_hip.out %}
 
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %{run} %t.out
+// RUN: %if (!target-nvidia && !target-amd) %{ %{run} %t_non_gpu.out %}
+// RUN: %if target-nvidia %{ %{run} %t_cuda.out %}
+// RUN: %if target-amd %{ %{run} %t_hip.out %}
+
 //==------- attributes.cpp - SYCL sub_group attributes test ----*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -24,6 +25,32 @@
     }                                                                          \
   };
 
+// Dummy kernel, so we get the types and can keep later code straight-lined.
+#define DUMMY_KERNEL_FUNCTOR(SIZE)                                             \
+  class KernelFunctor##SIZE {                                                  \
+  public:                                                                      \
+    void operator()(sycl::nd_item<1> Item) const {                             \
+      const auto GID = Item.get_global_id();                                   \
+    }                                                                          \
+  };
+
+#ifdef BUILD_FOR_CUDA
+DUMMY_KERNEL_FUNCTOR(1);
+DUMMY_KERNEL_FUNCTOR(2);
+DUMMY_KERNEL_FUNCTOR(4);
+DUMMY_KERNEL_FUNCTOR(8);
+DUMMY_KERNEL_FUNCTOR(16);
+KERNEL_FUNCTOR_WITH_SIZE(32);
+DUMMY_KERNEL_FUNCTOR(64);
+#elif defined BUILD_FOR_HIP
+DUMMY_KERNEL_FUNCTOR(1);
+DUMMY_KERNEL_FUNCTOR(2);
+DUMMY_KERNEL_FUNCTOR(4);
+DUMMY_KERNEL_FUNCTOR(8);
+DUMMY_KERNEL_FUNCTOR(16);
+KERNEL_FUNCTOR_WITH_SIZE(32);
+DUMMY_KERNEL_FUNCTOR(64);
+#else
 KERNEL_FUNCTOR_WITH_SIZE(1);
 KERNEL_FUNCTOR_WITH_SIZE(2);
 KERNEL_FUNCTOR_WITH_SIZE(4);
@@ -31,6 +58,7 @@ KERNEL_FUNCTOR_WITH_SIZE(8);
 KERNEL_FUNCTOR_WITH_SIZE(16);
 KERNEL_FUNCTOR_WITH_SIZE(32);
 KERNEL_FUNCTOR_WITH_SIZE(64);
+#endif
 
 #undef KERNEL_FUNCTOR_WITH_SIZE
 
