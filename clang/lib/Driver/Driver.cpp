@@ -3888,8 +3888,21 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   auto resolveStaticLib = [&](StringRef LibName, bool IsStatic) -> bool {
     if (!LibName.starts_with("-l"))
       return false;
+    // Put together the library name.  For any -l<arg> type names, we create
+    // a full name as lib<arg>.<ext>.  For any -l:<arg> type names, we take the
+    // literal <arg>.
+    SmallString<128> RenderedLibName;
+    bool OverrideLinkType = false;
+    if (LibName.starts_with("-l:")) {
+      RenderedLibName = LibName.substr(3);
+      // We override the link type as passed in, as we want to treat the library
+      // in question as the name passed in.
+      OverrideLinkType = true;
+    } else
+      RenderedLibName = Twine("lib" + LibName.substr(2) + ".a").str();
+
     for (auto &LPath : LibPaths) {
-      if (!IsStatic) {
+      if (!IsStatic && !OverrideLinkType) {
         // Current linking state is dynamic.  We will first check for the
         // shared object and not pull in the static library if it is found.
         SmallString<128> SoLibName(LPath);
@@ -3899,8 +3912,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
           return false;
       }
       SmallString<128> FullName(LPath);
-      llvm::sys::path::append(FullName,
-                              Twine("lib" + LibName.substr(2) + ".a").str());
+      llvm::sys::path::append(FullName, RenderedLibName);
       if (llvm::sys::fs::exists(FullName)) {
         LibArgs.push_back(Args.MakeArgString(FullName));
         return true;

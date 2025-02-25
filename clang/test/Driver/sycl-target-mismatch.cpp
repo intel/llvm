@@ -2,6 +2,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen %S/Inputs/SYCL/liblin64.a \
 // RUN:   -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=SPIR64_GEN_DIAG
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -L%S/Inputs/SYCL -l:liblin64.a \
+// RUN:   -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=SPIR64_GEN_DIAG
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -L%S/Inputs/SYCL -llin64 \
 // RUN:   -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=SPIR64_GEN_DIAG
@@ -13,6 +16,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %S/Inputs/SYCL/liblin64.a \
 // RUN:   -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=SPIR64_DIAG
+// RUN: %clangxx -fsycl -fsycl-targets=spir64 -L%S/Inputs/SYCL -l:liblin64.a \
+// RUN:   -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=SPIR64_DIAG
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 -L%S/Inputs/SYCL -llin64 \
 // RUN:   -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=SPIR64_DIAG
@@ -20,6 +26,9 @@
 // RUN:   -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=SPIR64_DIAG
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen %S/Inputs/SYCL/liblin64.a \
+// RUN:   -Wno-sycl-target -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=SPIR64_DIAG
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -L%S/Inputs/SYCL -l:liblin64.a \
 // RUN:   -Wno-sycl-target -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=SPIR64_DIAG
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen %S/Inputs/SYCL/liblin64.a \
