@@ -4,9 +4,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15398
-
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -48,7 +45,6 @@ int main() {
 
   constexpr int ResBufSize = ENUM_SIZE;
   std::vector<int> ResBufData(ResBufSize, 0);
-
   {
     sycl::image<2> Img(Img1HostData.data(), ChanOrder, ChanType, ImgSize);
 
@@ -119,15 +115,42 @@ int main() {
 
       auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
 
-      CGH.parallel_for<class Check2>(ImgSize, [=](sycl::item<2> Item) {
+      CGH.parallel_for<class Check2_1>(ImgSize, [=](sycl::item<2> Item) {
         sycl::int2 CoordI{Item[0], Item[1]};
 
-        // CHeck that data written using image array
+        // Check data written using image array: step 1 write
         const sycl::float4 ValRef{CoordI.x(), 42, 42, CoordI.y()};
         ImgArrayAcc[CoordI.y()].write((int)CoordI.x(), ValRef);
+      });
+    });
+
+    Q.submit([&](sycl::handler &CGH) {
+      auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);
+
+      auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
+
+      CGH.parallel_for<class Check2_2>(ImgSize, [=](sycl::item<2> Item) {
+        sycl::int2 CoordI{Item[0], Item[1]};
+
+        // Check data written using image array: step 2 read
+        const sycl::float4 ValRef{CoordI.x(), 42, 42, CoordI.y()};
         auto Val = ImgAcc.read(CoordI);
 
         ResAcc[WRITE1] |= sycl::any(sycl::isnotequal(Val, ValRef));
+      });
+    });
+
+    Q.submit([&](sycl::handler &CGH) {
+      auto ImgAcc = Img.get_access<sycl::float4, SYCLWrite>(CGH);
+
+      auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
+
+      CGH.parallel_for<class Check3_1>(ImgSize, [=](sycl::item<2> Item) {
+        sycl::int2 CoordI{Item[0], Item[1]};
+
+        // Check data read using image array: step 1 write
+        const sycl::float4 ValRef{CoordI.x(), 55, 20, CoordI.y()};
+        ImgAcc.write(CoordI, ValRef);
       });
     });
 
@@ -139,12 +162,11 @@ int main() {
 
       auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
 
-      CGH.parallel_for<class Check3>(ImgSize, [=](sycl::item<2> Item) {
+      CGH.parallel_for<class Check3_2>(ImgSize, [=](sycl::item<2> Item) {
         sycl::int2 CoordI{Item[0], Item[1]};
 
-        // CHeck that data read using image array
-        const sycl::float4 ValRef{CoordI.x(), 42, 42, CoordI.y()};
-        ImgAcc.write(CoordI, ValRef);
+        // Check data read using image array: step 2 read
+        const sycl::float4 ValRef{CoordI.x(), 55, 20, CoordI.y()};
         auto Val = ImgArrayAcc[CoordI.y()].read((int)CoordI.x());
 
         ResAcc[WRITE2] |= sycl::any(sycl::isnotequal(Val, ValRef));
@@ -152,12 +174,12 @@ int main() {
     });
   }
 
-  for (const auto &Elem : ResBufData)
+  for (const auto &Elem : ResBufData) {
     if (Elem) {
       std::cout << "Failed" << std::endl;
       return 1;
     }
-
+  }
   std::cout << "Success" << std::endl;
   return 0;
 }
