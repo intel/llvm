@@ -16,38 +16,48 @@ DeviceGlobal<void *> __MsanLaunchInfo;
 #define GetMsanLaunchInfo                                                      \
   ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
 
+namespace {
+
 constexpr int MSAN_REPORT_NONE = 0;
 constexpr int MSAN_REPORT_START = 1;
 constexpr int MSAN_REPORT_FINISH = 2;
 
-constexpr uptr DEVICE_USM_MASK = 0xFF00'0000'0000'0000ULL;
+constexpr uptr PVC_DEVICE_USM_MASK = 0xff00'0000'0000'0000ULL;
+constexpr uptr PVC_DEVICE_USM_BEGIN = 0xff00'0000'0000'0000ULL;
+constexpr uptr PVC_DEVICE_USM_END = 0xff00'ffff'ffff'ffffULL;
 
-static const __SYCL_CONSTANT__ char __msan_print_warning_return[] =
+constexpr uptr DG2_DEVICE_USM_MASK = 0xffff'0000'0000'0000ULL;
+constexpr uptr DG2_DEVICE_USM_BEGIN = 0xffff'8000'0000'0000ULL;
+constexpr uptr DG2_DEVICE_USM_END = 0xffff'ffff'ffff'ffffULL;
+
+const __SYCL_CONSTANT__ char __msan_print_warning_return[] =
     "[kernel] !!! msan warning return\n";
 
-static const __SYCL_CONSTANT__ char __msan_print_shadow[] =
+const __SYCL_CONSTANT__ char __msan_print_shadow[] =
     "[kernel] __msan_get_shadow(addr=%p, as=%d) = %p: %02X\n";
 
-static const __SYCL_CONSTANT__ char __msan_print_warning_nolaunchinfo[] =
+const __SYCL_CONSTANT__ char __msan_print_warning_nolaunchinfo[] =
     "[kernel] !!! __mem_warning_nolaunchinfo\n";
 
-static const __SYCL_CONSTANT__ char __msan_print_launchinfo[] =
+const __SYCL_CONSTANT__ char __msan_print_launchinfo[] =
     "[kernel] !!! launchinfo %p (GlobalShadow=%p)\n";
 
-static const __SYCL_CONSTANT__ char __msan_print_report[] =
+const __SYCL_CONSTANT__ char __msan_print_report[] =
     "[kernel] %d bytes uninitialized at kernel %s\n";
 
-static const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
+const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
 
-static const __SYCL_CONSTANT__ char __msan_print_generic_to[] =
+const __SYCL_CONSTANT__ char __msan_print_generic_to[] =
     "[kernel] %p(4) - %p(%d)\n";
 
-static __SYCL_CONSTANT__ const char __mem_func_beg[] =
+__SYCL_CONSTANT__ const char __mem_func_beg[] =
     "[kernel] ===== %s() begin\n";
 
-static __SYCL_CONSTANT__ const char __mem_func_end[] =
+__SYCL_CONSTANT__ const char __mem_func_end[] =
     "[kernel] ===== %s() end\n";
+
+} // namespace
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
@@ -147,7 +157,7 @@ inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
     ConvertGenericPointer(addr, as);
   }
 
-  if (as != ADDRESS_SPACE_GLOBAL || !(addr & 0xffff'0000'0000'0000ULL))
+  if (as != ADDRESS_SPACE_GLOBAL || !(addr & DG2_DEVICE_USM_MASK))
     return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
         ->CleanShadow;
 
@@ -157,9 +167,9 @@ inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
   auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
                         ->GlobalShadowOffsetEnd;
   if (addr < shadow_begin) {
-    return addr + (shadow_begin - 0xffff'8000'0000'0000ULL);
+    return addr + (shadow_begin - DG2_DEVICE_USM_BEGIN);
   } else {
-    return addr - (0xffff'ffff'ffff'ffffULL - shadow_end);
+    return addr - (DG2_DEVICE_USM_END - shadow_end);
   }
 }
 
@@ -169,13 +179,13 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   }
 
   // Device USM only
-  if (as == ADDRESS_SPACE_GLOBAL && (addr & DEVICE_USM_MASK)) {
+  if (as == ADDRESS_SPACE_GLOBAL && (addr & DG2_DEVICE_USM_MASK)) {
     auto shadow_begin = GetMsanLaunchInfo->GlobalShadowOffset;
     auto shadow_end = GetMsanLaunchInfo->GlobalShadowOffsetEnd;
     if (addr < shadow_begin) {
-      return addr + (shadow_begin - 0xff00'0000'0000'0000ULL);
+      return addr + (shadow_begin - DG2_DEVICE_USM_BEGIN);
     } else {
-      return addr - (0xff00'ffff'ffff'ffffULL - shadow_end);
+      return addr - (DG2_DEVICE_USM_END - shadow_end);
     }
   } else if (as == ADDRESS_SPACE_LOCAL) {
     // The size of SLM is 128KB on PVC
@@ -249,7 +259,7 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
     shadow_ptr = __msan_get_shadow_cpu(addr);
   } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
     shadow_ptr = __msan_get_shadow_pvc(addr, as);
-  } else if (launch_info->DeviceTy == DeviceType::GPU_DG2) {
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
     shadow_ptr = __msan_get_shadow_dg2(addr, as);
   } else {
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
