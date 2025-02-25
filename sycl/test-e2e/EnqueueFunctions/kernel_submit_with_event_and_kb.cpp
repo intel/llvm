@@ -21,8 +21,8 @@ int main() {
   sycl::queue Q;
   int Memory[N] = {0};
 
-  if (!oneapiext::is_source_kernel_bundle_supported(
-          Q.get_backend(), oneapiext::source_language::opencl)) {
+  if (!Q.get_device().ext_oneapi_can_compile(
+          oneapiext::source_language::opencl)) {
     std::cout
         << "Backend does not support OpenCL C source kernel bundle extension: "
         << Q.get_backend() << std::endl;
@@ -149,9 +149,9 @@ int main() {
     {
       oneapiext::submit_with_event(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::parallel_for(
-            CGH, oneapiext::launch_config<sycl::range<1>>{sycl::range<1>{N}},
-            Kernel1D, 49, MemAcc);
+        oneapiext::parallel_for(CGH,
+                                oneapiext::launch_config{sycl::range<1>{N}},
+                                Kernel1D, 49, MemAcc);
       }).wait();
     }
   }
@@ -165,9 +165,8 @@ int main() {
     {
       oneapiext::submit_with_event(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::parallel_for(CGH,
-                                oneapiext::launch_config<sycl::range<2>>{Range},
-                                Kernel2D, 50, MemAcc);
+        oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel2D,
+                                50, MemAcc);
       }).wait();
     }
   }
@@ -181,9 +180,8 @@ int main() {
     {
       oneapiext::submit_with_event(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::parallel_for(CGH,
-                                oneapiext::launch_config<sycl::range<3>>{Range},
-                                Kernel3D, 51, MemAcc);
+        oneapiext::parallel_for(CGH, oneapiext::launch_config{Range}, Kernel3D,
+                                51, MemAcc);
       }).wait();
     }
   }
@@ -196,11 +194,10 @@ int main() {
     {
       oneapiext::submit_with_event(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::nd_launch(
-            CGH,
-            oneapiext::launch_config<sycl::nd_range<1>>{
-                sycl::nd_range<1>{sycl::range<1>{N}, sycl::range{8}}},
-            Kernel1D, 52, MemAcc);
+        oneapiext::nd_launch(CGH,
+                             oneapiext::launch_config{sycl::nd_range<1>{
+                                 sycl::range<1>{N}, sycl::range{8}}},
+                             Kernel1D, 52, MemAcc);
       }).wait();
     }
   }
@@ -215,7 +212,7 @@ int main() {
       oneapiext::submit_with_event(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
         oneapiext::nd_launch(CGH,
-                             oneapiext::launch_config<sycl::nd_range<2>>{
+                             oneapiext::launch_config{
                                  sycl::nd_range<2>{Range, sycl::range{8, 8}}},
                              Kernel2D, 53, MemAcc);
       }).wait();
@@ -231,11 +228,10 @@ int main() {
     {
       oneapiext::submit_with_event(Q, [&](sycl::handler &CGH) {
         sycl::accessor MemAcc{MemBuf, CGH, sycl::write_only};
-        oneapiext::nd_launch(
-            CGH,
-            oneapiext::launch_config<sycl::nd_range<3>>{
-                sycl::nd_range<3>{Range, sycl::range{8, 8, 8}}},
-            Kernel3D, 54, MemAcc);
+        oneapiext::nd_launch(CGH,
+                             oneapiext::launch_config{sycl::nd_range<3>{
+                                 Range, sycl::range{8, 8, 8}}},
+                             Kernel3D, 54, MemAcc);
       }).wait();
     }
   }

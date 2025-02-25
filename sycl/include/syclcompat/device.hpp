@@ -334,14 +334,63 @@ static int get_minor_version(const sycl::device &dev) {
   return minor;
 }
 
+static inline void
+has_capability_or_fail(const sycl::device &dev,
+                       const std::initializer_list<sycl::aspect> &props) {
+  for (const auto &it : props) {
+    if (dev.has(it))
+      continue;
+    switch (it) {
+    case sycl::aspect::fp64:
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "[SYCLcompat] 'double' is not supported in '" +
+                                dev.get_info<sycl::info::device::name>() +
+                                "' device");
+      break;
+    case sycl::aspect::fp16:
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "[SYCLcompat] 'half' is not supported in '" +
+                                dev.get_info<sycl::info::device::name>() +
+                                "' device");
+      break;
+    default:
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  case sycl::aspect::ASPECT:                                                   \
+    return #ASPECT;
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
+#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
+      auto getAspectNameStr = [](sycl::aspect AspectNum) -> std::string {
+        switch (AspectNum) {
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+        default:
+          return "unknown aspect";
+        }
+      };
+#undef __SYCL_ASPECT_DEPRECATED_ALIAS
+#undef __SYCL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::runtime),
+          "[SYCLcompat] '" + getAspectNameStr(it) + "' is not supported in '" +
+              dev.get_info<sycl::info::device::name>() + "' device");
+    }
+    break;
+  }
+}
+
 /// device extension
 class device_ext : public sycl::device {
 public:
   device_ext() : sycl::device(), _ctx(*this) {}
   ~device_ext() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    sycl::event::wait(_events);
-    _queues.clear();
+    try {
+      std::lock_guard<std::mutex> lock(m_mutex);
+      sycl::event::wait(_events);
+      _queues.clear();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_ext", e);
+    }
   }
   device_ext(const sycl::device &base, bool print_on_async_exceptions = false,
              bool in_order = true)
@@ -391,13 +440,16 @@ public:
     return get_device_info().get_global_mem_size();
   }
 
+  size_t get_local_mem_size() const {
+    return get_device_info().get_local_mem_size();
+  }
+
   /// Get the number of bytes of free and total memory on the SYCL device.
   /// \param [out] free_memory The number of bytes of free memory on the SYCL
   /// device.
   /// \param [out] total_memory The number of bytes of total memory on the SYCL
   /// device.
   void get_memory_info(size_t &free_memory, size_t &total_memory) const {
-#if (defined(__SYCL_COMPILER_VERSION) && __SYCL_COMPILER_VERSION >= 20221105)
     if (!has(sycl::aspect::ext_intel_free_memory)) {
       std::cerr << "[SYCLCompat] get_memory_info: ext_intel_free_memory is not "
                    "supported."
@@ -406,21 +458,16 @@ public:
     } else {
       free_memory = get_info<sycl::ext::intel::info::device::free_memory>();
     }
-#else
-    std::cerr << "[SYCLCompat] get_memory_info: ext_intel_free_memory is not "
-                 "supported."
-              << std::endl;
-    free_memory = 0;
-#if defined(_MSC_VER) && !defined(__clang__)
-#pragma message("Querying the number of bytes of free memory is not supported")
-#else
-#warning "Querying the number of bytes of free memory is not supported"
-#endif
-#endif
     total_memory = get_device_info().get_global_mem_size();
   }
 
   void get_device_info(device_info &out) const {
+    if (_dev_info) {
+      out = *_dev_info;
+      return;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     device_info prop;
     prop.set_name(get_info<sycl::info::device::name>().c_str());
 
@@ -430,15 +477,10 @@ public:
     prop.set_minor_version(minor);
 
     prop.set_max_work_item_sizes(
-#if (__SYCL_COMPILER_VERSION && __SYCL_COMPILER_VERSION < 20220902)
-        // oneAPI DPC++ compiler older than 2022/09/02, where
-        // max_work_item_sizes is an enum class element
-        get_info<sycl::info::device::max_work_item_sizes>());
-#else
-        // SYCL 2020-conformant code, max_work_item_sizes is a struct templated
-        // by an int
+        // SYCL 2020-conformant code, max_work_item_sizes is a struct
+        // templated by an int
         get_info<sycl::info::device::max_work_item_sizes<3>>());
-#endif
+
     prop.set_host_unified_memory(has(sycl::aspect::usm_host_allocations));
 
     prop.set_max_clock_frequency(
@@ -508,8 +550,8 @@ Use 64 bits as memory_bus_width default value."
     prop.set_max_nd_range_size(max_nd_range_size);
 #endif
 
-    // Estimates max register size per work group, feel free to update the value
-    // according to device properties.
+    // Estimates max register size per work group, feel free to update the
+    // value according to device properties.
     prop.set_max_register_size_per_work_group(65536);
 
     prop.set_global_mem_cache_size(
@@ -522,13 +564,16 @@ Use 64 bits as memory_bus_width default value."
     prop.set_image3d_max(get_info<sycl::info::device::image3d_max_width>(),
                          get_info<sycl::info::device::image3d_max_height>(),
                          get_info<sycl::info::device::image3d_max_height>());
+
+    _dev_info = prop;
     out = prop;
   }
 
   device_info get_device_info() const {
-    device_info prop;
-    get_device_info(prop);
-    return prop;
+    if (!_dev_info) {
+      this->get_device_info(*_dev_info);
+    }
+    return _dev_info.value();
   }
 
   void reset(bool print_on_async_exceptions = false, bool in_order = true) {
@@ -541,8 +586,11 @@ Use 64 bits as memory_bus_width default value."
     _queues.clear();
     // create new default queue
     // calls create_queue_impl since we already have a locked m_mutex
+
     _saved_queue = _default_queue =
-        create_queue_impl(print_on_async_exceptions, in_order);
+        in_order ? create_queue_impl(print_on_async_exceptions,
+                                     sycl::property::queue::in_order())
+                 : create_queue_impl(print_on_async_exceptions);
   }
 
   void set_default_queue(const sycl::queue &q) {
@@ -569,7 +617,9 @@ Use 64 bits as memory_bus_width default value."
   queue_ptr create_queue(bool print_on_async_exceptions = false,
                          bool in_order = true) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    return create_queue_impl(print_on_async_exceptions, in_order);
+    return in_order ? create_queue_impl(print_on_async_exceptions,
+                                        sycl::property::queue::in_order())
+                    : create_queue_impl(print_on_async_exceptions);
   }
   void destroy_queue(queue_ptr &queue) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -595,61 +645,20 @@ Use 64 bits as memory_bus_width default value."
   /// sycl::aspect.
   void has_capability_or_fail(
       const std::initializer_list<sycl::aspect> &props) const {
-    for (const auto &it : props) {
-      if (has(it))
-        continue;
-      switch (it) {
-      case sycl::aspect::fp64:
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "[SYCLcompat] 'double' is not supported in '" +
-                                  get_info<sycl::info::device::name>() +
-                                  "' device");
-        break;
-      case sycl::aspect::fp16:
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "[SYCLcompat] 'half' is not supported in '" +
-                                  get_info<sycl::info::device::name>() +
-                                  "' device");
-        break;
-      default:
-#define __SYCL_ASPECT(ASPECT, ID)                                              \
-  case sycl::aspect::ASPECT:                                                   \
-    return #ASPECT;
-#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
-#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
-        auto getAspectNameStr = [](sycl::aspect AspectNum) -> std::string {
-          switch (AspectNum) {
-#include <sycl/info/aspects.def>
-#include <sycl/info/aspects_deprecated.def>
-          default:
-            return "unknown aspect";
-          }
-        };
-#undef __SYCL_ASPECT_DEPRECATED_ALIAS
-#undef __SYCL_ASPECT_DEPRECATED
-#undef __SYCL_ASPECT
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "[SYCLcompat] '" + getAspectNameStr(it) +
-                                  "' is not supported in '" +
-                                  get_info<sycl::info::device::name>() +
-                                  "' device");
-      }
-      break;
-    }
+    ::syclcompat::has_capability_or_fail(*this, props);
   }
 
 private:
   /// Caller should only be done from functions where the resource \p m_mutex
   /// has been acquired.
+  template <typename... PropertiesT>
   queue_ptr create_queue_impl(bool print_on_async_exceptions = false,
-                              bool in_order = true) {
-    sycl::property_list prop = {};
-    if (in_order) {
-      prop = {sycl::property::queue::in_order()};
-    }
+                              PropertiesT... properties) {
+    sycl::property_list prop = sycl::property_list(
 #ifdef SYCLCOMPAT_PROFILING_ENABLED
-    prop.push_back(sycl::property::queue::enable_profiling());
+        sycl::property::queue::enable_profiling(),
 #endif
+        properties...);
     if (print_on_async_exceptions) {
       _queues.push_back(std::make_shared<sycl::queue>(
           _ctx, *this, detail::exception_handler, prop));
@@ -675,6 +684,7 @@ private:
   std::vector<std::shared_ptr<sycl::queue>> _queues;
   mutable std::mutex m_mutex;
   std::vector<sycl::event> _events;
+  mutable std::optional<device_info> _dev_info;
 };
 
 namespace detail {
@@ -938,4 +948,7 @@ static inline unsigned int get_device_id(const sycl::device &dev) {
   return detail::dev_mgr::instance().get_device_id(dev);
 }
 
+static inline unsigned int device_count() {
+  return detail::dev_mgr::instance().device_count();
+}
 } // namespace syclcompat

@@ -1,7 +1,9 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_mipmap
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: mipmap not currently supported on AMD
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

@@ -40,9 +40,8 @@ template <size_t... Is> struct KernelFunctorWithWGSizeProp {
   }
 };
 
-template <Variant KernelVariant, size_t... Is, typename PropertiesT,
-          typename KernelType>
-int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
+template <Variant KernelVariant, size_t... Is, typename KernelType>
+int test(queue &Queue, KernelType KernelFunc) {
   constexpr size_t Dims = sizeof...(Is);
 
   // Positive test case: Specify local size that matches required size.
@@ -52,15 +51,13 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
 
     add_node(Graph, Queue, [&](handler &CGH) {
       CGH.parallel_for<ReqdWGSizePositiveA<KernelVariant, false, Is...>>(
-          nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
-          KernelFunc);
+          nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), KernelFunc);
     });
 
 #ifdef GRAPH_E2E_RECORD_REPLAY
     Graph.begin_recording(Queue);
     Queue.parallel_for<ReqdWGSizePositiveA<KernelVariant, true, Is...>>(
-        nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
-        KernelFunc);
+        nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), KernelFunc);
     Graph.end_recording(Queue);
 #endif
 
@@ -68,19 +65,12 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
 
     Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
     Queue.wait_and_throw();
-  } catch (nd_range_error &E) {
-    std::cerr << "Test case failed: unexpected "
-                 "nd_range_error exception: "
-              << E.what() << std::endl;
-    return 1;
-  } catch (runtime_error &E) {
-    std::cerr << "Test case failed: unexpected "
-                 "runtime_error exception: "
-              << E.what() << std::endl;
+  } catch (exception &E) {
+    std::cerr << "Test case failed: unexpected exception: " << E.what()
+              << std::endl;
     return 1;
   } catch (...) {
-    std::cerr << "Test case failed: something unexpected "
-                 "has been caught"
+    std::cerr << "Test case failed: something unexpected has been caught"
               << std::endl;
     return 1;
   }
@@ -90,7 +80,7 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
   try {
     add_node(GraphN, Queue, [&](handler &CGH) {
       CGH.parallel_for<ReqdWGSizeNegativeA<KernelVariant, false, Is...>>(
-          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
+          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)),
           KernelFunc);
     });
     auto ExecGraph = GraphN.finalize();
@@ -101,26 +91,21 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
     std::cerr << "Test case ReqdWGSizeNegativeA failed: no exception has been "
                  "thrown\n";
     return 1; // We shouldn't be here, exception is expected
-  } catch (nd_range_error &E) {
-    if (std::string(E.what()).find(
+  } catch (exception &E) {
+    if (E.code() != errc::nd_range ||
+        std::string(E.what()).find(
             "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
             " doesn't match the required " +
             "work-group size specified in the program source " +
             rangeToString(range<Dims>(Is...))) == std::string::npos) {
       std::cerr
-          << "Test case ReqdWGSizeNegativeA failed: unexpected nd_range_error "
-             "exception: "
+          << "Test case ReqdWGSizeNegativeA failed: unexpected exception: "
           << E.what() << std::endl;
       return 1;
     }
-  } catch (runtime_error &E) {
-    std::cerr << "Test case ReqdWGSizeNegativeA failed: unexpected "
-                 "nd_range_error exception: "
-              << E.what() << std::endl;
-    return 1;
   } catch (...) {
-    std::cerr << "Test case ReqdWGSizeNegativeA failed: something unexpected "
-                 "has been caught"
+    std::cerr << "Test case ReqdWGSizeNegativeA failed: something "
+                 "unexpected has been caught"
               << std::endl;
     return 1;
   }
@@ -131,7 +116,7 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
     GraphN.begin_recording(Queue);
 
     Queue.parallel_for<ReqdWGSizeNegativeA<KernelVariant, true, Is...>>(
-        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
+        nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)),
         KernelFunc);
 
     GraphN.end_recording(Queue);
@@ -144,23 +129,18 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
                  "has been "
                  "thrown\n";
     return 1; // We shouldn't be here, exception is expected
-  } catch (nd_range_error &E) {
-    if (std::string(E.what()).find(
+  } catch (exception &E) {
+    if (E.code() != errc::nd_range ||
+        std::string(E.what()).find(
             "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
             " doesn't match the required " +
             "work-group size specified in the program source " +
             rangeToString(range<Dims>(Is...))) == std::string::npos) {
       std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: unexpected "
-                   "nd_range_error "
                    "exception: "
                 << E.what() << std::endl;
       return 1;
     }
-  } catch (runtime_error &E) {
-    std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: unexpected "
-                 "nd_range_error exception: "
-              << E.what() << std::endl;
-    return 1;
   } catch (...) {
     std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: something "
                  "unexpected has been caught"
@@ -173,17 +153,10 @@ int test(queue &Queue, PropertiesT Props, KernelType KernelFunc) {
 }
 
 template <size_t... Is> int test(queue &Queue) {
-  auto Props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::work_group_size<Is...>};
-  auto KernelFunction = [](auto) {};
-
-  auto EmptyProps = sycl::ext::oneapi::experimental::properties{};
   KernelFunctorWithWGSizeProp<Is...> KernelFunctor;
 
   int Res = 0;
-  Res += test<Variant::Function, Is...>(Queue, Props, KernelFunction);
-  Res += test<Variant::Functor, Is...>(Queue, EmptyProps, KernelFunctor);
-  Res += test<Variant::FunctorAndProperty, Is...>(Queue, Props, KernelFunctor);
+  Res += test<Variant::Functor, Is...>(Queue, KernelFunctor);
   return Res;
 }
 

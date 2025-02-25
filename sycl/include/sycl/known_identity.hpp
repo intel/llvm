@@ -13,7 +13,7 @@
 #include <sycl/functional.hpp>                 // for bit_and, bit_or, bit_xor
 #include <sycl/half_type.hpp>                  // for half
 #include <sycl/marray.hpp>                     // for marray
-#include <sycl/types.hpp>                      // for vec
+#include <sycl/vector.hpp>                     // for vec
 
 #include <cstddef>     // for byte, size_t
 #include <functional>  // for logical_and, logical_or
@@ -25,54 +25,48 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-template <typename T, class BinaryOperation>
-using IsPlus =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::plus<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::plus<void>>>;
+// Forward declaration for deterministic reductions.
+template <typename BinaryOperation> struct DeterministicOperatorWrapper;
+
+template <typename T, class BinaryOperation,
+          template <typename> class... KnownOperation>
+using IsKnownOp = std::bool_constant<(
+    (std::is_same_v<BinaryOperation, KnownOperation<T>> ||
+     std::is_same_v<BinaryOperation, KnownOperation<void>> ||
+     std::is_same_v<BinaryOperation,
+                    DeterministicOperatorWrapper<KnownOperation<T>>> ||
+     std::is_same_v<BinaryOperation,
+                    DeterministicOperatorWrapper<KnownOperation<void>>>) ||
+    ...)>;
 
 template <typename T, class BinaryOperation>
-using IsMultiplies =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::multiplies<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::multiplies<void>>>;
+using IsPlus = IsKnownOp<T, BinaryOperation, sycl::plus>;
 
 template <typename T, class BinaryOperation>
-using IsMinimum =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::minimum<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::minimum<void>>>;
+using IsMultiplies = IsKnownOp<T, BinaryOperation, sycl::multiplies>;
 
 template <typename T, class BinaryOperation>
-using IsMaximum =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::maximum<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::maximum<void>>>;
+using IsMinimum = IsKnownOp<T, BinaryOperation, sycl::minimum>;
 
 template <typename T, class BinaryOperation>
-using IsBitAND =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_and<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::bit_and<void>>>;
+using IsMaximum = IsKnownOp<T, BinaryOperation, sycl::maximum>;
 
 template <typename T, class BinaryOperation>
-using IsBitOR =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_or<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::bit_or<void>>>;
+using IsBitAND = IsKnownOp<T, BinaryOperation, sycl::bit_and>;
 
 template <typename T, class BinaryOperation>
-using IsBitXOR =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_xor<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::bit_xor<void>>>;
+using IsBitOR = IsKnownOp<T, BinaryOperation, sycl::bit_or>;
 
 template <typename T, class BinaryOperation>
-using IsLogicalAND = std::bool_constant<
-    std::is_same_v<BinaryOperation, std::logical_and<T>> ||
-    std::is_same_v<BinaryOperation, std::logical_and<void>> ||
-    std::is_same_v<BinaryOperation, sycl::logical_and<T>> ||
-    std::is_same_v<BinaryOperation, sycl::logical_and<void>>>;
+using IsBitXOR = IsKnownOp<T, BinaryOperation, sycl::bit_xor>;
+
+template <typename T, class BinaryOperation>
+using IsLogicalAND =
+    IsKnownOp<T, BinaryOperation, std::logical_and, sycl::logical_and>;
 
 template <typename T, class BinaryOperation>
 using IsLogicalOR =
-    std::bool_constant<std::is_same_v<BinaryOperation, std::logical_or<T>> ||
-                       std::is_same_v<BinaryOperation, std::logical_or<void>> ||
-                       std::is_same_v<BinaryOperation, sycl::logical_or<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::logical_or<void>>>;
+    IsKnownOp<T, BinaryOperation, std::logical_or, sycl::logical_or>;
 
 // Use SFINAE so that the "true" branch could be implemented in
 // include/sycl/stl_wrappers/complex that would only be available if STL's
@@ -187,7 +181,7 @@ struct known_identity_impl<
 #ifdef __SYCL_DEVICE_ONLY__
       0;
 #else
-      sycl::detail::host_half_impl::half(static_cast<uint16_t>(0));
+      sycl::detail::half_impl::CreateHostHalfRaw(static_cast<uint16_t>(0));
 #endif
 };
 
@@ -227,7 +221,7 @@ struct known_identity_impl<
 #ifdef __SYCL_DEVICE_ONLY__
       1;
 #else
-      sycl::detail::host_half_impl::half(static_cast<uint16_t>(0x3C00));
+      sycl::detail::half_impl::CreateHostHalfRaw(static_cast<uint16_t>(0x3C00));
 #endif
 };
 
@@ -264,10 +258,24 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMinimumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
+// TODO: detect -fno-honor-infinities instead of -ffast-math
+// See https://github.com/intel/llvm/issues/13813
+// This workaround is a vast improvement, but still falls short.
+// To correct it properly, we need to detect -fno-honor-infinities usage,
+// perhaps via a driver inserted macro.
+// See similar below in known_identity_impl<IsMaximumIdentityOp>
+#ifdef __FAST_MATH__
+  // -ffast-math implies -fno-honor-infinities,
+  // but neither affect ::has_infinity (which is correct behavior, if
+  // unexpected)
+  static constexpr AccumulatorT value =
+      (std::numeric_limits<AccumulatorT>::max)();
+#else
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(
       std::numeric_limits<AccumulatorT>::has_infinity
           ? std::numeric_limits<AccumulatorT>::infinity()
           : (std::numeric_limits<AccumulatorT>::max)());
+#endif
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -301,11 +309,19 @@ template <typename BinaryOperation, typename AccumulatorT>
 struct known_identity_impl<BinaryOperation, AccumulatorT,
                            std::enable_if_t<IsMaximumIdentityOp<
                                AccumulatorT, BinaryOperation>::value>> {
+// TODO: detect -fno-honor-infinities instead of -ffast-math
+// See https://github.com/intel/llvm/issues/13813
+// and comments above in known_identity_impl<IsMinimumIdentityOp>
+#ifdef __FAST_MATH__
+  static constexpr AccumulatorT value =
+      (std::numeric_limits<AccumulatorT>::lowest)();
+#else
   static constexpr AccumulatorT value = static_cast<AccumulatorT>(
       std::numeric_limits<AccumulatorT>::has_infinity
           ? static_cast<AccumulatorT>(
                 -std::numeric_limits<AccumulatorT>::infinity())
           : std::numeric_limits<AccumulatorT>::lowest());
+#endif
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)

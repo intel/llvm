@@ -24,7 +24,6 @@ add_mlir_library(MLIRTestTransforms
   TestConstantFold.cpp
   TestControlFlowSink.cpp
   TestInlining.cpp
-  TestIntRangeInference.cpp
   TestMakeIsolatedFromAbove.cpp
   ${MLIRTestTransformsPDLSrc}
 
@@ -35,8 +34,8 @@ add_mlir_library(MLIRTestTransforms
 
   DEPENDS
   ${MLIRTestTransformsPDLDep}
-
-  LINK_LIBS PUBLIC
+  )
+mlir_target_link_libraries(MLIRTestTransforms PUBLIC
   MLIRAnalysis
   MLIRFuncDialect
   MLIRInferIntRangeInterface

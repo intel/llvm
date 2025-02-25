@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: gpu-intel-pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -15,7 +15,6 @@
 
 #include <array>
 #include <cstdlib>
-#include <sycl/builtins_esimd.hpp>
 #ifdef _WIN32
 #include <malloc.h>
 #endif // _WIN32

@@ -1,10 +1,10 @@
 ; Test checks generation of device image of esimd kernel.
 
-; RUN: sycl-post-link -split=auto -split-esimd -lower-esimd -O2 -spec-const=native -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: sycl-post-link -properties -split=auto -split-esimd -lower-esimd -O2 -spec-const=native -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_1.prop -check-prefix=CHECK-PROP
 ; RUN: FileCheck %s -input-file=%t_esimd_1.prop -check-prefix=CHECK-ESIMD-PROP
-; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -split=auto -split-esimd -lower-esimd -O2 -spec-const=native %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst -split=auto -split-esimd -lower-esimd -O2 -spec-const=native %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 
 ; CHECK-TABLE: {{.*}}_esimd_0.bc|{{.*}}_esimd_0.prop
 ; CHECK-TABLE: {{.*}}_0.bc|{{.*}}_0.prop

@@ -46,7 +46,7 @@ A new aspect, ext\_intel\_device\_id, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_device\_id.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_device_id`.
 
 ## Example Usage ##
 
@@ -62,7 +62,7 @@ The device ID can be obtained using the standard get\_info() interface.
 
 A new device descriptor will be added which will provide the device Universal Unique ID (UUID).
 
-This new device descriptor is currently only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior would be to expose the UUIDs of all supported devices which enables detection of total number of unique devices.
+The DPC++ default behavior would be to expose the UUIDs of all supported devices which enables detection of total number of unique devices.
 
 
 ## Version ##
@@ -83,7 +83,7 @@ A new aspect, ext\_intel\_device\_info\_uuid, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_device\_info\_uuid.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_device_info_uuid`.
 
 
 ## Example Usage ##
@@ -99,11 +99,6 @@ The UUID can be obtained using the standard get\_info() interface.
 # PCI Address #
 
 A new device descriptor will be added which will provide the PCI address in BDF format.  BDF format contains the address as: `domain:bus:device.function`.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
-
-**Note:** The environment variable SYCL\_ENABLE\_PCI must be set to 1 to obtain the PCI address.
-
 
 ## Version ##
 
@@ -123,7 +118,7 @@ A new aspect, ext\_intel\_pci\_address, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_pci\_address.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_pci_address`.
 
 
 ## Example Usage ##
@@ -139,8 +134,6 @@ The PCI address can be obtained using the standard get\_info() interface.
 # Intel GPU Execution Unit SIMD Width #
 
 A new device descriptor will be added which will provide the physical SIMD width of an execution unit on an Intel GPU.  This data will be used to calculate the computational capabilities of the device.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Version ##
@@ -162,7 +155,7 @@ A new aspect, ext\_intel\_gpu\_eu\_simd\_width, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_simd\_width.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_eu_simd_width`.
 
 ## Example Usage ##
 
@@ -179,8 +172,6 @@ The physical EU SIMD width can be obtained using the standard get\_info() interf
 A new device descriptor will be added which will provide the number of execution units on an Intel GPU.  If the device is a subdevice, then the number of EUs in the subdevice is returned.
 
 This new device descriptor will provide the same information as "max\_compute\_units" does today.  We would like to have an API which is specific for Intel GPUs.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Version ##
@@ -202,7 +193,7 @@ A new aspect, ext\_intel\_gpu\_eu\_count, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_eu_count`.
 
 ## Example Usage ##
 
@@ -238,7 +229,7 @@ A new aspect, ext\_intel\_gpu\_slices, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_slices.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_slices`.
 
 ## Example Usage ##
 
@@ -273,7 +264,7 @@ A new aspect, ext\_intel\_gpu\_subslices\_per\_slice, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_subslices\_per\_slice.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_subslices_per_slice`.
 
 ## Example Usage ##
 
@@ -308,7 +299,7 @@ A new aspect, ext\_intel\_gpu\_eu\_count\_per\_subslice, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_eu\_count\_per\_subslice.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_eu_count_per_subslice`.
 
 ## Example Usage ##
 
@@ -341,7 +332,7 @@ A new aspect, ext\_intel\_gpu\_hw\_threads\_per\_eu, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_gpu\_hw\_threads\_per\_eu.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_gpu_hw_threads_per_eu`.
 
 ## Example Usage ##
 
@@ -354,8 +345,6 @@ Then the number of hardware threads per EU can be obtained using the standard ge
 # Maximum Memory Bandwidth #
 
 A new device descriptor will be added which will provide the maximum memory bandwidth.  If the device is a subdevice, then the maximum bandwidth of the subdevice is returned.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 
 ## Version ##
@@ -377,7 +366,7 @@ A new aspect, ext\_intel\_max\_mem\_bandwidth, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_max\_mem\_bandwidth.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_max_mem_bandwidth`.
 
 
 ## Example Usage ##
@@ -391,9 +380,11 @@ Then the maximum memory bandwidth can be obtained using the standard get\_info()
 # Free Global Memory #
 
 A new device descriptor will be added which will provide the number of bytes of free global memory for the device.
-
-This new device descriptor is only available for devices in the Level Zero platform, and the matching aspect is only true for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform. NOTE: one may need to set
-ZES_ENABLE_SYSMAN=1 to fully enable this extension.
+The amount of free global memory may be affected by other processes on the
+system that are also using this device.
+Beware that when other processes or threads are using this device when this call
+is made, the value it returns may be stale even before it is returned to the
+caller.
 
 
 ## Version ##
@@ -415,7 +406,7 @@ A new aspect, ext\_intel\_free\_memory, will be added.
 
 ## Error Condition ##
 
-An invalid object runtime error will be thrown if the device does not support aspect\:\:ext\_intel\_free\_memory.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_free_memory`.
 
 
 ## Example Usage ##
@@ -431,7 +422,6 @@ Then the free device memory  can be obtained using the standard get\_info() inte
 
 A new device descriptor is added which provides the maximum clock rate of device's global memory.
 
-This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 ## Version ##
 
@@ -452,7 +442,7 @@ A new aspect, ext\_intel\_memory\_clock\_rate, is added.
 
 ## Error Condition ##
 
-An invalid object runtime error is thrown if the device does not support aspect\:\:ext\_intel\_memory\_clock\_rate.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_memory_clock_rate`.
 
 
 ## Example Usage ##
@@ -468,7 +458,6 @@ Then the memory clock rate can be obtained using the standard get\_info() interf
 
 A new device descriptor is added which provides the maximum bus width between device and memory.
 
-This new device descriptor is not available for devices in the OpenCL platform, and the matching aspect is false for those devices. The DPC++ default behavior is to expose GPU devices through the Level Zero platform.
 
 ## Version ##
 
@@ -489,7 +478,7 @@ A new aspect, ext\_intel\_memory\_bus\_width, is added.
 
 ## Error Condition ##
 
-An invalid object runtime error is thrown if the device does not support aspect\:\:ext\_intel\_memory\_bus\_width.
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_memory_bus_width`.
 
 
 ## Example Usage ##

@@ -1,11 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// Assertion `!MHostPlatform && "Plugin is not available for Host."' failed on
-// Nvidia.
-// XFAIL: hip_nvidia
 
 #include <sycl/detail/core.hpp>
+#include <sycl/sub_group.hpp>
 
 int main() {
   sycl::queue Q;

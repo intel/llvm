@@ -1,10 +1,11 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip
+// UNSUPPORTED: target-amd
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: gpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15398
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
@@ -15,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/accessor_image.hpp>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 
 #include <iostream>

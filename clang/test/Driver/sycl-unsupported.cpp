@@ -6,8 +6,6 @@
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fcf-protection
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -fcf-protection -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64_gen -DOPT=-fcf-protection
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga -fcf-protection -### %s 2>&1 \
-// RUN:  | FileCheck %s -DARCH=spir64_fpga -DOPT=-fcf-protection
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fcf-protection -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64_x86_64 -DOPT=-fcf-protection
 
@@ -35,6 +33,14 @@
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
 // RUN: %clangxx -fsycl -forder-file-instrumentation -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-forder-file-instrumentation
+// RUN: %clangxx -fsycl --coverage -### %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=--coverage \
+// RUN:    -DOPT_CC1=-coverage-notes-file \
+// RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
+// RUN: %clang_cl -fsycl --coverage -### %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=--coverage \
+// RUN:    -DOPT_CC1=-coverage-notes-file \
+// RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
 // Check to make sure our '-fsanitize=address' exception isn't triggered by a
 // different option
 // RUN: %clangxx -fsycl -fprofile-instr-generate=address -### %s 2>&1 \
@@ -49,3 +55,24 @@
 // UNSUPPORTED_OPT_DIAG: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}' [-Woption-ignored]
 // UNSUPPORTED_OPT-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "[[OPT_CC1]]{{.*}}"
 // UNSUPPORTED_OPT: clang{{.*}} "-fsycl-is-host"{{.*}} "[[OPT_CC1]]{{.*}}"
+
+// FPGA support has been removed, usage of any FPGA specific options and any
+// options that have FPGA specific arguments should emit a specific error
+// diagnostic.
+// RUN: not %clangxx -fintelfpga -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fintelfpga
+// RUN: not %clangxx -fsycl -fsycl-targets=spir64_fpga -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-targets=spir64_fpga
+// RUN: not %clangxx -fsycl -fsycl-targets=spir64_fpga-unknown-unknown -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-targets=spir64_fpga-unknown-unknown
+// RUN: not %clangxx -fintelfpga -reuse-exe=exe -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-reuse-exe=exe
+// RUN: not %clangxx -fsycl-help=fpga -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-help=fpga
+// RUN: not %clangxx -fsycl -fintelfpga -Xsycl-target-backend=spir64_fpga "-backend_opts" -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-Xsycl-target-backend=spir64_fpga
+// RUN: not %clangxx -fintelfpga -fsycl-link=early -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-link=early
+// RUN: not %clangxx -fintelfpga -fsycl-link=image -### %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix UNSUPPORTED_FPGA -DBADOPT=-fsycl-link=image
+// UNSUPPORTED_FPGA: option '[[BADOPT]]' is not supported and has been removed from the compiler. Please see the compiler documentation for more details

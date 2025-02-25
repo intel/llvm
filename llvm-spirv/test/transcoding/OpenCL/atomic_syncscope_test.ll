@@ -6,6 +6,13 @@
 ; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s -check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_EXT_shader_atomic_float_add,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s -check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.spv -r --spirv-target-env=CL2.0 -o - | llvm-dis -o %t.rev.ll
+; RUN: FileCheck < %t.rev.ll %s -check-prefix=CHECK-LLVM
+
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64"
 
@@ -37,12 +44,12 @@ target triple = "spir64"
 ; AtomicLoad ResTypeId ResId PtrId MemScopeId MemSemanticsId
 ; CHECK-SPIRV: AtomicLoad [[#]] [[#]] [[#]] [[#ConstInt2]] [[#SequentiallyConsistent]]
 ; CHECK-SPIRV: AtomicLoad [[#]] [[#]] [[#]] [[#ConstInt1]] [[#SequentiallyConsistent]]
-; CHECK-SPIRV: AtomicLoad [[#]] [[#]] [[#]] [[#ConstInt1]] [[#SequentiallyConsistent]]
+; CHECK-SPIRV: AtomicLoad [[#]] [[#]] [[#]] [[#ConstInt0]] [[#SequentiallyConsistent]]
 ; CHECK-SPIRV: AtomicLoad [[#]] [[#]] [[#]] [[#ConstInt3]] [[#SequentiallyConsistent]]
 
 ; CHECK-LLVM: call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr{{.*}}, i32 5, i32 1)
 ; CHECK-LLVM: call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr{{.*}}, i32 5, i32 2)
-; CHECK-LLVM: call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr{{.*}}, i32 5, i32 2)
+; CHECK-LLVM: call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr{{.*}}, i32 5, i32 3)
 ; CHECK-LLVM: call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr{{.*}}, i32 5, i32 4)
 
 define dso_local void @fi1(ptr addrspace(4) nocapture noundef readonly %i) local_unnamed_addr #0 {
@@ -70,13 +77,13 @@ entry:
 ; Atomic* ResTypeId ResId PtrId MemScopeId MemSemanticsId ValueId
 ; CHECK-SPIRV: AtomicAnd [[#]] [[#]] [[#]] [[#ConstInt4]] [[#SequentiallyConsistent]] [[#ConstInt1]]
 ; CHECK-SPIRV: AtomicSMin [[#]] [[#]] [[#]] [[#ConstInt0]] [[#SequentiallyConsistent]] [[#ConstInt1]]
-; CHECK-SPIRV: AtomicSMax [[#]] [[#]] [[#]] [[#ConstInt1]] [[#SequentiallyConsistent]] [[#ConstInt1]]
+; CHECK-SPIRV: AtomicSMax [[#]] [[#]] [[#]] [[#ConstInt0]] [[#SequentiallyConsistent]] [[#ConstInt1]]
 ; CHECK-SPIRV: AtomicUMin [[#]] [[#]] [[#]] [[#ConstInt2]] [[#SequentiallyConsistent]] [[#ConstInt1]]
 ; CHECK-SPIRV: AtomicUMax [[#]] [[#]] [[#]] [[#ConstInt2]] [[#SequentiallyConsistent]] [[#ConstInt1]]
 
 ; CHECK-LLVM: call spir_func i32 @_Z25atomic_fetch_and_explicitPU3AS4VU7_Atomicii12memory_order12memory_scope(ptr{{.*}}, i32 1, i32 5, i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z25atomic_fetch_min_explicitPU3AS4VU7_Atomicii12memory_order12memory_scope(ptr{{.*}}, i32 1, i32 5, i32 3)
-; CHECK-LLVM: call spir_func i32 @_Z25atomic_fetch_max_explicitPU3AS4VU7_Atomicii12memory_order12memory_scope(ptr{{.*}}, i32 1, i32 5, i32 2)
+; CHECK-LLVM: call spir_func i32 @_Z25atomic_fetch_max_explicitPU3AS4VU7_Atomicii12memory_order12memory_scope(ptr{{.*}}, i32 1, i32 5, i32 3)
 ; CHECK-LLVM: call spir_func i32 @_Z25atomic_fetch_min_explicitPU3AS4VU7_Atomicjj12memory_order12memory_scope(ptr{{.*}}, i32 1, i32 5, i32 1)
 ; CHECK-LLVM: call spir_func i32 @_Z25atomic_fetch_max_explicitPU3AS4VU7_Atomicjj12memory_order12memory_scope(ptr{{.*}}, i32 1, i32 5, i32 1)
 

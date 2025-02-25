@@ -31,6 +31,6 @@ int main() {
 
 // CHECK: [[LOCAL_OBJECTAS:%.*]] = addrspacecast ptr [[LOCAL_OBJECT]] to ptr addrspace(4)
 // CHECK: [[MEM_ARGAS:%.*]] = addrspacecast ptr [[MEM_ARG]] to ptr addrspace(4)
-// CHECK: [[L_STRUCT_ADDR:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) [[LOCAL_OBJECTAS]], i32 0, i32 0
+// CHECK: [[L_STRUCT_ADDR:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %class.anon, ptr addrspace(4) [[LOCAL_OBJECTAS]], i32 0, i32 0
 // CHECK: call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[L_STRUCT_ADDR]], ptr addrspace(4) align 4 [[MEM_ARGAS]], i64 12, i1 false)
 // CHECK: call spir_func void @{{.*}}(ptr addrspace(4) {{[^,]*}} [[LOCAL_OBJECTAS]])

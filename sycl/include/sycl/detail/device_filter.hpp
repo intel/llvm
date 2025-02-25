@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/info/info_desc.hpp>
 
@@ -18,6 +17,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+enum class backend : char;
 namespace detail {
 
 // ---------------------------------------
@@ -53,6 +53,21 @@ public:
   ods_target(backend be) { Backend = be; };
   ods_target(){};
   friend std::ostream &operator<<(std::ostream &Out, const ods_target &Target);
+
+#if __cplusplus >= 202002L
+  bool operator==(const ods_target &Other) const = default;
+#else
+  bool operator==(const ods_target &Other) const {
+    return Backend == Other.Backend && DeviceType == Other.DeviceType &&
+           HasDeviceWildCard == Other.HasDeviceWildCard &&
+           DeviceNum == Other.DeviceNum &&
+           HasSubDeviceWildCard == Other.HasSubDeviceWildCard &&
+           HasSubSubDeviceWildCard == Other.HasSubSubDeviceWildCard &&
+           SubSubDeviceNum == Other.SubSubDeviceNum &&
+           IsNegativeTarget == Other.IsNegativeTarget &&
+           MatchesSeen == Other.MatchesSeen;
+  }
+#endif
 };
 
 class ods_target_list {

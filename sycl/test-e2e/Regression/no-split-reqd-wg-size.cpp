@@ -1,7 +1,7 @@
 // This test checks that with -fsycl-device-code-split=off, kernels
 // with different reqd_work_group_size dimensions can be launched.
 
-// RUN: %{build} -fsycl -fsycl-device-code-split=off -o %t.out
+// RUN: %{build} -fsycl-device-code-split=off -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: hip

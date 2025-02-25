@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: linux
-// UNSUPPORTED: gpu-intel-dg2 || gpu-intel-pvc
+// UNSUPPORTED: gpu-intel-dg2 || arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 %{run} %t.out
-// RUN: grep enablePreemption %t.dump/*.asm
+// RUN: %{run-aux} grep enablePreemption %t.dump/*.asm
 
 // The test expects to see "enablePreemption" switch in the compilation
 // switches. It fails if does not find it.

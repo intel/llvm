@@ -8,6 +8,7 @@
 //
 // Temporarily disabled until failure is addressed.
 // UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/11852
 
 #define GRAPH_E2E_RECORD_REPLAY
 

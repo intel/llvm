@@ -44,7 +44,9 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/PluginLoader.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -130,8 +132,12 @@ static cl::opt<std::string> SplitDwarfFile(
 static cl::opt<bool> NoVerify("disable-verify", cl::Hidden,
                               cl::desc("Do not verify input module"));
 
-static cl::opt<bool> DisableSimplifyLibCalls("disable-simplify-libcalls",
-                                             cl::desc("Disable simplify-libcalls"));
+static cl::opt<bool> VerifyEach("verify-each",
+                                cl::desc("Verify after each transform"));
+
+static cl::opt<bool>
+    DisableSimplifyLibCalls("disable-simplify-libcalls",
+                            cl::desc("Disable simplify-libcalls"));
 
 static cl::opt<bool> ShowMCEncoding("show-mc-encoding", cl::Hidden,
                                     cl::desc("Show encoding in .s output"));
@@ -314,6 +320,21 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
   return FDOut;
 }
 
+std::string getMainExecutable(const char *Name) {
+  void *Ptr = (void *)(intptr_t)&getMainExecutable;
+  auto COWPath = sys::fs::getMainExecutable(Name, Ptr);
+  return sys::path::parent_path(COWPath).str();
+}
+
+Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
+  ErrorOr<std::string> Path = sys::findProgramByName(Name, Paths);
+  if (!Path)
+    Path = sys::findProgramByName(Name);
+  if (!Path)
+    return "";
+  return *Path;
+}
+
 // main - Entry point for the llc compiler.
 //
 int main(int argc, char **argv) {
@@ -335,17 +356,16 @@ int main(int argc, char **argv) {
   initializeCodeGen(*Registry);
   initializeLoopStrengthReducePass(*Registry);
   initializeLowerIntrinsicsPass(*Registry);
+  initializePostInlineEntryExitInstrumenterPass(*Registry);
   initializeUnreachableBlockElimLegacyPassPass(*Registry);
   initializeConstantHoistingLegacyPassPass(*Registry);
   initializeScalarOpts(*Registry);
   initializeVectorization(*Registry);
   initializeScalarizeMaskedMemIntrinLegacyPassPass(*Registry);
   initializeExpandReductionsPass(*Registry);
-  initializeExpandVectorPredicationPass(*Registry);
   initializeHardwareLoopsLegacyPass(*Registry);
   initializeTransformUtils(*Registry);
   initializeReplaceWithVeclibLegacyPass(*Registry);
-  initializeTLSVariableHoistLegacyPassPass(*Registry);
 
   // Initialize debugging passes.
   initializeScavengerTestPass(*Registry);
@@ -410,6 +430,27 @@ int main(int argc, char **argv) {
 
   if (RemarksFile)
     RemarksFile->keep();
+  if (StringRef(OutputFilename).ends_with(".spv")) {
+    // An external tool (spirv-val) is used to validate the generated SPIR-V
+    // code. Github page: https://github.com/KhronosGroup/SPIRV-Tools
+    // Currently, this tool exists out-of-tree and it is the user's
+    // responsibility to make it available during the compilation process.
+    // TODO: Replace the tool invocation with an API library call when the tool
+    // is made available in-tree.
+    Expected<std::string> SPIRVValPath =
+        findProgram("spirv-val", {getMainExecutable("spirv-val")});
+    if (!SPIRVValPath || *SPIRVValPath == "") {
+      WithColor::warning(errs(), argv[0]) << "spirv-val not found.\n";
+      return 0;
+    }
+    SmallVector<StringRef, 8> CmdArgs;
+    CmdArgs.push_back(*SPIRVValPath);
+    CmdArgs.push_back(OutputFilename);
+    WithColor::warning(errs(), argv[0]) << "SPIR-V validation started.\n";
+    if (sys::ExecuteAndWait(*SPIRVValPath, CmdArgs))
+      WithColor::warning(errs(), argv[0]) << "SPIR-V validation failed.\n";
+    return 0;
+  }
   return 0;
 }
 
@@ -546,7 +587,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
       TheTarget =
           TargetRegistry::lookupTarget(codegen::getMArch(), TheTriple, Error);
       if (!TheTarget) {
-        WithColor::error(errs(), argv[0]) << Error;
+        WithColor::error(errs(), argv[0]) << Error << "\n";
         exit(1);
       }
 
@@ -589,7 +630,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
     TheTarget =
         TargetRegistry::lookupTarget(codegen::getMArch(), TheTriple, Error);
     if (!TheTarget) {
-      WithColor::error(errs(), argv[0]) << Error;
+      WithColor::error(errs(), argv[0]) << Error << "\n";
       return 1;
     }
 
@@ -615,6 +656,10 @@ static int compileModule(char **argv, LLVMContext &Context) {
 
   // Ensure the filename is passed down to CodeViewDebug.
   Target->Options.ObjectFilenameForDebug = Out->outputFilename();
+
+  // Tell target that this tool is not necessarily used with argument ABI
+  // compliance (i.e. narrow integer argument extensions).
+  Target->Options.VerifyArgABICompliance = 0;
 
   std::unique_ptr<ToolOutputFile> DwoOut;
   if (!SplitDwarfOutputFile.empty()) {
@@ -646,10 +691,16 @@ static int compileModule(char **argv, LLVMContext &Context) {
     WithColor::warning(errs(), argv[0])
         << ": warning: ignoring -mc-relax-all because filetype != obj";
 
+  VerifierKind VK = VerifierKind::InputOutput;
+  if (NoVerify)
+    VK = VerifierKind::None;
+  else if (VerifyEach)
+    VK = VerifierKind::EachPass;
+
   if (EnableNewPassManager || !PassPipeline.empty()) {
     return compileModuleWithNewPM(argv[0], std::move(M), std::move(MIR),
                                   std::move(Target), std::move(Out),
-                                  std::move(DwoOut), Context, TLII, NoVerify,
+                                  std::move(DwoOut), Context, TLII, VK,
                                   PassPipeline, codegen::getFileType());
   }
 
@@ -672,9 +723,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
     }
 
     const char *argv0 = argv[0];
-    LLVMTargetMachine &LLVMTM = static_cast<LLVMTargetMachine &>(*Target);
     MachineModuleInfoWrapperPass *MMIWP =
-        new MachineModuleInfoWrapperPass(&LLVMTM);
+        new MachineModuleInfoWrapperPass(Target.get());
 
     // Construct a custom pass pipeline that starts after instruction
     // selection.
@@ -685,7 +735,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
         delete MMIWP;
         return 1;
       }
-      TargetPassConfig *PTPC = LLVMTM.createPassConfig(PM);
+      TargetPassConfig *PTPC = Target->createPassConfig(PM);
       TargetPassConfig &TPC = *PTPC;
       if (TPC.hasLimitedCodeGenPipeline()) {
         WithColor::warning(errs(), argv[0])
@@ -713,7 +763,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
       reportError("target does not support generation of this file type");
     }
 
-    const_cast<TargetLoweringObjectFile *>(LLVMTM.getObjFileLowering())
+    const_cast<TargetLoweringObjectFile *>(Target->getObjFileLowering())
         ->Initialize(MMIWP->getMMI().getContext(), *Target);
     if (MIR) {
       assert(MMIWP && "Forgot to create MMIWP?");

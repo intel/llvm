@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
@@ -16,7 +16,8 @@
 int main(int argc, const char *argv[]) {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto Dev = Q.get_device();
-  std::cout << "Running on " << Dev.get_info<info::device::name>() << std::endl;
+  std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
+            << std::endl;
 
   bool Print = argc > 1 && std::string(argv[1]) == "-debug";
   bool Passed = true;

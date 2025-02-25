@@ -14,9 +14,13 @@ on:
   schedule:
     - cron: '0 0 * * *'
 
+permissions: read-all
+
 jobs:
   run:
-    runs-on: ubuntu-20.04
+    permissions:
+      issues: write 
+    runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPO: ${{ github.repository }}
@@ -35,7 +39,7 @@ jobs:
 
     - name: Filter issues and ping
       run: |
-          days_to_stale=60
+          days_to_stale=90
           current_time=$(date +%s)
 
           cat issues.json | jq -c '.[]' | while read -r issue; do

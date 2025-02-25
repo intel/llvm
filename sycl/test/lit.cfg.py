@@ -116,6 +116,7 @@ config.substitutions.append(("%cuda_toolkit_include", config.cuda_toolkit_includ
 config.substitutions.append(("%sycl_tools_src_dir", config.sycl_tools_src_dir))
 config.substitutions.append(("%llvm_build_lib_dir", config.llvm_build_lib_dir))
 config.substitutions.append(("%llvm_build_bin_dir", config.llvm_build_bin_dir))
+config.substitutions.append(("%test_include_path", config.test_include_path))
 
 llvm_symbolizer = os.path.join(config.llvm_build_bin_dir, "llvm-symbolizer")
 llvm_config.with_environment("LLVM_SYMBOLIZER_PATH", llvm_symbolizer)
@@ -167,7 +168,7 @@ if "nvptx64-nvidia-cuda" in triple:
 
 if "amdgcn-amd-amdhsa" in triple:
     llvm_config.with_system_environment("ROCM_PATH")
-    config.available_features.add("hip_amd")
+    config.available_features.add("hip")
     # For AMD the specific GPU has to be specified with --offload-arch
     if not any([f.startswith("--offload-arch") for f in additional_flags]):
         # If the offload arch wasn't specified in SYCL_CLANG_EXTRA_FLAGS,

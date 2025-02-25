@@ -94,9 +94,7 @@ int main() {
   passed &= test<sycl::ext::oneapi::bfloat16>(q);
   passed &= test<ext::intel::experimental::esimd::tfloat32>(q);
 #endif
-  if (q.get_device().has(sycl::aspect::fp16) &&
-      esimd_test::isGPUDriverGE(q, esimd_test::GPUDriverOS::Windows, "28454",
-                                "101.5310"))
+  if (q.get_device().has(sycl::aspect::fp16))
     passed &= test<sycl::half>(q);
   if (q.get_device().has(sycl::aspect::fp64))
     passed &= test<double>(q);

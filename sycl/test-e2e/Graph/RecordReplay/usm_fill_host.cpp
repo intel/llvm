@@ -7,6 +7,9 @@
 
 // REQUIRES: aspect-usm_host_allocations
 
+// Intended - USM fill command not supported for OpenCL
+// UNSUPPORTED: opencl
+
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/usm_fill_host.cpp"

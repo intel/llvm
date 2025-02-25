@@ -9,7 +9,8 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 
 // All exported functions in math and complex device libraries are weak
 // reference. If users provide their own math or complex functions(with
@@ -24,6 +25,9 @@ double ceil(double x) { return __devicelib_ceil(x); }
 
 DEVICE_EXTERN_C_INLINE
 double copysign(double x, double y) { return __devicelib_copysign(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+double scalbln(double x, long y) { return __devicelib_scalbln(x, y); }
 
 DEVICE_EXTERN_C_INLINE
 double cospi(double x) { return __devicelib_cospi(x); }
@@ -185,6 +189,16 @@ extern "C" SYCL_EXTERNAL double __nv_rint(double);
 DEVICE_EXTERN_C_INLINE
 double rint(double x) { return __nv_rint(x); }
 #endif // __NVPTX__
+
+#ifdef __AMDGCN__
+extern "C" SYCL_EXTERNAL double __ocml_nearbyint_f64(double);
+DEVICE_EXTERN_C_INLINE
+double nearbyint(double x) { return __ocml_nearbyint_f64(x); }
+
+extern "C" SYCL_EXTERNAL double __ocml_rint_f64(double);
+DEVICE_EXTERN_C_INLINE
+double rint(double x) { return __ocml_rint_f64(x); }
+#endif // __AMDGCN__
 
 #if defined(_MSC_VER)
 #include <math.h>
@@ -390,9 +404,9 @@ short _Exp(double *px, double y,
   _Dconst _Inf = {INIT(_DMAX << _DOFF)};
   short ret = 0;
   if (*px < -HUGE_EXP || y == 0.0) // certain underflow
-    *px = 0.0;
+    *px = __spirv_ocl_copysign(0.0, y);
   else if (HUGE_EXP < *px) { // certain overflow
-    *px = _Inf._Double;
+    *px = __spirv_ocl_copysign(_Inf._Double, y);
     ret = _INFCODE;
   } else { // xexp won't overflow
     double g = *px * invln2;
@@ -493,4 +507,4 @@ double _Sinh(double x, double y) { // compute y * sinh(x), |y| <= 1
   }
 }
 #endif // defined(_WIN32)
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__

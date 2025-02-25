@@ -96,7 +96,6 @@ int main(int argc, char *argv[]) {
               auto in = vin.bit_cast_view<unsigned char, 8, 32>();
 
               simd<unsigned char, 6 * 24> vout;
-              auto out = vout.bit_cast_view<uchar, 6, 24>();
 
               simd<float, 6 * 24> vm;
               auto m = vm.bit_cast_view<float, 6, 24>();
@@ -104,8 +103,19 @@ int main(int argc, char *argv[]) {
               uint h_pos = it.get_id(0);
               uint v_pos = it.get_id(1);
 
-              in = media_block_load<unsigned char, 8, 32>(accInput, h_pos * 24,
-                                                          v_pos * 6);
+              vin = media_block_load<unsigned char, 8, 32>(accInput, h_pos * 24,
+                                                           v_pos * 6);
+              if (h_pos == range_width - 1) {
+#pragma unroll
+                for (int i = 0; i < 8; i++) {
+                  vin.select<4, 1>(i * 32 + 24) = vin.select<4, 1>(i * 32 + 20);
+                  vin.select<4, 1>(i * 32 + 28) = vin.select<4, 1>(i * 32 + 20);
+                }
+              }
+              if (v_pos == range_height - 1) {
+                vin.select<32, 1>(7 * 32) = vin.select<32, 1>(5 * 32);
+                vin.select<32, 1>(6 * 32) = vin.select<32, 1>(5 * 32);
+              }
 
               m = in.select<6, 1, 24, 1>(1, 3);
               m += in.select<6, 1, 24, 1>(0, 0);
@@ -121,7 +131,7 @@ int main(int argc, char *argv[]) {
               vout = convert<unsigned char>(vm);
 
               media_block_store<unsigned char, 6, 24>(accOutput, h_pos * 24,
-                                                      v_pos * 6, out);
+                                                      v_pos * 6, vout);
             });
       });
       e.wait();

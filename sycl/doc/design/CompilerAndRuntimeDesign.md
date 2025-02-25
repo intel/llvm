@@ -267,7 +267,7 @@ assumed, and single device compiler for this target is invoked.
 
 The option `-sycl-std` allows specifying which version of
 the SYCL standard will be used for the compilation.
-The default value for this option is `1.2.1`.
+The default value for this option is `2020`.
 
 #### Ahead of time (AOT) compilation
 
@@ -387,8 +387,8 @@ when the parent fat binary is unloaded. The registration function basically
 takes the pointer to the offload descriptor and invokes SYCL runtime library's
 registration function passing it as a parameter.
 
-The offload descriptor type hierarchy is described in the `pi.h` header. The
-top-level structure is `pi_device_binaries_struct`.
+The offload descriptor type hierarchy is described in the `compiler.hpp`
+header. The top-level structure is `sycl_device_binaries_struct`.
 
 #### Device Link
 
@@ -677,7 +677,7 @@ define void @SYCL_generated_kernel(i32 %local_ptr_offset, i32 %arg, i32 %local_p
 }
 ```
 
-On the runtime side, when setting local memory arguments, the CUDA PI
+On the runtime side, when setting local memory arguments, the CUDA UR
 implementation will internally set the argument as the offset with respect to
 the accumulated size of used local memory. This approach preserves the existing
 PI interface.
@@ -776,7 +776,7 @@ Note: Kernel naming is not fully stable for now.
 ##### Kernel Fusion Support
 
 The [experimental kernel fusion
-extension](../extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc)
+extension](../extensions/removed/sycl_ext_codeplay_kernel_fusion.asciidoc)
 also supports the CUDA and HIP backends. However, as the CUBIN, PTX and AMD assembly
 are not suitable input formats for the [kernel fusion JIT compiler](KernelFusionJIT.md), a
 suitable IR has to be added as an additional device binary.
@@ -797,7 +797,7 @@ For the HIP backend, the resulting fused kernel is compiled to an AMDGCN binary
 by the kernel fusion JIT compiler at runtime, however this output requires
 finalization by `lld`. Rather than adding another dependancy to the fusion jit,
 a `Requires finalization` property is added the binary. The HIP
-PI plugin/UR adapter will then use the AMD Compiler Object Manager library
+UR adapter will then use the AMD Compiler Object Manager library
 (`comgr`, part of the ROCm package) in order to finalize it into
 a loadable format.
 

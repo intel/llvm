@@ -40,20 +40,10 @@ template <unsigned int N> constexpr unsigned int getNextPowerOf2() {
 }
 template <> constexpr unsigned int getNextPowerOf2<0>() { return 0; }
 
-// Compute the data size for 2d block load or store.
-template <typename T, int NBlocks, int Height, int Width, bool Transposed,
-          bool Transformed>
-constexpr int get_lsc_block_2d_data_size() {
-  if (Transformed)
-    return roundUpNextMultiple<Height, 4 / sizeof(T)>() *
-           getNextPowerOf2<Width>() * NBlocks;
-  return Width * Height * NBlocks;
-}
-
 template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           int BlockWidth, int BlockHeight = 1,
-          int N = get_lsc_block_2d_data_size<T, 1u, BlockHeight, BlockWidth,
-                                             false, false>(),
+          int N = __ESIMD_DNS::get_lsc_block_2d_data_size<
+              T, 1u, BlockHeight, BlockWidth, false, false>(),
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none>
 bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
           int X, int Y) {

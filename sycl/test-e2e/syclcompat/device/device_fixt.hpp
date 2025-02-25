@@ -32,7 +32,7 @@ protected:
 
 public:
   DeviceTestsFixt()
-      : n_devices{syclcompat::detail::dev_mgr::instance().device_count()},
+      : n_devices{syclcompat::device_count()},
         def_q_{syclcompat::get_default_queue()} {}
 
   unsigned int get_n_devices() { return n_devices; }

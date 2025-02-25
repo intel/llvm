@@ -1,6 +1,6 @@
 ; Test checks generation of device images for splitted kernels.
 
-; RUN: sycl-post-link -split=kernel -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: sycl-post-link -properties -split=kernel -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE
 ; RUN: cat %t_0.prop | FileCheck %s -check-prefix=CHECK-PROP0
 ; RUN: cat %t_1.prop | FileCheck %s -check-prefix=CHECK-PROP1

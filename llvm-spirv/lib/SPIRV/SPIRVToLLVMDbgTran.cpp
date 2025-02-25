@@ -51,7 +51,6 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 
-using namespace std;
 using namespace SPIRVDebug::Operand;
 
 namespace SPIRV {
@@ -153,8 +152,10 @@ SPIRVToLLVMDbgTran::getStringSourceContinued(const SPIRVId Id,
 }
 
 void SPIRVToLLVMDbgTran::transDbgInfo(const SPIRVValue *SV, Value *V) {
-  // A constant sampler does not have a corresponding SPIRVInstruction.
-  if (SV->getOpCode() == OpConstantSampler)
+  // Constant samplers and composites do not have a corresponding
+  // SPIRVInstruction, but they may be mapped to an LLVM Instruction.
+  if (SV->getOpCode() == OpConstantSampler ||
+      SV->getOpCode() == OpConstantComposite)
     return;
 
   if (Instruction *I = dyn_cast<Instruction>(V)) {
@@ -329,7 +330,7 @@ DIType *SPIRVToLLVMDbgTran::transTypePointer(const SPIRVExtInst *DebugInst) {
         PointeeTy, BM->getAddressingModel() * 32, 0, AS);
 
   if (Flags & SPIRVDebug::FlagIsObjectPointer)
-    Ty = getDIBuilder(DebugInst).createObjectPointerType(Ty);
+    Ty = getDIBuilder(DebugInst).createObjectPointerType(Ty, /*Implicit=*/true);
   else if (Flags & SPIRVDebug::FlagIsArtificial)
     Ty = getDIBuilder(DebugInst).createArtificialType(Ty);
 
@@ -420,7 +421,7 @@ SPIRVToLLVMDbgTran::transTypeArrayNonSemantic(const SPIRVExtInst *DebugInst) {
   if (DebugInst->getExtOp() == SPIRVDebug::TypeArray) {
     for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
       auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
-      if (auto *Count = SR->getCount().get<ConstantInt *>())
+      if (auto *Count = cast<ConstantInt *>(SR->getCount()))
         TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
       Subscripts.push_back(SR);
     }
@@ -443,7 +444,7 @@ SPIRVToLLVMDbgTran::transTypeArrayDynamic(const SPIRVExtInst *DebugInst) {
   SmallVector<llvm::Metadata *, 8> Subscripts;
   for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
     auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
-    if (auto *Count = SR->getCount().get<ConstantInt *>())
+    if (auto *Count = cast<ConstantInt *>(SR->getCount()))
       TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
     Subscripts.push_back(SR);
   }
@@ -484,15 +485,13 @@ SPIRVToLLVMDbgTran::transTypeVector(const SPIRVExtInst *DebugInst) {
       transNonNullDebugType(BM->get<SPIRVExtInst>(Ops[BaseTypeIdx]));
   SPIRVWord Count = getConstantValueOrLiteral(Ops, ComponentCountIdx,
                                               DebugInst->getExtSetKind());
-  // FIXME: The current design of SPIR-V Debug Info doesn't provide a field
-  // for the derived memory size. Meanwhile, OpenCL/SYCL 3-element vectors
-  // occupy the same amount of memory as 4-element vectors, hence the simple
-  // elem_count * elem_size formula fails in this edge case.
-  // Once the specification is updated to reflect the whole memory block's
-  // size in SPIR-V, the calculations below must be replaced with a simple
-  // translation of the known size.
-  SPIRVWord SizeCount = (Count == 3) ? 4 : Count;
-  uint64_t Size = getDerivedSizeInBits(BaseTy) * SizeCount;
+  // Round up to a power of two.
+  // OpenCL/SYCL 3-element vectors
+  // occupy the same amount of memory as 4-element vectors
+  // Clang rounds up the memory size of vectors to a power of 2.
+  // Vulkan allows vec3 to have a memory size of 12, but in RenderDoc memory
+  // size is not derived from debug info.
+  uint64_t Size = getDerivedSizeInBits(BaseTy) * llvm::bit_ceil(Count);
 
   SmallVector<llvm::Metadata *, 8> Subscripts;
   Subscripts.push_back(getDIBuilder(DebugInst).getOrCreateSubrange(0, Count));
@@ -812,7 +811,7 @@ DINode *SPIRVToLLVMDbgTran::transTypeEnum(const SPIRVExtInst *DebugInst) {
       UnderlyingType = transDebugInst<DIType>(static_cast<SPIRVExtInst *>(E));
     return getDIBuilder(DebugInst).createEnumerationType(
         Scope, Name, File, LineNo, SizeInBits, AlignInBits, Enumerators,
-        UnderlyingType, 0, "", UnderlyingType);
+        UnderlyingType, 0, "", Flags & SPIRVDebug::FlagIsEnumClass);
   }
 }
 
@@ -1230,13 +1229,13 @@ DINode *SPIRVToLLVMDbgTran::transTypeInheritance(const SPIRVExtInst *DebugInst,
     OffsetIdx = NonSemantic::OffsetIdx;
     FlagsIdx = NonSemantic::FlagsIdx;
   } else {
-    OperandCount = NonSemantic::OperandCount;
+    OperandCount = OpenCL::OperandCount;
     ParentIdx = OpenCL::ParentIdx;
     OffsetIdx = OpenCL::OffsetIdx;
     FlagsIdx = OpenCL::FlagsIdx;
   }
   const SPIRVWordVec &Ops = DebugInst->getArguments();
-  assert(Ops.size() >= OperandCount && "Invalid number of operands");
+  assert(Ops.size() == OperandCount && "Invalid number of operands");
   DIType *Parent =
       transDebugInst<DIType>(BM->get<SPIRVExtInst>(Ops[ParentIdx]));
   DINode::DIFlags Flags = DINode::FlagZero;
@@ -1608,10 +1607,10 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
       if (M->IsNewDbgInfoFormat) {
-        cast<DbgVariableRecord>(DbgValIntr.get<DbgRecord *>())
+        cast<DbgVariableRecord>(cast<DbgRecord *>(DbgValIntr))
             ->setRawLocation(AL);
       } else {
-        cast<DbgVariableIntrinsic>(DbgValIntr.get<Instruction *>())
+        cast<DbgVariableIntrinsic>(cast<Instruction *>(DbgValIntr))
             ->setRawLocation(AL);
       }
     }
@@ -1808,7 +1807,7 @@ DIBuilder &SPIRVToLLVMDbgTran::getDIBuilder(const SPIRVExtInst *DebugInst) {
   return *BuilderMap[DebugInst->getId()];
 }
 
-SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const string &FileName) {
+SPIRVToLLVMDbgTran::SplitFileName::SplitFileName(const std::string &FileName) {
   auto Loc = FileName.find_last_of("/\\");
   if (Loc != std::string::npos) {
     BaseName = FileName.substr(Loc + 1);
@@ -1837,7 +1836,7 @@ SPIRVToLLVMDbgTran::ParseChecksum(StringRef Text) {
   auto KindPos = Text.find(SPIRVDebug::ChecksumKindPrefx);
   if (KindPos != StringRef::npos) {
     auto ColonPos = Text.find(":", KindPos);
-    KindPos += string("//__").size();
+    KindPos += std::string("//__").size();
     auto KindStr = Text.substr(KindPos, ColonPos - KindPos);
     auto Checksum = Text.substr(ColonPos).ltrim(':');
     if (auto Kind = DIFile::getChecksumKind(KindStr)) {

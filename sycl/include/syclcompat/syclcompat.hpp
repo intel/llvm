@@ -29,7 +29,6 @@
 #include <syclcompat/id_query.hpp>
 #include <syclcompat/kernel.hpp>
 #include <syclcompat/launch.hpp>
-#include <syclcompat/launch_experimental.hpp>
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
 #include <syclcompat/util.hpp>

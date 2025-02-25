@@ -56,29 +56,26 @@ template <typename Properties>
 struct ConflictingProperties<sycl::ext::intel::experimental::grf_size_key,
                              Properties>
     : std::bool_constant<
-          ContainsProperty<
-              sycl::ext::intel::experimental::grf_size_automatic_key,
-              Properties>::value ||
-          ContainsProperty<sycl::detail::register_alloc_mode_key,
-                           Properties>::value> {};
+          Properties::template has_property<
+              sycl::ext::intel::experimental::grf_size_automatic_key>() ||
+          Properties::template has_property<
+              sycl::detail::register_alloc_mode_key>()> {};
 
 template <typename Properties>
 struct ConflictingProperties<
     sycl::ext::intel::experimental::grf_size_automatic_key, Properties>
-    : std::bool_constant<
-          ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
-                           Properties>::value ||
-          ContainsProperty<sycl::detail::register_alloc_mode_key,
-                           Properties>::value> {};
+    : std::bool_constant<Properties::template has_property<
+                             sycl::ext::intel::experimental::grf_size_key>() ||
+                         Properties::template has_property<
+                             sycl::detail::register_alloc_mode_key>()> {};
 
 template <typename Properties>
 struct ConflictingProperties<sycl::detail::register_alloc_mode_key, Properties>
     : std::bool_constant<
-          ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
-                           Properties>::value ||
-          ContainsProperty<
-              sycl::ext::intel::experimental::grf_size_automatic_key,
-              Properties>::value> {};
+          Properties::template has_property<
+              sycl::ext::intel::experimental::grf_size_key>() ||
+          Properties::template has_property<
+              sycl::ext::intel::experimental::grf_size_automatic_key>()> {};
 
 } // namespace ext::oneapi::experimental::detail
 } // namespace _V1

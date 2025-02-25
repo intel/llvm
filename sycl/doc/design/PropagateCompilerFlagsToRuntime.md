@@ -109,26 +109,26 @@ In the SYCL runtime, the device image properties can be accessed to extract the
 associated optimization level. Once the optimization level is available, it is
 converted to its equivalent frontend option string
 (`-O0`, `-O1`, `-O2`, or `-O3`). This frontend option string is passed into a
-query that is made to the plugin to identify the correct backend option. This
+query that is made to the adapter to identify the correct backend option. This
 backend option is added to the existing list of compiler options and is sent to
 the backend.
 
-### Changes to the plugin
+### Changes to the adapter
 
-A new plugin API has been added. It takes the frontend option string as input in
-string format and returns `pi_result`. A string format is used for sending the
-frontend option so that this API can be used for querying other frontend
-options as well. The signature of this API is as follows:
+A new unified runtime API has been added. It takes the frontend option string
+as input in string format and returns `ur_result_t`. A string format is used
+for sending the frontend option so that this API can be used for querying other
+frontend options as well. The signature of this API is as follows:
 
 ```C++
-pi_result piPluginGetBackendOption(pi_platform platform,
-                                   const char *frontend_option,
-                                   const char **backend_option);
+ur_result_t urPlatformGetBackendOption(ur_platform_handle_t hPlatform,
+                                       const char *pFrontendOption,
+                                       const char **ppPlatformOption);
 ```
 
-In the level-zero and OpenCL plugins, the table provided in the 'Requirements'
+In the level-zero and OpenCL adapters, the table provided in the 'Requirements'
 section is used as a guide to identify the appropriate backend option.
-The option is returned in `backend_option`. For other plugins (HIP, cuda),
-empty string is returned. This API returns `PI_SUCCESS` for
+The option is returned in `ppPlatformOption`. For other adapters (HIP, cuda),
+empty string is returned. This API returns `UR_RESULT_SUCCESS` for
 valid inputs (frontend_option != ""). For invalid inputs, it returns
-`PI_ERROR_INVALID_VALUE`.
+`UR_RESULT_ERROR_INVALID_VALUE`.

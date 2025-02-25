@@ -154,8 +154,7 @@ Value *GenericToNVVM::remapConstant(Module *M, Function *F, Constant *C,
     if (I != GVMap.end()) {
       GlobalVariable *GV = I->second;
       NewValue = Builder.CreateAddrSpaceCast(
-          GV,
-          PointerType::get(GV->getValueType(), llvm::ADDRESS_SPACE_GENERIC));
+          GV, PointerType::get(GV->getContext(), llvm::ADDRESS_SPACE_GENERIC));
     }
   } else if (isa<ConstantAggregate>(C)) {
     // If any element in the constant vector or aggregate C is or uses a global
@@ -236,14 +235,6 @@ Value *GenericToNVVM::remapConstantExpr(Module *M, Function *F, ConstantExpr *C,
   // the converted operands.
   unsigned Opcode = C->getOpcode();
   switch (Opcode) {
-  case Instruction::ICmp:
-    // CompareConstantExpr (icmp)
-    return Builder.CreateICmp(CmpInst::Predicate(C->getPredicate()),
-                              NewOperands[0], NewOperands[1]);
-  case Instruction::FCmp:
-    // CompareConstantExpr (fcmp)
-    llvm_unreachable("Address space conversion should have no effect "
-                     "on float point CompareConstantExpr (fcmp)!");
   case Instruction::ExtractElement:
     // ExtractElementConstantExpr
     return Builder.CreateExtractElement(NewOperands[0], NewOperands[1]);

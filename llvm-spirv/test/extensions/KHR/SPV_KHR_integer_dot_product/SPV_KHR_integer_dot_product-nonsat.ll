@@ -1,7 +1,13 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: not llvm-spirv %t.bc -spirv-text -o %t.txt 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+; RUN: not llvm-spirv %t.bc -spirv-text --spirv-max-version=1.5 -o %t.txt 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-max-version=1.5 --spirv-ext=+SPV_KHR_integer_dot_product -o %t.txt
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-EXT
+; RUN: llvm-spirv --spirv-max-version=1.5 --spirv-ext=+SPV_KHR_integer_dot_product %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_KHR_integer_dot_product -o %t.txt
-; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-NOEXT
 ; RUN: llvm-spirv --spirv-ext=+SPV_KHR_integer_dot_product %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
@@ -12,11 +18,17 @@
 ; CHECK-ERROR: Feature requires the following SPIR-V extension:
 ; CHECK-ERROR-NEXT: SPV_KHR_integer_dot_product
 
-; CHECK-SPIRV: Capability DotProductInputAllKHR
-; CHECK-SPIRV: Capability DotProductInput4x8BitKHR
-; CHECK-SPIRV: Capability DotProductInput4x8BitPackedKHR
-; CHECK-SPIRV: Capability DotProductKHR
-; CHECK-SPIRV: Extension "SPV_KHR_integer_dot_product"
+; Check SPIR-V versions in a format magic number + version
+; CHECK-SPIRV-EXT: 119734787 65536
+; CHECK-SPIRV-NOEXT: 119734787 67072
+
+; CHECK-SPIRV: Int8
+; CHECK-SPIRV-DAG: Capability DotProductInput4x8BitKHR
+; CHECK-SPIRV-DAG: Capability DotProductInputAllKHR
+; CHECK-SPIRV-DAG: Capability DotProductInput4x8BitPackedKHR
+; CHECK-SPIRV-DAG: Capability DotProductKHR
+; CHECK-SPIRV-EXT: Extension "SPV_KHR_integer_dot_product"
+; CHECK-SPIRV-NOEXT-NOT: Extension "SPV_KHR_integer_dot_product"
 
 ; CHECK-SPIRV-DAG: TypeInt [[#I8:]] 8
 ; CHECK-SPIRV-DAG: TypeInt [[#I16:]] 16
@@ -32,17 +44,17 @@ target triple = "spir-unknown-unknown"
 
 ; CHECK-LLVM: call spir_func i8 @_Z21__spirv_SDotKHR_Rchariii(
 ; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_Rshortiii(
-; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_Rintiii(
+; CHECK-LLVM: call spir_func i32 @_Z20dot_4x8packed_ss_intjj(
 ; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_Rlongiii(
 
 ; CHECK-LLVM: call spir_func i8 @_Z22__spirv_UDotKHR_Ruchariii(
 ; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_Rushortiii(
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_Ruintiii(
+; CHECK-LLVM: call spir_func i32 @_Z21dot_4x8packed_uu_uintjj(
 ; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_Rulongiii(
 
 ; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SUDotKHR_Rchariii(
 ; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_Rshortiii(
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_Rintiii(
+; CHECK-LLVM: call spir_func i32 @_Z20dot_4x8packed_su_intjj(
 ; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_Rlongiii(
 
 ; CHECK-SPV-IR: call spir_func i8 @_Z21__spirv_SDotKHR_Rchariii(
@@ -100,17 +112,17 @@ define spir_kernel void @TestNonSatPacked(i32 %0, i32 %1) #0 !kernel_arg_addr_sp
 
 ; CHECK-LLVM: call spir_func i8 @_Z21__spirv_SDotKHR_RcharDv4_cS_(
 ; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv4_cS_(
-; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_RintDv4_cS_(
+; CHECK-LLVM: call spir_func i32 @_Z3dotDv4_cS_(
 ; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv4_cS_(
 
 ; CHECK-LLVM: call spir_func i8 @_Z22__spirv_UDotKHR_RucharDv4_cS_(
 ; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv4_cS_(
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv4_cS_(
+; CHECK-LLVM: call spir_func i32 @_Z3dotDv4_hS_(
 ; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv4_cS_(
 
 ; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SUDotKHR_RcharDv4_cS_(
 ; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv4_cS_(
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv4_cS_(
+; CHECK-LLVM: call spir_func i32 @_Z3dotDv4_cDv4_h(
 ; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv4_cS_(
 
 ; CHECK-SPV-IR: call spir_func i8 @_Z21__spirv_SDotKHR_RcharDv4_cS_(
@@ -167,15 +179,15 @@ define spir_kernel void @TestNonSatVec(<4 x i8> %0, <4 x i8> %1) #0 !kernel_arg_
 ; CHECK-SPIRV: Function
 
 ; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv2_sS_(
-; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_RintDv2_sS_(
+; CHECK-LLVM: call spir_func i32 @_Z3dotDv2_sS_(
 ; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv2_sS_(
 
 ; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv2_sS_(
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv2_sS_(
+; CHECK-LLVM: call spir_func i32 @_Z3dotDv2_tS_(
 ; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv2_sS_(
 
 ; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv2_sS_(
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv2_sS_(
+; CHECK-LLVM: call spir_func i32 @_Z3dotDv2_sDv2_t(
 ; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv2_sS_(
 
 ; CHECK-SPV-IR: call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv2_sS_(

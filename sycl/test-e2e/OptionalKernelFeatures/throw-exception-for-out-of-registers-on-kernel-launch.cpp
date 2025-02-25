@@ -2,6 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/12679
 
 #include <numeric>
 #include <string_view>

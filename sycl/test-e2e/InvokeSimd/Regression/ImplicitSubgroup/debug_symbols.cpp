@@ -1,5 +1,5 @@
 // Check that full compilation works:
-// RUN: %clangxx -DIMPL_SUBGROUP -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -g %S/../debug_symbols.cpp -o %t.out
+// RUN: %clangxx -DIMPL_SUBGROUP -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -g -O2 %S/../debug_symbols.cpp -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
 // VISALTO enable run

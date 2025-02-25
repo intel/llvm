@@ -105,6 +105,8 @@ class BumpPointerAllocator {
 public:
   BumpPointerAllocator()
       : BlockList(new(InitialBuffer) BlockMeta{nullptr, 0}) {}
+  BumpPointerAllocator(const BumpPointerAllocator &) = delete;
+  BumpPointerAllocator &operator=(const BumpPointerAllocator &) = delete;
 
   void *allocate(size_t N) {
     N = (N + 15u) & ~15u;

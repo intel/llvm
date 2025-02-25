@@ -1,5 +1,6 @@
 set(CMAKE_CXX_EXTENSIONS OFF)
 add_sycl_unittest(ProgramManagerTests OBJECT
+  CompileTarget.cpp
   BuildLog.cpp
   itt_annotations.cpp
   SubDevices.cpp
@@ -7,4 +8,4 @@ add_sycl_unittest(ProgramManagerTests OBJECT
 )
 
 add_subdirectory(arg_mask)
-
+add_subdirectory(DynamicLinking)

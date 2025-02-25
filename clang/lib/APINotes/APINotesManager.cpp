@@ -12,6 +12,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/LangOptions.h"
+#include "clang/Basic/Module.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/SourceMgrAdapter.h"
 #include "clang/Basic/Version.h"
@@ -373,9 +374,9 @@ APINotesManager::findAPINotes(SourceLocation Loc) {
       ++NumDirectoryCacheHits;
 
       // We've been redirected to another directory for answers. Follow it.
-      if (Known->second && Known->second.is<DirectoryEntryRef>()) {
+      if (Known->second && isa<DirectoryEntryRef>(Known->second)) {
         DirsVisited.insert(*Dir);
-        Dir = Known->second.get<DirectoryEntryRef>();
+        Dir = cast<DirectoryEntryRef>(Known->second);
         continue;
       }
 

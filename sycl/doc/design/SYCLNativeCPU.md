@@ -1,10 +1,10 @@
 # SYCL Native CPU
 
-The SYCL Native CPU flow aims at treating the host CPU as a "first class citizen", providing a SYCL implementation that targets CPUs of various different architectures, with no other dependencies than DPC++ itself, while bringing performances comparable to state-of-the-art CPU backends.
+The SYCL Native CPU flow aims at treating the host CPU as a "first class citizen", providing a SYCL implementation that targets CPUs of various different architectures, with no other dependencies than DPC++ itself, while bringing performances comparable to state-of-the-art CPU backends. SYCL Native CPU also provides some initial/experimental support for LLVM's [source-based code coverage tools](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html) (see also section [Code coverage](#code-coverage)).
 
 # Compiler and runtime options
 
-The SYCL Native CPU flow is enabled by setting `native_cpu` as a `sycl-target` (please note that currently doing so overrides any other SYCL target specified in the compiler invocation):
+The SYCL Native CPU flow is enabled by setting `native_cpu` as a `sycl-target`:
 
 ```
 clang++ -fsycl -fsycl-targets=native_cpu <input> -o <output>
@@ -28,9 +28,16 @@ clang++ <device-ir> -o <device-o>
 clang++ -L<sycl-lib-path> -lsycl <device-o> <host-o> -o <output>
 ```
 
+Note that SYCL Native CPU co-exists alongside the other SYCL targets. For example, the following command line builds SYCL code simultaneously for SYCL Native CPU and for OpenCL.
+
+```
+clang++ -fsycl -fsycl-targets=native_cpu,spir64 <input> -o <output>
+```
+The application can then run on either SYCL target by setting the DPC++ `ONEAPI_DEVICE_SELECTOR` environment variable accordingly.
+
 ## Configuring DPC++ with SYCL Native CPU
 
-SYCL Native CPU needs to be enabled explictly when configuring DPC++, using `--native_cpu`, e.g.
+SYCL Native CPU needs to be enabled explicitly when configuring DPC++, using `--native_cpu`, e.g.
 
 ```
 python buildbot/configure.py \
@@ -86,7 +93,19 @@ Whole Function Vectorization is enabled by default, and can be controlled throug
 * `-mllvm -sycl-native-cpu-no-vecz`: disable Whole Function Vectorization.
 * `-mllvm -sycl-native-cpu-vecz-width`: sets the vector width to the specified value, defaults to 8.
 
-For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Technical details[(#technical-details) section.
+For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Technical details](#technical-details) section.
+
+# Code coverage
+
+SYCL Native CPU has experimental support for LLVM's source-based [code coverage](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html). This enables coverage testing across device and host code.
+Example usage:
+
+```bash
+clang.exe -fsycl -fsycl-targets=native_cpu  -fprofile-instr-generate -fcoverage-mapping %fname% -o vector-add.exe
+.\vector-add.exe
+llvm-profdata merge -sparse default.profraw -o foo.profdata
+llvm-cov show .\vector-add.exe -instr-profile=foo.profdata
+```
 
 ## Ongoing work
 
@@ -95,7 +114,7 @@ For more details on how the Whole Function Vectorizer is integrated for SYCL Nat
 * Subgroup support
 * Performance optimizations
 
-### Please note that Windows support is temporarily disabled due to some implementation details, it will be reinstantiated soon.
+### Please note that Windows is partially supported but temporarily disabled due to some implementation details, it will be re-enabled soon.
 
 # Technical details
 
@@ -140,13 +159,13 @@ entry:
 }
 ```
 
-For the SYCL Native CPU target, the device compiler is in charge of materializing the SPIRV builtins (such as `@__spirv_BuiltInGlobalInvocationId`), so that they can be correctly updated by the runtime when executing the kernel. This is performed by the [PrepareSYCLNativeCPU pass](https://github.com/intel/llvm/blob/sycl/llvm/lib/SYCLLowerIR/PrepareSYCLNativeCPU.cpp).
+For the SYCL Native CPU target, the device compiler is in charge of materializing the SPIRV builtins (such as `@__spirv_BuiltInGlobalInvocationId`), so that they can be correctly updated by the runtime when executing the kernel. This is performed by the [PrepareSYCLNativeCPU pass](https://github.com/intel/llvm/blob/sycl/llvm/lib/SYCLNativeCPUUtils/PrepareSYCLNativeCPU.cpp).
 The PrepareSYCLNativeCPUPass also emits a `subhandler` function, which receives the kernel arguments from the SYCL runtime (packed in a vector), unpacks them, and forwards only the used ones to the actual kernel. 
 
 
 ## PrepareSYCLNativeCPU Pass
 
-This pass will add a pointer to a `nativecpu_state` struct as kernel argument to all the kernel functions, and it will replace all the uses of SPIRV builtins with the return value of appropriately defined functions, which will read the requested information from the `__nativecpu_state` struct. The `__nativecpu_state` struct and the builtin functions are defined in [native_cpu.hpp](https://github.com/intel/llvm/blob/sycl/sycl/include/sycl/detail/native_cpu.hpp).
+This pass will add a pointer to a `native_cpu::state` struct as kernel argument to all the kernel functions, and it will replace all the uses of SPIRV builtins with the return value of appropriately defined functions, which will read the requested information from the `native_cpu::state` struct. The `native_cpu::state` struct is defined in the [native_cpu UR adapter](https://github.com/oneapi-src/unified-runtime/blob/main/source/adapters/native_cpu/nativecpu_state.hpp) and the builtin functions are defined in the [native_cpu device library](https://github.com/intel/llvm/blob/sycl/libdevice/nativecpu_utils.cpp).
 
 
 The resulting IR is:
@@ -188,11 +207,11 @@ entry:
 }
 ```
 
-As you can see, the `subhandler` steals the kernel's function name, and receives two pointer arguments: the first one points to the kernel arguments from the SYCL runtime, and the second one to the `__nativecpu_state` struct.
+As you can see, the `subhandler` steals the kernel's function name, and receives two pointer arguments: the first one points to the kernel arguments from the SYCL runtime, and the second one to the `nativecpu::state` struct.
 
 ## Handling barriers 
 
-On SYCL Native CPU, calls to `__spirv_ControlBarrier` are handled using the `WorkItemLoopsPass` from the oneAPI Construction Kit. This pass handles barriers by splitting the kernel between calls calls to `__spirv_ControlBarrier`, and creating a wrapper that runs the subkernels over the local range. In order to correctly interface to the oneAPI Construction Kit pass pipeline, SPIRV builtins are converted to `mux` builtins (used by the OCK) by the `ConvertToMuxBuiltinsSYCLNativeCPUPass`.
+On SYCL Native CPU, calls to `__spirv_ControlBarrier` are handled using the `WorkItemLoopsPass` from the oneAPI Construction Kit. This pass handles barriers by splitting the kernel between calls to `__spirv_ControlBarrier`, and creating a wrapper that runs the subkernels over the local range. In order to correctly interface to the oneAPI Construction Kit pass pipeline, SPIRV builtins are defined in the device library to call the corresponding `mux` builtins (used by the OCK).
 
 ## Vectorization
 
@@ -238,7 +257,7 @@ peeling loops.
 
 ## Kernel registration
 
-In order to register the SYCL Native CPU kernels to the SYCL runtime, we applied a small change to the `clang-offload-wrapper` tool: normally, the `clang-offload-wrapper` bundles the offload binary in an LLVM-IR module. Instead of bundling the device code, for the SYCL Native CPU target we insert an array of function pointers to the `subhandler`s, and the `pi_device_binary_struct::BinaryStart` and `pi_device_binary_struct::BinaryEnd` fields, which normally point to the begin and end addresses of the offload binary, now point to the begin and end of the array.
+In order to register the SYCL Native CPU kernels to the SYCL runtime, we applied a small change to the `clang-offload-wrapper` tool: normally, the `clang-offload-wrapper` bundles the offload binary in an LLVM-IR module. Instead of bundling the device code, for the SYCL Native CPU target we insert an array of function pointers to the `subhandler`s, and the `sycl_device_binary_struct::BinaryStart` and `sycl_device_binary_struct::BinaryEnd` fields, which normally point to the begin and end addresses of the offload binary, now point to the begin and end of the array.
 
 ```
  -------------------------------------------------------

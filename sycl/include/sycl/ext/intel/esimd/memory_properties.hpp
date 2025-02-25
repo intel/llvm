@@ -77,8 +77,8 @@ public:
 // Deduction guides
 template <typename... PropertyValueTs>
 properties(PropertyValueTs... props)
-    -> properties<typename sycl::ext::oneapi::experimental::detail::Sorted<
-        PropertyValueTs...>::type>;
+    -> properties<typename sycl::ext::oneapi::experimental::detail::
+                      properties_sorter<PropertyValueTs...>::type>;
 #endif
 
 /// The 'alignment' property is used to specify the alignment of memory
@@ -238,13 +238,17 @@ template <typename PropertyListT> struct remove_alignment_property {
 };
 template <size_t Alignment, typename... LastTs>
 struct remove_alignment_property<
-    properties<std::tuple<alignment_key::value_t<Alignment>, LastTs...>>> {
-  using type = properties<std::tuple<LastTs...>>;
+    properties<oneapi::experimental::detail::properties_type_list<
+        alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type =
+      properties<oneapi::experimental::detail::properties_type_list<LastTs...>>;
 };
 template <typename FirstT, size_t Alignment, typename... LastTs>
-struct remove_alignment_property<properties<
-    std::tuple<FirstT, alignment_key::value_t<Alignment>, LastTs...>>> {
-  using type = properties<std::tuple<FirstT, LastTs...>>;
+struct remove_alignment_property<
+    properties<oneapi::experimental::detail::properties_type_list<
+        FirstT, alignment_key::value_t<Alignment>, LastTs...>>> {
+  using type = properties<
+      oneapi::experimental::detail::properties_type_list<FirstT, LastTs...>>;
 };
 template <typename PropertyListT>
 using remove_alignment_property_t =
@@ -289,30 +293,45 @@ namespace ext::oneapi::experimental {
 
 template <__ESIMD_NS::cache_hint Hint>
 struct property_value<__ESIMD_NS::cache_hint_L1_key,
-                      std::integral_constant<__ESIMD_NS::cache_hint, Hint>> {
-  using key_t = __ESIMD_NS::cache_hint_L1_key;
+                      std::integral_constant<__ESIMD_NS::cache_hint, Hint>>
+    : detail::property_base<
+          property_value<__ESIMD_NS::cache_hint_L1_key,
+                         std::integral_constant<__ESIMD_NS::cache_hint, Hint>>,
+          oneapi::experimental::detail::PropKind::ESIMDL1CacheHint,
+          __ESIMD_NS::cache_hint_L1_key> {
   static constexpr __ESIMD_NS::cache_level level = __ESIMD_NS::cache_level::L1;
   static constexpr __ESIMD_NS::cache_hint hint = Hint;
 };
 template <__ESIMD_NS::cache_hint Hint>
 struct property_value<__ESIMD_NS::cache_hint_L2_key,
-                      std::integral_constant<__ESIMD_NS::cache_hint, Hint>> {
-  using key_t = __ESIMD_NS::cache_hint_L2_key;
+                      std::integral_constant<__ESIMD_NS::cache_hint, Hint>>
+    : detail::property_base<
+          property_value<__ESIMD_NS::cache_hint_L2_key,
+                         std::integral_constant<__ESIMD_NS::cache_hint, Hint>>,
+          oneapi::experimental::detail::PropKind::ESIMDL2CacheHint,
+          __ESIMD_NS::cache_hint_L2_key> {
   static constexpr __ESIMD_NS::cache_level level = __ESIMD_NS::cache_level::L2;
   static constexpr __ESIMD_NS::cache_hint hint = Hint;
 };
 template <__ESIMD_NS::cache_hint Hint>
 struct property_value<__ESIMD_NS::cache_hint_L3_key,
-                      std::integral_constant<__ESIMD_NS::cache_hint, Hint>> {
-  using key_t = __ESIMD_NS::cache_hint_L3_key;
+                      std::integral_constant<__ESIMD_NS::cache_hint, Hint>>
+    : detail::property_base<
+          property_value<__ESIMD_NS::cache_hint_L3_key,
+                         std::integral_constant<__ESIMD_NS::cache_hint, Hint>>,
+          oneapi::experimental::detail::PropKind::ESIMDL3CacheHint,
+          __ESIMD_NS::cache_hint_L3_key> {
   static constexpr __ESIMD_NS::cache_level level = __ESIMD_NS::cache_level::L3;
   static constexpr __ESIMD_NS::cache_hint hint = Hint;
 };
 
 // Declare that esimd::properties is a property_list.
 template <typename... PropertyValueTs>
-struct is_property_list<__ESIMD_NS::properties<std::tuple<PropertyValueTs...>>>
-    : is_property_list<properties<std::tuple<PropertyValueTs...>>> {};
+struct is_property_list<__ESIMD_NS::properties<
+    oneapi::experimental::detail::properties_type_list<PropertyValueTs...>>>
+    : is_property_list<
+          properties<oneapi::experimental::detail::properties_type_list<
+              PropertyValueTs...>>> {};
 
 namespace detail {
 // We do not override the class ConflictingProperties for cache_hint properties

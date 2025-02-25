@@ -10,8 +10,7 @@
 
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
@@ -24,37 +23,31 @@ bool KernelGetGroupInfoCalled = false;
 std::array<size_t, 3> IncomingLocalSize = {0, 0, 0};
 std::array<size_t, 3> RequiredLocalSize = {0, 0, 0};
 
-static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
-                                             pi_kernel_group_info param_name,
-                                             size_t param_value_size,
-                                             void *param_value,
-                                             size_t *param_value_size_ret) {
+static ur_result_t redefinedKernelGetGroupInfo(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_group_info_params_t *>(pParams);
   KernelGetGroupInfoCalled = true;
-  if (param_name == PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE) {
-    if (param_value_size_ret) {
-      *param_value_size_ret = 3 * sizeof(size_t);
-    } else if (param_value) {
-      auto size = static_cast<size_t *>(param_value);
+  if (*params.ppropName == UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE) {
+    if (*params.ppPropSizeRet) {
+      **params.ppPropSizeRet = 3 * sizeof(size_t);
+    } else if (*params.ppPropValue) {
+      auto size = static_cast<size_t *>(*params.ppPropValue);
       size[0] = RequiredLocalSize[0];
       size[1] = RequiredLocalSize[1];
       size[2] = RequiredLocalSize[2];
     }
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
-                                              const size_t *, const size_t *,
-                                              const size_t *LocalSize,
-                                              pi_uint32, const pi_event *,
-                                              pi_event *) {
-  if (LocalSize) {
-    IncomingLocalSize[0] = LocalSize[0];
-    IncomingLocalSize[1] = LocalSize[1];
-    IncomingLocalSize[2] = LocalSize[2];
+static ur_result_t redefinedEnqueueKernelLaunch(void *pParams) {
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  if (*params.ppLocalWorkSize) {
+    IncomingLocalSize[0] = (*params.ppLocalWorkSize)[0];
+    IncomingLocalSize[1] = (*params.ppLocalWorkSize)[1];
+    IncomingLocalSize[2] = (*params.ppLocalWorkSize)[2];
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 static void reset() {
@@ -64,12 +57,12 @@ static void reset() {
 }
 
 static void performChecks() {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
-      redefinedEnqueueKernelLaunch);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piKernelGetGroupInfo>(
-      redefinedKernelGetGroupInfo);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback("urKernelGetGroupInfo",
+                                           &redefinedKernelGetGroupInfo);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};

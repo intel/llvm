@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -fsyntax-only -verify %s
 //
 // This test checks if compiler reports compilation error on an attempt to pass
 // a pointer to VLA as kernel argument

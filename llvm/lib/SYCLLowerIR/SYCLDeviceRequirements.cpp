@@ -37,11 +37,11 @@ static llvm::StringRef ExtractStringFromMDNodeOperand(const MDNode *N,
 }
 
 SYCLDeviceRequirements
-llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
+llvm::computeDeviceRequirements(const Module &M,
+                                const SetVector<Function *> &EntryPoints) {
   SYCLDeviceRequirements Reqs;
-  bool MultipleReqdWGSize = false;
   // Process all functions in the module
-  for (const Function &F : MD.getModule()) {
+  for (const Function &F : M) {
     if (auto *MDN = F.getMetadata("sycl_used_aspects")) {
       for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
         StringRef AspectName = "";
@@ -80,8 +80,6 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
             ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
       if (!Reqs.ReqdWorkGroupSize.has_value())
         Reqs.ReqdWorkGroupSize = NewReqdWorkGroupSize;
-      if (Reqs.ReqdWorkGroupSize != NewReqdWorkGroupSize)
-        MultipleReqdWGSize = true;
     }
 
     if (auto *MDN = F.getMetadata("sycl_joint_matrix")) {
@@ -98,7 +96,7 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
   }
 
   // Process just the entry points in the module
-  for (const Function *F : MD.entries()) {
+  for (const Function *F : EntryPoints) {
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       // There should only be at most one function with
       // intel_reqd_sub_group_size metadata when considering the entry
@@ -118,13 +116,6 @@ llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
     }
   }
 
-  // Usually, we would only expect one ReqdWGSize, as the module passed to
-  // this function would be split according to that. However, when splitting
-  // is disabled, this cannot be guaranteed. In this case, we reset the value,
-  // which makes so that no value is reqd_work_group_size data is attached in
-  // in the device image.
-  if (MultipleReqdWGSize)
-    Reqs.ReqdWorkGroupSize.reset();
   return Reqs;
 }
 
@@ -136,7 +127,7 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
   // SYCLDeviceRequirements has a value/is non-empty.
   std::vector<uint32_t> AspectValues;
   AspectValues.reserve(Aspects.size());
-  for (auto Aspect : Aspects)
+  for (const auto &Aspect : Aspects)
     AspectValues.push_back(Aspect.Value);
   Requirements["aspects"] = std::move(AspectValues);
 
@@ -151,7 +142,8 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
   // reqd_work_group_size_uint64_t attribute. At the next ABI-breaking
   // window, this can be changed back to reqd_work_group_size.
   if (ReqdWorkGroupSize.has_value())
-    Requirements["reqd_work_group_size_uint64_t"] = *ReqdWorkGroupSize;
+    Requirements[util::PropertySetRegistry::PROPERTY_REQD_WORK_GROUP_SIZE] =
+        *ReqdWorkGroupSize;
 
   if (JointMatrix.has_value())
     Requirements["joint_matrix"] = *JointMatrix;

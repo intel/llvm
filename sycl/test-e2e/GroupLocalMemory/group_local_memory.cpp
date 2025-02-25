@@ -1,7 +1,5 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
-//
-// XFAIL: hip_nvidia
 
 #include <sycl/detail/core.hpp>
 

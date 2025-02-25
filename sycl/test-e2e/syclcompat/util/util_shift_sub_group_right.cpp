@@ -31,7 +31,7 @@
 // ===----------------------------------------------------------------------===//
 
 // REQUIRES: sg-32
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -108,7 +108,7 @@ void test_shift_sub_group_right() {
       .wait();
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
-                          [[intel::reqd_sub_group_size(32)]] {
+                          [[sycl::reqd_sub_group_size(32)]] {
                             shift_sub_group_right1(dev_data_u, item_ct1);
                           });
 
@@ -135,12 +135,13 @@ void test_shift_sub_group_right() {
 
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
-                          [[intel::reqd_sub_group_size(32)]] {
+                          [[sycl::reqd_sub_group_size(32)]] {
                             shift_sub_group_right2(dev_data_u, item_ct1);
                           });
 
   dev_ct1.queues_wait_and_throw();
-q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int)).wait();
+  q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
   verify_data<unsigned int>(host_dev_data_u, expect2, DATA_NUM);
 
   sycl::free(dev_data, *q_ct1);

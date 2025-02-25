@@ -25,6 +25,10 @@ constexpr char GENX_KERNEL_METADATA[] = "genx.kernels";
 // sycl/ext/oneapi/experimental/invoke_simd.hpp::__builtin_invoke_simd
 // overloads instantiations:
 constexpr char INVOKE_SIMD_PREF[] = "_Z33__regcall3____builtin_invoke_simd";
+// The regexp for ESIMD intrinsics:
+// /^_Z(\d+)__esimd_\w+/
+static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
+static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
 
 bool isSlmAllocatorConstructor(const Function &F);
 bool isSlmAllocatorDestructor(const Function &F);
@@ -61,6 +65,7 @@ Type *getVectorTyOrNull(StructType *STy);
 class SimpleAllocator {
 protected:
   SmallVector<void *, 128> Ptrs;
+  SimpleAllocator &operator=(const SimpleAllocator &) = delete;
 
 public:
   void reset() {
@@ -84,6 +89,10 @@ public:
     return Ptr;
   }
 
+  SimpleAllocator() = default;
+  SimpleAllocator(const SimpleAllocator &) : SimpleAllocator() {
+    assert(false && "Unreachable");
+  }
   ~SimpleAllocator() { reset(); }
 };
 
@@ -127,6 +136,10 @@ struct UpdateUint64MetaDataToMaxValue {
 // alwaysinline attribute. The function returns true if at least one of
 // functions has changed its attribute to alwaysinline.
 bool prepareForAlwaysInliner(Module &M);
+
+// Remove mangling from an ESIMD intrinsic function.
+// Returns empty on pattern match failure.
+StringRef stripMangling(StringRef FName);
 
 } // namespace esimd
 } // namespace llvm

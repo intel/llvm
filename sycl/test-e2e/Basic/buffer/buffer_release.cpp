@@ -1,6 +1,4 @@
 // REQUIRES: cpu
-// UNSUPPORTED: windows
-//   DeferredMemory Destruction not presently supported on Windows.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

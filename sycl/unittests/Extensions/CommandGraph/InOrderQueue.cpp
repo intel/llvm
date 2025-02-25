@@ -419,7 +419,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
   experimental::command_graph<experimental::graph_state::modifiable>
       InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
 
-  // The mock plugin should return true for shared USM allocation support by
+  // The mock adapter should return true for shared USM allocation support by
   // default. If this fails it means this test needs to redefine the device info
   // query.
   ASSERT_TRUE(
@@ -497,7 +497,7 @@ TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
   experimental::command_graph<experimental::graph_state::modifiable>
       InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
 
-  // The mock plugin should return true for shared USM allocation support by
+  // The mock adapter should return true for shared USM allocation support by
   // default. If this fails it means this test needs to redefine the device info
   // query.
   ASSERT_TRUE(

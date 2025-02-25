@@ -723,7 +723,7 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       !EndLoc && !Attrs.MustProgress)
     return;
 
-  TempLoopID = MDNode::getTemporary(Header->getContext(), std::nullopt);
+  TempLoopID = MDNode::getTemporary(Header->getContext(), {});
 }
 
 void LoopInfo::finish() {
@@ -829,10 +829,11 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     const LoopHintAttr *LH = dyn_cast<LoopHintAttr>(Attr);
     const OpenCLUnrollHintAttr *OpenCLHint =
         dyn_cast<OpenCLUnrollHintAttr>(Attr);
-    const LoopUnrollHintAttr *UnrollHint = dyn_cast<LoopUnrollHintAttr>(Attr);
 
+    const LoopUnrollHintAttr *UnrollHint = dyn_cast<LoopUnrollHintAttr>(Attr);
+    const HLSLLoopHintAttr *HLSLLoopHint = dyn_cast<HLSLLoopHintAttr>(Attr);
     // Skip non loop hint attributes
-    if (!LH && !OpenCLHint && !UnrollHint) {
+    if (!LH && !OpenCLHint && !HLSLLoopHint && !UnrollHint) {
       continue;
     }
 
@@ -857,6 +858,17 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
       } else if (ValueInt != 1) {
         Option = LoopHintAttr::UnrollCount;
         State = LoopHintAttr::Numeric;
+      }
+    } else if (HLSLLoopHint) {
+      ValueInt = HLSLLoopHint->getDirective();
+      if (HLSLLoopHint->getSemanticSpelling() ==
+          HLSLLoopHintAttr::Spelling::Microsoft_unroll) {
+        if (ValueInt == 0)
+          State = LoopHintAttr::Enable;
+        if (ValueInt > 0) {
+          Option = LoopHintAttr::UnrollCount;
+          State = LoopHintAttr::Numeric;
+        }
       }
     } else if (LH) {
       auto *ValueExpr = LH->getValue();
@@ -1127,7 +1139,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // Identify loop attribute 'code_align' from Attrs.
   // For attribute code_align:
   // n - 'llvm.loop.align i32 n' metadata will be emitted.
-  if (const auto *CodeAlign = getSpecificAttr<const CodeAlignAttr>(Attrs)) {
+  if (const auto *CodeAlign = getSpecificAttr<CodeAlignAttr>(Attrs)) {
     const auto *CE = cast<ConstantExpr>(CodeAlign->getAlignment());
     llvm::APSInt ArgVal = CE->getResultAsAPSInt();
     setCodeAlign(ArgVal.getSExtValue());

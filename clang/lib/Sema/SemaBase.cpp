@@ -26,7 +26,11 @@ SemaBase::ImmediateDiagBuilder::~ImmediateDiagBuilder() {
   Clear();
 
   // Dispatch to Sema to emit the diagnostic.
-  SemaRef.EmitCurrentDiagnostic(DiagID);
+  SemaRef.EmitDiagnostic(DiagID, *this);
+}
+
+PartialDiagnostic SemaBase::PDiag(unsigned DiagID) {
+  return PartialDiagnostic(DiagID, SemaRef.Context.getDiagAllocator());
 }
 
 const SemaBase::SemaDiagnosticBuilder &
@@ -35,8 +39,9 @@ operator<<(const SemaBase::SemaDiagnosticBuilder &Diag,
   if (Diag.ImmediateDiag)
     PD.Emit(*Diag.ImmediateDiag);
   else if (Diag.PartialDiagId)
-    Diag.S.DeviceDeferredDiags[Diag.Fn][*Diag.PartialDiagId].getDiag().second =
-        PD;
+    Diag.getDeviceDeferredDiags()[Diag.Fn][*Diag.PartialDiagId]
+        .getDiag()
+        .second = PD;
   return Diag;
 }
 
@@ -45,12 +50,14 @@ void SemaBase::SemaDiagnosticBuilder::AddFixItHint(
   if (ImmediateDiag)
     ImmediateDiag->AddFixItHint(Hint);
   else if (PartialDiagId)
-    S.DeviceDeferredDiags[Fn][*PartialDiagId].getDiag().second.AddFixItHint(
+    getDeviceDeferredDiags()[Fn][*PartialDiagId].getDiag().second.AddFixItHint(
         Hint);
 }
 
 SemaBase::SemaDiagnosticBuilder::DeferredDiagnosticsType &
 SemaBase::SemaDiagnosticBuilder::getDeviceDeferredDiags() const {
+  if (S.InConstexprVarInit)
+    return S.MaybeDeviceDeferredDiags;
   return S.DeviceDeferredDiags;
 }
 

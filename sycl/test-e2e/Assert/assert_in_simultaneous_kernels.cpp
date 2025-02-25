@@ -3,11 +3,11 @@
 // UNSUPPORTED: hip || cuda
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out %threads_lib
 //
-// FIXME: Remove XFAIL one intel/llvm#11364 is resolved
 // XFAIL: (opencl && gpu)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 //
 // Since this is a multi-threaded application enable memory tracking and
-// deferred release feature in the Level Zero plugin to avoid releasing memory
+// deferred release feature in the Level Zero adapter to avoid releasing memory
 // too early. This is necessary because currently SYCL RT sets indirect access
 // flag for all kernels and the Level Zero runtime doesn't support deferred
 // release yet.

@@ -1,7 +1,6 @@
-// RUN: %{build} -o %t.out
-// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
-//
-// XFAIL: hip_nvidia
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+
 #include <cassert>
 #include <cstddef>
 #include <sycl/detail/core.hpp>
@@ -28,29 +27,23 @@ int main() {
 
   {
     // Check access mode flags
-    // CHECK: piEnqueueMemBufferMap
-    // CHECK-NEXT: :
-    // CHECK-NEXT: :
-    // CHECK-NEXT: :
-    // CHECK-NEXT: : 1
+    // CHECK: <--- urEnqueueMemBufferMap
+    // CHECK: .mapFlags = UR_MAP_FLAG_READ
     auto AccA = BufA.get_access<access::mode::read>();
     for (std::size_t I = 0; I < Size; ++I) {
       assert(AccA[I] == I);
     }
   }
   {
-    // CHECK: piEnqueueMemUnmap
-    // CHECK: piEnqueueMemBufferMap
-    // CHECK-NEXT: :
-    // CHECK-NEXT: :
-    // CHECK-NEXT: :
-    // CHECK-NEXT: : 3
+    // CHECK: <--- urEnqueueMemUnmap
+    // CHECK: <--- urEnqueueMemBufferMap
+    // CHECK: .mapFlags = UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE
     auto AccA = BufA.get_access<access::mode::write>();
     for (std::size_t I = 0; I < Size; ++I)
       AccA[I] = 2 * I;
   }
 
-  // CHECK-NOT: piEnqueueMemBufferMap
+  // CHECK-NOT: <--- urEnqueueMemBufferMap
   auto AccA = BufA.get_access<access::mode::read>();
   for (std::size_t I = 0; I < Size; ++I) {
     assert(AccA[I] == 2 * I);

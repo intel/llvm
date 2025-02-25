@@ -15,7 +15,8 @@
 #define EXTERN_C
 #endif // __cplusplus
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 #ifdef __SYCL_DEVICE_ONLY__
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((weak))
 #else // __SYCL_DEVICE_ONLY__
@@ -27,7 +28,7 @@
   DEVICE_EXTERNAL EXTERN_C __attribute__((always_inline))
 #define DEVICE_EXTERN_C_NOINLINE                                               \
   DEVICE_EXTERNAL EXTERN_C __attribute__((noinline))
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
 
 #if defined(__SPIR__) || defined(__SPIRV__) || defined(__LIBDEVICE_HOST_IMPL__)
 #define __LIBDEVICE_IMF_ENABLED__

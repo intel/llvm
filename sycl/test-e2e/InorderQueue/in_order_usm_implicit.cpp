@@ -28,7 +28,7 @@ int main() {
   {
     queue Queue{property::queue::in_order()};
 
-    const int mem_advice = PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY;
+    const int mem_advice = UR_USM_ADVICE_FLAG_SET_READ_MOSTLY;
 
     const int dataSize = 32;
     const size_t numBytes = static_cast<size_t>(dataSize) * sizeof(int);

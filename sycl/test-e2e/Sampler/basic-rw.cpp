@@ -1,5 +1,5 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip
+// UNSUPPORTED: target-amd
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -9,7 +9,7 @@
 
     Use it as a base file for testing any condition.
 
-    clang++ -fsycl -sycl-std=121 -o binx.bin basic-rw.cpp
+    clang++ -fsycl -o binx.bin basic-rw.cpp
 
     ONEAPI_DEVICE_SELECTOR=opencl:gpu ./binx.bin
     ONEAPI_DEVICE_SELECTOR=level_zero:gpu ./binx.bin

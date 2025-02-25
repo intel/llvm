@@ -1,7 +1,7 @@
 ; The idea of the test is to ensure that sycl-post-link can trace through more
 ; complex call stacks involving several nested indirect calls
 
-; RUN: sycl-post-link -split=auto -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK0 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
 ; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
@@ -23,7 +23,7 @@
 ; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
 ; RUN:     --implicit-check-not @kernel_C
 ;
-; RUN: sycl-post-link -split=source -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=source -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK0 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
 ; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
@@ -45,7 +45,7 @@
 ; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
 ; RUN:     --implicit-check-not @kernel_C
 ;
-; RUN: sycl-post-link -split=kernel -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=kernel -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK0 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
 ; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
@@ -72,12 +72,12 @@
 ; CHECK0-DAG: define spir_func void @BAZ
 
 ; CHECK1-DAG: define spir_kernel void @kernel_B
-; CHECK1-DAG: define spir_func i32 @foo
+; CHECK1-DAG: define {{.*}}spir_func i32 @foo
 ; CHECK1-DAG: define spir_func i32 @bar
 ; CHECK1-DAG: define spir_func void @BAZ
 
 ; CHECK2-DAG: define spir_kernel void @kernel_A
-; CHECK2-DAG: define spir_func void @baz
+; CHECK2-DAG: define {{.*}}spir_func void @baz
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

@@ -1,13 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: gpu && linux
 
 // SYCL runtime may construct global objects at function scope. The test ensures
 // such objects do not cause problems if the first call to SYCL is inside main
 // and the last call is in global destructor.
 
-// REQUIRES: TEMPORARY_DISABLED
 // Disable test due to flacky failures
+// UNSUPPORTED: true
 
 #include <sycl/detail/core.hpp>
 

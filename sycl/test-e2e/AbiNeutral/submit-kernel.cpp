@@ -21,7 +21,7 @@ int main() {
     event.wait_and_throw();
   } catch (const sycl::exception &ep) {
     const std::string_view err_msg(ep.what());
-    if (err_msg.find("PI_ERROR_OUT_OF_RESOURCES") != std::string::npos) {
+    if (err_msg.find("UR_RESULT_ERROR_OUT_OF_RESOURCES") != std::string::npos) {
       std::cout << "Allocation is out of device memory on the current platform."
                 << std::endl;
     } else {

@@ -94,6 +94,7 @@ private:
   bool DisableLineMarkers;
   bool DumpDefines;
   bool DumpIncludeDirectives;
+  bool DumpEmbedDirectives;
   bool UseLineDirectives;
   bool IsFirstFileEntered;
   bool MinimizeWhitespace;
@@ -101,6 +102,7 @@ private:
   bool KeepSystemIncludes;
   raw_ostream *OrigOS;
   std::unique_ptr<llvm::raw_null_ostream> NullOS;
+  unsigned NumToksToSkip;
 
   Token PrevTok;
   Token PrevPrevTok;
@@ -108,14 +110,16 @@ private:
 public:
   PrintPPOutputPPCallbacks(Preprocessor &pp, raw_ostream *os, bool lineMarkers,
                            bool defines, bool DumpIncludeDirectives,
-                           bool UseLineDirectives, bool MinimizeWhitespace,
-                           bool DirectivesOnly, bool KeepSystemIncludes)
+                           bool DumpEmbedDirectives, bool UseLineDirectives,
+                           bool MinimizeWhitespace, bool DirectivesOnly,
+                           bool KeepSystemIncludes)
       : PP(pp), SM(PP.getSourceManager()), ConcatInfo(PP), OS(os),
         DisableLineMarkers(lineMarkers), DumpDefines(defines),
         DumpIncludeDirectives(DumpIncludeDirectives),
+        DumpEmbedDirectives(DumpEmbedDirectives),
         UseLineDirectives(UseLineDirectives),
         MinimizeWhitespace(MinimizeWhitespace), DirectivesOnly(DirectivesOnly),
-        KeepSystemIncludes(KeepSystemIncludes), OrigOS(os) {
+        KeepSystemIncludes(KeepSystemIncludes), OrigOS(os), NumToksToSkip(0) {
     CurLine = 0;
     CurFilename += "<uninit>";
     EmittedTokensOnThisLine = false;
@@ -129,6 +133,10 @@ public:
     PrevTok.startToken();
     PrevPrevTok.startToken();
   }
+
+  /// Returns true if #embed directives should be expanded into a comma-
+  /// delimited list of integer constants or not.
+  bool expandEmbedContents() const { return !DumpEmbedDirectives; }
 
   bool isMinimizeWhitespace() const { return MinimizeWhitespace; }
 
@@ -150,6 +158,9 @@ public:
   void FileChanged(SourceLocation Loc, FileChangeReason Reason,
                    SrcMgr::CharacteristicKind FileType,
                    FileID PrevFID) override;
+  void EmbedDirective(SourceLocation HashLoc, StringRef FileName, bool IsAngled,
+                      OptionalFileEntryRef File,
+                      const LexEmbedParametersResult &Params) override;
   void InclusionDirective(SourceLocation HashLoc, const Token &IncludeTok,
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange,
@@ -235,6 +246,9 @@ public:
 
   void BeginModule(const Module *M);
   void EndModule(const Module *M);
+
+  unsigned GetNumToksToSkip() const { return NumToksToSkip; }
+  void ResetSkipToks() { NumToksToSkip = 0; }
 };
 }  // end anonymous namespace
 
@@ -251,10 +265,23 @@ void PrintPPOutputPPCallbacks::WriteFooterContent(StringRef CodeFooter) {
   *OS << '\n';
 }
 
+static bool is_separator(char value) { return value == '\\'; }
+
 void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
                                              const char *Extra,
                                              unsigned ExtraLen) {
   startNewLineIfNeeded();
+
+  if (PP.getLangOpts().isSYCL()) {
+    StringRef CurFilenameWithNoLeadingDotSlash =
+        llvm::sys::path::remove_leading_dotbackslash_only(CurFilename.str());
+    if ((CurFilenameWithNoLeadingDotSlash ==
+         PP.getPreprocessorOpts().IncludeFooter) ||
+        CurFilenameWithNoLeadingDotSlash ==
+            PP.getPreprocessorOpts().IncludeHeader) {
+      CurFilename = "<uninit>";
+    }
+  }
 
   // Emit #line directives or GNU line markers depending on what mode we're in.
   if (UseLineDirectives) {
@@ -274,6 +301,7 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
     else if (FileType == SrcMgr::C_ExternCSystem)
       OS->write(" 3 4", 4);
   }
+
   *OS << '\n';
 }
 
@@ -413,6 +441,74 @@ void PrintPPOutputPPCallbacks::FileChanged(SourceLocation Loc,
     WriteLineInfo(CurLine);
     break;
   }
+}
+
+void PrintPPOutputPPCallbacks::EmbedDirective(
+    SourceLocation HashLoc, StringRef FileName, bool IsAngled,
+    OptionalFileEntryRef File, const LexEmbedParametersResult &Params) {
+  if (!DumpEmbedDirectives)
+    return;
+
+  // The EmbedDirective() callback is called before we produce the annotation
+  // token stream for the directive. We skip printing the annotation tokens
+  // within PrintPreprocessedTokens(), but we also need to skip the prefix,
+  // suffix, and if_empty tokens as those are inserted directly into the token
+  // stream and would otherwise be printed immediately after printing the
+  // #embed directive.
+  //
+  // FIXME: counting tokens to skip is a kludge but we have no way to know
+  // which tokens were inserted as part of the embed and which ones were
+  // explicitly written by the user.
+  MoveToLine(HashLoc, /*RequireStartOfLine=*/true);
+  *OS << "#embed " << (IsAngled ? '<' : '"') << FileName
+      << (IsAngled ? '>' : '"');
+
+  auto PrintToks = [&](llvm::ArrayRef<Token> Toks) {
+    SmallString<128> SpellingBuffer;
+    for (const Token &T : Toks) {
+      if (T.hasLeadingSpace())
+        *OS << " ";
+      *OS << PP.getSpelling(T, SpellingBuffer);
+    }
+  };
+  bool SkipAnnotToks = true;
+  if (Params.MaybeIfEmptyParam) {
+    *OS << " if_empty(";
+    PrintToks(Params.MaybeIfEmptyParam->Tokens);
+    *OS << ")";
+    // If the file is empty, we can skip those tokens. If the file is not
+    // empty, we skip the annotation tokens.
+    if (File && !File->getSize()) {
+      NumToksToSkip += Params.MaybeIfEmptyParam->Tokens.size();
+      SkipAnnotToks = false;
+    }
+  }
+
+  if (Params.MaybeLimitParam) {
+    *OS << " limit(" << Params.MaybeLimitParam->Limit << ")";
+  }
+  if (Params.MaybeOffsetParam) {
+    *OS << " clang::offset(" << Params.MaybeOffsetParam->Offset << ")";
+  }
+  if (Params.MaybePrefixParam) {
+    *OS << " prefix(";
+    PrintToks(Params.MaybePrefixParam->Tokens);
+    *OS << ")";
+    NumToksToSkip += Params.MaybePrefixParam->Tokens.size();
+  }
+  if (Params.MaybeSuffixParam) {
+    *OS << " suffix(";
+    PrintToks(Params.MaybeSuffixParam->Tokens);
+    *OS << ")";
+    NumToksToSkip += Params.MaybeSuffixParam->Tokens.size();
+  }
+
+  // We may need to skip the annotation token.
+  if (SkipAnnotToks)
+    NumToksToSkip++;
+
+  *OS << " /* clang -E -dE */";
+  setEmittedDirectiveOnThisLine();
 }
 
 void PrintPPOutputPPCallbacks::InclusionDirective(
@@ -694,7 +790,7 @@ void PrintPPOutputPPCallbacks::HandleWhitespaceBeforeTok(const Token &Tok,
   if (Tok.is(tok::eof) ||
       (Tok.isAnnotation() && !Tok.is(tok::annot_header_unit) &&
        !Tok.is(tok::annot_module_begin) && !Tok.is(tok::annot_module_end) &&
-       !Tok.is(tok::annot_repl_input_end)))
+       !Tok.is(tok::annot_repl_input_end) && !Tok.is(tok::annot_embed)))
     return;
 
   // EmittedDirectiveOnThisLine takes priority over RequireSameLine.
@@ -822,18 +918,6 @@ struct UnknownPragmaHandler : public PragmaHandler {
 };
 } // end anonymous namespace
 
-FileID ComputeValidFooterFileID(SourceManager &SM, StringRef Footer) {
-  FileID FooterFileID;
-  llvm::Expected<FileEntryRef> ExpectedFileRef =
-      SM.getFileManager().getFileRef(Footer);
-  if (ExpectedFileRef) {
-    FooterFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
-                                        SrcMgr::CharacteristicKind::C_User);
-  }
-  assert(FooterFileID.isValid() && "expecting a valid footer FileID");
-  return FooterFileID;
-}
-
 static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
                                std::string Footer,
                                PrintPPOutputPPCallbacks *Callbacks) {
@@ -841,10 +925,8 @@ static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
   PresumedLoc UserLoc = SourceMgr.getPresumedLoc(Loc);
   if (UserLoc.isInvalid())
     return;
-  FileID FooterFileID = ComputeValidFooterFileID(SourceMgr, Footer);
+  FileID FooterFileID = SourceMgr.ComputeValidFooterFileID(Footer);
   StringRef FooterContentBuffer = SourceMgr.getBufferData(FooterFileID);
-  // print out the name of the integration footer.
-  Callbacks->WriteFooterInfo(Footer);
   SmallVector<StringRef, 8> FooterContentArr;
   FooterContentBuffer.split(FooterContentArr, '\r');
   // print out the content of the integration footer.
@@ -882,8 +964,7 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
       PP.Lex(Tok);
       continue;
     } else if (Tok.is(tok::annot_repl_input_end)) {
-      PP.Lex(Tok);
-      continue;
+      // Fall through to exit the loop.
     } else if (Tok.is(tok::eod)) {
       // Don't print end of directive tokens, since they are typically newlines
       // that mess up our line tracking. These come from unknown pre-processor
@@ -919,13 +1000,35 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
       continue;
     } else if (Tok.is(tok::annot_header_unit)) {
       // This is a header-name that has been (effectively) converted into a
-      // module-name.
+      // module-name, print them inside quote.
       // FIXME: The module name could contain non-identifier module name
-      // components. We don't have a good way to round-trip those.
+      // components and OS specific file paths components. We don't have a good
+      // way to round-trip those.
       Module *M = reinterpret_cast<Module *>(Tok.getAnnotationValue());
       std::string Name = M->getFullModuleName();
-      Callbacks->OS->write(Name.data(), Name.size());
-      Callbacks->HandleNewlinesInToken(Name.data(), Name.size());
+      *Callbacks->OS << '"';
+      Callbacks->OS->write_escaped(Name);
+      *Callbacks->OS << '"';
+    } else if (Tok.is(tok::annot_embed)) {
+      // Manually explode the binary data out to a stream of comma-delimited
+      // integer values. If the user passed -dE, that is handled by the
+      // EmbedDirective() callback. We should only get here if the user did not
+      // pass -dE.
+      assert(Callbacks->expandEmbedContents() &&
+             "did not expect an embed annotation");
+      auto *Data =
+          reinterpret_cast<EmbedAnnotationData *>(Tok.getAnnotationValue());
+
+      // Loop over the contents and print them as a comma-delimited list of
+      // values.
+      bool PrintComma = false;
+      for (auto Iter = Data->BinaryData.begin(), End = Data->BinaryData.end();
+           Iter != End; ++Iter) {
+        if (PrintComma)
+          *Callbacks->OS << ", ";
+        *Callbacks->OS << static_cast<unsigned>(*Iter);
+        PrintComma = true;
+      }
     } else if (Tok.isAnnotation()) {
       // Ignore annotation tokens created by pragmas - the pragmas themselves
       // will be reproduced in the preprocessed output.
@@ -971,9 +1074,14 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
     Callbacks->setEmittedTokensOnThisLine();
     IsStartOfLine = false;
 
-    if (Tok.is(tok::eof)) break;
+    if (Tok.is(tok::eof) || Tok.is(tok::annot_repl_input_end))
+      break;
 
     PP.Lex(Tok);
+    // If lexing that token causes us to need to skip future tokens, do so now.
+    for (unsigned I = 0, Skip = Callbacks->GetNumToksToSkip(); I < Skip; ++I)
+      PP.Lex(Tok);
+    Callbacks->ResetSkipToks();
   }
 }
 
@@ -990,9 +1098,7 @@ static void DoPrintMacros(Preprocessor &PP, raw_ostream *OS) {
   // the macro table at the end.
   PP.EnterMainSourceFile();
 
-  Token Tok;
-  do PP.Lex(Tok);
-  while (Tok.isNot(tok::eof));
+  PP.LexTokensUntilEOF();
 
   SmallVector<id_macro_pair, 128> MacrosByID;
   for (Preprocessor::macro_iterator I = PP.macro_begin(), E = PP.macro_end();
@@ -1030,8 +1136,9 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
 
   PrintPPOutputPPCallbacks *Callbacks = new PrintPPOutputPPCallbacks(
       PP, OS, !Opts.ShowLineMarkers, Opts.ShowMacros,
-      Opts.ShowIncludeDirectives, Opts.UseLineDirectives,
-      Opts.MinimizeWhitespace, Opts.DirectivesOnly, Opts.KeepSystemIncludes);
+      Opts.ShowIncludeDirectives, Opts.ShowEmbedDirectives,
+      Opts.UseLineDirectives, Opts.MinimizeWhitespace, Opts.DirectivesOnly,
+      Opts.KeepSystemIncludes);
 
   // Expand macros in pragmas with -fms-extensions.  The assumption is that
   // the majority of pragmas in such a file will be Microsoft pragmas.
@@ -1091,14 +1198,6 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
   // Read all the preprocessed tokens, printing them out to the stream.
   PrintPreprocessedTokens(PP, Tok, Callbacks);
   *OS << '\n';
-
-  if (!PP.getPreprocessorOpts().IncludeFooter.empty()) {
-    assert(PP.getLangOpts().SYCLIsHost &&
-           "The 'include-footer' is expected in host compilation only");
-    SourceLocation Loc = Tok.getLocation();
-    PrintIncludeFooter(PP, Loc, PP.getPreprocessorOpts().IncludeFooter,
-                       Callbacks);
-  }
 
   // Remove the handlers we just added to leave the preprocessor in a sane state
   // so that it can be reused (for example by a clang::Parser instance).

@@ -33,13 +33,13 @@ and not recommended to use in production environment.
     The following triples are supported by default:
     * spir64 - this is the default generic SPIR-V target;
     * spir64_x86_64 - generate code ahead of time for x86_64 CPUs;
-    * spir64_fpga - generate code ahead of time for Intel FPGA;
     * spir64_gen - generate code ahead of time for Intel Processor Graphics;
     Full target triples can also be used:
     * spir64-unknown-unknown, spir64_x86_64-unknown-unknown,
-      spir64_fpga-unknown-unknown, spir64_gen-unknown-unknown
+      spir64_gen-unknown-unknown
     Available in special build configuration:
     * nvptx64-nvidia-cuda - generate code ahead of time for CUDA target;
+    * amdgcn-amd-amdhsa - generate code ahead of time for HIP target;
     * native_cpu - allows to run SYCL applications with no need of an 
     additional backend (note that this feature is WIP and experimental, and 
     currently overrides all the other specified SYCL targets when enabled.)
@@ -47,6 +47,8 @@ and not recommended to use in production environment.
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
+    * intel_gpu_ptl_u, intel_gpu_30_1_1 - Panther Lake U Intel graphics architecture
+    * intel_gpu_ptl_h, intel_gpu_30_0_4 - Panther Lake H Intel graphics architecture
     * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture
     * intel_gpu_bmg_g21, intel_gpu_20_1_4 - Battlemage G21 Intel graphics architecture
     * intel_gpu_arl_h, intel_gpu_12_74_4 - Arrow Lake H Intel graphics architecture
@@ -95,6 +97,9 @@ and not recommended to use in production environment.
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx703 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx704 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx705 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx801 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx802 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx803 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
@@ -104,13 +109,13 @@ and not recommended to use in production environment.
     * amd_gpu_gfx902 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx908 - AMD GCN GFX9 (CDNA1) architecture
     * amd_gpu_gfx909 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90a - AMD GCN GFX9 (CDNA2) architecture
     * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx940 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx941 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx942 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx940 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx941 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx942 - AMD GCN GFX9 (CDNA3) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
@@ -135,9 +140,8 @@ and not recommended to use in production environment.
 
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
-    SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1 [DEPRECATED]
-    * 2020 - SYCL 2020
+    SYCL language standard to compile for. Currently the possible value is:
+    * 2020 - for SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.
     It is under development and not recommended to use in production
@@ -148,7 +152,7 @@ and not recommended to use in production environment.
 
     Enables/Disables unnamed SYCL lambda kernels support.
     The default value depends on the SYCL language standard: it is enabled
-    by default for SYCL 2020, and disabled for SYCL 1.2.1.
+    by default for SYCL 2020.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
@@ -195,6 +199,19 @@ and not recommended to use in production environment.
     specific compilers (e.g. OpenCL/Level Zero/Nvidia/AMD target compilers)
     which may or may not perform additional inlining.
     Default value is 225.
+
+**`--offload-compress`**
+
+    Enables device image compression for SYCL offloading. Device images
+    are compressed using `zstd` compression algorithm and only if their size
+    exceeds 512 bytes.
+    Default value is false.
+
+**`--offload-compression-level=<int>`**
+
+    `zstd` compression level used to compress device images when `--offload-
+    compress` is enabled.
+    The default value is 10.
 
 ## Target toolchain options
 
@@ -285,16 +302,6 @@ and not recommended to use in production environment.
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
 
-**`-f[no-]sycl-link-huge-device-code`** [DEPRECATED]
-
-    Place device code later in the linked binary in order to avoid precluding
-    32-bit PC relative relocations between surrounding ELF sections when device
-    code is larger than 2GiB. This is disabled by default.
-
-    Deprecated in favor of `-f[no-]link-huge-device-code`.
-
-    NOTE: This option is currently only supported on Linux.
-
 **`-fsycl-force-target=<T>`**
 
     When used along with '-fsycl-targets', force the device object being
@@ -312,33 +319,6 @@ and not recommended to use in production environment.
     '-fno-sycl-rdc' used along with '-fsycl-max-parallel-link-jobs' will enable
     additional device linking parallism for fat static archives.
     Relocatable device code is enabled by default.
-
-## Intel FPGA specific options
-
-**`-fintelfpga`**
-
-    Perform ahead of time compilation for Intel FPGA. It sets the target to
-    FPGA and turns on the debug options that are needed to generate FPGA
-    reports. It is functionally equivalent shortcut to
-    `-fsycl-targets=spir64_fpga -g -MMD` on Linux and
-    `-fsycl-targets=spir64_fpga -Zi -MMD` on Windows.
-
-**`-fsycl-link=<output>`**
-
-    Controls FPGA target binary output format. Same as -fsycl-link, but
-    optional output can be one of the following:
-    * early - generate html reports and an intermediate object file that avoids
-    a full Quartus compile. Usually takes minutes to generate. Link can later
-    be resumed from this point using -fsycl-link=image.
-    * image - generate a bitstream which is ready to be linked and used on a
-    FPGA board. Usually takes hours to generate.
-
-**`-reuse-exe=<exe>`**
-
-    Speed up FPGA backend compilation if the device code in <binary> is
-    unchanged. If it's safe to do so the compiler will re-use the device binary
-    embedded within it. This can be used to minimize or avoid long Quartus
-    compile times for FPGA targets when the device code is unchanged.
 
 ## Other options
 
@@ -361,7 +341,7 @@ and not recommended to use in production environment.
 **`-fsycl-help[=backend]`**
 
     Emit help information from device compiler backend. Backend can be one of
-    the following: "x86_64", "fpga", "gen", or "all". Specifying "all" is the
+    the following: "x86_64", "gen", or "all". Specifying "all" is the
     same as specifying -fsycl-help with no argument and emits help for all
     backends.
 

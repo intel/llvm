@@ -5,6 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
+// other triples
+
 // REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
@@ -12,8 +16,8 @@
 
 // Run these 2 tests on PVC only for now. Check can be updated to "gpu",
 // when newer IGC is used in intel/llvm pre-checkin testing on Intel Arc
-// RUN: %if gpu-intel-pvc %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
-// RUN: %if gpu-intel-pvc %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
+// RUN: %if arch-intel_gpu_pvc %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
+// RUN: %if arch-intel_gpu_pvc %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 
 #include "common.hpp"
 #include "joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"

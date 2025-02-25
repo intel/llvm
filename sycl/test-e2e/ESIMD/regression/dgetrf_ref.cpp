@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %{build} -DUSE_REF -I%S/.. -o %t.ref.out
+// RUN: %{build} -Wno-error=format -DUSE_REF -I%S/.. -o %t.ref.out
 // RUN: %{run} %t.ref.out 3 2 1
 //
 // This test checks the correctness of ESIMD program for batched LU

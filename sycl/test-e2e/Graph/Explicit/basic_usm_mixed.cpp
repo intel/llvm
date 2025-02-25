@@ -10,6 +10,7 @@
 
 // Test is flaky on Windows, disable until it can be fixed
 // UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/11852
 
 #define GRAPH_E2E_EXPLICIT
 

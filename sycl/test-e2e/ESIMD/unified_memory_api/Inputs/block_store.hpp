@@ -462,14 +462,8 @@ bool test_block_store_usm(queue Q) {
   // Intentionally check non-power-of-2 simd size - it must work.
   Passed &=
       testUSM<T, 33, !CheckMask, CheckProperties>(Q, 2, 4, AlignElemProps);
-  // This test case computes wrong values for for the few last elements
-  // if the driver is not new enough.
-  // TODO: windows version with the fix is not known. Enable it eventually.
-  if (sizeof(T) > 2 ||
-      esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "27556", "win.just.skip.test", false))
-    Passed &=
-        testUSM<T, 67, !CheckMask, CheckProperties>(Q, 1, 4, AlignElemProps);
+  Passed &=
+      testUSM<T, 67, !CheckMask, CheckProperties>(Q, 1, 4, AlignElemProps);
   // Intentionally check big simd size - it must work.
   Passed &=
       testUSM<T, 128, !CheckMask, CheckProperties>(Q, 2, 4, AlignElemProps);
@@ -631,23 +625,11 @@ bool test_block_store_slm(queue Q) {
   // alignment - it works even for byte- and word-vectors if mask is not used.
   // Alignment that is smaller than 16-bytes is not assumed/expected by default
   // and requires explicit passing of the esimd::alignment property.
-  //
-  // These test case may compute wrong values for some of elements
-  // if the driver is not new enough.
-#if 0
-  // TODO: Enable these cases when GPU driver is fixed. It seems the issue with
-  // non-power-of-2 N values was resolved for slm_block_load(), but not for
-  // slm_block_store().
-  if (esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "27556", "win.just.skip.test", false)) {
-    Passed &= testSLM<T, 3, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+  Passed &= testSLM<T, 3, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
 
-    Passed &= testSLM<T, 17, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+  Passed &= testSLM<T, 17, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
 
-    Passed &=
-        testSLM<T, 113, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
-  }
-#endif
+  Passed &= testSLM<T, 113, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
 
   if constexpr (Features == TestFeatures::PVC ||
                 Features == TestFeatures::DG2) {
@@ -694,11 +676,6 @@ bool test_block_store_local_acc_slm(queue Q) {
 
   bool Passed = true;
 
-  // Many cases currently fail before this driver version.
-  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                 "26957", "101.4824", false))
-    return Passed;
-
   // Test block_store() from SLM that doesn't use the mask is implemented
   // for any N > 1.
   // Ensure that for every call of block_store(local_accessor, offset, ...)
@@ -729,14 +706,10 @@ bool test_block_store_local_acc_slm(queue Q) {
   // Alignment that is smaller than 16-bytes is not assumed/expected by default
   // and requires explicit passing of the esimd::alignment property.
   //
-  // These test case may compute wrong values for some of elements
-  // if the driver is not new enough.
 #if 0
   // TODO: Enable these cases when GPU driver is fixed. It seems the issue with
   // non-power-of-2 N values was resolved for slm_block_load(), but not for
   // slm_block_store().
-  if (esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "27556", "win.just.skip.test", false)) {
     Passed &= testLocalAccSLM<T, 3, !CheckMask, CheckProperties>(
         Q, 2, AlignElemProps);
 
@@ -745,9 +718,7 @@ bool test_block_store_local_acc_slm(queue Q) {
 
     Passed &= testLocalAccSLM<T, 113, !CheckMask, CheckProperties>(
         Q, 2, AlignElemProps);
-  }
 #endif
-
   if constexpr (Features == TestFeatures::PVC ||
                 Features == TestFeatures::DG2) {
     // Using the mask adds the requirement to run tests on DG2/PVC.

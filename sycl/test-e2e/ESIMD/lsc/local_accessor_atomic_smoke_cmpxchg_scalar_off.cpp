@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks local accessor cmpxchg atomic operations with scalar offset.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //

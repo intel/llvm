@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/sampler.hpp>
+#include <ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {
@@ -16,8 +17,8 @@ namespace ext::oneapi::experimental {
 
 /// cubemap filtering mode enum
 enum class cubemap_filtering_mode : unsigned int {
-  disjointed = PI_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED,
-  seamless = PI_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS,
+  disjointed = UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED,
+  seamless = UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS,
 };
 
 struct bindless_image_sampler {

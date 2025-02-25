@@ -9,7 +9,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // TODO: Enable on Gen12 once internal tracker is fixed.
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 
 #define TEST_INT64
 #include "bit_shift_compilation_test.cpp"

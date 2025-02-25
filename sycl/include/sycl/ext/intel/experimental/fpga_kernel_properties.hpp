@@ -12,8 +12,8 @@
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
-#include <cstdint>     // for uint16_t
-#include <type_traits> // for true_type
+#include <cstdint>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -22,12 +22,12 @@ namespace ext::intel::experimental {
 template <typename T, typename PropertyListT> class fpga_kernel_attribute;
 template <auto &f, typename PropertyListT> class task_sequence;
 
-enum class streaming_interface_options_enum : std::uint16_t {
+enum class streaming_interface_options_enum : uint16_t {
   accept_downstream_stall,
   remove_downstream_stall
 };
 
-enum class register_map_interface_options_enum : std::uint16_t {
+enum class register_map_interface_options_enum : uint16_t {
   do_not_wait_for_done_write,
   wait_for_done_write,
 };
@@ -150,6 +150,15 @@ struct is_property_key_of<intel::experimental::fpga_cluster_key,
     : std::true_type {};
 
 namespace detail {
+template <intel::experimental::streaming_interface_options_enum option>
+struct HasCompileTimeEffect<
+    intel::experimental::streaming_interface_key::value_t<option>>
+    : std::true_type {};
+template <intel::experimental::register_map_interface_options_enum option>
+struct HasCompileTimeEffect<
+    intel::experimental::register_map_interface_key::value_t<option>>
+    : std::true_type {};
+
 template <intel::experimental::streaming_interface_options_enum Stall_Free>
 struct PropertyMetaInfo<
     intel::experimental::streaming_interface_key::value_t<Stall_Free>> {

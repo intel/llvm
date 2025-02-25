@@ -63,8 +63,9 @@ public:
 protected:
 #ifndef __SYCL_DEVICE_ONLY__
   // Store a weak variant of the impl in the SYCLObjT.
-  typename decltype(sycl::detail::getSyclObjImpl(
-      std::declval<SYCLObjT>()))::weak_type MObjWeakPtr;
+  typename std::remove_reference<decltype(sycl::detail::getSyclObjImpl(
+      std::declval<SYCLObjT>()))>::type::weak_type MObjWeakPtr;
+  // relies on <type_traits> from impl_utils.h
 
   static decltype(MObjWeakPtr) GetWeakImpl(const SYCLObjT &SYCLObj) {
     return sycl::detail::getSyclObjImpl(SYCLObj);

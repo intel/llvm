@@ -8,7 +8,9 @@
 
 #pragma once
 
-#include <sycl/detail/pi.hpp>
+#include <ur_api.h>
+
+#include <memory>
 
 namespace sycl {
 inline namespace _V1 {
@@ -43,8 +45,7 @@ public:
   // Method returns a pointer to host allocation if Context is host one and
   // cl_mem obect if not.
   virtual void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                            void *HostPtr,
-                            sycl::detail::pi::PiEvent &InteropEvent) = 0;
+                            void *HostPtr, ur_event_handle_t &InteropEvent) = 0;
 
   // Should be used for memory object created without use_host_ptr property.
   virtual void *allocateHostMem() = 0;

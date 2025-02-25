@@ -124,8 +124,6 @@ void SPIRVDecorate::encode(spv_ostream &O) const {
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
     break;
-  case internal::DecorationFuncParamDescINTEL:
-    SPIRVDecorateFuncParamDescAttr::encodeLiterals(Encoder, Literals);
   case internal::DecorationHostAccessINTEL:
     SPIRVDecorateHostAccessINTELLegacy::encodeLiterals(Encoder, Literals);
     break;
@@ -161,8 +159,6 @@ void SPIRVDecorate::decode(std::istream &I) {
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);
     break;
-  case internal::DecorationFuncParamDescINTEL:
-    SPIRVDecorateFuncParamDescAttr::decodeLiterals(Decoder, Literals);
   case internal::DecorationHostAccessINTEL:
     SPIRVDecorateHostAccessINTELLegacy::decodeLiterals(Decoder, Literals);
     break;
@@ -204,9 +200,6 @@ void SPIRVMemberDecorate::encode(spv_ostream &O) const {
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::encodeLiterals(Encoder, Literals);
     break;
-  case internal::DecorationFuncParamDescINTEL:
-    SPIRVDecorateFuncParamDescAttr::encodeLiterals(Encoder, Literals);
-    break;
   default:
     Encoder << Literals;
   }
@@ -229,9 +222,6 @@ void SPIRVMemberDecorate::decode(std::istream &I) {
     break;
   case DecorationUserSemantic:
     SPIRVDecorateUserSemanticAttr::decodeLiterals(Decoder, Literals);
-    break;
-  case internal::DecorationFuncParamDescINTEL:
-    SPIRVDecorateFuncParamDescAttr::decodeLiterals(Decoder, Literals);
     break;
   default:
     Decoder >> Literals;

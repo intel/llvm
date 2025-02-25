@@ -1,10 +1,18 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
-; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-max-version=1.0 -o - | FileCheck %s --check-prefix=CHECK-SPIRV_1_0
+
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-max-version=1.0 --spirv-ext=+SPV_KHR_untyped_pointers -o - | FileCheck %s --check-prefix=CHECK-SPIRV_1_0
+
 
 ; CHECK-LLVM: define spir_kernel void @worker(ptr addrspace(3) dereferenceable(12) %ptr)
 ; CHECK-LLVM: define spir_func void @not_a_kernel(ptr addrspace(3) dereferenceable(123) %ptr2)
@@ -14,7 +22,8 @@
 ; CHECK-SPIRV-DAG: 4 Decorate [[PTR_ID]] MaxByteOffset 12
 ; CHECK-SPIRV-DAG: 4 Decorate [[PTR2_ID]] MaxByteOffset 123
 ; CHECK-SPIRV: 4 TypeInt [[CHAR_T:[0-9]+]] 8 0
-; CHECK-SPIRV: 4 TypePointer [[CHAR_PTR_T:[0-9]+]] 4 [[CHAR_T]]
+; CHECK-SPIRV-TYPED-PTR: 4 TypePointer [[CHAR_PTR_T:[0-9]+]] 4 [[CHAR_T]]
+; CHECK-SPIRV-UNTYPED-PTR: 3 TypeUntypedPointerKHR [[CHAR_PTR_T:[0-9]+]] 4
 ; CHECK-SPIRV: 3 FunctionParameter [[CHAR_PTR_T]] [[PTR_ID]]
 ; CHECK-SPIRV: 3 FunctionParameter [[CHAR_PTR_T]] [[PTR2_ID]]
 

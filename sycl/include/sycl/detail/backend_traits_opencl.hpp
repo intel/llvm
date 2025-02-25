@@ -16,23 +16,26 @@
 #pragma once
 
 #include <sycl/backend_types.hpp>         // for backend
-#include <sycl/context.hpp>               // for context
 #include <sycl/detail/backend_traits.hpp> // for BackendInput, BackendReturn
 #include <sycl/detail/cl.h>               // for _cl_event, cl_event, cl_de...
-#include <sycl/detail/pi.hpp>             // for assertion, PiDevice, PiPro...
+#include <sycl/detail/ur.hpp>             // for assertion and ur handles
 #include <sycl/device.hpp>                // for device
 #include <sycl/event.hpp>                 // for event
-#include <sycl/handler.hpp>               // for buffer
 #include <sycl/kernel.hpp>                // for kernel
-#include <sycl/kernel_bundle.hpp>         // for kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp>   // for bundle_state
 #include <sycl/platform.hpp>              // for platform
-#include <sycl/queue.hpp>                 // for queue
 
 #include <vector> // for vector
 
 namespace sycl {
 inline namespace _V1 {
+
+template <bundle_state State> class kernel_bundle;
+class queue;
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
+class context;
+
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -54,13 +57,15 @@ template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
 };
 
-template <typename DataT, int Dimensions, typename AllocatorT>
-struct BackendInput<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+template <typename DataT, int Dimensions, typename AllocatorT, typename Enable>
+struct BackendInput<backend::opencl,
+                    buffer<DataT, Dimensions, AllocatorT, Enable>> {
   using type = cl_mem;
 };
 
-template <typename DataT, int Dimensions, typename AllocatorT>
-struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+template <typename DataT, int Dimensions, typename AllocatorT, typename Enable>
+struct BackendReturn<backend::opencl,
+                     buffer<DataT, Dimensions, AllocatorT, Enable>> {
   using type = std::vector<cl_mem>;
 };
 
@@ -139,26 +144,25 @@ template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakeImage = false;
 };
 
-namespace pi {
+namespace ur {
 // Cast for std::vector<cl_event>, according to the spec, make_event
 // should create one(?) event from a vector of cl_event
 template <class To> inline To cast(std::vector<cl_event> value) {
-  sycl::detail::pi::assertion(
-      value.size() == 1,
-      "Temporary workaround requires that the "
-      "size of the input vector for make_event be equal to one.");
+  assert(value.size() == 1 &&
+         "Temporary workaround requires that the "
+         "size of the input vector for make_event be equal to one.");
   return cast<To>(value[0]);
 }
 
-// These conversions should use PI interop API.
+// These conversions should use UR interop API.
 template <>
-inline PiProgram
-    cast(cl_program) = delete; // Use piextCreateProgramWithNativeHandle
+inline ur_program_handle_t
+    cast(cl_program) = delete; // Use urProgramCreateWithNativeHandle
 
 template <>
-inline PiDevice
-    cast(cl_device_id) = delete; // Use piextCreateDeviceWithNativeHandle
-} // namespace pi
+inline ur_device_handle_t
+    cast(cl_device_id) = delete; // Use urDeviceCreateWithNativeHandle
+} // namespace ur
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -12,13 +12,18 @@ int N;
 __attribute__((sycl_device(3))) // expected-error {{'sycl_device' attribute takes no arguments}}
 void bar() {}
 
-__attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a static function or function in an anonymous namespace}}
+__attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a function without external linkage}}
 static void func1() {}
 
 namespace {
-  __attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a static function or function in an anonymous namespace}}
+  __attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a function without external linkage}}
   void func2() {}
+
+  struct UnnX {};
 }
+
+__attribute__((sycl_device)) // expected-error {{'sycl_device' attribute cannot be applied to a function without external linkage}}
+  void func4(UnnX) {}
 
 class A {
   __attribute__((sycl_device))

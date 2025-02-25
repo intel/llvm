@@ -8,7 +8,7 @@
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -std=c++20 -o %t.out
 // RUN: %{run} %t.out
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 
 // This is a basic test to validate the vector bit shifting functions on PVC.
 

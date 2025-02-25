@@ -72,6 +72,28 @@ enum ModuleHeaderMode {
   HeaderMode_System
 };
 
+/// Options for specifying CUID used by CUDA/HIP for uniquely identifying
+/// compilation units.
+class CUIDOptions {
+public:
+  enum class Kind { Hash, Random, Fixed, None, Invalid };
+
+  CUIDOptions() = default;
+  CUIDOptions(llvm::opt::DerivedArgList &Args, const Driver &D);
+
+  // Get the CUID for an input string
+  std::string getCUID(StringRef InputFile,
+                      llvm::opt::DerivedArgList &Args) const;
+
+  bool isEnabled() const {
+    return UseCUID != Kind::None && UseCUID != Kind::Invalid;
+  }
+
+private:
+  Kind UseCUID = Kind::None;
+  StringRef FixedCUID;
+};
+
 /// Driver - Encapsulate logic for constructing compilation processes
 /// from a set of gcc-driver-like command line arguments.
 class Driver {
@@ -120,6 +142,9 @@ class Driver {
 
   /// LTO mode selected via -f(no-offload-)?lto(=.*)? options.
   LTOKind OffloadLTOMode;
+
+  /// Options for CUID
+  CUIDOptions CUIDOpts;
 
 public:
   enum OpenMPRuntimeKind {
@@ -299,8 +324,11 @@ private:
   /// Object that stores strings read from configuration file.
   llvm::StringSaver Saver;
 
-  /// Arguments originated from configuration file.
-  std::unique_ptr<llvm::opt::InputArgList> CfgOptions;
+  /// Arguments originated from configuration file (head part).
+  std::unique_ptr<llvm::opt::InputArgList> CfgOptionsHead;
+
+  /// Arguments originated from configuration file (tail part).
+  std::unique_ptr<llvm::opt::InputArgList> CfgOptionsTail;
 
   /// Arguments originated from command line.
   std::unique_ptr<llvm::opt::InputArgList> CLOptions;
@@ -381,8 +409,7 @@ public:
 
   /// Takes the path to a binary that's either in bin/ or lib/ and returns
   /// the path to clang's resource directory.
-  static std::string GetResourcesPath(StringRef BinaryPath,
-                                      StringRef CustomResourceDir = "");
+  static std::string GetResourcesPath(StringRef BinaryPath);
 
   Driver(StringRef ClangExecutable, StringRef TargetTriple,
          DiagnosticsEngine &Diags, std::string Title = "clang LLVM compiler",
@@ -468,7 +495,7 @@ public:
   /// ArgList.
   llvm::opt::InputArgList ParseArgStrings(ArrayRef<const char *> Args,
                                           bool UseDriverMode,
-                                          bool &ContainsError);
+                                          bool &ContainsError) const;
 
   /// BuildInputs - Construct the list of inputs and their types from
   /// the given arguments.
@@ -503,10 +530,11 @@ public:
   /// \param C - The compilation that is being built.
   /// \param Args - The input arguments.
   /// \param Input - The input type and arguments
+  /// \param CUID - The CUID for \p Input
   /// \param HostAction - The host action used in the offloading toolchain.
   Action *BuildOffloadingActions(Compilation &C,
                                  llvm::opt::DerivedArgList &Args,
-                                 const InputTy &Input,
+                                 const InputTy &Input, StringRef CUID,
                                  Action *HostAction) const;
 
   /// Returns the set of bound architectures active for this offload kind.
@@ -587,9 +615,13 @@ public:
   /// @name Helper Methods
   /// @{
 
-  /// MakeSYCLDeviceTriple - Returns the SYCL device triple for the
+  /// getSYCLDeviceTriple - Returns the SYCL device triple for the
   /// specified subarch
-  llvm::Triple MakeSYCLDeviceTriple(StringRef TargetArch = "spir64") const;
+  // TODO: Additional Arg input parameter is for diagnostic output information
+  // regarding FPGA support removal. This should be cleaned up in a future
+  // release.
+  llvm::Triple getSYCLDeviceTriple(StringRef TargetArch = "spir64",
+                                   const llvm::opt::Arg *Arg = nullptr) const;
 
   /// PrintActions - Print the list of actions.
   void PrintActions(const Compilation &C) const;
@@ -639,8 +671,9 @@ public:
   /// treated before building actions or binding tools.
   ///
   /// \return Whether any compilation should be built for this
-  /// invocation.
-  bool HandleImmediateArgs(const Compilation &C);
+  /// invocation. The compilation can only be modified when
+  /// this function returns false.
+  bool HandleImmediateArgs(Compilation &C);
 
   /// ConstructAction - Construct the appropriate action to do for
   /// \p Phase on the \p Input, taking in to account arguments
@@ -731,14 +764,16 @@ public:
   ModuleHeaderMode getModuleHeaderMode() const { return CXX20HeaderType; }
 
   /// Returns true if we are performing any kind of LTO.
-  bool isUsingLTO(bool IsOffload = false) const {
-    return getLTOMode(IsOffload) != LTOK_None;
-  }
+  bool isUsingLTO() const { return getLTOMode() != LTOK_None; }
 
   /// Get the specific kind of LTO being performed.
-  LTOKind getLTOMode(bool IsOffload = false) const {
-    return IsOffload ? OffloadLTOMode : LTOMode;
-  }
+  LTOKind getLTOMode() const { return LTOMode; }
+
+  /// Returns true if we are performing any kind of offload LTO.
+  bool isUsingOffloadLTO() const { return getOffloadLTOMode() != LTOK_None; }
+
+  /// Get the specific kind of offload LTO being performed.
+  LTOKind getOffloadLTOMode() const { return OffloadLTOMode; }
 
   // FPGA Offload Modes.
   enum DeviceMode {
@@ -759,6 +794,9 @@ public:
 
   DeviceMode getOffloadCompileMode() { return OffloadCompileMode; }
 
+  /// Get the CUID option.
+  const CUIDOptions &getCUIDOpts() const { return CUIDOpts; }
+
 private:
 
   /// Tries to load options from configuration files.
@@ -772,6 +810,11 @@ private:
   /// \returns true if error occurred.
   bool loadDefaultConfigFiles(llvm::cl::ExpansionContext &ExpCtx);
 
+  /// Tries to load options from customization file.
+  ///
+  /// \returns true if error occurred.
+  bool loadZOSCustomizationFile(llvm::cl::ExpansionContext &);
+
   /// Read options from the specified file.
   ///
   /// \param [in] FileName File to read.
@@ -782,9 +825,6 @@ private:
   /// Set the driver mode (cl, gcc, etc) from the value of the `--driver-mode`
   /// option.
   void setDriverMode(StringRef DriverModeValue);
-
-  /// Set the resource directory, depending on which driver is being used.
-  void setResourceDirectory();
 
   /// Parse the \p Args list for LTO options and record the type of LTO
   /// compilation based on which -f(no-)?lto(=.*)? option occurs last.

@@ -550,20 +550,18 @@ struct CastAwayConstantMaskLeadingOneDim
       return failure();
 
     int64_t dropDim = oldType.getRank() - newType.getRank();
-    SmallVector<int64_t> dimSizes;
-    for (auto attr : mask.getMaskDimSizes())
-      dimSizes.push_back(llvm::cast<IntegerAttr>(attr).getInt());
+    ArrayRef<int64_t> dimSizes = mask.getMaskDimSizes();
 
     // If any of the dropped unit dims has a size of `0`, the entire mask is a
     // zero mask, else the unit dim has no effect on the mask.
     int64_t flatLeadingSize =
         std::accumulate(dimSizes.begin(), dimSizes.begin() + dropDim + 1,
                         static_cast<int64_t>(1), std::multiplies<int64_t>());
-    SmallVector<int64_t> newDimSizes({flatLeadingSize});
+    SmallVector<int64_t> newDimSizes = {flatLeadingSize};
     newDimSizes.append(dimSizes.begin() + dropDim + 1, dimSizes.end());
 
     auto newMask = rewriter.create<vector::ConstantMaskOp>(
-        mask.getLoc(), newType, rewriter.getI64ArrayAttr(newDimSizes));
+        mask.getLoc(), newType, newDimSizes);
     rewriter.replaceOpWithNewOp<vector::BroadcastOp>(mask, oldType, newMask);
     return success();
   }

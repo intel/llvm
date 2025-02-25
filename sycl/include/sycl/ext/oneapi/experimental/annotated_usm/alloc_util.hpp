@@ -25,65 +25,6 @@ namespace detail {
 //  Type traits for USM allocation with property support
 ////
 
-// Merge a property list with the usm_kind property
-template <sycl::usm::alloc Kind, typename PropertyListT>
-using MergeUsmKind =
-    detail::merged_properties_t<PropertyListT,
-                                decltype(properties{usm_kind<Kind>})>;
-
-// Check if a property list contains the a certain property
-template <typename PropKey, typename PropertyListT> struct HasProperty {};
-
-template <typename PropKey, typename... Props>
-struct HasProperty<PropKey, detail::properties_t<Props...>>
-    : detail::ContainsProperty<PropKey, std::tuple<Props...>> {};
-
-template <typename PropertyListT>
-using HasAlign = HasProperty<alignment_key, PropertyListT>;
-template <typename PropertyListT>
-using HasUsmKind = HasProperty<usm_kind_key, PropertyListT>;
-template <typename PropertyListT>
-using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
-
-// Get the value of a property from a property list
-template <typename PropKey, typename ConstType, typename DefaultPropVal,
-          typename PropertyListT>
-struct GetPropertyValueFromPropList {};
-
-template <typename PropKey, typename ConstType, typename DefaultPropVal,
-          typename... Props>
-struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
-                                    detail::properties_t<Props...>> {
-  using prop_val_t = std::conditional_t<
-      detail::ContainsProperty<PropKey, std::tuple<Props...>>::value,
-      typename detail::FindCompileTimePropertyValueType<
-          PropKey, std::tuple<Props...>>::type,
-      DefaultPropVal>;
-  static constexpr ConstType value =
-      detail::PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
-};
-
-// Get the value of alignment from a property list
-// If alignment is not present in the property list, set to default value 0
-template <typename PropertyListT>
-using GetAlignFromPropList =
-    GetPropertyValueFromPropList<alignment_key, size_t, decltype(alignment<0>),
-                                 PropertyListT>;
-// Get the value of usm_kind from a property list
-// The usm_kind is sycl::usm::alloc::unknown by default
-template <typename PropertyListT>
-using GetUsmKindFromPropList =
-    GetPropertyValueFromPropList<usm_kind_key, sycl::usm::alloc,
-                                 decltype(usm_kind<sycl::usm::alloc::unknown>),
-                                 PropertyListT>;
-// Get the value of buffer_location from a property list
-// The buffer location is -1 by default
-template <typename PropertyListT>
-using GetBufferLocationFromPropList = GetPropertyValueFromPropList<
-    buffer_location_key, int,
-    decltype(sycl::ext::intel::experimental::buffer_location<-1>),
-    PropertyListT>;
-
 // Check if a runtime property is valid
 template <typename Prop> struct IsRuntimePropertyValid : std::false_type {};
 
@@ -102,13 +43,13 @@ struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
                  IsRuntimePropertyValid<Prop>::value) &&
                     ValidAllocPropertyList<
                         T, detail::properties_t<Props...>>::value> {
+  static_assert(is_property_value_v<Prop>);
+  static constexpr bool is_compile_time = std::is_empty_v<Prop>;
   // check if a compile-time property is valid for annotated_ptr
-  static_assert(!detail::IsCompileTimePropertyValue<Prop>::value ||
-                    is_valid_property<T *, Prop>::value,
+  static_assert(!is_compile_time || is_valid_property<T *, Prop>::value,
                 "Found invalid compile-time property in the property list.");
   // check if a runtime property is valid for malloc
-  static_assert(!detail::IsRuntimeProperty<Prop>::value ||
-                    IsRuntimePropertyValid<Prop>::value,
+  static_assert(is_compile_time || IsRuntimePropertyValid<Prop>::value,
                 "Found invalid runtime property in the property list.");
 };
 
@@ -123,15 +64,15 @@ template <> struct GetCompileTimeProperties<empty_properties_t> {
 template <typename Prop>
 struct GetCompileTimeProperties<detail::properties_t<Prop>> {
   using type =
-      std::conditional_t<detail::IsCompileTimePropertyValue<Prop>::value,
-                         detail::properties_t<Prop>, empty_properties_t>;
+      std::conditional_t<std::is_empty_v<Prop>, detail::properties_t<Prop>,
+                         empty_properties_t>;
 };
 
 template <typename Prop, typename... Props>
 struct GetCompileTimeProperties<detail::properties_t<Prop, Props...>> {
   using filtered_this_property_t =
-      std::conditional_t<detail::IsCompileTimePropertyValue<Prop>::value,
-                         detail::properties_t<Prop>, empty_properties_t>;
+      std::conditional_t<std::is_empty_v<Prop>, detail::properties_t<Prop>,
+                         empty_properties_t>;
   using filtered_other_properties_t =
       typename GetCompileTimeProperties<detail::properties_t<Props...>>::type;
   using type = detail::merged_properties_t<filtered_this_property_t,
@@ -156,9 +97,10 @@ struct GetAnnotatedPtrPropertiesWithUsmKind<Kind,
   using filtered_input_properties_t =
       typename GetCompileTimeProperties<input_properties_t>::type;
 
-  static_assert(!HasUsmKind<input_properties_t>::value ||
-                    GetUsmKindFromPropList<input_properties_t>::value == Kind,
-                "Input property list contains conflicting USM kind.");
+  static_assert(
+      detail::get_property_or<usm_kind_key, input_properties_t>(usm_kind<Kind>)
+              .value == Kind,
+      "Input property list contains conflicting USM kind.");
 
   using type =
       detail::merged_properties_t<filtered_input_properties_t,
@@ -224,10 +166,10 @@ struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
 // runtime). Right now only the `buffer_location<N>` has its corresponding USM
 // runtime property and is transformable
 template <typename PropertyListT> inline property_list get_usm_property_list() {
-  if constexpr (detail::HasBufferLocation<PropertyListT>::value) {
+  if constexpr (PropertyListT::template has_property<buffer_location_key>()) {
     return property_list{
         sycl::ext::intel::experimental::property::usm::buffer_location(
-            detail::GetBufferLocationFromPropList<PropertyListT>::value)};
+            PropertyListT::template get_property<buffer_location_key>().value)};
   }
   return {};
 }

@@ -7,6 +7,7 @@
 
 // Test is flaky on Windows, disable until it can be fixed
 // UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/11852
 
 #include "../graph_common.hpp"
 

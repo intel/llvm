@@ -48,6 +48,11 @@ using private_ptr =
 // address space information internally.
 
 template <typename ElementType>
+using raw_generic_ptr =
+    multi_ptr<ElementType, access::address_space::generic_space,
+              access::decorated::no>;
+
+template <typename ElementType>
 using raw_global_ptr =
     multi_ptr<ElementType, access::address_space::global_space,
               access::decorated::no>;
@@ -63,6 +68,11 @@ using raw_private_ptr =
 
 // Template specialization aliases for different pointer address spaces.
 // The interface exposes decorated pointer.
+
+template <typename ElementType>
+using decorated_generic_ptr =
+    multi_ptr<ElementType, access::address_space::generic_space,
+              access::decorated::yes>;
 
 template <typename ElementType>
 using decorated_global_ptr =

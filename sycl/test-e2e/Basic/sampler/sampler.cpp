@@ -1,6 +1,6 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // TODO: Can we move it to sycl/test?
-// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
 
 //==--------------- sampler.cpp - SYCL sampler basic test ------------------==//
@@ -81,22 +81,6 @@ int main() {
         sycl::sampler E(WrappedSmplr.Smpl);
       });
     });
-  }
-
-  {
-    sycl::sampler Sampler(
-        sycl::coordinate_normalization_mode::unnormalized,
-        sycl::addressing_mode::clamp, sycl::filtering_mode::nearest,
-        sycl::property_list{sycl::property::buffer::use_host_ptr{}});
-
-    if (!Sampler.has_property<sycl::property::buffer::use_host_ptr>()) {
-      std::cerr << "Line " << __LINE__ << ": Property was not found"
-                << std::endl;
-      return 1;
-    }
-
-    sycl::property::buffer::use_host_ptr Prop =
-        Sampler.get_property<sycl::property::buffer::use_host_ptr>();
   }
 
   return 0;

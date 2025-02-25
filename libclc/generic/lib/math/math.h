@@ -23,9 +23,9 @@
 #ifndef __CLC_MATH_H_
 #define __CLC_MATH_H_
 
-#include "func.h"
 #include "as_type.h"
 #include "config.h"
+#include <clc/clcfunc.h>
 
 #define SNAN 0x001
 #define QNAN 0x002
@@ -40,7 +40,7 @@
 
 #if (defined __AMDGCN__ || defined __R600__) && !defined __HAS_FMAF__
 #define HAVE_HW_FMA32() (0)
-#elif defined CLC_SPIRV || defined CLC_SPIRV64
+#elif defined(CLC_SPIRV)
 bool __attribute__((noinline)) __clc_runtime_has_hw_fma32(void);
 #define HAVE_HW_FMA32() __clc_runtime_has_hw_fma32()
 #else

@@ -1,12 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// TODO: Flaky fail on Level Zero that is why mark as unsupported temporarily.
-// UNSUPPORTED: level_zero
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 #include <vector>
 
 namespace S = sycl;

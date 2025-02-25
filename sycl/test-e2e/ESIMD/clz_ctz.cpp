@@ -20,7 +20,7 @@ template <typename T, bool CLZ> bool test(queue &q) {
   std::cout << "Running " << (CLZ ? "CLZ " : "CTZ ")
             << esimd_test::type_name<T>() << std::endl;
   constexpr unsigned VL = 16;
-  constexpr unsigned Size = 1024 * 128;
+  constexpr unsigned Size = 256;
 
   T *A = new T[Size];
   T *B = new T[Size];
@@ -72,7 +72,13 @@ template <typename T, bool CLZ> bool test(queue &q) {
 
   for (unsigned i = 0; i < Size; ++i) {
     int Expected =
-        CLZ ? (i == 0 ? sizeof(T) * 8 : __builtin_clz(i)) : __builtin_ctz(i);
+        i == 0 ? sizeof(T) * 8 : (CLZ ? __builtin_clz(i) : __builtin_ctz(i));
+    if (CLZ && i != 0 && sizeof(T) < sizeof(unsigned)) {
+      // The builtin function for CLZ seems to assume 32-bit, so fixup the
+      // result for smaller types.
+      unsigned int Diff = (sizeof(unsigned) * 8) - (sizeof(T) * 8);
+      Expected -= Diff;
+    }
     int Computed = B[i];
     if (Expected != Computed && ++err_cnt < 10)
       std::cout << "Failure at " << std::to_string(i)
@@ -100,9 +106,8 @@ int main() {
   Passed &= test<int32_t, true>(q);
   Passed &= test<uint32_t, false>(q);
   Passed &= test<int32_t, false>(q);
-// TODO: Enable once GPU driver issue is fixed
-#if 0
-   Passed &= test<uint8_t, true>(q);
+
+  Passed &= test<uint8_t, true>(q);
   Passed &= test<int8_t, true>(q);
   Passed &= test<uint8_t, false>(q);
   Passed &= test<int8_t, false>(q);
@@ -111,6 +116,6 @@ int main() {
   Passed &= test<int16_t, true>(q);
   Passed &= test<uint16_t, false>(q);
   Passed &= test<int16_t, false>(q);
-#endif
+
   return !Passed;
 }

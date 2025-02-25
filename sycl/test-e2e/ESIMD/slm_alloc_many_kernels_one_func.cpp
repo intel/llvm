@@ -11,7 +11,7 @@
 // RUN: %{run} %t.2.out
 
 // Check if the test sill passes with O0
-// RUN: %{build} -O0 -o %t.3.out
+// RUN: %{build} %O0 -o %t.3.out
 // RUN: %{run} %t.3.out
 
 // Check that SLM frame offset of a function foo called from two kernels Test1
@@ -59,7 +59,8 @@ __attribute__((noinline))
 int main(void) {
   queue q;
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   std::cout << "force_inline=" << force_inline << "\n";
   auto ctxt = q.get_context();
 

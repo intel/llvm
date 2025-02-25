@@ -1,5 +1,4 @@
 // UNSUPPORTED: hip
-// UNSUPPORTED: ze_debug
 
 // RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_kernel -o %t_per_kernel.out
 // RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_source -o %t_per_source.out
@@ -15,6 +14,7 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 

@@ -446,3 +446,85 @@ int h(int x) {
 }
 
 #endif
+
+
+namespace GH91308 {
+    constexpr void f(auto) {
+        static_assert(false);
+    }
+    using R1 = decltype(&f<int>);
+}
+
+namespace GH94935 {
+
+consteval void f(int) {}
+consteval void undef(int); // expected-note {{declared here}}
+
+template<typename T>
+struct G {
+    void g() {
+        GH94935::f(T::fn());
+        GH94935::f(T::undef2());  // expected-error {{call to consteval function 'GH94935::f' is not a constant expression}} \
+                                  // expected-note  {{undefined function 'undef2' cannot be used in a constant expression}}
+        GH94935::undef(T::fn());  // expected-error {{call to consteval function 'GH94935::undef' is not a constant expression}} \
+                                  // expected-note  {{undefined function 'undef' cannot be used in a constant expression}}
+    }
+};
+
+struct X {
+    static consteval int fn() { return 0; }
+    static consteval int undef2();  // expected-note {{declared here}}
+
+};
+
+void test() {
+    G<X>{}.g(); // expected-note {{instantiation}}
+}
+
+
+template<typename T>
+void g() {
+    auto l = []{
+        ::f(T::fn());
+    };
+}
+
+struct Y {
+    static int fn();
+};
+
+template void g<Y>();
+
+}
+
+namespace GH112677 {
+
+class ConstEval {
+ public:
+  consteval ConstEval(int); // expected-note 2{{declared here}}
+};
+
+struct TemplateCtor {
+    ConstEval val;
+    template <class Anything = int> constexpr
+    TemplateCtor(int arg) : val(arg) {} // expected-note {{undefined constructor 'ConstEval'}}
+};
+struct C : TemplateCtor {
+    using TemplateCtor::TemplateCtor; // expected-note {{in call to 'TemplateCtor<int>(0)'}}
+};
+
+C c(0); // expected-note{{in implicit initialization for inherited constructor of 'C'}}
+// expected-error@-1 {{call to immediate function 'GH112677::C::TemplateCtor' is not a constant expression}}
+
+struct SimpleCtor { constexpr SimpleCtor(int) {}};
+struct D : SimpleCtor {
+    int y = 10;
+    ConstEval x = y; // expected-note {{undefined constructor 'ConstEval'}}
+    using SimpleCtor::SimpleCtor;
+    //expected-note@-1 {{'SimpleCtor' is an immediate constructor because the default initializer of 'x' contains a call to a consteval constructor 'ConstEval' and that call is not a constant expression}}
+};
+
+D d(0); // expected-note {{in implicit initialization for inherited constructor of 'D'}}
+// expected-error@-1 {{call to immediate function 'GH112677::D::SimpleCtor' is not a constant expression}}
+
+}

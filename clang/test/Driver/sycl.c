@@ -1,25 +1,19 @@
 // RUN: %clang -### -fsycl -c %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=121 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=2020 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -fsycl -sycl-std=sycl-1.2.1 %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang -### -fno-sycl -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
-// RUN: %clang -### -sycl-std=2017 %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
+// RUN: %clang -### %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clangxx -### -fno-sycl %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 // RUN: %clangxx -### -fsycl -fno-sycl %s 2>&1 | FileCheck %s --check-prefix=DISABLED
 // RUN: %clangxx -### %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 // RUN: %clangxx -### -sycl-std=some-std %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
-// RUN: %clang_cl -### -fsycl -sycl-std=2017 -- %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=ENABLED
 // RUN: %clang_cl -### -- %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 // RUN: %clang_cl -### -sycl-std=some-std -- %s 2>&1 | FileCheck %s --check-prefix=NOT_ENABLED
 
 // ENABLED: "-cc1"{{.*}} "-fsycl-is-device"
 // ENABLED-SAME: "-sycl-std={{[-.sycl0-9]+}}"
-// ENABLED-SAME: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// ENABLED-SAME: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 
 // NOT_ENABLED-NOT: "-fsycl-is-device"
 // NOT_ENABLED-NOT: "-fsycl-std-layout-kernel-params"
@@ -50,7 +44,7 @@
 // RUN: %clang_cl -### --target=i386-pc-windows-msvc -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir
 
 // DEFAULT: "-triple" "[[SPIRARCH]]-unknown-{{.*}}"{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std=2020"{{.*}} "-emit-llvm-bc"
-// DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
+// DEFAULT: "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // DEFAULT: "-internal-isystem" "{{.*lib.*clang.*include}}"
 // DEFAULT: "-std=c++17"
 // DEFAULT-NOT: "{{.*}}llvm-spirv"{{.*}}
@@ -73,7 +67,6 @@
 // RUN: %clang_cl -### -fsycl-device-only -Od %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
 // RUN: %clangxx -### -fsycl-device-only -O1 %s 2>&1 | FileCheck %s --check-prefix=CHECK-INLINE
 // RUN: %clang_cl -### -fsycl-device-only -O2 %s 2>&1 | FileCheck %s --check-prefix=CHECK-INLINE
-// RUN: %clangxx -### -fsycl-device-only -fintelfpga %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
 // CHECK-NOT-INLINE: "-fno-sycl-force-inline-kernel-lambda"
 // CHECK-INLINE-NOT: "-fno-sycl-force-inline-kernel-lambda"
 
@@ -105,20 +98,14 @@
 
 // -fsycl-help tests
 // RUN: mkdir -p %t-sycl-dir
-// RUN: touch %t-sycl-dir/aoc
-// RUN: chmod +x %t-sycl-dir/aoc
 // Test with a bad argument is expected to fail
 // RUN: not %clang -fsycl-help=foo %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-BADARG
 // RUN: %clang -### -fsycl-help=gen %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-GEN
-// RUN: env PATH=%t-sycl-dir %clang -### -fsycl-help=fpga %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-FPGA,SYCL-HELP-FPGA-OUT -DDIR=%t-sycl-dir
 // RUN: %clang -### -fsycl-help=x86_64 %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-CPU
-// RUN: %clang -### -fsycl-help %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-GEN,SYCL-HELP-FPGA,SYCL-HELP-CPU
+// RUN: %clang -### -fsycl-help %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-GEN,SYCL-HELP-CPU
 // SYCL-HELP-BADARG: unsupported argument 'foo' to option '-fsycl-help='
 // SYCL-HELP-GEN: Emitting help information for ocloc
 // SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-unknown' to enable ahead of time compilation
-// SYCL-HELP-FPGA: Emitting help information for aoc
-// SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown' to enable ahead of time compilation
-// SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help" "-sycl"
 // SYCL-HELP-CPU: Emitting help information for opencl-aot
 // SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown' to enable ahead of time compilation
 
@@ -127,8 +114,6 @@
 // RUN: FileCheck %s -check-prefix SYCL_HELP_ORDER --input-file=%t.help-out
 // SYCL_HELP_ORDER: Emitting help information for ocloc
 // SYCL_HELP_ORDER: ocloc{{(\.exe)?}}" "--help"
-// SYCL_HELP_ORDER: Emitting help information for aoc
-// SYCL_HELP_ORDER: aoc{{(\.exe)?}}" "-help" "-sycl"
 // SYCL_HELP_ORDER: Emitting help information for opencl-aot
 // SYCL_HELP_ORDER: opencl-aot{{(\.exe)?}}" "--help"
 

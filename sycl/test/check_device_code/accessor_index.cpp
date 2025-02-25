@@ -5,13 +5,8 @@
 // CHECK-NOT: llvm.loop
 // CHECK-NOT: br i1
 using namespace sycl;
-int main() {
-  queue Q;
-  range<3> Range{8, 8, 8};
-  buffer<int, 3> Buf(Range);
-  Q.submit([&](handler &Cgh) {
-    auto Acc = Buf.get_access<access::mode::write>(Cgh);
-    local_accessor<int, 3> LocAcc(Range, Cgh);
-    Cgh.parallel_for(Range, [=](item<3> It) { LocAcc[It] = Acc[It]; });
-  });
+
+SYCL_EXTERNAL void accessor_index(accessor<int, 3, access::mode::write> Acc,
+                                  local_accessor<int, 3> LocAcc, item<3> It) {
+  LocAcc[It] = Acc[It];
 }

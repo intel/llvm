@@ -1,7 +1,6 @@
 #include <clc/clc.h>
-#include <spirv/spirv.h>
-
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
+#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF char clz(char x) {
   return __spirv_ocl_clz(x);

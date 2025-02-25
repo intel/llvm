@@ -1,4 +1,5 @@
 // REQUIRES: opencl-aot, cpu
+// REQUIRES: build-and-run-mode
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t.out
 // RUN: %{run} %t.out
 
