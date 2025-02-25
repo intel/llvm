@@ -205,7 +205,13 @@ jobs:
       if: inputs.reset_intel_gpu == 'true'
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
-        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
+        base_dir="/sys/kernel/debug/dri"
+
+        for dir in "$base_dir"/*; do
+         if [ -f "$dir/i915_wedged" ]; then
+          sudo bash -c 'echo 1 > $dir/i915_wedged'
+         fi
+        done
     - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.devops_ref || inputs.ref }}
