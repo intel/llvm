@@ -31,4 +31,4 @@
 // RUN: %clangxx -fsycl -Xarch_device -fsanitize=thread -c %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-TSAN %s
 
-// SYCL-MSAN: ignoring '-fsanitize=thread' option as it is not currently supported for target 'spir64-unknown-unknown'
+// SYCL-TSAN: ignoring '-fsanitize=thread' option as it is not currently supported for target 'spir64-unknown-unknown'
