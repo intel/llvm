@@ -280,11 +280,11 @@ add_custom_target( generate-clc-convert.cl DEPENDS clc-convert.cl )
 set_target_properties( generate-clc-convert.cl PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 add_custom_command(
-  OUTPUT convert-spirv.cl
-  COMMAND ${Python3_EXECUTABLE} ${spirv_script_loc} > convert-spirv.cl
+  OUTPUT spirv-convert.cl
+  COMMAND ${Python3_EXECUTABLE} ${spirv_script_loc} > spirv-convert.cl
   DEPENDS ${spirv_script_loc} )
-add_custom_target( "generate_convert_spirv.cl" DEPENDS convert-spirv.cl )
-set_target_properties( "generate_convert_spirv.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
+add_custom_target( generate-spirv-convert.cl DEPENDS spirv-convert.cl )
+set_target_properties( generate-spirv-convert.cl PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 if ( clspv-- IN_LIST LIBCLC_TARGETS_TO_BUILD OR clspv64-- IN_LIST LIBCLC_TARGETS_TO_BUILD )
   add_custom_command(
@@ -400,7 +400,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     if( ARCH STREQUAL clspv OR ARCH STREQUAL clspv64 )
       list( APPEND libspirv_gen_files clspv-convert.cl )
     elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
-      list( APPEND libspirv_gen_files convert-spirv.cl )
+      list( APPEND libspirv_gen_files spirv-convert.cl )
       list( APPEND libspirv_lib_files libspirv/lib/generic/subnormal_use_default.ll )
     endif()
   endif()
