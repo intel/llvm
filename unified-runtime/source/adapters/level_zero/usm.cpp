@@ -27,7 +27,8 @@ namespace umf {
 ur_result_t getProviderNativeError(const char *providerName,
                                    int32_t nativeError) {
   if (strcmp(providerName, "Level Zero") == 0) {
-    return ze2urResult(static_cast<ze_result_t>(nativeError));
+    // L0 provider stores native errors of ur_result_t type
+    return static_cast<ur_result_t>(nativeError);
   }
 
   return UR_RESULT_ERROR_UNKNOWN;
@@ -332,66 +333,15 @@ ur_result_t urUSMHostAlloc(
     size_t Size,
     /// [out] pointer to USM host memory object
     void **RetMem) {
-
-  uint32_t Align = USMDesc ? USMDesc->align : 0;
-  // L0 supports alignment up to 64KB and silently ignores higher values.
-  // We flag alignment > 64KB as an invalid value.
-  // L0 spec says that alignment values that are not powers of 2 are invalid.
-  // If alignment == 0, then we are allowing the L0 driver to choose the
-  // alignment so no need to check.
-  if (Align > 0) {
-    if (Align > 65536 || (Align & (Align - 1)) != 0)
-      return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  ur_platform_handle_t Plt = Context->getPlatform();
-  // If indirect access tracking is enabled then lock the mutex which is
-  // guarding contexts container in the platform. This prevents new kernels from
-  // being submitted in any context while we are in the process of allocating a
-  // memory, this is needed to properly capture allocations by kernels with
-  // indirect access. This lock also protects access to the context's data
-  // structures. If indirect access tracking is not enabled then lock context
-  // mutex to protect access to context's data structures.
-  std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex,
-                                                std::defer_lock);
-  std::unique_lock<ur_shared_mutex> IndirectAccessTrackingLock(
-      Plt->ContextsMutex, std::defer_lock);
-  if (IndirectAccessTrackingEnabled) {
-    IndirectAccessTrackingLock.lock();
-    // We are going to defer memory release if there are kernels with indirect
-    // access, that is why explicitly retain context to be sure that it is
-    // released after all memory allocations in this context are released.
-    UR_CALL(ur::level_zero::urContextRetain(Context));
+  ur_usm_pool_handle_t USMPool = nullptr;
+  if (Pool) {
+    USMPool = Pool;
   } else {
-    ContextLock.lock();
+    USMPool = &Context->DefaultPool;
   }
 
-  // There is a single allocator for Host USM allocations, so we don't need to
-  // find the allocator depending on context as we do for Shared and Device
-  // allocations.
-  umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (!UseUSMAllocator) {
-    hPoolInternal = Context->HostMemProxyPool.get();
-  } else if (Pool) {
-    hPoolInternal = Pool->HostMemPool.get();
-  } else {
-    hPoolInternal = Context->HostMemPool.get();
-  }
-
-  *RetMem = umfPoolAlignedMalloc(hPoolInternal, Size, Align);
-  if (*RetMem == nullptr) {
-    auto umfRet = umfPoolGetLastAllocationError(hPoolInternal);
-    return umf2urResult(umfRet);
-  }
-
-  if (IndirectAccessTrackingEnabled) {
-    // Keep track of all memory allocations in the context
-    Context->MemAllocs.emplace(std::piecewise_construct,
-                               std::forward_as_tuple(*RetMem),
-                               std::forward_as_tuple(Context));
-  }
-
-  return UR_RESULT_SUCCESS;
+  return USMPool->allocate(Context, nullptr, USMDesc, UR_USM_TYPE_HOST, Size,
+                           RetMem);
 }
 
 ur_result_t urUSMDeviceAlloc(
@@ -408,72 +358,15 @@ ur_result_t urUSMDeviceAlloc(
     /// [out] pointer to USM device memory object
     void **RetMem) {
 
-  uint32_t Alignment = USMDesc ? USMDesc->align : 0;
-
-  // L0 supports alignment up to 64KB and silently ignores higher values.
-  // We flag alignment > 64KB as an invalid value.
-  // L0 spec says that alignment values that are not powers of 2 are invalid.
-  // If alignment == 0, then we are allowing the L0 driver to choose the
-  // alignment so no need to check.
-  if (Alignment > 0) {
-    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-      return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  ur_platform_handle_t Plt = Device->Platform;
-
-  // If indirect access tracking is enabled then lock the mutex which is
-  // guarding contexts container in the platform. This prevents new kernels from
-  // being submitted in any context while we are in the process of allocating a
-  // memory, this is needed to properly capture allocations by kernels with
-  // indirect access. This lock also protects access to the context's data
-  // structures. If indirect access tracking is not enabled then lock context
-  // mutex to protect access to context's data structures.
-  std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex,
-                                                std::defer_lock);
-  std::unique_lock<ur_shared_mutex> IndirectAccessTrackingLock(
-      Plt->ContextsMutex, std::defer_lock);
-  if (IndirectAccessTrackingEnabled) {
-    IndirectAccessTrackingLock.lock();
-    // We are going to defer memory release if there are kernels with indirect
-    // access, that is why explicitly retain context to be sure that it is
-    // released after all memory allocations in this context are released.
-    UR_CALL(ur::level_zero::urContextRetain(Context));
+  ur_usm_pool_handle_t USMPool = nullptr;
+  if (Pool) {
+    USMPool = Pool;
   } else {
-    ContextLock.lock();
+    USMPool = &Context->DefaultPool;
   }
 
-  umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (!UseUSMAllocator) {
-    auto It = Context->DeviceMemProxyPools.find(Device->ZeDevice);
-    if (It == Context->DeviceMemProxyPools.end())
-      return UR_RESULT_ERROR_INVALID_VALUE;
-
-    hPoolInternal = It->second.get();
-  } else if (Pool) {
-    hPoolInternal = Pool->DeviceMemPools[Device].get();
-  } else {
-    auto It = Context->DeviceMemPools.find(Device->ZeDevice);
-    if (It == Context->DeviceMemPools.end())
-      return UR_RESULT_ERROR_INVALID_VALUE;
-
-    hPoolInternal = It->second.get();
-  }
-
-  *RetMem = umfPoolAlignedMalloc(hPoolInternal, Size, Alignment);
-  if (*RetMem == nullptr) {
-    auto umfRet = umfPoolGetLastAllocationError(hPoolInternal);
-    return umf2urResult(umfRet);
-  }
-
-  if (IndirectAccessTrackingEnabled) {
-    // Keep track of all memory allocations in the context
-    Context->MemAllocs.emplace(std::piecewise_construct,
-                               std::forward_as_tuple(*RetMem),
-                               std::forward_as_tuple(Context));
-  }
-
-  return UR_RESULT_SUCCESS;
+  return USMPool->allocate(Context, Device, USMDesc, UR_USM_TYPE_DEVICE, Size,
+                           RetMem);
 }
 
 ur_result_t urUSMSharedAlloc(
@@ -489,100 +382,15 @@ ur_result_t urUSMSharedAlloc(
     size_t Size,
     /// [out] pointer to USM shared memory object
     void **RetMem) {
-
-  uint32_t Alignment = USMDesc ? USMDesc->align : 0;
-
-  ur_usm_host_mem_flags_t UsmHostFlags{};
-
-  // See if the memory is going to be read-only on the device.
-  bool DeviceReadOnly = false;
-  ur_usm_device_mem_flags_t UsmDeviceFlags{};
-
-  void *pNext = USMDesc ? const_cast<void *>(USMDesc->pNext) : nullptr;
-  while (pNext != nullptr) {
-    const ur_base_desc_t *BaseDesc =
-        reinterpret_cast<const ur_base_desc_t *>(pNext);
-    if (BaseDesc->stype == UR_STRUCTURE_TYPE_USM_DEVICE_DESC) {
-      const ur_usm_device_desc_t *UsmDeviceDesc =
-          reinterpret_cast<const ur_usm_device_desc_t *>(pNext);
-      UsmDeviceFlags = UsmDeviceDesc->flags;
-    }
-    if (BaseDesc->stype == UR_STRUCTURE_TYPE_USM_HOST_DESC) {
-      const ur_usm_host_desc_t *UsmHostDesc =
-          reinterpret_cast<const ur_usm_host_desc_t *>(pNext);
-      UsmHostFlags = UsmHostDesc->flags;
-      std::ignore = UsmHostFlags;
-    }
-    pNext = const_cast<void *>(BaseDesc->pNext);
-  }
-  DeviceReadOnly = UsmDeviceFlags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
-
-  // L0 supports alignment up to 64KB and silently ignores higher values.
-  // We flag alignment > 64KB as an invalid value.
-  // L0 spec says that alignment values that are not powers of 2 are invalid.
-  // If alignment == 0, then we are allowing the L0 driver to choose the
-  // alignment so no need to check.
-  if (Alignment > 0) {
-    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-      return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  ur_platform_handle_t Plt = Device->Platform;
-
-  // If indirect access tracking is enabled then lock the mutex which is
-  // guarding contexts container in the platform. This prevents new kernels from
-  // being submitted in any context while we are in the process of allocating a
-  // memory, this is needed to properly capture allocations by kernels with
-  // indirect access. This lock also protects access to the context's data
-  // structures. If indirect access tracking is not enabled then lock context
-  // mutex to protect access to context's data structures.
-  std::scoped_lock<ur_shared_mutex> Lock(
-      IndirectAccessTrackingEnabled ? Plt->ContextsMutex : Context->Mutex);
-
-  if (IndirectAccessTrackingEnabled) {
-    // We are going to defer memory release if there are kernels with indirect
-    // access, that is why explicitly retain context to be sure that it is
-    // released after all memory allocations in this context are released.
-    UR_CALL(ur::level_zero::urContextRetain(Context));
-  }
-
-  umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (!UseUSMAllocator) {
-    auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemProxyPools
-                                      : Context->SharedMemProxyPools);
-    auto It = Allocator.find(Device->ZeDevice);
-    if (It == Allocator.end())
-      return UR_RESULT_ERROR_INVALID_VALUE;
-
-    hPoolInternal = It->second.get();
-  } else if (Pool) {
-    hPoolInternal = (DeviceReadOnly)
-                        ? Pool->SharedReadOnlyMemPools[Device].get()
-                        : Pool->SharedMemPools[Device].get();
+  ur_usm_pool_handle_t USMPool = nullptr;
+  if (Pool) {
+    USMPool = Pool;
   } else {
-    auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemPools
-                                      : Context->SharedMemPools);
-    auto It = Allocator.find(Device->ZeDevice);
-    if (It == Allocator.end())
-      return UR_RESULT_ERROR_INVALID_VALUE;
-
-    hPoolInternal = It->second.get();
+    USMPool = &Context->DefaultPool;
   }
 
-  *RetMem = umfPoolAlignedMalloc(hPoolInternal, Size, Alignment);
-  if (*RetMem == nullptr) {
-    auto umfRet = umfPoolGetLastAllocationError(hPoolInternal);
-    return umf2urResult(umfRet);
-  }
-
-  if (IndirectAccessTrackingEnabled) {
-    // Keep track of all memory allocations in the context
-    Context->MemAllocs.emplace(std::piecewise_construct,
-                               std::forward_as_tuple(*RetMem),
-                               std::forward_as_tuple(Context));
-  }
-
-  return UR_RESULT_SUCCESS;
+  return USMPool->allocate(Context, Device, USMDesc, UR_USM_TYPE_SHARED, Size,
+                           RetMem);
 }
 
 ur_result_t
@@ -667,26 +475,8 @@ ur_result_t urUSMGetMemAllocInfo(
 
     std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
 
-    auto SearchMatchingPool =
-        [](std::unordered_map<ur_device_handle_t, umf::pool_unique_handle_t>
-               &PoolMap,
-           umf_memory_pool_handle_t UMFPool) {
-          for (auto &PoolPair : PoolMap) {
-            if (PoolPair.second.get() == UMFPool) {
-              return true;
-            }
-          }
-          return false;
-        };
-
     for (auto &Pool : Context->UsmPoolHandles) {
-      if (SearchMatchingPool(Pool->DeviceMemPools, UMFPool)) {
-        return ReturnValue(Pool);
-      }
-      if (SearchMatchingPool(Pool->SharedMemPools, UMFPool)) {
-        return ReturnValue(Pool);
-      }
-      if (Pool->HostMemPool.get() == UMFPool) {
+      if (Pool->hasPool(UMFPool)) {
         return ReturnValue(Pool);
       }
     }
@@ -802,6 +592,299 @@ ur_result_t urUSMReleaseExp(ur_context_handle_t Context, void *HostPtr) {
     ZeUSMImport.doZeUSMRelease(
         Context->getPlatform()->ZeDriverHandleExpTranslated, HostPtr);
   return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t enqueueUSMAllocHelper(
+    ur_queue_handle_t Queue, ur_usm_pool_handle_t Pool, const size_t Size,
+    const ur_exp_async_usm_alloc_properties_t *Properties,
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
+    void **RetMem, ur_event_handle_t *OutEvent, ur_usm_type_t Type) {
+  std::ignore = Pool;
+  std::ignore = Properties;
+
+  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+
+  bool UseCopyEngine = false;
+  _ur_ze_event_list_t TmpWaitList;
+  UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+
+  bool OkToBatch = true;
+  // Get a new command list to be used on this call
+  ur_command_list_ptr_t CommandList{};
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      OkToBatch, nullptr /*ForcedCmdQueue*/));
+
+  ze_event_handle_t ZeEvent = nullptr;
+  ur_event_handle_t InternalEvent{};
+  bool IsInternal = OutEvent == nullptr;
+  ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+
+  ur_command_t CommandType = UR_COMMAND_FORCE_UINT32;
+  switch (Type) {
+  case UR_USM_TYPE_HOST:
+    CommandType = UR_COMMAND_ENQUEUE_USM_HOST_ALLOC_EXP;
+    break;
+  case UR_USM_TYPE_DEVICE:
+    CommandType = UR_COMMAND_ENQUEUE_USM_DEVICE_ALLOC_EXP;
+    break;
+  case UR_USM_TYPE_SHARED:
+    CommandType = UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP;
+    break;
+  default:
+    logger::error("enqueueUSMAllocHelper: unsupported USM type");
+    throw UR_RESULT_ERROR_UNKNOWN;
+  }
+  UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
+                                       IsInternal, false));
+  ZeEvent = (*Event)->ZeEvent;
+  (*Event)->WaitList = TmpWaitList;
+
+  // Allocate USM memory
+  ur_usm_pool_handle_t USMPool = nullptr;
+  if (Pool) {
+    USMPool = Pool;
+  } else {
+    USMPool = &Queue->Context->AsyncPool;
+  }
+
+  auto Device = (Type == UR_USM_TYPE_HOST) ? nullptr : Queue->Device;
+  auto Ret =
+      USMPool->allocate(Queue->Context, Device, nullptr, Type, Size, RetMem);
+  if (Ret) {
+    return Ret;
+  }
+
+  // Signal that USM allocation event was finished
+  ZE2UR_CALL(zeCommandListAppendSignalEvent, (CommandList->first, ZeEvent));
+
+  UR_CALL(Queue->executeCommandList(CommandList, false, OkToBatch));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urEnqueueUSMDeviceAllocExp(
+    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
+    ur_usm_pool_handle_t Pool, ///< [in][optional] USM pool descriptor
+    const size_t Size, ///< [in] minimum size in bytes of the USM memory object
+                       ///< to be allocated
+    const ur_exp_async_usm_alloc_properties_t
+        *Properties, ///< [in][optional] pointer to the enqueue asynchronous
+                     ///< USM allocation properties
+    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                        ///< pointer to a list of events that must be complete
+                        ///< before the kernel execution. If nullptr, the
+                        ///< numEventsInWaitList must be 0, indicating no wait
+                        ///< events.
+    void **Mem,         ///< [out] pointer to USM memory object
+    ur_event_handle_t *OutEvent ///< [out][optional] return an event object that
+                                ///< identifies the async alloc
+) {
+  return enqueueUSMAllocHelper(Queue, Pool, Size, Properties,
+                               NumEventsInWaitList, EventWaitList, Mem,
+                               OutEvent, UR_USM_TYPE_DEVICE);
+}
+
+ur_result_t urEnqueueUSMSharedAllocExp(
+    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
+    ur_usm_pool_handle_t Pool, ///< [in][optional] USM pool descriptor
+    const size_t Size, ///< [in] minimum size in bytes of the USM memory object
+                       ///< to be allocated
+    const ur_exp_async_usm_alloc_properties_t
+        *Properties, ///< [in][optional] pointer to the enqueue asynchronous
+                     ///< USM allocation properties
+    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                        ///< pointer to a list of events that must be complete
+                        ///< before the kernel execution. If nullptr, the
+                        ///< numEventsInWaitList must be 0, indicating no wait
+                        ///< events.
+    void **Mem,         ///< [out] pointer to USM memory object
+    ur_event_handle_t *OutEvent ///< [out][optional] return an event object that
+                                ///< identifies the async alloc
+) {
+  return enqueueUSMAllocHelper(Queue, Pool, Size, Properties,
+                               NumEventsInWaitList, EventWaitList, Mem,
+                               OutEvent, UR_USM_TYPE_SHARED);
+}
+
+ur_result_t urEnqueueUSMHostAllocExp(
+    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
+    ur_usm_pool_handle_t Pool, ///< [in][optional] handle of the USM memory pool
+    const size_t Size, ///< [in] minimum size in bytes of the USM memory object
+                       ///< to be allocated
+    const ur_exp_async_usm_alloc_properties_t
+        *Properties, ///< [in][optional] pointer to the enqueue asynchronous
+                     ///< USM allocation properties
+    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                        ///< pointer to a list of events that must be complete
+                        ///< before the kernel execution. If nullptr, the
+                        ///< numEventsInWaitList must be 0, indicating no wait
+                        ///< events.
+    void **Mem,         ///< [out] pointer to USM memory object
+    ur_event_handle_t
+        *OutEvent ///< [out][optional] return an event object that identifies
+                  ///< the asynchronous USM device allocation
+) {
+  return enqueueUSMAllocHelper(Queue, Pool, Size, Properties,
+                               NumEventsInWaitList, EventWaitList, Mem,
+                               OutEvent, UR_USM_TYPE_HOST);
+}
+
+ur_result_t urEnqueueUSMFreeExp(
+    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
+    ur_usm_pool_handle_t Pool,    ///< [in][optional] USM pool descriptor
+    void *Mem,                    ///< [in] pointer to USM memory object
+    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                        ///< pointer to a list of events that must be complete
+                        ///< before the kernel execution. If nullptr, the
+                        ///< numEventsInWaitList must be 0, indicating no wait
+                        ///< events.
+    ur_event_handle_t *OutEvent ///< [out][optional] return an event object that
+                                ///< identifies the async alloc
+) {
+  std::ignore = Pool;
+
+  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
+
+  bool UseCopyEngine = false;
+  _ur_ze_event_list_t TmpWaitList;
+  UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+      NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
+
+  bool OkToBatch = false;
+  // Get a new command list to be used on this call
+  ur_command_list_ptr_t CommandList{};
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      OkToBatch, nullptr /*ForcedCmdQueue*/));
+
+  ze_event_handle_t ZeEvent = nullptr;
+  ur_event_handle_t InternalEvent{};
+  bool IsInternal = OutEvent == nullptr;
+  ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+
+  UR_CALL(createEventAndAssociateQueue(Queue, Event,
+                                       UR_COMMAND_ENQUEUE_USM_FREE_EXP,
+                                       CommandList, IsInternal, false));
+  ZeEvent = (*Event)->ZeEvent;
+  (*Event)->WaitList = TmpWaitList;
+
+  const auto &ZeCommandList = CommandList->first;
+  const auto &WaitList = (*Event)->WaitList;
+  if (WaitList.Length) {
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
+
+    // Wait for commands execution until USM can be freed
+    UR_CALL(
+        Queue->executeCommandList(CommandList, true, OkToBatch)); // Blocking
+  }
+
+  // Free USM memory
+  auto Ret = USMFreeHelper(Queue->Context, Mem);
+  if (Ret) {
+    return Ret;
+  }
+
+  // Signal that USM free event was finished
+  ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
+
+  UR_CALL(Queue->executeCommandList(CommandList, false, OkToBatch));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t UR_APICALL urUSMPoolCreateExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_usm_pool_desc_t *PoolDesc, ///< [in] pointer to USM pool descriptor.
+                                  ///< Can be chained with
+                                  ///< ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_handle_t *pPool   ///< [out] pointer to USM memory pool
+) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = PoolDesc;
+  std::ignore = pPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t hContext,
+                                           ur_device_handle_t hDevice,
+                                           ur_usm_pool_handle_t hPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolSetThresholdExp(ur_context_handle_t hContext,
+                                                ur_device_handle_t hDevice,
+                                                ur_usm_pool_handle_t hPool,
+                                                size_t newThreshold) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  std::ignore = newThreshold;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_usm_pool_handle_t *pPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = pPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
+                                           ur_usm_pool_info_t propName,
+                                           void *pPropValue,
+                                           size_t *pPropSizeRet) {
+  std::ignore = hPool;
+  std::ignore = propName;
+  std::ignore = pPropValue;
+  std::ignore = pPropSizeRet;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(ur_context_handle_t hContext,
+                                                 ur_device_handle_t hDevice,
+                                                 ur_usm_pool_handle_t *pPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = pPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(ur_context_handle_t hContext,
+                                                 ur_device_handle_t hDevice,
+                                                 ur_usm_pool_handle_t hPool) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t hContext,
+                                          ur_device_handle_t hDevice,
+                                          ur_usm_pool_handle_t hPool,
+                                          size_t minBytesToKeep) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = hPool;
+  std::ignore = minBytesToKeep;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 } // namespace ur::level_zero
 
@@ -1034,84 +1117,187 @@ ur_result_t L0HostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
   return USMHostAllocImpl(ResultPtr, Context, /* flags */ 0, Size, Alignment);
 }
 
-ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
-                                             ur_usm_pool_desc_t *PoolDesc) {
+static usm::DisjointPoolMemType
+DescToDisjointPoolMemType(const usm::pool_descriptor &desc) {
+  switch (desc.type) {
+  case UR_USM_TYPE_DEVICE:
+    return usm::DisjointPoolMemType::Device;
+  case UR_USM_TYPE_SHARED:
+    if (desc.deviceReadOnly)
+      return usm::DisjointPoolMemType::SharedReadOnly;
+    else
+      return usm::DisjointPoolMemType::Shared;
+  case UR_USM_TYPE_HOST:
+    return usm::DisjointPoolMemType::Host;
+  default:
+    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+  }
+}
 
-  this->Context = Context;
-  zeroInit = static_cast<uint32_t>(PoolDesc->flags &
-                                   UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK);
+typedef usm::pool_descriptor l0_memory_provider_params_t;
 
-  void *pNext = const_cast<void *>(PoolDesc->pNext);
-  while (pNext != nullptr) {
-    const ur_base_desc_t *BaseDesc =
-        reinterpret_cast<const ur_base_desc_t *>(pNext);
-    switch (BaseDesc->stype) {
-    case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC: {
-      const ur_usm_pool_limits_desc_t *Limits =
-          reinterpret_cast<const ur_usm_pool_limits_desc_t *>(BaseDesc);
-      for (auto &config : DisjointPoolConfigs.Configs) {
-        config.MaxPoolableSize = Limits->maxPoolableSize;
-        config.SlabMinSize = Limits->minDriverAllocSize;
+template <typename ProviderParams = std::nullptr_t>
+static umf::provider_unique_handle_t
+MakeProvider(ProviderParams *Params = nullptr) {
+  if constexpr (std::is_same_v<ProviderParams, l0_memory_provider_params_t>) {
+    umf_result_t Ret = UMF_RESULT_SUCCESS;
+    umf::provider_unique_handle_t &&L0Provider = nullptr;
+
+    switch (Params->type) {
+    case UR_USM_TYPE_HOST:
+      std::tie(Ret, L0Provider) =
+          umf::memoryProviderMakeUnique<L0HostMemoryProvider>(Params->hContext,
+                                                              Params->hDevice);
+      break;
+    case UR_USM_TYPE_DEVICE:
+      std::tie(Ret, L0Provider) =
+          umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
+              Params->hContext, Params->hDevice);
+      break;
+    case UR_USM_TYPE_SHARED:
+      if (Params->deviceReadOnly) {
+        std::tie(Ret, L0Provider) =
+            umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
+                Params->hContext, Params->hDevice);
+      } else {
+        std::tie(Ret, L0Provider) =
+            umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
+                Params->hContext, Params->hDevice);
       }
       break;
+    default:
+      logger::error("urUSMPoolCreate: invalid USM type found");
+      Ret = UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
-    default: {
-      logger::error("urUSMPoolCreate: unexpected chained stype");
-      throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+
+    if (Ret != UMF_RESULT_SUCCESS) {
+      logger::error("urUSMPoolCreate: failed to create UMF provider");
+      throw UsmAllocationException(umf::umf2urResult(Ret));
     }
-    }
-    pNext = const_cast<void *>(BaseDesc->pNext);
+
+    return std::move(L0Provider);
   }
 
-  auto MemProvider =
-      umf::memoryProviderMakeUnique<L0HostMemoryProvider>(Context, nullptr)
-          .second;
+  return nullptr;
+}
 
-  auto UmfHostParamsHandle = getUmfParamsHandle(
-      DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host]);
-  HostMemPool =
-      umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
-                                 UmfHostParamsHandle.get())
-          .second;
-
-  for (auto device : Context->Devices) {
-    MemProvider =
-        umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(Context, device)
-            .second;
-    auto UmfDeviceParamsHandle = getUmfParamsHandle(
-        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Device]);
-    DeviceMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(device),
-        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
-                                                   std::move(MemProvider),
-                                                   UmfDeviceParamsHandle.get())
-                            .second));
-
-    MemProvider =
-        umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(Context, device)
-            .second;
-    auto UmfSharedParamsHandle = getUmfParamsHandle(
-        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Shared]);
-    SharedMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(device),
-        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
-                                                   std::move(MemProvider),
-                                                   UmfSharedParamsHandle.get())
-                            .second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
-                      Context, device)
-                      .second;
-    auto UmfSharedROParamsHandle = getUmfParamsHandle(
-        DisjointPoolConfigInstance
-            .Configs[usm::DisjointPoolMemType::SharedReadOnly]);
-    SharedReadOnlyMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(device),
-        std::make_tuple(umf::poolMakeUniqueFromOps(
-                            umfDisjointPoolOps(), std::move(MemProvider),
-                            UmfSharedROParamsHandle.get())
-                            .second));
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
+                                             ur_usm_pool_desc_t *PoolDesc,
+                                             bool IsProxy)
+    : Context(Context) {
+  // TODO: handle zero-init flag 'UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK'
+  auto DisjointPoolConfigs = DisjointPoolConfigInstance;
+  if (auto Limits = find_stype_node<ur_usm_pool_limits_desc_t>(PoolDesc)) {
+    for (auto &Config : DisjointPoolConfigs.Configs) {
+      Config.MaxPoolableSize = Limits->maxPoolableSize;
+      Config.SlabMinSize = Limits->minDriverAllocSize;
+    }
   }
+
+  auto [Ret, Descriptors] = usm::pool_descriptor::create(this, Context);
+  if (Ret) {
+    logger::error("urUSMPoolCreate: failed to create pool descriptors");
+    throw UsmAllocationException(Ret);
+  }
+
+  for (auto &Desc : Descriptors) {
+    umf::pool_unique_handle_t Pool = nullptr;
+    if (IsProxy) {
+      Pool = usm::makeProxyPool(MakeProvider(&Desc));
+    } else {
+      auto &PoolConfig =
+          DisjointPoolConfigs.Configs[DescToDisjointPoolMemType(Desc)];
+      Pool = usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig);
+    }
+
+    Ret = PoolManager.addPool(Desc, std::move(Pool));
+    if (Ret) {
+      logger::error("urUSMPoolCreate: failed to store UMF pool");
+      throw UsmAllocationException(Ret);
+    }
+  }
+}
+
+umf_memory_pool_handle_t
+ur_usm_pool_handle_t_::getPool(const usm::pool_descriptor &Desc) {
+  auto PoolOpt = PoolManager.getPool(Desc);
+  return PoolOpt.has_value() ? PoolOpt.value() : nullptr;
+}
+
+ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
+                                            ur_device_handle_t Device,
+                                            const ur_usm_desc_t *USMDesc,
+                                            ur_usm_type_t Type, size_t Size,
+                                            void **RetMem) {
+  uint32_t Alignment = USMDesc ? USMDesc->align : 0;
+  // L0 supports alignment up to 64KB and silently ignores higher values.
+  // We flag alignment > 64KB as an invalid value.
+  // L0 spec says that alignment values that are not powers of 2 are invalid.
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Alignment > 0) {
+    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  // Handle the extension structures for 'ur_usm_desc_t'.
+  if (auto UsmHostDesc = find_stype_node<ur_usm_host_desc_t>(USMDesc)) {
+    std::ignore = UsmHostDesc; // Unused
+  }
+
+  bool DeviceReadOnly = false;
+  if (auto UsmDeviceDesc = find_stype_node<ur_usm_device_desc_t>(USMDesc)) {
+    DeviceReadOnly =
+        (Type == UR_USM_TYPE_SHARED) &&
+        (UsmDeviceDesc->flags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY);
+  }
+
+  ur_platform_handle_t Plt =
+      (Device) ? Device->Platform : Context->getPlatform();
+  // If indirect access tracking is enabled then lock the mutex which is
+  // guarding contexts container in the platform. This prevents new kernels from
+  // being submitted in any context while we are in the process of allocating a
+  // memory, this is needed to properly capture allocations by kernels with
+  // indirect access. This lock also protects access to the context's data
+  // structures. If indirect access tracking is not enabled then lock context
+  // mutex to protect access to context's data structures.
+  std::scoped_lock<ur_shared_mutex> Lock(
+      IndirectAccessTrackingEnabled ? Plt->ContextsMutex : Context->Mutex);
+
+  if (IndirectAccessTrackingEnabled) {
+    // We are going to defer memory release if there are kernels with indirect
+    // access, that is why explicitly retain context to be sure that it is
+    // released after all memory allocations in this context are released.
+    UR_CALL(ur::level_zero::urContextRetain(Context));
+  }
+
+  auto umfPool = getPool(
+      usm::pool_descriptor{this, Context, Device, Type, DeviceReadOnly});
+  if (!umfPool) {
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
+  }
+
+  *RetMem = umfPoolAlignedMalloc(umfPool, Size, Alignment);
+  if (*RetMem == nullptr) {
+    auto umfRet = umfPoolGetLastAllocationError(umfPool);
+    logger::error(
+        "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
+        umfPool);
+    return umf::umf2urResult(umfRet);
+  }
+
+  if (IndirectAccessTrackingEnabled) {
+    // Keep track of all memory allocations in the context
+    Context->MemAllocs.emplace(std::piecewise_construct,
+                               std::forward_as_tuple(*RetMem),
+                               std::forward_as_tuple(Context));
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t Pool) {
+  return PoolManager.hasPool(Pool);
 }
 
 // If indirect access tracking is not enabled then this functions just performs

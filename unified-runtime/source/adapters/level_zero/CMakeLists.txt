@@ -13,6 +13,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/async_alloc.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
