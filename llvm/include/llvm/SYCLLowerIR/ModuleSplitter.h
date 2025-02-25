@@ -21,6 +21,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/PropertySetIO.h"
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -38,6 +39,8 @@ class OptionCategory;
 namespace module_split {
 
 constexpr char SYCL_ESIMD_SPLIT_MD_NAME[] = "sycl-esimd-split-status";
+constexpr std::array<const char *, 2> SYCLDeviceLibs = {
+    "libsycl-fallback-bfloat16.bc", "libsycl-native-bfloat16.bc"};
 
 extern cl::OptionCategory &getModuleSplitCategory();
 
@@ -129,6 +132,7 @@ class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
   bool IsTopLevel = false;
+  bool IsSYCLDeviceLib = false;
   mutable std::optional<SYCLDeviceRequirements> Reqs;
 
 public:
@@ -140,7 +144,14 @@ public:
   Properties Props;
 
   ModuleDesc(std::unique_ptr<Module> &&M, StringRef Name = "TOP-LEVEL")
-      : M(std::move(M)), IsTopLevel(true), Name(Name) {}
+      : M(std::move(M)), IsTopLevel(true), Name(Name) {
+    // DeviceLib module doesn't include any entry point,it can be constructed
+    // using ctor without any entry point related parameter.
+    for (auto Fn : SYCLDeviceLibs) {
+      if (Name == std::string(Fn))
+        IsSYCLDeviceLib = true;
+    }
+  }
 
   ModuleDesc(std::unique_ptr<Module> &&M, EntryPointGroup &&EntryPoints,
              const Properties &Props)
@@ -166,6 +177,7 @@ public:
 
   bool isESIMD() const { return EntryPoints.isEsimd(); }
   bool isSYCL() const { return EntryPoints.isSycl(); }
+  bool isSYCLDeviceLib() const { return IsSYCLDeviceLib; }
 
   const EntryPointSet &entries() const { return EntryPoints.Functions; }
   const EntryPointGroup &getEntryPointGroup() const { return EntryPoints; }
