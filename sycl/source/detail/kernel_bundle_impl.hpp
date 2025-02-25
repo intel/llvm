@@ -753,6 +753,22 @@ public:
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
 
+  std::string ext_oneapi_get_raw_kernel_name(const std::string &Name) {
+    if (MKernelNames.empty())
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "'ext_oneapi_get_raw_kernel_name' is only available in "
+          "kernel_bundles successfully built from "
+          "kernel_bundle<bundle_state::ext_oneapi_source>.");
+
+    std::string AdjustedName = adjust_kernel_name(Name);
+    if (!is_kernel_name(AdjustedName))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "kernel '" + Name + "' not found in kernel_bundle");
+
+    return AdjustedName;
+  }
+
   bool empty() const noexcept { return MDeviceImages.empty(); }
 
   backend get_backend() const noexcept {
