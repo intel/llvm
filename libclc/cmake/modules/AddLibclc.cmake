@@ -314,7 +314,8 @@ function(add_libclc_builtin_set)
     message( FATAL_ERROR "Must provide ARCH, ARCH_SUFFIX, and TRIPLE" )
   endif()
 
-  set( bytecode_files "" )
+  set( bytecode_files )
+  set( bytecode_ir_files )
   foreach( file IN LISTS ARG_GEN_FILES ARG_LIB_FILES )
     # We need to take each file and produce an absolute input file, as well
     # as a unique architecture-specific output file. We deal with a mix of
@@ -352,8 +353,22 @@ function(add_libclc_builtin_set)
         "${ARG_COMPILE_FLAGS}" -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
       DEPENDENCIES ${input_file_dep}
     )
-    list( APPEND bytecode_files ${output_file} )
+
+    # Collect all files originating in LLVM IR separately
+    get_filename_component( file_ext ${file} EXT )
+    if( ${file_ext} STREQUAL ".ll" )
+      list( APPEND bytecode_ir_files ${output_file} )
+    else()
+      list( APPEND bytecode_files ${output_file} )
+    endif()
   endforeach()
+
+  # Prepend all LLVM IR files to the list so they are linked into the final
+  # bytecode modules first. This helps to suppress unnecessary warnings
+  # regarding different data layouts while linking. Any LLVM IR files without a
+  # data layout will (silently) be given the first data layout the linking
+  # process comes across.
+  list( PREPEND bytecode_files ${bytecode_ir_files} )
 
   set( builtins_comp_lib_tgt builtins.comp.${ARG_ARCH_SUFFIX} )
   add_custom_target( ${builtins_comp_lib_tgt}
@@ -505,8 +520,9 @@ function(add_libclc_builtin_set)
     endforeach()
   endif()
 
-  # nvptx-- targets don't include workitem builtins
-  if( NOT ARG_TRIPLE MATCHES ".*ptx.*--$" )
+  # nvptx-- targets don't include workitem builtins, and clspv targets don't
+  # include all OpenCL builtins
+  if( NOT ARG_ARCH MATCHES "^(nvptx|clspv)(64)?$" )
     add_test( NAME external-calls-${obj_suffix}
       COMMAND ./check_external_calls.sh ${builtins-lib}
       WORKING_DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR} )
