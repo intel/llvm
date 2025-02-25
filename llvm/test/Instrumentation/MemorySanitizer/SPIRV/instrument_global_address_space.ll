@@ -36,7 +36,7 @@ entry:
 }
 
 ; CHECK: attributes [[ATTR0]]
-; CHECK-SAME: "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__MsanKernelMetadata"
+; CHECK-SAME: "sycl-device-global-size"="32" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__MsanKernelMetadata"
 
 attributes #0 = { mustprogress norecurse nounwind sanitize_memory uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="check_call.cpp" "sycl-single-task" "uniform-work-group-size"="true" }
 attributes #1 = { mustprogress noinline norecurse nounwind sanitize_memory uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
