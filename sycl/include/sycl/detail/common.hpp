@@ -8,6 +8,11 @@
 
 #pragma once
 
+#if _MSC_VER
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
@@ -378,6 +383,43 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
 // in GCC when relying on default deductions on non-template ctors in template
 // classes.
 struct AllowCTADTag;
+
+// Look up a function name that was dynamically linked
+// This is used by the runtime where it needs to manipulate native handles (e.g.
+// retaining OpenCL handles). On Windows, the symbol name is looked up in
+// `WinName`. In Linux, it uses `LinName`.
+//
+// The library must already have been loaded (perhaps by UR), otherwise this
+// function throws.
+template <typename fn>
+fn *dynLookupFunction([[maybe_unused]] const char *WinName,
+                      [[maybe_unused]] const char *LinName,
+                      const char *FunName) {
+#ifdef _MSC_VER
+  auto handle = GetModuleHandleA(WinName);
+  if (!handle) {
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "OpenCL library is not loaded");
+  }
+  auto *retVal = GetProcAddress(handle, FunName);
+#else
+  auto handle = dlopen(LinName, RTLD_LAZY | RTLD_NOLOAD);
+  if (!handle) {
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "OpenCL library is not loaded");
+  }
+  auto *retVal = dlsym(handle, FunName);
+  dlclose(handle);
+#endif
+  if (!handle) {
+    throw sycl::exception(make_error_code(errc::runtime),
+                          "OpenCL method could not be found");
+  }
+  return reinterpret_cast<fn *>(retVal);
+}
+#define _OCL_GET_FUNCTION(FN)                                                  \
+  (::sycl::_V1::detail::dynLookupFunction<decltype(FN)>("OpenCL",              \
+                                                        "libOpenCL.so", #FN))
 
 } // namespace detail
 } // namespace _V1

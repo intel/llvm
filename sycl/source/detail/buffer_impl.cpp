@@ -87,7 +87,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
     auto Adapter = Platform->getAdapter();
 
     if (Platform->getBackend() == backend::opencl) {
-      Adapter->call<UrApiKind::urMemRetain>(NativeMem);
+      _OCL_GET_FUNCTION(clRetainMemObject)(ur::cast<cl_mem>(NativeMem));
     }
 
     ur_native_handle_t Handle = 0;
