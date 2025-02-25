@@ -27,9 +27,9 @@ void print_float_as_hex(float value) {
   } v;
   v.f = value;
 
-  std::ios_base::fmtflags f( std::cout.flags() );
+  std::ios_base::fmtflags f(std::cout.flags());
   std::cout << std::hex << std::setw(8) << std::setfill('0') << v.i;
-  std::cout.flags( f );
+  std::cout.flags(f);
 }
 
 // Most of the time, failures related to floating-point calculations (both float
