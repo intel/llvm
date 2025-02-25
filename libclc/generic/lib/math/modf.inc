@@ -28,11 +28,17 @@
 #define ZERO 0.0h
 #endif
 
+<<<<<<< HEAD
 _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE modf(__CLC_GENTYPE x, private __CLC_GENTYPE *iptr) {
+=======
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE modf(__CLC_GENTYPE x,
+                                          private __CLC_GENTYPE *iptr) {
+>>>>>>> 9743b99cd1d1775f9f367e5f1c6d40ba09ec523b
   *iptr = trunc(x);
   return copysign(isinf(x) ? ZERO : x - *iptr, x);
 }
 
+<<<<<<< HEAD
 #define MODF_DEF(addrspace) \
   _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE modf(__CLC_GENTYPE x, addrspace __CLC_GENTYPE *iptr) { \
     private __CLC_GENTYPE private_iptr; \
@@ -40,6 +46,16 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE modf(__CLC_GENTYPE x, private __CLC_GENTYPE
     *iptr = private_iptr; \
     return ret; \
 }
+=======
+#define MODF_DEF(addrspace)                                                    \
+  _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE modf(__CLC_GENTYPE x,                   \
+                                            addrspace __CLC_GENTYPE *iptr) {   \
+    __CLC_GENTYPE private_iptr;                                                \
+    __CLC_GENTYPE ret = modf(x, &private_iptr);                                \
+    *iptr = private_iptr;                                                      \
+    return ret;                                                                \
+  }
+>>>>>>> 9743b99cd1d1775f9f367e5f1c6d40ba09ec523b
 
 MODF_DEF(local);
 MODF_DEF(global);
