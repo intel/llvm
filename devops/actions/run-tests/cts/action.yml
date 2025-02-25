@@ -36,7 +36,7 @@ runs:
       CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
       # Since this cache doesn't take up much space, the default cache size (5G)
       # is likely sufficient.
-      CCACHE_DIR: ${{ /__w/build_cache_sycl_cts }}
+      CCACHE_DIR: "/__w/build_cache_sycl_cts"
     run: |
       cts_exclude_filter=""
       # If CTS_TESTS_TO_BUILD is null - use filter
@@ -57,6 +57,7 @@ runs:
         echo "::endgroup::"
       fi
 
+      mkdir -p $CCACHE_DIR
       cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
       -DSYCL_IMPLEMENTATION=DPCPP \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
