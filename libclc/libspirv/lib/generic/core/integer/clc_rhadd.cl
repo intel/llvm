@@ -9,4 +9,3 @@
 #include <core/clc_core.h>
 
 #define __CLC_BODY <clc_rhadd.inc>
-#include <clc/integer/gentype.inc>

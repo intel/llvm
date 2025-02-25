@@ -3226,6 +3226,11 @@ void SPIRVToLLVM::transFunctionAttrs(SPIRVFunction *BF, Function *F) {
       // OpenCL metadata
       if (Kind == FunctionParameterAttributeRuntimeAlignedINTEL)
         return;
+      if (Kind == FunctionParameterAttributeNoCapture) {
+        I->addAttr(Attribute::getWithCaptureInfo(F->getContext(),
+                                                 CaptureInfo::none()));
+        return;
+      }
       Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
       if (IllegalAttrs.contains(LLVMKind))
         return;
