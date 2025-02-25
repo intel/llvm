@@ -20,7 +20,7 @@
 // RUN: %{build} -o %t32.out -DSG_SZ=32
 // RUN: %{run} %t32.out
 
-// XFAIL:gpu
+// XFAIL:gpu && !igc-dev
 // XFAIL-TRACKER: GSD-5768
 
 #include "common.hpp"
