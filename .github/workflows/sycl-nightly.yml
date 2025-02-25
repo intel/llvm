@@ -76,6 +76,7 @@ jobs:
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
+            reset_intel_gpu: true
 
           - name: Intel L0 Battlemage GPU
             runner: '["Linux", "bmg"]'
@@ -113,6 +114,7 @@ jobs:
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
+            reset_intel_gpu: true
             extra_lit_opts: --param test-preview-mode=True
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
@@ -137,6 +139,7 @@ jobs:
       name: Intel PVC L0 oneAPI
       runner: '["Linux", "pvc"]'
       target_devices: level_zero:gpu
+      reset_intel_gpu: true
       extra_lit_opts: -j 50
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       ref: ${{ github.sha }}
@@ -268,7 +271,7 @@ jobs:
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: false
+            reset_intel_gpu: true
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
