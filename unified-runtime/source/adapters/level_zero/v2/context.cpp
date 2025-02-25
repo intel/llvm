@@ -49,7 +49,9 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
     : hContext(hContext, ownZeContext),
-      hDevices(phDevices, phDevices + numDevices), commandListCache(hContext),
+      hDevices(phDevices, phDevices + numDevices),
+      commandListCache(hContext,
+                       phDevices[0]->Platform->ZeCopyOffloadExtensionSupported),
       eventPoolCache(this, phDevices[0]->Platform->getNumDevices(),
                      [context = this, platform = phDevices[0]->Platform](
                          DeviceId deviceId, v2::event_flags_t flags)
