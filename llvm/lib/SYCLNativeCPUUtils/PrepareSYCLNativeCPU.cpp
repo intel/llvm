@@ -215,7 +215,7 @@ static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
     for (Use &U : StateTLS->uses()) {
       if (Instruction *I = dyn_cast<Instruction>(U.getUser())) {
         if (I->getFunction() == F) {
-          assert(I->getNumUses()==1);
+          assert(I->getNumUses() == 1);
           return I->uses().begin()->getUser();
         }
       }
