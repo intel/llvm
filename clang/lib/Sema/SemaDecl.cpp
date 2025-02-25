@@ -20527,7 +20527,8 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
         (T == CUDAFunctionTarget::Device || T == CUDAFunctionTarget::Global))
       return FunctionEmissionStatus::CUDADiscarded;
 
-    if (IsEmittedForExternalSymbol())
+    // Defer to SYCLIsDevice if in cuda compat mode
+    if (!LangOpts.SYCLCUDACompat && IsEmittedForExternalSymbol())
       return FunctionEmissionStatus::Emitted;
   }
 
