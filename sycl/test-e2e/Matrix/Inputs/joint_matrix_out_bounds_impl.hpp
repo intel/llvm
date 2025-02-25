@@ -148,33 +148,38 @@ void test() {
 
 template <layout A_layout, layout B_layout> void test_all() {
   std::cout << "bf16: ";
-  test<bfloat16, float, /*MATRIX_M*/ 1024 + 20, /*MATRIX_N*/ 1024 + 20,
+  test<bfloat16, float, /*MATRIX_M*/ 1024 + 24, /*MATRIX_N*/ 1024 + 24,
        /*MATRIX_K*/ 1024 + 24, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, A_layout,
        B_layout>();
-  test<bfloat16, float, 1024 + 20, 1024 + 20, 1024 + 24, 16, 16, 16, A_layout,
-       B_layout>();
-  test<bfloat16, float, 1024 + 20, 1024 + 20, 1024 + 24, 1, 64, 16, A_layout,
-       B_layout>();
-  test<bfloat16, float, 1024 + 20, 1024 + 20, 1024 + 24, 1, 64, 32, A_layout,
-       B_layout>();
-  test<bfloat16, float, 1024 + 20, 1024 + 20, 1024 + 24, 32, 64, 16, A_layout,
-       B_layout>();
-  test<bfloat16, float, 1024 + 20, 1024 + 20, 1024 + 24, 32, 64, 32, A_layout,
-       B_layout>();
   std::cout << "half: ";
-  test<half, float, 1024 + 20, 1024 + 20, 1024 + 24, 8, 16, 16, A_layout,
-       B_layout>();
-  test<half, float, 1024 + 20, 1024 + 20, 1024 + 24, 16, 16, 16, A_layout,
-       B_layout>();
-  test<half, float, 1024 + 20, 1024 + 20, 1024 + 24, 1, 64, 16, A_layout,
-       B_layout>();
-  test<half, float, 1024 + 20, 1024 + 20, 1024 + 24, 1, 64, 32, A_layout,
-       B_layout>();
-  test<half, float, 1024 + 20, 1024 + 20, 1024 + 24, 32, 64, 16, A_layout,
-       B_layout>();
-  test<half, float, 1024 + 20, 1024 + 20, 1024 + 24, 32, 64, 32, A_layout,
+  test<half, float, 1024 + 24, 1024 + 24, 1024 + 24, 8, 16, 16, A_layout,
        B_layout>();
   std::cout << "int8: ";
-  test<int8_t, int32_t, 1024, 1024 + 20, 1024 + 24, 8, 16, 32, A_layout,
+  test<int8_t, int32_t, 1024, 1024, 1024 + 16, 8, 16, 32, A_layout, B_layout>();
+}
+
+template <layout A_layout, layout B_layout> void test_all_big_shapes() {
+  std::cout << "bf16: ";
+  test<bfloat16, float, 1024 + 24, 1024 + 24, 1024 + 24, 16, 16, 16, A_layout,
+       B_layout>();
+  test<bfloat16, float, 1024 + 24, 1024 + 24, 1024 + 24, 1, 64, 16, A_layout,
+       B_layout>();
+  test<bfloat16, float, 1024 + 24, 1024 + 24, 1024 + 24, 1, 64, 32, A_layout,
+       B_layout>();
+  test<bfloat16, float, 1024 + 24, 1024 + 24, 1024 + 24, 32, 64, 16, A_layout,
+       B_layout>();
+  test<bfloat16, float, 1024 + 24, 1024 + 24, 1024 + 24, 32, 64, 32, A_layout,
+       B_layout>();
+
+  std::cout << "half: ";
+  test<half, float, 1024 + 24, 1024 + 24, 1024 + 24, 16, 16, 16, A_layout,
+       B_layout>();
+  test<half, float, 1024 + 24, 1024 + 24, 1024 + 24, 1, 64, 16, A_layout,
+       B_layout>();
+  test<half, float, 1024 + 24, 1024 + 24, 1024 + 24, 1, 64, 32, A_layout,
+       B_layout>();
+  test<half, float, 1024 + 24, 1024 + 24, 1024 + 24, 32, 64, 16, A_layout,
+       B_layout>();
+  test<half, float, 1024 + 24, 1024 + 24, 1024 + 24, 32, 64, 32, A_layout,
        B_layout>();
 }

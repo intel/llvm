@@ -110,31 +110,33 @@ int main() {
   for (auto &combination : combinations) {
     if (!bf16_run && combination.atype == matrix_type::bf16) {
       std::cout << "bf16:\n";
+      test<bfloat16, 8, 16, use::a>();
+      test<bfloat16, 16, 16, use::b>();
+#ifdef MORE_SHAPES
       test<bfloat16, 1, 16, use::a>();
       test<bfloat16, 1, 32, use::a>();
-      test<bfloat16, 8, 16, use::a>();
       test<bfloat16, 16, 16, use::a>();
       test<bfloat16, 32, 16, use::a>();
       test<bfloat16, 32, 32, use::a>();
-
-      test<bfloat16, 16, 16, use::b>();
       test<bfloat16, 16, 64, use::b>();
       test<bfloat16, 32, 64, use::b>();
+#endif
       bf16_run = true;
     }
 
     if (!half_run && combination.atype == matrix_type::fp16) {
       std::cout << "half:\n";
+      test<half, 8, 16, use::a>();
+      test<half, 16, 16, use::b>();
+#ifdef MORE_SHAPES
       test<half, 1, 16, use::a>();
       test<half, 1, 32, use::a>();
-      test<half, 8, 16, use::a>();
       test<half, 16, 16, use::a>();
       test<half, 32, 16, use::a>();
       test<half, 32, 32, use::a>();
-
-      test<half, 16, 16, use::b>();
       test<half, 16, 64, use::b>();
       test<half, 32, 64, use::b>();
+#endif
       half_run = true;
     }
 
