@@ -777,9 +777,11 @@ public:
     IsSPIRV = TargetTriple.isSPIROrSPIRV();
 
     IntptrTy = DL.getIntPtrType(C);
+    Int32Ty = Type::getInt32Ty(C);
   }
 
   bool instrumentModule();
+  void instrumentFunction(Function &F);
 
   Constant *getOrCreateGlobalString(StringRef Name, StringRef Value,
                                     unsigned AddressSpace);
@@ -788,6 +790,7 @@ private:
   void initializeCallbacks();
   void instrumentGlobalVariables();
   void instrumentStaticLocalMemory();
+  void instrumentDynamicLocalMemory(Function &F);
   void instrumentKernelsMetadata();
 
   void initializeRetVecMap(Function *F);
@@ -799,6 +802,7 @@ private:
   const DataLayout &DL;
   bool IsSPIRV;
   Type *IntptrTy;
+  Type *Int32Ty;
 
   StringMap<GlobalVariable *> GlobalStringMap;
 
@@ -808,6 +812,8 @@ private:
 
   FunctionCallee MsanSetShadowStaticLocalFunc;
   FunctionCallee MsanUnpoisonShadowStaticLocalFunc;
+  FunctionCallee MsanPoisonShadowDynamicLocalFunc;
+  FunctionCallee MsanUnpoisonShadowDynamicLocalFunc;
   FunctionCallee MsanBarrierFunc;
 };
 
@@ -872,6 +878,22 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   // )
   MsanUnpoisonShadowStaticLocalFunc =
       M.getOrInsertFunction("__msan_unpoison_shadow_static_local",
+                            IRB.getVoidTy(), IntptrTy, IntptrTy);
+
+  // __asan_poison_shadow_dynamic_local(
+  //   uptr ptr,
+  //   uint32_t num_args
+  // )
+  MsanPoisonShadowDynamicLocalFunc =
+      M.getOrInsertFunction("__msan_poison_shadow_dynamic_local",
+                            IRB.getVoidTy(), IntptrTy, IntptrTy);
+
+  // __asan_unpoison_shadow_dynamic_local(
+  //   uptr ptr,
+  //   uint32_t num_args
+  // )
+  MsanUnpoisonShadowDynamicLocalFunc =
+      M.getOrInsertFunction("__msan_unpoison_shadow_dynamic_local",
                             IRB.getVoidTy(), IntptrTy, IntptrTy);
 
   // __msan_barrier()
@@ -1001,6 +1023,45 @@ void MemorySanitizerOnSpirv::instrumentStaticLocalMemory() {
   }
 }
 
+void MemorySanitizerOnSpirv::instrumentDynamicLocalMemory(Function &F) {
+  if (!ClSpirOffloadLocals)
+    return;
+
+  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
+
+  // Poison shadow of local memory in kernel argument, required by CPU device
+  SmallVector<Argument *> LocalArgs;
+  for (auto &Arg : F.args()) {
+    Type *PtrTy = dyn_cast<PointerType>(Arg.getType()->getScalarType());
+    if (PtrTy && PtrTy->getPointerAddressSpace() == kSpirOffloadLocalAS)
+      LocalArgs.push_back(&Arg);
+  }
+
+  if (LocalArgs.empty())
+    return;
+
+  AllocaInst *ArgsArray = IRB.CreateAlloca(
+      IntptrTy, ConstantInt::get(Int32Ty, LocalArgs.size()), "local_args");
+  for (size_t i = 0; i < LocalArgs.size(); i++) {
+    auto *StoreDest =
+        IRB.CreateGEP(IntptrTy, ArgsArray, ConstantInt::get(Int32Ty, i));
+    IRB.CreateStore(IRB.CreatePointerCast(LocalArgs[i], IntptrTy), StoreDest);
+  }
+
+  auto *ArgsArrayAddr = IRB.CreatePointerCast(ArgsArray, IntptrTy);
+  IRB.CreateCall(MsanPoisonShadowDynamicLocalFunc,
+                 {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
+
+  // Unpoison shadow of dynamic local memory, required by CPU device
+  initializeRetVecMap(&F);
+  for (Instruction *Ret : KernelToRetVecMap[&F]) {
+    IRBuilder<> IRBRet(Ret);
+    IRBRet.CreateCall(
+        MsanUnpoisonShadowDynamicLocalFunc,
+        {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
+  }
+}
+
 // Instrument __MsanKernelMetadata, which records information of sanitized
 // kernel
 void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
@@ -1085,6 +1146,14 @@ bool MemorySanitizerOnSpirv::instrumentModule() {
   instrumentKernelsMetadata();
 
   return true;
+}
+
+void MemorySanitizerOnSpirv::instrumentFunction(Function &F) {
+  if (!IsSPIRV)
+    return;
+
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+    instrumentDynamicLocalMemory(F);
 }
 
 PreservedAnalyses MemorySanitizerPass::run(Module &M,
