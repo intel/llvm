@@ -433,15 +433,16 @@ to only run the compilation stage, or the execution stage respectively.
   lit parameter. Valid build targets are: `spir`,`nvidia`, `amd`, `native_cpu`.
   These correspond to `spir64`, `nvptx64-nvidia-cuda`, `amdgcn-amd-amdhsa`, and
   `native_cpu` triples respectively. Each build target should be separated with
-  a semicolon. This parameter is set to just `spir` by default. A test can be
-  marked as requiring, or not supporting a particular triple via the `target-*`
-  features. Build targets are selected if they are able to pass the test's
-  requirements independent of the availability of other build targets. This is 
-  done to avoid having to deal with a boolean satisfiability problem. For
-  example, `REQUIRES: target-spir && target-nvidia` will always be marked as
-  unsupported since it requires multiple targets simultaneously. Instead we can
-  use `any-target-is-*` features in this case, to check if a target is available
-  in the current lit configuration.
+  a semicolon. This parameter is set to `all` by default, which enables
+  autodetection for the available build targets. A test can be marked as
+  requiring, or not supporting a particular triple via the `target-*` features.
+  Build targets are selected if they are able to pass the test's requirements
+  independent of the availability of other build targets. This is done to avoid
+  having to deal with a boolean satisfiability problem. For example,
+  `REQUIRES: target-spir && target-nvidia` will always be marked as unsupported
+  since it requires multiple targets simultaneously. Instead we can use
+  `any-target-is-*` features in this case, to check if a target is available in
+  the current lit configuration.
 
   When executing the test in `build-only`, all `RUN:` lines that do not have a
   run expansion will execute.
