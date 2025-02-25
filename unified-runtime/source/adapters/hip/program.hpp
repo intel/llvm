@@ -49,7 +49,8 @@ struct ur_program_handle_t_ {
 
   ur_program_handle_t_(ur_context_handle_t Ctxt, ur_device_handle_t Device)
       : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
-        Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{} {
+        Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
+        KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
     urDeviceRetain(Device);
   }
