@@ -175,7 +175,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   if (!AllocInfoItOp) {
     // "Addr" might be a host pointer
     ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
-    if (getOptions().HaltOnError) {
+    if (getContext()->Options.HaltOnError) {
       exitWithErrors();
     }
     return UR_RESULT_SUCCESS;
@@ -193,7 +193,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
       // "Addr" might be a host pointer
       ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
     }
-    if (getOptions().HaltOnError) {
+    if (getContext()->Options.HaltOnError) {
       exitWithErrors();
     }
     return UR_RESULT_SUCCESS;
@@ -201,7 +201,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
   if (Addr != AllocInfo->UserBegin) {
     ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
-    if (getOptions().HaltOnError) {
+    if (getContext()->Options.HaltOnError) {
       exitWithErrors();
     }
     return UR_RESULT_SUCCESS;
@@ -209,7 +209,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
   if (AllocInfo->IsReleased) {
     ReportDoubleFree(Addr, GetCurrentBacktrace(), AllocInfo);
-    if (getOptions().HaltOnError) {
+    if (getContext()->Options.HaltOnError) {
       exitWithErrors();
     }
     return UR_RESULT_SUCCESS;
