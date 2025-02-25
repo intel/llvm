@@ -476,11 +476,20 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
     return ReturnValue(Descriptor);
   }
   default:
-    assert(!"Command-buffer info request not implemented");
+    assert(false && "Command-buffer info request not implemented");
   }
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t urCommandBufferEnqueueExp(ur_exp_command_buffer_handle_t,
+                                      ur_queue_handle_t, uint32_t,
+                                      const ur_event_handle_t *,
+                                      ur_event_handle_t *) {
+  // Entry-point depreciated and will be removed.
+  // Use urEnqueueCommandBufferExp instead.
+  logger::error("{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
 } // namespace ur::level_zero

@@ -1721,6 +1721,15 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t urCommandBufferEnqueueExp(ur_exp_command_buffer_handle_t,
+                                      ur_queue_handle_t, uint32_t,
+                                      const ur_event_handle_t *,
+                                      ur_event_handle_t *) {
+  // Entry-point depreciated and will be removed.
+  // Use urEnqueueCommandBufferExp instead.
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t urEnqueueCommandBufferExp(
     ur_queue_handle_t UrQueue, ur_exp_command_buffer_handle_t CommandBuffer,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,

@@ -36,6 +36,7 @@ EXPORTS
 	urCommandBufferAppendUSMMemcpyExp
 	urCommandBufferAppendUSMPrefetchExp
 	urCommandBufferCreateExp
+	urCommandBufferEnqueueExp
 	urCommandBufferFinalizeExp
 	urCommandBufferGetInfoExp
 	urCommandBufferReleaseExp
@@ -214,6 +215,7 @@ EXPORTS
 	urPrintCommandBufferAppendUsmMemcpyExpParams
 	urPrintCommandBufferAppendUsmPrefetchExpParams
 	urPrintCommandBufferCreateExpParams
+	urPrintCommandBufferEnqueueExpParams
 	urPrintCommandBufferFinalizeExpParams
 	urPrintCommandBufferGetInfoExpParams
 	urPrintCommandBufferReleaseExpParams

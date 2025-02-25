@@ -8316,6 +8316,71 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferEnqueueExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] The queue to submit this command-buffer for execution.
+    ur_queue_handle_t hQueue,
+    /// [in] Size of the event wait list.
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the command-buffer execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command-buffer execution instance. If phEventWaitList and
+    /// phEvent are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->dditable;
+  auto pfnEnqueueExp = dditable->ur.CommandBufferExp.pfnEnqueueExp;
+  if (nullptr == pfnEnqueueExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->handle;
+
+  // convert loader handle to platform handle
+  hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+  // convert loader handles to platform handles
+  auto phEventWaitListLocal =
+      std::vector<ur_event_handle_t>(numEventsInWaitList);
+  for (size_t i = 0; i < numEventsInWaitList; ++i)
+    phEventWaitListLocal[i] =
+        reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+
+  // forward to device-platform
+  result = pfnEnqueueExp(hCommandBuffer, hQueue, numEventsInWaitList,
+                         phEventWaitListLocal.data(), phEvent);
+
+  if (UR_RESULT_SUCCESS != result)
+    return result;
+
+  try {
+    // convert platform handle to loader handle
+    if (nullptr != phEvent)
+      *phEvent = reinterpret_cast<ur_event_handle_t>(
+          context->factories.ur_event_factory.getInstance(*phEvent, dditable));
+  } catch (std::bad_alloc &) {
+    result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueCommandBufferExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
@@ -9491,6 +9556,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
           ur_loader::urCommandBufferAppendUSMPrefetchExp;
       pDdiTable->pfnAppendUSMAdviseExp =
           ur_loader::urCommandBufferAppendUSMAdviseExp;
+      pDdiTable->pfnEnqueueExp = ur_loader::urCommandBufferEnqueueExp;
       pDdiTable->pfnUpdateKernelLaunchExp =
           ur_loader::urCommandBufferUpdateKernelLaunchExp;
       pDdiTable->pfnUpdateSignalEventExp =
