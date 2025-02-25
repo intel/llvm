@@ -501,8 +501,6 @@ public:
 
     if (MLanguage == syclex::source_language::sycl_jit) {
       // Build device images via the program manager.
-      // TODO: Support persistent caching.
-
       const std::string &SourceStr = std::get<std::string>(MSource);
       std::ostringstream SourceExt;
       if (!RegisteredKernelNames.empty()) {
@@ -524,7 +522,7 @@ public:
         SourceExt << ")]];\n";
       }
 
-      auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
+      auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_to_SPIRV(
           RegisteredKernelNames.empty() ? SourceStr : SourceExt.str(),
           MIncludePairs, BuildOptions, LogPtr);
 
@@ -534,9 +532,6 @@ public:
       std::vector<kernel_id> KernelIDs;
       std::vector<std::string> KernelNames;
       std::unordered_map<std::string, std::string> MangledKernelNames;
-      // `jit_compiler::compileSYCL(..)` uses `CompilationID + '$'` as prefix
-      // for offload entry names.
-      std::string Prefix = CompilationID + '$';
       for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
         std::string_view KernelName{KernelID.get_name()};
         if (KernelName.find(Prefix) == 0) {
@@ -928,12 +923,11 @@ public:
   }
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept {
-    bool SetInDevImg =
-        std::any_of(begin(), end(),
-                    [SpecName](const device_image_plain &DeviceImage) {
-                      return getSyclObjImpl(DeviceImage)
-                          ->is_specialization_constant_set(SpecName);
-                    });
+    bool SetInDevImg = std::any_of(
+        begin(), end(), [SpecName](const device_image_plain &DeviceImage) {
+          return getSyclObjImpl(DeviceImage)
+              ->is_specialization_constant_set(SpecName);
+        });
     return SetInDevImg || MSpecConstValues.count(std::string{SpecName}) != 0;
   }
 
