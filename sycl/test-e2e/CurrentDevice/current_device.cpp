@@ -5,7 +5,7 @@
 
 // E2E tests for sycl_ext_oneapi_current_device
 
-#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/current_device.hpp>
 
 #include <thread>
 
@@ -59,7 +59,7 @@ int main() {
   auto device_1 =
       sycl::ext::oneapi::experimental::this_thread::get_current_device();
   if (device_1 != sycl::device{sycl::default_selector_v})
-    std::terminate();
+    assert(false && "get_current_device check failed.");
 
   // Test 5
   sycl::ext::oneapi::experimental::this_thread::set_current_device(
@@ -67,7 +67,7 @@ int main() {
   auto device_2 =
       sycl::ext::oneapi::experimental::this_thread::get_current_device();
   if (device_2 != sycl::device{sycl::cpu_selector_v})
-    std::terminate();
+    assert(false && "set_current_device check failed.");
 
   return 0;
 }
