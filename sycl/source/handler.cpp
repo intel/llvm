@@ -2121,5 +2121,34 @@ void handler::copyCodeLoc(const handler &other) {
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
 }
 
+void handler::reset(const std::shared_ptr<detail::queue_impl> &Queue,
+                    const std::shared_ptr<detail::queue_impl> &PrimaryQueue,
+                    const std::shared_ptr<detail::queue_impl> &SecondaryQueue,
+                    bool CallerNeedsEvent) {
+  if (!impl)
+    impl = std::make_shared<detail::handler_impl>(PrimaryQueue, SecondaryQueue,
+                                                  CallerNeedsEvent);
+  else
+    impl->reset(PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+
+  MQueue = Queue;
+  MLocalAccStorage.clear();
+  MStreamStorage.clear();
+  MKernelName = detail::string();
+  /// Storage for a sycl::kernel object.
+  MKernel = nullptr;
+  MSrcPtr = nullptr;
+  /// Pointer to the dest host memory or accessor (depends on command type).
+  MDstPtr = nullptr;
+  MLength = 0;
+  MPattern.clear();
+  MHostKernel = nullptr;
+  MCodeLoc = {};
+
+  MIsFinalized = false;
+  // Handle MLastEvent
+  MLastEvent = {};
+}
+
 } // namespace _V1
 } // namespace sycl
