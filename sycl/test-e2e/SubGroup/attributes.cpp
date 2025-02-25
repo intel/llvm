@@ -25,10 +25,31 @@
     }                                                                          \
   };
 
+// Dummy kernel, so we get the types and can keep later code straight-lined.
+#define DUMMY_KERNEL_FUNCTOR(SIZE)                                             \
+  class KernelFunctor##SIZE {                                                  \
+  public:                                                                      \
+    void operator()(sycl::nd_item<1> Item) const {                             \
+      const auto GID = Item.get_global_id();                                   \
+    }                                                                          \
+  };
+
 #ifdef BUILD_FOR_CUDA
+DUMMY_KERNEL_FUNCTOR(1);
+DUMMY_KERNEL_FUNCTOR(2);
+DUMMY_KERNEL_FUNCTOR(4);
+DUMMY_KERNEL_FUNCTOR(8);
+DUMMY_KERNEL_FUNCTOR(16);
 KERNEL_FUNCTOR_WITH_SIZE(32);
+DUMMY_KERNEL_FUNCTOR(64);
 #elif defined BUILD_FOR_HIP
+DUMMY_KERNEL_FUNCTOR(1);
+DUMMY_KERNEL_FUNCTOR(2);
+DUMMY_KERNEL_FUNCTOR(4);
+DUMMY_KERNEL_FUNCTOR(8);
+DUMMY_KERNEL_FUNCTOR(16);
 KERNEL_FUNCTOR_WITH_SIZE(32);
+DUMMY_KERNEL_FUNCTOR(64);
 #else
 KERNEL_FUNCTOR_WITH_SIZE(1);
 KERNEL_FUNCTOR_WITH_SIZE(2);
