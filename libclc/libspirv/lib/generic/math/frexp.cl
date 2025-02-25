@@ -42,11 +42,11 @@
     return BUILTIN(x, y);                                                      \
   }
 
-_CLC_DEFINE_NO_VEC(half, __spirv_ocl_frexp, __builtin_frexp, half, global int *)
+_CLC_DEFINE_NO_VEC(half, __spirv_ocl_frexp, __builtin_frexpf16, half, global int *)
 _CLC_V_V_VP_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, half, __spirv_ocl_frexp, half, global, int)
-_CLC_DEFINE_NO_VEC(half, __spirv_ocl_frexp, __builtin_frexp, half, local int *)
+_CLC_DEFINE_NO_VEC(half, __spirv_ocl_frexp, __builtin_frexpf16, half, local int *)
 _CLC_V_V_VP_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, half, __spirv_ocl_frexp, half, local, int)
-_CLC_DEFINE_NO_VEC(half, __spirv_ocl_frexp, __builtin_frexp, half, int *)
+_CLC_DEFINE_NO_VEC(half, __spirv_ocl_frexp, __builtin_frexpf16, half, int *)
 _CLC_V_V_VP_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, half, __spirv_ocl_frexp, half, , int)
 
 #endif
