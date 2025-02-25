@@ -357,8 +357,8 @@ MSAN_MEMCPY(4)
 static __SYCL_CONSTANT__ const char __mem_set_shadow_local[] =
     "[kernel] set_shadow_local(beg=%p, end=%p, val:%02X)\n";
 
-DEVICE_EXTERN_C_NOINLINE void __msan_set_shadow_static_local(uptr ptr,
-                                                             size_t size) {
+DEVICE_EXTERN_C_NOINLINE void __msan_poison_shadow_static_local(uptr ptr,
+                                                                size_t size) {
   // Update shadow memory of local memory only on first work-item
   if (__spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
           __spirv_LocalInvocationId_z() ==
@@ -367,7 +367,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_set_shadow_static_local(uptr ptr,
       return;
 
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
-                                  "__msan_set_shadow_static_local"));
+                                  "__msan_poison_shadow_static_local"));
 
     auto shadow_address = __msan_get_shadow(ptr, ADDRESS_SPACE_LOCAL);
     if (shadow_address == GetMsanLaunchInfo->CleanShadow)
@@ -380,7 +380,7 @@ DEVICE_EXTERN_C_NOINLINE void __msan_set_shadow_static_local(uptr ptr,
     MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
                                   shadow_address + size, 0xff));
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
-                                  "__msan_set_shadow_static_local"));
+                                  "__msan_poison_shadow_static_local"));
   }
 }
 
