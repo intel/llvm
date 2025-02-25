@@ -425,7 +425,6 @@ std::vector<kernel_param_desc_t> getKernelParamDescs() {
 /// \ingroup sycl_api
 class __SYCL_EXPORT handler {
 private:
-
   handler() {}
 
   /// Constructs SYCL handler from queue.
