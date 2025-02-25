@@ -235,6 +235,11 @@ public:
     return ext_oneapi_get_kernel(detail::string_view{name});
   }
 
+  std::string ext_oneapi_get_raw_kernel_name(const std::string &name) {
+    return std::string{
+        ext_oneapi_get_raw_kernel_name(detail::string_view{name}).c_str()};
+  }
+
 protected:
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
@@ -263,6 +268,7 @@ protected:
 private:
   bool ext_oneapi_has_kernel(detail::string_view name);
   kernel ext_oneapi_get_kernel(detail::string_view name);
+  detail::string ext_oneapi_get_raw_kernel_name(detail::string_view name);
 };
 
 } // namespace detail
@@ -481,6 +487,16 @@ public:
             typename = std::enable_if_t<_State == bundle_state::executable>>
   kernel ext_oneapi_get_kernel(const std::string &name) {
     return detail::kernel_bundle_plain::ext_oneapi_get_kernel(name);
+  }
+
+  /////////////////////////
+  // ext_oneapi_get_raw_kernel_name
+  //  kernel_bundle must be created from source, throws if not present
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  std::string ext_oneapi_get_raw_kernel_name(const std::string &name) {
+    return detail::kernel_bundle_plain::ext_oneapi_get_raw_kernel_name(name);
   }
 
 private:

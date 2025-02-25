@@ -139,6 +139,10 @@ void test_build_and_run() {
   assert(hasHerKernel && "her_kernel should exist, but doesn't");
   assert(!notExistKernel && "non-existing kernel should NOT exist, but does?");
 
+  assert(
+      kbExe2.ext_oneapi_get_raw_kernel_name("my_kernel") == "my_kernel" &&
+      "source code name and compiler-generated name should match, but don't");
+
   sycl::kernel my_kernel = kbExe2.ext_oneapi_get_kernel("my_kernel");
   sycl::kernel her_kernel = kbExe2.ext_oneapi_get_kernel("her_kernel");
 
