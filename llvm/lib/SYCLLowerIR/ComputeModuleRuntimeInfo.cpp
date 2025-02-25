@@ -283,7 +283,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
 
       if (auto ReqdSubGroupSize = getKernelSingleEltMetadata<uint32_t>(
               Func, "intel_reqd_sub_group_size")) {
-        // intel_reqd_sub_group_size is sotred as i32.
+        // intel_reqd_sub_group_size is stored as i32.
         MetadataNames.push_back(Func.getName().str() + "@reqd_sub_group_size");
         PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
                     *ReqdSubGroupSize);
