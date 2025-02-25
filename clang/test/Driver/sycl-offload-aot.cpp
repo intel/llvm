@@ -46,13 +46,13 @@
 // CHK-FSYCL-TARGET-2X-ERROR-NOT: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target{{.*}}', specify triple using '-Xsycl-target{{.*}}=<triple>'
 
 /// Ahead of Time compilation for gen, cpu
-// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64_gen-unknown-unknown %s 2>&1 \
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-spirv -fsycl-targets=spir64_gen-unknown-unknown %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-GEN
-// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64_gen %s 2>&1 \
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-spirv -fsycl-targets=spir64_gen %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-GEN
-// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64_x86_64-unknown-unknown %s 2>&1 \
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-spirv -fsycl-targets=spir64_x86_64-unknown-unknown %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-CPU
-// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64_x86_64 %s 2>&1 \
+// RUN:   %clang -target x86_64-unknown-linux-gnu -ccc-print-phases -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-spirv -fsycl-targets=spir64_x86_64 %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PHASES-AOT,CHK-PHASES-CPU
 // CHK-PHASES-AOT: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
 // CHK-PHASES-AOT: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -79,13 +79,13 @@
 /// ###########################################################################
 
 /// Ahead of Time compilation for gen, cpu - tool invocation
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-spirv -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-spirv -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-spirv -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-GEN
-// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-spirv -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=CHK-TOOLS-AOT,CHK-TOOLS-CPU
 // CHK-TOOLS-GEN: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHK-TOOLS-CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
@@ -127,39 +127,39 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-CPU-OPTS %s
 
 /// Check -Xsycl-target-backend option passing
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fno-spirv -fsycl-targets=spir64_gen-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-GEN-OPTS %s
 // CHK-TOOLS-GEN-OPTS: ocloc{{.*}} "-output" {{.*}} "-output_no_suffix" {{.*}} "-DFOO1" "-DFOO2"
 // CHK-TOOLS-GEN-OPTS-NOT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}
 
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fno-spirv -fsycl-targets=spir64_x86_64-unknown-unknown -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-CPU-OPTS %s
 // CHK-TOOLS-CPU-OPTS: opencl-aot{{.*}} "-DFOO1" "-DFOO2"
 // CHK-TOOLS-CPU-OPTS-NOT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}
 
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -Xsycl-target-backend "--bo='\"-DFOO1 -DFOO2\"'" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fno-spirv -fsycl-targets=spir64_x86_64-unknown-unknown -Xsycl-target-backend "--bo='\"-DFOO1 -DFOO2\"'" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-CPU-OPTS3 %s
 // CHK-TOOLS-CPU-OPTS3: opencl-aot{{.*}} "--bo=\"-DFOO1 -DFOO2\""
 
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fno-spirv -fsycl-targets=spir64_x86_64-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-CPU %s
-// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" -- %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl -fno-spirv -fsycl-targets=spir64_x86_64-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-CPU %s
 // CHK-TOOLS-IMPLIED-OPTS-CPU: opencl-aot{{.*}} "--bo=-g -cl-opt-disable" "-DFOO1" "-DFOO2"
 
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fno-spirv -fsycl-targets=spir64_gen-unknown-unknown -g -O0 -Xsycl-target-backend "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-GEN %s
 // RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_gen-unknown-unknown -Zi -Od -Xsycl-target-backend "-DFOO1 -DFOO2" -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-IMPLIED-OPTS-GEN %s
 // CHK-TOOLS-IMPLIED-OPTS-GEN: ocloc{{.*}} "-options" "-g -cl-opt-disable" "-DFOO1" "-DFOO2"
 
 /// Check -Xsycl-target-linker option passing
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fno-spirv -fsycl-targets=spir64_gen-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-GEN-OPTS2 %s
 // CHK-TOOLS-GEN-OPTS2: ocloc{{.*}} "-output" {{.*}} "-output_no_suffix" {{.*}} "-DFOO1" "-DFOO2"
 // CHK-TOOLS-GEN-OPTS2-NOT: clang-offload-wrapper{{.*}} "-link-opts={{.*}}
 
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
+// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fno-spirv -fsycl-targets=spir64_x86_64-unknown-unknown -Xsycl-target-linker "-DFOO1 -DFOO2" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-CPU-OPTS2 %s
 // CHK-TOOLS-CPU-OPTS2: opencl-aot{{.*}} "-DFOO1" "-DFOO2"
 // CHK-TOOLS-CPU-OPTS2-NOT: clang-offload-wrapper{{.*}} "-link-opts=-DFOO1 -DFOO2"
