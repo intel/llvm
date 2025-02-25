@@ -56,10 +56,10 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    bool IsSubBuffer,
                                    const property_list &PropertyList) {
   verifyAccessorProps(PropertyList);
-  impl = std::shared_ptr<AccessorImplHost>(
-      new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
-                           (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
-                           false, OffsetInBytes, IsSubBuffer, PropertyList));
+  impl = std::make_shared<AccessorImplHost>(
+      Offset, AccessRange, MemoryRange, AccessMode,
+      (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize, false,
+      OffsetInBytes, IsSubBuffer, PropertyList);
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
@@ -119,19 +119,12 @@ const sycl::range<3> &LocalAccessorBaseHost::getSize() const {
   return impl->MSize;
 }
 void *LocalAccessorBaseHost::getPtr() {
-  // Const cast this in order to call the const getPtr.
-  return const_cast<const LocalAccessorBaseHost *>(this)->getPtr();
+  // Must not be called.
+  return nullptr;
 }
 void *LocalAccessorBaseHost::getPtr() const {
-  char *ptr = impl->MMem.data();
-
-  // Align the pointer to MElemSize.
-  size_t val = reinterpret_cast<size_t>(ptr);
-  if (val % impl->MElemSize != 0) {
-    ptr += impl->MElemSize - val % impl->MElemSize;
-  }
-
-  return ptr;
+  // Must not be called.
+  return nullptr;
 }
 const property_list &LocalAccessorBaseHost::getPropList() const {
   return impl->MPropertyList;
