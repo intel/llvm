@@ -43,6 +43,9 @@ int main() {
         cuMemcpyDtoH(&tmp, ptr, sizeof(int));
         tmp++;
         cuMemcpyHtoD(ptr, &tmp, sizeof(int));
+
+        auto stream = ih.get_native_queue<backend::ext_oneapi_cuda>();
+        cuStreamSynchronize(stream);
       });
     });
     Q.wait();
