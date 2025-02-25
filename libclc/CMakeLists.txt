@@ -235,7 +235,7 @@ set( cayman_aliases aruba )
 set( tahiti_aliases pitcairn verde oland hainan bonaire kabini kaveri hawaii
   mullins tonga tongapro iceland carrizo fiji stoney polaris10 polaris11
   gfx602 gfx705 gfx805
-  gfx900 gfx902 gfx904 gfx906 gfx908 gfx909 gfx90a gfx90c gfx940 gfx941 gfx942
+  gfx900 gfx902 gfx904 gfx906 gfx908 gfx909 gfx90a gfx90c gfx942
   gfx1010 gfx1011 gfx1012 gfx1013
   gfx1030 gfx1031 gfx1032 gfx1033 gfx1034 gfx1035 gfx1036
   gfx1100 gfx1101 gfx1102 gfx1103
@@ -431,7 +431,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       elseif( ARCH STREQUAL amdgcn )
         # AMDGCN needs libclc to be compiled to high bc version since all atomic
         # clang builtins need to be accessible
-        list( APPEND build_flags -mcpu=gfx940 -mllvm --amdgpu-oclc-reflect-enable=false )
+        list( APPEND build_flags -mcpu=gfx942 -mllvm --amdgpu-oclc-reflect-enable=false )
       elseif( IS_NATIVE_CPU_ARCH )
         list( APPEND build_flags -Xclang -fsycl-is-native-cpu )
         if( ARCH  STREQUAL x86_64 )

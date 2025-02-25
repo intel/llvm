@@ -990,7 +990,12 @@ supported for the ``amdgcn`` target.
   the stride must be 0, the "add tid" flag must be 0, the swizzle enable bits
   must be off, and the extent must be measured in bytes. (On subtargets where
   bounds checking may be disabled, buffer fat pointers may choose to enable
-  it or not).
+  it or not). The cache swizzle support introduced in gfx942 may be used.
+
+  These pointers can be created by `addrspacecast` from a buffer resource
+  (`ptr addrspace(8)`) or by using `llvm.amdgcn.make.buffer.rsrc` to produce a
+  `ptr addrspace(7)` directly, which produces a buffer fat pointer with an initial
+  offset of 0 and prevents the address space cast from being rewritten away.
 
 **Buffer Resource**
   The buffer resource pointer, in address space 8, is the newer form
@@ -1026,6 +1031,12 @@ supported for the ``amdgcn`` target.
   The bits in the buffer descriptor must meet the following requirements:
   the stride is the size of a structured element, the "add tid" flag must be 0,
   and the swizzle enable bits must be off.
+
+  These pointers can be created by `addrspacecast` from a buffer resource
+  (`ptr addrspace(8)`) or by using `llvm.amdgcn.make.buffer.rsrc` to produce a
+  `ptr addrspace(9)` directly, which produces a buffer strided pointer whose initial
+  index and offset values are both 0. This prevents the address space cast from
+  being rewritten away.
 
 **Streamout Registers**
   Dedicated registers used by the GS NGG Streamout Instructions. The register
@@ -2221,7 +2232,7 @@ The AMDGPU backend uses the following ELF header:
      ``EF_AMDGPU_MACH_AMDGCN_GFX1035``          0x03d      ``gfx1035``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1034``          0x03e      ``gfx1034``
      ``EF_AMDGPU_MACH_AMDGCN_GFX90A``           0x03f      ``gfx90a``
-     ``EF_AMDGPU_MACH_AMDGCN_GFX940``           0x040      ``gfx940``
+     *reserved*                                 0x040      Reserved.
      ``EF_AMDGPU_MACH_AMDGCN_GFX1100``          0x041      ``gfx1100``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1013``          0x042      ``gfx1013``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1150``          0x043      ``gfx1150``
@@ -2232,7 +2243,7 @@ The AMDGPU backend uses the following ELF header:
      ``EF_AMDGPU_MACH_AMDGCN_GFX1200``          0x048      ``gfx1200``
      *reserved*                                 0x049      Reserved.
      ``EF_AMDGPU_MACH_AMDGCN_GFX1151``          0x04a      ``gfx1151``
-     ``EF_AMDGPU_MACH_AMDGCN_GFX941``           0x04b      ``gfx941``
+     *reserved*                                 0x04b      Reserved.
      ``EF_AMDGPU_MACH_AMDGCN_GFX942``           0x04c      ``gfx942``
      *reserved*                                 0x04d      Reserved.
      ``EF_AMDGPU_MACH_AMDGCN_GFX1201``          0x04e      ``gfx1201``

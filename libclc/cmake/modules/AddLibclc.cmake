@@ -165,7 +165,7 @@ function(get_libclc_device_info)
     if( ARCH STREQUAL amdgcn )
       # AMDGCN needs libclc to be compiled to high bc version since all atomic
       # clang builtins need to be accessible
-      set( cpu gfx940)
+      set( cpu gfx942 )
     else()
       set( cpu )
     endif()
