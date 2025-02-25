@@ -2126,8 +2126,7 @@ void handler::reset(const std::shared_ptr<detail::queue_impl> &Queue,
                     const std::shared_ptr<detail::queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent) {
   if (!impl)
-    impl = std::make_shared<detail::handler_impl>(PrimaryQueue,
-                                                  SecondaryQueue,
+    impl = std::make_shared<detail::handler_impl>(PrimaryQueue, SecondaryQueue,
                                                   CallerNeedsEvent);
   else
     impl->reset(PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
