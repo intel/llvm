@@ -150,6 +150,22 @@ members:
       name: enableProfiling
       desc: "[in] Command-buffer profiling is enabled."
 --- #--------------------------------------------------------------------------
+type: typedef
+desc: "A value that identifies a command inside of a command-buffer, used for defining dependencies between commands in the same command-buffer."
+class: $xCommandBuffer
+name: $x_exp_command_buffer_sync_point_t
+value: uint32_t
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of Command-Buffer object"
+class: $xCommandBuffer
+name: "$x_exp_command_buffer_handle_t"
+--- #--------------------------------------------------------------------------
+type: handle
+desc: "Handle of a Command-Buffer command"
+class: $xCommandBuffer
+name: "$x_exp_command_buffer_command_handle_t"
+--- #--------------------------------------------------------------------------
 type: struct
 desc: "Descriptor type for updating a kernel command memobj argument."
 base: $x_base_desc_t
@@ -203,6 +219,9 @@ desc: "Descriptor type for updating a kernel launch command."
 base: $x_base_desc_t
 name: $x_exp_command_buffer_update_kernel_launch_desc_t
 members:
+    - type: $x_exp_command_buffer_command_handle_t
+      name: hCommand
+      desc: "[in] Handle of the command-buffer kernel command to update."
     - type: $x_kernel_handle_t
       name: hNewKernel
       desc: |
@@ -249,22 +268,6 @@ members:
         work-items that make up a work-group. If `pNewGlobalWorkSize` is set and `pNewLocalWorkSize` is nullptr,
         then the runtime implementation will choose the local work size. If `pNewGlobalWorkSize` is nullptr and
         `pNewLocalWorkSize` is nullptr, the current local work size in the command will be used.
---- #--------------------------------------------------------------------------
-type: typedef
-desc: "A value that identifies a command inside of a command-buffer, used for defining dependencies between commands in the same command-buffer."
-class: $xCommandBuffer
-name: $x_exp_command_buffer_sync_point_t
-value: uint32_t
---- #--------------------------------------------------------------------------
-type: handle
-desc: "Handle of Command-Buffer object"
-class: $xCommandBuffer
-name: "$x_exp_command_buffer_handle_t"
---- #--------------------------------------------------------------------------
-type: handle
-desc: "Handle of a Command-Buffer command"
-class: $xCommandBuffer
-name: "$x_exp_command_buffer_command_handle_t"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create a Command-Buffer object"
@@ -1166,39 +1169,46 @@ returns:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Update a kernel launch command in a finalized command-buffer."
-details: "This entry-point is synchronous and may block if the command-buffer is executing when the entry-point is called."
+details: "This entry-point is synchronous and may block if the command-buffer is executing when the entry-point is called. On error, the state of the command-buffer commands being updated is undefined."
 class: $xCommandBuffer
 name: UpdateKernelLaunchExp
 params:
-    - type: $x_exp_command_buffer_command_handle_t
-      name: hCommand
-      desc: "[in] Handle of the command-buffer kernel command to update."
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] Handle of the command-buffer object."
+    - type: uint32_t
+      name: numKernelUpdates
+      desc: "[in] Length of pUpdateKernelLaunch."
     - type: "const $x_exp_command_buffer_update_kernel_launch_desc_t*"
       name: pUpdateKernelLaunch
-      desc: "[in] Struct defining how the kernel command is to be updated."
+      desc: "[in][range(0, numKernelUpdates)]  List of structs defining how a kernel commands are to be updated."
 returns:
+    - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`numKernelUpdates == 0`"
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
-        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS is not supported by the device, but any of `pUpdateKernelLaunch->numNewMemObjArgs`, `pUpdateKernelLaunch->numNewPointerArgs`, or `pUpdateKernelLaunch->numNewValueArgs` are not zero."
-        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is not supported by the device but `pUpdateKernelLaunch->pNewLocalWorkSize` is not nullptr."
-        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is not supported by the device but `pUpdateKernelLaunch->pNewLocalWorkSize` is nullptr and `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr."
-        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE is not supported by the device but `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr"
-        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET is not supported by the device but `pUpdateKernelLaunch->pNewGlobalWorkOffset` is not nullptr."
-        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE is not supported by the device but `pUpdateKernelLaunch->hNewKernel` is not nullptr."
+        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS is not supported by the device, and for any of any element of `pUpdateKernelLaunch` the `numNewMemObjArgs`, `numNewPointerArgs`, or `numNewValueArgs` members are not zero."
+        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is not supported by the device, and for any element of `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is not nullptr."
+        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is not supported by the device, and for any element of `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is nullptr and `pNewGlobalWorkSize` is not nullptr."
+        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE is not supported by the device, and for any element of `pUpdateKernelLaunch` the `pNewGlobalWorkSize` member is not nullptr"
+        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET is not supported by the device, and for any element of `pUpdateKernelLaunch` the `pNewGlobalWorkOffset` member is not nullptr."
+        - "If $X_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE is not supported by the device, and for any element of `pUpdateKernelLaunch` the `hNewKernel` member is not nullptr."
     - $X_RESULT_ERROR_INVALID_OPERATION:
-        - "If $x_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command-buffer `hCommand` belongs to."
-        - "If the command-buffer `hCommand` belongs to has not been finalized."
+        - "If $x_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the `hCommandBuffer`."
+        - "If `hCommandBuffer`  has not been finalized."
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP:
-        - "If `hCommand` is not a kernel execution command."
+        - "If for any element of `pUpdateKernelLaunch` the `hCommand` member is not a kernel execution command."
+        - "If for any element of `pUpdateKernelLaunch` the `hCommand` member was not created from `hCommandBuffer`."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
     - $X_RESULT_ERROR_INVALID_ENUMERATION
     - $X_RESULT_ERROR_INVALID_WORK_DIMENSION:
-        - "`pUpdateKernelLaunch->newWorkDim < 1 || pUpdateKernelLaunch->newWorkDim > 3`"
+        - "If for any element of `pUpdateKernelLaunch` the `newWorkDim` member is less than 1 or greater than 3."
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
     - $X_RESULT_ERROR_INVALID_VALUE:
-        - "If `pUpdateKernelLaunch->hNewKernel` was not passed to the `hKernel` or `phKernelAlternatives` parameters of $xCommandBufferAppendKernelLaunchExp when this command was created."
-        - "If `pUpdateKernelLaunch->newWorkDim` is different from the current workDim in `hCommand` and, `pUpdateKernelLaunch->pNewGlobalWorkSize`, or `pUpdateKernelLaunch->pNewGlobalWorkOffset` are nullptr."
+        - "If for any element of `pUpdateKernelLaunch` the `hNewKernel` member was not passed to the `hKernel` or `phKernelAlternatives` parameters of $xCommandBufferAppendKernelLaunchExp when the command was created."
+        - "If for any element of `pUpdateKernelLaunch` the `newWorkDim` member is different from the current workDim in the `hCommand` member, and `pNewGlobalWorkSize` or `pNewGlobalWorkOffset` are nullptr."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
