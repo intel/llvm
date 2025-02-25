@@ -5,8 +5,12 @@
 
 // REQUIRES: windows
 
-// RUN: %clangxx -fsycl -fpreview-breaking-changes -D_DEBUG -fsycl-device-only %s
+// RUN: %clangxx -fsycl -D_DEBUG %s -fsycl-device-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -D_DEBUG -fsycl-device-only %s %}
 
 #include <sycl/sycl.hpp>
 
+// expected-error@* {{SYCL kernel cannot call a variadic function}}
+// expected-error@* {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
+// expected-error@* {{SYCL kernel cannot call an undefined function without SYCL_EXTERNAL attribute}}
 SYCL_EXTERNAL auto GetFirstElement(sycl::vec<int, 3> v) { return v[0]; }
