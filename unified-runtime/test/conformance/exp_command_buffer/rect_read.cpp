@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2025 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
@@ -128,19 +128,15 @@ TEST_P(urCommandBufferAppendMemBufferReadRectTestWithParam, Success) {
 
   // Enqueue the rectangular read.
   std::vector<uint8_t> output(host_size, 0x0);
-  EXPECT_SUCCESS(urEnqueueMemBufferReadRect(
-      queue, buffer, /* isBlocking */ true, buffer_origin, host_origin, region,
+  EXPECT_SUCCESS(urCommandBufferAppendMemBufferReadRectExp(
+      cmd_buf_handle, buffer, buffer_origin, host_origin, region,
       buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch,
-      output.data(), 0, nullptr, nullptr));
-  // EXPECT_SUCCESS(urCommandBufferAppendMemBufferReadRectExp(
-  //     cmd_buf_handle, buffer, buffer_origin, host_origin, region,
-  //     buffer_row_pitch, buffer_slice_pitch, host_row_pitch, host_slice_pitch,
-  //     output.data(), 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
-  // ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+      output.data(), 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
-  // ASSERT_SUCCESS(
-  //     urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
-  // ASSERT_SUCCESS(urQueueFinish(queue));
+  ASSERT_SUCCESS(
+      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
   // Do host side equivalent.
   std::vector<uint8_t> expected(host_size, 0x0);
   uur::copyRect(input, buffer_origin, host_origin, region, buffer_row_pitch,
