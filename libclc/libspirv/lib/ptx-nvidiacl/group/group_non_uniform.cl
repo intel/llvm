@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "membermask.h"
-#include <integer/popcount.h>
 
 #include <libspirv/spirv.h>
 #include <libspirv/spirv_types.h>
@@ -34,19 +33,4 @@ _Z29__spirv_GroupNonUniformBallotjb(unsigned flag, bool predicate) {
   res[0] = __nvvm_vote_ballot_sync(threads, predicate);
 
   return res;
-}
-
-_CLC_DEF _CLC_CONVERGENT uint
-_Z37__spirv_GroupNonUniformBallotBitCountN5__spv5Scope4FlagEiDv4_j(
-    uint scope, uint flag, __clc_vec4_uint32_t mask) {
-  // here we assume scope == __spv::Scope::Subgroup
-  // flag == InclusiveScan is not yet implemented
-  if (flag == Reduce) {
-    return __clc_native_popcount(mask[0]);
-  } else if (flag == ExclusiveScan) {
-    return __clc_native_popcount(__nvvm_read_ptx_sreg_lanemask_lt() & mask[0]);
-  } else {
-    __builtin_trap();
-    __builtin_unreachable();
-  }
 }

@@ -1098,7 +1098,7 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         unsigned TotalBitWidth =
             DstVecTy->getElementType()->getIntegerBitWidth() *
             DstVecTy->getNumElements();
-        auto *IntTy = Type::getIntNTy(BB->getContext(), TotalBitWidth);
+        auto *IntTy = Type::getIntNTy(Src->getContext(), TotalBitWidth);
         if (BB) {
           Src = CastInst::CreatePointerCast(Src, IntTy, "", BB);
         } else {
@@ -1112,7 +1112,7 @@ Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
         unsigned TotalBitWidth =
             SrcVecTy->getElementType()->getIntegerBitWidth() *
             SrcVecTy->getNumElements();
-        auto *IntTy = Type::getIntNTy(BB->getContext(), TotalBitWidth);
+        auto *IntTy = Type::getIntNTy(Src->getContext(), TotalBitWidth);
         if (BB) {
           Src = CastInst::Create(Instruction::BitCast, Src, IntTy, "", BB);
         } else {
@@ -1395,6 +1395,14 @@ void SPIRVToLLVM::transFunctionPointerCallArgumentAttributes(
     std::vector<SPIRVWord> Literals = Dec->getVecLiteral();
     SPIRVWord ArgNo = Literals[0];
     SPIRVWord SpirvAttr = Literals[1];
+    // There is no value to rmap SPIR-V FunctionParameterAttributeNoCapture, as
+    // LLVM does not have Attribute::NoCapture anymore. Adding special handling
+    // for this case.
+    if (SpirvAttr == FunctionParameterAttributeNoCapture) {
+      CI->addParamAttr(ArgNo, Attribute::getWithCaptureInfo(
+                                  CI->getContext(), CaptureInfo::none()));
+      continue;
+    }
     Attribute::AttrKind LlvmAttrKind = SPIRSPIRVFuncParamAttrMap::rmap(
         static_cast<SPIRVFuncParamAttrKind>(SpirvAttr));
     auto LlvmAttr =
@@ -1660,9 +1668,18 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       return transValue(Init, F, BB);
     }
 
-    if (BS == StorageClassFunction && !Init) {
-      assert(BB && "Invalid BB");
-      return mapValue(BV, new AllocaInst(Ty, 0, BV->getName(), BB));
+    if (BS == StorageClassFunction) {
+      // A Function storage class variable needs storage for each dynamic
+      // execution instance, so emit an alloca instead of a global.
+      assert(BB && "OpVariable with Function storage class requires BB");
+      IRBuilder<> Builder(BB);
+      AllocaInst *AI = Builder.CreateAlloca(Ty, nullptr, BV->getName());
+      if (Init) {
+        auto *Src = transValue(Init, F, BB);
+        const bool IsVolatile = BVar->hasDecorate(DecorationVolatile);
+        Builder.CreateStore(Src, AI, IsVolatile);
+      }
+      return mapValue(BV, AI);
     }
 
     SPIRAddressSpace AddrSpace;
@@ -1770,8 +1787,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *VLA = static_cast<SPIRVVariableLengthArrayINTEL *>(BV);
     llvm::Type *Ty = transType(BV->getType()->getPointerElementType());
     llvm::Value *ArrSize = transValue(VLA->getOperand(0), F, BB);
-    return mapValue(
-        BV, new AllocaInst(Ty, SPIRAS_Private, ArrSize, BV->getName(), BB));
+    return mapValue(BV,
+                    new AllocaInst(Ty, M->getDataLayout().getAllocaAddrSpace(),
+                                   ArrSize, BV->getName(), BB));
   }
 
   case OpRestoreMemoryINTEL: {
@@ -2239,9 +2257,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpCopyObject: {
     SPIRVCopyObject *CO = static_cast<SPIRVCopyObject *>(BV);
-    auto Ty = transType(CO->getOperand()->getType());
+    auto *Ty = transType(CO->getOperand()->getType());
     AllocaInst *AI =
-        new AllocaInst(Ty, 0, "", BB);
+        new AllocaInst(Ty, M->getDataLayout().getAllocaAddrSpace(), "", BB);
     new StoreInst(transValue(CO->getOperand(), F, BB), AI, BB);
     LoadInst *LI = new LoadInst(Ty, AI, "", BB);
     return mapValue(BV, LI);
@@ -2392,7 +2410,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       if (!HasRtValues)
         return mapValue(BV, ConstantArray::get(AT, CV));
 
-      AllocaInst *Alloca = new AllocaInst(AT, SPIRAS_Private, "", BB);
+      AllocaInst *Alloca =
+          new AllocaInst(AT, M->getDataLayout().getAllocaAddrSpace(), "", BB);
 
       // get pointer to the element of the array
       // store the result of argument
@@ -2411,7 +2430,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
       if (!HasRtValues)
         return mapValue(BV, ConstantStruct::get(ST, CV));
 
-      AllocaInst *Alloca = new AllocaInst(ST, SPIRAS_Private, "", BB);
+      AllocaInst *Alloca =
+          new AllocaInst(ST, M->getDataLayout().getAllocaAddrSpace(), "", BB);
 
       // get pointer to the element of structure
       // store the result of argument
@@ -3011,7 +3031,8 @@ Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   Args.reserve(8);
   if (RetTy->getIntegerBitWidth() > 64) {
     llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
-    Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
+    Value *Alloca =
+        new AllocaInst(RetTy, M->getDataLayout().getAllocaAddrSpace(), "", BB);
     Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
     ArgTys.emplace_back(RetPtrTy);
     Args.emplace_back(RetValPtr);
@@ -3135,7 +3156,8 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   if (RetTy->getIntegerBitWidth() > 64) {
     llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
     ArgTys.push_back(RetPtrTy);
-    Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
+    Value *Alloca =
+        new AllocaInst(RetTy, M->getDataLayout().getAllocaAddrSpace(), "", BB);
     Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
     Args.push_back(RetValPtr);
   }
@@ -3226,6 +3248,11 @@ void SPIRVToLLVM::transFunctionAttrs(SPIRVFunction *BF, Function *F) {
       // OpenCL metadata
       if (Kind == FunctionParameterAttributeRuntimeAlignedINTEL)
         return;
+      if (Kind == FunctionParameterAttributeNoCapture) {
+        I->addAttr(Attribute::getWithCaptureInfo(F->getContext(),
+                                                 CaptureInfo::none()));
+        return;
+      }
       Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
       if (IllegalAttrs.contains(LLVMKind))
         return;
@@ -3551,40 +3578,65 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
           transType(AI->getSemanticType()),
           SPIRSPIRVAddrSpaceMap::rmap(
               BI->getValueType(Ops[Ptr]->getId())->getPointerStorageClass()));
-    } else if (OC == spv::OpCooperativeMatrixStoreKHR ||
-               OC == spv::internal::OpJointMatrixStoreINTEL ||
-               OC == spv::internal::OpCooperativeMatrixStoreCheckedINTEL ||
-               OC == spv::internal::OpJointMatrixLoadINTEL ||
-               OC == spv::OpCompositeConstruct ||
-               OC == spv::internal::OpCooperativeMatrixApplyFunctionINTEL) {
-      auto *Val = transValue(Ops[Ptr], BB->getParent(), BB);
-      Val = Val->stripPointerCasts();
-      if (auto *GEP = dyn_cast<GetElementPtrInst>(Val))
-        ArgTys[Ptr] = TypedPointerType::get(
-            GEP->getSourceElementType(),
-            SPIRSPIRVAddrSpaceMap::rmap(
-                BI->getValueType(Ops[Ptr]->getId())->getPointerStorageClass()));
-      else if (auto *AI = dyn_cast<AllocaInst>(Val))
-        ArgTys[Ptr] = TypedPointerType::get(
-            AI->getAllocatedType(),
-            SPIRSPIRVAddrSpaceMap::rmap(
-                BI->getValueType(Ops[Ptr]->getId())->getPointerStorageClass()));
-      else if (isa<Argument>(Val) && !RetTy->isVoidTy()) {
-        // Pointer could be a function parameter. Assume that the type of the
-        // pointer is the same as the return type.
-        Type *Ty = nullptr;
-        // it return type is array type, assign its element type to Ty
-        if (RetTy->isArrayTy())
-          Ty = RetTy->getArrayElementType();
-        else if (RetTy->isVectorTy())
-          Ty = cast<VectorType>(RetTy)->getElementType();
-        else
-          Ty = RetTy;
+    }
+  }
 
-        ArgTys[Ptr] = TypedPointerType::get(
-            Ty,
-            SPIRSPIRVAddrSpaceMap::rmap(
-                BI->getValueType(Ops[Ptr]->getId())->getPointerStorageClass()));
+  for (unsigned I = 0; I < ArgTys.size(); I++) {
+    if (isa<PointerType>(ArgTys[I])) {
+      SPIRVType *OpTy = BI->getValueType(Ops[I]->getId());
+      // `Param` must be a pointer to an 8-bit integer type scalar.
+      // Avoid demangling for this argument if it's a pointer to get `Pc`
+      // mangling.
+      if (OC == OpEnqueueKernel && I == 7) {
+        if (ArgTys[I]->isPointerTy())
+          continue;
+      }
+      if (OpTy->isTypeUntypedPointerKHR()) {
+        auto *Val = transValue(Ops[I], BB->getParent(), BB);
+        Val = Val->stripPointerCasts();
+        if (isUntypedAccessChainOpCode(Ops[I]->getOpCode())) {
+          SPIRVType *BaseTy =
+              reinterpret_cast<SPIRVAccessChainBase *>(Ops[I])->getBaseType();
+
+          Type *Ty = nullptr;
+          if (BaseTy->isTypeArray())
+            Ty = transType(BaseTy->getArrayElementType());
+          else if (BaseTy->isTypeVector())
+            Ty = transType(BaseTy->getVectorComponentType());
+          else
+            Ty = transType(BaseTy);
+          ArgTys[I] = TypedPointerType::get(
+              Ty, SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        } else if (auto *GEP = dyn_cast<GetElementPtrInst>(Val)) {
+          ArgTys[I] = TypedPointerType::get(
+              GEP->getSourceElementType(),
+              SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        } else if (Ops[I]->getOpCode() == OpUntypedVariableKHR) {
+          SPIRVUntypedVariableKHR *UV =
+              static_cast<SPIRVUntypedVariableKHR *>(Ops[I]);
+          Type *Ty = transType(UV->getDataType());
+          ArgTys[I] = TypedPointerType::get(
+              Ty, SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        } else if (auto *AI = dyn_cast<AllocaInst>(Val)) {
+          ArgTys[I] = TypedPointerType::get(
+              AI->getAllocatedType(),
+              SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        } else if (Ops[I]->getOpCode() == OpFunctionParameter &&
+                   !RetTy->isVoidTy()) {
+          // Pointer could be a function parameter. Assume that the type of
+          // the pointer is the same as the return type.
+          Type *Ty = nullptr;
+          // it return type is array type, assign its element type to Ty
+          if (RetTy->isArrayTy())
+            Ty = RetTy->getArrayElementType();
+          else if (RetTy->isVectorTy())
+            Ty = cast<VectorType>(RetTy)->getElementType();
+          else
+            Ty = RetTy;
+
+          ArgTys[I] = TypedPointerType::get(
+              Ty, SPIRSPIRVAddrSpaceMap::rmap(OpTy->getPointerStorageClass()));
+        }
       }
     }
   }
@@ -3627,7 +3679,9 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
       Func->addFnAttr(Attribute::Convergent);
   }
   CallInst *Call;
-  if (OC == OpCooperativeMatrixLengthKHR) {
+  // TODO: Remove the check for matrix type once drivers are updated.
+  if (OC == OpCooperativeMatrixLengthKHR &&
+      Ops[0]->getOpCode() == OpTypeCooperativeMatrixKHR) {
     // OpCooperativeMatrixLengthKHR needs special handling as its operand is
     // a Type instead of a Value.
     llvm::Type *MatTy = transType(reinterpret_cast<SPIRVType *>(Ops[0]));
