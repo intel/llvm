@@ -109,19 +109,12 @@ bool testAcc(queue &Q, T *Src, T *Dst, unsigned Off, Flags) {
 }
 
 template <typename T, int N> bool testUSM(queue &Q) {
-  struct Deleter {
-    queue Q;
-    void operator()(T *Ptr) {
-      if (Ptr) {
-        sycl::free(Ptr, Q);
-      }
-    }
-  };
+  using ext::oneapi::experimental::usm_deleter;
 
-  std::unique_ptr<T, Deleter> Src(sycl::aligned_alloc_shared<T>(1024u, 512u, Q),
-                                  Deleter{Q});
-  std::unique_ptr<T, Deleter> Dst(sycl::aligned_alloc_shared<T>(1024u, 512u, Q),
-                                  Deleter{Q});
+  std::unique_ptr<T, usm_deleter> Src(
+      sycl::aligned_alloc_shared<T>(1024u, 512u, Q), {Q});
+  std::unique_ptr<T, usm_deleter> Dst(
+      sycl::aligned_alloc_shared<T>(1024u, 512u, Q), {Q});
 
   constexpr unsigned VecAlignOffset = esimd::detail::getNextPowerOf2<N>();
 
@@ -166,18 +159,12 @@ template <typename T> bool testUSM(queue &Q) {
 }
 
 template <typename T, int N> bool testAcc(queue &Q) {
-  struct Deleter {
-    void operator()(T *Ptr) {
-      if (Ptr) {
-        aligned_free(Ptr);
-      }
-    }
-  };
+  using ext::oneapi::experimental::usm_deleter;
 
-  std::unique_ptr<T, Deleter> Src(
-      static_cast<T *>(aligned_malloc(1024u, 512u * sizeof(T))), Deleter{});
-  std::unique_ptr<T, Deleter> Dst(
-      static_cast<T *>(aligned_malloc(1024u, 512u * sizeof(T))), Deleter{});
+  std::unique_ptr<T, usm_deleter> Src(
+      static_cast<T *>(aligned_malloc(1024u, 512u * sizeof(T))), {Q});
+  std::unique_ptr<T, usm_deleter> Dst(
+      static_cast<T *>(aligned_malloc(1024u, 512u * sizeof(T))), {Q});
 
   constexpr unsigned VecAlignOffset = esimd::detail::getNextPowerOf2<N>();
 
