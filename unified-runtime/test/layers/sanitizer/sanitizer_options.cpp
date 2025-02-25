@@ -13,111 +13,137 @@
 
 #include "sanitizer_options.hpp"
 #include "sanitizer_options_impl.hpp"
+
 #include <gtest/gtest.h>
+#include <stdlib.h>
 
-TEST(DeviceAsan, Initialization) {
-  ur_result_t status;
+using namespace ur_sanitizer_layer;
+using namespace ur_sanitizer_layer::options;
 
-  ur_loader_config_handle_t loaderConfig;
-  status = urLoaderConfigCreate(&loaderConfig);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
-  status = urLoaderConfigEnableLayer(loaderConfig, "UR_LAYER_ASAN");
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+struct OptionParserTest : public ::testing::Test {
+  logger::Logger Logger;
+  EnvVarMap EnvMap;
+  OptionParser Parser;
 
-  status = urLoaderInit(0, loaderConfig);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  OptionParserTest()
+      : Logger(logger::create_logger("OptionParser", false, false,
+                                     logger::Level::DEBUG)),
+        Parser(EnvMap, Logger) {}
+};
 
-  ur_adapter_handle_t adapter;
-  status = urAdapterGet(1, &adapter, nullptr);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+TEST_F(OptionParserTest, ParseBool_Normal) {
+  bool Result;
 
-  ur_platform_handle_t platform;
-  status = urPlatformGet(&adapter, 1, 1, &platform, nullptr);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"1"};
+  Result = false;
+  Parser.ParseBool("test", Result);
+  ASSERT_TRUE(Result);
 
-  ur_device_handle_t device;
-  status = urDeviceGet(platform, UR_DEVICE_TYPE_DEFAULT, 1, &device, nullptr);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"TrUe"};
+  Result = false;
+  Parser.ParseBool("test", Result);
+  ASSERT_TRUE(Result);
 
-  ur_context_handle_t context;
-  status = urContextCreate(1, &device, nullptr, &context);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"0"};
+  Result = true;
+  Parser.ParseBool("test", Result);
+  ASSERT_FALSE(Result);
 
-  status = urContextRelease(context);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
-
-  status = urDeviceRelease(device);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
-
-  status = urAdapterRelease(adapter);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
-
-  status = urLoaderTearDown();
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
-
-  status = urLoaderConfigRelease(loaderConfig);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"False"};
+  Result = true;
+  Parser.ParseBool("test", Result);
+  ASSERT_FALSE(Result);
 }
 
-TEST(DeviceAsan, UnsupportedFeature) {
-  ur_result_t status;
+TEST_F(OptionParserTest, ParseBool_Default) {
+  bool Result;
 
-  ur_loader_config_handle_t loaderConfig;
-  status = urLoaderConfigCreate(&loaderConfig);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
-  status = urLoaderConfigEnableLayer(loaderConfig, "UR_LAYER_ASAN");
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  Result = false;
+  Parser.ParseBool("null", Result);
+  ASSERT_FALSE(Result);
 
-  status = urLoaderInit(0, loaderConfig);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  Result = true;
+  Parser.ParseBool("null", Result);
+  ASSERT_TRUE(Result);
+}
 
-  ur_adapter_handle_t adapter;
-  status = urAdapterGet(1, &adapter, nullptr);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+TEST_F(OptionParserTest, ParseBool_Error) {
+  bool Result;
 
-  ur_platform_handle_t platform;
-  status = urPlatformGet(&adapter, 1, 1, &platform, nullptr);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"42"};
+  ASSERT_DEATH(Parser.ParseBool("test", Result), ".*");
+}
 
-  ur_device_handle_t device;
-  status = urDeviceGet(platform, UR_DEVICE_TYPE_DEFAULT, 1, &device, nullptr);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+TEST_F(OptionParserTest, ParseUint64_Normal) {
+  uint64_t Result;
 
-  ur_context_handle_t context;
-  status = urContextCreate(1, &device, nullptr, &context);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"42"};
+  Parser.ParseUint64("test", Result);
+  ASSERT_EQ(Result, 42);
+}
 
-  // Check for explict unsupported features
-  ur_bool_t isSupported;
-  status = urDeviceGetInfo(device, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
-                           sizeof(isSupported), &isSupported, nullptr);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
-  ASSERT_EQ(isSupported, 0);
+TEST_F(OptionParserTest, ParseUint64_Default) {
+  uint64_t Result;
 
-  status = urDeviceGetInfo(device, UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
-                           sizeof(isSupported), &isSupported, nullptr);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
-  ASSERT_EQ(isSupported, 0);
+  Result = 42;
+  Parser.ParseUint64("null", Result);
+  ASSERT_EQ(Result, 42);
+}
 
-  ur_device_command_buffer_update_capability_flags_t update_flag;
-  status = urDeviceGetInfo(
-      device, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
-      sizeof(update_flag), &update_flag, nullptr);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
-  ASSERT_EQ(update_flag, 0);
+TEST_F(OptionParserTest, ParseUint64_Error) {
+  uint64_t Result;
 
-  status = urContextRelease(context);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"-42"};
+  ASSERT_DEATH(Parser.ParseUint64("test", Result), ".*");
 
-  status = urDeviceRelease(device);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"abc"};
+  ASSERT_DEATH(Parser.ParseUint64("test", Result), ".*");
+}
 
-  status = urAdapterRelease(adapter);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+TEST_F(OptionParserTest, ParseUint64_OutOfRange) {
+  uint64_t Result;
 
-  status = urLoaderTearDown();
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"100"};
+  Parser.ParseUint64("test", Result, 0, 99);
+  ASSERT_EQ(Result, 99);
 
-  status = urLoaderConfigRelease(loaderConfig);
-  ASSERT_EQ(status, UR_RESULT_SUCCESS);
+  EnvMap["test"] = {"1"};
+  Parser.ParseUint64("test", Result, 10, 11);
+  ASSERT_EQ(Result, 10);
+}
+
+struct SanitizerOptionsTest : public ::testing::Test {
+  logger::Logger Logger;
+  std::string EnvName = "SANITIZER_OPTIONS_TEST";
+  SanitizerOptions Options;
+
+  SanitizerOptionsTest()
+      : Logger(logger::create_logger("SanitizerOptions", false, false,
+                                     logger::Level::DEBUG)) {}
+
+  void SetEnvAndInit(const std::string &Value) {
+    setenv(EnvName.c_str(), Value.c_str(), 1);
+    Options.Init(EnvName, Logger);
+  }
+};
+
+TEST_F(SanitizerOptionsTest, Default) {
+  SetEnvAndInit("");
+  ASSERT_FALSE(Options.Debug);
+}
+
+TEST_F(SanitizerOptionsTest, Normal) {
+  SetEnvAndInit("debug:true");
+  ASSERT_TRUE(Options.Debug);
+
+  SetEnvAndInit("debug:false");
+  ASSERT_FALSE(Options.Debug);
+}
+
+TEST_F(SanitizerOptionsTest, Error) {
+  // invalid format for bool
+  ASSERT_DEATH(SetEnvAndInit("debug:42"), ".*");
+
+  // invalid format for UR env map
+  ASSERT_DEATH(SetEnvAndInit("debug=42"), ".*");
 }
