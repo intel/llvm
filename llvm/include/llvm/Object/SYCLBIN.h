@@ -22,9 +22,11 @@ namespace object {
 // image inside a OffloadBinary.
 class SYCLBIN {
 public:
-  SYCLBIN(MemoryBufferRef Source);
+  SYCLBIN(MemoryBufferRef Source) : Data{Source} {}
 
   SYCLBIN(const SYCLBIN &Other) = delete;
+  
+  MemoryBufferRef getMemoryBufferRef() const { return Data; }
 
   enum class BundleState : uint8_t { Input = 0, Object = 1, Executable = 2 };
   enum class IRType : uint8_t { SPIRV = 0, PTX = 1, AMDGCN = 2 };
@@ -36,10 +38,10 @@ public:
   };
 
   /// The current version of the binary used for backwards compatibility.
-  static constexpr uint32_t Version = 1;
+  static constexpr uint32_t CurrentVersion = 1;
 
   /// Magic number used to identify SYCLBIN files.
-  static constexpr uint8_t MagicNumber[4] = {0x53, 0x59, 0x42, 0x49};
+  static constexpr uint32_t MagicNumber = 0x53594249;
 
   /// Serialize the contents of \p ModuleDescs to a binary buffer to be read
   /// later.
@@ -48,32 +50,60 @@ public:
   static Expected<std::unique_ptr<SYCLBIN>> read(MemoryBufferRef Source);
 
   struct IRModule {
-    IRType Type;
-    SmallVector<char> RawIRBytes;
+    std::unique_ptr<llvm::util::PropertySetRegistry> Metadata;
+    StringRef RawIRBytes;
   };
   struct NativeDeviceCodeImage {
-    SmallString<0> ArchString;
-    SmallVector<char> RawDeviceCodeImageBytes;
+    std::unique_ptr<llvm::util::PropertySetRegistry> Metadata;
+    StringRef RawDeviceCodeImageBytes;
   };
 
   struct AbstractModule {
-    SmallVector<SmallString<0>> KernelNames;
-    std::unique_ptr<llvm::util::PropertySetRegistry> Properties;
-
+    std::unique_ptr<llvm::util::PropertySetRegistry> Metadata;
     SmallVector<IRModule> IRModules;
     SmallVector<NativeDeviceCodeImage> NativeDeviceCodeImages;
   };
 
-  struct {
-    uint8_t Magic[4];
-    uint32_t Version;
-  } Header;
-
-  struct {
-    BundleState State;
-  } Metadata;
-
+  uint32_t Version;
+  std::unique_ptr<llvm::util::PropertySetRegistry> GlobalMetadata;
   SmallVector<AbstractModule, 4> AbstractModules;
+
+private:
+  MemoryBufferRef Data;
+
+  struct alignas(8) FileHeaderType {
+    uint32_t Magic;
+    uint32_t Version;
+    uint32_t AbstractModuleCount;
+    uint32_t IRModuleCount;
+    uint32_t NativeDeviceCodeImageCount;
+    uint64_t ByteTableSize;
+    uint64_t GlobalMetadataOffset;
+    uint64_t GlobalMetadataSize;
+  };
+
+  struct alignas(8) AbstractModuleHeaderType {
+    uint64_t MetadataOffset;
+    uint64_t MetadataSize;
+    uint32_t IRModuleCount;
+    uint32_t IRModuleOffset;
+    uint32_t NativeDeviceCodeImageCount;
+    uint32_t NativeDeviceCodeImageOffset;
+  };
+
+  struct alignas(8) IRModuleHeaderType {
+    uint64_t MetadataOffset;
+    uint64_t MetadataSize;
+    uint64_t RawIRBytesOffset;
+    uint64_t RawIRBytesSize;
+  };
+
+  struct alignas(8) NativeDeviceCodeImageHeaderType {
+    uint64_t MetadataOffset;
+    uint64_t MetadataSize;
+    uint64_t BinaryBytesOffset;
+    uint64_t BinaryBytesSize;
+  };
 };
 
 } // namespace object

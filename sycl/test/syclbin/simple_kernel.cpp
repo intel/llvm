@@ -22,16 +22,17 @@ void TestKernel(int *Ptr, int Size) {
 }
 }
 
-// CHECK:      Version:                    {{[1-9]+}}
-// CHECK-NEXT: State:                      input
+// CHECK:      Version: {{[1-9]+}}
+// CHECK-NEXT: Global metadata:
+// CHECK-NEXT:   SYCLBIN/global metadata:
+// CHECK-NEXT:     state: 0
 // CHECK-NEXT: Number of Abstract Modules: 1
 // CHECK-NEXT: Abstract Module 0:
 // CHECK-NEXT:   Metadata:
-// CHECK-NEXT:     Kernel names:
-// CHECK-NEXT:       __sycl_kernel_TestKernel
-// CHECK-NEXT:     Properties:
 // CHECK:      Number of IR Modules: 1
 // CHECK-NEXT:   IR module 0:
-// CHECK-NEXT:     IR type: SPIR-V
+// CHECK-NEXT:       Metadata:
+// CHECK-NEXT:         SYCLBIN/ir module metadata:
+// CHECK-NEXT:           type: 0
 // CHECK-NEXT:     Raw IR bytes: <Binary blob of {{.*}} bytes>
 // CHECK-NEXT:   Number of Native Device Code Images: 0
