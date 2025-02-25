@@ -957,9 +957,10 @@ static bool addSYCLDefaultTriple(Compilation &C,
       return false;
   }
   // When SYCL Native is the only target, do not add the default triple.
-  if (SYCLTriples.size() == 1 && (driver::isSYCLNativeCPU(
-           C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple(),
-           SYCLTriples[0])))
+  if (SYCLTriples.size() == 1 &&
+      driver::isSYCLNativeCPU(
+          C.getSingleOffloadToolChain<Action::OFK_Host>()->getTriple(),
+          SYCLTriples[0]))
     return false;
   // Check current set of triples to see if the default has already been set.
   for (const auto &SYCLTriple : SYCLTriples) {
@@ -6701,8 +6702,9 @@ class OffloadingActionBuilder final {
             if (!isValidSYCLTriple(TT))
               continue;
             std::string NormalizedName =
-                C.getDriver().getSYCLDeviceTriple(
-                    Val, SYCLTargetsValues).normalize();
+                C.getDriver()
+                    .getSYCLDeviceTriple(Val, SYCLTargetsValues)
+                    .normalize();
 
             // Make sure we don't have a duplicate triple.
             auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
