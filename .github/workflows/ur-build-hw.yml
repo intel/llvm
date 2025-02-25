@@ -85,27 +85,16 @@ jobs:
     runs-on: ${{inputs.runner_name}}
 
     steps:
-    # TODO: If UR is merged into llvm it will require changes:
-    # - checkout only llvm repo
-    # - configure UR project from local tree
+    # TODO:
     # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
     # - find better way to handle platform param (e.g. "Intel(R) OpenCL" -> "opencl")
     # - switch to Ninja generator in CMake
-    #
-    # Also, the step of downloading DPC++ should be integrated somehow;
-    # most likely use nightly release.
+    # - downloading DPC++ should be integrated somehow; most likely use nightly release.
     #
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - name: Checkout UR
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      with:
-        repository: 'oneapi-src/unified-runtime'
-        path: unified-runtime
-        ref: main
-
-    - name: Install pip packages
+    - name: Install UR python dependencies
       working-directory: ${{github.workspace}}/unified-runtime
       run: pip install -r third_party/requirements.txt
 
@@ -115,7 +104,7 @@ jobs:
         mkdir dpcpp_compiler
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 
-    - name: Configure CMake
+    - name: Configure Unified Runtime project
       working-directory: ${{github.workspace}}/unified-runtime
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >

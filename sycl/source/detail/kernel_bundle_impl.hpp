@@ -380,7 +380,8 @@ public:
   // program manager integration, only for sycl_jit language
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      const std::vector<kernel_id> &KernelIDs,
-                     std::vector<std::string> KNames, std::string Pfx,
+                     std::vector<std::string> KNames,
+                     sycl_device_binaries Binaries, std::string Pfx,
                      syclex::source_language Lang)
       : kernel_bundle_impl(std::move(Ctx), std::move(Devs), KernelIDs,
                            bundle_state::executable) {
@@ -392,6 +393,7 @@ public:
     // from the (unprefixed) kernel name.
     MIsInterop = true;
     MKernelNames = std::move(KNames);
+    MDeviceBinaries = Binaries;
     MPrefix = std::move(Pfx);
     MLanguage = Lang;
   }
@@ -496,10 +498,8 @@ public:
 
     if (MLanguage == syclex::source_language::sycl_jit) {
       // Build device images via the program manager.
-      // TODO: Support persistent caching.
-
       const std::string &SourceStr = std::get<std::string>(MSource);
-      auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
+      auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_to_SPIRV(
           SourceStr, MIncludePairs, BuildOptions, LogPtr,
           RegisteredKernelNames);
 
@@ -508,9 +508,6 @@ public:
 
       std::vector<kernel_id> KernelIDs;
       std::vector<std::string> KernelNames;
-      // `jit_compiler::compileSYCL(..)` uses `CompilationID + '$'` as prefix
-      // for offload entry names.
-      std::string Prefix = CompilationID + '$';
       for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
         std::string_view KernelName{KernelID.get_name()};
         if (KernelName.find(Prefix) == 0) {
@@ -520,8 +517,9 @@ public:
         }
       }
 
-      return std::make_shared<kernel_bundle_impl>(
-          MContext, MDevices, KernelIDs, KernelNames, Prefix, MLanguage);
+      return std::make_shared<kernel_bundle_impl>(MContext, MDevices, KernelIDs,
+                                                  KernelNames, Binaries, Prefix,
+                                                  MLanguage);
     }
 
     ur_program_handle_t UrProgram = nullptr;
@@ -928,6 +926,17 @@ public:
     return true;
   }
 
+  ~kernel_bundle_impl() {
+    try {
+      if (MDeviceBinaries) {
+        ProgramManager::getInstance().removeImages(MDeviceBinaries);
+        syclex::detail::SYCL_JIT_destroy(MDeviceBinaries);
+      }
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_bundle_impl", e);
+    }
+  }
+
 private:
   void fillUniqueDeviceImages() {
     assert(MUniqueDeviceImages.empty());
@@ -959,6 +968,7 @@ private:
   const std::variant<std::string, std::vector<std::byte>> MSource;
   // only kernel_bundles created from source have KernelNames member.
   std::vector<std::string> MKernelNames;
+  sycl_device_binaries MDeviceBinaries = nullptr;
   std::string MPrefix;
   include_pairs_t MIncludePairs;
 };
