@@ -662,7 +662,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<sycl::event> &DepEvents, ContextImplPtr Context) {
+    const std::vector<sycl::event> &DepEvents, const ContextImplPtr &Context) {
 
   return std::all_of(
       DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
@@ -672,7 +672,7 @@ bool Scheduler::areEventsSafeForSchedulerBypass(
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<EventImplPtr> &DepEvents, ContextImplPtr Context) {
+    const std::vector<EventImplPtr> &DepEvents, const ContextImplPtr &Context) {
 
   return std::all_of(DepEvents.begin(), DepEvents.end(),
                      [&Context](const EventImplPtr &SyclEventImplPtr) {
