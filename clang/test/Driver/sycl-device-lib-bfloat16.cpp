@@ -157,6 +157,22 @@
 // RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device bmg-g21-a0" \
 // RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NATIVE
 
+// Test test AOT-PVC + AOT-LNL specified via different options, uses native libs
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_lnl_m,spir64_gen \
+// RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device pvc" \
+// RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NATIVE
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,spir64_gen \
+// RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device lnl_m" \
+// RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NATIVE
+
+// Test test AOT-LNL + AOT-DG1 specified via different options, uses fallback libs
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_lnl_m,spir64_gen \
+// RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device dg1" \
+// RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg1,spir64_gen \
+// RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device lnl_m" \
+// RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
+
 // BFLOAT16-NOT: llvm-link{{.*}} "{{.*}}libsycl-{{fallback|native}}-bfloat16.bc"
 
 // BFLOAT16-NATIVE: llvm-link{{.*}} "{{.*}}libsycl-native-bfloat16.bc"
