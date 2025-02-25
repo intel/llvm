@@ -16,6 +16,9 @@
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
+#include "clang/AST/Mangle.h"
+#include "clang/AST/SYCLKernelInfo.h"
+#include "clang/AST/StmtSYCL.h"
 #include "clang/AST/TypeOrdering.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Analysis/CallGraph.h"
@@ -24,6 +27,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
+#include "clang/AST/SYCLKernelInfo.h"
 #include "clang/Sema/Attr.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/ParsedAttr.h"
@@ -1148,10 +1152,10 @@ static target getAccessTarget(QualType FieldTy,
 
 // FIXME: Free functions must have void return type and be declared at file
 // scope, outside any namespaces.
-static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
+bool SemaSYCL::isFreeFunction(const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-        IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
+        IRAttr->getAttributeNameValuePairs(getASTContext());
     for (const auto &NameValuePair : NameValuePairs) {
       if (NameValuePair.first == "sycl-nd-range-kernel" ||
           NameValuePair.first == "sycl-single-task-kernel") {
@@ -5291,7 +5295,7 @@ void SemaSYCL::SetSYCLKernelNames() {
        SyclKernelsToOpenCLKernels) {
     std::string CalculatedName, StableName;
     StringRef KernelName;
-    if (isFreeFunction(*this, Pair.first)) {
+    if (isFreeFunction(Pair.first)) {
       std::tie(CalculatedName, StableName) =
           constructFreeFunctionKernelName(*this, Pair.first, *MangleCtx);
       KernelName = CalculatedName;
@@ -5414,24 +5418,66 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   }
 }
 
-void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD) {
-  SyclKernelArgsSizeChecker argsSizeChecker(SemaSYCLRef, FD->getLocation(),
+static void addRegisteredKernelName(SemaSYCL &S, StringRef Str,
+                                    FunctionDecl *FD, SourceLocation Loc) {
+  if (!Str.empty())
+    FD->addAttr(SYCLRegisteredKernelNameAttr::CreateImplicit(S.getASTContext(),
+                                                             Str, Loc));
+}
+
+static bool checkAndAddRegisteredKernelName(SemaSYCL &S, FunctionDecl *FD,
+                                            StringRef Str) {
+  using KernelPair = std::pair<const FunctionDecl *, FunctionDecl *>;
+  for (const KernelPair &Pair : S.getKernelFDPairs()) {
+    if (Pair.first == FD) {
+      // If the current list of free function entries already contains this
+      // free function, apply the name Str as an attribute.  But if it already
+      // has an attribute name, issue a diagnostic instead.
+      if (!Str.empty()) {
+        if (!Pair.second->hasAttr<SYCLRegisteredKernelNameAttr>())
+          addRegisteredKernelName(S, Str, Pair.second, FD->getLocation());
+        else
+          S.Diag(FD->getLocation(),
+                 diag::err_registered_kernels_name_already_registered)
+              << Pair.second->getAttr<SYCLRegisteredKernelNameAttr>()
+                     ->getRegName()
+              << Str;
+      }
+      // An empty name string implies a regular free kernel construction
+      // call, so simply return.
+      return false;
+    }
+  }
+  return true;
+}
+
+void SemaSYCL::constructFreeFunctionKernel(FunctionDecl *FD,
+                                           StringRef NameStr) {
+  if (!checkAndAddRegisteredKernelName(*this, FD, NameStr))
+    return;
+
+  SyclKernelArgsSizeChecker argsSizeChecker(*this, FD->getLocation(),
                                             false /*IsSIMDKernel*/);
-  SyclKernelDeclCreator kernel_decl(SemaSYCLRef, FD->getLocation(),
-                                    FD->isInlined(), false /*IsSIMDKernel */,
-                                    FD);
+  SyclKernelDeclCreator kernel_decl(*this, FD->getLocation(), FD->isInlined(),
+                                    false /*IsSIMDKernel */, FD);
 
-  FreeFunctionKernelBodyCreator kernel_body(SemaSYCLRef, kernel_decl, FD);
+  FreeFunctionKernelBodyCreator kernel_body(*this, kernel_decl, FD);
 
-  SyclKernelIntHeaderCreator int_header(
-      SemaSYCLRef, SemaSYCLRef.getSyclIntegrationHeader(), FD->getType(), FD);
+  SyclKernelIntHeaderCreator int_header(*this, getSyclIntegrationHeader(),
+                                        FD->getType(), FD);
 
-  SyclKernelIntFooterCreator int_footer(SemaSYCLRef,
-                                        SemaSYCLRef.getSyclIntegrationFooter());
-  KernelObjVisitor Visitor{SemaSYCLRef};
+  SyclKernelIntFooterCreator int_footer(*this, getSyclIntegrationFooter());
+  KernelObjVisitor Visitor{*this};
 
   Visitor.VisitFunctionParameters(FD, argsSizeChecker, kernel_decl, kernel_body,
                                   int_header, int_footer);
+
+  assert(getKernelFDPairs().back().first == FD &&
+         "OpenCL Kernel not found for free function entry");
+  // Register the kernel name with the OpenCL kernel generated for the
+  // free function.
+  addRegisteredKernelName(*this, NameStr, getKernelFDPairs().back().second,
+                          FD->getLocation());
 }
 
 // Figure out the sub-group for the this function.  First we check the
@@ -5717,7 +5763,7 @@ void SemaSYCL::MarkDevices() {
 }
 
 void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
-  if (isFreeFunction(*this, FD)) {
+  if (isFreeFunction(FD)) {
     SyclKernelDecompMarker DecompMarker(*this);
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
@@ -5736,7 +5782,7 @@ void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
     if (!FieldChecker.isValid() || !UnionChecker.isValid())
       return;
 
-    ConstructFreeFunctionKernel(*this, FD);
+    constructFreeFunctionKernel(FD);
   }
 }
 
@@ -6621,7 +6667,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
   for (const KernelDesc &K : KernelDescs) {
-    if (!isFreeFunction(S, K.SyclKernel))
+    if (!S.isFreeFunction(K.SyclKernel))
       continue;
     ++FreeFunctionCount;
     // Generate forward declaration for free function.
@@ -6739,7 +6785,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   }
   ShimCounter = 1;
   for (const KernelDesc &K : KernelDescs) {
-    if (!isFreeFunction(S, K.SyclKernel))
+    if (!S.isFreeFunction(K.SyclKernel))
       continue;
 
     O << "\n// Definition of kernel_id of " << K.Name << "\n";
@@ -7214,4 +7260,249 @@ void SemaSYCL::handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL) {
   assert(TSI && "no type source info for attribute argument");
   D->addAttr(::new (SemaRef.Context)
                  SYCLKernelEntryPointAttr(SemaRef.Context, AL, TSI));
+}
+
+// Given a potentially qualified type, SourceLocationForUserDeclaredType()
+// returns the source location of the canonical declaration of the unqualified
+// desugared user declared type, if any. For non-user declared types, an
+// invalid source location is returned. The intended usage of this function
+// is to identify an appropriate source location, if any, for a
+// "entity declared here" diagnostic note.
+static SourceLocation SourceLocationForUserDeclaredType(QualType QT) {
+  SourceLocation Loc;
+  const Type *T = QT->getUnqualifiedDesugaredType();
+  if (const TagType *TT = dyn_cast<TagType>(T))
+    Loc = TT->getDecl()->getLocation();
+  else if (const ObjCInterfaceType *ObjCIT = dyn_cast<ObjCInterfaceType>(T))
+    Loc = ObjCIT->getDecl()->getLocation();
+  return Loc;
+}
+
+static bool CheckSYCLKernelName(Sema &S, SourceLocation Loc,
+                                QualType KernelName) {
+  assert(!KernelName->isDependentType());
+
+  if (!KernelName->isStructureOrClassType()) {
+    // SYCL 2020 section 5.2, "Naming of kernels", only requires that the
+    // kernel name be a C++ typename. However, the definition of "kernel name"
+    // in the glossary states that a kernel name is a class type. Neither
+    // section explicitly states whether the kernel name type can be
+    // cv-qualified. For now, kernel name types are required to be class types
+    // and that they may be cv-qualified. The following issue requests
+    // clarification from the SYCL WG.
+    //   https://github.com/KhronosGroup/SYCL-Docs/issues/568
+    S.Diag(Loc, diag::warn_sycl_kernel_name_not_a_class_type) << KernelName;
+    SourceLocation DeclTypeLoc = SourceLocationForUserDeclaredType(KernelName);
+    if (DeclTypeLoc.isValid())
+      S.Diag(DeclTypeLoc, diag::note_entity_declared_at) << KernelName;
+    return true;
+  }
+
+  return false;
+}
+
+void SemaSYCL::CheckSYCLEntryPointFunctionDecl(FunctionDecl *FD) {
+  // Ensure that all attributes present on the declaration are consistent
+  // and warn about any redundant ones.
+  SYCLKernelEntryPointAttr *SKEPAttr = nullptr;
+  for (auto *SAI : FD->specific_attrs<SYCLKernelEntryPointAttr>()) {
+    if (!SKEPAttr) {
+      SKEPAttr = SAI;
+      continue;
+    }
+    if (!getASTContext().hasSameType(SAI->getKernelName(),
+                                     SKEPAttr->getKernelName())) {
+      Diag(SAI->getLocation(), diag::err_sycl_entry_point_invalid_redeclaration)
+          << SAI->getKernelName() << SKEPAttr->getKernelName();
+      Diag(SKEPAttr->getLocation(), diag::note_previous_attribute);
+      SAI->setInvalidAttr();
+    } else {
+      Diag(SAI->getLocation(),
+           diag::warn_sycl_entry_point_redundant_declaration);
+      Diag(SKEPAttr->getLocation(), diag::note_previous_attribute);
+    }
+  }
+  assert(SKEPAttr && "Missing sycl_kernel_entry_point attribute");
+
+  // Ensure the kernel name type is valid.
+  if (!SKEPAttr->getKernelName()->isDependentType() &&
+      CheckSYCLKernelName(SemaRef, SKEPAttr->getLocation(),
+                          SKEPAttr->getKernelName()))
+    SKEPAttr->setInvalidAttr();
+
+  // Ensure that an attribute present on the previous declaration
+  // matches the one on this declaration.
+  FunctionDecl *PrevFD = FD->getPreviousDecl();
+  if (PrevFD && !PrevFD->isInvalidDecl()) {
+    const auto *PrevSKEPAttr = PrevFD->getAttr<SYCLKernelEntryPointAttr>();
+    if (PrevSKEPAttr && !PrevSKEPAttr->isInvalidAttr()) {
+      if (!getASTContext().hasSameType(SKEPAttr->getKernelName(),
+                                       PrevSKEPAttr->getKernelName())) {
+        Diag(SKEPAttr->getLocation(),
+             diag::err_sycl_entry_point_invalid_redeclaration)
+            << SKEPAttr->getKernelName() << PrevSKEPAttr->getKernelName();
+        Diag(PrevSKEPAttr->getLocation(), diag::note_previous_decl) << PrevFD;
+        SKEPAttr->setInvalidAttr();
+      }
+    }
+  }
+
+  if (const auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
+    if (!MD->isStatic()) {
+      Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
+          << /*non-static member function*/ 0;
+      SKEPAttr->setInvalidAttr();
+    }
+  }
+
+  if (FD->isVariadic()) {
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
+        << /*variadic function*/ 1;
+    SKEPAttr->setInvalidAttr();
+  }
+
+  if (FD->isDefaulted()) {
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
+        << /*defaulted function*/ 3;
+    SKEPAttr->setInvalidAttr();
+  } else if (FD->isDeleted()) {
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
+        << /*deleted function*/ 2;
+    SKEPAttr->setInvalidAttr();
+  }
+
+  if (FD->isConsteval()) {
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
+        << /*consteval function*/ 5;
+    SKEPAttr->setInvalidAttr();
+  } else if (FD->isConstexpr()) {
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
+        << /*constexpr function*/ 4;
+    SKEPAttr->setInvalidAttr();
+  }
+
+  if (FD->isNoReturn()) {
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_invalid)
+        << /*function declared with the 'noreturn' attribute*/ 6;
+    SKEPAttr->setInvalidAttr();
+  }
+
+  if (FD->getReturnType()->isUndeducedType()) {
+    Diag(SKEPAttr->getLocation(),
+         diag::err_sycl_entry_point_deduced_return_type);
+    SKEPAttr->setInvalidAttr();
+  } else if (!FD->getReturnType()->isDependentType() &&
+             !FD->getReturnType()->isVoidType()) {
+    Diag(SKEPAttr->getLocation(), diag::err_sycl_entry_point_return_type);
+    SKEPAttr->setInvalidAttr();
+  }
+
+  if (!FD->isInvalidDecl() && !FD->isTemplated() &&
+      !SKEPAttr->isInvalidAttr()) {
+    const SYCLKernelInfo *SKI =
+        getASTContext().findSYCLKernelInfo(SKEPAttr->getKernelName());
+    if (SKI) {
+      if (!declaresSameEntity(FD, SKI->getKernelEntryPointDecl())) {
+        // FIXME: This diagnostic should include the origin of the kernel
+        // FIXME: names; not just the locations of the conflicting declarations.
+        Diag(FD->getLocation(), diag::err_sycl_kernel_name_conflict);
+        Diag(SKI->getKernelEntryPointDecl()->getLocation(),
+             diag::note_previous_declaration);
+        SKEPAttr->setInvalidAttr();
+      }
+    } else {
+      getASTContext().registerSYCLEntryPointFunction(FD);
+    }
+  }
+}
+
+namespace {
+
+// The body of a function declared with the [[sycl_kernel_entry_point]]
+// attribute is cloned and transformed to substitute references to the original
+// function parameters with references to replacement variables that stand in
+// for SYCL kernel parameters or local variables that reconstitute a decomposed
+// SYCL kernel argument.
+class OutlinedFunctionDeclBodyInstantiator
+    : public TreeTransform<OutlinedFunctionDeclBodyInstantiator> {
+public:
+  using ParmDeclMap = llvm::DenseMap<ParmVarDecl *, VarDecl *>;
+
+  OutlinedFunctionDeclBodyInstantiator(Sema &S, ParmDeclMap &M)
+      : TreeTransform<OutlinedFunctionDeclBodyInstantiator>(S), SemaRef(S),
+        MapRef(M) {}
+
+  // A new set of AST nodes is always required.
+  bool AlwaysRebuild() { return true; }
+
+  // Transform ParmVarDecl references to the supplied replacement variables.
+  ExprResult TransformDeclRefExpr(DeclRefExpr *DRE) {
+    const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl());
+    if (PVD) {
+      ParmDeclMap::iterator I = MapRef.find(PVD);
+      if (I != MapRef.end()) {
+        VarDecl *VD = I->second;
+        assert(SemaRef.getASTContext().hasSameUnqualifiedType(PVD->getType(),
+                                                              VD->getType()));
+        assert(!VD->getType().isMoreQualifiedThan(PVD->getType(),
+                                                  SemaRef.getASTContext()));
+        VD->setIsUsed();
+        return DeclRefExpr::Create(
+            SemaRef.getASTContext(), DRE->getQualifierLoc(),
+            DRE->getTemplateKeywordLoc(), VD, false, DRE->getNameInfo(),
+            DRE->getType(), DRE->getValueKind());
+      }
+    }
+    return DRE;
+  }
+
+private:
+  Sema &SemaRef;
+  ParmDeclMap &MapRef;
+};
+
+} // unnamed namespace
+
+StmtResult SemaSYCL::BuildSYCLKernelCallStmt(FunctionDecl *FD,
+                                             CompoundStmt *Body) {
+  assert(!FD->isInvalidDecl());
+  assert(!FD->isTemplated());
+  assert(FD->hasPrototype());
+
+  const auto *SKEPAttr = FD->getAttr<SYCLKernelEntryPointAttr>();
+  assert(SKEPAttr && "Missing sycl_kernel_entry_point attribute");
+  assert(!SKEPAttr->isInvalidAttr() &&
+         "sycl_kernel_entry_point attribute is invalid");
+
+  // Ensure that the kernel name was previously registered and that the
+  // stored declaration matches.
+  const SYCLKernelInfo &SKI =
+      getASTContext().getSYCLKernelInfo(SKEPAttr->getKernelName());
+  assert(declaresSameEntity(SKI.getKernelEntryPointDecl(), FD) &&
+         "SYCL kernel name conflict");
+  (void)SKI;
+
+  using ParmDeclMap = OutlinedFunctionDeclBodyInstantiator::ParmDeclMap;
+  ParmDeclMap ParmMap;
+
+  assert(SemaRef.CurContext == FD);
+  OutlinedFunctionDecl *OFD =
+      OutlinedFunctionDecl::Create(getASTContext(), FD, FD->getNumParams());
+  unsigned i = 0;
+  for (ParmVarDecl *PVD : FD->parameters()) {
+    ImplicitParamDecl *IPD = ImplicitParamDecl::Create(
+        getASTContext(), OFD, SourceLocation(), PVD->getIdentifier(),
+        PVD->getType(), ImplicitParamKind::Other);
+    OFD->setParam(i, IPD);
+    ParmMap[PVD] = IPD;
+    ++i;
+  }
+
+  OutlinedFunctionDeclBodyInstantiator OFDBodyInstantiator(SemaRef, ParmMap);
+  Stmt *OFDBody = OFDBodyInstantiator.TransformStmt(Body).get();
+  OFD->setBody(OFDBody);
+  OFD->setNothrow();
+  Stmt *NewBody = new (getASTContext()) SYCLKernelCallStmt(Body, OFD);
+
+  return NewBody;
 }

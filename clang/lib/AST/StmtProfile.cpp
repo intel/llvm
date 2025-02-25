@@ -392,6 +392,10 @@ void StmtProfiler::VisitCapturedStmt(const CapturedStmt *S) {
   VisitStmt(S);
 }
 
+void StmtProfiler::VisitSYCLKernelCallStmt(const SYCLKernelCallStmt *S) {
+  VisitStmt(S);
+}
+
 void StmtProfiler::VisitObjCForCollectionStmt(const ObjCForCollectionStmt *S) {
   VisitStmt(S);
 }
@@ -2581,9 +2585,23 @@ void OpenACCClauseProfiler::VisitCreateClause(
   VisitClauseWithVarList(Clause);
 }
 
+void OpenACCClauseProfiler::VisitHostClause(const OpenACCHostClause &Clause) {
+  VisitClauseWithVarList(Clause);
+}
+
+void OpenACCClauseProfiler::VisitDeviceClause(
+    const OpenACCDeviceClause &Clause) {
+  VisitClauseWithVarList(Clause);
+}
+
 void OpenACCClauseProfiler::VisitSelfClause(const OpenACCSelfClause &Clause) {
-  if (Clause.hasConditionExpr())
-    Profiler.VisitStmt(Clause.getConditionExpr());
+  if (Clause.isConditionExprClause()) {
+    if (Clause.hasConditionExpr())
+      Profiler.VisitStmt(Clause.getConditionExpr());
+  } else {
+    for (auto *E : Clause.getVarList())
+      Profiler.VisitStmt(E);
+  }
 }
 
 void OpenACCClauseProfiler::VisitFinalizeClause(
@@ -2674,6 +2692,11 @@ void OpenACCClauseProfiler::VisitAsyncClause(const OpenACCAsyncClause &Clause) {
 
 void OpenACCClauseProfiler::VisitDeviceNumClause(
     const OpenACCDeviceNumClause &Clause) {
+  Profiler.VisitStmt(Clause.getIntExpr());
+}
+
+void OpenACCClauseProfiler::VisitDefaultAsyncClause(
+    const OpenACCDefaultAsyncClause &Clause) {
   Profiler.VisitStmt(Clause.getIntExpr());
 }
 
@@ -2791,6 +2814,19 @@ void StmtProfiler::VisitOpenACCInitConstruct(const OpenACCInitConstruct *S) {
 
 void StmtProfiler::VisitOpenACCShutdownConstruct(
     const OpenACCShutdownConstruct *S) {
+  VisitStmt(S);
+  OpenACCClauseProfiler P{*this};
+  P.VisitOpenACCClauseList(S->clauses());
+}
+
+void StmtProfiler::VisitOpenACCSetConstruct(const OpenACCSetConstruct *S) {
+  VisitStmt(S);
+  OpenACCClauseProfiler P{*this};
+  P.VisitOpenACCClauseList(S->clauses());
+}
+
+void StmtProfiler::VisitOpenACCUpdateConstruct(
+    const OpenACCUpdateConstruct *S) {
   VisitStmt(S);
   OpenACCClauseProfiler P{*this};
   P.VisitOpenACCClauseList(S->clauses());

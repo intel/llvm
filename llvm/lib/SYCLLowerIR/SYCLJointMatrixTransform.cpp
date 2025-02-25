@@ -21,6 +21,7 @@ namespace {
 
 static constexpr char ACCESS_CHAIN[] = "_Z19__spirv_AccessChain";
 static constexpr char MATRIX_TYPE[] = "spirv.CooperativeMatrixKHR";
+static constexpr char MATRIX_LAYOUT[] = "joint_matrix_layout_to_spv";
 
 Type *getInnermostType(Type *Ty) {
   while (auto *ArrayTy = dyn_cast<ArrayType>(Ty))
@@ -184,17 +185,99 @@ bool transformAccessChain(Function *F) {
   }
   return ModuleChanged;
 }
+
+StoreInst *findLastStoreBeforeLoad(Value *Ptr, Instruction *Load) {
+  BasicBlock::iterator It(Load);
+  while (It != Load->getParent()->begin()) {
+    --It;
+    if (auto *Store = dyn_cast<StoreInst>(&*It))
+      if (Store->getPointerOperand() == Ptr)
+        return Store;
+  }
+  return nullptr;
+}
+
+// Per SPIR-V specification Layout of a matrix must be a constant instruction
+// aka a constexpr or specialization constant. Meanwhile in SYCL headers
+// layout is passed as a parameter to joint_matrix_load function, so even if
+// that layout is a constant expression in the user's code - it's not possible
+// to prove that to the compiler, so constant propagation will happen only
+// after inlining, not in AST. That means, that with O0 layout would remain
+// to be a runtime variable in LLVM IR.
+// SYCL matrix layout is being mapped on SPIR-V matrix layout by
+// joint_matrix_layout_to_spv function. The following routine finds calls to
+// this function and replaces them with the found constant.
+// This function also cleans up code, that becomes dead. Pattern of the dead
+// code is stable, as user's code doesn't affect it.
+bool propagateConstexprLayout(Function *F) {
+  llvm::SmallVector<Instruction *, 8> ToErase;
+  for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
+    User *U = *I++;
+    auto *CI = dyn_cast<CallInst>(U);
+    if (!CI)
+      continue;
+    auto *Op = dyn_cast<Instruction>(CI->getArgOperand(0));
+    if (!Op || !isa<LoadInst>(Op))
+      continue;
+    auto *Ptr = dyn_cast<Instruction>(cast<LoadInst>(Op)->getPointerOperand());
+    if (!Ptr)
+      continue;
+
+    ConstantInt *ConstLayout = nullptr;
+    StoreInst *SI = findLastStoreBeforeLoad(Ptr, Op);
+    if (!SI)
+      continue;
+    ConstLayout = dyn_cast<ConstantInt>(SI->getValueOperand());
+    if (ConstLayout) {
+      CI->replaceAllUsesWith(ConstLayout);
+      ToErase.push_back(CI);
+      ToErase.push_back(SI);
+      ToErase.push_back(Op);
+      ToErase.push_back(Ptr);
+      if (auto *Cast = dyn_cast<AddrSpaceCastInst>(Ptr)) {
+        auto *OrigPtr = Cast->getPointerOperand();
+        if (auto *AI = dyn_cast<AllocaInst>(OrigPtr))
+          ToErase.push_back(AI);
+      }
+    }
+  }
+
+  // There are possible cases, when a single instruction result is used multiple
+  // times. For this case we have to use a vector to store such instructions
+  // and keep track if we have removed them before to avoid double free().
+  SmallPtrSet<Instruction *, 8> Erased;
+  for (Instruction *II : ToErase) {
+    if (!II->use_empty())
+      continue;
+    if (Erased.contains(II))
+      continue;
+    II->dropAllReferences();
+    II->eraseFromParent();
+    Erased.insert(II);
+  }
+  return !ToErase.empty();
+}
 } // namespace
 
 PreservedAnalyses
 SYCLJointMatrixTransformPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
+  llvm::SmallVector<Function *, 1> ToErase;
   for (Function &F : M) {
-    if (!F.isDeclaration())
-      continue;
+    if (!F.isDeclaration()) {
+      if (F.getName() == MATRIX_LAYOUT) {
+        ModuleChanged |= propagateConstexprLayout(&F);
+        ToErase.push_back(&F);
+      } else
+        continue;
+    }
     if (F.getName().starts_with(ACCESS_CHAIN))
       ModuleChanged |= transformAccessChain(&F);
   }
+
+  for (auto *F : ToErase)
+    if (F->users().empty())
+      F->eraseFromParent();
 
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

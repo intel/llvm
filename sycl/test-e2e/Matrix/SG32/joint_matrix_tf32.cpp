@@ -5,15 +5,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
+// other triples
+
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
 constexpr size_t TN = 16;
 
-#include "../joint_matrix_tf32_impl.hpp"
+#include "joint_matrix_tf32_impl.hpp"

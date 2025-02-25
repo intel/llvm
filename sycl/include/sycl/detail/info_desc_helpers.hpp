@@ -129,6 +129,7 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
 #include <sycl/info/sycl_backend_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename SyclObject, typename Param>
 constexpr int emit_get_backend_info_error() {
   // Implementation of get_backend_info doesn't seem to be aligned with the
@@ -140,6 +141,7 @@ constexpr int emit_get_backend_info_error() {
                 "This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0");
   return 0;
 }
+#endif
 
 } // namespace detail
 } // namespace _V1

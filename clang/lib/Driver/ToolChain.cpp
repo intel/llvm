@@ -197,6 +197,15 @@ bool ToolChain::defaultToIEEELongDouble() const {
   return PPC_LINUX_DEFAULT_IEEELONGDOUBLE && getTriple().isOSLinux();
 }
 
+static void processMultilibCustomFlags(Multilib::flags_list &List,
+                                       const llvm::opt::ArgList &Args) {
+  for (const Arg *MultilibFlagArg :
+       Args.filtered(options::OPT_fmultilib_flag)) {
+    List.push_back(MultilibFlagArg->getAsString(Args));
+    MultilibFlagArg->claim();
+  }
+}
+
 static void getAArch64MultilibFlags(const Driver &D,
                                           const llvm::Triple &Triple,
                                           const llvm::opt::ArgList &Args,
@@ -247,6 +256,8 @@ static void getAArch64MultilibFlags(const Driver &D,
   if (ABIArg) {
     Result.push_back(ABIArg->getAsString(Args));
   }
+
+  processMultilibCustomFlags(Result, Args);
 }
 
 static void getARMMultilibFlags(const Driver &D,
@@ -314,6 +325,7 @@ static void getARMMultilibFlags(const Driver &D,
     if (Endian->getOption().matches(options::OPT_mbig_endian))
       Result.push_back(Endian->getAsString(Args));
   }
+  processMultilibCustomFlags(Result, Args);
 }
 
 static void getRISCVMultilibFlags(const Driver &D, const llvm::Triple &Triple,
@@ -1563,7 +1575,7 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
-void ToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+void ToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                    ArgStringList &CC1Args) const {}
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
@@ -1708,7 +1720,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
           A->getOption().matches(options::OPT_Xsycl_frontend);
       if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
         // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
-        if (getDriver().getSYCLDeviceTriple(A->getValue(0)) == Triple)
+        if (getDriver().getSYCLDeviceTriple(A->getValue(0), A) == Triple)
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;

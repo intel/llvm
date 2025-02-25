@@ -13,6 +13,10 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12995
 
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64702
+// The test is disabled for spirv-backend while we investigate the root cause.
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/group_algorithm.hpp>

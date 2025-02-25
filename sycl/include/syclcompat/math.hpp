@@ -119,34 +119,13 @@ public:
   }
 };
 
-// Vectorized_binary for logical operations
 template <typename VecT, class BinaryOperation>
 class vectorized_binary<
     VecT, BinaryOperation,
-    std::enable_if_t<std::is_same_v<
-        bool, decltype(std::declval<BinaryOperation>()(
-                  std::declval<typename VecT::element_type>(),
-                  std::declval<typename VecT::element_type>()))>>> {
+    std::void_t<std::invoke_result_t<BinaryOperation, VecT, VecT>>> {
 public:
   inline VecT operator()(VecT a, VecT b, const BinaryOperation binary_op) {
-    unsigned result = 0;
-    constexpr size_t elem_size = 8 * sizeof(typename VecT::element_type);
-    static_assert(elem_size < 32,
-                  "Vector element size must be less than 4 bytes");
-    constexpr unsigned bool_mask = (1U << elem_size) - 1;
-
-    for (size_t i = 0; i < a.size(); ++i) {
-      bool comp_result = binary_op(a[i], b[i]);
-      result |= (comp_result ? bool_mask : 0U) << (i * elem_size);
-    }
-
-    VecT v4;
-    for (size_t i = 0; i < v4.size(); ++i) {
-      v4[i] = static_cast<typename VecT::element_type>(
-          (result >> (i * elem_size)) & bool_mask);
-    }
-
-    return v4;
+    return binary_op(a, b).template as<VecT>();
   }
 };
 
@@ -619,8 +598,8 @@ template <typename ValueT, class BinaryOperation>
 inline std::enable_if_t<ValueT::size() == 2, unsigned>
 compare_mask(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
   // Since compare returns 0 or 1, -compare will be 0x00000000 or 0xFFFFFFFF
-  return ((-compare(a[0], b[0], binary_op)) << 16) |
-         ((-compare(a[1], b[1], binary_op)) & 0xFFFF);
+  return ((-compare(a[0], b[0], binary_op)) & 0xFFFF) |
+         ((-compare(a[1], b[1], binary_op)) << 16u);
 }
 
 /// Performs 2 elements unordered comparison, compare result of each element is
@@ -634,8 +613,8 @@ template <typename ValueT, class BinaryOperation>
 inline std::enable_if_t<ValueT::size() == 2, unsigned>
 unordered_compare_mask(const ValueT a, const ValueT b,
                        const BinaryOperation binary_op) {
-  return ((-unordered_compare(a[0], b[0], binary_op)) << 16) |
-         ((-unordered_compare(a[1], b[1], binary_op)) & 0xFFFF);
+  return ((-unordered_compare(a[0], b[0], binary_op)) & 0xFFFF) |
+         ((-unordered_compare(a[1], b[1], binary_op)) << 16);
 }
 
 /// Compute vectorized max for two values, with each value treated as a vector
@@ -694,8 +673,9 @@ inline unsigned vectorized_unary(unsigned a, const UnaryOperation unary_op) {
 template <typename VecT>
 inline unsigned vectorized_sum_abs_diff(unsigned a, unsigned b) {
   sycl::vec<unsigned, 1> v0{a}, v1{b};
-  auto v2 = v0.as<VecT>();
-  auto v3 = v1.as<VecT>();
+  // Need convert element type to wider signed type to avoid overflow.
+  auto v2 = v0.as<VecT>().template convert<int>();
+  auto v3 = v1.as<VecT>().template convert<int>();
   auto v4 = sycl::abs_diff(v2, v3);
   unsigned sum = 0;
   for (size_t i = 0; i < v4.size(); ++i) {
@@ -1095,13 +1075,8 @@ inline unsigned vectorized_binary(unsigned a, unsigned b,
   auto v3 = v1.as<VecT>();
   auto v4 =
       detail::vectorized_binary<VecT, BinaryOperation>()(v2, v3, binary_op);
-  if constexpr (!std::is_same_v<
-                    bool, decltype(std::declval<BinaryOperation>()(
-                              std::declval<typename VecT::element_type>(),
-                              std::declval<typename VecT::element_type>()))>) {
-    if (need_relu)
-      v4 = relu(v4);
-  }
+  if (need_relu)
+    v4 = relu(v4);
   v0 = v4.template as<sycl::vec<unsigned, 1>>();
   return v0;
 }

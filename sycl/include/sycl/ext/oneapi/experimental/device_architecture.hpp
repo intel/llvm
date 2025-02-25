@@ -30,7 +30,7 @@ enum class architecture : uint64_t {
 //   - new value for -fsycl-targets option to the compiler driver in
 //     accordance with changes from sycl/doc/UsersManual.md and update the
 //     compiler driver tests
-//   - ___SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
+//   - __SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
 //   - the unique ID of the new architecture to the SYCL RT source code to
 //     support querying the device architecture through
 //     device::get_info<ext::oneapi::experimental::info::device::architecture>

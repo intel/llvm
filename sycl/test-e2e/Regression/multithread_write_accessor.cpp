@@ -1,7 +1,11 @@
 // RUN: %{build} -o %t.out %threads_lib
 // RUN: %{run} %t.out
 
-// XFAIL: arch-intel_gpu_pvc
+// Test flakily times out on Arc + OpenCL
+// UNSUPPORTED: opencl && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16877
+
+// XFAIL: arch-intel_gpu_pvc && opencl && !spirv-backend
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
 
 #include <sycl/detail/core.hpp>

@@ -1,7 +1,7 @@
-# commit 3472b5bda88fc06560561d7538a9c21d02f749e7
-# Merge: 33c94851 da04d138
+# commit d03f19a88e42cb98be9604ff24b61190d1e48727
+# Merge: 3ce6fcc9 84454b0e
 # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Tue Jan 7 10:40:35 2025 +0000
-#     Merge pull request #2524 from nrspruit/fix_enqueue_wait_out_event
-#     [L0]: Fix Out Event in Enqueue Wait Events to prevent reuse
-set(UNIFIED_RUNTIME_TAG da04d13807044aaf17615b66577fb0e832011ab1)
+# Date:   Thu Feb 13 11:43:34 2025 +0000
+#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
+#     Do not fetch cudart from gitlab for UMF
+set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)

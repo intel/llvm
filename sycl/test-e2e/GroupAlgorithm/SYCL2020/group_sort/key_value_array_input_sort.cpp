@@ -1,4 +1,8 @@
 // REQUIRES: sg-8
+// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
+// not supported
+
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 

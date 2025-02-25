@@ -301,12 +301,12 @@ typename ValueT> void test_compare_mask() {
   //  1.0 == 1.0, 2.0 == 3.0 -> 0xffff0000
   BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
       .template launch_test<compare_mask_kernel<Container>>(op1, op3,
-                                                            0xffff0000);
+                                                            0x0000ffff);
 
   //  1.0 == 3.0, 2.0 == 2.0 -> 0x0000ffff
   BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
       .template launch_test<compare_mask_kernel<Container>>(op1, op4,
-                                                            0x0000ffff);
+                                                            0xffff0000);
 
   //  1.0 == NaN, 2.0 == NaN -> 0x00000000
   BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
@@ -350,12 +350,12 @@ typename ValueT> void test_unordered_compare_mask() {
   //  1.0 == 1.0, 2.0 == 3.0 -> 0xffff0000
   BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
       .template launch_test<unordered_compare_mask_kernel<Container>>(
-          op1, op3, 0xffff0000);
+          op1, op3, 0x0000ffff);
 
   //  1.0 == 3.0, 2.0 == 2.0 -> 0x0000ffff
   BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
       .template launch_test<unordered_compare_mask_kernel<Container>>(
-          op1, op4, 0x0000ffff);
+          op1, op4, 0xffff0000);
 
   //  1.0 == NaN, 2.0 == NaN -> 0xffffffff
   BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)

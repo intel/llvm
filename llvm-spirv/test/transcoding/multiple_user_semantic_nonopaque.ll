@@ -33,11 +33,11 @@
 ; CHECK-LLVM-DAG: @[[StrStructA:[0-9_.]+]] = {{.*}}"class_annotation_a\00"
 ; CHECK-LLVM-DAG: @[[StrStructB:[0-9_.]+]] = {{.*}}"class_annotation_b\00"
 ; CHECK-LLVM: [[#Var:]] = alloca i32, align 4
-; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#Var]], ptr @[[StrA]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#Var]], ptr @[[StrB]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#Var]], ptr @[[StrA]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#Var]], ptr @[[StrB]], ptr poison, i32 poison, ptr poison)
 ; CHECK-LLVM: %[[#StructMember:]] = alloca %class.Sample, align 4
-; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#StructMember]], ptr @[[StrStructA]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#StructMember]], ptr @[[StrStructB]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#StructMember]], ptr @[[StrStructA]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation{{.*}}(ptr %[[#StructMember]], ptr @[[StrStructB]], ptr poison, i32 poison, ptr poison)
 
 
 source_filename = "llvm-link"

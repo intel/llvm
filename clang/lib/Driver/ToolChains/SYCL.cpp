@@ -13,11 +13,12 @@
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Option/Option.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
-#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include <algorithm>
 #include <sstream>
 
@@ -151,6 +152,10 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
   InstallationCandidates.emplace_back(D.Dir + "/..");
 }
 
+SYCLInstallationDetector::SYCLInstallationDetector(
+    const Driver &D, const llvm::Triple &HostTriple,
+    const llvm::opt::ArgList &Args) : D(D) {}
+
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
   for (const auto &IC : InstallationCandidates) {
@@ -162,8 +167,10 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
   DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
 }
 
-void SYCLInstallationDetector::AddSYCLIncludeArgs(
+void SYCLInstallationDetector::addSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
+  if (DriverArgs.hasArg(clang::driver::options::OPT_nobuiltininc))
+    return;
   // Add the SYCL header search locations in the specified order.
   //   ../include/sycl/stl_wrappers
   //   ../include
@@ -299,6 +306,11 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 // Return whether to use native bfloat16 library.
 static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
                              bool &UseNative) {
+
+  static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
+      "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
+      "intel_gpu_acm_g12", "intel_gpu_dg2_10",  "intel_gpu_dg2_11",
+      "intel_dg2_g12",     "intel_gpu_bmg_g21"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -324,32 +336,75 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       }
     }
 
-    UseNative = false;
-
-    // Check for intel_gpu_pvc as the target
-    if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
-      if (SYCLTarget->getValues().size() == 1) {
-        StringRef SYCLTargetStr = SYCLTarget->getValue();
-        if (SYCLTargetStr == "intel_gpu_pvc")
-          UseNative = true;
-      }
-    }
-
-    auto checkBF = [](StringRef Device) {
-      return Device.starts_with("pvc") || Device.starts_with("ats");
-    };
+    // We need to select fallback/native bfloat16 devicelib in AOT compilation
+    // targetting for Intel GPU devices. Users have 2 ways to apply AOT,
+    // 1). clang++ -fsycl -fsycl-targets=spir64_gen -Xs "-device pvc,...,"
+    // 2). clang++ -fsycl -fsycl-targets=intel_gpu_pvc,...
+    // 3). clang++ -fsycl -fsycl-targets=spir64_gen,intel_gpu_pvc,...
+    // -Xsycl-target-backend=spir64_gen "-device dg2"
 
     std::string Params;
     for (const auto &Arg : TargArgs) {
       Params += " ";
       Params += Arg;
     }
+
+    auto checkBF = [](StringRef Device) {
+      return Device.starts_with("pvc") || Device.starts_with("ats") ||
+             Device.starts_with("dg2") || Device.starts_with("bmg");
+    };
+
+    auto checkSpirvJIT = [](StringRef Target) {
+      return Target.starts_with("spir64-") || Target.starts_with("spirv64-") ||
+             (Target == "spir64") || (Target == "spirv64");
+    };
+
     size_t DevicesPos = Params.find("-device ");
-    if (!UseNative && DevicesPos != std::string::npos) {
+    // "-device xxx" is used to specify AOT target device, so user must apply
+    // -Xs "-device xxx" or -Xsycl-target-backend=spir64_gen "-device xxx"
+    if (DevicesPos != std::string::npos) {
       UseNative = true;
       std::istringstream Devices(Params.substr(DevicesPos + 8));
       for (std::string S; std::getline(Devices, S, ',');)
         UseNative &= checkBF(S);
+
+      // When "-device XXX" is applied to specify GPU type, user can still
+      // add -fsycl-targets=intel_gpu_pvc..., native bfloat16 devicelib can
+      // only be linked when all GPU types specified support.
+      // We need to filter CPU and FPGA target here and only focus on GPU
+      // device.
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+        for (auto TargetsV : SYCLTarget->getValues()) {
+          if (!checkSpirvJIT(StringRef(TargetsV)) &&
+              !StringRef(TargetsV).starts_with("spir64_gen") &&
+              !StringRef(TargetsV).starts_with("spir64_x86_64") &&
+              !StringRef(TargetsV).starts_with("spir64_fpga") &&
+              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+            UseNative = false;
+            break;
+          }
+        }
+      }
+
+      return NeedLibs;
+
+    } else {
+      // -fsycl-targets=intel_gpu_xxx is used to specify AOT target device.
+      // Multiple Intel GPU devices can be specified, native bfloat16 devicelib
+      // can be involved only when all GPU deivces specified support native
+      // bfloat16 native conversion.
+      UseNative = true;
+
+      if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+        for (auto TargetsV : SYCLTarget->getValues()) {
+          if (!checkSpirvJIT(StringRef(TargetsV)) &&
+              !GPUArchsWithNBF16.contains(StringRef(TargetsV))) {
+            UseNative = false;
+            break;
+          }
+        }
+      }
+      return NeedLibs;
     }
   }
   return NeedLibs;
@@ -505,7 +560,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
-    LibraryList.push_back(Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+    LibraryList.push_back(
+        Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
 
   if (TargetTriple.isAMDGCN() && IgnoreSingleLibs)
     LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
@@ -555,7 +611,13 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-asan-cpu", "internal"},
       {"libsycl-asan-dg2", "internal"},
       {"libsycl-asan-pvc", "internal"}};
-  const SYCLDeviceLibsList SYCLDeviceMsanLibs = {{"libsycl-msan", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceMsanLibs = {
+      {"libsycl-msan", "internal"},
+      {"libsycl-msan-cpu", "internal"},
+      // Currently, we only provide aot msan libdevice for PVC and CPU.
+      // For DG2, we just use libsycl-msan as placeholder.
+      {"libsycl-msan", "internal"},
+      {"libsycl-msan-pvc", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
@@ -713,7 +775,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   if (SanitizeVal == "address")
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   else if (SanitizeVal == "memory")
-    addLibraries(SYCLDeviceMsanLibs);
+    addSingleLibrary(SYCLDeviceMsanLibs[sanitizer_lib_idx]);
 #endif
 
   if (isNativeCPU)
@@ -834,6 +896,8 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "asan-cpu",
     "asan-dg2",
     "msan",
+    "msan-pvc",
+    "msan-cpu",
 #endif
     "imf",
     "imf-fp64",
@@ -1611,33 +1675,34 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
-// Unsupported options for device compilation
+// Unsupported options for SYCL device compilation.
 //  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
 //  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
 //  -fcs-profile-generate -forder-file-instrumentation, --coverage
-static std::vector<OptSpecifier> getUnsupportedOpts(void) {
-  std::vector<OptSpecifier> UnsupportedOpts = {
-      options::OPT_fsanitize_EQ,
-      options::OPT_fcf_protection_EQ,
+static ArrayRef<options::ID> getUnsupportedOpts() {
+  static constexpr options::ID UnsupportedOpts[] = {
+      options::OPT_fsanitize_EQ,      // -fsanitize
+      options::OPT_fcf_protection_EQ, // -fcf-protection
       options::OPT_fprofile_generate,
       options::OPT_fprofile_generate_EQ,
-      options::OPT_fno_profile_generate,
+      options::OPT_fno_profile_generate, // -f[no-]profile-generate
       options::OPT_ftest_coverage,
-      options::OPT_fno_test_coverage,
+      options::OPT_fno_test_coverage, // -f[no-]test-coverage
       options::OPT_fcoverage_mapping,
-      options::OPT_fno_coverage_mapping,
-      options::OPT_coverage,
+      options::OPT_coverage,             // --coverage
+      options::OPT_fno_coverage_mapping, // -f[no-]coverage-mapping
       options::OPT_fprofile_instr_generate,
       options::OPT_fprofile_instr_generate_EQ,
       options::OPT_fprofile_arcs,
-      options::OPT_fno_profile_arcs,
-      options::OPT_fno_profile_instr_generate,
-      options::OPT_fcreate_profile,
+      options::OPT_fno_profile_arcs, // -f[no-]profile-arcs
+      options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate
+      options::OPT_fcreate_profile,  // -fcreate-profile
       options::OPT_fprofile_instr_use,
-      options::OPT_fprofile_instr_use_EQ,
-      options::OPT_forder_file_instrumentation,
-      options::OPT_fcs_profile_generate,
-      options::OPT_fcs_profile_generate_EQ};
+      options::OPT_fprofile_instr_use_EQ,       // -fprofile-instr-use
+      options::OPT_forder_file_instrumentation, // -forder-file-instrumentation
+      options::OPT_fcs_profile_generate,        // -fcs-profile-generate
+      options::OPT_fcs_profile_generate_EQ,
+  };
   return UnsupportedOpts;
 }
 
@@ -1661,9 +1726,10 @@ static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
-      IsSYCLNativeCPU(Triple == HostTC.getTriple()), SYCLInstallation(D) {
-  // Lookup binaries into the driver directory, this is used to
-  // discover the clang-offload-bundler executable.
+      IsSYCLNativeCPU(Triple == HostTC.getTriple()),
+      SYCLInstallation(D, Triple, Args) {
+  // Lookup binaries into the driver directory, this is used to discover any
+  // dependent SYCL offload compilation tools.
   getProgramPaths().push_back(getDriver().Dir);
 
   // Diagnose unsupported options only once.
@@ -1804,6 +1870,8 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
     bool OptNoTriple;
     OptNoTriple = A->getOption().matches(Opt);
     if (A->getOption().matches(Opt_EQ)) {
+      const llvm::Triple OptTargetTriple =
+          getDriver().getSYCLDeviceTriple(A->getValue(), A);
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
       bool IsGenTriple = Triple.isSPIR() &&
@@ -1811,16 +1879,14 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       if (IsGenTriple) {
         if (Device != GenDevice && !Device.empty())
           continue;
-        if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple &&
-            GenDevice.empty())
+        if (OptTargetTriple != Triple && GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
           continue;
-        if (getDriver().getSYCLDeviceTriple(A->getValue()) == Triple &&
-            !Device.empty())
+        if (OptTargetTriple == Triple && !Device.empty())
           // Triples match, but we are expecting a specific device to be set.
           continue;
-      } else if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple)
+      } else if (OptTargetTriple != Triple)
         continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
@@ -1997,9 +2063,18 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (Args.hasFlag(options::OPT_ftarget_export_symbols,
                      options::OPT_fno_target_export_symbols, false))
       BeArgs.push_back("-library-compilation");
-  } else if (IsJIT)
+    // -foffload-fp32-prec-[sqrt/div]
+    if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
+        Args.hasArg(options::OPT_foffload_fp32_prec_sqrt))
+      BeArgs.push_back("-ze-fp32-correctly-rounded-divide-sqrt");
+  } else if (IsJIT) {
     // -ftarget-compile-fast JIT
     Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
+    // -foffload-fp32-prec-div JIT
+    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_div);
+    // -foffload-fp32-prec-sqrt JIT
+    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_sqrt);
+  }
   if (IsGen) {
     for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
       CmdArgs.push_back("-device_options");
@@ -2111,9 +2186,9 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
   return HostTC.GetCXXStdlibType(Args);
 }
 
-void SYCLToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+void SYCLToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) const {
-  SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+  SYCLInstallation.addSYCLIncludeArgs(DriverArgs, CC1Args);
 }
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,

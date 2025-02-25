@@ -55,21 +55,21 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-LLVM: [[STRIDESIZE:@[0-9_.]+]] = {{.*}}{stride_size:4}
 ; CHECK-LLVM: [[WORDSIZE:@[0-9_.]+]] = {{.*}}{word_size:8}
 ; CHECK-LLVM: [[TRUE_DUAL_PORT:@[0-9_.]+]] = {{.*}}{true_dual_port}
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[REGISTER]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[MEMORY]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[NUMBANKS]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[BANKWIDTH]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[MAX_PRIVATE_COPIES]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[SINGLEPUMP]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[DOUBLEPUMP]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[MAX_REPLICATES]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[SIMPLE_DUAL_PORT]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[MERGE]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[BANK_BITS]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[FORCE_POW_2_DEPTH]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STRIDESIZE]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[WORDSIZE]], ptr undef, i32 undef, ptr undef)
-; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[TRUE_DUAL_PORT]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[REGISTER]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[MEMORY]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[NUMBANKS]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[BANKWIDTH]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[MAX_PRIVATE_COPIES]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[SINGLEPUMP]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[DOUBLEPUMP]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[MAX_REPLICATES]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[SIMPLE_DUAL_PORT]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[MERGE]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[BANK_BITS]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[FORCE_POW_2_DEPTH]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STRIDESIZE]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[WORDSIZE]], ptr poison, i32 poison, ptr poison)
+; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[TRUE_DUAL_PORT]], ptr poison, i32 poison, ptr poison)
 
 %"example_type" = type { i32 }
 

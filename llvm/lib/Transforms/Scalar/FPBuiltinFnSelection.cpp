@@ -18,6 +18,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/FormatVariadic.h"
 
@@ -106,6 +107,51 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
   return true;
 }
 
+// This function lowers llvm.fpbuiltin. intrinsic functions with max-error
+// attribute to the appropriate nvvm approximate intrinsics if it's possible.
+// If it's not possible - fallback to instruction or standard C/C++ library LLVM
+// intrinsic.
+static bool
+replaceWithApproxNVPTXCallsOrFallback(FPBuiltinIntrinsic &BuiltinCall,
+                                      std::optional<float> Accuracy) {
+  IRBuilder<> IRBuilder(&BuiltinCall);
+  SmallVector<Value *> Args(BuiltinCall.args());
+  Value *Replacement = nullptr;
+  auto *Type = BuiltinCall.getType();
+  // For now only add lowering for fdiv and sqrt. Yet nvvm intrinsics have
+  // approximate variants for sin, cos, exp2 and log2.
+  // For vector fpbuiltins for NVPTX target we don't have nvvm intrinsics,
+  // fallback to instruction or standard C/C++ library LLVM intrinsic. Also
+  // nvvm fdiv and sqrt intrisics support only float type, so fallback in this
+  // case as well.
+  switch (BuiltinCall.getIntrinsicID()) {
+  case Intrinsic::fpbuiltin_fdiv:
+    if (Accuracy.value() < 2.0)
+      return false;
+    if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
+      return replaceWithLLVMIR(BuiltinCall);
+    Replacement =
+        IRBuilder.CreateIntrinsic(Type, Intrinsic::nvvm_div_approx_f, Args);
+    break;
+  case Intrinsic::fpbuiltin_sqrt:
+    if (Accuracy.value() < 1.0)
+      return false;
+    if (Type->isVectorTy() || !Type->getScalarType()->isFloatTy())
+      return replaceWithLLVMIR(BuiltinCall);
+    Replacement =
+        IRBuilder.CreateIntrinsic(Type, Intrinsic::nvvm_sqrt_approx_f, Args);
+    break;
+  default:
+    return false;
+  }
+  BuiltinCall.replaceAllUsesWith(Replacement);
+  cast<Instruction>(Replacement)->copyFastMathFlags(&BuiltinCall);
+  LLVM_DEBUG(dbgs() << DEBUG_TYPE << ": Replaced call to `"
+                    << BuiltinCall.getCalledFunction()->getName()
+                    << "` with equivalent IR. \n `");
+  return true;
+}
+
 static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
                                       const TargetTransformInfo &TTI,
                                       FPBuiltinIntrinsic &BuiltinCall) {
@@ -118,45 +164,28 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
       dbgs() << BuiltinCall.getRequiredAccuracy().value() << "\n";
   });
 
-  StringSet<> RecognizedAttrs = {FPBuiltinIntrinsic::FPBUILTIN_MAX_ERROR};
-  if (BuiltinCall.hasUnrecognizedFPAttrs(RecognizedAttrs)) {
+  const FPBuiltinReplacement Replacement =
+      TLI.selectFnForFPBuiltinCalls(BuiltinCall, TTI);
+
+  switch (Replacement()) {
+  default:
+    llvm_unreachable("Unexpected replacement");
+  case FPBuiltinReplacement::Unexpected0dot5:
+    report_fatal_error("Unexpected fpbuiltin requiring 0.5 max error.");
+    return false;
+  case FPBuiltinReplacement::UnrecognizedFPAttrs:
     report_fatal_error(
         Twine(BuiltinCall.getCalledFunction()->getName()) +
             Twine(" was called with unrecognized floating-point attributes.\n"),
         false);
     return false;
+  case FPBuiltinReplacement::ReplaceWithApproxNVPTXCallsOrFallback: {
+    if (replaceWithApproxNVPTXCallsOrFallback(
+            BuiltinCall, BuiltinCall.getRequiredAccuracy()))
+      return true;
+    [[fallthrough]];
   }
-
-  Triple T(BuiltinCall.getModule()->getTargetTriple());
-  // for fpbuiltin.sqrt, it should always use the native operation for
-  // x86-based targets because the native instruction is faster (even faster
-  // than the low-accuracy SVML implementation).
-  if (T.isX86() && BuiltinCall.getIntrinsicID() == Intrinsic::fpbuiltin_sqrt &&
-      TTI.haveFastSqrt(BuiltinCall.getOperand(0)->getType()))
-    return replaceWithLLVMIR(BuiltinCall);
-
-  // Several functions for "sycl" and "cuda" requires "0.5" accuracy levels,
-  // which means correctly rounded results. For now x86 host AltMathLibrary
-  // doesn't have such ability. For such accuracy level, the fpbuiltins
-  // should be replaced by equivalent IR operation or llvmbuiltins.
-  if (T.isX86() && BuiltinCall.getRequiredAccuracy().value() == 0.5) {
-    switch (BuiltinCall.getIntrinsicID()) {
-    case Intrinsic::fpbuiltin_fadd:
-    case Intrinsic::fpbuiltin_fsub:
-    case Intrinsic::fpbuiltin_fmul:
-    case Intrinsic::fpbuiltin_fdiv:
-    case Intrinsic::fpbuiltin_frem:
-    case Intrinsic::fpbuiltin_sqrt:
-    case Intrinsic::fpbuiltin_ldexp:
-      return replaceWithLLVMIR(BuiltinCall);
-    default:
-      report_fatal_error("Unexpected fpbuiltin requiring 0.5 max error.");
-    }
-  }
-
-  /// Call TLI to select a function implementation to call
-  StringRef ImplName = TLI.selectFPBuiltinImplementation(&BuiltinCall);
-  if (ImplName.empty()) {
+  case FPBuiltinReplacement::NoSuitableReplacement: {
     LLVM_DEBUG(dbgs() << "No matching implementation found!\n");
     std::string RequiredAccuracy;
     if (BuiltinCall.getRequiredAccuracy() == std::nullopt)
@@ -173,10 +202,14 @@ static bool selectFnForFPBuiltinCalls(const TargetLibraryInfo &TLI,
         false);
     return false;
   }
-
-  LLVM_DEBUG(dbgs() << "Selected " << ImplName << "\n");
-
-  return replaceWithAltMathFunction(BuiltinCall, ImplName);
+  case FPBuiltinReplacement::ReplaceWithLLVMIR:
+    return replaceWithLLVMIR(BuiltinCall);
+  case FPBuiltinReplacement::ReplaceWithAltMathFunction:
+    LLVM_DEBUG(dbgs() << "Selected " << Replacement.altMathFunctionImplName()
+                      << "\n");
+    return replaceWithAltMathFunction(BuiltinCall,
+                                      Replacement.altMathFunctionImplName());
+  }
 }
 
 static bool runImpl(const TargetLibraryInfo &TLI,

@@ -18,9 +18,9 @@ int main() {
   sycl::range<1> r(1);
   deviceQueue.submit([&](sycl::handler &h) {
     h.parallel_for<Test1>(r, [=](sycl::id<1> id) { acc[id[0]] = 42; });
-    // CHECK-DEFAULT: store <8 x i32> <i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42>
-    // CHECK-16: store <16 x i32> <i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42, i32 42>
-    // CHECK-4: store <4 x i32> <i32 42, i32 42, i32 42, i32 42>
+    // CHECK-DEFAULT: store <8 x i32> splat (i32 42)
+    // CHECK-16: store <16 x i32> splat (i32 42)
+    // CHECK-4: store <4 x i32> splat (i32 42)
     // CHECK-O0: store i32 42
     // CHECK-O0-NOT: store <{{.*}}>
     // CHECK-DISABLE: store i32 42

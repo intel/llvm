@@ -2,7 +2,7 @@
 //
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: true
+// UNSUPPORTED: system-windows
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/10682
 
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//

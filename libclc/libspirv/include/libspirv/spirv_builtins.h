@@ -16,6 +16,14 @@
 #ifndef CLC_SPIRV_BINDING
 #define CLC_SPIRV_BINDING
 
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+#endif
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
+
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_bool_t __spirv_All(__clc_vec2_char_t);
 _CLC_OVERLOAD

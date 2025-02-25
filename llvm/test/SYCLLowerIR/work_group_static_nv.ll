@@ -8,7 +8,7 @@ target triple = "nvptx64-nvidia-cuda"
 ; CHECK: @__sycl_dynamicLocalMemoryPlaceholder_GV = external local_unnamed_addr addrspace(3) global [0 x i8], align 128
 
 ; Function Attrs: convergent norecurse
-; CHECK: @_ZTS7KernelA(ptr addrspace(1) %0)
+; CHECK: @_ZTS7KernelA(ptr addrspace(1) %0){{.*}} !kernel_arg_addr_space ![[ADDR_SPACE_MD:[0-9]+]]
 define void @_ZTS7KernelA(ptr addrspace(1) %0) local_unnamed_addr #0 !kernel_arg_addr_space !5 {
 entry:
 ; CHECK: getelementptr inbounds i8, ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder_GV
@@ -34,5 +34,5 @@ attributes #1 = { convergent norecurse }
 !2 = !{i32 4, i32 100000}
 !3 = !{!"clang version 13.0.0"}
 !4 = !{}
-; ![[ADDR_SPACE_MD]] = !{i32 1, i32 3}
+; CHECK: ![[ADDR_SPACE_MD]] = !{i32 1}
 !5 = !{i32 1}

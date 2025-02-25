@@ -5,6 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
+// other triples
+
 // REQUIRES: aspect-ext_intel_matrix
 
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
@@ -13,8 +17,8 @@
 // RUN: %{build} %fp-model-precise -o %t.out
 // RUN: %{run} %t.out
 
-#include "../common.hpp"
+#include "common.hpp"
 
 #define SG_SZ 32
 
-#include "../joint_matrix_apply_two_matrices_impl.hpp"
+#include "joint_matrix_apply_two_matrices_impl.hpp"

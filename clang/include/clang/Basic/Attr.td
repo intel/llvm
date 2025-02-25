@@ -1576,11 +1576,22 @@ def SYCLKernel : InheritableAttr {
 
 def SYCLKernelEntryPoint : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel_entry_point">];
-  let Args = [TypeArgument<"KernelName">];
+  let Args = [
+    // KernelName is required and specifies the kernel name type.
+    TypeArgument<"KernelName">,
+    // InvalidAttr is a fake argument used to track whether the
+    // semantic requirements of the attribute have been satisified.
+    // A fake argument is used to enable serialization support.
+    DefaultBoolArgument<"Invalid", /*default=*/0, /*fake=*/1>
+  ];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let TemplateDependent = 1;
   let LangOpts = [SYCLIsHost, SYCLIsDevice];
   let Documentation = [SYCLKernelEntryPointDocs];
+  let AdditionalMembers = [{
+    void setInvalidAttr() { invalid = true; }
+    bool isInvalidAttr() const { return invalid; }
+  }];
 }
 
 def SYCLSpecialClass: InheritableAttr {
@@ -2147,6 +2158,22 @@ def SYCLAddIRAnnotationsMember : InheritableAttr {
   let Documentation = [SYCLAddIRAnnotationsMemberDocs];
 }
 
+def SYCLRegisteredKernels : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "__registered_kernels__">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Empty], ErrorDiag, "Translation Unit Scope">;
+  let AdditionalMembers = SYCLAddIRAttrCommonMembers.MemberCode;
+  let Documentation = [SYCLAddIRAnnotationsMemberDocs];
+}
+
+def SYCLRegisteredKernelName : InheritableAttr {
+  let Spellings = [];
+  let Subjects = SubjectList<[Function]>;
+  let Args = [StringArgument<"RegName">];
+  let Documentation = [InternalOnly];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [CustomKeyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -2547,6 +2574,13 @@ def Leaf : InheritableAttr {
   let Spellings = [GCC<"leaf">];
   let Subjects = SubjectList<[Function]>;
   let Documentation = [LeafDocs];
+  let SimpleHandler = 1;
+}
+
+def ExplicitInit : InheritableAttr {
+  let Spellings = [Clang<"require_explicit_initialization">];
+  let Subjects = SubjectList<[Field], ErrorDiag>;
+  let Documentation = [ExplicitInitDocs];
   let SimpleHandler = 1;
 }
 
@@ -3717,7 +3751,7 @@ def Ownership : InheritableAttr {
   let Args = [IdentifierArgument<"Module">,
               VariadicParamIdxArgument<"Args">];
   let Subjects = SubjectList<[HasFunctionProto]>;
-  let Documentation = [Undocumented];
+  let Documentation = [OwnershipDocs];
 }
 
 def Packed : InheritableAttr {
@@ -3805,6 +3839,13 @@ def ArmPreserves : TypeAttr, TargetSpecificAttr<TargetAArch64> {
   let Args = [VariadicStringArgument<"PreserveArgs">];
   let Subjects = SubjectList<[HasFunctionProto], ErrorDiag>;
   let Documentation = [ArmPreservesDocs];
+}
+
+def ArmAgnostic : TypeAttr, TargetSpecificAttr<TargetAArch64> {
+  let Spellings = [RegularKeyword<"__arm_agnostic">];
+  let Args = [VariadicStringArgument<"AgnosticArgs">];
+  let Subjects = SubjectList<[HasFunctionProto], ErrorDiag>;
+  let Documentation = [ArmAgnosticDocs];
 }
 
 def ArmLocallyStreaming : InheritableAttr, TargetSpecificAttr<TargetAArch64> {
@@ -5359,6 +5400,16 @@ def HLSLLoopHint: StmtAttr {
   let Documentation = [HLSLLoopHintDocs, HLSLUnrollHintDocs];
 }
 
+def HLSLControlFlowHint: StmtAttr {
+  /// [branch]
+  /// [flatten]
+  let Spellings = [Microsoft<"branch">, Microsoft<"flatten">];
+  let Subjects = SubjectList<[IfStmt],
+                              ErrorDiag, "'if' statements">;
+  let LangOpts = [HLSL];
+  let Documentation = [InternalOnly];
+}
+
 def CapturedRecord : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
@@ -5735,9 +5786,9 @@ def HLSLPackOffset: HLSLAnnotationAttr {
   let Args = [IntArgument<"Subcomponent">, IntArgument<"Component">];
   let Documentation = [HLSLPackOffsetDocs];
   let AdditionalMembers = [{
-      unsigned getOffset() {
-        return subcomponent * 4 + component;
-      }
+  unsigned getOffsetInBytes() {
+    return subcomponent * 16 + component * 4;
+  }
   }];
 }
 
