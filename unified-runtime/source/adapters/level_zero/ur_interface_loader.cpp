@@ -48,6 +48,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnSetLoggerCallback = ur::level_zero::urAdapterSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallbackLevel =
+      ur::level_zero::urAdapterSetLoggerCallbackLevel;
+
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     ur_api_version_t version, ur_bindless_images_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -528,6 +542,10 @@ ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
 
   result = ur::level_zero::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
                                                     &ddi->Global);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ur::level_zero::urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT,
+                                                     &ddi->Adapter);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = ur::level_zero::urGetBindlessImagesExpProcAddrTable(

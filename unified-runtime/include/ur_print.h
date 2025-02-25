@@ -143,6 +143,16 @@ urPrintAdapterBackend(enum ur_adapter_backend_t value, char *buffer,
                       const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_logger_level_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintLoggerLevel(enum ur_logger_level_t value, char *buffer,
+                   const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_platform_info_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1463,6 +1473,26 @@ urPrintLoaderConfigSetCodeLocationCallbackParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintLoaderConfigSetMockingEnabledParams(
     const struct ur_loader_config_set_mocking_enabled_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_adapter_set_logger_callback_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintAdapterSetLoggerCallbackParams(
+    const struct ur_adapter_set_logger_callback_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_adapter_set_logger_callback_level_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintAdapterSetLoggerCallbackLevelParams(
+    const struct ur_adapter_set_logger_callback_level_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////

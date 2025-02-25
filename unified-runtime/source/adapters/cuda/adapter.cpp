@@ -29,7 +29,7 @@ public:
     this->ostream = &std::cerr;
   }
 
-  virtual void print([[maybe_unused]] logger::Level level,
+  virtual void print([[maybe_unused]] ur_logger_level_t level,
                      const std::string &msg) override {
     std::cerr << msg << std::endl;
   }
@@ -42,7 +42,7 @@ public:
 // https://github.com/oneapi-src/unified-runtime/issues/1330
 ur_adapter_handle_t_::ur_adapter_handle_t_()
     : logger(logger::get_logger("cuda",
-                                /*default_log_level*/ logger::Level::ERR)) {
+                                /*default_log_level*/ UR_LOGGER_LEVEL_ERROR)) {
 
   if (std::getenv("UR_LOG_CUDA") != nullptr)
     return;
@@ -114,6 +114,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    ur_adapter_handle_t, ur_logger_callback_t pfnLoggerCallback,
+    void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
+
+  adapter.logger.setCallbackSink(pfnLoggerCallback, pUserData, level);
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    ur_adapter_handle_t, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
+
+  adapter.logger.setCallbackLevel(level);
 
   return UR_RESULT_SUCCESS;
 }
