@@ -109,8 +109,11 @@ TEST_P(InvalidUpdateTest, NotFinalizedCommandBuffer) {
 TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
   // Create a command-buffer without isUpdatable
   ur_exp_command_buffer_handle_t test_cmd_buf_handle = nullptr;
+  ur_exp_command_buffer_desc_t desc{
+      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, false, false, false,
+  };
   ASSERT_SUCCESS(
-      urCommandBufferCreateExp(context, device, nullptr, &test_cmd_buf_handle));
+      urCommandBufferCreateExp(context, device, &desc, &test_cmd_buf_handle));
   EXPECT_NE(test_cmd_buf_handle, nullptr);
 
   // Append a kernel commands to command-buffer and close command-buffer

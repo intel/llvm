@@ -609,6 +609,10 @@ ur_result_t urEventGetProfilingInfo(
 
       return ReturnValue(ContextEndTime);
     }
+    case UR_PROFILING_INFO_COMMAND_COMPLETE:
+      logger::error("urEventGetProfilingInfo: "
+                    "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
       logger::error("urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -672,6 +676,10 @@ ur_result_t urEventGetProfilingInfo(
         ContextEndTime *= ZeTimerResolution;
         return ReturnValue(ContextEndTime);
       }
+      case UR_PROFILING_INFO_COMMAND_COMPLETE:
+        logger::error("urEventGetProfilingInfo: "
+                      "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
       default:
         logger::error("urEventGetProfilingInfo: not supported ParamName");
         return UR_RESULT_ERROR_INVALID_VALUE;
@@ -715,6 +723,10 @@ ur_result_t urEventGetProfilingInfo(
     // enqueue.
     //
     return ReturnValue(uint64_t{0});
+  case UR_PROFILING_INFO_COMMAND_COMPLETE:
+    logger::error("urEventGetProfilingInfo: UR_PROFILING_INFO_COMMAND_COMPLETE "
+                  "not supported");
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     logger::error("urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;

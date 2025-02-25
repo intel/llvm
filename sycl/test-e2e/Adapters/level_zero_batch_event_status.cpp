@@ -20,12 +20,12 @@
 // CHECK: UR ---> UrQueue->executeOpenCommandList
 // CHECK: ---> urQueueFinish
 // Look for close and Execute after urQueueFinish
-// CHECK:  ZE ---> zeCommandListClose
-// CHECK:  ZE ---> zeCommandQueueExecuteCommandLists
+// CHECK:  zeCommandListClose
+// CHECK:  zeCommandQueueExecuteCommandLists
 // CHECK: ---> urEventGetInfo
 // No close and execute here, should already have happened.
-// CHECK-NOT:  ZE ---> zeCommandListClose
-// CHECK-NOT:  ZE ---> zeCommandQueueExecuteCommandLists
+// CHECK-NOT:  zeCommandListClose
+// CHECK-NOT:  zeCommandQueueExecuteCommandLists
 // CHECK-NOT: Test Fail
 // CHECK: Test Pass
 // UNSUPPORTED: ze_debug

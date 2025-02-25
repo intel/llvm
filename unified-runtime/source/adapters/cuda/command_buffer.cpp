@@ -352,10 +352,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
-
-  const bool IsUpdatable =
-      pCommandBufferDesc ? pCommandBufferDesc->isUpdatable : false;
-
+  const bool IsUpdatable = pCommandBufferDesc->isUpdatable;
   try {
     *phCommandBuffer =
         new ur_exp_command_buffer_handle_t_(hContext, hDevice, IsUpdatable);

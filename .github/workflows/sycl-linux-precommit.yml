@@ -68,6 +68,11 @@ jobs:
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
+            reset_intel_gpu: false
           - name: Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
@@ -129,32 +134,6 @@ jobs:
         'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
-
-  test:
-    needs: [build, detect_changes]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
-      image_options: ${{ matrix.image_options }}
-      target_devices: ${{ matrix.target_devices }}
-
-      ref: ${{ github.sha }}
-
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-
 
   test-perf:
     needs: [build, detect_changes]

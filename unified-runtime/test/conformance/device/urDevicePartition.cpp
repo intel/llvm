@@ -52,7 +52,7 @@ TEST_P(urDevicePartitionTest, PartitionEquallySuccess) {
   }
 }
 
-TEST_P(urDevicePartitionTest, PartitionByCounts) {
+TEST_P(urDevicePartitionTest, PartitionByCountsSuccess) {
 
   if (!uur::hasDevicePartitionSupport(device, UR_DEVICE_PARTITION_BY_COUNTS)) {
     GTEST_SKIP() << "Device: \'" << device
@@ -134,39 +134,6 @@ TEST_P(urDevicePartitionTest, PartitionByCounts) {
   }
 }
 
-TEST_P(urDevicePartitionTest, InvalidNullHandleDevice) {
-  ur_device_partition_property_t prop = uur::makePartitionEquallyDesc(1);
-  ur_device_partition_properties_t properties{
-      UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
-      nullptr,
-      &prop,
-      1,
-  };
-  ur_device_handle_t sub_device = nullptr;
-  ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-      urDevicePartition(nullptr, &properties, 1, &sub_device, nullptr));
-}
-
-TEST_P(urDevicePartitionTest, InvalidNullPointerProperties) {
-  ur_device_handle_t sub_device = nullptr;
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                   urDevicePartition(device, nullptr, 1, &sub_device, nullptr));
-}
-
-TEST_P(urDevicePartitionTest, InvalidNullPointerPropertiesArray) {
-  ur_device_partition_properties_t properties{
-      UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
-      nullptr,
-      nullptr,
-      0,
-  };
-  ur_device_handle_t sub_device = nullptr;
-  ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_INVALID_NULL_POINTER,
-      urDevicePartition(device, &properties, 1, &sub_device, nullptr));
-}
-
 TEST_P(urDevicePartitionTest, SuccessSubSet) {
 
   if (!uur::hasDevicePartitionSupport(device, UR_DEVICE_PARTITION_EQUALLY)) {
@@ -203,6 +170,85 @@ TEST_P(urDevicePartitionTest, SuccessSubSet) {
       ASSERT_SUCCESS(urDeviceRelease(sub_device));
     }
   }
+}
+
+TEST_P(urDevicePartitionTest, PartitionParentSuccess) {
+
+  if (!uur::hasDevicePartitionSupport(device, UR_DEVICE_PARTITION_EQUALLY)) {
+    ::testing::Message() << "Device: \'" << device
+                         << "\' does not support partitioning equally.";
+    GTEST_SKIP();
+  }
+
+  uint32_t n_compute_units = 0;
+  ASSERT_NO_FATAL_FAILURE(getNumberComputeUnits(device, n_compute_units));
+
+  for (uint32_t i = 1; i < n_compute_units; ++i) {
+    ur_device_partition_property_t property = uur::makePartitionEquallyDesc(i);
+
+    ur_device_partition_properties_t properties{
+        UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+        nullptr,
+        &property,
+        1,
+    };
+
+    // Get the number of devices that will be created
+    uint32_t n_devices = 0;
+    ASSERT_SUCCESS(
+        urDevicePartition(device, &properties, 0, nullptr, &n_devices));
+    ASSERT_NE(n_devices, 0);
+
+    std::vector<ur_device_handle_t> sub_devices(n_devices);
+    ASSERT_SUCCESS(urDevicePartition(device, &properties,
+                                     static_cast<uint32_t>(sub_devices.size()),
+                                     sub_devices.data(), nullptr));
+    for (auto sub_device : sub_devices) {
+      size_t size = 0;
+      urDeviceGetInfo(sub_device, UR_DEVICE_INFO_PARENT_DEVICE, 0, nullptr,
+                      &size);
+      ur_device_handle_t parent_device = nullptr;
+      urDeviceGetInfo(sub_device, UR_DEVICE_INFO_PARENT_DEVICE, size,
+                      &parent_device, nullptr);
+      ASSERT_EQ(parent_device, device);
+
+      ASSERT_NE(sub_device, nullptr);
+      ASSERT_SUCCESS(urDeviceRelease(sub_device));
+    }
+  }
+}
+
+TEST_P(urDevicePartitionTest, InvalidNullHandleDevice) {
+  ur_device_partition_property_t prop = uur::makePartitionEquallyDesc(1);
+  ur_device_partition_properties_t properties{
+      UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+      nullptr,
+      &prop,
+      1,
+  };
+  ur_device_handle_t sub_device = nullptr;
+  ASSERT_EQ_RESULT(
+      UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+      urDevicePartition(nullptr, &properties, 1, &sub_device, nullptr));
+}
+
+TEST_P(urDevicePartitionTest, InvalidNullPointerProperties) {
+  ur_device_handle_t sub_device = nullptr;
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                   urDevicePartition(device, nullptr, 1, &sub_device, nullptr));
+}
+
+TEST_P(urDevicePartitionTest, InvalidNullPointerPropertiesArray) {
+  ur_device_partition_properties_t properties{
+      UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+      nullptr,
+      nullptr,
+      0,
+  };
+  ur_device_handle_t sub_device = nullptr;
+  ASSERT_EQ_RESULT(
+      UR_RESULT_ERROR_INVALID_NULL_POINTER,
+      urDevicePartition(device, &properties, 1, &sub_device, nullptr));
 }
 
 using urDevicePartitionAffinityDomainTest =

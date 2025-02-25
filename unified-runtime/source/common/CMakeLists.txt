@@ -40,11 +40,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit ace9f4a60b686463fdad15cd016c548237cb79e0
-    # Author: Rafał Rudnicki <rafal.rudnicki@intel.com>
-    # Date:   Mon Feb 10 11:39:15 2025 +0100
-    # Merge pull request #1088 from ldorau/Fix_remove_CUDA_ERROR_INVALID_RESOURCE_TYPE
-    set(UMF_TAG ace9f4a60b686463fdad15cd016c548237cb79e0)
+    # commit 5a515c56c92be75944c8246535c408cee7711114
+    # Author: Lukasz Dorau <lukasz.dorau@intel.com>
+    # Date:   Mon Feb 17 10:56:05 2025 +0100
+    # Merge pull request #1086 from vinser52/svinogra_l0_linking
+    set(UMF_TAG 5a515c56c92be75944c8246535c408cee7711114)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
