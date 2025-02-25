@@ -227,6 +227,7 @@ def get_device_family_from_arch(arch):
             return device_family
     return None
 
+
 def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
@@ -253,6 +254,7 @@ if lit_config.params.get("enable-perf-tests", False):
 
 if lit_config.params.get("spirv-backend", False):
     config.available_features.add("spirv-backend")
+
 
 # Use this to make sure that any dynamic checks below are done in the build
 # directory and not where the sources are located. This is important for the
@@ -543,6 +545,11 @@ if len(config.sycl_devices) > 1:
         "Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices"
     )
 
+
+def parse_devices_names(devices):
+    return [device.replace("_v2", "") for device in devices]
+
+
 available_devices = {
     "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",
@@ -550,7 +557,7 @@ available_devices = {
     "hip": "gpu",
     "native_cpu": "cpu",
 }
-for d in config.sycl_devices:
+for d in parse_devices_names(config.sycl_devices):
     be, dev = d.split(":")
     if be not in available_devices or dev not in available_devices[be]:
         lit_config.error("Unsupported device {}".format(d))
@@ -710,7 +717,7 @@ for aot_tool in aot_tools:
 if config.test_mode != "build-only":
     config.sycl_build_targets = set()
 
-for sycl_device in config.sycl_devices:
+for sycl_device in parse_devices_names(config.sycl_devices):
     be, dev = sycl_device.split(":")
     config.available_features.add("any-device-is-" + dev)
     # Use short names for LIT rules.
@@ -727,9 +734,16 @@ config.sycl_dev_features = {}
 
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
-for sycl_device in config.sycl_devices:
+for full_name, sycl_device in zip(
+    config.sycl_devices, parse_devices_names(config.sycl_devices)
+):
     env = copy.copy(llvm_config.config.environment)
+
+    if "v2" in full_name:
+        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
+
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
+
     if sycl_device.startswith("cuda:"):
         env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
     if sycl_device.startswith("hip:"):
@@ -784,7 +798,7 @@ for sycl_device in config.sycl_devices:
             gpu_intel_pvc_2T_device_id = "3029"
             _, device_id = line.strip().split(":", 1)
             device_id = device_id.strip()
-            if device_id == gpu_intel_pvc_1T_device_id:             
+            if device_id == gpu_intel_pvc_1T_device_id:
                 config.available_features.add("gpu-intel-pvc-1T")
             if device_id == gpu_intel_pvc_2T_device_id:
                 config.available_features.add("gpu-intel-pvc-2T")
@@ -862,6 +876,8 @@ for sycl_device in config.sycl_devices:
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
+    if "v2" in full_name:
+        features.add("adapter-v2")
     # Use short names for LIT rules.
     features.add(be)
     # Add corresponding target feature
@@ -883,11 +899,11 @@ for sycl_device in config.sycl_devices:
             ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
         )
 
-    config.sycl_dev_features[sycl_device] = features.union(config.available_features)
+    config.sycl_dev_features[full_name] = features.union(config.available_features)
     if is_intel_driver:
-        config.intel_driver_ver[sycl_device] = intel_driver_ver
+        config.intel_driver_ver[full_name] = intel_driver_ver
     else:
-        config.intel_driver_ver[sycl_device] = {}
+        config.intel_driver_ver[full_name] = {}
 
 if lit_config.params.get("compatibility_testing", False):
     config.substitutions.append(("%clangxx", " true "))

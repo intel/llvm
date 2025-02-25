@@ -66,7 +66,11 @@ ur_result_t urPlatformGetInfo(
   switch (ParamName) {
   case UR_PLATFORM_INFO_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero V2");
+#else
     return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero");
+#endif
   case UR_PLATFORM_INFO_VENDOR_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) Corporation");
@@ -274,6 +278,15 @@ ur_result_t ur_platform_handle_t_::initialize() {
                 strlen(ZE_EU_COUNT_EXT_NAME) + 1) == 0) {
       if (extension.version == ZE_EU_COUNT_EXT_VERSION_1_0) {
         ZeDriverEuCountExtensionFound = true;
+      }
+    }
+    if (strncmp(extension.name,
+                ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME,
+                strlen(ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_NAME) +
+                    1) == 0) {
+      if (extension.version ==
+          ZEX_INTEL_QUEUE_COPY_OPERATIONS_OFFLOAD_HINT_EXP_VERSION_1_0) {
+        ZeCopyOffloadExtensionSupported = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
