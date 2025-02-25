@@ -25,7 +25,7 @@ _CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_copysign, __builtin_copysign,
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_copysign, __builtin_copysign, half,
+_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_copysign, __builtin_copysignf16, half,
                            half)
 
 #endif
