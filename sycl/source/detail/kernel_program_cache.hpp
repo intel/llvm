@@ -741,9 +741,11 @@ public:
                                  return ImageId == Entry.first.first;
                                });
         It != ProgCache.KeyMap.end()) {
+      {
+        auto LockedEvictionList = acquireEvictionList();
+        LockedEvictionList.get().erase(It->second);
+      }
       removeProgramByKey(It->second, ProgCache);
-      auto LockedEvictionList = acquireEvictionList();
-      LockedEvictionList.get().erase(It->second);
     }
   }
 
