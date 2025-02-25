@@ -209,7 +209,7 @@ jobs:
 
         for dir in "$base_dir"/*; do
          if [ -f "$dir/i915_wedged" ]; then
-          sudo bash -c 'echo 1 > $dir/i915_wedged'
+          sudo bash -c 'echo 1 > $0/i915_wedged' $dir
          fi
         done
     - uses: actions/checkout@v4
