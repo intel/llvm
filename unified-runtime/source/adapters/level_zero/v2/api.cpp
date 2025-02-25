@@ -192,14 +192,10 @@ ur_result_t urCommandBufferUpdateWaitEventsExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t UR_APICALL urUSMPoolCreateExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_usm_pool_desc_t *PoolDesc, ///< [in] pointer to USM pool descriptor.
-                                  ///< Can be chained with
-                                  ///< ::ur_usm_pool_limits_desc_t
-    ur_usm_pool_handle_t *pPool   ///< [out] pointer to USM memory pool
-) {
+ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t hContext,
+                                          ur_device_handle_t hDevice,
+                                          ur_usm_pool_desc_t *PoolDesc,
+                                          ur_usm_pool_handle_t *pPool) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
