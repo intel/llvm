@@ -618,6 +618,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       // For DG2, we just use libsycl-msan as placeholder.
       {"libsycl-msan", "internal"},
       {"libsycl-msan-pvc", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceTsanLibs = {{"libsycl-tsan", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
@@ -769,6 +770,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
         SanitizeVal = "memory";
         break;
       }
+      if (Arg.find("-fsanitize=thread") != std::string::npos) {
+        SanitizeVal = "thread";
+        break;
+      }
     }
   }
 
@@ -776,6 +781,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   else if (SanitizeVal == "memory")
     addSingleLibrary(SYCLDeviceMsanLibs[sanitizer_lib_idx]);
+  else if (SanitizeVal == "thread")
+    addLibraries(SYCLDeviceTsanLibs);
 #endif
 
   if (isNativeCPU)
@@ -898,6 +905,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "msan",
     "msan-pvc",
     "msan-cpu",
+    "tsan",
 #endif
     "imf",
     "imf-fp64",
@@ -1739,11 +1747,12 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
       if (SupportedByNativeCPU(*this, Opt))
         continue;
       // All sanitizer options are not currently supported, except
-      // AddressSanitizer and MemorySanitizer
+      // AddressSanitizer and MemorySanitizer and ThreadSanitizer
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
           A->getValues().size() == 1) {
         std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address" || SanitizeVal == "memory")
+        if (SanitizeVal == "address" || SanitizeVal == "memory" ||
+            SanitizeVal == "thread")
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
@@ -1784,7 +1793,8 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();
-          if (SanitizeVal == "address" || SanitizeVal == "memory") {
+          if (SanitizeVal == "address" || SanitizeVal == "memory" ||
+              SanitizeVal == "thread") {
             if (IsNewDAL)
               DAL->append(A);
             continue;
@@ -2202,5 +2212,5 @@ void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 }
 
 SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
-  return SanitizerKind::Address | SanitizerKind::Memory;
+  return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }
