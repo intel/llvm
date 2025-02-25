@@ -556,7 +556,8 @@ endfunction(add_libclc_builtin_set)
 #     is set to 'lib'.
 # * DIRS <string> ...
 #     List of directories under LIB_ROOT_DIR to walk over searching for SOURCES
-#     files
+#     files. Directories earlier in the list have lower priority than
+#     subsequent ones.
 function(libclc_configure_lib_source LIB_FILE_LIST)
   cmake_parse_arguments(ARG
     "CLC_INTERNAL"
@@ -575,7 +576,7 @@ function(libclc_configure_lib_source LIB_FILE_LIST)
 
   # Enumerate SOURCES* files
   set( source_list )
-  foreach( l ${ARG_DIRS} )
+  foreach( l IN LISTS ARG_DIRS )
     foreach( s "SOURCES" "SOURCES_${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}" )
       if( ARG_CLC_INTERNAL OR ARG_LIB_ROOT_DIR STREQUAL libspirv )
         file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${ARG_LIB_DIR}/${l}/${s} file_loc )
@@ -583,10 +584,10 @@ function(libclc_configure_lib_source LIB_FILE_LIST)
         file( TO_CMAKE_PATH ${ARG_LIB_ROOT_DIR}/${l}/${ARG_LIB_DIR}/${s} file_loc )
       endif()
       file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/${file_loc} loc )
-      # Prepend the location to give higher priority to
-      # specialized implementation
+      # Prepend the location to give higher priority to the specialized
+      # implementation
       if( EXISTS ${loc} )
-        set( source_list ${file_loc} ${source_list} )
+        list( PREPEND source_list ${file_loc} )
       endif()
     endforeach()
   endforeach()
