@@ -210,9 +210,16 @@ static Function *getReplaceFunc(Module &M, StringRef Name, const Use &U,
 }
 
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
-  // Todo: we should probably cache the state thread local load here
-  // to avoid re-emitting it for each builtin
   if (StateTLS) {
+    // Find previous read from thread_local, if any
+    for (Use &U : StateTLS->uses()) {
+      if (Instruction *I = dyn_cast<Instruction>(U.getUser())) {
+        if (I->getFunction() == F) {
+          assert(I->getNumUses()==1);
+          return I->uses().begin()->getUser();
+        }
+      }
+    }
     IRBuilder<> BB(&*F->getEntryBlock().getFirstInsertionPt());
     llvm::Value *V = BB.CreateThreadLocalAddress(StateTLS);
     return BB.CreateLoad(StateTLS->getType(), V);
