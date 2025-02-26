@@ -48,6 +48,10 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Zero.
   ZeDriverVersionStringExtension ZeDriverVersionString;
 
+  // Helper function to check if the driver supports Driver In Order Lists or
+  // the User has Requested this support.
+  bool allowDriverInOrderLists();
+
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
