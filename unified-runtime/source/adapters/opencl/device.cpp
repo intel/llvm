@@ -1545,6 +1545,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(
         cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_EXTENSIONS, propSize,
         pPropValue, pPropSizeRet));
+    return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(false);
