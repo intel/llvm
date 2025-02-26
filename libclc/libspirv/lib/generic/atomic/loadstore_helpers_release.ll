@@ -1,3 +1,4 @@
+; This file contains helper functions for the release memory ordering constraint.
 ; Other targets can specialize this file to account for unsupported features in their backend.
 
 declare void @llvm.trap()
