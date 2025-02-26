@@ -28,9 +28,11 @@ int main() {
     // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
     // CHECK-NOT: @llvm.threadlocal
 
-    // CHECK-TL:      %[[VAL1:.*]] = call ptr addrspace(1) @llvm.threadlocal.address.p1(ptr addrspace(1) @_ZL28nativecpu_thread_local_state)
-    // CHECK-TL-NEXT  %[[VAL2:.*]] = load ptr addrspace(1), ptr addrspace(1) %VAL1, align 8
-    // CHECK-TL-NEXT  %{{.*}} = call i64 @__dpcpp_nativecpu_get_wg_size(i32 0, ptr addrspace(1) %VAL2)
+    // CHECK-TL: define void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperI5Test1EE.NativeCPUKernel({{.*}}
+    // CHECK-TL-NEXT:entry:
+    // CHECK-TL-NEXT:  %[[VAL1:.*]] = call ptr addrspace(1) @llvm.threadlocal.address.p1(ptr addrspace(1) @_ZL28nativecpu_thread_local_state)
+    // CHECK-TL-NEXT:  %[[VAL2:.*]] = load ptr addrspace(1), ptr addrspace(1) %{{.*}}, align 8
+    // CHECK-TL-NEXT:  %{{.*}} = call i64 @__dpcpp_nativecpu_get_wg_size(i32 0, ptr addrspace(1) %{{.*}})
 
     // CHECK-TL:      %{{.*}} = call ptr addrspace(1) @llvm.threadlocal.address.p1(ptr addrspace(1) @_ZL28nativecpu_thread_local_state)
     // CHECK-TL-DAG: store ptr addrspace(1) %{{.*}}, ptr addrspace(1) %{{.*}}, align 8
