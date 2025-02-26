@@ -345,7 +345,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 #ifdef NATIVECPU_USE_OCK
   {
     SmallSet<Function *, 5> RemovableFuncs;
-    SmallVector<Function *, 5> WrapperFuncs;
 
     for (auto &OldF : OldKernels) {
       // If vectorization occurred, at this point we have a wrapper function
