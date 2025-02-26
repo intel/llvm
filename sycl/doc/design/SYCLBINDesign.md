@@ -37,7 +37,8 @@ containing information about the [abstract modules](#abstract-module),
 | [Native device code image header](#native-device-code-image-header) 1 |
 | ...                                                                   |
 | [Native device code image header](#native-device-code-image-header) L |
-| Byte table                                                            |
+| Metadata byte table                                                   |
+| Binary byte table                                                     |
 
 
 ### File header
@@ -48,16 +49,17 @@ is 0x53594249 (or "SYBI".) Immediately following the magic number is the version
 number, which is used by SYCLBIN consumers when parsing data in the rest of the
 file.
 
-| Type       | Description                                            |
-| ---------- | ------------------------------------------------------ |
-| `uint32_t` | Magic number. (0x53594249)                             |
-| `uint32_t` | SYCLBIN version number.                                |
-| `uint32_t` | Number of abstract modules.                            |
-| `uint32_t` | Number of IR modules.                                  |
-| `uint32_t` | Number of native device code images.                   |
-| `uint64_t` | Byte size of the byte table.                           |
-| `uint64_t` | Byte offset of the global metadata in the byte table.  |
-| `uint64_t` | Byte size of the global metadata in the byte table.    |
+| Type       | Description                                                    |
+| ---------- | -------------------------------------------------------------- |
+| `uint32_t` | Magic number. (0x53594249)                                     |
+| `uint32_t` | SYCLBIN version number.                                        |
+| `uint32_t` | Number of abstract modules.                                    |
+| `uint32_t` | Number of IR modules.                                          |
+| `uint32_t` | Number of native device code images.                           |
+| `uint64_t` | Byte size of the metadata byte table.                          |
+| `uint64_t` | Byte size of the binary byte table.                            |
+| `uint64_t` | Byte offset of the global metadata in the metadata byte table. |
+| `uint64_t` | Byte size of the global metadata in the metadata byte table.   |
 
 __Alignment:__ 64 bits.
 
@@ -87,14 +89,14 @@ are specific to a single vendor.
 
 A abstract module header contains the following fields in the stated order:
 
-| Type       | Description                                           |
-| ---------- | ----------------------------------------------------- |
-| `uint64_t` | Byte offset of the metadata in the byte table.        |
-| `uint64_t` | Byte size of the metadata in the byte table.          |
-| `uint32_t` | Number of IR modules.                                 |
-| `uint32_t` | Offset of the first IR module header.                 |
-| `uint32_t` | Number of native device code images.                  |
-| `uint32_t` | Offset of the first native device code images header. |
+| Type       | Description                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| `uint64_t` | Byte offset of the metadata in the metadata byte table.                                    |
+| `uint64_t` | Byte size of the metadata in the metadata byte table.                                      |
+| `uint32_t` | Number of IR modules.                                                                      |
+| `uint32_t` | Index of the first IR module header in the IR module header array.                         |
+| `uint32_t` | Number of native device code images.                                                       |
+| `uint32_t` | Index of the first native device code images header native device code image header array. |
 
 __Alignment:__ 64 bits.
 
@@ -118,12 +120,12 @@ given IR representation, identified by the IR type field.
 
 A IR module header contains the following fields in the stated order:
 
-| Type       | Description                                           |
-| ---------- | ----------------------------------------------------- |
-| `uint64_t` | Byte offset of the metadata in the byte table.        |
-| `uint64_t` | Byte size of the metadata in the byte table.          |
-| `uint64_t` | Byte offset of the raw IR bytes in the byte table.    |
-| `uint64_t` | Byte size of the raw IR bytes in the byte table.      |
+| Type       | Description                                               |
+| ---------- | --------------------------------------------------------- |
+| `uint64_t` | Byte offset of the metadata in the metadata byte table.   |
+| `uint64_t` | Byte size of the metadata in the metadata byte table.     |
+| `uint64_t` | Byte offset of the raw IR bytes in the binary byte table. |
+| `uint64_t` | Byte size of the raw IR bytes in the binary byte table.   |
 
 __Alignment:__ 64 bits.
 
@@ -147,12 +149,12 @@ string.
 A native device code image header contains the following fields in the stated
 order:
 
-| Type       | Description                                                   |
-| ---------- | ------------------------------------------------------------- |
-| `uint64_t` | Byte offset of the metadata in the byte table.                |
-| `uint64_t` | Byte size of the metadata in the byte table.                  |
-| `uint64_t` | Byte offset of the device code image bytes in the byte table. |
-| `uint64_t` | Byte size of the device code image bytes in the byte table.   |
+| Type       | Description                                                          |
+| ---------- | -------------------------------------------------------------------- |
+| `uint64_t` | Byte offset of the metadata in the metadata byte table.              |
+| `uint64_t` | Byte size of the metadata in the metadata byte table.                |
+| `uint64_t` | Byte offset of the device code image bytes in the binary byte table. |
+| `uint64_t` | Byte size of the device code image bytes in the binary byte table.   |
 
 __Alignment:__ 64 bits.
 
@@ -168,8 +170,9 @@ design document.
 
 ### Byte table
 
-The byte table contains dynamic data, such as metadata and binary blobs. The
+A byte table contains dynamic data, such as metadata and binary blobs. The
 contents of it is generally referenced by an offset specified in the headers.
+The implementation has two 
 
 __Alignment:__ 64 bits. This alignment guarantee does not apply to the
 structures contained in the table.
@@ -180,6 +183,12 @@ structures contained in the table.
 The SYCLBIN format is subject to change, but any such changes must come with an
 increment to the version number in the header and a subsection to this section
 describing the change.
+
+Additionally, any changes to the property set structure that affects the way the
+runtime has to parse the contained property sets will require an increase in the
+SYCLBIN version. Adding new property set names or new predefined properties only
+require a SYCLBIN version change if the the SYCLBIN consumer cannot safely
+ignore the property.
 
 
 #### Version 1
