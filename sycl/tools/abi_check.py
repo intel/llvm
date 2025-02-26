@@ -91,6 +91,15 @@ def dump_symbols(target_path, output):
         out.write("\n# UNSUPPORTED: libcxx")
         out.write("\n\n")
         readobj_opts = "--coff-exports" if os.name == "nt" else "--syms"
+
+        print("Debug:\n")
+        print(os.path.join(get_llvm_bin_path(), "llvm-readobj"))
+        print("\n")
+        print(readobj_opts)
+        print("\n")
+        print(target_path)
+        print("End debug.\n")
+
         readobj_out = subprocess.check_output(
             [
                 os.path.join(get_llvm_bin_path(), "llvm-readobj"),

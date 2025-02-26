@@ -164,6 +164,22 @@ jobs:
       if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
         cmake --build build --target check-libdevice
+    - name: Generate ABI symbols diff
+      if: always() && !cancelled()
+      shell: bash
+      run: |
+        ls src/sycl/tools/abi_check.py build/new_sycl_symbols_windows.dump build/bin/sycl?.dll || echo "Failed"
+        LLVM_BIN_PATH="build/bin" python.exe src/sycl/tools/abi_check.py  --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll || echo "Failed"
+        LLVM_BIN_PATH="$(pwd)/build/bin" python.exe src/sycl/tools/abi_check.py  --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl8.dll || echo "Failed"
+        diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump > build/abi_symbols.diff || true
+        cat build/abi_symbols.diff | tee -a $GITHUB_STEP_SUMMARY
+    - name: Upload new ABI symbols
+      if: always() && !cancelled()
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_windows_abi_symbols
+        path: build/new_sycl_symbols_windows.dump
+        retention-days: ${{ inputs.retention-days }}
     - name: Install
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
