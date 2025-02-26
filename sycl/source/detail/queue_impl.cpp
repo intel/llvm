@@ -365,10 +365,20 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  if (!MHandler)
-    MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
-  else
-    MHandler->reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+
+  struct Cleanup {
+    Cleanup(const std::shared_ptr<queue_impl> &Self,
+      const std::shared_ptr<queue_impl> &PrimaryQueue,
+      const std::shared_ptr<queue_impl> &SecondaryQueue,
+      bool CallerNeedsEvent) {
+      if (MHandler)
+        MHandler->reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+      else
+        MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
+    }
+    ~Cleanup() { MHandler->reset(nullptr, nullptr, nullptr, false); }
+  } cleanup(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+
   auto HandlerImpl = detail::getSyclObjImpl(*MHandler);
   MHandler->saveCodeLoc(Loc, IsTopCodeLoc);
 
@@ -424,7 +434,6 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
 
-  MHandler->reset(nullptr, nullptr, nullptr, false);
   return Event;
 }
 
