@@ -50,18 +50,16 @@ runs:
     shell: bash
     run: |
       ls /dev/dri
-      echo ####
-      ls /runtimes/oneapi-tbb/
-      echo ####
-      ls /runtimes/oneapi-tbb/env
-      echo ####
+      echo ----
+      ls /opt/sycl/lib
+      echo ----
+      ls /runtimes/oneapi-tbb/lib
+      echo ----
       SYCL_UR_TRACE=-1 sycl-ls
-      echo ####
+      echo ----
       id "$(whoami)"
-      echo ####
+      echo ----
       groups
-      echo ####
-      modinfo i915
   - name: Run compute-benchmarks
     shell: bash
     run: |
