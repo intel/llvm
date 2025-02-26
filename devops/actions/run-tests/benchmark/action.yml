@@ -59,8 +59,7 @@ runs:
       echo ----
       groups
       echo ----
-      ls /usr/local/lib
-      ls /usr/lib
+      find /usr/lib /usr/local/lib /opt -name "libze_*.so"
   - name: Run compute-benchmarks
     shell: bash
     run: |
