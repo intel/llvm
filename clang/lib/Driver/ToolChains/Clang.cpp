@@ -514,6 +514,7 @@ static void addCoveragePrefixMapArg(const Driver &D, const ArgList &Args,
   }
 }
 
+<<<<<<< HEAD
 /// Simple check to see if the optimization level is at -O2 or higher.
 /// For -fsycl (DPC++) -O2 is the default.
 static bool isSYCLOptimizationO2orHigher(const ArgList &Args) {
@@ -570,6 +571,8 @@ static bool shouldEnableVectorizerAtOLevel(const ArgList &Args, bool isSlpVec) {
   return false;
 }
 
+=======
+>>>>>>> 41cece8c86399dd1ffcb6b7a8b50c10083fe5a40
 /// Add -x lang to \p CmdArgs for \p Input.
 static void addDashXForInput(const ArgList &Args, const InputInfo &Input,
                              ArgStringList &CmdArgs) {
