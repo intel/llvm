@@ -2628,6 +2628,30 @@ _CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN_ALL_DIMS(half, float, f16, v4f3
 #undef _CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN_ALL_DIMS
 #undef _CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN_ALL_DIMS
 
+//_Z26__spirv_SampledImageGatherIDv4_fmDv2_fET_T0_T1_i
+//_Z26__spirv_SampledImageGatherIDv4_fmDv2_iET_T0_T1_i
+
+// Float
+
+    #define _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(                       \
+    elem_t, color, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
+    ...)                                                                       \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      26, __spirv_SampledImageGather, I##elem_t_mangled,                        \
+      coord_mangled##ET_T0_T1_m)(ulong imageHandle, coord_input coord, ulong i) {              \
+            float4 result; \
+      __asm__ __volatile__("tld4.b.2d.v4.f32.f32 {%0, %1, %2, %3}, [%4, {%5, %6}];" : "=r"(result.x), \
+        "=r"(result.y), \
+        "=r"(result.z), \
+        "=r"(result.w) : "l"(imageHandle), "f"(coord.x), "f"(coord.y)); \
+return result; \
+  }
+
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(float4, b, Dv4_f, v4f32, Dv2_f, float2)
+
+
+#undef _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN
+
 #define _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(                       \
     elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
     ...)                                                                       \

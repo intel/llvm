@@ -33,6 +33,8 @@ void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
     // Image array or cubemap
     urDesc.type = desc.type == image_type::cubemap
                       ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+                  : desc.type == image_type::gather
+                  ? UR_MEM_TYPE_IMAGE_GATHER_EXP
                   : desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
                                     : UR_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
@@ -235,7 +237,8 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
           C, Device, memHandle.raw_handle);
     } else if (imageType == image_type::standard ||
                imageType == image_type::array ||
-               imageType == image_type::cubemap) {
+               imageType == image_type::cubemap ||
+               imageType == image_type::gather) {
       Adapter->call<sycl::errc::memory_allocation,
                     sycl::detail::UrApiKind::urBindlessImagesImageFreeExp>(
           C, Device, memHandle.raw_handle);

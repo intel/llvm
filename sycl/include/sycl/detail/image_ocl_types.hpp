@@ -104,6 +104,18 @@ static RetType __invoke__SampledImageFetch(ImageT Img, CoordT Coords) {
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
+static RetType __invoke__SampledImageGather(ImageT Img, CoordT Coords, unsigned long Component) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_SampledImageGather<TempRetT, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords, Component));
+}
+
+template <typename RetType, typename ImageT, typename CoordT>
 static RetType __invoke__ImageArrayFetch(ImageT Img, CoordT Coords,
                                          int ArrayLayer) {
 

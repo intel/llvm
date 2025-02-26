@@ -48,6 +48,7 @@ enum class image_type : unsigned int {
   mipmap = 1,
   array = 2,
   cubemap = 3,
+  gather = 4,
 };
 
 /// A struct to describe the properties of an image.
@@ -202,6 +203,14 @@ struct image_descriptor {
         throw sycl::exception(sycl::errc::invalid,
                               "Cannot have mipmap cubemaps! Either num_levels "
                               "or array_size must be 1.");
+      }
+      return;
+      case image_type::gather:
+      if (this->depth != 0 || this->height == 0) {
+        // Gather must be 2D
+        throw sycl::exception(
+            sycl::errc::invalid,
+            "Gather images must be 2D.");
       }
       return;
     }

@@ -780,6 +780,9 @@ using OCLSampledImageArrayTyRead =
 #define FETCH_SAMPLED_IMAGE(DataT, raw_handle, coords)                         \
   __invoke__SampledImageFetch<DataT>(raw_handle, coords)
 
+#define FETCH_SAMPLED_GATHER(DataT, raw_handle, coords, i)                         \
+  __invoke__SampledImageGather<DataT>(raw_handle, coords, i)
+
 #define SAMPLE_IMAGE_READ(DataT, raw_handle, coords)                           \
   __invoke__ImageRead<DataT>(raw_handle, coords)
 
@@ -899,6 +902,38 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
         DataT,
         CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
         coords);
+  } else {
+    return sycl::bit_cast<DataT>(FETCH_SAMPLED_IMAGE(
+        HintT,
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords));
+  }
+#else
+  assert(false); // Bindless images not yet implemented on host.
+#endif
+}
+
+//todo limit to 2d // name sampledgather_image?
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT gather_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &coords [[maybe_unused]], unsigned long i) {
+  //detail::assert_fetch_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 3,
+                "Expected input coordinate to be have 1, 2, or 3 components "
+                "for 1D, 2D and 3D images, respectively.");
+  static_assert(sizeof(HintT) == sizeof(DataT),
+                "When trying to read a user-defined type, HintT must be of "
+                "the same size as the user-defined DataT.");
+  static_assert(detail::is_recognized_standard_type<HintT>(),
+                "HintT must always be a recognized standard type");
+
+#ifdef __SYCL_DEVICE_ONLY__
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return FETCH_SAMPLED_GATHER(
+        DataT,
+        CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, coordSize),
+        coords, i);
   } else {
     return sycl::bit_cast<DataT>(FETCH_SAMPLED_IMAGE(
         HintT,

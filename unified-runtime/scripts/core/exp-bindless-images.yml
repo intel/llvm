@@ -180,6 +180,15 @@ etors:
       desc: "Experimental cubemap image object"
 --- #--------------------------------------------------------------------------
 type: enum
+extend: True
+desc: "Memory types"
+name: $x_mem_type_t
+etors:
+    - name: IMAGE_GATHER_EXP
+      value: "0x2001"
+      desc: "Experimental gather image object"
+--- #--------------------------------------------------------------------------
+type: enum
 desc: "Sampler cubemap seamless filtering mode."
 class: $xBindlessImages
 name: $x_exp_sampler_cubemap_filter_mode_t
