@@ -496,7 +496,6 @@ ThreadSanitizerOnSpirv::GetOrCreateGlobalString(StringRef Name, StringRef Value,
   return StringGV;
 }
 
-
 void ThreadSanitizer::initialize(Module &M, const TargetLibraryInfo &TLI) {
   const DataLayout &DL = M.getDataLayout();
   LLVMContext &Ctx = M.getContext();
@@ -962,13 +961,12 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
       OnAccessFunc = TsanCompoundRW[Idx];
     else if (IsVolatile)
       OnAccessFunc = IsWrite ? TsanVolatileWrite[Idx] : TsanVolatileRead[Idx];
-    else
-      OnAccessFunc = [&]() {
-        if (Spirv)
-          return IsWrite ? Spirv->TsanWrite[Idx] : Spirv->TsanRead[Idx];
-        else
-          return IsWrite ? TsanWrite[Idx] : TsanRead[Idx];
-      }();
+    else {
+      if (Spirv)
+        OnAccessFunc = IsWrite ? Spirv->TsanWrite[Idx] : Spirv->TsanRead[Idx];
+      else
+        OnAccessFunc = IsWrite ? TsanWrite[Idx] : TsanRead[Idx];
+    }
   } else {
     if (IsCompoundRW)
       OnAccessFunc = TsanUnalignedCompoundRW[Idx];
