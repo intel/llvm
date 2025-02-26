@@ -412,6 +412,7 @@ and not recommended to use in production environment.
     ULP.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
+    This option will be deprecated in favor of **`-foffload-fp32-prec-sqrt`**.
 
 
 **`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
