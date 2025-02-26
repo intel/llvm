@@ -51,9 +51,7 @@ runs:
     run: |
       ls /dev/dri
       echo ----
-      ls /opt/sycl/lib
-      echo ----
-      ls /runtimes/oneapi-tbb/lib
+      ls /runtimes/oneapi-tbb/lib/intel64/gcc4.8
       echo ----
       SYCL_UR_TRACE=-1 sycl-ls
       echo ----
