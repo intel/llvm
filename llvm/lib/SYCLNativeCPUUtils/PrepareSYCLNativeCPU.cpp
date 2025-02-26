@@ -213,10 +213,12 @@ static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
   if (StateTLS) {
     // Find previous read from thread_local, if any
     for (Use &U : StateTLS->uses()) {
-      if (Instruction *I = dyn_cast<Instruction>(U.getUser())) {
+      if (CallInst *I = dyn_cast<CallInst>(U.getUser())) {
         if (I->getFunction() == F) {
           assert(I->getNumUses() == 1);
-          return I->uses().begin()->getUser();
+          User *Ret = I->uses().begin()->getUser();
+          assert(isa<LoadInst>(Ret));
+          return Ret;
         }
       }
     }
