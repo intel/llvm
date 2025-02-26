@@ -165,12 +165,18 @@ template <typename T> bool testUSM(queue &Q) {
 }
 
 template <typename T, int N> bool testAcc(queue &Q) {
-  using ext::oneapi::experimental::usm_deleter;
+  struct Deleter {
+    void operator()(T *Ptr) {
+      if (Ptr) {
+        aligned_free(Ptr);
+      }
+    }
+  };
 
-  std::unique_ptr<T, usm_deleter> Src(
-      static_cast<T *>(aligned_malloc(1024u, 512u * sizeof(T))), {Q});
-  std::unique_ptr<T, usm_deleter> Dst(
-      static_cast<T *>(aligned_malloc(1024u, 512u * sizeof(T))), {Q});
+  std::unique_ptr<T, Deleter> Src(
+      static_cast<T *>(aligned_malloc(1024u, 512u * sizeof(T))), Deleter{});
+  std::unique_ptr<T, Deleter> Dst(
+      static_cast<T *>(aligned_malloc(1024u, 512u * sizeof(T))), Deleter{});
 
   constexpr unsigned VecAlignOffset = esimd::detail::getNextPowerOf2<N>();
 
