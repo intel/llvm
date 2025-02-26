@@ -27,6 +27,7 @@
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -40,6 +41,7 @@
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/EscapeEnumerator.h"
 #include "llvm/Transforms/Utils/Instrumentation.h"
@@ -49,6 +51,13 @@
 using namespace llvm;
 
 #define DEBUG_TYPE "tsan"
+
+// Spir memory address space
+static constexpr unsigned kSpirOffloadPrivateAS = 0;
+static constexpr unsigned kSpirOffloadGlobalAS = 1;
+static constexpr unsigned kSpirOffloadConstantAS = 2;
+static constexpr unsigned kSpirOffloadLocalAS = 3;
+static constexpr unsigned kSpirOffloadGenericAS = 4;
 
 static cl::opt<bool> ClInstrumentMemoryAccesses(
     "tsan-instrument-memory-accesses", cl::init(true),
@@ -98,6 +107,43 @@ const char kTsanInitName[] = "__tsan_init";
 
 namespace {
 
+struct ThreadSanitizer;
+
+// SPIR-V specific instrumentation
+struct ThreadSanitizerOnSpirv {
+  ThreadSanitizerOnSpirv(Module &M)
+      : M(M), C(M.getContext()), DL(M.getDataLayout()) {
+    IntptrTy = DL.getIntPtrType(C);
+  }
+
+  void initialize();
+
+  void extendSpirKernelArgs();
+
+  void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
+
+private:
+  bool isSupportedSPIRKernel(Function &F);
+
+  GlobalVariable *GetOrCreateGlobalString(StringRef Name, StringRef Value,
+                                          unsigned AddressSpace);
+
+private:
+  Module &M;
+  LLVMContext &C;
+  const DataLayout &DL;
+  Type *IntptrTy;
+
+  StringMap<GlobalVariable *> GlobalStringMap;
+
+  // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
+  static const size_t kNumberOfAccessSizes = 5;
+  FunctionCallee TsanRead[kNumberOfAccessSizes];
+  FunctionCallee TsanWrite[kNumberOfAccessSizes];
+
+  friend struct ThreadSanitizer;
+};
+
 /// ThreadSanitizer: instrument the code in module to find races.
 ///
 /// Instantiating ThreadSanitizer inserts the tsan runtime library API function
@@ -140,6 +186,8 @@ private:
   bool addrPointsToConstantData(Value *Addr);
   int getMemoryAccessFuncIndex(Type *OrigTy, Value *Addr, const DataLayout &DL);
   void InsertRuntimeIgnores(Function &F);
+
+  std::optional<ThreadSanitizerOnSpirv> Spirv;
 
   Type *IntptrTy;
   FunctionCallee TsanFuncEntry;
@@ -193,13 +241,264 @@ PreservedAnalyses ModuleThreadSanitizerPass::run(Module &M,
   // Return early if nosanitize_thread module flag is present for the module.
   if (checkIfAlreadyInstrumented(M, "nosanitize_thread"))
     return PreservedAnalyses::all();
-  insertModuleCtor(M);
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+    ThreadSanitizerOnSpirv Spirv(M);
+    Spirv.extendSpirKernelArgs();
+  } else
+    insertModuleCtor(M);
   return PreservedAnalyses::none();
 }
+
+void ThreadSanitizerOnSpirv::initialize() {
+  IRBuilder<> IRB(C);
+  AttributeList Attr;
+  Attr = Attr.addFnAttribute(C, Attribute::NoUnwind);
+  Type *Int8PtrTy = IRB.getInt8PtrTy(kSpirOffloadConstantAS);
+
+  for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
+    const unsigned ByteSize = 1U << i;
+    const unsigned BitSize = ByteSize * 8;
+    std::string ByteSizeStr = utostr(ByteSize);
+    std::string BitSizeStr = utostr(BitSize);
+    SmallString<32> ReadName("__tsan_read" + ByteSizeStr);
+    TsanRead[i] = M.getOrInsertFunction(ReadName, Attr, IRB.getVoidTy(),
+                                        IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
+                                        IRB.getInt32Ty(), Int8PtrTy);
+
+    SmallString<32> WriteName("__tsan_write" + ByteSizeStr);
+    TsanWrite[i] = M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(),
+                                         IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
+                                         IRB.getInt32Ty(), Int8PtrTy);
+  }
+}
+
+void ThreadSanitizerOnSpirv::appendDebugInfoToArgs(
+    Instruction *I, SmallVectorImpl<Value *> &Args) {
+  auto &Loc = I->getDebugLoc();
+
+  // SPIR constant address space
+  PointerType *ConstASPtrTy =
+      PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
+
+  // File & Line
+  if (Loc) {
+    llvm::SmallString<128> Source = Loc->getDirectory();
+    sys::path::append(Source, Loc->getFilename());
+    auto *FileNameGV =
+        GetOrCreateGlobalString("__tsan_file", Source, kSpirOffloadConstantAS);
+    Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
+    Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
+  } else {
+    Args.push_back(ConstantPointerNull::get(ConstASPtrTy));
+    Args.push_back(ConstantInt::get(Type::getInt32Ty(C), 0));
+  }
+
+  // Function
+  auto FuncName = I->getFunction()->getName();
+  auto *FuncNameGV = GetOrCreateGlobalString("__tsan_func", demangle(FuncName),
+                                             kSpirOffloadConstantAS);
+  Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
+}
+
+bool ThreadSanitizerOnSpirv::isSupportedSPIRKernel(Function &F) {
+
+  if (!F.hasFnAttribute(Attribute::SanitizeThread) ||
+      F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+    return false;
+
+  if (F.getName().contains("__sycl_service_kernel__")) {
+    F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+    return false;
+  }
+
+  // Skip referenced-indirectly function as we insert access to shared
+  // local memory (SLM) __TsanLaunchInfo and access to SLM in
+  // referenced-indirectly function isn't supported yet in
+  // intel-graphics-compiler.
+  if (F.hasFnAttribute("referenced-indirectly")) {
+    F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+    return false;
+  }
+
+  return true;
+}
+
+void ThreadSanitizerOnSpirv::extendSpirKernelArgs() {
+  SmallVector<Function *> SpirFixupKernels;
+  SmallVector<Function *> SpirSkipedKernels;
+  SmallVector<Constant *, 8> SpirKernelsMetadata;
+
+  // SpirKernelsMetadata only saves fixed kernels, and is described by
+  // following structure:
+  //  uptr unmangled_kernel_name
+  //  uptr unmangled_kernel_name_size
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+  Constant *TsanLaunchInfo = M.getOrInsertGlobal(
+      "__TsanLaunchInfo", PointerType::get(IntptrTy, kSpirOffloadGlobalAS),
+      [&] {
+        return new GlobalVariable(
+            M, llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), false,
+            GlobalVariable::ExternalLinkage, nullptr, "__TsanLaunchInfo",
+            nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
+      });
+
+  for (Function &F : M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    if (isSupportedSPIRKernel(F)) {
+      SpirFixupKernels.emplace_back(&F);
+      auto KernelName = F.getName();
+      auto *KernelNameGV = GetOrCreateGlobalString("__tsan_kernel", KernelName,
+                                                   kSpirOffloadConstantAS);
+      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+          ConstantInt::get(IntptrTy, KernelName.size())));
+    } else {
+      SpirSkipedKernels.emplace_back(&F);
+    }
+  }
+
+  // Create global variable to record spirv kernels' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  GlobalVariable *TsanSpirKernelMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__TsanKernelMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  TsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  // Add device global attributes
+  TsanSpirKernelMetadata->addAttribute(
+      "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
+  TsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
+  TsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
+  TsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       "_Z20__TsanKernelMetadata");
+  TsanSpirKernelMetadata->setDSOLocal(true);
+
+  // Handle SpirFixupKernels
+  for (auto *F : SpirFixupKernels) {
+    SmallVector<Type *, 16> Types;
+    for (Function::const_arg_iterator I = F->arg_begin(), E = F->arg_end();
+         I != E; ++I) {
+      Types.push_back(I->getType());
+    }
+
+    // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
+    Types.push_back(PointerType::get(IntptrTy, kSpirOffloadGlobalAS));
+
+    FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
+
+    std::string OrigFuncName = F->getName().str();
+    F->setName(OrigFuncName + "_del");
+
+    Function *NewF =
+        Function::Create(NewFTy, F->getLinkage(), OrigFuncName, F->getParent());
+    NewF->copyAttributesFrom(F);
+    NewF->copyMetadata(F, 0);
+    NewF->setCallingConv(F->getCallingConv());
+    NewF->setDSOLocal(F->isDSOLocal());
+
+    // Set original arguments' names.
+    Function::arg_iterator NewI = NewF->arg_begin();
+    for (Function::const_arg_iterator I = F->arg_begin(), E = F->arg_end();
+         I != E; ++I, ++NewI) {
+      NewI->setName(I->getName());
+    }
+    // New argument name
+    NewI->setName("__tsan_launch");
+    NewI->addAttr(Attribute::NoUndef);
+
+    NewF->splice(NewF->begin(), F);
+    assert(F->isDeclaration() &&
+           "splice does not work, original function body is not empty!");
+
+    NewF->setSubprogram(F->getSubprogram());
+
+    NewF->setComdat(F->getComdat());
+    F->setComdat(nullptr);
+
+    for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(),
+                                NI = NewF->arg_begin();
+         I != E; ++I, ++NI) {
+      I->replaceAllUsesWith(&*NI);
+    }
+
+    // Fixup metadata
+    IRBuilder<> Builder(M.getContext());
+
+    auto FixupMetadata = [&NewF](StringRef MDName, Metadata *NewV) {
+      auto *Node = NewF->getMetadata(MDName);
+      if (!Node)
+        return;
+      SmallVector<Metadata *, 8> NewMD(Node->operands());
+      NewMD.emplace_back(NewV);
+      NewF->setMetadata(MDName, llvm::MDNode::get(NewF->getContext(), NewMD));
+    };
+
+    FixupMetadata("kernel_arg_buffer_location",
+                  ConstantAsMetadata::get(Builder.getInt32(-1)));
+    FixupMetadata("kernel_arg_runtime_aligned",
+                  ConstantAsMetadata::get(Builder.getFalse()));
+    FixupMetadata("kernel_arg_exclusive_ptr",
+                  ConstantAsMetadata::get(Builder.getFalse()));
+
+    FixupMetadata(
+        "kernel_arg_addr_space",
+        ConstantAsMetadata::get(Builder.getInt32(kSpirOffloadGlobalAS)));
+    FixupMetadata("kernel_arg_access_qual",
+                  MDString::get(M.getContext(), "read_write"));
+    FixupMetadata("kernel_arg_type", MDString::get(M.getContext(), "void*"));
+    FixupMetadata("kernel_arg_base_type",
+                  MDString::get(M.getContext(), "void*"));
+    FixupMetadata("kernel_arg_type_qual", MDString::get(M.getContext(), ""));
+    FixupMetadata("kernel_arg_accessor_ptr",
+                  ConstantAsMetadata::get(Builder.getFalse()));
+
+    // Initialize the value of local memory "__TsanLaunchInfo"
+    InstrumentationIRBuilder IRB(NewF->getEntryBlock().getFirstNonPHI());
+    IRB.CreateStore(NewI, TsanLaunchInfo);
+
+    F->eraseFromParent();
+  }
+
+  // Initialize the value of local memory "__TsanLaunchInfo"
+  for (Function *F : SpirSkipedKernels) {
+    InstrumentationIRBuilder IRB(F->getEntryBlock().getFirstNonPHI());
+    IRB.CreateStore(ConstantPointerNull::get(
+                        PointerType::get(IntptrTy, kSpirOffloadGlobalAS)),
+                    TsanLaunchInfo);
+  }
+}
+
+GlobalVariable *
+ThreadSanitizerOnSpirv::GetOrCreateGlobalString(StringRef Name, StringRef Value,
+                                                unsigned AddressSpace) {
+  GlobalVariable *StringGV = nullptr;
+  if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
+    return GlobalStringMap.at(Value.str());
+
+  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
+  StringGV = new GlobalVariable(
+      M, Ty, true, GlobalValue::InternalLinkage,
+      ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
+      GlobalValue::NotThreadLocal, AddressSpace);
+  GlobalStringMap[Value.str()] = StringGV;
+
+  return StringGV;
+}
+
+
 void ThreadSanitizer::initialize(Module &M, const TargetLibraryInfo &TLI) {
   const DataLayout &DL = M.getDataLayout();
   LLVMContext &Ctx = M.getContext();
   IntptrTy = DL.getIntPtrType(Ctx);
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+    Spirv.emplace(M);
+    Spirv->initialize();
+  }
 
   IRBuilder<> IRB(Ctx);
   AttributeList Attr;
@@ -367,12 +666,30 @@ static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
     }
   }
 
-  // Do not instrument accesses from different address spaces; we cannot deal
-  // with them.
-  if (Addr) {
-    Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-    if (PtrTy->getPointerAddressSpace() != 0)
+  if (Triple(M->getTargetTriple()).isSPIROrSPIRV()) {
+    auto *OrigValue = getUnderlyingObject(Addr);
+    if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+      return true;
+
+    auto AddrAS = cast<PointerType>(Addr->getType()->getScalarType())
+                      ->getPointerAddressSpace();
+    switch (AddrAS) {
+    case kSpirOffloadPrivateAS:
+    case kSpirOffloadLocalAS:
+    case kSpirOffloadConstantAS:
       return false;
+    case kSpirOffloadGlobalAS:
+    case kSpirOffloadGenericAS:
+      return true;
+    }
+  } else {
+    // Do not instrument accesses from different address spaces; we cannot deal
+    // with them.
+    if (Addr) {
+      Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
+      if (PtrTy->getPointerAddressSpace() != 0)
+        return false;
+    }
   }
 
   return true;
@@ -640,7 +957,12 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
     else if (IsVolatile)
       OnAccessFunc = IsWrite ? TsanVolatileWrite[Idx] : TsanVolatileRead[Idx];
     else
-      OnAccessFunc = IsWrite ? TsanWrite[Idx] : TsanRead[Idx];
+      OnAccessFunc = [&]() {
+        if (Spirv)
+          return IsWrite ? Spirv->TsanWrite[Idx] : Spirv->TsanRead[Idx];
+        else
+          return IsWrite ? TsanWrite[Idx] : TsanRead[Idx];
+      }();
   } else {
     if (IsCompoundRW)
       OnAccessFunc = TsanUnalignedCompoundRW[Idx];
@@ -650,7 +972,16 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
     else
       OnAccessFunc = IsWrite ? TsanUnalignedWrite[Idx] : TsanUnalignedRead[Idx];
   }
-  IRB.CreateCall(OnAccessFunc, Addr);
+  if (Spirv) {
+    SmallVector<Value *, 5> Args;
+    Args.push_back(IRB.CreatePointerCast(Addr, IntptrTy));
+    unsigned int AS = cast<PointerType>(Addr->getType()->getScalarType())
+                          ->getPointerAddressSpace();
+    Args.push_back(ConstantInt::get(IRB.getInt32Ty(), AS));
+    Spirv->appendDebugInfoToArgs(II.Inst, Args);
+    IRB.CreateCall(OnAccessFunc, Args);
+  } else
+    IRB.CreateCall(OnAccessFunc, Addr);
   if (IsCompoundRW || IsWrite)
     NumInstrumentedWrites++;
   if (IsCompoundRW || !IsWrite)
