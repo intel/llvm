@@ -90,8 +90,7 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
     Alignment = MinAlignment;
   }
 
-  uptr RZLog = ComputeRZLog(Size, getContext()->Options.MinRZSize,
-                            getContext()->Options.MaxRZSize);
+  uptr RZLog = ComputeRZLog(Size, getContext()->Options.MinRZSize);
   uptr RZSize = RZLog2Size(RZLog);
   uptr RoundedSize = RoundUpTo(Size, Alignment);
   uptr NeededSize = RoundedSize + RZSize * 2;

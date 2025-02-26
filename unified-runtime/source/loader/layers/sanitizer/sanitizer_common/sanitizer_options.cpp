@@ -48,7 +48,6 @@ void SanitizerOptions::Init(const std::string &EnvName,
 
   Parser.ParseUint64("quarantine_size_mb", MaxQuarantineSizeMB, 0, UINT32_MAX);
   Parser.ParseUint64("redzone", MinRZSize, 16, 2048);
-  Parser.ParseUint64("max_redzone", MaxRZSize, 16, 2048);
 }
 
 } // namespace ur_sanitizer_layer

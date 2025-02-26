@@ -19,8 +19,6 @@
 // Invalid redzone and max_redzone
 // RUN: env UR_LAYER_ASAN_OPTIONS=redzone:abc %{run} not --crash %t 2>&1 | FileCheck %s  --check-prefixes INVALID-REDZONE
 // INVALID-REDZONE: <SANITIZER>[ERROR]: The valid range of "redzone" is [16, 2048].
-// RUN: env UR_LAYER_ASAN_OPTIONS=max_redzone:abc %{run} not --crash %t 2>&1 | FileCheck %s  --check-prefixes INVALID-MAXREDZONE
-// INVALID-MAXREDZONE: <SANITIZER>[ERROR]: The valid range of "max_redzone" is [16, 2048].
 // clang-format on
 
 #include <sycl/usm.hpp>

@@ -24,7 +24,6 @@ namespace ur_sanitizer_layer {
 struct SanitizerOptions {
   bool Debug = false;
   uint64_t MinRZSize = 16;
-  uint64_t MaxRZSize = 2048;
   uint64_t MaxQuarantineSizeMB = 8;
   bool DetectLocals = true;
   bool DetectPrivates = true;
