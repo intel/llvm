@@ -1,10 +1,8 @@
 // RUN: %if (!target-nvidia && !target-amd) %{ %{build} -fsycl-device-code-split=per_kernel -o %t_non_gpu.out %}
-// RUN: %if target-nvidia %{ %{build} -fsycl-device-code-split=per_kernel -DBUILD_FOR_CUDA -o %t_cuda.out %}
-// RUN: %if target-amd %{ %{build} -fsycl-device-code-split=per_kernel -DBUILD_FOR_HIP -o %t_hip.out %}
+// RUN: %if (target-nvidia || target-amd) %{ %{build} -fsycl-device-code-split=per_kernel -DBUILD_FOR_GPU -o %t_gpu.out %}
 
-// RUN: %if (!target-nvidia && !target-amd) %{ %{run} %t_non_gpu.out %}
-// RUN: %if target-nvidia %{ %{run} %t_cuda.out %}
-// RUN: %if target-amd %{ %{run} %t_hip.out %}
+// RUN: %if (!cuda && !hip) %{ %{run} %t_non_gpu.out %}
+// RUN: %if (cuda || hip) %{ %{run} %t_gpu.out %}
 
 //==------- attributes.cpp - SYCL sub_group attributes test ----*- C++ -*---==//
 //
@@ -34,15 +32,7 @@
     }                                                                          \
   };
 
-#ifdef BUILD_FOR_CUDA
-DUMMY_KERNEL_FUNCTOR(1);
-DUMMY_KERNEL_FUNCTOR(2);
-DUMMY_KERNEL_FUNCTOR(4);
-DUMMY_KERNEL_FUNCTOR(8);
-DUMMY_KERNEL_FUNCTOR(16);
-KERNEL_FUNCTOR_WITH_SIZE(32);
-DUMMY_KERNEL_FUNCTOR(64);
-#elif defined BUILD_FOR_HIP
+#ifdef BUILD_FOR_GPU
 DUMMY_KERNEL_FUNCTOR(1);
 DUMMY_KERNEL_FUNCTOR(2);
 DUMMY_KERNEL_FUNCTOR(4);
