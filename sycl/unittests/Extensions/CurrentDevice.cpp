@@ -21,11 +21,9 @@ ur_result_t redefine_urDeviceGet(void *pParams) {
   auto params = *static_cast<ur_device_get_params_t *>(pParams);
   if (*params.ppNumDevices)
     **params.ppNumDevices = 2;
-  if (*params.pphDevices) {
-    if (*params.pNumEntries > 0)
-      (*params.pphDevices)[0] = DEVICE_CPU;
-    if (*params.pNumEntries > 1)
-      (*params.pphDevices)[1] = DEVICE_GPU;
+  if (*params.pphDevices && *params.pNumEntries > 0) {
+    (*params.pphDevices)[0] = DEVICE_CPU;
+    (*params.pphDevices)[1] = DEVICE_GPU;
   }
   return UR_RESULT_SUCCESS;
 }
@@ -50,36 +48,30 @@ ur_result_t after_urDeviceGetInfo(void *pParams) {
     return UR_RESULT_SUCCESS;
   }
 }
-} // namespace
-
-class CurrentDeviceTest : public ::testing::Test {
-public:
-  CurrentDeviceTest() : Mock{} {}
-
-protected:
-  sycl::unittest::UrMock<> Mock;
-};
 
 void callable_set_get_eq(sycl::device dev) {
   sycl::ext::oneapi::experimental::this_thread::set_current_device(dev);
   ASSERT_EQ(sycl::ext::oneapi::experimental::this_thread::get_current_device(),
             dev);
 }
+} // namespace
 
-TEST_F(CurrentDeviceTest,
-       CheckGetCurrentDeviceReturnDefaultDeviceInHostThread) {
+TEST(CurrentDeviceTest, CheckGetCurrentDeviceReturnDefaultDeviceInHostThread) {
   ASSERT_EQ(sycl::ext::oneapi::experimental::this_thread::get_current_device(),
             sycl::device{sycl::default_selector_v});
 }
 
-TEST_F(CurrentDeviceTest,
-       CheckGetCurrentDeviceReturnDefaultSelectorByDefaultInTwoThreads) {
+TEST(CurrentDeviceTest,
+     CheckGetCurrentDeviceReturnDefaultSelectorByDefaultInTwoThreads) {
+  sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_replace_callback("urDeviceGet",
                                             &redefine_urDeviceGet);
   mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                           &after_urDeviceGetInfo);
 
   sycl::platform Plt = sycl::platform();
+
+  ASSERT_EQ(Plt.get_devices().size(), 2);
 
   sycl::device cpu_device = Plt.get_devices()[0];
   sycl::device gpu_device = Plt.get_devices()[1];
