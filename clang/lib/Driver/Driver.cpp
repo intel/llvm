@@ -6698,7 +6698,7 @@ class OffloadingActionBuilder final {
               continue;
             }
 
-            llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(UserTargetName));
+            llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(UserTargetName));
             if (!isValidSYCLTriple(TT))
               continue;
             std::string NormalizedName =

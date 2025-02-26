@@ -5846,7 +5846,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
           Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
         if (Macro.size()) {
           CmdArgs.push_back(Args.MakeArgString(Macro));
-          D.addSYCLTargetMacroArg(Args, Macro);
         }
       };
       addTargetMacros(RawTriple);
@@ -5897,10 +5896,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-D_MT");
         CmdArgs.push_back("-D_DLL");
       }
-      // Add the SYCL target macro arguments that were generated during the
-      // device compilation step.
-      for (auto &Macro : D.getSYCLTargetMacroArgs())
-        CmdArgs.push_back(Args.MakeArgString(Macro));
       // Add the host side macros.
       // TODO: There is some code duplication for adding the macros for the
       // host and device side, find a way to clean this up.
