@@ -2,12 +2,12 @@
 // RUN:   -internal-isystem %S/../../SemaCUDA/Inputs \
 // RUN:   -internal-isystem %S/../Inputs \
 // RUN:   -fsycl-targets=nvptx64-nvidia-cuda -triple x86_64-unknown-linux \
-// RUN:   -emit-llvm -o - -verify
+// RUN:   -o %t -verify
 // RUN: %clang_cc1 %s -fsycl-is-device -fsycl-cuda-compatibility \
 // RUN:   -internal-isystem %S/../../SemaCUDA/Inputs \
 // RUN:   -internal-isystem %S/../Inputs \
 // RUN:   -fsycl-targets=nvptx64-nvidia-cuda -triple x86_64-unknown-linux\
-// RUN:   -emit-llvm -o - -verify
+// RUN:   -o %t -verify
 
 // Check that delayed diagnostics are done
 // according to the SYCL logic and not the CUDA one.
@@ -30,7 +30,7 @@ Foo& get() {
   return f;
 }
 
-extern "C" int printf(const char *fmt, ...);
+extern "C" __attribute__((device)) int printf(const char *fmt, ...);
 
 void print() {
   sycl::queue q;

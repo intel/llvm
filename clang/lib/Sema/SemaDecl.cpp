@@ -20443,9 +20443,12 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   if (FD->hasAttr<SYCLSimdAttr>())
     return Sema::DeviceDiagnosticReason::Esimd;
   if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
-    return Sema::DeviceDiagnosticReason::Sycl;
+    return getLangOpts().SYCLCUDACompat
+               ? Sema::DeviceDiagnosticReason::SyclCompat
+               : Sema::DeviceDiagnosticReason::Sycl;
   // FIXME: Refine the logic for CUDA and OpenMP.
-  if (getLangOpts().CUDA)
+  // In SYCL-CUDA compat mode, force All just like in normal SYCL
+  if (getLangOpts().CUDA && !getLangOpts().SYCLCUDACompat)
     return getLangOpts().CUDAIsDevice ? Sema::DeviceDiagnosticReason::CudaDevice
                                       : Sema::DeviceDiagnosticReason::CudaHost;
   if (getLangOpts().OpenMP)
@@ -20528,7 +20531,8 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
       return FunctionEmissionStatus::CUDADiscarded;
 
     // Defer to SYCLIsDevice if in cuda compat mode
-    if (!LangOpts.SYCLCUDACompat && IsEmittedForExternalSymbol())
+    if ((LangOpts.CUDAIsDevice || !LangOpts.SYCLCUDACompat) &&
+        IsEmittedForExternalSymbol())
       return FunctionEmissionStatus::Emitted;
   }
 

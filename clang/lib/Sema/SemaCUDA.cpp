@@ -227,6 +227,10 @@ SemaCUDA::CUDAVariableTarget SemaCUDA::IdentifyTarget(const VarDecl *Var) {
 //
 // Priority order: N, SS, HD, WS, --
 //
+// Note: we deviate from the actual meaning for
+//  N, SS, HD, WS, --.
+// They should be understood as 1st, 2nd or 3rd choice.
+//
 // |    |    |  host    |  cuda-dev  |  sycl-dev |     |
 // | F  | T  | Ph - Sh  |  Pd - Sh   |  Ph - Sd  |  H  |
 // |----+----+----------+------------+-----------+-----+
@@ -241,11 +245,11 @@ SemaCUDA::CUDAVariableTarget SemaCUDA::IdentifyTarget(const VarDecl *Var) {
 // | h  | d  |    HD(y) |     WS(v)  |     N(x)  | ( ) |
 // | h  | g  |    N     |     N      |     N     | (c) |
 // | h  | h  |    N     |     N      |     SS(p) | ( ) |
-// | h  | hd |    HD    |     HD     |     HD    | ( ) |
+// | h  | hd |    SS(u) |     HD     |     HD    | ( ) |
 // | hd | d  |    HD(y) |     SS     |     N(x)  | ( ) |
-// | hd | g  |    SS    |     --     |    --(z)  |(d/a)|
-// | hd | h  |    SS    |     WS     |     SS    | (d) |
-// | hd | hd |    HD    |     HD     |     HD    | (b) |
+// | hd | g  |    N     |     --     |     --(z) |(d/a)|
+// | hd | h  |    N     |     WS     |     WS(s1)| (d) |
+// | hd | hd |    SS    |     HD     |     SS(s2)| (b) |
 
 SemaCUDA::CUDAFunctionPreference
 SemaCUDA::IdentifyPreference(const FunctionDecl *Caller,
@@ -295,21 +299,39 @@ SemaCUDA::IdentifyPreference(const FunctionDecl *Caller,
     if (CallerTarget == CUDAFunctionTarget::HostDevice &&
         CalleeTarget == CUDAFunctionTarget::Global)
       return CFP_Never;
+    // (s1)
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        CalleeTarget == CUDAFunctionTarget::Host)
+      return CFP_WrongSide;
+    // (s1)
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        CalleeTarget == CUDAFunctionTarget::HostDevice)
+      return CFP_SameSide;
   }
 
-  // Ph - Sh -> host compilation for SYCL+CUDA
+  // (y) Ph - Sh -> host compilation for SYCL+CUDA
   if (getLangOpts().SYCLIsHost && getLangOpts().CUDA &&
       !getLangOpts().CUDAIsDevice) {
-    // (y) allows __host__ and __host__ __device__ functions to call a
-    // __device__ one. This could happen, if a __device__ function is defined
-    // without having a corresponding __host__. In this case, a dummy __host__
-    // function is generated. This dummy function is required since the lambda
-    // that forms the SYCL kernel (having host device attr.) needs to be
-    // compiled also for the host. (CallerTarget == CUDAFunctionTarget::Host) is added in case a
-    // regular function (implicitly __host__) is called by a SYCL kernel lambda.
-    if ((CallerTarget == CUDAFunctionTarget::Host || CallerTarget == CUDAFunctionTarget::HostDevice) &&
+    // In host mode, allows __host__ and __host__ __device__ functions
+    // to call a __device__ one, but we shouldn't emit the call as __device__
+    // functions are replaced with a trap. __host__ -> __device__ is normally
+    // CFP_Never, but we need to make it a defer diagnostic.
+    if (CallerTarget == CUDAFunctionTarget::Host &&
         CalleeTarget == CUDAFunctionTarget::Device)
       return CFP_HostDevice;
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        (CalleeTarget == CUDAFunctionTarget::Host ||
+         CalleeTarget == CUDAFunctionTarget::Global))
+      return CFP_Native;
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        CalleeTarget == CUDAFunctionTarget::Device)
+      return CFP_HostDevice;
+    if (CallerTarget == CUDAFunctionTarget::HostDevice &&
+        CalleeTarget == CUDAFunctionTarget::HostDevice)
+      return CFP_SameSide;
+    if (CallerTarget == CUDAFunctionTarget::Host &&
+        CalleeTarget == CUDAFunctionTarget::HostDevice)
+      return CFP_SameSide;
   }
 
   // If one of the targets is invalid, the check always fails, no matter what
