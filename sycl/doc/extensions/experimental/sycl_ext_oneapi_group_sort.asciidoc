@@ -14,7 +14,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (c) 2021-2024 Intel Corporation.  All rights reserved.
+Copyright (c) 2021-2025 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -674,6 +674,8 @@ depending on `d`.
 e.g. `last-first` from `operator()` arguments.
 It mustn't be called within a SYCL kernel, only on host.
 Result depends on the `scope` parameter:
+use `sycl::memory_scope::device` to get memory size required
+for the whole device;
 use `sycl::memory_scope::work_group` to get memory size required
 for each work-group;
 use `sycl::memory_scope::sub_group` to get memory size required
@@ -698,7 +700,10 @@ depending on `d`.
 `ElementsPerWorkItem` is the extent parameter for `sycl::span`
 that is an input parameter for `sort_over_group`.
 It mustn't be called within a SYCL kernel, only on host.
-If `scope == sycl::memory_scope::work_group`,
+If `scope == sycl::memory_scope::device`,
+`range_size` is the size of the global range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope == sycl::memory_scope::work_group`,
 `range_size` is the size of the local range for `sycl::nd_range`
 that was used to run the kernel;
 if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
@@ -723,7 +728,10 @@ the default key-value
 sorting algorithm defined by the sorter calling by `sort_key_value_over_group`
 depending on `d`.
 It mustn't be called within a SYCL kernel, only on host.
-If `scope == sycl::memory_scope::work_group`,
+If `scope == sycl::memory_scope::device`,
+`range_size` is the size of the global range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope == sycl::memory_scope::work_group`,
 `range_size` is the size of the local range for `sycl::nd_range`
 that was used to run the kernel;
 if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
@@ -745,6 +753,8 @@ calling by `joint_sort`.
 `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
+use `sycl::memory_scope::device` to get memory size required
+for the whole device;
 use `sycl::memory_scope::work_group` to get memory size required
 for each work-group;
 use `sycl::memory_scope::sub_group` to get memory size required
@@ -763,7 +773,10 @@ sorting algorithm defined by the sorter calling by `sort_over_group`.
 `ElementsPerWorkItem` is a parameter for `sycl::span<T, ElementsPerWorkItem>`
 that is an input parameter for `sort_over_group`, where `T` is
 a first template argument for `radix_sorter`.
-If `scope == sycl::memory_scope::work_group`,
+If `scope == sycl::memory_scope::device`,
+`range_size` is the size of the global range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope == sycl::memory_scope::work_group`,
 `range_size` is the size of the local range for `sycl::nd_range`
 that was used to run the kernel;
 if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
@@ -781,7 +794,10 @@ accepts `sycl::span` values as input parameters.
 sorting algorithm defined by the sorter calling by `sort_key_value_over_group`
 with `sycl::span<T, ElementsPerWorkItem>` and
 `sycl::span<U, ElementsPerWorkItem>` as input parameters.
-If `scope == sycl::memory_scope::work_group`,
+If `scope == sycl::memory_scope::device`,
+`range_size` is the size of the global range for `sycl::nd_range`
+that was used to run the kernel;
+if `scope == sycl::memory_scope::work_group`,
 `range_size` is the size of the local range for `sycl::nd_range`
 that was used to run the kernel;
 if `scope = sycl::memory_scope::sub_group`, `range_size` is a sub-group size.
@@ -1016,16 +1032,20 @@ It's specified that data initially in `my_span` satisfies the
 ...
 namespace my_sycl = sycl::ext::oneapi::experimental;
 // calculate required local memory size
+
+size_t num_groups = 4;
 size_t temp_memory_size =
     my_sycl::default_sorters::joint_sorter<>::memory_required<T>(
-      d, sycl::memory_scope::work_group, n);
+      d, sycl::memory_scope::device, num_groups * n);
+
+std::byte* temp = sycl::malloc_device<std::byte>( temp_memory_size, queue );
 
 q.submit([&](sycl::handler& h) {
-  auto acc = sycl::accessor(buf, h);
-  auto scratch = sycl::local_accessor<std::byte, 1>( {temp_memory_size}, h );
+  auto acc = sycl::accessor(data, h);
 
   h.parallel_for(
-    sycl::nd_range<1>{ /*global_size = */ {256}, /*local_size = */ {256} },
+    sycl::nd_range<1>{ /*global_size = */ {num_groups * 256},
+                       /*local_size  = */ {256} },
     [=](sycl::nd_item<1> id) {
       auto ptr = acc.get_pointer() + id.get_group(0) * n;
 
@@ -1033,7 +1053,7 @@ q.submit([&](sycl::handler& h) {
         // create group helper using deduction guides
         my_sycl::group_with_scratchpad(
           id.get_group(),
-          sycl::span{scratch.get_pointer(), temp_memory_size}
+          sycl::span{temp, temp_memory_size}
         ),
         ptr,
         ptr + n
@@ -1093,17 +1113,19 @@ namespace my_sycl = sycl::ext::oneapi::experimental;
 using TupleType =
       typename std::iterator_traits<oneapi::dpl::zip_iterator<T*, U*>>::value_type;
 // calculate required local memory size
+size_t num_groups = 4;
 size_t temp_memory_size =
     my_sycl::default_sorters::joint_sorter<>::memory_required<TupleType>(
-      d, sycl::memory_scope::work_group, n);
+      d, sycl::memory_scope::device, num_groups * n);
+
+std::byte* temp = sycl::malloc_device<std::byte>( temp_memory_size, queue );
 
 q.submit([&](sycl::handler& h) {
   auto keys_acc = sycl::accessor(keys_buf, h);
   auto vals_acc = sycl::accessor(vals_buf, h);
-  auto scratch = sycl::local_accessor<std::byte, 1>( {temp_memory_size}, h);
 
   h.parallel_for(
-    sycl::nd_range<1>{ /*global_size = */ {1024}, /*local_size = */ {256} },
+    sycl::nd_range<1>{ /*global_size = */ {num_groups * 256}, /*local_size = */ {256} },
     [=](sycl::nd_item<1> id) {
       size_t group_id = id.get_group(0);
       auto keys_ptr = keys_acc.get_pointer() + group_id * n;
@@ -1114,7 +1136,7 @@ q.submit([&](sycl::handler& h) {
         // create group excutor using deduction guides
         my_sycl::group_with_scratchpad(
           id.get_group(),
-          sycl::span{scratch.get_pointer(), temp_memory_size}
+          sycl::span{temp, temp_memory_size}
         ),
         first,
         first + n,
@@ -1220,4 +1242,5 @@ making the entire extension experimental
 |4|2022-11-14|Andrey Fedorov|Fixed size arrays, key-value sorting and properties
 |5|2023-11-09|Andrey Fedorov|Changed `memory_required` functions for default sorters
 |6|2024-07-17|Artur Gainullin|Align the description of data placement properties with the implementation
+|7|2025-02-25|Andrey Fedorov|Add a possibility to pass `memory_scope::device` to `memory_required`
 |========================================
