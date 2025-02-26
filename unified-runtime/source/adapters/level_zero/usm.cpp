@@ -10,10 +10,15 @@
 
 #include <algorithm>
 #include <climits>
+#include <optional>
 #include <string.h>
 
 #include "context.hpp"
 #include "event.hpp"
+#include "queue.hpp"
+#include "umf/base.h"
+#include "umf/memory_pool.h"
+#include "ur_api.h"
 #include "usm.hpp"
 
 #include "logger/ur_logger.hpp"
@@ -21,6 +26,7 @@
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
 
+#include <tuple>
 #include <umf_helpers.hpp>
 
 namespace umf {
@@ -34,6 +40,67 @@ ur_result_t getProviderNativeError(const char *providerName,
   return UR_RESULT_ERROR_UNKNOWN;
 }
 } // namespace umf
+
+EnqueuedPool::~EnqueuedPool() { cleanup(); }
+
+std::optional<EnqueuedPool::Allocation>
+EnqueuedPool::getBestFit(size_t Size, size_t Alignment,
+                         ur_queue_handle_t Queue) {
+  auto Lock = std::lock_guard(Mutex);
+
+  Allocation Alloc = {nullptr, Size, nullptr, Queue, Alignment};
+
+  auto It = Freelist.lower_bound(Alloc);
+  if (It != Freelist.end() && It->Size >= Size && It->Queue == Queue &&
+      It->Alignment >= Alignment) {
+    Allocation BestFit = *It;
+    Freelist.erase(It);
+
+    return BestFit;
+  }
+
+  // To make sure there's no match on other queues, we need to reset it to
+  // nullptr and try again.
+  Alloc.Queue = nullptr;
+  It = Freelist.lower_bound(Alloc);
+
+  if (It != Freelist.end() && It->Size >= Size && It->Alignment >= Alignment) {
+    Allocation BestFit = *It;
+    Freelist.erase(It);
+
+    return BestFit;
+  }
+
+  return std::nullopt;
+}
+
+void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
+                          ur_queue_handle_t Queue) {
+  auto Lock = std::lock_guard(Mutex);
+
+  uintptr_t Address = (uintptr_t)Ptr;
+  size_t Alignment = Address & (~Address + 1);
+  Event->RefCount.increment();
+  EventsCleanup.push_back(Event);
+
+  Freelist.emplace(Allocation{Ptr, Size, Event, Queue, Alignment});
+}
+
+void EnqueuedPool::cleanup() {
+  for (auto It : EventsCleanup) {
+    urEventReleaseInternal(It);
+  }
+
+  EventsCleanup.clear();
+  for (auto It : Freelist) {
+    auto hPool = umfPoolByPtr(It.Ptr);
+    assert(hPool != nullptr);
+
+    auto umfRet = umfPoolFree(hPool, It.Ptr);
+    assert(umfRet == UMF_RESULT_SUCCESS);
+  }
+  Freelist.clear();
+}
 
 usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
     InitializeDisjointPoolConfig();
@@ -999,7 +1066,16 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       Pool = usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig);
     }
 
-    Ret = PoolManager.addPool(Desc, std::move(Pool));
+    std::unique_ptr<UsmPool> usmPool =
+        std::make_unique<UsmPool>(std::move(Pool));
+    Ret = umf::umf2urResult(
+        umfPoolSetTag(usmPool->UmfPool.get(), usmPool.get(), nullptr));
+    if (Ret) {
+      logger::error("urUSMPoolCreate: failed to store USM pool tag");
+      throw UsmAllocationException(Ret);
+    }
+
+    Ret = PoolManager.addPool(Desc, std::move(usmPool));
     if (Ret) {
       logger::error("urUSMPoolCreate: failed to store UMF pool");
       throw UsmAllocationException(Ret);
@@ -1049,8 +1125,12 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
   for (auto &Desc : Descriptors) {
     auto &PoolConfig =
         DisjointPoolConfigs.Configs[DescToDisjointPoolMemType(Desc)];
-    auto Pool = usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig);
-    auto Ret = PoolManager.addPool(Desc, std::move(Pool));
+    umf::pool_unique_handle_t Pool =
+        usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig);
+    std::unique_ptr<UsmPool> usmPool =
+        std::make_unique<UsmPool>(std::move(Pool));
+
+    auto Ret = PoolManager.addPool(Desc, std::move(usmPool));
     if (Ret) {
       logger::error("urUSMPoolCreate: failed to store UMF pool");
       throw UsmAllocationException(Ret);
@@ -1058,10 +1138,42 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
   }
 }
 
-umf_memory_pool_handle_t
-ur_usm_pool_handle_t_::getPool(const usm::pool_descriptor &Desc) {
+UsmPool *ur_usm_pool_handle_t_::getPool(const usm::pool_descriptor &Desc) {
   auto PoolOpt = PoolManager.getPool(Desc);
   return PoolOpt.has_value() ? PoolOpt.value() : nullptr;
+}
+
+std::optional<std::pair<void *, ur_event_handle_t>>
+ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
+                                        ur_device_handle_t Device,
+                                        const ur_usm_desc_t *USMDesc,
+                                        ur_usm_type_t Type, size_t Size) {
+  uint32_t Alignment = USMDesc ? USMDesc->align : 0;
+  if (Alignment > 0) {
+    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
+      return std::nullopt;
+  }
+
+  bool DeviceReadOnly = false;
+  if (auto UsmDeviceDesc = find_stype_node<ur_usm_device_desc_t>(USMDesc)) {
+    DeviceReadOnly =
+        (Type == UR_USM_TYPE_SHARED) &&
+        (UsmDeviceDesc->flags & UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY);
+  }
+
+  auto *Pool = getPool(
+      usm::pool_descriptor{this, Queue->Context, Device, Type, DeviceReadOnly});
+  if (!Pool) {
+    return std::nullopt;
+  }
+
+  auto Allocation = Pool->AsyncPool.getBestFit(Size, Alignment, Queue);
+
+  if (!Allocation) {
+    return std::nullopt;
+  }
+
+  return std::make_pair(Allocation->Ptr, Allocation->Event);
 }
 
 ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
@@ -1115,11 +1227,12 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
     ContextLock.lock();
   }
 
-  auto umfPool = getPool(
+  auto *Pool = getPool(
       usm::pool_descriptor{this, Context, Device, Type, DeviceReadOnly});
-  if (!umfPool) {
+  if (!Pool) {
     return UR_RESULT_ERROR_INVALID_ARGUMENT;
   }
+  auto umfPool = Pool->UmfPool.get();
 
   *RetMem = umfPoolAlignedMalloc(umfPool, Size, Alignment);
   if (*RetMem == nullptr) {
@@ -1140,8 +1253,28 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
+UsmPool *
+ur_usm_pool_handle_t_::getPoolByHandle(const umf_memory_pool_handle_t UmfPool) {
+  UsmPool *Pool = nullptr;
+  PoolManager.forEachPool([&](UsmPool *p) {
+    if (p->UmfPool.get() == UmfPool) {
+      Pool = p;
+      return false; /* stop iterating */
+    }
+    return true;
+  });
+  return Pool;
+}
+
+void ur_usm_pool_handle_t_::cleanupPools() {
+  PoolManager.forEachPool([&](UsmPool *p) {
+    p->AsyncPool.cleanup();
+    return true;
+  });
+}
+
 bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t Pool) {
-  return PoolManager.hasPool(Pool);
+  return getPoolByHandle(Pool) != nullptr;
 }
 
 // If indirect access tracking is not enabled then this functions just performs
