@@ -59,7 +59,9 @@ runs:
       echo ----
       groups
       echo ----
-      find /usr/lib /usr/local/lib /opt -name "libze_*.so"
+      ls /opt/sycl/lib
+      echo ----
+      ls /usr/lib/x86_64-linux-gnu
   - name: Run compute-benchmarks
     shell: bash
     run: |
