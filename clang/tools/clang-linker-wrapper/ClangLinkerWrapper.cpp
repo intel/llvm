@@ -729,9 +729,9 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   Arg *SYCLDeviceLibLoc = Args.getLastArg(OPT_sycl_device_library_location_EQ);
   if (SYCLDeviceLibLoc && !Triple.isSPIRAOT()) {
     std::string SYCLDeviceLibLocParam = SYCLDeviceLibLoc->getValue();
-    std::string AssertDeviceLibLoc =
+    std::string BF16DeviceLibLoc =
         SYCLDeviceLibLocParam + "/libsycl-native-bfloat16.bc";
-    if (llvm::sys::fs::exists(AssertDeviceLibLoc)) {
+    if (llvm::sys::fs::exists(BF16DeviceLibLoc)) {
       SYCLDeviceLibLocParam = "--device-lib-dir=" + SYCLDeviceLibLocParam;
       CmdArgs.push_back(Args.MakeArgString(StringRef(SYCLDeviceLibLocParam)));
     }
