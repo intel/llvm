@@ -746,7 +746,7 @@ public:
     removeProgramByKey(Key, ProgCache);
     {
       auto LockedEvictionList = acquireEvictionList();
-      LockedEvictionList.get().erase(It->second);
+      LockedEvictionList.get().erase(Key);
     }
   }
 
