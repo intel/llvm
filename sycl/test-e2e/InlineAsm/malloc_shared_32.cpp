@@ -24,7 +24,7 @@ int main() {
 
   syclex::architecture CurrentDeviceArch =
       Device.get_info<syclex::info::device::architecture>();
-
+  // This skip is done because test is not supported on BMG and later devices.
   if (CurrentDeviceArch >= syclex::architecture::intel_gpu_bmg_g21) {
     std::cout << "This test is not supported on BMG and later. Skipping..."
               << std::endl;
@@ -48,6 +48,8 @@ int main() {
        sycl::range<1>(problem_size),
        [=](sycl::id<1> idx) [[sycl::reqd_sub_group_size(32)]] {
          int i = idx[0];
+         // The use of if_architecture_is_ge is a precaution in case the test is
+         // compiled with the -fsycl-targets flag.
          syclex::if_architecture_is_ge<syclex::architecture::intel_gpu_bmg_g21>(
              []() {})
              .otherwise([&]() {
