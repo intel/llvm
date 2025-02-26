@@ -24,10 +24,10 @@
 
 __attribute__((host)) __attribute__((device)) void caller_hostdevice() {
     callee_device();
-    callee_host(); // all-dev-error {{reference to __host__ function 'callee_host' in __host__ __device__ function}}
-    // all-dev-note@#callee_host {{'callee_host' declared here}}
-    callee_host_implicit(); // all-dev-error {{reference to __host__ function 'callee_host_implicit' in __host__ __device__ function}}
-    // all-dev-note@#callee_host_implicit {{'callee_host_implicit' declared here}}
+    callee_host(); // cuda-dev-error {{reference to __host__ function 'callee_host' in __host__ __device__ function}}
+    // cuda-dev-note@#callee_host {{'callee_host' declared here}}
+    callee_host_implicit(); // cuda-dev-error {{reference to __host__ function 'callee_host_implicit' in __host__ __device__ function}}
+    // cuda-dev-note@#callee_host_implicit {{'callee_host_implicit' declared here}}
     callee_hostdevice();
     callee_hostdevice_implicit();
     callee_global(); // host-error {{call to global function 'callee_global' not configured}}
@@ -48,6 +48,6 @@ __attribute__((host)) __attribute__((device)) void caller_hostdevice_overload_te
 
 #ifdef __SYCL_DEVICE_ONLY__
 __attribute__((sycl_device)) void sycl_root() {
-  caller_hostdevice(); // all-dev-note {{called by 'sycl_root'}}
+  caller_hostdevice();
 }
 #endif

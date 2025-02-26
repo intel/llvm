@@ -248,7 +248,7 @@ SemaCUDA::CUDAVariableTarget SemaCUDA::IdentifyTarget(const VarDecl *Var) {
 // | h  | hd |    SS(u) |     HD     |     HD    | ( ) |
 // | hd | d  |    HD(y) |     SS     |     N(x)  | ( ) |
 // | hd | g  |    N     |     --     |     --(z) |(d/a)|
-// | hd | h  |    N     |     WS     |     WS(s1)| (d) |
+// | hd | h  |    N     |     WS     |     HD(s1)| (d) |
 // | hd | hd |    SS    |     HD     |     SS(s2)| (b) |
 
 SemaCUDA::CUDAFunctionPreference
@@ -302,7 +302,7 @@ SemaCUDA::IdentifyPreference(const FunctionDecl *Caller,
     // (s1)
     if (CallerTarget == CUDAFunctionTarget::HostDevice &&
         CalleeTarget == CUDAFunctionTarget::Host)
-      return CFP_WrongSide;
+      return CFP_HostDevice;
     // (s1)
     if (CallerTarget == CUDAFunctionTarget::HostDevice &&
         CalleeTarget == CUDAFunctionTarget::HostDevice)
