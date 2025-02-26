@@ -6207,6 +6207,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
   case UR_MEM_TYPE_IMAGE_CUBEMAP_EXP:
     os << "UR_MEM_TYPE_IMAGE_CUBEMAP_EXP";
     break;
+  case UR_MEM_TYPE_IMAGE_GATHER_EXP:
+    os << "UR_MEM_TYPE_IMAGE_GATHER_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;

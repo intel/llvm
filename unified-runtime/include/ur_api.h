@@ -3198,6 +3198,8 @@ typedef enum ur_mem_type_t {
   UR_MEM_TYPE_IMAGE1D_ARRAY = 4,
   /// Experimental cubemap image object
   UR_MEM_TYPE_IMAGE_CUBEMAP_EXP = 0x2000,
+  /// Experimental gather image object
+  UR_MEM_TYPE_IMAGE_GATHER_EXP = 0x2001,
   /// @cond
   UR_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
