@@ -260,6 +260,12 @@ void ThreadSanitizerOnSpirv::initialize() {
     const unsigned BitSize = ByteSize * 8;
     std::string ByteSizeStr = utostr(ByteSize);
     std::string BitSizeStr = utostr(BitSize);
+    // __tsan_readX/__tsan_writeX(
+    //   ...
+    //   char* file,
+    //   unsigned int line,
+    //   char* func
+    // )
     SmallString<32> ReadName("__tsan_read" + ByteSizeStr);
     TsanRead[i] = M.getOrInsertFunction(ReadName, Attr, IRB.getVoidTy(),
                                         IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
