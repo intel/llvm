@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "ur_api.h"
 #include <uur/fixtures.h>
 struct urL0EnqueueAllocTest : uur::urKernelExecutionTest {
   void SetUp() {
@@ -18,12 +19,14 @@ struct urL0EnqueueAllocTest : uur::urKernelExecutionTest {
         urEnqueueUSMFreeExp(queue, nullptr, ptr, 0, nullptr, &freeEvent));
     ASSERT_NE(freeEvent, nullptr);
     ASSERT_SUCCESS(urQueueFinish(queue));
+    urEventRelease(freeEvent);
   }
 
   static constexpr size_t ARRAY_SIZE = 16;
   static constexpr uint32_t DATA = 0xC0FFEE;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urL0EnqueueAllocTest);
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE(urL0EnqueueAllocTest);
 
 TEST_P(urL0EnqueueAllocTest, SuccessHost) {
   ur_device_usm_access_capability_flags_t hostUSMSupport = 0;
@@ -42,6 +45,8 @@ TEST_P(urL0EnqueueAllocTest, SuccessHost) {
   ASSERT_NE(allocEvent, nullptr);
   *(uint32_t *)ptr = DATA;
   ValidateEnqueueFree(ptr);
+
+  urEventRelease(allocEvent);
 }
 
 // Disable temporarily until user pool handling is implemented
@@ -85,6 +90,7 @@ TEST_P(urL0EnqueueAllocTest, SuccessDevice) {
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(DATA), nullptr, &DATA));
   Launch1DRange(ARRAY_SIZE);
   ValidateEnqueueFree(ptr);
+  urEventRelease(allocEvent);
 }
 
 TEST_P(urL0EnqueueAllocTest, SuccessDeviceRepeat) {
@@ -134,4 +140,5 @@ TEST_P(urL0EnqueueAllocTest, SuccessShared) {
   ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(DATA), nullptr, &DATA));
   Launch1DRange(ARRAY_SIZE);
   ValidateEnqueueFree(ptr);
+  urEventRelease(allocEvent);
 }
