@@ -67,6 +67,8 @@ def do_configure(args):
     llvm_enable_zstd = "ON"
 
     if sys.platform != "darwin":
+        # For more info on the enablement of level_zero_v2 refer to this comment:
+        # https://github.com/intel/llvm/pull/16656#discussion_r1920513753
         if args.level_zero_v2:
             sycl_enabled_backends.append("level_zero_v2")
         else:
