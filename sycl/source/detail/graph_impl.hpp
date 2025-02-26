@@ -1409,6 +1409,7 @@ private:
   /// @param[out] BundleObjs UR objects created from kernel bundle.
   /// Responsibility of the caller to release.
   /// @param[out] MemobjDescs Memory object arguments to update.
+  /// @param[out] MemobjProps Properties used in /p MemobjDescs structs.
   /// @param[out] PtrDescs Pointer arguments to update.
   /// @param[out] ValueDescs Value arguments to update.
   /// @param[out] NDRDesc ND-Range to update.
@@ -1417,6 +1418,7 @@ private:
       const std::shared_ptr<node_impl> &Node,
       std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
       std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
+      std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
       std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
       std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
       sycl::detail::NDRDescT &NDRDesc,

@@ -678,7 +678,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   cl_uint NumConfigs = ConfigList.size();
   std::vector<cl_command_buffer_update_type_khr> ConfigTypes(
       NumConfigs, CL_STRUCTURE_TYPE_MUTABLE_DISPATCH_CONFIG_KHR);
-  std::vector<void *> ConfigPtrs(NumConfigs);
+  std::vector<const void *> ConfigPtrs(NumConfigs);
   for (cl_uint i = 0; i < NumConfigs; i++) {
     ConfigPtrs[i] = &ConfigList[i];
   }

@@ -3749,10 +3749,9 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   auto PartitionedNodes = MGraph->getURUpdatableNodes(MNodes);
   auto Device = MQueue->get_device();
   auto &Partitions = MGraph->getPartitions();
-  for (auto It = PartitionedNodes.begin(); It != PartitionedNodes.end(); It++) {
-    const int PartitionIndex = It->first;
+  for (auto &[PartitionIndex, NodeImpl] : PartitionedNodes) {
     auto CommandBuffer = Partitions[PartitionIndex]->MCommandBuffers[Device];
-    MGraph->updateURImpl(CommandBuffer, It->second);
+    MGraph->updateURImpl(CommandBuffer, NodeImpl);
   }
 
   return UR_RESULT_SUCCESS;

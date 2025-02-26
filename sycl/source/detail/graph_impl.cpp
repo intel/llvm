@@ -1427,11 +1427,10 @@ void exec_graph_impl::update(
     // For each partition in the executable graph, call UR update on the
     // command-buffer with the nodes to update.
     auto PartitionedNodes = getURUpdatableNodes(Nodes);
-    for (auto It = PartitionedNodes.begin(); It != PartitionedNodes.end();
-         It++) {
-      auto &Partition = MPartitions[It->first];
+    for (auto &[PartitionIndex, NodeImpl] : PartitionedNodes) {
+      auto &Partition = MPartitions[PartitionIndex];
       auto CommandBuffer = Partition->MCommandBuffers[MDevice];
-      updateURImpl(CommandBuffer, It->second);
+      updateURImpl(CommandBuffer, NodeImpl);
     }
   }
 
@@ -1497,6 +1496,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     const std::shared_ptr<node_impl> &Node,
     std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
     std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
+    std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
     std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
     std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
     sycl::detail::NDRDescT &NDRDesc,
@@ -1580,6 +1580,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   MemobjDescs.reserve(MaskedArgs.size());
   PtrDescs.reserve(MaskedArgs.size());
   ValueDescs.reserve(MaskedArgs.size());
+  MemobjProps.resize(MaskedArgs.size()); // resize since we access by reference
 
   UpdateDesc.stype =
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC;
@@ -1606,27 +1607,27 @@ void exec_graph_impl::populateURKernelUpdateStructs(
       sycl::detail::Requirement *Req =
           static_cast<sycl::detail::Requirement *>(NodeArg.MPtr);
 
-      ur_kernel_arg_mem_obj_properties_t MemObjProps;
-      MemObjProps.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
-      MemObjProps.pNext = nullptr;
+      ur_kernel_arg_mem_obj_properties_t &MemObjProp = MemobjProps[i];
+      MemObjProp.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
+      MemObjProp.pNext = nullptr;
       switch (Req->MAccessMode) {
       case access::mode::read: {
-        MemObjProps.memoryAccess = UR_MEM_FLAG_READ_ONLY;
+        MemObjProp.memoryAccess = UR_MEM_FLAG_READ_ONLY;
         break;
       }
       case access::mode::write:
       case access::mode::discard_write: {
-        MemObjProps.memoryAccess = UR_MEM_FLAG_WRITE_ONLY;
+        MemObjProp.memoryAccess = UR_MEM_FLAG_WRITE_ONLY;
         break;
       }
       default: {
-        MemObjProps.memoryAccess = UR_MEM_FLAG_READ_WRITE;
+        MemObjProp.memoryAccess = UR_MEM_FLAG_READ_WRITE;
         break;
       }
       }
       MemobjDescs.push_back(
           {UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC, nullptr,
-           static_cast<uint32_t>(NodeArg.MIndex), &MemObjProps,
+           static_cast<uint32_t>(NodeArg.MIndex), &MemObjProp,
            static_cast<ur_mem_handle_t>(Req->MData)});
 
     } break;
@@ -1718,8 +1719,16 @@ void exec_graph_impl::updateURImpl(
     return;
   }
 
+  // The urCommandBufferUpdateKernelLaunchExp API takes structs which contain
+  // members that are pointers to other structs. The lifetime of all the
+  // pointers (including nested pointers) needs to be valid at the time of the
+  // urCommandBufferUpdateKernelLaunchExp call. Define the objects here which
+  // will be populated and used in the urCommandBufferUpdateKernelLaunchExp
+  // call.
   std::vector<std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t>>
       MemobjDescsList(NumUpdatableNodes);
+  std::vector<std::vector<ur_kernel_arg_mem_obj_properties_t>> MemobjPropsList(
+      NumUpdatableNodes);
   std::vector<std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t>>
       PtrDescsList(NumUpdatableNodes);
   std::vector<std::vector<ur_exp_command_buffer_update_value_arg_desc_t>>
@@ -1737,13 +1746,15 @@ void exec_graph_impl::updateURImpl(
     assert(Node->MCGType == sycl::detail::CGType::Kernel);
 
     auto &MemobjDescs = MemobjDescsList[StructListIndex];
+    auto &MemobjProps = MemobjPropsList[StructListIndex];
     auto &KernelBundleObjs = KernelBundleObjList[StructListIndex];
     auto &PtrDescs = PtrDescsList[StructListIndex];
     auto &ValueDescs = ValueDescsList[StructListIndex];
     auto &NDRDesc = NDRDescList[StructListIndex];
     auto &UpdateDesc = UpdateDescList[StructListIndex];
-    populateURKernelUpdateStructs(Node, KernelBundleObjs, MemobjDescs, PtrDescs,
-                                  ValueDescs, NDRDesc, UpdateDesc);
+    populateURKernelUpdateStructs(Node, KernelBundleObjs, MemobjDescs,
+                                  MemobjProps, PtrDescs, ValueDescs, NDRDesc,
+                                  UpdateDesc);
     StructListIndex++;
   }
 

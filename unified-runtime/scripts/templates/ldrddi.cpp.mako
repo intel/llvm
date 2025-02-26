@@ -215,7 +215,7 @@ namespace ur_loader
         %if func_basename == "CommandBufferUpdateKernelLaunchExp":
             ## CommandBufferUpdateKernelLaunchExp entry-point takes a list of structs with
             ## handle members, as well as members defining a nested list of structs
-            ## containing handles. This useage is not supported yet, so special case as
+            ## containing handles. This usage is not supported yet, so special case as
             ## a temporary measure.
             std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> pUpdateKernelLaunchVector = {};
             std::vector<std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t>>
