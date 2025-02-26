@@ -433,6 +433,7 @@ inline typename ext::intel::info::kernel_device_specific::spill_memory_size::
       getAdapter());
 }
 
+template <>
 inline typename syclex::info::kernel_queue_specific::max_work_group_size::
     return_type
     kernel_impl::ext_oneapi_get_info<
