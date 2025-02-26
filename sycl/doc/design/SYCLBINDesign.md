@@ -168,11 +168,10 @@ described in the
 design document.
 
 
-### Byte table
+### Byte tables
 
 A byte table contains dynamic data, such as metadata and binary blobs. The
 contents of it is generally referenced by an offset specified in the headers.
-The implementation has two 
 
 __Alignment:__ 64 bits. This alignment guarantee does not apply to the
 structures contained in the table.
