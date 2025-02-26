@@ -3467,4 +3467,11 @@ def int_amdgcn_addrspacecast_nonnull : DefaultAttrsIntrinsic<
 // SYCL
 def int_amdgcn_implicit_offset : ClangBuiltin<"__builtin_amdgcn_implicit_offset">,
   Intrinsic<[LLVMQualPointerType<5>], [], [IntrNoMem, IntrSpeculatable]>;
+  
+/// Make it clear to the backend that this value is really dead. For instance,
+/// when used as an input to a phi node, it will make it possible for the
+/// backend to allocate the dead lanes for operations within the corresponding
+/// incoming block.
+def int_amdgcn_dead: DefaultAttrsIntrinsic<[llvm_any_ty], [],
+    [IntrNoMem, IntrWillReturn, IntrNoCallback]>;
 }
