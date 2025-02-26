@@ -3064,6 +3064,7 @@ ur_result_t ExecCGCommand::enqueueImp() {
 
 ur_result_t ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CGType::CodeplayHostTask)
+    // ktikhomi: to filter host events here
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getUrEvents(EventImpls);
@@ -3353,7 +3354,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // Host task is executed asynchronously so we should record where it was
     // submitted to report exception origin properly.
     copySubmissionCodeLocation();
-
+    if (producesPiEvent()) {
+      auto TempContext = getContext(HostTask->MQueue)->getHandleRef();
+      ur_event_native_properties_t NativeProperties{};
+      auto &Adapter = MQueue->getAdapter();
+      Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
+          0, TempContext, &NativeProperties, &UREvent);
+      MEvent->setHandle(UREvent);
+    }
     queue_impl::getThreadPool().submit<DispatchHostTask>(
         DispatchHostTask(this, std::move(ReqToMem), std::move(ReqUrMem)));
 
