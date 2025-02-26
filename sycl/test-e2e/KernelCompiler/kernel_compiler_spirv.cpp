@@ -8,6 +8,9 @@
 
 // REQUIRES: ocloc
 
+// UNSUPPORTED: any-device-is-hip
+// UNSUPPORTED-INTENDED: sycl-rel-6_1_0 doesn't support "target-spir" requirement, so just disabling on HIP.
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %S/Kernels/kernels.spv %S/Kernels/kernels_fp16.spv %S/Kernels/kernels_fp64.spv
 
