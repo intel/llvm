@@ -1,4 +1,4 @@
-// REQUIRES:  arch-intel_gpu_pvc, level_zero, linux
+// REQUIRES:  arch-intel_gpu_pvc, level_zero
 
 // XFAIL: arch-intel_gpu_pvc && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15602
@@ -32,7 +32,6 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
-#include <unistd.h>
 
 using namespace sycl;
 using namespace std::chrono;
