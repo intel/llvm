@@ -84,20 +84,22 @@ SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
   FileHeader.IRModuleCount = 0;
   FileHeader.NativeDeviceCodeImageCount = 0;
 
-  SmallString<0> ByteTable;
-  raw_svector_ostream ByteTableOS(ByteTable);
+  SmallString<0> MetadataByteTable;
+  raw_svector_ostream MetadataByteTableOS(MetadataByteTable);
+  SmallString<0> BinaryByteTable;
+  raw_svector_ostream BinaryByteTableOS(BinaryByteTable);
 
   {
     // Create global metadata properties.
-    FileHeader.GlobalMetadataOffset = ByteTable.size();
+    FileHeader.GlobalMetadataOffset = MetadataByteTable.size();
     llvm::util::PropertySetRegistry GlobalMetadata;
     // TODO: Determine state from the input.
     GlobalMetadata.add(llvm::util::PropertySetRegistry::SYCLBIN_GLOBAL_METADATA,
                        "state",
                        /*input*/ 0);
-    GlobalMetadata.write(ByteTableOS);
+    GlobalMetadata.write(MetadataByteTableOS);
     FileHeader.GlobalMetadataSize =
-        ByteTable.size() - FileHeader.GlobalMetadataOffset;
+        MetadataByteTable.size() - FileHeader.GlobalMetadataOffset;
   }
 
   // Calculate the number of abstract modules.
@@ -112,9 +114,10 @@ SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
   for (const ModuleDesc &Desc : ModuleDescs) {
     for (const module_split::SplitModule &SM : Desc.SplitModules) {
       AbstractModuleHeaderType &AMHeader = AMHeaders.emplace_back();
-      AMHeader.MetadataOffset = ByteTable.size();
-      SM.Properties.write(ByteTableOS);
-      AMHeader.MetadataSize = ByteTable.size() - AMHeader.MetadataOffset;
+      AMHeader.MetadataOffset = MetadataByteTable.size();
+      SM.Properties.write(MetadataByteTableOS);
+      AMHeader.MetadataSize =
+          MetadataByteTable.size() - AMHeader.MetadataOffset;
 
       // Read the module data. This is needed no matter what kind of module it
       // is.
@@ -133,19 +136,20 @@ SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
         IRModuleHeaderType &IRMHeader = IRMHeaders.emplace_back();
         {
           // Create metadata properties.
-          IRMHeader.MetadataOffset = ByteTable.size();
+          IRMHeader.MetadataOffset = MetadataByteTable.size();
           llvm::util::PropertySetRegistry IRMMetadata;
           // TODO: Determine state from the input.
           IRMMetadata.add(
               llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
               "type",
               /*SPIR-V*/ 0);
-          IRMMetadata.write(ByteTableOS);
-          IRMHeader.MetadataSize = ByteTable.size() - IRMHeader.MetadataOffset;
+          IRMMetadata.write(MetadataByteTableOS);
+          IRMHeader.MetadataSize =
+              MetadataByteTable.size() - IRMHeader.MetadataOffset;
         }
-        IRMHeader.RawIRBytesOffset = ByteTable.size();
+        IRMHeader.RawIRBytesOffset = BinaryByteTable.size();
         IRMHeader.RawIRBytesSize = RawModuleData.size();
-        ByteTableOS << RawModuleData;
+        BinaryByteTableOS << RawModuleData;
       }
 
       // If arch string is present, the module must be a native device code
@@ -159,24 +163,25 @@ SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
             NDCIHeaders.emplace_back();
         {
           // Create metadata properties.
-          NDCIHeader.MetadataOffset = ByteTable.size();
+          NDCIHeader.MetadataOffset = MetadataByteTable.size();
           llvm::util::PropertySetRegistry NDCIMetadata;
           NDCIMetadata.add(llvm::util::PropertySetRegistry::
                                SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
                            "arch", Desc.ArchString);
-          NDCIMetadata.write(ByteTableOS);
+          NDCIMetadata.write(MetadataByteTableOS);
           NDCIHeader.MetadataSize =
-              ByteTable.size() - NDCIHeader.MetadataOffset;
+              MetadataByteTable.size() - NDCIHeader.MetadataOffset;
         }
-        NDCIHeader.BinaryBytesOffset = ByteTable.size();
+        NDCIHeader.BinaryBytesOffset = BinaryByteTable.size();
         NDCIHeader.BinaryBytesSize = RawModuleData.size();
-        ByteTableOS << RawModuleData;
+        BinaryByteTableOS << RawModuleData;
       }
     }
   }
 
-  // Record the final byte table size.
-  FileHeader.ByteTableSize = ByteTable.size();
+  // Record the final byte table sizes.
+  FileHeader.MetadataByteTableSize = MetadataByteTable.size();
+  FileHeader.BinaryByteTableSize = BinaryByteTable.size();
 
   // Write to combined data string.
   SmallString<0> Data;
@@ -189,10 +194,16 @@ SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
                   IRMHeaders.size_in_bytes());
   OS << StringRef(reinterpret_cast<const char *>(NDCIHeaders.data()),
                   NDCIHeaders.size_in_bytes());
-  OS << ByteTable;
 
-  // Add final padding to required alignment.
+  // Add metadata byte table and pad to align.
+  OS << MetadataByteTable;
   size_t AlignedSize = alignTo(OS.tell(), 8);
+  OS.write_zeros(AlignedSize - OS.tell());
+  assert(AlignedSize == OS.tell() && "Size mismatch");
+
+  // Add binary byte table and pad to align.
+  OS << BinaryByteTable;
+  AlignedSize = alignTo(OS.tell(), 8);
   OS.write_zeros(AlignedSize - OS.tell());
   assert(AlignedSize == OS.tell() && "Size mismatch");
 
@@ -227,19 +238,25 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
                                        FileHeader->NativeDeviceCodeImageCount;
   const uint64_t HeaderBlockSize = sizeof(FileHeaderType) + AMHeaderBlockSize +
                                    IRMHeaderBlockSize + NDCIHeaderBlockSize;
-
-  if (Source.getBufferSize() < HeaderBlockSize + FileHeader->ByteTableSize)
+  const uint64_t AlignedMetadataByteTableSize =
+      alignTo(FileHeader->MetadataByteTableSize, 8);
+  if (Source.getBufferSize() < HeaderBlockSize + AlignedMetadataByteTableSize +
+                                   FileHeader->BinaryByteTableSize)
     return createStringError(inconvertibleErrorCode(),
                              "Unexpected file contents size.");
 
   // Create reader objects. These help with checking out-of-bounds access.
   SYCLBINHeaderBlockReader HeaderBlockReader{Source.getBufferStart(),
                                              HeaderBlockSize};
-  SYCLBINByteTableBlockReader ByteTableBlockReader{
-      Source.getBufferStart() + HeaderBlockSize, FileHeader->ByteTableSize};
+  SYCLBINByteTableBlockReader MetadataByteTableBlockReader{
+      Source.getBufferStart() + HeaderBlockSize,
+      FileHeader->MetadataByteTableSize};
+  SYCLBINByteTableBlockReader BinaryByteTableBlockReader{
+      Source.getBufferStart() + HeaderBlockSize + AlignedMetadataByteTableSize,
+      FileHeader->BinaryByteTableSize};
 
   // Read global metadata.
-  if (Error E = ByteTableBlockReader
+  if (Error E = MetadataByteTableBlockReader
                     .GetMetadata(FileHeader->GlobalMetadataOffset,
                                  FileHeader->GlobalMetadataSize)
                     .moveInto(Result->GlobalMetadata))
@@ -262,7 +279,7 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
 
     // Read the metadata for the current abstract module.
     if (Error E =
-            ByteTableBlockReader
+            MetadataByteTableBlockReader
                 .GetMetadata(AMHeader->MetadataOffset, AMHeader->MetadataSize)
                 .moveInto(AM.Metadata))
       return E;
@@ -283,14 +300,14 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
         return E;
 
       // Read the metadata for the current IR module.
-      if (Error E = ByteTableBlockReader
+      if (Error E = MetadataByteTableBlockReader
                         .GetMetadata(IRMHeader->MetadataOffset,
                                      IRMHeader->MetadataSize)
                         .moveInto(IRM.Metadata))
         return E;
 
       // Read the binary blob for the current IR module.
-      if (Error E = ByteTableBlockReader
+      if (Error E = BinaryByteTableBlockReader
                         .GetBinaryBlob(IRMHeader->RawIRBytesOffset,
                                        IRMHeader->RawIRBytesSize)
                         .moveInto(IRM.RawIRBytes))
@@ -315,14 +332,14 @@ Expected<std::unique_ptr<SYCLBIN>> SYCLBIN::read(MemoryBufferRef Source) {
         return E;
 
       // Read the metadata for the current native device code image.
-      if (Error E = ByteTableBlockReader
+      if (Error E = MetadataByteTableBlockReader
                         .GetMetadata(NDCIHeader->MetadataOffset,
                                      NDCIHeader->MetadataSize)
                         .moveInto(NDCI.Metadata))
         return E;
 
       // Read the binary blob for the current native device code image.
-      if (Error E = ByteTableBlockReader
+      if (Error E = BinaryByteTableBlockReader
                         .GetBinaryBlob(NDCIHeader->BinaryBytesOffset,
                                        NDCIHeader->BinaryBytesSize)
                         .moveInto(NDCI.RawDeviceCodeImageBytes))

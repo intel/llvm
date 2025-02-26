@@ -77,7 +77,8 @@ private:
     uint32_t AbstractModuleCount;
     uint32_t IRModuleCount;
     uint32_t NativeDeviceCodeImageCount;
-    uint64_t ByteTableSize;
+    uint64_t MetadataByteTableSize;
+    uint64_t BinaryByteTableSize;
     uint64_t GlobalMetadataOffset;
     uint64_t GlobalMetadataSize;
   };
