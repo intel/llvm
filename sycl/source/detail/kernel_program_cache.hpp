@@ -736,16 +736,17 @@ public:
     auto LockedCache = acquireCachedPrograms();
     auto &ProgCache = LockedCache.get();
 
-    if (auto It = std::find_if(ProgCache.KeyMap.begin(), ProgCache.KeyMap.end(),
-                               [&ImageId](const auto &Entry) {
-                                 return ImageId == Entry.first.first;
-                               });
-        It != ProgCache.KeyMap.end()) {
-      {
-        auto LockedEvictionList = acquireEvictionList();
-        LockedEvictionList.get().erase(It->second);
-      }
-      removeProgramByKey(It->second, ProgCache);
+    auto It = std::find_if(
+        ProgCache.KeyMap.begin(), ProgCache.KeyMap.end(),
+        [&ImageId](const auto &Entry) { return ImageId == Entry.first.first; });
+    if (It == ProgCache.KeyMap.end())
+      return;
+
+    auto Key = It->second;
+    removeProgramByKey(Key, ProgCache);
+    {
+      auto LockedEvictionList = acquireEvictionList();
+      LockedEvictionList.get().erase(It->second);
     }
   }
 
