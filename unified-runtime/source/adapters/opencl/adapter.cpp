@@ -18,6 +18,11 @@
 #include <dlfcn.h>
 #endif
 
+// There can only be one OpenCL adapter alive at a time.
+// If it is alive (more get/retains than releases called), this is a pointer to
+// it.
+static ur_adapter_handle_t liveAdapter = nullptr;
+
 ur_adapter_handle_t_::ur_adapter_handle_t_() {
 #ifdef _MSC_VER
 
@@ -42,45 +47,38 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() {
 #undef CL_CORE_FUNCTION
 
 #endif // _MSC_VER
+  assert(!liveAdapter);
+  liveAdapter = this;
 }
 
-static ur_adapter_handle_t adapter = nullptr;
+ur_adapter_handle_t_::~ur_adapter_handle_t_() {
+  assert(liveAdapter == this);
+  liveAdapter = nullptr;
+}
 
 ur_adapter_handle_t ur::cl::getAdapter() {
-  if (!adapter) {
+  if (!liveAdapter) {
     die("OpenCL adapter used before initalization or after destruction");
   }
-  return adapter;
-}
-
-static void globalAdapterShutdown() {
-  if (cl_ext::ExtFuncPtrCache) {
-    delete cl_ext::ExtFuncPtrCache;
-    cl_ext::ExtFuncPtrCache = nullptr;
-  }
-  if (adapter) {
-    delete adapter;
-    adapter = nullptr;
-  }
+  return liveAdapter;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
              uint32_t *pNumAdapters) {
+  static std::mutex AdapterConstructionMutex{};
+
   if (NumEntries > 0 && phAdapters) {
-    // Sometimes urAdaterGet may be called after the library already been torn
-    // down, we also need to create a temporary handle for it.
-    if (!adapter) {
-      adapter = new ur_adapter_handle_t_();
-      atexit(globalAdapterShutdown);
+    std::lock_guard<std::mutex> Lock{AdapterConstructionMutex};
+
+    if (!liveAdapter) {
+      *phAdapters = new ur_adapter_handle_t_();
+    } else {
+      *phAdapters = liveAdapter;
     }
 
-    std::lock_guard<std::mutex> Lock{adapter->Mutex};
-    if (adapter->RefCount++ == 0) {
-      cl_ext::ExtFuncPtrCache = new cl_ext::ExtFuncPtrCacheT();
-    }
-
-    *phAdapters = adapter;
+    auto &adapter = *phAdapters;
+    adapter->RefCount++;
   }
 
   if (pNumAdapters) {
@@ -90,21 +88,16 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
-  ++adapter->RefCount;
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterRetain(ur_adapter_handle_t hAdapter) {
+  ++hAdapter->RefCount;
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  // Check first if the adapter is valid pointer
-  if (adapter) {
-    std::lock_guard<std::mutex> Lock{adapter->Mutex};
-    if (--adapter->RefCount == 0) {
-      if (cl_ext::ExtFuncPtrCache) {
-        delete cl_ext::ExtFuncPtrCache;
-        cl_ext::ExtFuncPtrCache = nullptr;
-      }
-    }
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterRelease(ur_adapter_handle_t hAdapter) {
+  if (--hAdapter->RefCount == 0) {
+    delete hAdapter;
   }
   return UR_RESULT_SUCCESS;
 }
@@ -117,18 +110,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
-                                                     ur_adapter_info_t propName,
-                                                     size_t propSize,
-                                                     void *pPropValue,
-                                                     size_t *pPropSizeRet) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterGetInfo(ur_adapter_handle_t hAdapter, ur_adapter_info_t propName,
+                 size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
   case UR_ADAPTER_INFO_BACKEND:
     return ReturnValue(UR_ADAPTER_BACKEND_OPENCL);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
-    return ReturnValue(adapter->RefCount.load());
+    return ReturnValue(hAdapter->RefCount.load());
   case UR_ADAPTER_INFO_VERSION:
     return ReturnValue(uint32_t{1});
   default:
