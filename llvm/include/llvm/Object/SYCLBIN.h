@@ -25,7 +25,7 @@ public:
   SYCLBIN(MemoryBufferRef Source) : Data{Source} {}
 
   SYCLBIN(const SYCLBIN &Other) = delete;
-  
+
   MemoryBufferRef getMemoryBufferRef() const { return Data; }
 
   enum class BundleState : uint8_t { Input = 0, Object = 1, Executable = 2 };
