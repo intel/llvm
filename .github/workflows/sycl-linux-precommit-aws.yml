@@ -45,7 +45,7 @@ jobs:
             })
 
   aws-start:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     environment: aws
     steps:
       - uses: actions/checkout@v4
@@ -106,7 +106,7 @@ jobs:
   aws-stop:
     needs: [aws-start, e2e-cuda]
     if: always()
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     environment: aws
     steps:
       - uses: actions/checkout@v4
