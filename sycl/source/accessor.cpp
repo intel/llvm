@@ -119,11 +119,13 @@ const sycl::range<3> &LocalAccessorBaseHost::getSize() const {
   return impl->MSize;
 }
 void *LocalAccessorBaseHost::getPtr() {
-  // Must not be called.
+  // Must not be/isn't called, user-facing APIs do error-checking.
+  std::abort();
   return nullptr;
 }
 void *LocalAccessorBaseHost::getPtr() const {
-  // Must not be called.
+  // Must not be/isn't called, user-facing APIs do error-checking.
+  std::abort();
   return nullptr;
 }
 const property_list &LocalAccessorBaseHost::getPropList() const {
