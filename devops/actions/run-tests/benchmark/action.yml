@@ -59,7 +59,7 @@ runs:
       echo ----
       groups
       echo ----
-      echo $LD_LIBRARY_PATH
+      ls /usr/local/lib
   - name: Run compute-benchmarks
     shell: bash
     run: |
