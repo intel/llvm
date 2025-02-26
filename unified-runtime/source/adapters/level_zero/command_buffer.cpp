@@ -542,7 +542,7 @@ void ur_exp_command_buffer_handle_t_::registerSyncPoint(
 
 ze_command_list_handle_t
 ur_exp_command_buffer_handle_t_::chooseCommandList(bool PreferCopyEngine) {
-  if (PreferCopyEngine && useCopyEngine() && !IsInOrderCmdList) {
+  if (PreferCopyEngine && useCopyEngine()) {
     // We indicate that ZeCopyCommandList contains commands to be submitted.
     MCopyCommandListEmpty = false;
     return ZeCopyCommandList;
