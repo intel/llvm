@@ -759,8 +759,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    SyclFEEQArgVals.end());
     ArgVals.insert(ArgVals.end(), ArchDeviceVals.begin(), ArchDeviceVals.end());
 
-    // Driver will report error if address sanitizer and memory sanitizer are
-    // both enabled, so we only need to check first one here.
+    // Driver will report error if more than one of address sanitizer, memory
+    // sanitizer or thread sanitizer is enabled, so we only need to check first
+    // one here.
     for (const std::string &Arg : ArgVals) {
       if (Arg.find("-fsanitize=address") != std::string::npos) {
         SanitizeVal = "address";
