@@ -40,11 +40,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 5a515c56c92be75944c8246535c408cee7711114
-    # Author: Lukasz Dorau <lukasz.dorau@intel.com>
-    # Date:   Mon Feb 17 10:56:05 2025 +0100
-    # Merge pull request #1086 from vinser52/svinogra_l0_linking
-    set(UMF_TAG 5a515c56c92be75944c8246535c408cee7711114)
+    # commit 113f3e097afee8a956c20ddb0313bbff48cb93bd
+    # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Wed Feb 26 12:14:01 2025 +0100
+    # Merge pull request #1139 from ldorau/Use_LOG_FATAL_in_case_of_critical_errors
+    set(UMF_TAG v0.11.0-dev3)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -127,5 +127,4 @@ add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
 target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
-    umf::disjoint_pool
 )
