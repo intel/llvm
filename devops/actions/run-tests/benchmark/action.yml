@@ -58,6 +58,8 @@ runs:
       id "$(whoami)"
       echo ----
       groups
+      echo ----
+      echo $LD_LIBRARY_PATH
   - name: Run compute-benchmarks
     shell: bash
     run: |
