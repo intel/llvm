@@ -99,7 +99,7 @@
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NONE
 
-// Test test AOT-DG1 + JIT compilation uses native libs + no libs
+// Test AOT-DG1 + JIT compilation uses native libs + no libs
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg1,spir64 \
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-NONE
@@ -113,7 +113,7 @@
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-NONE
 
-// Test test AOT-PVC + JIT compilation + AOT-DG2 uses native libs + no libs + native libs
+// Test AOT-PVC + JIT compilation + AOT-DG2 uses native libs + no libs + native libs
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,spir64,intel_gpu_acm_g10 \
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NONE-NATIVE
@@ -127,7 +127,7 @@
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NONE-NATIVE
 
-// Test test AOT-PVC + JIT compilation + AOT-DG1 uses fallback libs + no libs + fallback libs
+// Test AOT-PVC + JIT compilation + AOT-DG1 uses fallback libs + no libs + fallback libs
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,spir64,intel_gpu_dg1 \
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-NONE-FALLBACK
@@ -141,7 +141,7 @@
 // RUN:   --sysroot=%S/Inputs/SYCL %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-NONE-FALLBACK
 
-// Test test AOT-PVC + AOT-DG1 specified via different options, uses fallback libs
+// Test AOT-PVC + AOT-DG1 specified via different options, uses fallback libs
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,spir64_gen \
 // RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device dg1" \
 // RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
@@ -149,7 +149,7 @@
 // RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device pvc" \
 // RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
 
-// Test test AOT-PVC + AOT-BMG specified via different options, uses native libs
+// Test AOT-PVC + AOT-BMG specified via different options, uses native libs
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg_g21,spir64_gen \
 // RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device pvc" \
 // RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NATIVE
@@ -157,7 +157,7 @@
 // RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device bmg-g21-a0" \
 // RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NATIVE
 
-// Test test AOT-PVC + AOT-LNL specified via different options, uses native libs
+// Test AOT-PVC + AOT-LNL specified via different options, uses native libs
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_lnl_m,spir64_gen \
 // RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device pvc" \
 // RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NATIVE
@@ -165,7 +165,7 @@
 // RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device lnl_m" \
 // RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-NATIVE-NATIVE
 
-// Test test AOT-LNL + AOT-DG1 specified via different options, uses fallback libs
+// Test AOT-LNL + AOT-DG1 specified via different options, uses fallback libs
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_lnl_m,spir64_gen \
 // RUN:   --sysroot=%S/Inputs/SYCL -Xsycl-target-backend=spir64_gen "-device dg1" \
 // RUN: %s -### 2>&1 | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
