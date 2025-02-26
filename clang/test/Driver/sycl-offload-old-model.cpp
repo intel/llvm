@@ -76,6 +76,8 @@
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -L%S/Inputs/SYCL -l:liblin64.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
 // IMPLIED_DEVICE_LIB: clang-offload-bundler{{.*}} "-type=aoo"{{.*}} "-targets=sycl-spir64_{{.*}}-unknown-unknown,sycl-spir64-unknown-unknown"{{.*}} "-unbundle"
 
 /// Check that the default device triple is not used with -fno-sycl-link-spirv
@@ -118,6 +120,8 @@
 
 // Device section checking only occur when offloading is enabled
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver %S/Inputs/SYCL/liblin64.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix CHECK_SECTION %s
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -L%S/Inputs/SYCL -l:liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix CHECK_SECTION %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_CHECK_SECTION %s

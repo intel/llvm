@@ -30,7 +30,7 @@ int main() {
   sycl::queue queue;
   auto size = std::min(
       queue.get_device().get_info<sycl::info::device::max_work_group_size>(),
-      1024ul);
+      size_t{1024});
 
   DataType *a = sycl::malloc_device<DataType>(size, queue);
   DataType *b = sycl::malloc_device<DataType>(size, queue);

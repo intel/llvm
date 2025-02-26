@@ -56,13 +56,45 @@ private:
   sycl::detail::string ErrorMessage;
 };
 
+class RTCHashResult {
+public:
+  static RTCHashResult success(const char *Hash) {
+    return RTCHashResult{/*Failed=*/false, Hash};
+  }
+
+  static RTCHashResult failure(const char *PreprocLog) {
+    return RTCHashResult{/*Failed=*/true, PreprocLog};
+  }
+
+  bool failed() { return Failed; }
+
+  const char *getPreprocLog() {
+    assert(failed() && "No preprocessor log");
+    return HashOrLog.c_str();
+  }
+
+  const char *getHash() {
+    assert(!failed() && "No hash");
+    return HashOrLog.c_str();
+  }
+
+private:
+  RTCHashResult(bool Failed, const char *HashOrLog)
+      : Failed(Failed), HashOrLog(HashOrLog) {}
+
+  bool Failed;
+  sycl::detail::string HashOrLog;
+};
+
 class RTCResult {
 public:
   explicit RTCResult(const char *BuildLog)
       : Failed{true}, BundleInfo{}, BuildLog{BuildLog} {}
 
-  RTCResult(RTCBundleInfo &&BundleInfo, const char *BuildLog)
-      : Failed{false}, BundleInfo{std::move(BundleInfo)}, BuildLog{BuildLog} {}
+  RTCResult(RTCBundleInfo &&BundleInfo, RTCDeviceCodeIR &&DeviceCodeIR,
+            const char *BuildLog)
+      : Failed{false}, BundleInfo{std::move(BundleInfo)},
+        DeviceCodeIR(std::move(DeviceCodeIR)), BuildLog{BuildLog} {}
 
   bool failed() const { return Failed; }
 
@@ -73,9 +105,15 @@ public:
     return BundleInfo;
   }
 
+  const RTCDeviceCodeIR &getDeviceCodeIR() const {
+    assert(!failed() && "No device code IR");
+    return DeviceCodeIR;
+  }
+
 private:
   bool Failed;
   RTCBundleInfo BundleInfo;
+  RTCDeviceCodeIR DeviceCodeIR;
   sycl::detail::string BuildLog;
 };
 
@@ -100,9 +138,14 @@ KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
     const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
     View<unsigned char> SpecConstBlob);
 
+KF_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
+                                             View<InMemoryFile> IncludeFiles,
+                                             View<const char *> UserArgs);
+
 KF_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                        View<InMemoryFile> IncludeFiles,
-                                       View<const char *> UserArgs);
+                                       View<const char *> UserArgs,
+                                       View<char> CachedIR, bool SaveIR);
 
 KF_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
 

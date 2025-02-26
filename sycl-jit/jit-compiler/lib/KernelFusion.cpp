@@ -19,11 +19,15 @@
 #include "translation/SPIRVLLVMTranslation.h"
 
 #include <llvm/ADT/StringExtras.h>
+#include <llvm/Bitcode/BitcodeReader.h>
+#include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/Support/Error.h>
+#include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/TimeProfiler.h>
 
 #include <clang/Driver/Options.h>
 
+#include <chrono>
 #include <sstream>
 
 using namespace jit_compiler;
@@ -31,17 +35,21 @@ using namespace jit_compiler;
 using FusedFunction = helper::FusionHelper::FusedFunction;
 using FusedFunctionList = std::vector<FusedFunction>;
 
-template <typename ResultType>
-static ResultType errorTo(llvm::Error &&Err, const std::string &Msg) {
+static std::string formatError(llvm::Error &&Err, const std::string &Msg) {
   std::stringstream ErrMsg;
   ErrMsg << Msg << "\nDetailed information:\n";
   llvm::handleAllErrors(std::move(Err),
                         [&ErrMsg](const llvm::StringError &StrErr) {
-                          // Cannot throw an exception here if LLVM itself is
-                          // compiled without exception support.
                           ErrMsg << "\t" << StrErr.getMessage() << "\n";
                         });
-  return ResultType{ErrMsg.str().c_str()};
+  return ErrMsg.str();
+}
+
+template <typename ResultType>
+static ResultType errorTo(llvm::Error &&Err, const std::string &Msg) {
+  // Cannot throw an exception here if LLVM itself is compiled without exception
+  // support.
+  return ResultType{formatError(std::move(Err), Msg).c_str()};
 }
 
 static std::vector<jit_compiler::NDRange>
@@ -240,10 +248,42 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
   return JITResult{FusedKernelInfo};
 }
 
+extern "C" KF_EXPORT_SYMBOL RTCHashResult
+calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+              View<const char *> UserArgs) {
+  auto UserArgListOrErr = parseUserArgs(UserArgs);
+  if (!UserArgListOrErr) {
+    return RTCHashResult::failure(
+        formatError(UserArgListOrErr.takeError(),
+                    "Parsing of user arguments failed")
+            .c_str());
+  }
+  llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
+
+  auto Start = std::chrono::high_resolution_clock::now();
+  auto HashOrError = calculateHash(SourceFile, IncludeFiles, UserArgList);
+  if (!HashOrError) {
+    return RTCHashResult::failure(
+        formatError(HashOrError.takeError(), "Hashing failed").c_str());
+  }
+  auto Hash = *HashOrError;
+  auto Stop = std::chrono::high_resolution_clock::now();
+
+  if (UserArgList.hasArg(clang::driver::options::OPT_ftime_trace_EQ)) {
+    std::chrono::duration<double, std::milli> HashTime = Stop - Start;
+    llvm::dbgs() << "Hashing of " << SourceFile.Path << " took "
+                 << int(HashTime.count()) << " ms\n";
+  }
+
+  return RTCHashResult::success(Hash.c_str());
+}
+
 extern "C" KF_EXPORT_SYMBOL RTCResult
 compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-            View<const char *> UserArgs) {
+            View<const char *> UserArgs, View<char> CachedIR, bool SaveIR) {
+  llvm::LLVMContext Context;
   std::string BuildLog;
+  configureDiagnostics(Context, BuildLog);
 
   auto UserArgListOrErr = parseUserArgs(UserArgs);
   if (!UserArgListOrErr) {
@@ -272,16 +312,43 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                                       Verbose);
   }
 
-  auto ModuleOrErr =
-      compileDeviceCode(SourceFile, IncludeFiles, UserArgList, BuildLog);
-  if (!ModuleOrErr) {
-    return errorTo<RTCResult>(ModuleOrErr.takeError(),
-                              "Device compilation failed");
+  std::unique_ptr<llvm::Module> Module;
+
+  if (CachedIR.size() > 0) {
+    llvm::StringRef IRStr{CachedIR.begin(), CachedIR.size()};
+    std::unique_ptr<llvm::MemoryBuffer> IRBuf =
+        llvm::MemoryBuffer::getMemBuffer(IRStr, /*BufferName=*/"",
+                                         /*RequiresNullTerminator=*/false);
+    auto ModuleOrError = llvm::parseBitcodeFile(*IRBuf, Context);
+    if (!ModuleOrError) {
+      // Not a fatal error, we'll just compile the source string normally.
+      BuildLog.append(formatError(ModuleOrError.takeError(),
+                                  "Loading of cached device code failed"));
+    } else {
+      Module = std::move(*ModuleOrError);
+    }
   }
 
-  std::unique_ptr<llvm::LLVMContext> Context;
-  std::unique_ptr<llvm::Module> Module = std::move(*ModuleOrErr);
-  Context.reset(&Module->getContext());
+  bool FromSource = false;
+  if (!Module) {
+    auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgList,
+                                         BuildLog, Context);
+    if (!ModuleOrErr) {
+      return errorTo<RTCResult>(ModuleOrErr.takeError(),
+                                "Device compilation failed");
+    }
+
+    Module = std::move(*ModuleOrErr);
+    FromSource = true;
+  }
+
+  RTCDeviceCodeIR IR;
+  if (SaveIR && FromSource) {
+    std::string BCString;
+    llvm::raw_string_ostream BCStream{BCString};
+    llvm::WriteBitcodeToFile(*Module, BCStream);
+    IR = RTCDeviceCodeIR{BCString.data(), BCString.data() + BCString.size()};
+  }
 
   if (auto Error = linkDeviceLibraries(*Module, UserArgList, BuildLog)) {
     return errorTo<RTCResult>(std::move(Error), "Device linking failed");
@@ -314,7 +381,7 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
     }
   }
 
-  return RTCResult{std::move(BundleInfo), BuildLog.c_str()};
+  return RTCResult{std::move(BundleInfo), std::move(IR), BuildLog.c_str()};
 }
 
 extern "C" KF_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address) {

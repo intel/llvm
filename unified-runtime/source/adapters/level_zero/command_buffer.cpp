@@ -26,7 +26,6 @@ namespace {
 // given Context and Device.
 bool checkImmediateAppendSupport(ur_context_handle_t Context,
                                  ur_device_handle_t Device) {
-
   bool DriverSupportsImmediateAppend =
       Context->getPlatform()->ZeCommandListImmediateAppendExt.Supported;
 
@@ -61,8 +60,9 @@ bool checkImmediateAppendSupport(ur_context_handle_t Context,
     return EnableAppendPath;
   }
 
-  return Device->isPVC() && Device->ImmCommandListUsed &&
-         DriverSupportsImmediateAppend;
+  // Immediate Append path is temporarily disabled until related issues are
+  // fixed.
+  return false;
 }
 
 // Checks whether counter based events are supported for a given Device.

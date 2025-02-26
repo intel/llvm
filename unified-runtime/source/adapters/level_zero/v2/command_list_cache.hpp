@@ -54,7 +54,8 @@ struct command_list_descriptor_hash_t {
 };
 
 struct command_list_cache_t {
-  command_list_cache_t(ze_context_handle_t ZeContext);
+  command_list_cache_t(ze_context_handle_t ZeContext,
+                       bool ZeCopyOffloadExtensionSupported);
 
   raii::command_list_unique_handle
   getImmediateCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
@@ -72,6 +73,7 @@ struct command_list_cache_t {
 
 private:
   ze_context_handle_t ZeContext;
+  bool ZeCopyOffloadExtensionSupported;
   std::unordered_map<command_list_descriptor_t,
                      std::stack<raii::ze_command_list_handle_t>,
                      command_list_descriptor_hash_t>

@@ -217,19 +217,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       }
       auto numGroups = groups.size();
       auto groupsPerThread = numGroups / numParallelThreads;
-      auto remainder = numGroups % numParallelThreads;
-      for (unsigned thread = 0; thread < numParallelThreads; thread++) {
-        futures.emplace_back(
-            tp.schedule_task([groups, thread, groupsPerThread,
-                              &kernel = *kernel](size_t threadId) {
-              for (unsigned i = 0; i < groupsPerThread; i++) {
-                auto index = thread * groupsPerThread + i;
-                groups[index](threadId, kernel);
-              }
-            }));
+      if (groupsPerThread) {
+        for (unsigned thread = 0; thread < numParallelThreads; thread++) {
+          futures.emplace_back(
+              tp.schedule_task([groups, thread, groupsPerThread,
+                                &kernel = *kernel](size_t threadId) {
+                for (unsigned i = 0; i < groupsPerThread; i++) {
+                  auto index = thread * groupsPerThread + i;
+                  groups[index](threadId, kernel);
+                }
+              }));
+        }
       }
 
       // schedule the remaining tasks
+      auto remainder = numGroups % numParallelThreads;
       if (remainder) {
         futures.emplace_back(
             tp.schedule_task([groups, remainder,
@@ -263,11 +265,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
-                            uint32_t numEventsInWaitList,
-                            const ur_event_handle_t *phEventWaitList,
-                            ur_event_handle_t *phEvent,
-                            const std::function<ur_result_t()> &f) {
+template <class T>
+static inline ur_result_t
+withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
+                uint32_t numEventsInWaitList,
+                const ur_event_handle_t *phEventWaitList,
+                ur_event_handle_t *phEvent, T &&f) {
   urEventWait(numEventsInWaitList, phEventWaitList);
   ur_event_handle_t event = nullptr;
   if (phEvent) {

@@ -411,6 +411,9 @@ struct RTCDevImgInfo {
 
 using RTCBundleInfo = DynArray<RTCDevImgInfo>;
 
+// LLVM's APIs prefer `char *` for byte buffers.
+using RTCDeviceCodeIR = DynArray<char>;
+
 } // namespace jit_compiler
 
 #endif // SYCL_FUSION_COMMON_KERNEL_H

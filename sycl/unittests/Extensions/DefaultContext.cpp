@@ -36,6 +36,9 @@ void test_default_context_enabled() {
 
   ASSERT_EQ(Dev1.get_platform().ext_oneapi_get_default_context(),
             Dev2.get_platform().ext_oneapi_get_default_context());
+
+  ASSERT_EQ(Dev1.get_platform().khr_get_default_context(),
+            Dev2.get_platform().khr_get_default_context());
 }
 
 void test_default_context_disabled() {

@@ -16,8 +16,10 @@
 #include <clang/Driver/Options.h>
 #include <clang/Frontend/ChainedDiagnosticConsumer.h>
 #include <clang/Frontend/CompilerInstance.h>
+#include <clang/Frontend/FrontendActions.h>
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
+#include <clang/Frontend/Utils.h>
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
@@ -32,6 +34,8 @@
 #include <llvm/SYCLLowerIR/LowerInvokeSimd.h>
 #include <llvm/SYCLLowerIR/ModuleSplitter.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
+#include <llvm/Support/BLAKE3.h>
+#include <llvm/Support/Base64.h>
 #include <llvm/Support/PropertySetIO.h>
 #include <llvm/Support/TimeProfiler.h>
 
@@ -132,13 +136,46 @@ static const std::string &getDPCPPRoot() {
 
 namespace {
 
-struct GetLLVMModuleAction : public ToolAction {
+class HashPreprocessedAction : public PreprocessorFrontendAction {
+protected:
+  void ExecuteAction() override {
+    CompilerInstance &CI = getCompilerInstance();
+
+    std::string PreprocessedSource;
+    raw_string_ostream PreprocessStream(PreprocessedSource);
+
+    PreprocessorOutputOptions Opts;
+    Opts.ShowCPP = 1;
+    Opts.MinimizeWhitespace = 1;
+    // Make cache key insensitive to virtual source file and header locations.
+    Opts.ShowLineMarkers = 0;
+
+    DoPrintPreprocessedInput(CI.getPreprocessor(), &PreprocessStream, Opts);
+
+    Hash = BLAKE3::hash(arrayRefFromStringRef(PreprocessedSource));
+    Executed = true;
+  }
+
+public:
+  BLAKE3Result<> takeHash() {
+    assert(Executed);
+    Executed = false;
+    return std::move(Hash);
+  }
+
+private:
+  BLAKE3Result<> Hash;
+  bool Executed = false;
+};
+
+class RTCToolActionBase : public ToolAction {
+public:
   // Code adapted from `FrontendActionFactory::runInvocation`.
   bool runInvocation(std::shared_ptr<CompilerInvocation> Invocation,
                      FileManager *Files,
                      std::shared_ptr<PCHContainerOperations> PCHContainerOps,
                      DiagnosticConsumer *DiagConsumer) override {
-    assert(!Module && "Action should only be invoked on a single file");
+    assert(!hasExecuted() && "Action should only be invoked on a single file");
 
     // Create a compiler instance to handle the actual work.
     CompilerInstance Compiler(std::move(PCHContainerOps));
@@ -157,23 +194,75 @@ struct GetLLVMModuleAction : public ToolAction {
 
     Compiler.createSourceManager(*Files);
 
-    // Ignore `Compiler.getFrontendOpts().ProgramAction` (would be `EmitBC`) and
-    // create/execute an `EmitLLVMOnlyAction` (= codegen to LLVM module without
-    // emitting anything) instead.
-    EmitLLVMOnlyAction ELOA;
-    const bool Success = Compiler.ExecuteAction(ELOA);
+    return executeAction(Compiler, Files);
+  }
+
+  virtual ~RTCToolActionBase() = default;
+
+protected:
+  virtual bool hasExecuted() = 0;
+  virtual bool executeAction(CompilerInstance &, FileManager *) = 0;
+};
+
+class GetSourceHashAction : public RTCToolActionBase {
+protected:
+  bool executeAction(CompilerInstance &CI, FileManager *Files) override {
+    HashPreprocessedAction HPA;
+    const bool Success = CI.ExecuteAction(HPA);
     Files->clearStatCache();
     if (!Success) {
       return false;
     }
 
-    // Take the module and its context to extend the objects' lifetime.
+    Hash = HPA.takeHash();
+    Executed = true;
+    return true;
+  }
+
+  bool hasExecuted() override { return Executed; }
+
+public:
+  BLAKE3Result<> takeHash() {
+    assert(Executed);
+    Executed = false;
+    return std::move(Hash);
+  }
+
+private:
+  BLAKE3Result<> Hash;
+  bool Executed = false;
+};
+
+struct GetLLVMModuleAction : public RTCToolActionBase {
+protected:
+  bool executeAction(CompilerInstance &CI, FileManager *Files) override {
+    // Ignore `Compiler.getFrontendOpts().ProgramAction` (would be `EmitBC`) and
+    // create/execute an `EmitLLVMOnlyAction` (= codegen to LLVM module without
+    // emitting anything) instead.
+    EmitLLVMOnlyAction ELOA{&Context};
+    const bool Success = CI.ExecuteAction(ELOA);
+    Files->clearStatCache();
+    if (!Success) {
+      return false;
+    }
+
+    // Take the module to extend its lifetime.
     Module = ELOA.takeModule();
-    ELOA.takeLLVMContext();
 
     return true;
   }
 
+  bool hasExecuted() override { return static_cast<bool>(Module); }
+
+public:
+  GetLLVMModuleAction(LLVMContext &Context) : Context{Context}, Module{} {}
+  std::unique_ptr<llvm::Module> takeModule() {
+    assert(Module);
+    return std::move(Module);
+  }
+
+private:
+  LLVMContext &Context;
   std::unique_ptr<llvm::Module> Module;
 };
 
@@ -223,16 +312,9 @@ public:
 
 } // anonymous namespace
 
-Expected<std::unique_ptr<llvm::Module>> jit_compiler::compileDeviceCode(
-    InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-    const InputArgList &UserArgList, std::string &BuildLog) {
-  TimeTraceScope TTS{"compileDeviceCode"};
-
-  const std::string &DPCPPRoot = getDPCPPRoot();
-  if (DPCPPRoot == InvalidDPCPPRoot) {
-    return createStringError("Could not locate DPCPP root directory");
-  }
-
+static void adjustArgs(const InputArgList &UserArgList,
+                       const std::string &DPCPPRoot,
+                       SmallVectorImpl<std::string> &CommandLine) {
   DerivedArgList DAL{UserArgList};
   const auto &OptTable = getDriverOptTable();
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
@@ -251,17 +333,15 @@ Expected<std::unique_ptr<llvm::Module>> jit_compiler::compileDeviceCode(
   DAL.eraseArg(OPT_ftime_trace_granularity_EQ);
   DAL.eraseArg(OPT_ftime_trace_verbose);
 
-  SmallVector<std::string> CommandLine;
   for (auto *Arg : DAL) {
     CommandLine.emplace_back(Arg->getAsString(DAL));
   }
+}
 
-  FixedCompilationDatabase DB{".", CommandLine};
-  ClangTool Tool{DB, {SourceFile.Path}};
-
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
-  ClangDiagnosticWrapper Wrapper(BuildLog, DiagOpts.get());
-  Tool.setDiagnosticConsumer(Wrapper.consumer());
+static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
+                      InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+                      DiagnosticConsumer *Consumer) {
+  Tool.setDiagnosticConsumer(Consumer);
   // Suppress message "Error while processing" being printed to stdout.
   Tool.setPrintErrorMessage(false);
 
@@ -284,10 +364,72 @@ Expected<std::unique_ptr<llvm::Module>> jit_compiler::compileDeviceCode(
         NewArgs[0] = (Twine(DPCPPRoot) + "/bin/clang++").str();
         return NewArgs;
       });
+}
 
-  GetLLVMModuleAction Action;
+Expected<std::string>
+jit_compiler::calculateHash(InMemoryFile SourceFile,
+                            View<InMemoryFile> IncludeFiles,
+                            const InputArgList &UserArgList) {
+  TimeTraceScope TTS{"calculateHash"};
+
+  const std::string &DPCPPRoot = getDPCPPRoot();
+  if (DPCPPRoot == InvalidDPCPPRoot) {
+    return createStringError("Could not locate DPCPP root directory");
+  }
+
+  SmallVector<std::string> CommandLine;
+  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
+
+  FixedCompilationDatabase DB{".", CommandLine};
+  ClangTool Tool{DB, {SourceFile.Path}};
+
+  clang::IgnoringDiagConsumer DiagConsumer;
+  setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, &DiagConsumer);
+
+  GetSourceHashAction Action;
   if (!Tool.run(&Action)) {
-    return std::move(Action.Module);
+    BLAKE3Result<> SourceHash = Action.takeHash();
+    // The adjusted command line contains the DPCPP root and clang major
+    // version.
+    BLAKE3Result<> CommandLineHash =
+        BLAKE3::hash(arrayRefFromStringRef(join(CommandLine, ",")));
+
+    std::string EncodedHash =
+        encodeBase64(SourceHash) + encodeBase64(CommandLineHash);
+    // Make the encoding filesystem-friendly.
+    std::replace(EncodedHash.begin(), EncodedHash.end(), '/', '-');
+    return std::move(EncodedHash);
+  }
+
+  return createStringError("Calculating source hash failed");
+}
+
+Expected<std::unique_ptr<llvm::Module>>
+jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
+                                View<InMemoryFile> IncludeFiles,
+                                const InputArgList &UserArgList,
+                                std::string &BuildLog, LLVMContext &Context) {
+  TimeTraceScope TTS{"compileDeviceCode"};
+
+  const std::string &DPCPPRoot = getDPCPPRoot();
+  if (DPCPPRoot == InvalidDPCPPRoot) {
+    return createStringError("Could not locate DPCPP root directory");
+  }
+
+  SmallVector<std::string> CommandLine;
+  adjustArgs(UserArgList, DPCPPRoot, CommandLine);
+
+  FixedCompilationDatabase DB{".", CommandLine};
+  ClangTool Tool{DB, {SourceFile.Path}};
+
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
+  ClangDiagnosticWrapper Wrapper(BuildLog, DiagOpts.get());
+
+  setupTool(Tool, DPCPPRoot, SourceFile, IncludeFiles, Wrapper.consumer());
+
+  GetLLVMModuleAction Action{Context};
+  if (!Tool.run(&Action)) {
+    return Action.takeModule();
   }
 
   return createStringError(BuildLog);
@@ -409,8 +551,6 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   }
 
   LLVMContext &Context = Module.getContext();
-  Context.setDiagnosticHandler(
-      std::make_unique<LLVMDiagnosticWrapper>(BuildLog));
   for (const std::string &LibName : LibNames) {
     std::string LibPath = DPCPPRoot + "/lib/" + LibName;
 
@@ -651,4 +791,10 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   }
 
   return std::move(AL);
+}
+
+void jit_compiler::configureDiagnostics(LLVMContext &Context,
+                                        std::string &BuildLog) {
+  Context.setDiagnosticHandler(
+      std::make_unique<LLVMDiagnosticWrapper>(BuildLog));
 }

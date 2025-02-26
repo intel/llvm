@@ -88,19 +88,19 @@ etors:
       desc: "[$x_bool_t] returns true if the device supports sampling cubemapped images across face boundaries"
     - name: BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP
       value: "0x2012"
-      desc: "[$x_bool_t] returns true if the device is capable of fetching USM backed 1D sampled image data."
+      desc: "[$x_bool_t] returns true if the device supports fetching USM backed 1D sampled image data."
     - name: BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP
       value: "0x2013"
-      desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 1D sampled image data."
+      desc: "[$x_bool_t] returns true if the device supports fetching non-USM backed 1D sampled image data."
     - name: BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP
       value: "0x2014"
-      desc: "[$x_bool_t] returns true if the device is capable of fetching USM backed 2D sampled image data."
+      desc: "[$x_bool_t] returns true if the device supports fetching USM backed 2D sampled image data."
     - name: BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
       value: "0x2015"
-      desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 2D sampled image data."
+      desc: "[$x_bool_t] returns true if the device supports fetching non-USM backed 2D sampled image data."
     - name: BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
       value: "0x2017"
-      desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 3D sampled image data."
+      desc: "[$x_bool_t] returns true if the device supports fetching non-USM backed 3D sampled image data."
     - name: IMAGE_ARRAY_SUPPORT_EXP
       value: "0x2019"
       desc: "[$x_bool_t] returns true if the device supports allocating and accessing image array resources."
@@ -109,10 +109,10 @@ etors:
       desc: "[$x_bool_t] returns true if the device supports unique addressing per dimension."
     - name: BINDLESS_SAMPLE_1D_USM_EXP
       value: "0x201B"
-      desc: "[$x_bool_t] returns true if the device is capable of sampling USM backed 1D sampled image data."
+      desc: "[$x_bool_t] returns true if the device supports sampling USM backed 1D sampled image data."
     - name: BINDLESS_SAMPLE_2D_USM_EXP
       value: "0x201C"
-      desc: "[$x_bool_t] returns true if the device is capable of sampling USM backed 2D sampled image data."
+      desc: "[$x_bool_t] returns true if the device supports sampling USM backed 2D sampled image data."
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true

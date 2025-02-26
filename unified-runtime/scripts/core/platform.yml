@@ -59,20 +59,20 @@ typed_etors: True
 etors:
     - name: NAME
       value: "1"
-      desc: "[char[]] The string denoting name of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The null-terminated string denoting name of the platform. The size of the info needs to be dynamically queried."
     - name: VENDOR_NAME
       value: "2"
-      desc: "[char[]] The string denoting name of the vendor of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The null-terminated string denoting name of the vendor of the platform. The size of the info needs to be dynamically queried."
     - name: VERSION
       value: "3"
-      desc: "[char[]] The string denoting the version of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The null-terminated string denoting the version of the platform. The size of the info needs to be dynamically queried."
     - name: EXTENSIONS
       value: "4"
-      desc: "[char[]] The string denoting extensions supported by the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The null-terminated string denoting extensions supported by the platform. The size of the info needs to be dynamically queried."
       todo: "document extensions names and their meaning"
     - name: PROFILE
       value: "5"
-      desc: "[char[]] The string denoting profile of the platform. The size of the info needs to be dynamically queried."
+      desc: "[char[]] The null-terminated string denoting profile of the platform. The size of the info needs to be dynamically queried."
       todo: "currently always return FULL_PROFILE, deprecate?"
     - name: BACKEND
       value: "6"

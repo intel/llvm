@@ -1,0 +1,107 @@
+name: 'Run compute-benchmarks'
+
+# Run compute-benchmarks on SYCL
+# 
+# This action assumes SYCL is in ./toolchain, and that /devops has been
+# checked out in ./devops. This action also assumes that GITHUB_TOKEN
+# was properly set in env, because according to Github, that's apparently the
+# recommended way to pass a secret into a github action:
+#
+# https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions#accessing-your-secrets
+#
+# This action also expects a RUNNER_TAG environment variable to be set to the
+# runner tag used to run this workflow: Currently, only gen12 and pvc on Linux
+# are fully supported. Although this workflow won't stop you from running other
+# devices, note that only gen12 and pvc has been tested to work.
+#
+
+inputs:
+  target_devices:
+    type: string
+    required: True
+
+runs:
+  using: "composite"
+  steps:
+  - name: Check specified runner type / target backend
+    shell: bash
+    env:
+      TARGET_DEVICE: ${{ inputs.target_devices }}
+    run: |
+      case "$RUNNER_TAG" in
+        '["Linux", "gen12"]' | '["Linux", "pvc"]') ;;
+        *)
+          echo "#"
+          echo "# WARNING: Only gen12/pvc on Linux is fully supported."
+          echo "# This workflow is not guaranteed to work with other runners."
+          echo "#" ;;
+      esac
+
+      # input.target_devices is not directly used, as this allows code injection
+      case "$TARGET_DEVICE" in
+        level_zero:*) ;;
+        *)
+          echo "#"
+          echo "# WARNING: Only level_zero backend is fully supported."
+          echo "# This workflow is not guaranteed to work with other backends."
+          echo "#" ;;
+      esac
+  - name: Run compute-benchmarks
+    shell: bash
+    run: |
+      cat << EOF
+      #
+      # NOTE TO DEVELOPERS:
+      #
+
+      Check latter steps of the workflow: This job produces an artifact with:
+        - benchmark results from passing/failing tests
+        - log containing all failing (too slow) benchmarks
+        - log containing all erroring benchmarks
+
+      While this step in the workflow provides debugging output describing this
+      information, it might be easier to inspect the logs from the artifact
+      instead.
+
+      EOF
+      export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
+      export CMPLR_ROOT=./toolchain
+      echo "-----"
+      sycl-ls
+      echo "-----"
+      ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s || exit 1
+  - name: Push compute-benchmarks results
+    if: always()
+    shell: bash
+    run: |
+      # TODO -- waiting on security clearance
+      # Load configuration values
+      $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
+
+      cd "./llvm-ci-perf-results"
+      git config user.name "SYCL Benchmarking Bot"
+      git config user.email "sys_sycl_benchmarks@intel.com"
+      git pull
+      git add .
+      # Make sure changes have been made
+      if git diff --quiet && git diff --cached --quiet; then
+        echo "No new results added, skipping push."
+      else
+        git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
+        git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
+      fi
+  - name: Find benchmark result artifact here
+    if: always()
+    shell: bash
+    run: |
+      cat << EOF
+      #
+      # Artifact link for benchmark results here:
+      #
+      EOF
+  - name: Archive compute-benchmark results
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: Compute-benchmark run ${{ github.run_id }} (${{ runner.name }})
+      path: ./artifact
