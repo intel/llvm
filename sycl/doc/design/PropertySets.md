@@ -21,7 +21,6 @@ corresponding value:
 
 | Value type | Description                               |
 | ---------- | ----------------------------------------- |
-| "0"        | The value has no known type.              |
 | "1"        | The value is a 32 bit integer.            |
 | "2"        | The value is a base64 encoded byte array. |
 
@@ -29,7 +28,7 @@ corresponding value:
 
 This section describes the known property sets.
 
-#### SYCL/specialization constants
+#### [SYCL/specialization constants]
 
 __Key:__ Specialization constant name.
 
@@ -53,7 +52,7 @@ unsigned Size;
 ```
 
 
-#### SYCL/specialization constants default values
+#### [SYCL/specialization constants default values]
 
 __Key:__ Specialization constant name.
 
@@ -63,7 +62,7 @@ __Value:__ Byte representation of the default value for the specialization
 constant.
 
 
-#### SYCL/devicelib req mask
+#### [SYCL/devicelib req mask]
 
 __Key:__ At most one entry with "DeviceLibReqMask".
 
@@ -72,7 +71,7 @@ __Value type:__ 32 bit integer. ("1")
 __Value:__ A bitmask of which device libraries the binary uses.
 
 
-#### SYCL/kernel param opt
+#### [SYCL/kernel param opt]
 
 __Key:__ Kernel name.
 
@@ -82,7 +81,7 @@ __Value:__ A bitmask identifying the arguments of the kernel that have been
 removed by the dead-argument-elimination optimization pass.
 
 
-#### SYCL/program metadata
+#### [SYCL/program metadata]
 
 __Key:__ An arbitrary metadata key. This is often some identifier, such as a
 kernel name, followed by a '@' and some metadata identifier.
@@ -92,21 +91,24 @@ __Value type:__ Byte array. ("2")
 __Value:__ Unspecified. Depends on the metadata key.
 
 
-#### SYCL/misc properties
+#### [SYCL/misc properties]
 
 Miscellaneous properties:
 
 | Key                             | Value type            | Value                                                                                         |
 | ------------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
-| "isEsimdImage"                  | 32 bit integer. ("1") | 1 if the image is ESIMD and 0 otherwise.                                                      |
+| "isEsimdImage"                  | 32 bit integer. ("1") | 1 if the image is ESIMD and 0 or missing otherwise.                                           |
 | "sycl-register-alloc-mode"      | 32 bit integer. ("1") | The register allocation mode: 0 for automatic and 2 for large.                                |
 | "sycl-grf-size"                 | 32 bit integer. ("1") | The GRF size. Automatic if 0.                                                                 |
 | "optLevel"                      | 32 bit integer. ("1") | Optimization level, corresponding to the `-O` option used during compilation.                 |
 | "sanUsed"                       | Byte array. ("2")     | Specifying if address sanitization ("asan") or memory sanitization ("msan") is used.          |
 | "specConstsReplacedWithDefault" | 32 bit integer. ("1") | 1 if the specialization constants have been replaced by their default values and 0 otherwise. |
 
+__NOTE:__ All of these properties are optional and not having them will result
+in implementation defined behavior.
 
-#### SYCL/assert used
+
+#### [SYCL/assert used]
 
 __Key:__ Kernel name.
 
@@ -115,7 +117,7 @@ __Value type:__ 32 bit integer. ("1")
 __Value:__ 1. The key will not be in the set unless the kernel uses assertions.
 
 
-#### SYCL/exported symbols
+#### [SYCL/exported symbols]
 
 __Key:__ Symbol name.
 
@@ -124,7 +126,7 @@ __Value type:__ 32 bit integer. ("1")
 __Value:__ 1. The key will not be in the set unless the symbols is exported.
 
 
-#### SYCL/imported symbols
+#### [SYCL/imported symbols]
 
 __Key:__ Symbol name.
 
@@ -133,7 +135,7 @@ __Value type:__ 32 bit integer. ("1")
 __Value:__ 1. The key will not be in the set unless the symbols is exported.
 
 
-#### SYCL/device globals
+#### [SYCL/device globals]
 
 __Key:__ Device global variable name.
 
@@ -154,7 +156,7 @@ fields:
 ```
 
 
-#### SYCL/device requirements
+#### [SYCL/device requirements]
 
 Set of device requirements for the entire module:
 
@@ -171,8 +173,11 @@ Set of device requirements for the entire module:
 
 See also [OptionalDeviceFeatures.md](OptionalDeviceFeatures.md).
 
+__NOTE:__ All of these properties are optional and not having them will result
+in implementation defined behavior.
 
-#### SYCL/host pipes
+
+#### [SYCL/host pipes]
 
 __Key:__ Host pipe variable name.
 
@@ -187,7 +192,7 @@ fields:
 ```
 
 
-#### SYCL/virtual functions
+#### [SYCL/virtual functions]
 
 Set of information about virtual function usage in the module.
 
@@ -196,8 +201,11 @@ Set of information about virtual function usage in the module.
 | "virtual-functions-set"      | Byte array. ("2") | A string identifying the set of virtual functions contained in the module.                  |
 | "uses-virtual-functions-set" | Byte array. ("2") | A string containing a comma-separated list of sets of virtual functions used by the module. |
 
+__NOTE:__ All of these properties are optional and not having them will result
+in implementation defined behavior.
 
-#### SYCL/implicit local arg
+
+#### [SYCL/implicit local arg]
 
 __Key:__ Kernel name.
 
@@ -206,7 +214,7 @@ __Value type:__ 32 bit integer. ("1")
 __Value:__ Index of the implicit local memory argument.
 
 
-#### SYCL/registered kernels
+#### [SYCL/registered kernels]
 
 __Key:__ "Registered" kernel name.
 
@@ -215,7 +223,7 @@ __Value type:__ Byte array. ("2")
 __Value:__ The name of the kernel corresponding to the registered kernel name.
 
 
-#### SYCLBIN/global metadata
+#### [SYCLBIN/global metadata]
 
 Set of global information about a SYCLBIN file.
 
@@ -224,7 +232,7 @@ Set of global information about a SYCLBIN file.
 | "state" | 32 bit integer. ("1") | Integer representation of one of the possible states of the file, corresponding to the `sycl::bundle_state` enum. It must be one of the following:<ol start="0"><li>`sycl::bundle_state::input`</li><li>`sycl::bundle_state::object`</li><li>`sycl::bundle_state::executable`</li></ol> |
 
 
-#### SYCLBIN/ir module metadata
+#### [SYCLBIN/ir module metadata]
 
 Set of information about an IR module in a SYCLBIN file.
 
@@ -233,7 +241,7 @@ Set of information about an IR module in a SYCLBIN file.
 | "type" | 32 bit integer. ("1") | Integer representation of one of the pre-defined IR types. It must be one of the following:<ol start="0"><li>SPIR-V</li><li>PTX</li><li>AMDGCN</li></ol> |
 
 
-#### SYCLBIN/native device code image metadata
+#### [SYCLBIN/native device code image metadata]
 
 Set of information about an native device code image in a SYCLBIN file.
 
