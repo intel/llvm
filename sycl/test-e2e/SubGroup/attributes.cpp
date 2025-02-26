@@ -1,8 +1,5 @@
-// RUN: %if (!target-nvidia && !target-amd) %{ %{build} -fsycl-device-code-split=per_kernel -o %t_non_gpu.out %}
-// RUN: %if (target-nvidia || target-amd) %{ %{build} -fsycl-device-code-split=per_kernel -DBUILD_FOR_GPU -o %t_gpu.out %}
-
-// RUN: %if (!cuda && !hip) %{ %{run} %t_non_gpu.out %}
-// RUN: %if (cuda || hip) %{ %{run} %t_gpu.out %}
+// RUN: %{build} %if (target-nvidia || target-amd) %{ -DBUILD_FOR_GPU %} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 //==------- attributes.cpp - SYCL sub_group attributes test ----*- C++ -*---==//
 //
