@@ -60,6 +60,7 @@ runs:
       groups
       echo ----
       ls /usr/local/lib
+      ls /usr/lib
   - name: Run compute-benchmarks
     shell: bash
     run: |
