@@ -879,23 +879,16 @@ finalizeWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer) {
 
   // Reset the L0 events we use for command-buffer sync-points to the
   // non-signaled state. This is required for multiple submissions.
-  auto resetEvents = [&CommandBuffer]() -> ur_result_t {
-    for (auto &Event : CommandBuffer->ZeEventsList) {
-      ZE2UR_CALL(zeCommandListAppendEventReset,
-                 (CommandBuffer->ZeCommandListResetEvents, Event));
-    }
-    return UR_RESULT_SUCCESS;
-  };
+  for (auto &Event : CommandBuffer->ZeEventsList) {
+    ZE2UR_CALL(zeCommandListAppendEventReset,
+               (CommandBuffer->ZeCommandListResetEvents, Event));
+  }
 
   if (CommandBuffer->IsInOrderCmdList) {
-    if (!CommandBuffer->MCopyCommandListEmpty) {
-      resetEvents();
-    }
     ZE2UR_CALL(zeCommandListAppendSignalEvent,
                (CommandBuffer->ZeComputeCommandList,
                 CommandBuffer->ExecutionFinishedEvent->ZeEvent));
   } else {
-    resetEvents();
     // Wait for all the user added commands to complete, and signal the
     // command-buffer signal-event when they are done.
     ZE2UR_CALL(zeCommandListAppendBarrier,

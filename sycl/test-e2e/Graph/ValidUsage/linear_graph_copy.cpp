@@ -44,7 +44,7 @@ int main() {
                                                  Queue.get_device()};
 
   T *PtrA = malloc_device<T>(Size, Queue);
-  T *PtrB = malloc_host<T>(Size, Queue);
+  T *PtrB = malloc_shared<T>(Size, Queue);
   T *PtrC = malloc_device<T>(Size, Queue);
 
   Queue.copy(DataA.data(), PtrA, Size);
