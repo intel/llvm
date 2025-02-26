@@ -1179,6 +1179,7 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
     MemorySanitizer Msan(*F.getParent(), MsanSpirv, Options);
     Modified |=
         Msan.sanitizeFunction(F, FAM.getResult<TargetLibraryAnalysis>(F));
+    MsanSpirv.instrumentFunction(F);
   }
 
   if (!Modified)

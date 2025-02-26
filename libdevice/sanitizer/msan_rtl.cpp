@@ -417,4 +417,73 @@ DEVICE_EXTERN_C_INLINE void __msan_barrier() {
                              __spv::MemorySemanticsMask::WorkgroupMemory);
 }
 
+static __SYCL_CONSTANT__ const char __msan_print_local_arg[] =
+    "[kernel] local_arg(index=%d, size=%d)\n";
+
+static __SYCL_CONSTANT__ const char
+    __msan_print_set_shadow_dynamic_local_begin[] =
+        "[kernel] BEGIN __msan_poison_shadow_dynamic_local\n";
+static __SYCL_CONSTANT__ const char
+    __msan_print_set_shadow_dynamic_local_end[] =
+        "[kernel] END   __msan_poison_shadow_dynamic_local\n";
+static __SYCL_CONSTANT__ const char __msan_print_report_arg_count_incorrect[] =
+    "[kernel] ERROR: The number of local args is incorrect, expect %d, actual "
+    "%d\n";
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_poison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_dynamic_local_begin));
+
+  if (num_args != GetMsanLaunchInfo->NumLocalArgs) {
+    __spirv_ocl_printf(__msan_print_report_arg_count_incorrect, num_args,
+                       GetMsanLaunchInfo->NumLocalArgs);
+    return;
+  }
+
+  uptr *args = (uptr *)ptr;
+
+  for (uint32_t i = 0; i < num_args; ++i) {
+    auto *local_arg = &GetMsanLaunchInfo->LocalArgs[i];
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_local_arg, i, local_arg->Size));
+
+    __msan_set_shadow_static_local(args[i], local_arg->Size);
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_dynamic_local_end));
+}
+
+static __SYCL_CONSTANT__ const char
+    __mem_unpoison_shadow_dynamic_local_begin[] =
+        "[kernel] BEGIN __msan_unpoison_shadow_dynamic_local\n";
+static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_dynamic_local_end[] =
+    "[kernel] END   __msan_unpoison_shadow_dynamic_local\n";
+
+DEVICE_EXTERN_C_NOINLINE void
+__msan_unpoison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
+  if (!GetMsanLaunchInfo)
+    return;
+
+  MSAN_DEBUG(__spirv_ocl_printf(__mem_unpoison_shadow_dynamic_local_begin));
+
+  if (num_args != GetMsanLaunchInfo->NumLocalArgs) {
+    __spirv_ocl_printf(__msan_print_report_arg_count_incorrect, num_args,
+                       GetMsanLaunchInfo->NumLocalArgs);
+    return;
+  }
+
+  uptr *args = (uptr *)ptr;
+
+  for (uint32_t i = 0; i < num_args; ++i) {
+    auto *local_arg = &GetMsanLaunchInfo->LocalArgs[i];
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_local_arg, i, local_arg->Size));
+
+    __msan_unpoison_shadow_static_local(args[i], local_arg->Size);
+  }
+
+  MSAN_DEBUG(__spirv_ocl_printf(__mem_unpoison_shadow_dynamic_local_end));
+}
+
 #endif // __SPIR__ || __SPIRV__
