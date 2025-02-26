@@ -24,7 +24,8 @@ int main() {
 
   syclex::architecture CurrentDeviceArch =
       Device.get_info<syclex::info::device::architecture>();
-  // This skip is done because test is not supported on BMG and later devices.
+  // This check is carried out because the test is not supported on BMG and
+  // subsequent devices.
   if (CurrentDeviceArch >= syclex::architecture::intel_gpu_bmg_g21) {
     std::cout << "This test is not supported on BMG and later. Skipping..."
               << std::endl;
