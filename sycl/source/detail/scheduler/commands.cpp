@@ -516,6 +516,8 @@ public:
     AsyncCodeLocationPtr.reset();
 #endif
 
+    // ktikhomi: zeEventHostSignal - not implemented in UR: todo
+    // also to consider usage of urEventSetCallback for some scheduling improvements
     try {
       // If we enqueue blocked users - ur level could throw exception that
       // should be treated as async now.
