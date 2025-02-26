@@ -168,7 +168,9 @@ public:
   }
   // Shows that command could be enqueued, but is blocking enqueue of all
   // commands depending on it. Regular usage - host task.
-  bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
+  bool isBlocking() const {
+    return isHostTask() && !producesPiEvent() && !MEvent->isCompleted();
+  }
 
   void addBlockedUserUnique(const EventImplPtr &NewUser) {
     if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
@@ -243,7 +245,8 @@ public:
 
   static std::vector<ur_event_handle_t>
   getUrEvents(const std::vector<EventImplPtr> &EventImpls,
-              const QueueImplPtr &CommandQueue, bool IsHostTaskCommand);
+              const QueueImplPtr &CommandQueue, bool IsHostTaskCommand,
+              bool producesEvent);
   /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.

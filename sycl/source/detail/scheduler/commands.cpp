@@ -255,7 +255,8 @@ static std::string commandToName(Command::CommandType Type) {
 
 std::vector<ur_event_handle_t>
 Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
-                     const QueueImplPtr &CommandQueue, bool IsHostTaskCommand) {
+                     const QueueImplPtr &CommandQueue, bool IsHostTaskCommand,
+                     bool producesNativeEvent) {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     auto Handle = EventImpl->getHandle();
@@ -267,7 +268,8 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
     if (CommandQueue && EventImpl->getWorkerQueue() == CommandQueue &&
-        CommandQueue->isInOrder() && !IsHostTaskCommand)
+        CommandQueue->isInOrder() &&
+        (!IsHostTaskCommand || producesNativeEvent))
       continue;
 
     RetUrEvents.push_back(Handle);
@@ -278,7 +280,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
 
 std::vector<ur_event_handle_t>
 Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
-  return getUrEvents(EventImpls, MWorkerQueue, isHostTask());
+  return getUrEvents(EventImpls, MWorkerQueue, isHostTask(), producesPiEvent());
 }
 
 // This function is implemented (duplicating getUrEvents a lot) as short term
@@ -319,7 +321,7 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
     // kept.
     if (!HasEventMode && MWorkerQueue &&
         EventImpl->getWorkerQueue() == MWorkerQueue &&
-        MWorkerQueue->isInOrder() && !isHostTask())
+        MWorkerQueue->isInOrder() && (!isHostTask() || producesPiEvent()))
       continue;
 
     RetUrEvents.push_back(EventImpl->getHandle());
@@ -3679,7 +3681,10 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
 bool ExecCGCommand::producesPiEvent() const {
   return !MCommandBuffer &&
-         MCommandGroup->getType() != CGType::CodeplayHostTask;
+         !(MCommandGroup->getType() == CGType::CodeplayHostTask &&
+           ((MQueue->getDeviceImplPtr()->getBackend() !=
+             backend::ext_oneapi_level_zero) ||
+            std::getenv("SYCL_DISABLE_USER_EVENTS_PATH")));
 }
 
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
