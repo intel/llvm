@@ -1105,7 +1105,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // L0 does not support mipmaps.
     return ReturnValue(false);
@@ -1117,7 +1117,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
     // L0 does not support creation of images from individual mipmap levels.
     return ReturnValue(false);
