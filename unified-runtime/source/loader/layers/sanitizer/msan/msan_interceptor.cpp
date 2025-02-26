@@ -481,6 +481,23 @@ ur_result_t MsanInterceptor::prepareLaunch(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
       ContextInfo->MaxAllocatedSize, (void **)&LaunchInfo.Data->CleanShadow));
 
+  if (LaunchInfo.LocalWorkSize.empty()) {
+    LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
+    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
+        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    if (URes != UR_RESULT_SUCCESS) {
+      if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        return URes;
+      }
+      // If urKernelGetSuggestedLocalWorkSize is not supported by driver, we
+      // fallback to inefficient implementation
+      for (size_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+        LaunchInfo.LocalWorkSize[Dim] = 1;
+      }
+    }
+  }
+
   const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
   uint32_t NumWG = 1;
   for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
@@ -498,7 +515,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
           "memory, maybe the number of workgroup ({}) is too "
           "large",
           NumWG);
-      getContext()->logger.warning("Skip checking local memory of kernel <{}>",
+      getContext()->logger.warning("Skip checking local memory of kernel <{}> ",
                                    GetKernelName(Kernel));
     } else {
       getContext()->logger.info("ShadowMemory(Local, WorkGroup={}, {} - {})",

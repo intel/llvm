@@ -4,7 +4,11 @@
 // RUN: %{build} %device_msan_flags -g -O2 -o %t2.out
 // RUN: %{run} %t2.out 2>&1 | FileCheck %s
 
-#include <sycl/sycl.hpp>
+// XFAIL: spirv-backend && gpu && run-mode
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
+
+#include <sycl/ext/oneapi/group_local_memory.hpp>
+#include <sycl/queue.hpp>
 
 constexpr std::size_t global_size = 16;
 constexpr std::size_t local_size = 8;

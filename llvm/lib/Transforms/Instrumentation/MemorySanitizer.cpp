@@ -810,7 +810,7 @@ private:
   DenseMap<Function *, SmallVector<Constant *, 8>> KernelToLocalMemMap;
   DenseMap<Function *, DenseSet<Function *>> FuncToKernelCallerMap;
 
-  FunctionCallee MsanSetShadowStaticLocalFunc;
+  FunctionCallee MsanPoisonShadowStaticLocalFunc;
   FunctionCallee MsanUnpoisonShadowStaticLocalFunc;
   FunctionCallee MsanPoisonShadowDynamicLocalFunc;
   FunctionCallee MsanUnpoisonShadowDynamicLocalFunc;
@@ -869,8 +869,8 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   //   uptr ptr,
   //   size_t size
   // )
-  MsanSetShadowStaticLocalFunc = M.getOrInsertFunction(
-      "__msan_set_shadow_static_local", IRB.getVoidTy(), IntptrTy, IntptrTy);
+  MsanPoisonShadowStaticLocalFunc = M.getOrInsertFunction(
+      "__msan_poison_shadow_static_local", IRB.getVoidTy(), IntptrTy, IntptrTy);
 
   // __msan_unpoison_shadow_static_local(
   //   uptr ptr,
@@ -984,7 +984,7 @@ void MemorySanitizerOnSpirv::instrumentStaticLocalMemory() {
       Builder.CreateCall(MsanBarrierFunc);
     }
     IRBuilder<> Builder(&F->getEntryBlock().front());
-    Builder.CreateCall(MsanSetShadowStaticLocalFunc,
+    Builder.CreateCall(MsanPoisonShadowStaticLocalFunc,
                        {Builder.CreatePointerCast(G, IntptrTy),
                         ConstantInt::get(IntptrTy, SizeInBytes)});
 

@@ -321,6 +321,8 @@ ur_result_t MsanShadowMemoryGPU::AllocLocalShadow(ur_queue_handle_t Queue,
                                                    (void *)LocalShadowOffset));
       LocalShadowOffset = 0;
       LastAllocedSize = 0;
+
+      return URes;
     }
 
     LastAllocedSize = RequiredShadowSize;

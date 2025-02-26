@@ -5,6 +5,10 @@
 // RUN: %{run} not %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_msan_flags -g -O2 -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
+
+// XFAIL: spirv-backend && gpu && run-mode
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
+
 #include <sycl/group.hpp>
 #include <sycl/usm.hpp>
 

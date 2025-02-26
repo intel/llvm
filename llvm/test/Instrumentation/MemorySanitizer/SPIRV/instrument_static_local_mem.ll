@@ -9,8 +9,8 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @MyKernelMemset() sanitize_memory {
 ; CHECK-LABEL: @MyKernelMemset
 entry:
-  ; CHECK: @__msan_set_shadow_static_local{{.*}}@WGLocal
-  ; CHECK: @__msan_set_shadow_static_local{{.*}}@WGCopy
+  ; CHECK: @__msan_poison_shadow_static_local{{.*}}@WGLocal
+  ; CHECK: @__msan_poison_shadow_static_local{{.*}}@WGCopy
   ; CHECK: @__msan_barrier
   store ptr addrspace(3) @WGLocal, ptr addrspace(3) @WGCopy, align 8
   ; CHECK: @__msan_barrier
