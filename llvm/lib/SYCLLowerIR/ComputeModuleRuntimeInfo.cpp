@@ -172,7 +172,7 @@ PropSetRegTy computeDeviceLibProperties(const Module &M,
 
   {
     // Currently, only bfloat16 conversion devicelib is supported, the
-    // meatdata value '0' means fallback version and '1' means native version.
+    // metadata value '0' means fallback version and '1' means native version.
     uint32_t IsNativeBF16DeviceLib = 0;
     if (DeviceLibName.find("native") != std::string::npos)
       IsNativeBF16DeviceLib = 1;
