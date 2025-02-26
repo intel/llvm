@@ -45,12 +45,14 @@ executable("lldb-dap") {
     "FifoFiles.cpp",
     "FunctionBreakpoint.cpp",
     "IOStream.cpp",
+    "InstructionBreakpoint.cpp",
     "JSONUtils.cpp",
     "LLDBUtils.cpp",
     "OutputRedirector.cpp",
     "ProgressEvent.cpp",
     "RunInTerminal.cpp",
     "SourceBreakpoint.cpp",
+    "Watchpoint.cpp",
     "lldb-dap.cpp",
   ]
 }

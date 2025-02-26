@@ -11,11 +11,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 #include <iostream>
 #include <memory>
+#include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <unordered_map>
 using namespace sycl;
 

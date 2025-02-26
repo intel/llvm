@@ -1,11 +1,9 @@
-// UNSUPPORTED: cuda || hip
-// UNSUPPORTED: ze_debug
-// REQUIRES: gpu,linux,sg-16
+// REQUIRES: sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../include/asmhelper.h"
-#include <sycl/sycl.hpp>
+#include "include/asmhelper.h"
+#include <sycl/detail/core.hpp>
 
 struct KernelFunctor {
   KernelFunctor() {}

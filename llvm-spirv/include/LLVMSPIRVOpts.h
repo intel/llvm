@@ -64,8 +64,9 @@ enum class VersionNumber : uint32_t {
   SPIRV_1_3 = 0x00010300,
   SPIRV_1_4 = 0x00010400,
   SPIRV_1_5 = 0x00010500,
+  SPIRV_1_6 = 0x00010600,
   MinimumVersion = SPIRV_1_0,
-  MaximumVersion = SPIRV_1_5
+  MaximumVersion = SPIRV_1_6
 };
 
 inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
@@ -82,13 +83,15 @@ inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
     return "1.4";
   case static_cast<uint32_t>(VersionNumber::SPIRV_1_5):
     return "1.5";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_6):
+    return "1.6";
   }
   return "unknown";
 }
 
-inline bool isSPIRVVersionKnown(uint32_t Ver) {
-  return Ver >= static_cast<uint32_t>(VersionNumber::MinimumVersion) &&
-         Ver <= static_cast<uint32_t>(VersionNumber::MaximumVersion);
+inline bool isSPIRVVersionKnown(VersionNumber Ver) {
+  return Ver >= VersionNumber::MinimumVersion &&
+         Ver <= VersionNumber::MaximumVersion;
 }
 
 enum class ExtensionID : uint32_t {
@@ -98,6 +101,8 @@ enum class ExtensionID : uint32_t {
 #undef EXT
   Last,
 };
+
+enum class ExtInst : uint32_t { None, OpenCL };
 
 enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
 
@@ -144,6 +149,9 @@ public:
       ExtStatusMap[Extension] = Allow;
   }
 
+  std::vector<std::string>
+  getAllowedSPIRVExtensionNames(std::function<bool(ExtensionID)> &Filter) const;
+
   VersionNumber getMaxVersion() const { return MaxVersion; }
 
   bool isGenArgNameMDEnabled() const { return GenKernelArgNameMD; }
@@ -160,11 +168,7 @@ public:
     GenKernelArgNameMD = ArgNameMD;
   }
 
-  void enableAllExtensions() {
-#define EXT(X) ExtStatusMap[ExtensionID::X] = true;
-#include "LLVMSPIRVExtensions.inc"
-#undef EXT
-  }
+  void enableAllExtensions();
 
   void enableGenArgNameMD() { GenKernelArgNameMD = true; }
 
@@ -179,6 +183,14 @@ public:
     Value = It->second;
     return true;
   }
+
+  void setExtInst(ExtInst Value) {
+    // --spirv-ext-inst supersedes --spirv-replace-fmuladd-with-ocl-mad
+    ReplaceLLVMFmulAddWithOpenCLMad = false;
+    ExtInstValue = Value;
+  }
+
+  ExtInst getExtInst() const { return ExtInstValue; }
 
   void setDesiredBIsRepresentation(BIsRepresentation Value) {
     DesiredRepresentationOfBIs = Value;
@@ -224,10 +236,21 @@ public:
     PreserveOCLKernelArgTypeMetadataThroughString = Value;
   }
 
+  bool shouldEmitFunctionPtrAddrSpace() const noexcept {
+    return EmitFunctionPtrAddrSpace;
+  }
+
+  void setEmitFunctionPtrAddrSpace(bool Value) noexcept {
+    EmitFunctionPtrAddrSpace = Value;
+  }
+
   void setBuiltinFormat(BuiltinFormat Value) noexcept {
     SPIRVBuiltinFormat = Value;
   }
   BuiltinFormat getBuiltinFormat() const noexcept { return SPIRVBuiltinFormat; }
+
+  void setUseLLVMTarget(bool Flag) noexcept { UseLLVMTarget = Flag; }
+  bool getUseLLVMTarget() const noexcept { return UseLLVMTarget; }
 
 private:
   // Common translation options
@@ -238,6 +261,8 @@ private:
   // SPIR-V to LLVM translation options
   bool GenKernelArgNameMD = false;
   std::unordered_map<uint32_t, uint64_t> ExternalSpecialization;
+  // Extended instruction set to use when translating from LLVM IR to SPIR-V
+  ExtInst ExtInstValue = ExtInst::None;
   // Representation of built-ins, which should be used while translating from
   // SPIR-V to back to LLVM IR
   BIsRepresentation DesiredRepresentationOfBIs = BIsRepresentation::OpenCL12;
@@ -270,9 +295,16 @@ private:
   // kernel_arg_type_qual metadata through OpString
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
 
+  // Controls if CodeSectionINTEL can be emitted and consumed with a dedicated
+  // address space
+  bool EmitFunctionPtrAddrSpace = false;
+
   bool PreserveAuxData = false;
 
   BuiltinFormat SPIRVBuiltinFormat = BuiltinFormat::Function;
+
+  // Convert LLVM to SPIR-V using the LLVM SPIR-V Backend target
+  bool UseLLVMTarget = false;
 };
 
 } // namespace SPIRV

@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __LLVM_LIBC_MACROS_STDCKDINT_MACROS_H
-#define __LLVM_LIBC_MACROS_STDCKDINT_MACROS_H
+#ifndef LLVM_LIBC_MACROS_STDCKDINT_MACROS_H
+#define LLVM_LIBC_MACROS_STDCKDINT_MACROS_H
 
 // We need to use __builtin_*_overflow from GCC/Clang to implement the overflow
-// macros. Check __GNUC__ for availability of such builtins.
-#ifdef __GNUC__
+// macros. Check __GNUC__ or __clang__ for availability of such builtins.
+// Note that clang-cl defines __clang__ only and does not define __GNUC__ so we
+// have to check for both.
+#if defined(__GNUC__) || defined(__clang__)
 // clang/gcc overlay may provides similar macros, we need to avoid redefining
 // them.
 #ifndef __STDC_VERSION_STDCKDINT_H__
@@ -22,4 +24,4 @@
 #define ckd_mul(R, A, B) __builtin_mul_overflow((A), (B), (R))
 #endif // __STDC_VERSION_STDCKDINT_H__
 #endif // __GNUC__
-#endif // __LLVM_LIBC_MACROS_STDCKDINT_MACROS_H
+#endif // LLVM_LIBC_MACROS_STDCKDINT_MACROS_H

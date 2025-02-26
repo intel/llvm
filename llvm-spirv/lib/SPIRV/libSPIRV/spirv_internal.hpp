@@ -77,8 +77,10 @@ enum InternalOp {
   IOpCooperativeMatrixLoadCheckedINTEL = 6193,
   IOpCooperativeMatrixStoreCheckedINTEL = 6194,
   IOpCooperativeMatrixConstructCheckedINTEL = 6195,
+  IOpCooperativeMatrixLoadOffsetINTEL = 6239,
+  IOpCooperativeMatrixStoreOffsetINTEL = 6240,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
-  IOpTypeTaskSequenceINTEL = 6411,
+  IOpTypeTaskSequenceINTEL = 6199,
   IOpComplexFMulINTEL = 6415,
   IOpComplexFDivINTEL = 6416,
   IOpRoundFToTF32INTEL = 6426,
@@ -87,6 +89,9 @@ enum InternalOp {
   IOpJointMatrixGetElementCoordINTEL = 6440,
   IOpCooperativeMatrixApplyFunctionINTEL = 6448,
   IOpCooperativeMatrixPrefetchINTEL = 6449,
+  IOpConvertHandleToImageINTEL = 6529,
+  IOpConvertHandleToSamplerINTEL = 6530,
+  IOpConvertHandleToSampledImageINTEL = 6531,
   IOpPrev = OpMax - 2,
   IOpForward
 };
@@ -98,8 +103,6 @@ enum InternalDecoration {
   IDecInitModeINTEL = 6148,
   IDecImplementInCSRINTEL = 6149,
   IDecArgumentAttributeINTEL = 6409,
-  IDecFuncParamKindINTEL = 9624,
-  IDecFuncParamDescINTEL = 9625
 };
 
 enum InternalCapability {
@@ -113,6 +116,7 @@ enum InternalCapability {
   ICapGlobalVariableDecorationsINTEL = 6146,
   ICapabilityTaskSequenceINTEL = 6162,
   ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
+  ICapabilityCooperativeMatrixOffsetInstructionsINTEL = 6238,
   ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
   ICapabilityComplexFloatMulDivINTEL = 6414,
   ICapabilityTensorFloat32RoundingINTEL = 6425,
@@ -124,14 +128,15 @@ enum InternalCapability {
   ICapabilityJointMatrixPackedInt2ComponentTypeINTEL = 6438,
   ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439,
   ICapabilityCacheControlsINTEL = 6441,
-  ICapabilitySubgroupRequirementsINTEL = 6445
+  ICapabilitySubgroupRequirementsINTEL = 6445,
+  ICapabilityBindlessImagesINTEL = 6528
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
   IExecModeFastCompositeKernelINTEL = 6088,
-  IExecModeNamedSubgroupSizeINTEL = 6446
+  IExecModeNamedSubgroupSizeINTEL = 6446,
 };
 
 constexpr LinkageType LinkageTypeInternal =
@@ -185,6 +190,10 @@ _SPIRV_OP(Op, CooperativeMatrixLoadCheckedINTEL)
 _SPIRV_OP(Op, CooperativeMatrixStoreCheckedINTEL)
 _SPIRV_OP(Op, CooperativeMatrixConstructCheckedINTEL)
 
+_SPIRV_OP(Capability, CooperativeMatrixOffsetInstructionsINTEL)
+_SPIRV_OP(Op, CooperativeMatrixLoadOffsetINTEL)
+_SPIRV_OP(Op, CooperativeMatrixStoreOffsetINTEL)
+
 _SPIRV_OP(Capability, CooperativeMatrixInvocationInstructionsINTEL)
 _SPIRV_OP(Op, CooperativeMatrixApplyFunctionINTEL)
 
@@ -214,6 +223,10 @@ _SPIRV_OP(Op, TaskSequenceGetINTEL)
 _SPIRV_OP(Op, TaskSequenceReleaseINTEL)
 _SPIRV_OP(Op, TypeTaskSequenceINTEL)
 
+_SPIRV_OP(Capability, BindlessImagesINTEL)
+_SPIRV_OP(Op, ConvertHandleToImageINTEL)
+_SPIRV_OP(Op, ConvertHandleToSamplerINTEL)
+_SPIRV_OP(Op, ConvertHandleToSampledImageINTEL)
 #undef _SPIRV_OP
 
 constexpr SourceLanguage SourceLanguagePython =
@@ -275,10 +288,6 @@ constexpr Decoration DecorationImplementInCSRINTEL =
     static_cast<Decoration>(IDecImplementInCSRINTEL);
 constexpr Decoration DecorationArgumentAttributeINTEL =
     static_cast<Decoration>(IDecArgumentAttributeINTEL);
-constexpr Decoration DecorationFuncParamKindINTEL =
-    static_cast<Decoration>(IDecFuncParamKindINTEL);
-constexpr Decoration DecorationFuncParamDescINTEL =
-    static_cast<Decoration>(IDecFuncParamDescINTEL);
 
 constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);

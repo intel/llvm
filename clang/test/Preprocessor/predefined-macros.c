@@ -70,7 +70,7 @@
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-MATH-ERRNO
 // CHECK-NO-MATH-ERRNO: #define __NO_MATH_ERRNO__ 1
 //
-// RUN: %clang_cc1 %s -E -dM -ffinite-math-only -o - \
+// RUN: %clang_cc1 %s -E -dM -menable-no-nans -menable-no-infs -o - \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FINITE-MATH-ONLY
 // CHECK-FINITE-MATH-ONLY: #define __FINITE_MATH_ONLY__ 1
 //
@@ -236,6 +236,16 @@
 // CHECK-SPIRV64-DAG: #define __SPIRV64__ 1
 // CHECK-SPIRV64-NOT: #define __SPIRV32__ 1
 
+// RUN: %clang_cc1 %s -E -dM -o - -x cl -triple spirv64-amd-amdhsa \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-SPIRV64-AMDGCN
+// CHECK-SPIRV64-AMDGCN-DAG: #define __IMAGE_SUPPORT__ 1
+// CHECK-SPIRV64-AMDGCN-DAG: #define __SPIRV__ 1
+// CHECK-SPIRV64-AMDGCN-DAG: #define __SPIRV64__ 1
+// CHECK-SPIRV64-AMDGCN-DAG: #define __AMD__ 1
+// CHECK-SPIRV64-AMDGCN-DAG: #define __AMDGCN__ 1
+// CHECK-SPIRV64-AMDGCN-DAG: #define __AMDGPU__ 1
+// CHECK-SPIRV64-AMDGCN-NOT: #define __SPIRV32__ 1
+
 // RUN: %clang_cc1 %s -E -dM -o - -x hip -triple x86_64-unknown-linux-gnu \
 // RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-HIP
 // CHECK-HIP: #define __HIPCC__ 1
@@ -284,32 +294,88 @@
 // CHECK-RDC: #define __CLANG_RDC__ 1
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
-// RUN:   -triple spir64-unknown-unknown -fsycl-disable-range-rounding -o - \
-// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-RANGE
+// RUN:   -triple spir64-unknown-unknown -fsycl-range-rounding=disable -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-DISABLE-RANGE
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
 // RUN:   -triple spir64_fpga-unknown-unknown -o - \
-// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-DISABLE-NO-RANGE
 
-// RUN: %clang_cc1 %s -E -dM -fsycl-is-device -fsycl-disable-range-rounding \
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device -fsycl-range-rounding=disable \
 // RUN:   -triple spir64_fpga-unknown-unknown -o - \
-// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-RANGE
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-DISABLE-RANGE
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-device -o - \
-// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-DISABLE-NO-RANGE
 
 // RUN: %clang_cc1 %s -E -dM -o - \
-// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-DISABLE-NO-RANGE
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-host \
-// RUN: -triple x86_64-unknown-linux-gnu -fsycl-disable-range-rounding -o - \
-// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-RANGE
+// RUN: -triple x86_64-unknown-linux-gnu -fsycl-range-rounding=disable -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-DISABLE-RANGE
 
 // RUN: %clang_cc1 %s -E -dM -fsycl-is-host -o - \
-// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-NO-RANGE
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-DISABLE-NO-RANGE
 
-// CHECK-RANGE: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
-// CHECK-NO-RANGE-NOT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+// CHECK-DISABLE-RANGE: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+// CHECK-DISABLE-NO-RANGE-NOT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
+// RUN:   -triple spir64-unknown-unknown -fsycl-range-rounding=force -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FORCE-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
+// RUN:   -triple spir64_fpga-unknown-unknown -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FORCE-NO-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device -fsycl-range-rounding=force \
+// RUN:   -triple spir64_fpga-unknown-unknown -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FORCE-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FORCE-NO-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FORCE-NO-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-host \
+// RUN: -triple x86_64-unknown-linux-gnu -fsycl-range-rounding=force -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FORCE-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-host -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FORCE-NO-RANGE
+
+// CHECK-FORCE-RANGE: #define __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+// CHECK-FORCE-NO-RANGE-NOT: #define __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
+// RUN:   -triple spir64-unknown-unknown -fsycl-exp-range-rounding -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-EXP-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device \
+// RUN:   -triple spir64_fpga-unknown-unknown -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-EXP-NO-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device -fsycl-exp-range-rounding \
+// RUN:   -triple spir64_fpga-unknown-unknown -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-EXP-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-device -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-EXP-NO-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-EXP-NO-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-host \
+// RUN: -triple x86_64-unknown-linux-gnu -fsycl-exp-range-rounding -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-EXP-RANGE
+
+// RUN: %clang_cc1 %s -E -dM -fsycl-is-host -o - \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-EXP-NO-RANGE
+
+// CHECK-EXP-RANGE: #define __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ 1
+// CHECK-EXP-NO-RANGE-NOT: #define __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ 1
 
 // RUN: %clang_cc1 %s -E -dM -o - -x hip -triple x86_64-unknown-linux-gnu \
 // RUN:   -fgpu-default-stream=per-thread \

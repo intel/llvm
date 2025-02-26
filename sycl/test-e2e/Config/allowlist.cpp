@@ -1,23 +1,31 @@
-// REQUIRES: opencl && cpu
 // RUN: %{build} -o %t.out
 //
-// FIXME: Using ONEAPI_DEVICE_SELECTOR=\*:cpu results in seg. faults that I
-// cannot reproduce under gdb.
-// RUN: env PRINT_DEVICE_INFO=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out > %t1.conf
-// RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t1.conf ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out
+// RUN: env PRINT_DEVICE_INFO=1 %{run-unfiltered-devices} %t.out > %t1.conf
+// RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 //
-// RUN: env PRINT_PLATFORM_INFO=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out > %t2.conf
-// RUN: env TEST_DEVICE_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t2.conf ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out
+// RUN: env PRINT_PLATFORM_INFO=1 %{run-unfiltered-devices} %t.out > %t2.conf
+// RUN: env TEST_PLATFORM_AVAILABLE=1 env SYCL_CONFIG_FILE_NAME=%t2.conf %{run-unfiltered-devices} %t.out
 //
-// RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_ALLOWLIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out
-// RUN: env TEST_INCORRECT_VALUE=1 env SYCL_DEVICE_ALLOWLIST="IncorrectKey:{{.*}}" ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out
+// RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_ALLOWLIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" %{run-unfiltered-devices} %t.out
+// RUN: env TEST_INCORRECT_VALUE=1 env SYCL_DEVICE_ALLOWLIST="IncorrectKey:{{.*}}" %{run-unfiltered-devices} %t.out
 
+#include "../helpers.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+static bool isIdenticalDevices(const std::vector<sycl::device> &Devices) {
+  return std::all_of(
+      Devices.cbegin(), Devices.cend(), [&](const sycl::device &Dev) {
+        return (Dev.get_info<sycl::info::device::name>() ==
+                Devices.at(0).get_info<sycl::info::device::name>()) &&
+               (Dev.get_info<sycl::info::device::driver_version>() ==
+                Devices.at(0).get_info<sycl::info::device::driver_version>());
+      });
+}
 
 static void replaceSpecialCharacters(std::string &Str) {
   // Replace common special symbols with '.' which matches to any character
@@ -33,86 +41,86 @@ static void replaceSpecialCharacters(std::string &Str) {
 int main() {
 
   // Expected that the allowlist filter is not set
-  if (getenv("PRINT_PLATFORM_INFO")) {
-    for (const sycl::platform &Platform : sycl::platform::get_platforms())
-      if (!Platform.is_host()) {
+  if (env::isDefined("PRINT_PLATFORM_INFO")) {
+    for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
+      std::string Name = Platform.get_info<sycl::info::platform::name>();
+      std::string Ver = Platform.get_info<sycl::info::platform::version>();
+      // As a string will be used as regexp pattern, we need to get rid of
+      // symbols that can be treated in a special way.
+      replaceSpecialCharacters(Name);
+      replaceSpecialCharacters(Ver);
 
-        std::string Name = Platform.get_info<sycl::info::platform::name>();
-        std::string Ver = Platform.get_info<sycl::info::platform::version>();
-        // As a string will be used as regexp pattern, we need to get rid of
-        // symbols that can be treated in a special way.
-        replaceSpecialCharacters(Name);
-        replaceSpecialCharacters(Ver);
+      std::cout << "SYCL_DEVICE_ALLOWLIST=PlatformName:{{" << Name
+                << "}},PlatformVersion:{{" << Ver << "}}";
 
-        std::cout << "SYCL_DEVICE_ALLOWLIST=PlatformName:{{" << Name
-                  << "}},PlatformVersion:{{" << Ver << "}}";
-
-        return 0;
-      }
-    throw std::runtime_error("Non host device is not found");
+      return 0;
+    }
+    throw std::runtime_error("No platform is found");
   }
 
   // Expected that the allowlist filter is not set
-  if (getenv("PRINT_DEVICE_INFO")) {
-    for (const sycl::platform &Platform : sycl::platform::get_platforms())
-      if (!Platform.is_host()) {
-        const sycl::device Dev = Platform.get_devices().at(0);
-        std::string Name = Dev.get_info<sycl::info::device::name>();
-        std::string Ver = Dev.get_info<sycl::info::device::driver_version>();
+  if (env::isDefined("PRINT_DEVICE_INFO")) {
+    for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
+      const sycl::device Dev = Platform.get_devices().at(0);
+      std::string Name = Dev.get_info<sycl::info::device::name>();
+      std::string Ver = Dev.get_info<sycl::info::device::driver_version>();
 
-        // As a string will be used as regexp pattern, we need to get rid of
-        // symbols that can be treated in a special way.
-        replaceSpecialCharacters(Name);
-        replaceSpecialCharacters(Ver);
+      // As a string will be used as regexp pattern, we need to get rid of
+      // symbols that can be treated in a special way.
+      replaceSpecialCharacters(Name);
+      replaceSpecialCharacters(Ver);
 
-        std::cout << "SYCL_DEVICE_ALLOWLIST=DeviceName:{{" << Name
-                  << "}},DriverVersion:{{" << Ver << "}}";
+      std::cout << "SYCL_DEVICE_ALLOWLIST=DeviceName:{{" << Name
+                << "}},DriverVersion:{{" << Ver << "}}";
 
-        return 0;
-      }
-    throw std::runtime_error("Non host device is not found");
+      return 0;
+    }
+    throw std::runtime_error("No device is found");
   }
 
   // Expected the allowlist to be set with the "PRINT_DEVICE_INFO" run result
-  if (getenv("TEST_DEVICE_AVAILABLE")) {
-    for (const sycl::platform &Platform : sycl::platform::get_platforms())
-      if (!Platform.is_host()) {
-        if (Platform.get_devices().size() != 1)
-          throw std::runtime_error("Expected only one non host device.");
+  if (env::isDefined("TEST_DEVICE_AVAILABLE")) {
+    for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
+      auto Devices = Platform.get_devices();
+      if (Devices.empty())
+        throw std::runtime_error("No device is found");
 
-        return 0;
-      }
-    throw std::runtime_error("Non host device is not found");
+      if (!(Devices.size() == 1 || isIdenticalDevices(Devices)))
+        throw std::runtime_error("Expected only one device.");
+
+      return 0;
+    }
   }
 
   // Expected the allowlist to be set but empty
-  if (getenv("TEST_DEVICE_IS_NOT_AVAILABLE")) {
-    for (const sycl::platform &Platform : sycl::platform::get_platforms())
-      if (!Platform.is_host())
-        throw std::runtime_error("Expected no non host device is available");
+  if (env::isDefined("TEST_DEVICE_IS_NOT_AVAILABLE")) {
+    if (!sycl::platform::get_platforms().empty())
+      throw std::runtime_error("Expected no device is available");
     return 0;
   }
 
-  if (getenv("TEST_INCORRECT_VALUE")) {
+  // Expected the allowlist to be set with the "PRINT_PLATFORM_INFO" run result
+  if (env::isDefined("TEST_PLATFORM_AVAILABLE")) {
+    auto Platforms = sycl::platform::get_platforms();
+    if (Platforms.empty())
+      throw std::runtime_error("No platform is found");
+    else if (Platforms.size() != 1)
+      throw std::runtime_error("Expected only one platform.");
+
+    return 0;
+  }
+
+  if (env::isDefined("TEST_INCORRECT_VALUE")) {
     try {
       sycl::platform::get_platforms();
     } catch (sycl::exception &E) {
-      // Workaround to make CI pass.
-      // TODO: after the submission of PR intel/llvm:3826, create PR to
-      // intel/llvm-test-suite with removal of 1st parameter of the vector,
-      // and transformation of std::vector<std::string> to std::string
-      const std::vector<std::string> ExpectedMsgs{
-          "Unrecognized key in device allowlist",
+      const std::string ExpectedMsg{
           "Unrecognized key in SYCL_DEVICE_ALLOWLIST"};
       const std::string GotMessage(E.what());
-      bool CorrectMsg = false;
-      for (const auto &ExpectedMsg : ExpectedMsgs) {
-        if (GotMessage.find(ExpectedMsg) != std::string::npos) {
-          CorrectMsg = true;
-          break;
-        }
+      if (GotMessage.find(ExpectedMsg) != std::string::npos) {
+        return 0;
       }
-      return CorrectMsg ? 0 : 1;
+      return 1;
     }
   }
 

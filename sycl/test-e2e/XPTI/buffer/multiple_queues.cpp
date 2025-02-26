@@ -9,12 +9,16 @@
 
 #else
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
 
 int main() {
   bool MismatchFound = false;
 
-  sycl::device Device{sycl::ext::oneapi::filter_selector{"cpu,accelerator"}};
+  auto selector_v = [](const sycl::device &d) {
+    return std::max(cpu_selector_v(d), accelerator_selector_v(d));
+  };
+  sycl::device Device{selector_v};
   auto Devices = Device.create_sub_devices<
       sycl::info::partition_property::partition_equally>(2);
 
@@ -27,7 +31,7 @@ int main() {
     sycl::buffer<int, 1> Buffer1(Array, NumOfWorkItems);
 
     Queue1.submit([&](sycl::handler &cgh) {
-      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:24
+      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:32
       auto Accessor1 = Buffer1.get_access<sycl::access::mode::write>(cgh);
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
       cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {
@@ -37,7 +41,7 @@ int main() {
     Queue1.wait();
 
     Queue2.submit([&](sycl::handler &cgh) {
-      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID2:.*]]|2014|1025|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:24
+      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID2:.*]]|2014|1025|{{.*}}multiple_queues.cpp:[[# @LINE + 1]]:32
       auto Accessor1 = Buffer1.get_access<sycl::access::mode::write>(cgh);
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID2:.*]]
       cgh.parallel_for<class MulBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {

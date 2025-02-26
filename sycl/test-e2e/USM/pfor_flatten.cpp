@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-dead-args-optimization -o %t1.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t1.out
 // RUN: %{run} %t1.out
 
 //==--------------- pfor_flatten.cpp - Kernel Launch Flattening test -------==//
@@ -9,7 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

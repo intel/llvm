@@ -8,7 +8,9 @@
 
 #include "helpers.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/sub_group.hpp>
 template <typename T, int N> class sycl_subgr;
 
 using namespace sycl;

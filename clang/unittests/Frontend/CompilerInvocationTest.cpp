@@ -12,6 +12,7 @@
 #include "clang/Frontend/TextDiagnosticBuffer.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Serialization/ModuleFileExtension.h"
+#include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/TargetParser/Host.h"
 
 #include "gmock/gmock.h"
@@ -30,17 +31,19 @@ class CommandLineTest : public ::testing::Test {
 public:
   IntrusiveRefCntPtr<DiagnosticsEngine> Diags;
   SmallVector<const char *, 32> GeneratedArgs;
-  SmallVector<std::string, 32> GeneratedArgsStorage;
+  BumpPtrAllocator Alloc;
+  StringSaver StringPool;
   CompilerInvocation Invocation;
 
   const char *operator()(const Twine &Arg) {
-    return GeneratedArgsStorage.emplace_back(Arg.str()).c_str();
+    return StringPool.save(Arg).data();
   }
 
   CommandLineTest()
-      : Diags(CompilerInstance::createDiagnostics(new DiagnosticOptions(),
-                                                  new TextDiagnosticBuffer())) {
-  }
+      : Diags(CompilerInstance::createDiagnostics(
+            *llvm::vfs::getRealFileSystem(), new DiagnosticOptions(),
+            new TextDiagnosticBuffer())),
+        StringPool(Alloc) {}
 };
 
 template <typename M>
@@ -599,23 +602,6 @@ TEST_F(CommandLineTest, ConditionalParsingIfFalseFlagNotPresent) {
   ASSERT_THAT(GeneratedArgs, Not(Contains(HasSubstr("-sycl-std="))));
 }
 
-TEST_F(CommandLineTest, ConditionalParsingIfFalseFlagPresent) {
-  const char *Args[] = {"-sycl-std=2017"};
-
-  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
-
-  ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_None);
-
-  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
-
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl-is-device"))));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl-is-host"))));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(HasSubstr("-sycl-std="))));
-}
-
 TEST_F(CommandLineTest, ConditionalParsingIfNonsenseSyclStdArg) {
   const char *Args[] = {"-fsycl-is-device", "-sycl-std=garbage"};
 
@@ -631,57 +617,6 @@ TEST_F(CommandLineTest, ConditionalParsingIfNonsenseSyclStdArg) {
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fsycl-is-device")));
   ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl-is-host"))));
   ASSERT_THAT(GeneratedArgs, Not(Contains(HasSubstr("-sycl-std="))));
-}
-
-TEST_F(CommandLineTest, ConditionalParsingIfOddSyclStdArg1) {
-  const char *Args[] = {"-fsycl-is-device", "-sycl-std=121"};
-
-  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
-
-  ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_TRUE(Invocation.getLangOpts().SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_2017);
-
-  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
-
-  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fsycl-is-device")));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl-is-host"))));
-  ASSERT_THAT(GeneratedArgs, Contains(HasSubstr("-sycl-std=2017")));
-}
-
-TEST_F(CommandLineTest, ConditionalParsingIfOddSyclStdArg2) {
-  const char *Args[] = {"-fsycl-is-device", "-sycl-std=1.2.1"};
-
-  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
-
-  ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_TRUE(Invocation.getLangOpts().SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_2017);
-
-  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
-
-  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fsycl-is-device")));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl-is-host"))));
-  ASSERT_THAT(GeneratedArgs, Contains(HasSubstr("-sycl-std=2017")));
-}
-
-TEST_F(CommandLineTest, ConditionalParsingIfOddSyclStdArg3) {
-  const char *Args[] = {"-fsycl-is-device", "-sycl-std=sycl-1.2.1"};
-
-  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
-
-  ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_TRUE(Invocation.getLangOpts().SYCLIsDevice);
-  ASSERT_FALSE(Invocation.getLangOpts().SYCLIsHost);
-  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_2017);
-
-  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
-
-  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fsycl-is-device")));
-  ASSERT_THAT(GeneratedArgs, Not(Contains(StrEq("-fsycl-is-host"))));
-  ASSERT_THAT(GeneratedArgs, Contains(HasSubstr("-sycl-std=2017")));
 }
 
 TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresentHost) {
@@ -712,20 +647,6 @@ TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagNotPresentDevice) {
 
   ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fsycl-is-device")));
   ASSERT_THAT(GeneratedArgs, Contains(HasSubstr("-sycl-std=")));
-}
-
-TEST_F(CommandLineTest, ConditionalParsingIfTrueFlagPresent) {
-  const char *Args[] = {"-fsycl-is-device", "-sycl-std=2017"};
-
-  CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags);
-
-  ASSERT_FALSE(Diags->hasErrorOccurred());
-  ASSERT_EQ(Invocation.getLangOpts().getSYCLVersion(), LangOptions::SYCL_2017);
-
-  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
-
-  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-fsycl-is-device")));
-  ASSERT_THAT(GeneratedArgs, Contains(StrEq("-sycl-std=2017")));
 }
 
 // Wide integer option.
@@ -1045,5 +966,16 @@ TEST_F(CommandLineTest, PluginArgsRoundTripDeterminism) {
       "-round-trip-args"};
 
   ASSERT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
+}
+
+TEST_F(CommandLineTest, WarningSuppressionMappings) {
+  const char *Args[] = {"--warning-suppression-mappings=foo.txt"};
+
+  EXPECT_TRUE(CompilerInvocation::CreateFromArgs(Invocation, Args, *Diags));
+  EXPECT_EQ(Invocation.getDiagnosticOpts().DiagnosticSuppressionMappingsFile,
+            "foo.txt");
+
+  Invocation.generateCC1CommandLine(GeneratedArgs, *this);
+  EXPECT_THAT(GeneratedArgs, Contains(StrEq(Args[0])));
 }
 } // anonymous namespace

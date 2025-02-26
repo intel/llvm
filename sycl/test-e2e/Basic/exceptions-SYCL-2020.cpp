@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -78,23 +79,6 @@ int main() {
                 "errc enum should identify as error code");
   static_assert(!std::is_error_condition_enum<sycl::errc>::value,
                 "errc enum should not identify as error condition");
-
-  // Test errc_for and backends. Should compile without complaint.
-  constexpr int EC = 1;
-  sycl::backend_traits<sycl::backend::opencl>::errc someOpenCLErrCode{EC};
-  sycl::errc_for<sycl::backend::opencl> anotherOpenCLErrCode{EC};
-  assert(someOpenCLErrCode == anotherOpenCLErrCode);
-  sycl::backend_traits<sycl::backend::ext_oneapi_level_zero>::errc
-      someL0ErrCode{EC};
-  sycl::errc_for<sycl::backend::ext_oneapi_level_zero> anotherL0ErrCode{EC};
-  assert(someL0ErrCode == anotherL0ErrCode);
-  sycl::backend_traits<sycl::backend::ext_oneapi_cuda>::errc someCUDAErrCode{
-      EC};
-  sycl::errc_for<sycl::backend::ext_oneapi_cuda> anotherCUDAErrCode{EC};
-  assert(someCUDAErrCode == anotherCUDAErrCode);
-  sycl::backend_traits<sycl::backend::ext_oneapi_hip>::errc someHIPErrCode{EC};
-  sycl::errc_for<sycl::backend::ext_oneapi_hip> anotherHIPErrCode{EC};
-  assert(someHIPErrCode == anotherHIPErrCode);
 
   std::cout << "OK" << std::endl;
   return 0;

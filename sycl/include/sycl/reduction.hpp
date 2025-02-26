@@ -8,24 +8,23 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>              // for address_s...
-#include <sycl/accessor.hpp>                   // for local_acc...
-#include <sycl/aspects.hpp>                    // for aspect
-#include <sycl/atomic.hpp>                     // for IsValidAt...
-#include <sycl/atomic_ref.hpp>                 // for atomic_ref
-#include <sycl/buffer.hpp>                     // for buffer
-#include <sycl/builtins.hpp>                   // for min
-#include <sycl/detail/export.hpp>              // for __SYCL_EX...
-#include <sycl/detail/generic_type_traits.hpp> // for is_sgenfloat
-#include <sycl/detail/impl_utils.hpp>          // for createSyc...
-#include <sycl/detail/item_base.hpp>           // for id
-#include <sycl/detail/reduction_forward.hpp>   // for strategy
-#include <sycl/detail/tuple.hpp>               // for make_tuple
-#include <sycl/device.hpp>                     // for device
-#include <sycl/event.hpp>                      // for event
-#include <sycl/exception.hpp>                  // for make_erro...
-#include <sycl/exception_list.hpp>             // for queue_impl
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/access/access.hpp>                   // for address_s...
+#include <sycl/accessor.hpp>                        // for local_acc...
+#include <sycl/aspects.hpp>                         // for aspect
+#include <sycl/atomic.hpp>                          // for IsValidAt...
+#include <sycl/atomic_ref.hpp>                      // for atomic_ref
+#include <sycl/buffer.hpp>                          // for buffer
+#include <sycl/builtins.hpp>                        // for min
+#include <sycl/detail/export.hpp>                   // for __SYCL_EX...
+#include <sycl/detail/generic_type_traits.hpp>      // for is_sgenfloat
+#include <sycl/detail/impl_utils.hpp>               // for createSyc...
+#include <sycl/detail/item_base.hpp>                // for id
+#include <sycl/detail/reduction_forward.hpp>        // for strategy
+#include <sycl/detail/tuple.hpp>                    // for make_tuple
+#include <sycl/device.hpp>                          // for device
+#include <sycl/event.hpp>                           // for event
+#include <sycl/exception.hpp>                       // for make_erro...
+#include <sycl/exception_list.hpp>                  // for queue_impl
 #include <sycl/group.hpp>                           // for workGroup...
 #include <sycl/group_algorithm.hpp>                 // for reduce_ov...
 #include <sycl/handler.hpp>                         // for handler
@@ -60,32 +59,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail {
-
-/// Base non-template class which is a base class for all reduction
-/// implementation classes. It is needed to detect the reduction classes.
-class reduction_impl_base {};
-
-/// Predicate returning true if a type is a reduction.
-template <typename T> struct IsReduction {
-  static constexpr bool value =
-      std::is_base_of_v<reduction_impl_base, std::remove_reference_t<T>>;
-};
-
-/// Predicate returning true if all template type parameters except the last one
-/// are reductions.
-template <typename FirstT, typename... RestT> struct AreAllButLastReductions {
-  static constexpr bool value =
-      IsReduction<FirstT>::value && AreAllButLastReductions<RestT...>::value;
-};
-
-/// Helper specialization of AreAllButLastReductions for one element only.
-/// Returns true if the template parameter is not a reduction.
-template <typename T> struct AreAllButLastReductions<T> {
-  static constexpr bool value = !IsReduction<T>::value;
-};
-} // namespace detail
-
 /// Class that is used to represent objects that are passed to user's lambda
 /// functions and representing users' reduction variable.
 /// The generic version of the class represents those reductions of those
@@ -104,64 +77,59 @@ template <typename T, class BinaryOperation, int Dims, size_t Extent,
 class reducer;
 
 namespace detail {
+
+#ifdef SYCL_DETERMINISTIC_REDUCTION
+// Act as if all operators require determinism.
+template <typename T> struct IsDeterministicOperator : std::true_type {};
+#else
+// Each operator declares whether determinism is required.
+template <typename T> struct IsDeterministicOperator : std::false_type {};
+#endif
+
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction.
 // The order in which the atomic operations are performed may be arbitrary and
 // thus may cause different results from run to run even on the same elements
-// and on same device. The macro SYCL_REDUCTION_DETERMINISTIC prohibits using
-// atomic operations for reduction and helps to produce stable results.
-// SYCL_REDUCTION_DETERMINISTIC is a short term solution, which perhaps become
-// deprecated eventually and is replaced by a sycl property passed to reduction.
+// and on same device.
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
-#ifdef SYCL_REDUCTION_DETERMINISTIC
-    std::bool_constant<false>;
-#else
-    std::bool_constant<((is_sgenfloat_v<T> && sizeof(T) == 4) ||
-                        is_sgeninteger_v<T>)&&IsValidAtomicType<T>::value &&
+    std::bool_constant<!IsDeterministicOperator<BinaryOperation>::value &&
+                       ((is_sgenfloat_v<T> && sizeof(T) == 4) ||
+                        is_sgeninteger_v<T>) &&
+                       IsValidAtomicType<T>::value &&
                        (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value ||
                         IsBitOR<T, BinaryOperation>::value ||
                         IsBitXOR<T, BinaryOperation>::value ||
                         IsBitAND<T, BinaryOperation>::value)>;
-#endif
 
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction, in
 // addition to the cases covered by "IsReduOptForFastAtomicFetch", if the device
 // has the atomic64 aspect. This type trait should only be used if the device
 // has the atomic64 aspect.  Note that this type trait is currently a subset of
-// IsReduOptForFastReduce. The macro SYCL_REDUCTION_DETERMINISTIC prohibits
-// using the reduce_over_group() algorithm to produce stable results across same
-// type devices.
+// IsReduOptForFastReduce.
 template <typename T, class BinaryOperation>
 using IsReduOptForAtomic64Op =
-#ifdef SYCL_REDUCTION_DETERMINISTIC
-    std::bool_constant<false>;
-#else
-    std::bool_constant<(IsPlus<T, BinaryOperation>::value ||
+    std::bool_constant<!IsDeterministicOperator<BinaryOperation>::value &&
+                       (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value) &&
                        is_sgenfloat_v<T> && sizeof(T) == 8>;
-#endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
 // operands of the type T and the operation BinaryOperation is available
 // for using in reduction.
-// The macro SYCL_REDUCTION_DETERMINISTIC prohibits using the reduce() algorithm
-// to produce stable results across same type devices.
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce =
-#ifdef SYCL_REDUCTION_DETERMINISTIC
-    std::bool_constant<false>;
-#else
-    std::bool_constant<(
-        (is_sgeninteger_v<T> && (sizeof(T) == 4 || sizeof(T) == 8)) ||
-        is_sgenfloat_v<T>)&&(IsPlus<T, BinaryOperation>::value ||
-                             IsMinimum<T, BinaryOperation>::value ||
-                             IsMaximum<T, BinaryOperation>::value)>;
-#endif
+    std::bool_constant<!IsDeterministicOperator<BinaryOperation>::value &&
+                       ((is_sgeninteger_v<T> &&
+                         (sizeof(T) == 4 || sizeof(T) == 8)) ||
+                        is_sgenfloat_v<T>) &&
+                       (IsPlus<T, BinaryOperation>::value ||
+                        IsMinimum<T, BinaryOperation>::value ||
+                        IsMaximum<T, BinaryOperation>::value)>;
 
 // std::tuple seems to be a) too heavy and b) not copyable to device now
 // Thus sycl::detail::tuple is used instead.
@@ -421,7 +389,7 @@ public:
   static constexpr bool has_identity = true;
 
   ReductionIdentityContainer(const T &) {}
-  ReductionIdentityContainer() {}
+  ReductionIdentityContainer() = default;
 
   /// Returns the statically known identity value.
   static constexpr T getIdentity() {
@@ -438,6 +406,10 @@ public:
   static constexpr bool has_identity = true;
 
   ReductionIdentityContainer(const T &Identity) : MIdentity(Identity) {}
+
+  // Make it trivially copyable (need at least on of the special member
+  // functions):
+  ReductionIdentityContainer(const ReductionIdentityContainer &) = default;
 
   /// Returns the identity value given by user.
   T getIdentity() const { return MIdentity; }
@@ -528,6 +500,8 @@ public:
 private:
   value_type MValue;
 };
+
+__SYCL_EXPORT void verifyReductionProps(const property_list &Props);
 } // namespace detail
 
 // We explicitly claim std::optional as device-copyable in sycl/types.hpp.
@@ -853,6 +827,10 @@ using __sycl_init_mem_for =
     std::conditional_t<std::is_same_v<KernelName, auto_name>, auto_name,
                        reduction::InitMemKrn<KernelName>>;
 
+__SYCL_EXPORT void
+addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
+               std::shared_ptr<int> &Counter);
+
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           bool ExplicitIdentity, typename RedOutVar>
 class reduction_impl_algo {
@@ -1040,7 +1018,7 @@ public:
             }
           });
         } else {
-          accessor OutAcc{Out, CGH};
+          accessor OutAcc{Out, CopyHandler};
           CopyHandler.copy(Mem, OutAcc);
         }
       });
@@ -1093,8 +1071,7 @@ public:
     std::shared_ptr<int> Counter(malloc_device<int>(1, q), Deleter);
     CGH.addReduction(Counter);
 
-    auto Event = q.memset(Counter.get(), 0, sizeof(int));
-    CGH.depends_on(Event);
+    addCounterInit(CGH, CGH.MQueue, Counter);
 
     return Counter.get();
   }
@@ -1191,9 +1168,10 @@ namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   event E = CGH.finalize();
-  handler AuxHandler(CGH.MQueue, CGH.MIsHost);
-  AuxHandler.depends_on(E);
-  AuxHandler.saveCodeLoc(CGH.MCodeLoc);
+  handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
+  if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
+    AuxHandler.depends_on(E);
+  AuxHandler.copyCodeLoc(CGH);
   Func(AuxHandler);
   CGH.MLastEvent = AuxHandler.finalize();
   return;
@@ -1290,7 +1268,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
           for (size_t E = 0; E < NElements; ++E) {
             *getReducerAccess(Reducer).getElement(E) = GroupSum[E];
           }
-          Reducer.template atomic_combine(&Out[0]);
+          Reducer.atomic_combine(&Out[0]);
         }
       });
     });
@@ -2863,6 +2841,7 @@ template <typename T, typename AllocatorT, typename BinaryOperation>
 auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
                BinaryOperation Combiner, const property_list &PropList = {}) {
   std::ignore = CGH;
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, false>(
@@ -2877,6 +2856,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
 template <typename T, typename BinaryOperation>
 auto reduction(T *Var, BinaryOperation Combiner,
                const property_list &PropList = {}) {
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, false>(
@@ -2890,6 +2870,7 @@ template <typename T, typename AllocatorT, typename BinaryOperation>
 auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
                BinaryOperation Combiner, const property_list &PropList = {}) {
   std::ignore = CGH;
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, true>(
@@ -2902,6 +2883,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
 template <typename T, typename BinaryOperation>
 auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
                const property_list &PropList = {}) {
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, true>(
@@ -2917,6 +2899,7 @@ template <typename T, size_t Extent, typename BinaryOperation,
           typename = std::enable_if_t<Extent != dynamic_extent>>
 auto reduction(span<T, Extent> Span, BinaryOperation Combiner,
                const property_list &PropList = {}) {
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 1, Extent, false>(
@@ -2930,6 +2913,7 @@ template <typename T, size_t Extent, typename BinaryOperation,
           typename = std::enable_if_t<Extent != dynamic_extent>>
 auto reduction(span<T, Extent> Span, const T &Identity,
                BinaryOperation Combiner, const property_list &PropList = {}) {
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 1, Extent, true>(

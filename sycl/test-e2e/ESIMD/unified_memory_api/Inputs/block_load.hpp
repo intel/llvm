@@ -6,12 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <algorithm>
-#include <iostream>
-
 #include "../../esimd_test_utils.hpp"
 #include "common.hpp"
 
@@ -172,17 +166,10 @@ template <typename T, TestFeatures Features> bool testUSM(queue Q) {
 
   // Intentionally check non-power-of-2 simd size - it must work.
   // Just pass element-size alignment.
-  // These test cases compute wrong values for for the few last elements
-  // if the driver is not new enough.
-  // TODO: windows version with the fix is not known. Enable it eventually.
-  if (sizeof(T) > 2 ||
-      esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "27556", "win.just.skip.test", false)) {
-    Passed &= testUSM<T, 33, !CheckMask, !CheckMerge, CheckProperties>(
-        Q, 2, 4, AlignElemProps);
-    Passed &= testUSM<T, 67, !CheckMask, !CheckMerge, CheckProperties>(
-        Q, 2, 4, AlignElemProps);
-  }
+  Passed &= testUSM<T, 33, !CheckMask, !CheckMerge, CheckProperties>(
+      Q, 2, 4, AlignElemProps);
+  Passed &= testUSM<T, 67, !CheckMask, !CheckMerge, CheckProperties>(
+      Q, 2, 4, AlignElemProps);
 
   // Intentionally check big simd size - it must work.
   Passed &= testUSM<T, 512, !CheckMask, !CheckMerge, CheckProperties>(
@@ -585,64 +572,55 @@ template <typename T, TestFeatures Features> bool testSLMAcc(queue Q) {
   Passed &= testSLMAcc<T, 3, !CheckMask, !CheckMerge, CheckProperties>(
       Q, 2, 4, AlignElemProps);
 
-  // These test case compute wrong values for for the few last elements
-  // if the driver is not new enough.
-  // TODO: windows version with the fix is not known. Enable it eventually.
-  if (sizeof(T) > 2 ||
-      esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "27556", "win.just.skip.test", false)) {
     Passed &= testSLMAcc<T, 17, !CheckMask, !CheckMerge, CheckProperties>(
         Q, 2, 4, AlignElemProps);
 
     Passed &= testSLMAcc<T, 113, !CheckMask, !CheckMerge, CheckProperties>(
         Q, 2, 4, AlignElemProps);
-  }
 
-  if constexpr (Features == TestFeatures::PVC ||
-                Features == TestFeatures::DG2) {
+    if constexpr (Features == TestFeatures::PVC ||
+                  Features == TestFeatures::DG2) {
 
-    // Using the mask adds the requirement to run tests on DG2/PVC.
-    // Also, DG2/PVC variant currently requires power-or-two elements and
-    // the number of bytes loaded per call must not exceed 512.
+      // Using the mask adds the requirement to run tests on DG2/PVC.
+      // Also, DG2/PVC variant currently requires power-or-two elements and
+      // the number of bytes loaded per call must not exceed 512.
 
-    constexpr int I32Factor =
-        std::max(static_cast<int>(sizeof(int) / sizeof(T)), 1);
-    constexpr size_t ReqiredAlignment = sizeof(T) <= 4 ? 4 : 8;
-    properties DG2OrPVCProps{alignment<ReqiredAlignment>};
+      constexpr int I32Factor =
+          std::max(static_cast<int>(sizeof(int) / sizeof(T)), 1);
+      constexpr size_t ReqiredAlignment = sizeof(T) <= 4 ? 4 : 8;
+      properties DG2OrPVCProps{alignment<ReqiredAlignment>};
 
-    // Test block_load() that is available on DG2/PVC:
-    // 1, 2, 3, 4, 8, ... N elements (up to 512-bytes).
-    Passed &=
-        testSLMAcc<T, 1 * I32Factor, CheckMask, !CheckMerge, CheckProperties>(
-            Q, 2, 4, DG2OrPVCProps);
-    Passed &=
-        testSLMAcc<T, 2 * I32Factor, CheckMask, CheckMerge, CheckProperties>(
-            Q, 1, 4, DG2OrPVCProps);
-    Passed &=
-        testSLMAcc<T, 3 * I32Factor, CheckMask, !CheckMerge, CheckProperties>(
-            Q, 2, 8, DG2OrPVCProps);
-    Passed &=
-        testSLMAcc<T, 4 * I32Factor, CheckMask, CheckMerge, CheckProperties>(
-            Q, 2, 4, DG2OrPVCProps);
-    Passed &=
-        testSLMAcc<T, 8 * I32Factor, CheckMask, !CheckMerge, CheckProperties>(
-            Q, 2, 4, DG2OrPVCProps);
-    Passed &=
-        testSLMAcc<T, 16 * I32Factor, CheckMask, CheckMerge, CheckProperties>(
-            Q, 2, 4, DG2OrPVCProps);
-    Passed &=
-        testSLMAcc<T, 32 * I32Factor, CheckMask, !CheckMerge, CheckProperties>(
-            Q, 2, 4, DG2OrPVCProps);
-    if constexpr (Features == TestFeatures::PVC) {
+      // Test block_load() that is available on DG2/PVC:
+      // 1, 2, 3, 4, 8, ... N elements (up to 512-bytes).
       Passed &=
-          testSLMAcc<T, 64 * I32Factor, CheckMask, CheckMerge, CheckProperties>(
+          testSLMAcc<T, 1 * I32Factor, CheckMask, !CheckMerge, CheckProperties>(
               Q, 2, 4, DG2OrPVCProps);
+      Passed &=
+          testSLMAcc<T, 2 * I32Factor, CheckMask, CheckMerge, CheckProperties>(
+              Q, 1, 4, DG2OrPVCProps);
+      Passed &=
+          testSLMAcc<T, 3 * I32Factor, CheckMask, !CheckMerge, CheckProperties>(
+              Q, 2, 8, DG2OrPVCProps);
+      Passed &=
+          testSLMAcc<T, 4 * I32Factor, CheckMask, CheckMerge, CheckProperties>(
+              Q, 2, 4, DG2OrPVCProps);
+      Passed &=
+          testSLMAcc<T, 8 * I32Factor, CheckMask, !CheckMerge, CheckProperties>(
+              Q, 2, 4, DG2OrPVCProps);
+      Passed &=
+          testSLMAcc<T, 16 * I32Factor, CheckMask, CheckMerge, CheckProperties>(
+              Q, 2, 4, DG2OrPVCProps);
+      Passed &= testSLMAcc<T, 32 * I32Factor, CheckMask, !CheckMerge,
+                           CheckProperties>(Q, 2, 4, DG2OrPVCProps);
+      if constexpr (Features == TestFeatures::PVC) {
+        Passed &= testSLMAcc<T, 64 * I32Factor, CheckMask, CheckMerge,
+                             CheckProperties>(Q, 2, 4, DG2OrPVCProps);
 
-      if constexpr (sizeof(T) <= 4)
-        Passed &= testSLMAcc<T, 128 * I32Factor, CheckMask, CheckMerge,
-                             CheckProperties>(Q, 2, 4, Align16Props);
-    }
-  } // TestPVCFeatures
+        if constexpr (sizeof(T) <= 4)
+          Passed &= testSLMAcc<T, 128 * I32Factor, CheckMask, CheckMerge,
+                               CheckProperties>(Q, 2, 4, Align16Props);
+      }
+    } // TestPVCFeatures
 
   return Passed;
 }
@@ -782,19 +760,15 @@ template <typename T, TestFeatures Features> bool testSLM(queue Q) {
   // Alignment that is smaller than 16-bytes is not assumed/expected by default
   // and requires explicit passing of the esimd::alignment property.
   //
-  // These test case may compute wrong values for some of elements
-  // if the driver is not new enough.
-  if (esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
-                                "27556", "win.just.skip.test", false)) {
-    Passed &= testSLM<T, 3, !CheckMask, !CheckMerge, CheckProperties>(
-        Q, 2, AlignElemProps);
 
-    Passed &= testSLM<T, 17, !CheckMask, !CheckMerge, CheckProperties>(
-        Q, 2, AlignElemProps);
+  Passed &= testSLM<T, 3, !CheckMask, !CheckMerge, CheckProperties>(
+      Q, 2, AlignElemProps);
 
-    Passed &= testSLM<T, 113, !CheckMask, !CheckMerge, CheckProperties>(
-        Q, 2, AlignElemProps);
-  }
+  Passed &= testSLM<T, 17, !CheckMask, !CheckMerge, CheckProperties>(
+      Q, 2, AlignElemProps);
+
+  Passed &= testSLM<T, 113, !CheckMask, !CheckMerge, CheckProperties>(
+      Q, 2, AlignElemProps);
 
   if constexpr (Features == TestFeatures::PVC ||
                 Features == TestFeatures::DG2) {

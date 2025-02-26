@@ -11,6 +11,7 @@
 #include "ClangdServer.h"
 #include "ConfigProvider.h"
 #include "Diagnostics.h"
+#include "Feature.h"
 #include "FeatureModule.h"
 #include "LSPBinder.h"
 #include "LSPClient.h"
@@ -198,6 +199,9 @@ TEST_F(LSPTest, RecordsLatencies) {
 // clang-tidy's renames are converted to clangd's internal rename functionality,
 // see clangd#1589 and clangd#741
 TEST_F(LSPTest, ClangTidyRename) {
+  // This test requires clang-tidy checks to be linked in.
+  if (!CLANGD_TIDY_CHECKS)
+    return;
   Annotations Header(R"cpp(
     void [[foo]]();
   )cpp");
@@ -214,7 +218,9 @@ TEST_F(LSPTest, ClangTidyRename) {
   Client.didOpen("foo.hpp", Header.code());
   Client.didOpen("foo.cpp", Source.code());
 
-  auto RenameDiag = Client.diagnostics("foo.cpp").value().at(0);
+  auto Diags = Client.diagnostics("foo.cpp");
+  ASSERT_TRUE(Diags && !Diags->empty());
+  auto RenameDiag = Diags->front();
 
   auto RenameCommand =
       (*Client
@@ -254,6 +260,22 @@ TEST_F(LSPTest, ClangTidyRename) {
 
                     }}}}};
   EXPECT_EQ(Params, std::vector{llvm::json::Value(std::move(ExpectedEdit))});
+}
+
+TEST_F(LSPTest, ClangTidyCrash_Issue109367) {
+  // This test requires clang-tidy checks to be linked in.
+  if (!CLANGD_TIDY_CHECKS)
+    return;
+  Opts.ClangTidyProvider = [](tidy::ClangTidyOptions &ClangTidyOpts,
+                              llvm::StringRef) {
+    ClangTidyOpts.Checks = {"-*,boost-use-ranges"};
+  };
+  // Check that registering the boost-use-ranges checker's matchers
+  // on two different threads does not cause a crash.
+  auto &Client = start();
+  Client.didOpen("a.cpp", "");
+  Client.didOpen("b.cpp", "");
+  Client.sync();
 }
 
 TEST_F(LSPTest, IncomingCalls) {

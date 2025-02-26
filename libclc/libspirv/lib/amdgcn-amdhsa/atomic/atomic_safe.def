@@ -1,0 +1,9 @@
+// Before including, define: __SPIRV_BUILTIN, __CLC_OP, __HIP_BUILTIN
+// and include atomic_helpers.h to get AMDGPU_SAFE_ATOMIC
+
+AMDGPU_SAFE_ATOMIC(__SPIRV_BUILTIN, int, i, __CLC_OP, __HIP_BUILTIN)
+AMDGPU_SAFE_ATOMIC(__SPIRV_BUILTIN, unsigned int, j, __CLC_OP,
+                   __HIP_BUILTIN)
+AMDGPU_SAFE_ATOMIC(__SPIRV_BUILTIN, long, l, __CLC_OP, __HIP_BUILTIN)
+AMDGPU_SAFE_ATOMIC(__SPIRV_BUILTIN, unsigned long, m, __CLC_OP,
+                   __HIP_BUILTIN)

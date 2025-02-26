@@ -5,7 +5,6 @@ import platform
 import re
 import subprocess
 import tempfile
-from distutils.spawn import find_executable
 
 import lit.formats
 import lit.util
@@ -117,6 +116,7 @@ config.substitutions.append(("%cuda_toolkit_include", config.cuda_toolkit_includ
 config.substitutions.append(("%sycl_tools_src_dir", config.sycl_tools_src_dir))
 config.substitutions.append(("%llvm_build_lib_dir", config.llvm_build_lib_dir))
 config.substitutions.append(("%llvm_build_bin_dir", config.llvm_build_bin_dir))
+config.substitutions.append(("%test_include_path", config.test_include_path))
 
 llvm_symbolizer = os.path.join(config.llvm_build_bin_dir, "llvm-symbolizer")
 llvm_config.with_environment("LLVM_SYMBOLIZER_PATH", llvm_symbolizer)
@@ -133,7 +133,7 @@ for include_dir in [
 config.substitutions.append(("%fsycl-host-only", sycl_host_only_options))
 
 config.substitutions.append(
-    ("%sycl_lib", " -lsycl7" if platform.system() == "Windows" else "-lsycl")
+    ("%sycl_lib", " -lsycl8" if platform.system() == "Windows" else "-lsycl")
 )
 
 llvm_config.add_tool_substitutions(["llvm-spirv"], [config.sycl_tools_dir])
@@ -144,20 +144,23 @@ config.substitutions.append(("%sycl_triple", triple))
 
 additional_flags = config.sycl_clang_extra_flags.split(" ")
 
-if config.cuda_be == "ON":
-    config.available_features.add("cuda_be")
+if config.cuda == "ON":
+    config.available_features.add("cuda")
 
-if config.hip_be == "ON":
-    config.available_features.add("hip_be")
+if config.hip == "ON":
+    config.available_features.add("hip")
 
-if config.opencl_be == "ON":
-    config.available_features.add("opencl_be")
+if config.opencl == "ON":
+    config.available_features.add("opencl")
 
-if config.level_zero_be == "ON":
-    config.available_features.add("level_zero_be")
+if config.level_zero == "ON":
+    config.available_features.add("level_zero")
 
-if config.native_cpu_be == "ON":
-    config.available_features.add("native_cpu_be")
+if config.native_cpu == "ON":
+    config.available_features.add("native_cpu")
+
+if config.native_cpu_ock == "ON":
+    config.available_features.add("native_cpu_ock")
 
 if "nvptx64-nvidia-cuda" in triple:
     llvm_config.with_system_environment("CUDA_PATH")
@@ -165,7 +168,7 @@ if "nvptx64-nvidia-cuda" in triple:
 
 if "amdgcn-amd-amdhsa" in triple:
     llvm_config.with_system_environment("ROCM_PATH")
-    config.available_features.add("hip_amd")
+    config.available_features.add("hip")
     # For AMD the specific GPU has to be specified with --offload-arch
     if not any([f.startswith("--offload-arch") for f in additional_flags]):
         # If the offload arch wasn't specified in SYCL_CLANG_EXTRA_FLAGS,
@@ -174,6 +177,14 @@ if "amdgcn-amd-amdhsa" in triple:
             "-Xsycl-target-backend=amdgcn-amd-amdhsa",
             "--offload-arch=gfx906",
         ]
+
+config.sycl_headers_filter = lit_config.params.get("SYCL_HEADERS_FILTER", None)
+if config.sycl_headers_filter is not None:
+    lit_config.note(
+        "SYCL_HEADERS_FILTER param is set to '{}', it will impact amount of tests discovered within self-contained-headers sub-suite".format(
+            config.sycl_headers_filter
+        )
+    )
 
 # Dump-only tests do not have clang available
 if not dump_only_tests:

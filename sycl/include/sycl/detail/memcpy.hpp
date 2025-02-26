@@ -8,17 +8,24 @@
 
 #pragma once
 
-#include <cstddef>
+#include <cstring>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-inline void memcpy(void *Dst, const void *Src, size_t Size) {
-  char *Destination = reinterpret_cast<char *>(Dst);
-  const char *Source = reinterpret_cast<const char *>(Src);
-  for (size_t I = 0; I < Size; ++I) {
-    Destination[I] = Source[I];
-  }
+// Using "memcpy_no_adl" function name instead of "memcpy" to prevent
+// ambiguity with libc's memcpy. Even though they are in a different
+// namespace, due to ADL, compiler may lookup "memcpy" symbol in the
+// sycl::detail namespace, like in the following code:
+//    sycl::vec<int , 1> a, b;
+//    memcpy(&a, &b, sizeof(sycl::vec<int , 1>));
+template <typename T1, typename T2>
+inline void memcpy_no_adl(T1 *Dst, const T2 *Src, size_t Size) {
+#ifdef __SYCL_DEVICE_ONLY__
+  __builtin_memcpy(Dst, Src, Size);
+#else
+  std::memcpy(Dst, Src, Size);
+#endif
 }
 } // namespace detail
 } // namespace _V1

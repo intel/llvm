@@ -115,7 +115,7 @@ In this case, the individual kernels and the `KernelFusionCommand` could have be
 To handle this case, the `KernelFusionCommand` for each queue remains in the fusion map until the next `ext_codeplay_start_fusion` on the same queue and does not undergo the cleanup process until its status has been set to `DELETE` by `ext_codeplay_start_fusion`.
 This way, the lifetime of the event associated with the `KernelFusionCommand` is extended such that it is still valid for synchronization when returned from a later call to `ext_codeplay_complete_fusion`.
 
-Note that even though the `KernelFusionCommand` is associated with a particular queue and context, the associated event does not have an underlying PI event, i.e., it is essentially a host event.
+Note that even though the `KernelFusionCommand` is associated with a particular queue and context, the associated event does not have an underlying UR event, i.e., it is essentially a host event.
 
 
 ## Fusion Process

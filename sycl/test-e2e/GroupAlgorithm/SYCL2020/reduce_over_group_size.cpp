@@ -1,14 +1,15 @@
-// Test hangs on AMD with https://github.com/intel/llvm/pull/8412
-// UNSUPPORTED: hip_amd
-
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+// REQUIRES: aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{build} -O0 -o %t_O0.out
+// RUN: %{build} %O0 -o %t_O0.out
 // RUN: %{run} %t_O0.out
+
+// XFAIL: spirv-backend
+// XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
 /*
     test performs a lattice reduction.
@@ -16,7 +17,9 @@
     (ie, byte size versus vector size)
 */
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

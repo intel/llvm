@@ -37,25 +37,39 @@ public:
   AsyncTest()
       : q_{syclcompat::get_default_queue()}, grid_{NUM_WG}, thread_{WG_SIZE},
         size_{WG_SIZE * NUM_WG} {
-    d_A_ = sycl::malloc_device<float>(size_, q_);
-    d_B_ = sycl::malloc_device<float>(size_, q_);
-    d_C_ = sycl::malloc_device<float>(size_, q_);
+    d_A_ = syclcompat::malloc<float>(size_, q_);
+    d_B_ = syclcompat::malloc<float>(size_, q_);
+    d_C_ = syclcompat::malloc<float>(size_, q_);
   }
 
   ~AsyncTest() {
-    sycl::free(d_A_, q_);
-    sycl::free(d_B_, q_);
-    sycl::free(d_C_, q_);
+    syclcompat::free(d_A_, q_);
+    syclcompat::free(d_B_, q_);
+    syclcompat::free(d_C_, q_);
   }
   sycl::event launch_kernel() {
     auto &dd_A = d_A_;
     auto &dd_B = d_B_;
     auto &dd_C = d_C_;
+#ifdef SYCLCOMPAT_USM_LEVEL_NONE
+    syclcompat::buffer_t buffer_A = syclcompat::get_buffer(d_A_);
+    syclcompat::buffer_t buffer_B = syclcompat::get_buffer(d_B_);
+    syclcompat::buffer_t buffer_C = syclcompat::get_buffer(d_C_);
+#endif
     return q_.submit([&](sycl::handler &cgh) {
+#ifdef SYCLCOMPAT_USM_LEVEL_NONE
+      auto A = buffer_A.get_access<sycl::access::mode::read_write>(cgh);
+      auto B = buffer_B.get_access<sycl::access::mode::read_write>(cgh);
+      auto C = buffer_C.get_access<sycl::access::mode::read_write>(cgh);
+#else
+      auto A = dd_A;
+      auto B = dd_B;
+      auto C = dd_C;
+#endif
       cgh.parallel_for(size_, [=](sycl::id<1> id) {
-        dd_A[id] = static_cast<float>(id) + 1.0f;
-        dd_B[id] = static_cast<float>(id) + 1.0f;
-        dd_C[id] = dd_A[id] + dd_B[id];
+        A[id] = static_cast<float>(id) + 1.0f;
+        B[id] = static_cast<float>(id) + 1.0f;
+        C[id] = A[id] + B[id];
       });
     });
   }
@@ -123,7 +137,7 @@ template <typename T> struct USMTest {
         skip{should_skip<T>(syclcompat::get_current_device())} {}
 
   void launch_kernel() {
-    auto &dd_A = d_A;
+    auto &dd_A = data;
     return q_
         .submit([&](sycl::handler &cgh) {
           cgh.parallel_for(
@@ -135,15 +149,15 @@ template <typename T> struct USMTest {
   // Check result is identity vector
   // Handles memcpy for USM device alloc
   void check_result() {
-    sycl::usm::alloc ptr_type = sycl::get_pointer_type(d_A, q_.get_context());
+    sycl::usm::alloc ptr_type = sycl::get_pointer_type(data, q_.get_context());
     assert(ptr_type != sycl::usm::alloc::unknown);
 
     T *result;
     if (ptr_type == sycl::usm::alloc::device) {
       result = static_cast<T *>(std::malloc(sizeof(T) * size_));
-      syclcompat::memcpy(result, d_A, sizeof(T) * size_);
+      syclcompat::memcpy(result, data, sizeof(T) * size_);
     } else {
-      result = d_A;
+      result = data;
     }
 
     for (size_t i = 0; i < size_; i++) {
@@ -157,7 +171,7 @@ template <typename T> struct USMTest {
   sycl::queue q_;
   syclcompat::dim3 const grid_;
   syclcompat::dim3 const thread_;
-  T *d_A;
+  T *data;
   size_t size_;
   bool skip;
 };

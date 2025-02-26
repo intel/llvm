@@ -78,7 +78,7 @@ public:
 
   template <typename... ArgTs>
   MachOBuilderLoadCommand(ArgTs &&...Args)
-      : MachOBuilderLoadCommand(std::forward<ArgTs>(Args)...) {}
+      : MachOBuilderLoadCommandImplBase<LCType>(std::forward<ArgTs>(Args)...) {}
 };
 
 template <>
@@ -460,8 +460,8 @@ private:
       return;
 
     StrTab.resize(Strings.size());
-    for (auto &KV : Strings)
-      StrTab[KV.second] = {KV.first, 0};
+    for (auto &[Str, Idx] : Strings)
+      StrTab[Idx] = {Str, 0};
     size_t Offset = 0;
     for (auto &Elem : StrTab) {
       Elem.Offset = Offset;

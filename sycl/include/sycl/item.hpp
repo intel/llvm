@@ -131,29 +131,5 @@ protected:
 private:
   detail::ItemBase<Dimensions, with_offset> MImpl;
 };
-
-template <int Dims>
-__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_item() instead")
-item<Dims> this_item() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return detail::Builder::getElement(detail::declptr<item<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-
-namespace ext::oneapi::experimental {
-template <int Dims> item<Dims> this_item() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(sycl::detail::declptr<item<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-} // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

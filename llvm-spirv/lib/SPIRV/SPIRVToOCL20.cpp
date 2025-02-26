@@ -35,11 +35,12 @@
 // This file implements transform SPIR-V builtins to OCL 2.0 builtins.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvtocl20"
 
 #include "OCLUtil.h"
 #include "SPIRVToOCL.h"
 #include "llvm/IR/Verifier.h"
+
+#define DEBUG_TYPE "spvtocl20"
 
 namespace SPIRV {
 
@@ -207,8 +208,12 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
   // instructions returns this new/original value as a resulting value.
   AllocaInst *PExpected = new AllocaInst(
       MemTy, 0, "expected",
-      &*CI->getParent()->getParent()->getEntryBlock().getFirstInsertionPt());
+      CI->getParent()->getParent()->getEntryBlock().getFirstInsertionPt());
   PExpected->setAlignment(Align(MemTy->getScalarSizeInBits() / 8));
+
+  // Tail call implies that the callee doesn't access alloca from the caller.
+  // The newly created alloca invalidates the tail call semantics.
+  CI->setTailCall(false);
 
   // OpAtomicCompareExchangeWeak is not "weak" at all, but instead has the same
   // semantics as OpAtomicCompareExchange.
@@ -259,7 +264,7 @@ void SPIRVToOCL20Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
   auto Mutator = mutateCallInst(CI, FName.str());
   Mutator.mapArg(6, [=](IRBuilder<> &Builder, Value *Invoke) {
     Value *Replace = CastInst::CreatePointerBitCastOrAddrSpaceCast(
-        Invoke, Builder.getPtrTy(SPIRAS_Generic), "", CI);
+        Invoke, Builder.getPtrTy(SPIRAS_Generic), "", CI->getIterator());
     return std::make_pair(
         Replace, TypedPointerType::get(Builder.getInt8Ty(), SPIRAS_Generic));
   });

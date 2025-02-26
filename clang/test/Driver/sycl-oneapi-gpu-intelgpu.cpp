@@ -41,6 +41,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_icllp -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=icllp \
 // RUN:             -DMAC_STR=ICLLP
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_icl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=icllp \
+// RUN:             -DMAC_STR=ICLLP
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_11_0_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=icllp \
 // RUN:             -DMAC_STR=ICLLP
@@ -48,7 +51,12 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_jsl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_11_2_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=tgllp \
+// RUN:             -DMAC_STR=TGLLP
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=tgllp \
 // RUN:             -DMAC_STR=TGLLP
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_0_0 -### %s 2>&1 | \
@@ -56,16 +64,27 @@
 // RUN:             -DMAC_STR=TGLLP
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_rkl -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=rkl -DMAC_STR=RKL
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_1_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=rkl -DMAC_STR=RKL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_adl_s -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_s \
 // RUN:             -DMAC_STR=ADL_S
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_rpl_s -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_s \
 // RUN:             -DMAC_STR=ADL_S
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_2_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_s \
+// RUN:             -DMAC_STR=ADL_S
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_adl_p -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_p \
 // RUN:             -DMAC_STR=ADL_P
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_3_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_p \
+// RUN:             -DMAC_STR=ADL_P
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_adl_n -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_n \
+// RUN:             -DMAC_STR=ADL_N
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_4_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_n \
 // RUN:             -DMAC_STR=ADL_N
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg1 -### %s 2>&1 | \
@@ -78,10 +97,16 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g10 \
 // RUN:             -DMAC_STR=ACM_G10
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_55_8 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g10 \
+// RUN:             -DMAC_STR=ACM_G10
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g11 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g11 \
 // RUN:             -DMAC_STR=ACM_G11
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g11 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g11 \
+// RUN:             -DMAC_STR=ACM_G11
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_56_5 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g11 \
 // RUN:             -DMAC_STR=ACM_G11
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g12 -### %s 2>&1 | \
@@ -90,18 +115,61 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g12 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g12 \
 // RUN:             -DMAC_STR=ACM_G12
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_57_0 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g12 \
+// RUN:             -DMAC_STR=ACM_G12
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc -DMAC_STR=PVC
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_60_7 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc -DMAC_STR=PVC
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc_vg -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc_xt_c0_vg -DMAC_STR=PVC_VG
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_61_7 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=pvc_xt_c0_vg -DMAC_STR=PVC_VG
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_mtl_u -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_s -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_mtl_s -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_s -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_arl_u -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_s -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_arl_s -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_s -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_70_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_s -DMAC_STR=MTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_mtl_h -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_p -DMAC_STR=MTL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_71_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=mtl_p -DMAC_STR=MTL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_arl_h -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=xe_lpgplus_b0 -DMAC_STR=ARL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_12_74_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=xe_lpgplus_b0 -DMAC_STR=ARL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bmg_g21 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg_g21 -DMAC_STR=BMG_G21
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_1_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bmg_g21 -DMAC_STR=BMG_G21
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_lnl_m -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=lnl_m -DMAC_STR=LNL_M
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_20_4_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=lnl_m -DMAC_STR=LNL_M
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_ptl_h -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl_h -DMAC_STR=PTL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_0_4 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl_h -DMAC_STR=PTL_H
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_ptl_u -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl_u -DMAC_STR=PTL_U
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_1_1 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl_u -DMAC_STR=PTL_U
 // MACRO: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
-// DEVICE: ocloc{{.*}} "-device" "[[DEV_STR]]"
 // MACRO: clang{{.*}} "-fsycl-is-host"
 // MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
+// DEVICE: ocloc{{.*}} "-device" "[[DEV_STR]]"
 
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
 // RUN: %clangxx -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
-// RUN: %clang_cl -c -fsycl -fsycl-targets=spir64_x86_64 -### %s 2>&1 | \
+// RUN: %clang_cl -c -fsycl -fsycl-targets=spir64_x86_64 -### -- %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
 // MACRO_X86_64: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
 // MACRO_X86_64: "-D__SYCL_TARGET_INTEL_X86_64__"
@@ -111,7 +179,7 @@
 /// test for invalid intel arch
 // RUN: not %clangxx -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
-// RUN: not %clang_cl -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
+// RUN: not %clang_cl -c -fsycl -fsycl-targets=intel_gpu_bad -### -- %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_INPUT
 // BAD_INPUT: error: SYCL target is invalid: 'intel_gpu_bad'
 
@@ -138,24 +206,23 @@
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
-// CHECK_PHASES: 1: append-footer, {0}, c++, (host-sycl)
-// CHECK_PHASES: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// CHECK_PHASES: 3: input, "[[INPUT]]", c++, (device-sycl, skl)
-// CHECK_PHASES: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, skl)
-// CHECK_PHASES: 5: compiler, {4}, ir, (device-sycl, skl)
-// CHECK_PHASES: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64_gen-unknown-unknown:skl)" {5}, c++-cpp-output
-// CHECK_PHASES: 7: compiler, {6}, ir, (host-sycl)
-// CHECK_PHASES: 8: backend, {7}, assembler, (host-sycl)
-// CHECK_PHASES: 9: assembler, {8}, object, (host-sycl)
-// CHECK_PHASES: 10: linker, {9}, image, (host-sycl)
-// CHECK_PHASES: 11: linker, {5}, ir, (device-sycl, skl)
-// CHECK_PHASES: 12: sycl-post-link, {11}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES: 13: file-table-tform, {12}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES: 14: llvm-spirv, {13}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES: 15: backend-compiler, {14}, image, (device-sycl, skl)
-// CHECK_PHASES: 16: file-table-tform, {12, 15}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES: 17: clang-offload-wrapper, {16}, object, (device-sycl, skl)
-// CHECK_PHASES: 18: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64_gen-unknown-unknown:skl)" {17}, image
+// CHECK_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHECK_PHASES: 2: input, "[[INPUT]]", c++, (device-sycl, skl)
+// CHECK_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl, skl)
+// CHECK_PHASES: 4: compiler, {3}, ir, (device-sycl, skl)
+// CHECK_PHASES: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown:skl)" {4}, c++-cpp-output
+// CHECK_PHASES: 6: compiler, {5}, ir, (host-sycl)
+// CHECK_PHASES: 7: backend, {6}, assembler, (host-sycl)
+// CHECK_PHASES: 8: assembler, {7}, object, (host-sycl)
+// CHECK_PHASES: 9: linker, {4}, ir, (device-sycl, skl)
+// CHECK_PHASES: 10: sycl-post-link, {9}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES: 11: file-table-tform, {10}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES: 12: llvm-spirv, {11}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES: 13: backend-compiler, {12}, image, (device-sycl, skl)
+// CHECK_PHASES: 14: file-table-tform, {10, 13}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES: 15: clang-offload-wrapper, {14}, object, (device-sycl, skl)
+// CHECK_PHASES: 16: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {15}, object
+// CHECK_PHASES: 17: linker, {8, 16}, image, (host-sycl)
 
 /// Check that ocloc and macro settings only occur for the expected toolchains
 /// when mixing spir64_gen and intel_gpu
@@ -165,10 +232,10 @@
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_MIX
 // CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
+// CHECK_TOOLS_MIX-NOT: "-D__SYCL_TARGET_INTEL_GPU{{.*}}"
+// CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHECK_TOOLS_MIX: "-D__SYCL_TARGET_INTEL_GPU_DG1__"
 // CHECK_TOOLS_MIX: ocloc{{.*}} "-device" "dg1"
-// CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
-// CHECK_TOOLS_MIX-NOT: "-D__SYCL_TARGET_INTEL_GPU{{.*}}"
 // CHECK_TOOLS_MIX: ocloc{{.*}} "-device" "skl"
 
 /// Test phases when using both spir64_gen and intel_gpu*
@@ -177,34 +244,34 @@
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES_MIX
 // CHECK_PHASES_MIX: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
-// CHECK_PHASES_MIX: 1: append-footer, {0}, c++, (host-sycl)
-// CHECK_PHASES_MIX: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// CHECK_PHASES_MIX: 3: input, "[[INPUT]]", c++, (device-sycl)
-// CHECK_PHASES_MIX: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-// CHECK_PHASES_MIX: 5: compiler, {4}, ir, (device-sycl)
-// CHECK_PHASES_MIX: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64_gen-unknown-unknown)" {5}, c++-cpp-output
-// CHECK_PHASES_MIX: 7: compiler, {6}, ir, (host-sycl)
-// CHECK_PHASES_MIX: 8: backend, {7}, assembler, (host-sycl)
-// CHECK_PHASES_MIX: 9: assembler, {8}, object, (host-sycl)
-// CHECK_PHASES_MIX: 10: linker, {9}, image, (host-sycl)
-// CHECK_PHASES_MIX: 11: input, "[[INPUT]]", c++, (device-sycl, skl)
-// CHECK_PHASES_MIX: 12: preprocessor, {11}, c++-cpp-output, (device-sycl, skl)
-// CHECK_PHASES_MIX: 13: compiler, {12}, ir, (device-sycl, skl)
-// CHECK_PHASES_MIX: 14: linker, {13}, ir, (device-sycl, skl)
-// CHECK_PHASES_MIX: 15: sycl-post-link, {14}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES_MIX: 16: file-table-tform, {15}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES_MIX: 17: llvm-spirv, {16}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES_MIX: 18: backend-compiler, {17}, image, (device-sycl, skl)
-// CHECK_PHASES_MIX: 19: file-table-tform, {15, 18}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES_MIX: 20: clang-offload-wrapper, {19}, object, (device-sycl, skl)
-// CHECK_PHASES_MIX: 21: linker, {5}, ir, (device-sycl)
-// CHECK_PHASES_MIX: 22: sycl-post-link, {21}, tempfiletable, (device-sycl)
-// CHECK_PHASES_MIX: 23: file-table-tform, {22}, tempfilelist, (device-sycl)
-// CHECK_PHASES_MIX: 24: llvm-spirv, {23}, tempfilelist, (device-sycl)
-// CHECK_PHASES_MIX: 25: backend-compiler, {24}, image, (device-sycl)
-// CHECK_PHASES_MIX: 26: file-table-tform, {22, 25}, tempfiletable, (device-sycl)
-// CHECK_PHASES_MIX: 27: clang-offload-wrapper, {26}, object, (device-sycl)
-// CHECK_PHASES_MIX: 28: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64_gen-unknown-unknown:skl)" {20}, "device-sycl (spir64_gen-unknown-unknown)" {27}, image
+// CHECK_PHASES_MIX: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHECK_PHASES_MIX: 2: input, "[[INPUT]]", c++, (device-sycl)
+// CHECK_PHASES_MIX: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
+// CHECK_PHASES_MIX: 4: compiler, {3}, ir, (device-sycl)
+// CHECK_PHASES_MIX: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown)" {4}, c++-cpp-output
+// CHECK_PHASES_MIX: 6: compiler, {5}, ir, (host-sycl)
+// CHECK_PHASES_MIX: 7: backend, {6}, assembler, (host-sycl)
+// CHECK_PHASES_MIX: 8: assembler, {7}, object, (host-sycl)
+// CHECK_PHASES_MIX: 9: input, "[[INPUT]]", c++, (device-sycl, skl)
+// CHECK_PHASES_MIX: 10: preprocessor, {9}, c++-cpp-output, (device-sycl, skl)
+// CHECK_PHASES_MIX: 11: compiler, {10}, ir, (device-sycl, skl)
+// CHECK_PHASES_MIX: 12: linker, {11}, ir, (device-sycl, skl)
+// CHECK_PHASES_MIX: 13: sycl-post-link, {12}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES_MIX: 14: file-table-tform, {13}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES_MIX: 15: llvm-spirv, {14}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES_MIX: 16: backend-compiler, {15}, image, (device-sycl, skl)
+// CHECK_PHASES_MIX: 17: file-table-tform, {13, 16}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES_MIX: 18: clang-offload-wrapper, {17}, object, (device-sycl, skl)
+// CHECK_PHASES_MIX: 19: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {18}, object
+// CHECK_PHASES_MIX: 20: linker, {4}, ir, (device-sycl)
+// CHECK_PHASES_MIX: 21: sycl-post-link, {20}, tempfiletable, (device-sycl)
+// CHECK_PHASES_MIX: 22: file-table-tform, {21}, tempfilelist, (device-sycl)
+// CHECK_PHASES_MIX: 23: llvm-spirv, {22}, tempfilelist, (device-sycl)
+// CHECK_PHASES_MIX: 24: backend-compiler, {23}, image, (device-sycl)
+// CHECK_PHASES_MIX: 25: file-table-tform, {21, 24}, tempfiletable, (device-sycl)
+// CHECK_PHASES_MIX: 26: clang-offload-wrapper, {25}, object, (device-sycl)
+// CHECK_PHASES_MIX: 27: offload, "device-sycl (spir64_gen-unknown-unknown)" {26}, object
+// CHECK_PHASES_MIX: 28: linker, {8, 19, 27}, image, (host-sycl)
 
 /// Check that ocloc backend option settings only occur for the expected
 /// toolchains when mixing spir64_gen and intel_gpu
@@ -232,3 +299,10 @@
 // CHECK_TOOLS_BEOPTS_MIX: opencl-aot{{.*}} "-DCPU"
 // CHECK_TOOLS_BEOPTS_MIX-NOT: "-DDG1"
 // CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL2"
+
+/// Check that target is passed to sycl-post-link for filtering
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1,spir64_x86_64 \
+// RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_TOOLS_FILTER
+// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_pvc,{{.*}}"
+// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_dg1,{{.*}}"
+// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "spir64_x86_64,{{.*}}"

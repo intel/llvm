@@ -11,12 +11,11 @@
 #include <sycl/aliases.hpp>                    // for half
 #include <sycl/builtins.hpp>                   // for to_vec2
 #include <sycl/builtins_utils_vec.hpp>         // for to_vec, to_marray...
-#include <sycl/detail/builtins.hpp>            // for __invoke_exp2, __invo...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloath, is_sv...
 #include <sycl/detail/memcpy.hpp>              // detail::memcpy
 #include <sycl/marray.hpp>                     // for marray
-#include <sycl/types.hpp>                      // for vec
+#include <sycl/vector.hpp>                     // for vec
 
 #include <cstring>     // for size_t
 #include <stdio.h>     // for printf
@@ -72,17 +71,22 @@ namespace ext::oneapi::experimental {
 //
 // - OpenCL spec defines several additional features, like, for example, 'v'
 // modifier which allows to print OpenCL vectors: note that these features are
-// not available on host device and therefore their usage should be either
-// guarded using __SYCL_DEVICE_ONLY__ preprocessor macro or avoided in favor
-// of more portable solutions if needed
+// not available on host and therefore their usage should be either guarded
+// using __SYCL_DEVICE_ONLY__ preprocessor macro or avoided in favor of more
+// portable solutions if needed
 //
 template <typename FormatT, typename... Args>
 int printf(const FormatT *__format, Args... args) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#if defined(__SYCL_DEVICE_ONLY__)
+#if (defined(__SPIR__) || defined(__SPIRV__))
   return __spirv_ocl_printf(__format, args...);
 #else
+  return __builtin_printf(__format, args...);
+#endif
+#else
   return ::printf(__format, args...);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+#endif // defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) ||
+       // defined(__SPIRV__))
 }
 
 namespace native {
@@ -98,7 +102,7 @@ tanh(T x) __NOEXC {
   return sycl::detail::convertFromOpenCLTypeFor<T>(
       __clc_native_tanh(sycl::detail::convertToOpenCLType(x)));
 #else
-  return __sycl_std::__invoke_tanh<T>(x);
+  return sycl::tanh(x);
 #endif
 }
 
@@ -120,16 +124,15 @@ inline __SYCL_ALWAYS_INLINE
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     auto partial_res = native::tanh(sycl::detail::to_vec2(x, i * 2));
 #else
-    auto partial_res = __sycl_std::__invoke_tanh<sycl::vec<T, 2>>(
-        sycl::detail::to_vec2(x, i * 2));
+    auto partial_res = sycl::tanh(sycl::detail::to_vec2(x, i * 2));
 #endif
-    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
+    sycl::detail::memcpy_no_adl(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
   if (N % 2) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     res[N - 1] = native::tanh(x[N - 1]);
 #else
-    res[N - 1] = __sycl_std::__invoke_tanh<T>(x[N - 1]);
+    res[N - 1] = sycl::tanh(x[N - 1]);
 #endif
   }
 
@@ -147,7 +150,7 @@ inline __SYCL_ALWAYS_INLINE
   return sycl::detail::convertFromOpenCLTypeFor<T>(
       __clc_native_exp2(sycl::detail::convertToOpenCLType(x)));
 #else
-  return __sycl_std::__invoke_exp2<T>(x);
+  return sycl::exp2(x);
 #endif
 }
 
@@ -162,16 +165,15 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     auto partial_res = native::exp2(sycl::detail::to_vec2(x, i * 2));
 #else
-    auto partial_res = __sycl_std::__invoke_exp2<sycl::vec<half, 2>>(
-        sycl::detail::to_vec2(x, i * 2));
+    auto partial_res = sycl::exp2(sycl::detail::to_vec2(x, i * 2));
 #endif
-    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
+    sycl::detail::memcpy_no_adl(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
   if (N % 2) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     res[N - 1] = native::exp2(x[N - 1]);
 #else
-    res[N - 1] = __sycl_std::__invoke_exp2<half>(x[N - 1]);
+    res[N - 1] = sycl::exp2(x[N - 1]);
 #endif
   }
   return res;

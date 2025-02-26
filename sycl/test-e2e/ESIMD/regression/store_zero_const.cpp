@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -fsycl-device-code-split=per_kernel -I%S/.. -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 // This is a regression for vector BE bug:
@@ -14,13 +14,9 @@
 // Use -fsycl-device-code-split=per_kernel so that each kernel's compilation
 // does not affect others.
 
-#include "esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include "../esimd_test_utils.hpp"
 
 #include <cstdint>
-#include <iostream>
 
 using namespace sycl;
 

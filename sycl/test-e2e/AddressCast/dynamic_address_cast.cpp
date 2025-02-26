@@ -7,12 +7,18 @@
 //===----------------------------------------------------------------------===//
 
 // Issue with OpenCL CPU runtime implementation of OpGenericCastToPtrExplicit
-// OpGenericCastToPtr* intrinsics not implemented on AMD or NVIDIA
 // FPGA emulator affected by same issue as OpenCL CPU runtime
-// UNSUPPORTED: cpu, hip, cuda, accelerator
+// UNSUPPORTED: cpu, accelerator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-#include <sycl/sycl.hpp>
+
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/experimental/address_cast.hpp>
 
 int main() {
 
@@ -39,16 +45,16 @@ int main() {
               {
                 auto GlobalPointer =
                     sycl::ext::oneapi::experimental::dynamic_address_cast<
-                        sycl::access::address_space::global_space,
-                        sycl::access::decorated::no>(RawGlobalPointer);
+                        sycl::access::address_space::global_space>(
+                        RawGlobalPointer);
                 auto LocalPointer =
                     sycl::ext::oneapi::experimental::dynamic_address_cast<
-                        sycl::access::address_space::local_space,
-                        sycl::access::decorated::no>(RawGlobalPointer);
+                        sycl::access::address_space::local_space>(
+                        RawGlobalPointer);
                 auto PrivatePointer =
                     sycl::ext::oneapi::experimental::dynamic_address_cast<
-                        sycl::access::address_space::private_space,
-                        sycl::access::decorated::no>(RawGlobalPointer);
+                        sycl::access::address_space::private_space>(
+                        RawGlobalPointer);
                 Success &= reinterpret_cast<size_t>(RawGlobalPointer) ==
                            reinterpret_cast<size_t>(GlobalPointer.get_raw());
                 Success &= LocalPointer.get_raw() == nullptr;
@@ -59,16 +65,16 @@ int main() {
               {
                 auto GlobalPointer =
                     sycl::ext::oneapi::experimental::dynamic_address_cast<
-                        sycl::access::address_space::global_space,
-                        sycl::access::decorated::no>(RawLocalPointer);
+                        sycl::access::address_space::global_space>(
+                        RawLocalPointer);
                 auto LocalPointer =
                     sycl::ext::oneapi::experimental::dynamic_address_cast<
-                        sycl::access::address_space::local_space,
-                        sycl::access::decorated::no>(RawLocalPointer);
+                        sycl::access::address_space::local_space>(
+                        RawLocalPointer);
                 auto PrivatePointer =
                     sycl::ext::oneapi::experimental::dynamic_address_cast<
-                        sycl::access::address_space::private_space,
-                        sycl::access::decorated::no>(RawLocalPointer);
+                        sycl::access::address_space::private_space>(
+                        RawLocalPointer);
                 Success &= GlobalPointer.get_raw() == nullptr;
                 Success &= reinterpret_cast<size_t>(RawLocalPointer) ==
                            reinterpret_cast<size_t>(LocalPointer.get_raw());
@@ -80,16 +86,16 @@ int main() {
               {
                 auto GlobalPointer =
                     sycl::ext::oneapi::experimental::dynamic_address_cast<
-                        sycl::access::address_space::global_space,
-                        sycl::access::decorated::no>(RawPrivatePointer);
+                        sycl::access::address_space::global_space>(
+                        RawPrivatePointer);
                 auto LocalPointer =
                     sycl::ext::oneapi::experimental::dynamic_address_cast<
-                        sycl::access::address_space::local_space,
-                        sycl::access::decorated::no>(RawPrivatePointer);
+                        sycl::access::address_space::local_space>(
+                        RawPrivatePointer);
                 auto PrivatePointer =
                     sycl::ext::oneapi::experimental::dynamic_address_cast<
-                        sycl::access::address_space::private_space,
-                        sycl::access::decorated::no>(RawPrivatePointer);
+                        sycl::access::address_space::private_space>(
+                        RawPrivatePointer);
                 Success &= GlobalPointer.get_raw() == nullptr;
                 Success &= LocalPointer.get_raw() == nullptr;
                 Success &= reinterpret_cast<size_t>(RawPrivatePointer) ==

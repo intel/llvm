@@ -17,27 +17,28 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
+inline constexpr detail::PropKind fakePropKind(int N) {
+  return static_cast<detail::PropKind>(
+      static_cast<std::uint32_t>(detail::PropKind::PropKindSize) + N);
+}
+
 // Compile-time properties
-struct bar_key {
+struct bar_key : detail::compile_time_property_key<fakePropKind(0)> {
   using value_t = property_value<bar_key>;
 };
 
-struct baz_key {
+struct baz_key : detail::compile_time_property_key<fakePropKind(1)> {
   template <int K>
   using value_t = property_value<baz_key, std::integral_constant<int, K>>;
 };
 
-struct boo_key {
+struct boo_key : detail::compile_time_property_key<fakePropKind(2)> {
   template <typename... Ts> using value_t = property_value<boo_key, Ts...>;
 };
 
 inline constexpr bar_key::value_t bar;
 template <int K> inline constexpr baz_key::value_t<K> baz;
 template <typename... Ts> inline constexpr boo_key::value_t<Ts...> boo;
-
-template <> struct is_property_key<bar_key> : std::true_type {};
-template <> struct is_property_key<baz_key> : std::true_type {};
-template <> struct is_property_key<boo_key> : std::true_type {};
 
 template <typename objectT>
 struct is_property_key_of<bar_key, objectT> : std::true_type {};
@@ -46,72 +47,55 @@ struct is_property_key_of<baz_key, objectT> : std::true_type {};
 template <typename objectT>
 struct is_property_key_of<boo_key, objectT> : std::true_type {};
 
-namespace detail {
-template <> struct PropertyToKind<bar_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 0);
-};
-template <> struct PropertyToKind<baz_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 1);
-};
-
-template <> struct PropertyToKind<boo_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 2);
-};
-
-template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<baz_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<boo_key> : std::true_type {};
-
-} // namespace detail
-
 // Runtime properties
 enum foo_enum : unsigned { a, b, c };
-struct foo {
+struct foo : detail::run_time_property_key<foo, fakePropKind(3)> {
   constexpr foo(foo_enum v) : value(v) {}
   foo_enum value;
 };
 
-struct foz {
+struct foz : detail::run_time_property_key<foz, fakePropKind(4)> {
   float value1;
   bool value2;
+
+  foz(float value1, bool value2) : value1(value1), value2(value2) {}
 };
 
-struct rt_prop1 {};
-struct rt_prop2 {};
-struct rt_prop3 {};
-struct rt_prop4 {};
-struct rt_prop5 {};
-struct rt_prop6 {};
-struct rt_prop7 {};
-struct rt_prop8 {};
-struct rt_prop9 {};
-struct rt_prop10 {};
-struct rt_prop11 {};
-struct rt_prop12 {};
-struct rt_prop13 {};
-struct rt_prop14 {};
-struct rt_prop15 {};
-struct rt_prop16 {};
-struct rt_prop17 {};
-struct rt_prop18 {};
-struct rt_prop19 {};
-struct rt_prop20 {};
-struct rt_prop21 {};
-struct rt_prop22 {};
-struct rt_prop23 {};
-struct rt_prop24 {};
-struct rt_prop25 {};
-struct rt_prop26 {};
-struct rt_prop27 {};
-struct rt_prop28 {};
-struct rt_prop29 {};
-struct rt_prop30 {};
-struct rt_prop31 {};
-struct rt_prop32 {};
-struct rt_prop33 {};
+// clang-format off
+struct rt_prop1  : detail::run_time_property_key<rt_prop1,  fakePropKind(5)>  { int x; };
+struct rt_prop2  : detail::run_time_property_key<rt_prop2,  fakePropKind(6)>  { int x; };
+struct rt_prop3  : detail::run_time_property_key<rt_prop3,  fakePropKind(7)>  { int x; };
+struct rt_prop4  : detail::run_time_property_key<rt_prop4,  fakePropKind(8)>  { int x; };
+struct rt_prop5  : detail::run_time_property_key<rt_prop5,  fakePropKind(9)>  { int x; };
+struct rt_prop6  : detail::run_time_property_key<rt_prop6,  fakePropKind(10)> { int x; };
+struct rt_prop7  : detail::run_time_property_key<rt_prop7,  fakePropKind(11)> { int x; };
+struct rt_prop8  : detail::run_time_property_key<rt_prop8,  fakePropKind(12)> { int x; };
+struct rt_prop9  : detail::run_time_property_key<rt_prop9,  fakePropKind(13)> { int x; };
+struct rt_prop10 : detail::run_time_property_key<rt_prop10, fakePropKind(14)> { int x; };
+struct rt_prop11 : detail::run_time_property_key<rt_prop11, fakePropKind(15)> { int x; };
+struct rt_prop12 : detail::run_time_property_key<rt_prop12, fakePropKind(16)> { int x; };
+struct rt_prop13 : detail::run_time_property_key<rt_prop13, fakePropKind(17)> { int x; };
+struct rt_prop14 : detail::run_time_property_key<rt_prop14, fakePropKind(18)> { int x; };
+struct rt_prop15 : detail::run_time_property_key<rt_prop15, fakePropKind(19)> { int x; };
+struct rt_prop16 : detail::run_time_property_key<rt_prop16, fakePropKind(20)> { int x; };
+struct rt_prop17 : detail::run_time_property_key<rt_prop17, fakePropKind(21)> { int x; };
+struct rt_prop18 : detail::run_time_property_key<rt_prop18, fakePropKind(22)> { int x; };
+struct rt_prop19 : detail::run_time_property_key<rt_prop19, fakePropKind(23)> { int x; };
+struct rt_prop20 : detail::run_time_property_key<rt_prop20, fakePropKind(24)> { int x; };
+struct rt_prop21 : detail::run_time_property_key<rt_prop21, fakePropKind(25)> { int x; };
+struct rt_prop22 : detail::run_time_property_key<rt_prop22, fakePropKind(26)> { int x; };
+struct rt_prop23 : detail::run_time_property_key<rt_prop23, fakePropKind(27)> { int x; };
+struct rt_prop24 : detail::run_time_property_key<rt_prop24, fakePropKind(28)> { int x; };
+struct rt_prop25 : detail::run_time_property_key<rt_prop25, fakePropKind(29)> { int x; };
+struct rt_prop26 : detail::run_time_property_key<rt_prop26, fakePropKind(30)> { int x; };
+struct rt_prop27 : detail::run_time_property_key<rt_prop27, fakePropKind(31)> { int x; };
+struct rt_prop28 : detail::run_time_property_key<rt_prop28, fakePropKind(32)> { int x; };
+struct rt_prop29 : detail::run_time_property_key<rt_prop29, fakePropKind(33)> { int x; };
+struct rt_prop30 : detail::run_time_property_key<rt_prop30, fakePropKind(34)> { int x; };
+struct rt_prop31 : detail::run_time_property_key<rt_prop31, fakePropKind(35)> { int x; };
+struct rt_prop32 : detail::run_time_property_key<rt_prop32, fakePropKind(36)> { int x; };
+struct rt_prop33 : detail::run_time_property_key<rt_prop33, fakePropKind(37)> { int x; };
+// clang-format on
 
 using foo_key = foo;
 using foz_key = foz;
@@ -148,43 +132,6 @@ using rt_prop30_key = rt_prop30;
 using rt_prop31_key = rt_prop31;
 using rt_prop32_key = rt_prop32;
 using rt_prop33_key = rt_prop33;
-
-template <> struct is_property_key<foo_key> : std::true_type {};
-template <> struct is_property_key<foz_key> : std::true_type {};
-
-template <> struct is_property_key<rt_prop1_key> : std::true_type {};
-template <> struct is_property_key<rt_prop2_key> : std::true_type {};
-template <> struct is_property_key<rt_prop3_key> : std::true_type {};
-template <> struct is_property_key<rt_prop4_key> : std::true_type {};
-template <> struct is_property_key<rt_prop5_key> : std::true_type {};
-template <> struct is_property_key<rt_prop6_key> : std::true_type {};
-template <> struct is_property_key<rt_prop7_key> : std::true_type {};
-template <> struct is_property_key<rt_prop8_key> : std::true_type {};
-template <> struct is_property_key<rt_prop9_key> : std::true_type {};
-template <> struct is_property_key<rt_prop10_key> : std::true_type {};
-template <> struct is_property_key<rt_prop11_key> : std::true_type {};
-template <> struct is_property_key<rt_prop12_key> : std::true_type {};
-template <> struct is_property_key<rt_prop13_key> : std::true_type {};
-template <> struct is_property_key<rt_prop14_key> : std::true_type {};
-template <> struct is_property_key<rt_prop15_key> : std::true_type {};
-template <> struct is_property_key<rt_prop16_key> : std::true_type {};
-template <> struct is_property_key<rt_prop17_key> : std::true_type {};
-template <> struct is_property_key<rt_prop18_key> : std::true_type {};
-template <> struct is_property_key<rt_prop19_key> : std::true_type {};
-template <> struct is_property_key<rt_prop20_key> : std::true_type {};
-template <> struct is_property_key<rt_prop21_key> : std::true_type {};
-template <> struct is_property_key<rt_prop22_key> : std::true_type {};
-template <> struct is_property_key<rt_prop23_key> : std::true_type {};
-template <> struct is_property_key<rt_prop24_key> : std::true_type {};
-template <> struct is_property_key<rt_prop25_key> : std::true_type {};
-template <> struct is_property_key<rt_prop26_key> : std::true_type {};
-template <> struct is_property_key<rt_prop27_key> : std::true_type {};
-template <> struct is_property_key<rt_prop28_key> : std::true_type {};
-template <> struct is_property_key<rt_prop29_key> : std::true_type {};
-template <> struct is_property_key<rt_prop30_key> : std::true_type {};
-template <> struct is_property_key<rt_prop31_key> : std::true_type {};
-template <> struct is_property_key<rt_prop32_key> : std::true_type {};
-template <> struct is_property_key<rt_prop33_key> : std::true_type {};
 
 template <typename objectT>
 struct is_property_key_of<foo_key, objectT> : std::true_type {};
@@ -258,188 +205,6 @@ struct is_property_key_of<rt_prop32_key, objectT> : std::true_type {};
 template <typename objectT>
 struct is_property_key_of<rt_prop33_key, objectT> : std::true_type {};
 
-namespace detail {
-template <> struct PropertyToKind<foo_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 3);
-};
-
-template <> struct PropertyToKind<foz_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4);
-};
-
-template <> struct PropertyToKind<rt_prop1_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 1);
-};
-template <> struct PropertyToKind<rt_prop2_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 2);
-};
-template <> struct PropertyToKind<rt_prop3_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 3);
-};
-template <> struct PropertyToKind<rt_prop4_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 4);
-};
-template <> struct PropertyToKind<rt_prop5_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 5);
-};
-template <> struct PropertyToKind<rt_prop6_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 6);
-};
-template <> struct PropertyToKind<rt_prop7_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 7);
-};
-template <> struct PropertyToKind<rt_prop8_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 8);
-};
-template <> struct PropertyToKind<rt_prop9_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 9);
-};
-template <> struct PropertyToKind<rt_prop10_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 10);
-};
-template <> struct PropertyToKind<rt_prop11_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 11);
-};
-template <> struct PropertyToKind<rt_prop12_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 12);
-};
-template <> struct PropertyToKind<rt_prop13_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 13);
-};
-template <> struct PropertyToKind<rt_prop14_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 14);
-};
-template <> struct PropertyToKind<rt_prop15_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 15);
-};
-template <> struct PropertyToKind<rt_prop16_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 16);
-};
-template <> struct PropertyToKind<rt_prop17_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 17);
-};
-template <> struct PropertyToKind<rt_prop18_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 18);
-};
-template <> struct PropertyToKind<rt_prop19_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 19);
-};
-template <> struct PropertyToKind<rt_prop20_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 20);
-};
-template <> struct PropertyToKind<rt_prop21_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 21);
-};
-template <> struct PropertyToKind<rt_prop22_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 22);
-};
-template <> struct PropertyToKind<rt_prop23_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 23);
-};
-template <> struct PropertyToKind<rt_prop24_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 24);
-};
-template <> struct PropertyToKind<rt_prop25_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 25);
-};
-template <> struct PropertyToKind<rt_prop26_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 26);
-};
-template <> struct PropertyToKind<rt_prop27_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 27);
-};
-template <> struct PropertyToKind<rt_prop28_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 28);
-};
-template <> struct PropertyToKind<rt_prop29_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 29);
-};
-template <> struct PropertyToKind<rt_prop30_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 30);
-};
-template <> struct PropertyToKind<rt_prop31_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 31);
-};
-template <> struct PropertyToKind<rt_prop32_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 32);
-};
-template <> struct PropertyToKind<rt_prop33_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4 + 33);
-};
-
-template <> struct IsRuntimeProperty<foo_key> : std::true_type {};
-template <> struct IsRuntimeProperty<foz_key> : std::true_type {};
-
-template <> struct IsRuntimeProperty<rt_prop1_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop2_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop3_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop4_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop5_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop6_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop7_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop8_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop9_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop10_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop11_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop12_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop13_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop14_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop15_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop16_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop17_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop18_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop19_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop20_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop21_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop22_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop23_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop24_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop25_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop26_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop27_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop28_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop29_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop30_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop31_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop32_key> : std::true_type {};
-template <> struct IsRuntimeProperty<rt_prop33_key> : std::true_type {};
-
-} // namespace detail
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

@@ -5,8 +5,12 @@ on:
     - cron:  '0 3 * * 2'
   workflow_dispatch:
 
+permissions: read-all
+
 jobs:
   update_driver_linux:
+    permissions:
+      contents: write  # for Git to git push
     runs-on: ubuntu-20.04
     if: github.repository == 'intel/llvm'
     steps:
@@ -26,5 +30,6 @@ jobs:
         git checkout -B $BRANCH
         git add -u
         git commit -m "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" || exit 0   # exit if commit is empty
+        git show
         git push https://$GITHUB_TOKEN@github.com/${{ github.repository }} ${BRANCH}
         gh pr create --head $BRANCH --title "[GHA] Uplift Linux GPU RT version to $NEW_DRIVER_VERSION" --body "Scheduled drivers uplift"

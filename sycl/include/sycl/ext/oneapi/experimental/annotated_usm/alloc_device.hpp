@@ -37,61 +37,61 @@ using GetAnnotatedDevicePtrProperties =
 //  `usm_kind<alloc::device>`, so reconstruct the real annotated_ptr that
 //  contains usm_kind using the raw pointer of "aligned_alloc_annotated" result
 ////
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
-aligned_alloc_device_annotated(size_t alignment, size_t numBytes,
-                               const device &syclDevice,
-                               const context &syclContext,
-                               const propertyListA &propList = properties{}) {
+aligned_alloc_device_annotated(
+    size_t alignment, size_t numBytes, const device &syclDevice,
+    const context &syclContext,
+    const propertyListA &propList = propertyListA{}) {
   auto tmp =
       aligned_alloc_annotated(alignment, numBytes, syclDevice, syclContext,
                               sycl::usm::alloc::device, propList);
   return annotated_ptr<void, propertyListB>(tmp.get());
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
-aligned_alloc_device_annotated(size_t alignment, size_t count,
-                               const device &syclDevice,
-                               const context &syclContext,
-                               const propertyListA &propList = properties{}) {
+aligned_alloc_device_annotated(
+    size_t alignment, size_t count, const device &syclDevice,
+    const context &syclContext,
+    const propertyListA &propList = propertyListA{}) {
   auto tmp =
       aligned_alloc_annotated<T>(alignment, count, syclDevice, syclContext,
                                  sycl::usm::alloc::device, propList);
   return annotated_ptr<T, propertyListB>(tmp.get());
 }
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
-aligned_alloc_device_annotated(size_t alignment, size_t numBytes,
-                               const queue &syclQueue,
-                               const propertyListA &propList = properties{}) {
+aligned_alloc_device_annotated(
+    size_t alignment, size_t numBytes, const queue &syclQueue,
+    const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_device_annotated(alignment, numBytes,
                                         syclQueue.get_device(),
                                         syclQueue.get_context(), propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
-aligned_alloc_device_annotated(size_t alignment, size_t count,
-                               const queue &syclQueue,
-                               const propertyListA &propList = properties{}) {
+aligned_alloc_device_annotated(
+    size_t alignment, size_t count, const queue &syclQueue,
+    const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_device_annotated<T>(alignment, count,
                                            syclQueue.get_device(),
                                            syclQueue.get_context(), propList);
@@ -104,7 +104,7 @@ aligned_alloc_device_annotated(size_t alignment, size_t count,
 //  Note: "malloc_device_annotated" functions call
 //  "aligned_alloc_device_annotated" with alignment 0
 ////
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
 std::enable_if_t<
@@ -112,12 +112,12 @@ std::enable_if_t<
     annotated_ptr<void, propertyListB>>
 malloc_device_annotated(size_t numBytes, const device &syclDevice,
                         const context &syclContext,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_device_annotated(0, numBytes, syclDevice, syclContext,
                                         propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
 std::enable_if_t<
@@ -125,31 +125,31 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 malloc_device_annotated(size_t count, const device &syclDevice,
                         const context &syclContext,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_device_annotated<T>(0, count, syclDevice, syclContext,
                                            propList);
 }
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
 malloc_device_annotated(size_t numBytes, const queue &syclQueue,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return malloc_device_annotated(numBytes, syclQueue.get_device(),
                                  syclQueue.get_context(), propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedDevicePtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckDevicePtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
 malloc_device_annotated(size_t count, const queue &syclQueue,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return malloc_device_annotated<T>(count, syclQueue.get_device(),
                                     syclQueue.get_context(), propList);
 }

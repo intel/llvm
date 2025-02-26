@@ -32,8 +32,7 @@
 // RUN:   %clang -### -fsycl-default-sub-group-size=10  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-default-sub-group-size=10 %s
 // RUN:   %clang_cl -### -fsycl-default-sub-group-size=10  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-DSS-CL %s
-// WARNING-DSS-CL: unknown argument ignored in clang-cl: '-fsycl-default-sub-group-size=10' [-Wunknown-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-default-sub-group-size=10 %s
 
 // Warning should be emitted when using -fsycl-device-code-split-esimd without -fsycl
 // RUN:   %clang -### -fsycl-device-code-split-esimd  %s 2>&1 \
@@ -86,8 +85,7 @@
 // RUN:   %clang -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-fp32-prec-sqrt %s
 // RUN:   %clang_cl -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-FP32-CL -DOPT=-fsycl-fp32-prec-sqrt %s
-// WARNING-FP32-CL: warning: unknown argument ignored in clang-cl: '[[OPT]]' [-Wunknown-argument]
+// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-fp32-prec-sqrt %s
 
 // Warning should be emitted when using -fsycl-id-queries-fit-in-int without -fsycl
 // RUN:   %clang -### -fsycl-id-queries-fit-in-int  %s 2>&1 \

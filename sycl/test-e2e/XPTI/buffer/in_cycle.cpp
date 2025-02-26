@@ -10,7 +10,7 @@
 
 #else
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 bool func(sycl::queue &Queue, int depth = 0) {
   bool MismatchFound = false;
   // Create a buffer of 4 ints to be used inside the kernel code.
@@ -32,7 +32,7 @@ bool func(sycl::queue &Queue, int depth = 0) {
   // Get read only access to the buffer on the host.
   // This introduces an implicit barrier which blocks execution until the
   // command group above completes.
-  const auto HostAccessor = Buffer.get_access<sycl::access::mode::read>();
+  const sycl::host_accessor HostAccessor(Buffer, sycl::read_only);
 
   // Check the results.
   for (size_t I = 0; I < Buffer.size(); ++I) {
@@ -45,7 +45,7 @@ bool func(sycl::queue &Queue, int depth = 0) {
   }
 
   if (depth > 0)
-    MismatchFound &= func(Queue, depth - 1);
+    MismatchFound |= func(Queue, depth - 1);
   return MismatchFound;
 }
 int main() {
@@ -66,7 +66,7 @@ int main() {
   // CHECK:{{[0-9]+}}|Release buffer|[[USERID3]]|[[BEID3]]
   // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID3]]
   for (int i = 0; i < 3; i++)
-    MismatchFound &= func(Queue);
+    MismatchFound |= func(Queue);
   return MismatchFound;
 }
 

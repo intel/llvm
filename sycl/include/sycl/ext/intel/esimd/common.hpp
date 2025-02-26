@@ -13,6 +13,7 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
+#include <sycl/ext/intel/esimd/memory_properties.hpp>
 #include <sycl/ext/intel/esimd/native/common.hpp>
 
 #include <cstdint> // for uint* types
@@ -197,9 +198,6 @@ enum class atomic_op : uint8_t {
   fsub = 0x14,
   load = 0x15,
   store = 0x16,
-  /// Decrement: <code>*addr = *addr - 1</code>. The only operation which
-  /// returns new value of the destination rather than old.
-  predec = 0xff,
 };
 
 #undef __ESIMD_USM_DWORD_TO_LSC_MSG
@@ -210,7 +208,6 @@ namespace detail {
 template <__ESIMD_NS::atomic_op Op> constexpr bool has_lsc_equivalent() {
   switch (Op) {
   case __ESIMD_NS::atomic_op::xchg:
-  case __ESIMD_NS::atomic_op::predec:
     return false;
   default:
     return true;
@@ -314,7 +311,6 @@ template <__ESIMD_NS::atomic_op Op> constexpr int get_num_args() {
   case __ESIMD_NS::atomic_op::load:
     return 0;
   case __ESIMD_NS::atomic_op::xchg:
-  case __ESIMD_NS::atomic_op::predec:
   case __ESIMD_NS::atomic_op::store:
   case __ESIMD_NS::atomic_op::add:
   case __ESIMD_NS::atomic_op::sub:
@@ -343,46 +339,6 @@ template <__ESIMD_NS::native::lsc::atomic_op Op> constexpr int get_num_args() {
 }
 
 } // namespace detail
-
-/// L1, L2 or L3 cache hints.
-enum class cache_hint : uint8_t {
-  none = 0,
-  /// load/store/atomic: do not cache data to cache;
-  uncached = 1,
-
-  // load: cache data to cache;
-  cached = 2,
-
-  /// store: write data into cache level and mark the cache line as "dirty".
-  /// Upon eviction, the "dirty" data will be written into the furthest
-  /// subsequent cache;
-  write_back = 3,
-
-  /// store: immediately write data to the subsequent furthest cache, marking
-  /// the cache line in the current cache as "not dirty";
-  write_through = 4,
-
-  /// load: cache data to cache using the evict-first policy to minimize cache
-  /// pollution caused by temporary streaming data that may only be accessed
-  /// once or twice;
-  /// store/atomic: same as write-through, but use the evict-first policy
-  /// to limit cache pollution by streaming;
-  streaming = 5,
-
-  /// load: asserts that the cache line containing the data will not be read
-  /// again until it’s overwritten, therefore the load operation can invalidate
-  /// the cache line and discard "dirty" data. If the assertion is violated
-  /// (the cache line is read again) then behavior is undefined.
-  read_invalidate = 6,
-
-  // TODO: Implement the verification of this enum in check_cache_hint().
-  /// load, L2 cache only, next gen GPU after Xe required: asserts that
-  /// the L2 cache line containing the data will not be written until all
-  /// invocations of the shader or kernel execution are finished.
-  /// If the assertion is violated (the cache line is written), the behavior
-  /// is undefined.
-  const_cached = 7
-};
 
 /// The scope that fence() operation should apply to.
 /// Supported platforms: DG2, PVC
@@ -439,9 +395,6 @@ enum class memory_kind : uint8_t {
   image = 2, /// image (also known as typed global memory)
   local = 3, /// shared local memory
 };
-
-/// L1, L2 or L3 cache hint levels. L3 is reserved for future use.
-enum class cache_level : uint8_t { L1 = 1, L2 = 2, L3 = 3 };
 
 namespace detail {
 
@@ -587,27 +540,42 @@ public:
   }
 };
 
-constexpr bool are_both(cache_hint First, cache_hint Second, cache_hint Val) {
+template <cache_hint Val>
+constexpr bool are_all(cache_hint First, cache_hint Second) {
   return First == Val && Second == Val;
 }
 
 enum class cache_action { prefetch, load, store, atomic };
 
-template <cache_action Action, cache_hint L1Hint, cache_hint L2Hint>
-void check_cache_hint() {
-  constexpr auto L1H = cache_hint_wrap<L1Hint>{};
-  constexpr auto L2H = cache_hint_wrap<L2Hint>{};
+template <typename PropertyListT> constexpr bool has_cache_hints() {
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  return L1H != cache_hint::none || L2H != cache_hint::none;
+}
+
+// Verifies cache-hint properties from 'PropertyListT`. The parameter 'Action'
+// specifies the usage context.
+template <cache_action Action, typename PropertyListT>
+void check_cache_hints() {
+  constexpr auto L1H =
+      cache_hint_wrap<getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none)>{};
+  constexpr auto L2H =
+      cache_hint_wrap<getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none)>{};
   if constexpr (Action == cache_action::prefetch) {
     static_assert(
         L1H.template is_one_of<cache_hint::cached, cache_hint::uncached,
                                cache_hint::streaming>() &&
             L2H.template is_one_of<cache_hint::cached,
                                    cache_hint::uncached>() &&
-            !are_both(L1H, L2H, cache_hint::uncached),
+            !are_all<cache_hint::uncached>(L1H, L2H),
         "unsupported cache hint");
   } else if constexpr (Action == cache_action::load) {
     static_assert(
-        are_both(L1H, L2H, cache_hint::none) ||
+        are_all<cache_hint::none>(L1H, L2H) ||
             (L1H.template is_one_of<cache_hint::uncached, cache_hint::cached,
                                     cache_hint::streaming>() &&
              L2H.template is_one_of<cache_hint::uncached,
@@ -615,8 +583,8 @@ void check_cache_hint() {
             (L1H == cache_hint::read_invalidate && L2H == cache_hint::cached),
         "unsupported cache hint");
   } else if constexpr (Action == cache_action::store) {
-    static_assert(are_both(L1H, L2H, cache_hint::none) ||
-                      are_both(L1H, L2H, cache_hint::write_back) ||
+    static_assert(are_all<cache_hint::none>(L1H, L2H) ||
+                      are_all<cache_hint::write_back>(L1H, L2H) ||
                       (L1H.template is_one_of<cache_hint::uncached,
                                               cache_hint::write_through,
                                               cache_hint::streaming>() &&
@@ -624,7 +592,7 @@ void check_cache_hint() {
                                               cache_hint::write_back>()),
                   "unsupported cache hint");
   } else if constexpr (Action == cache_action::atomic) {
-    static_assert(are_both(L1H, L2H, cache_hint::none) ||
+    static_assert(are_all<cache_hint::none>(L1H, L2H) ||
                       (L1H == cache_hint::uncached &&
                        L2H.template is_one_of<cache_hint::uncached,
                                               cache_hint::write_back>()),

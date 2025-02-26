@@ -67,6 +67,8 @@ class PreprocessorOptions {
 public:
   std::vector<std::pair<std::string, bool/*isUndef*/>> Macros;
   std::vector<std::string> Includes;
+  std::string IncludeFooter;
+  std::string IncludeHeader;
   std::vector<std::string> MacroIncludes;
 
   /// Perform extra checks when loading PCM files for mutable file systems.
@@ -170,6 +172,9 @@ public:
   /// of the specified memory buffer (the second part of each pair).
   std::vector<std::pair<std::string, llvm::MemoryBuffer *>> RemappedFileBuffers;
 
+  /// User specified embed entries.
+  std::vector<std::string> EmbedEntries;
+
   /// Whether the compiler instance should retain (i.e., not free)
   /// the buffers associated with remapped files.
   ///
@@ -185,28 +190,6 @@ public:
   /// by providing appropriate definitions to retrofit the standard library
   /// with support for lifetime-qualified pointers.
   ObjCXXARCStandardLibraryKind ObjCXXARCStandardLibrary = ARCXX_nolib;
-
-  /// Records the set of modules
-  class FailedModulesSet {
-    llvm::StringSet<> Failed;
-
-  public:
-    bool hasAlreadyFailed(StringRef module) {
-      return Failed.count(module) > 0;
-    }
-
-    void addFailed(StringRef module) {
-      Failed.insert(module);
-    }
-  };
-
-  /// The set of modules that failed to build.
-  ///
-  /// This pointer will be shared among all of the compiler instances created
-  /// to (re)build modules, so that once a module fails to build anywhere,
-  /// other instances will see that the module has failed and won't try to
-  /// build it again.
-  std::shared_ptr<FailedModulesSet> FailedModules;
 
   /// Function for getting the dependency preprocessor directives of a file.
   ///

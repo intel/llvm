@@ -1,6 +1,7 @@
 //
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+// REQUIRES-INTEL-DRIVER: lin: 28454, win: 101.5333
 //
 // RUN: %{build} -o %t.1.out
 // RUN: %{run} %t.1.out
@@ -9,12 +10,17 @@
 // RUN: %{build} -DFORCE_INLINE -o %t.2.out
 // RUN: %{run} %t.2.out
 
+// Check if the test sill passes with O0
+// RUN: %{build} %O0 -o %t.3.out
+// RUN: %{run} %t.3.out
+
 // Check that SLM frame offset of a function foo called from two kernels Test1
 // and Test2 is the maximum of the SLM size used in both kernels.
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -53,7 +59,8 @@ __attribute__((noinline))
 int main(void) {
   queue q;
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   std::cout << "force_inline=" << force_inline << "\n";
   auto ctxt = q.get_context();
 

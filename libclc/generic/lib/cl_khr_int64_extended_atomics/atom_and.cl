@@ -1,5 +1,5 @@
 #include <clc/clc.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 #ifdef cl_khr_int64_extended_atomics
 

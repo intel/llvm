@@ -22,8 +22,10 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
-#include <syclcompat.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <syclcompat/device.hpp>
+#include <syclcompat/dims.hpp>
 
 // Struct containing test case data (local & global ranges)
 template <int Dim> struct RangeParams {

@@ -3,8 +3,9 @@
 // RUN: %{run} %t.out
 
 #include <CL/opencl.h>
+#include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

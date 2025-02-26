@@ -126,7 +126,7 @@ void PropertySetRegistry::write(raw_ostream &Out) const {
     Out << "[" << PropSet.first << "]\n";
 
     for (const auto &Props : PropSet.second) {
-      Out << std::string(Props.first) << "=" << Props.second << "\n";
+      Out << Props.first << "=" << Props.second << "\n";
     }
   }
 }
@@ -202,9 +202,12 @@ constexpr char PropertySetRegistry::SYCL_PROGRAM_METADATA[];
 constexpr char PropertySetRegistry::SYCL_MISC_PROP[];
 constexpr char PropertySetRegistry::SYCL_ASSERT_USED[];
 constexpr char PropertySetRegistry::SYCL_EXPORTED_SYMBOLS[];
+constexpr char PropertySetRegistry::SYCL_IMPORTED_SYMBOLS[];
 constexpr char PropertySetRegistry::SYCL_DEVICE_GLOBALS[];
 constexpr char PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS[];
 constexpr char PropertySetRegistry::SYCL_HOST_PIPES[];
+constexpr char PropertySetRegistry::SYCL_VIRTUAL_FUNCTIONS[];
+constexpr char PropertySetRegistry::SYCL_IMPLICIT_LOCAL_ARG[];
 
 } // namespace util
 } // namespace llvm

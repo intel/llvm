@@ -1,6 +1,7 @@
 //
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+// REQUIRES-INTEL-DRIVER: lin: 28454, win: 101.5333
 //
 // RUN: %{build} -o %t.1.out
 // RUN: %{run} %t.1.out
@@ -8,6 +9,10 @@
 // Vary the test case by forcing inlining of the functions with slm_allocator:
 // RUN: %{build} -DFORCE_INLINE -o %t.2.out
 // RUN: %{run} %t.2.out
+
+// Check if the test sill passes with O0
+// RUN: %{build} %O0 -o %t.3.out
+// RUN: %{run} %t.3.out
 
 // Checks validity of SLM frame offsets in case of complex call graph with two
 // kernels and 2 functions all using SLM, and one of the functions using two
@@ -25,16 +30,6 @@
 //   Y       Z
 //
 // SLM offsets are expected to be:
-// 1) no inlining case:
-// --- Kernel0
-// X  - N1
-// Y  - N1 + X
-// Z  - max(N1 + X, N2)
-// --- Kernel2
-// X  - 0 (not reachable, offset not updated in the result)
-// Y  - 0 (not reachable, offset not updated in the result)
-// Z  - max(N1 + X, N2)
-// 2) forced inlining case:
 // --- Kernel0
 // X  - N1
 // Y  - N1 + X
@@ -45,12 +40,10 @@
 // X  - 0 (not reachable, offset not updated in the result)
 // Y  - 0 (not reachable, offset not updated in the result)
 // Z  - N2
-// Note the difference in SLM offset for Z in the inlining/no-inlining cases for
-// Z scope. This is because inlining effectively splits Z scope when inlining
-// into kernel0 and kernel2
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <cstring>
 #include <iostream>
@@ -118,7 +111,8 @@ INLINE_CTL void foo(int local_id, T *out, unsigned base) {
 int main(void) {
   queue q;
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   std::cout << "force_inline=" << force_inline << "\n";
   auto ctxt = q.get_context();
 
@@ -157,26 +151,14 @@ int main(void) {
   // Z  - max(N1 + X, N2)
   gold_arr0[x_off_ind] = SLM_N1;
   gold_arr0[y_off_ind] = SLM_N1 + SLM_X;
-
-  // For kernel0 inline/no-inline case splits for Z:
-#ifdef FORCE_INLINE
   gold_arr0[z_off_ind] = SLM_N1;
-#else
-  gold_arr0[z_off_ind] = std::max(SLM_N1 + SLM_X, SLM_N2);
-#endif // FORCE_INLINE
 
   // For kernel1 inline/no-inline results are the same for X and Y:
   // X  - 0
   // Y  - 0
   gold_arr1[x_off_ind] = 0;
   gold_arr1[y_off_ind] = 0;
-
-  // For kernel1 inline/no-inline case splits for Z:
-#ifdef FORCE_INLINE
   gold_arr1[z_off_ind] = SLM_N2;
-#else
-  gold_arr1[z_off_ind] = std::max(SLM_N1 + SLM_X, SLM_N2);
-#endif // FORCE_INLINE
 
   T *test_arr = arr;
   int err_cnt = 0;

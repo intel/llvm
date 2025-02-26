@@ -12,13 +12,11 @@
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/helpers.hpp>            // for context_impl
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_context_info_desc
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_native_handle
-#include <sycl/device.hpp>                    // for device
 #include <sycl/platform.hpp>                  // for platform
 #include <sycl/property_list.hpp>             // for property_list
+#include <ur_api.h>                           // for ur_native_handle_t
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -175,6 +173,25 @@ public:
   template <typename Param>
   typename detail::is_context_info_desc<Param>::return_type get_info() const;
 
+  /// Queries this SYCL context for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+            ,
+            int = detail::emit_get_backend_info_error<context, Param>()
+#endif
+#endif
+            >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
+  typename detail::is_backend_info_desc<Param>::return_type
+      get_backend_info() const;
+
   context(const context &rhs) = default;
 
   context(context &&rhs) = default;
@@ -190,15 +207,19 @@ public:
   /// Checks if this context has a property of type propertyT.
   ///
   /// \return true if this context has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
   /// Gets the specified property of this context.
   ///
-  /// Throws invalid_object_error if this context does not have a property
-  /// of type propertyT.
+  /// Throws an exception with errc::invalid error code if this context does not
+  /// have a property of type propertyT.
   ///
   /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
   /// Gets OpenCL interoperability context.
   ///
@@ -208,13 +229,6 @@ public:
 #ifdef __SYCL_INTERNAL_API
   cl_context get() const;
 #endif
-
-  /// Checks if this context is a SYCL host context.
-  ///
-  /// \return true if this context is a SYCL host context.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
 
   /// Returns the backend associated with this context.
   ///
@@ -235,7 +249,7 @@ private:
   /// Constructs a SYCL context object from a valid context_impl instance.
   context(std::shared_ptr<detail::context_impl> Impl);
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   std::shared_ptr<detail::context_impl> impl;
 
@@ -243,15 +257,41 @@ private:
   friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
-  detail::getRawSyclObjImpl(const T &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  const property_list &getPropList() const;
 };
+
+// context.hpp depends on exception.hpp but we can't define these ctors in
+// exception.hpp while context is still an incomplete type.
+inline exception::exception(context Ctx, std::error_code EC,
+                            const std::string &WhatArg)
+    : exception(EC, std::make_shared<context>(Ctx), WhatArg) {}
+
+inline exception::exception(context Ctx, std::error_code EC,
+                            const char *WhatArg)
+    : exception(Ctx, EC, std::string(WhatArg)) {}
+
+inline exception::exception(context Ctx, std::error_code EC)
+    : exception(Ctx, EC, "") {}
+
+inline exception::exception(context Ctx, int EV,
+                            const std::error_category &ECat,
+                            const char *WhatArg)
+    : exception(Ctx, {EV, ECat}, std::string(WhatArg)) {}
+
+inline exception::exception(context Ctx, int EV,
+                            const std::error_category &ECat,
+                            const std::string &WhatArg)
+    : exception(Ctx, {EV, ECat}, WhatArg) {}
+
+inline exception::exception(context Ctx, int EV,
+                            const std::error_category &ECat)
+    : exception(Ctx, EV, ECat, "") {}
 
 } // namespace _V1
 } // namespace sycl

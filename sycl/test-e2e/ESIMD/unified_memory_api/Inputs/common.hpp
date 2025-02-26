@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../../esimd_test_utils.hpp"
 
 using namespace sycl;

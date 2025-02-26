@@ -1,4 +1,4 @@
-// REQUIRES: native_cpu_be
+// REQUIRES: native_cpu
 //RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -c -o %t_main.o
 //RUN: %clangxx -fsycl -fsycl-targets=native_cpu %S/Inputs/init.cpp -c -o %t_init.o
 //RUN: %clangxx -fsycl -fsycl-targets=native_cpu %S/Inputs/plusone.cpp -c -o %t_plusone.o
@@ -11,6 +11,7 @@
 //RUN: %clangxx -fsycl -fsycl-targets=native_cpu -g %S/Inputs/plusone.cpp -c -o %t_plusone-debug.o
 //RUN: %clangxx -fsycl -fsycl-targets=native_cpu -g %t_plusone-debug.o %t_main-debug.o %t_init-debug.o -o %t-debug
 //RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t-debug
+
 #include "Inputs/common.h"
 #include <iostream>
 

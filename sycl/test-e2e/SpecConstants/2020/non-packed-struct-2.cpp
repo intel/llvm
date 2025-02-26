@@ -1,7 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/specialization_id.hpp>
 
 #include <iostream>
 

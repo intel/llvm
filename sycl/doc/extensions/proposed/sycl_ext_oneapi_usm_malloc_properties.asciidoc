@@ -281,7 +281,7 @@ malloc_device_annotated(
    size_t numBytes,
    const device& syclDevice,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is allocated on `syclDevice`.
 The allocation size is specified in bytes.
@@ -316,7 +316,7 @@ malloc_device_annotated(
    size_t count,
    const device& syclDevice,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@  Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is allocated on `syclDevice`.
 The allocation size is specified in number of elements of type
@@ -349,7 +349,7 @@ annotated_ptr<void, propertyListB>
 malloc_device_annotated(
    size_t numBytes,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `device`
 and `context`.
@@ -364,7 +364,7 @@ annotated_ptr<T, propertyListB>
 malloc_device_annotated(
    size_t count,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `device`
 and `context`.
@@ -379,7 +379,7 @@ aligned_alloc_device_annotated(
    size_t numBytes,
    const device& syclDevice,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is allocated on
 `syclDevice`.
@@ -417,7 +417,7 @@ aligned_alloc_device_annotated(
    size_t count,
    const device& syclDevice,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is allocated on
 `syclDevice`.
@@ -452,7 +452,7 @@ aligned_alloc_device_annotated(
    size_t alignment,
    size_t numBytes,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `device`
 and `context`.
@@ -468,7 +468,7 @@ aligned_alloc_device_annotated(
    size_t alignment,
    size_t count,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `device`
 and `context`.
@@ -497,7 +497,7 @@ annotated_ptr<void, propertyListB>
 malloc_host_annotated(
    size_t numBytes,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory. This allocation is specified in bytes.
 
@@ -526,7 +526,7 @@ annotated_ptr<T, propertyListB>
 malloc_host_annotated(
    size_t count,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory. This allocation is specified in number of elements of type `T`.
 
@@ -553,7 +553,7 @@ annotated_ptr<void, propertyListB>
 malloc_host_annotated(
    size_t numBytes,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `context`.
 
@@ -567,7 +567,7 @@ annotated_ptr<T, propertyListB>
 malloc_host_annotated(
    size_t count,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `context`.
 
@@ -580,7 +580,7 @@ aligned_alloc_host_annotated(
    size_t alignment,
    size_t numBytes,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory.
 This allocation is specified in bytes and aligned according to `alignment`.
@@ -611,7 +611,7 @@ aligned_alloc_host_annotated(
    size_t alignment,
    size_t count,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory.
 This allocation is specified in elements of type `T` and aligned according to `alignment`.
@@ -640,7 +640,7 @@ aligned_alloc_host_annotated(
    size_t alignment,
    size_t numBytes,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `context`.
 
@@ -655,7 +655,7 @@ aligned_alloc_host_annotated(
    size_t alignment,
    size_t count,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `context`.
 
@@ -683,7 +683,7 @@ malloc_shared_annotated(
    size_t numBytes,
    const device& syclDevice,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is associated with `syclDevice`.
 This allocation is specified in bytes.
@@ -718,7 +718,7 @@ malloc_shared_annotated(
    size_t count,
    const device& syclDevice,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is associated with `syclDevice`.
 This allocation is specified in number of elements of
@@ -751,7 +751,7 @@ annotated_ptr<void, propertyListB>
 malloc_shared_annotated(
    size_t numBytes,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `device` and
 `context`.
@@ -766,7 +766,7 @@ annotated_ptr<T, propertyListB>
 malloc_shared_annotated(
    size_t count,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `device` and
 `context`.
@@ -781,7 +781,7 @@ aligned_alloc_shared_annotated(
    size_t numBytes,
    const device& syclDevice,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is associated with `syclDevice`.
 This allocation is specified in bytes and aligned according to `alignment`.
@@ -817,7 +817,7 @@ aligned_alloc_shared_annotated(
    size_t count,
    const device& syclDevice,
    const context& syclContext,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory, which is associated with `syclDevice`.
 This allocation is specified in number of elements of type `T` and aligned according to `alignment`. 
@@ -850,7 +850,7 @@ aligned_alloc_shared_annotated(
    size_t alignment,
    size_t numBytes,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `device` and
 `context`.
@@ -866,7 +866,7 @@ aligned_alloc_shared_annotated(
    size_t alignment,
    size_t count,
    const queue& syclQueue,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `device` and
 `context`.
@@ -907,7 +907,7 @@ malloc_annotated(
    const device& syclDevice,
    const context& syclContext,
    sycl::usm::alloc kind,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type `kind`.
 This allocation size is specified in bytes.
@@ -940,7 +940,7 @@ malloc_annotated(
    const device& syclDevice,
    const context& syclContext,
    sycl::usm::alloc kind,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type `kind`.
 This allocation is specified in number of elements of type `T`.
@@ -971,7 +971,7 @@ malloc_annotated(
    size_t numBytes,
    const queue& syclQueue,
    sycl::usm::alloc kind,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `context`
 and any necessary `device`.
@@ -987,7 +987,7 @@ malloc_annotated(
    size_t count,
    const queue& syclQueue,
    sycl::usm::alloc kind,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `context`
 and any necessary `device`.
@@ -1003,7 +1003,7 @@ aligned_alloc_annotated(
    const device& syclDevice,
    const context& syclContext,
    sycl::usm::alloc kind,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type `kind`.
 This allocation is specified in bytes and is aligned according to `alignment`.
@@ -1037,7 +1037,7 @@ aligned_alloc_annotated(
    const device& syclDevice,
    const context& syclContext,
    sycl::usm::alloc kind,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Returns an `annotated_ptr` containing a raw pointer to the newly allocated memory of type `kind`.
 This allocation is specified in number of elements of type `T` and is aligned according to `alignment`.
@@ -1068,7 +1068,7 @@ aligned_alloc_annotated(
    size_t numBytes,
    const queue& syclQueue,
    sycl::usm::alloc kind,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `context`
 and any necessary `device`.
@@ -1085,7 +1085,7 @@ aligned_alloc_annotated(
    size_t count,
    const queue& syclQueue,
    sycl::usm::alloc kind,
-   const propertyListA &propList = properties{})
+   const propertyListA &propList = propertyListA{})
 ----
 a@ Simplified form where `syclQueue` provides the `context`
 and any necessary `device`.

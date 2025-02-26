@@ -8,7 +8,7 @@
 
 #include "device_itt.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 SYCL_EXTERNAL EXTERN_C void __itt_offload_wi_start_wrapper() {
   if (!isITTEnabled())
@@ -53,4 +53,4 @@ SYCL_EXTERNAL EXTERN_C void __itt_offload_wi_resume_wrapper() {
   __itt_offload_wi_resume_stub(GroupID, WIID);
 }
 
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

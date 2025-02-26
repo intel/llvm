@@ -25,3 +25,6 @@ class [[__sycl_detail__::sycl_type(local_accessor)]] local_accessor <int> {};
 // CHECK: ClassTemplateSpecializationDecl {{.*}} class local_accessor definition
 // CHECK: SYCLTypeAttr {{.*}} local_accessor
 
+class [[__sycl_detail__::sycl_type(multi_ptr)]] multi_ptr {};
+// CHECK: CXXRecordDecl {{.*}} class multi_ptr definition
+// CHECK: SYCLTypeAttr {{.*}} multi_ptr

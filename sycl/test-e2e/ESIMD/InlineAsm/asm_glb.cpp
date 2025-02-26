@@ -5,15 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Force -O2 as it currently fails in O0 due to missing VC support
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -48,7 +43,8 @@ int main(void) {
     queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
     auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+    std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+              << "\n";
 
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read>(cgh);

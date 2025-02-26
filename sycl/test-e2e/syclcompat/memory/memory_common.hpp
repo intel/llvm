@@ -26,7 +26,7 @@
 #include <cmath>
 #include <tuple>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 inline void check(float *h_data, float *h_ref, size_t size) {
   for (size_t i = 0; i < size; i++) {

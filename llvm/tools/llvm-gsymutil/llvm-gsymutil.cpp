@@ -9,6 +9,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/DebugInfo/DIContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/GSYM/CallSiteInfo.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/MachOUniversal.h"
@@ -18,6 +19,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Format.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/LLVMDriver.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -62,12 +64,13 @@ enum ID {
 #undef OPTION
 };
 
-#define PREFIX(NAME, VALUE)                                                    \
-  constexpr llvm::StringLiteral NAME##_init[] = VALUE;                         \
-  constexpr llvm::ArrayRef<llvm::StringLiteral> NAME(                          \
-      NAME##_init, std::size(NAME##_init) - 1);
+#define OPTTABLE_STR_TABLE_CODE
 #include "Opts.inc"
-#undef PREFIX
+#undef OPTTABLE_STR_TABLE_CODE
+
+#define OPTTABLE_PREFIXES_TABLE_CODE
+#include "Opts.inc"
+#undef OPTTABLE_PREFIXES_TABLE_CODE
 
 const opt::OptTable::Info InfoTable[] = {
 #define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
@@ -77,7 +80,8 @@ const opt::OptTable::Info InfoTable[] = {
 
 class GSYMUtilOptTable : public llvm::opt::GenericOptTable {
 public:
-  GSYMUtilOptTable() : GenericOptTable(InfoTable) {
+  GSYMUtilOptTable()
+      : GenericOptTable(OptionStrTable, OptionPrefixesTable, InfoTable) {
     setGroupedShortOptions(true);
   }
 };
@@ -87,12 +91,16 @@ static std::vector<std::string> InputFilenames;
 static std::string ConvertFilename;
 static std::vector<std::string> ArchFilters;
 static std::string OutputFilename;
+static std::string JsonSummaryFile;
 static bool Verify;
 static unsigned NumThreads;
 static uint64_t SegmentSize;
 static bool Quiet;
 static std::vector<uint64_t> LookupAddresses;
 static bool LookupAddressesFromStdin;
+static bool StoreMergedFunctionInfo = false;
+static bool LoadDwarfCallSites = false;
+static std::string CallSiteYamlPath;
 
 static void parseArgs(int argc, char **argv) {
   GSYMUtilOptTable Tbl;
@@ -138,6 +146,9 @@ static void parseArgs(int argc, char **argv) {
   if (const llvm::opt::Arg *A = Args.getLastArg(OPT_out_file_EQ))
     OutputFilename = A->getValue();
 
+  if (const llvm::opt::Arg *A = Args.getLastArg(OPT_json_summary_file_EQ))
+    JsonSummaryFile = A->getValue();
+
   Verify = Args.hasArg(OPT_verify);
 
   if (const llvm::opt::Arg *A = Args.getLastArg(OPT_num_threads_EQ)) {
@@ -170,6 +181,19 @@ static void parseArgs(int argc, char **argv) {
   }
 
   LookupAddressesFromStdin = Args.hasArg(OPT_addresses_from_stdin);
+  StoreMergedFunctionInfo = Args.hasArg(OPT_merged_functions);
+
+  if (Args.hasArg(OPT_callsites_yaml_file_EQ)) {
+    CallSiteYamlPath = Args.getLastArgValue(OPT_callsites_yaml_file_EQ);
+    if (CallSiteYamlPath.empty()) {
+      llvm::errs()
+          << ToolName
+          << ": --callsites-yaml-file option requires a non-empty argument.\n";
+      std::exit(1);
+    }
+  }
+
+  LoadDwarfCallSites = Args.hasArg(OPT_dwarf_callsites);
 }
 
 /// @}
@@ -344,7 +368,7 @@ static llvm::Error handleObjectFile(ObjectFile &Obj, const std::string &OutFile,
 
   // Make a DWARF transformer object and populate the ranges of the code
   // so we don't end up adding invalid functions to GSYM data.
-  DwarfTransformer DT(*DICtx, Gsym);
+  DwarfTransformer DT(*DICtx, Gsym, LoadDwarfCallSites);
   if (!TextRanges.empty())
     Gsym.SetValidTextRanges(TextRanges);
 
@@ -352,9 +376,21 @@ static llvm::Error handleObjectFile(ObjectFile &Obj, const std::string &OutFile,
   if (auto Err = DT.convert(ThreadCount, Out))
     return Err;
 
+  // If enabled, merge functions with identical address ranges as merged
+  // functions in the first FunctionInfo with that address range. Do this right
+  // after loading the DWARF data so we don't have to deal with functions from
+  // the symbol table.
+  if (StoreMergedFunctionInfo)
+    Gsym.prepareMergedFunctions(Out);
+
   // Get the UUID and convert symbol table to GSYM.
   if (auto Err = ObjectFileTransformer::convert(Obj, Out, Gsym))
     return Err;
+
+  // If any call site YAML files were specified, load them now.
+  if (!CallSiteYamlPath.empty())
+    if (auto Err = Gsym.loadCallSitesFromYAML(CallSiteYamlPath))
+      return Err;
 
   // Finalize the GSYM to make it ready to save to disk. This will remove
   // duplicate FunctionInfo entries where we might have found an entry from
@@ -515,10 +551,34 @@ int llvm_gsymutil_main(int argc, char **argv, const llvm::ToolContext &) {
     // Call error() if we have an error and it will exit with a status of 1
     if (auto Err = convertFileToGSYM(Aggregation))
       error("DWARF conversion failed: ", std::move(Err));
+
     // Report the errors from aggregator:
     Aggregation.EnumerateResults([&](StringRef category, unsigned count) {
       OS << category << " occurred " << count << " time(s)\n";
     });
+    if (!JsonSummaryFile.empty()) {
+      std::error_code EC;
+      raw_fd_ostream JsonStream(JsonSummaryFile, EC, sys::fs::OF_Text);
+      if (EC) {
+        OS << "error opening aggregate error json file '" << JsonSummaryFile
+           << "' for writing: " << EC.message() << '\n';
+        return 1;
+      }
+
+      llvm::json::Object Categories;
+      uint64_t ErrorCount = 0;
+      Aggregation.EnumerateResults([&](StringRef Category, unsigned Count) {
+        llvm::json::Object Val;
+        Val.try_emplace("count", Count);
+        Categories.try_emplace(Category, std::move(Val));
+        ErrorCount += Count;
+      });
+      llvm::json::Object RootNode;
+      RootNode.try_emplace("error-categories", std::move(Categories));
+      RootNode.try_emplace("error-count", ErrorCount);
+
+      JsonStream << llvm::json::Value(std::move(RootNode));
+    }
     return 0;
   }
 

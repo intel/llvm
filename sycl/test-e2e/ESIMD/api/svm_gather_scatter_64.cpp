@@ -5,9 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPOORTED: gpu-intel-pvc
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// UNSUPOORTED: arch-intel_gpu_pvc
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Regression test for gather/scatter API.

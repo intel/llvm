@@ -3,7 +3,7 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
 
 // Tests a dotp operation using device USM and an in-order queue with empty
@@ -12,13 +12,11 @@
 
 #include "../graph_common.hpp"
 
+#include <sycl/properties/all_properties.hpp>
+
 int main() {
   property_list Properties{property::queue::in_order{}};
   queue Queue{Properties};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 

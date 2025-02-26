@@ -21,10 +21,10 @@
  */
 
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
 
-#include "../../libspirv/math/tables.h"
+#include <libspirv/math/tables.h>
 #include "math.h"
-#include <clcmacro.h>
 
 _CLC_OVERLOAD _CLC_DEF float sinh(float x)
 {
@@ -132,7 +132,7 @@ _CLC_OVERLOAD _CLC_DEF double sinh(double x)
     // z = sinh(y) = sinh(y0)cosh(dy) + cosh(y0)sinh(dy)
     // where sinh(y0) and cosh(y0) are obtained from tables
 
-    int ind = min((int)y, 36);
+    int ind = min((int)(long)y, 36);
     double dy = y - ind;
     double dy2 = dy * dy;
 
@@ -187,5 +187,13 @@ _CLC_OVERLOAD _CLC_DEF double sinh(double x)
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, sinh, double)
+
+#endif
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_UNARY_BUILTIN_FP16(sinh)
 
 #endif

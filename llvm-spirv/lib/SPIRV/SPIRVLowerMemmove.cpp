@@ -35,7 +35,6 @@
 // This file implements lowering llvm.memmove into several llvm.memcpys.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvmemmove"
 
 #include "SPIRVLowerMemmove.h"
 #include "SPIRVInternal.h"
@@ -44,6 +43,8 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
+
+#define DEBUG_TYPE "spvmemmove"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -72,9 +73,14 @@ void SPIRVLowerMemmoveBase::LowerMemMoveInst(MemMoveInst &I) {
       ArrayType::get(IntegerType::getInt8Ty(*Context), Length->getZExtValue());
   MaybeAlign SrcAlign = I.getSourceAlign();
 
-  auto *Alloca = Builder.CreateAlloca(AllocaTy);
-  if (SrcAlign.has_value())
-    Alloca->setAlignment(SrcAlign.value());
+  AllocaInst *Alloca;
+  {
+    IRBuilderBase::InsertPointGuard IG(Builder);
+    Builder.SetInsertPointPastAllocas(I.getParent()->getParent());
+    Alloca = Builder.CreateAlloca(AllocaTy);
+    if (SrcAlign.has_value())
+      Alloca->setAlignment(SrcAlign.value());
+  }
 
   // FIXME: Do we need to pass the size of alloca here? From LangRef:
   // > The first argument is a constant integer representing the size of the

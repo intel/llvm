@@ -51,6 +51,11 @@ public:
   // Lower functions
   bool regularize();
 
+  // SPIR-V disallows functions being entrypoints and called
+  // LLVM doesn't. This adds a wrapper around the entry point
+  // that later SPIR-V writer renames.
+  void addKernelEntryPoint(Module *M);
+
   /// Some LLVM intrinsics that have no SPIR-V counterpart may be wrapped in
   /// @spirv.llvm_intrinsic_* function. During reverse translation from SPIR-V
   /// to LLVM IR we can detect this @spirv.llvm_intrinsic_* function and
@@ -90,6 +95,12 @@ public:
   void expandSYCLTypeUsing(llvm::Module *M);
   void expandVEDWithSYCLTypeSRetArg(llvm::Function *F);
   void expandVIDWithSYCLTypeByValComp(llvm::Function *F);
+
+  // It is possible that incoming LLVM IR conversion instructions convert
+  // floating point to non-standard integer types. Such types are not supported
+  // in SPIR-V. This function cleans up such code and removes occurence of
+  // non-standard integer types.
+  void cleanupConversionToNonStdIntegers(llvm::Module *M);
 
   // According to the specification, the operands of a shift instruction must be
   // a scalar/vector of integer. When LLVM-IR contains a shift instruction with

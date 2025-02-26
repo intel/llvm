@@ -5,26 +5,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: gpu-intel-pvc
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// UNSUPPORTED: arch-intel_gpu_pvc
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks simd::copy_from/to methods with alignment flags.
 
 #include "../esimd_test_utils.hpp"
 
-#include <algorithm>
 #include <array>
 #include <cstdlib>
-#include <iostream>
-#include <sycl/builtins_esimd.hpp>
-#include <sycl/sycl.hpp>
 #ifdef _WIN32
 #include <malloc.h>
 #endif // _WIN32
-
-#include <sycl/ext/intel/esimd.hpp>
 
 // Workaround for absense of std::aligned_alloc on Windows.
 #ifdef _WIN32

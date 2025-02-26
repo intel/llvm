@@ -1,0 +1,12 @@
+{
+  global:
+    /* Export the library entry points */
+    fuseKernels;
+    materializeSpecConstants;
+    compileSYCL;
+    resetJITConfiguration;
+    addToJITConfiguration;
+
+  local:
+    *;
+};

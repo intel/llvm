@@ -1,0 +1,140 @@
+= sycl_ext_oneapi_current_device
+
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This extension introduces additional state into SYCL in order to simplify 
+programming for developers. The extension provides a mechanism to both set and
+query the 'current' per-thread `sycl::device`. By adding the notion of a 'current'
+device, this can simplify interfaces and reduce the amount of boilerplate code
+required to write a SYCL application.
+
+Since this function relates to the environment of the calling thread,
+it is the user's responsibility to ensure that it is called by the correct thread.
+For example, it is unsafe to call this function inside of a host task, within an
+asynchronous error handler, or within other functions that may be executed
+asynchronously, since these operations are not guaranteed to execute on any
+specific thread.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_CURRENT_DEVICE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== New free functions
+
+This extension adds the following new free functions:
+
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::this_thread {
+
+sycl::device get_current_device();
+
+} // namespace sycl::ext::oneapi::experimental::this_thread
+----
+!====
+
+_Returns:_ The current default device for the calling host thread. If 
+`set_current_device()` has not been called by this thread, returns the
+device selected by the default device selector.
+
+_Preconditions:_ The function is called from a host thread, executing
+outside of a host task or an asynchronous error handler.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::this_thread {
+
+void set_current_device(sycl::device dev);
+
+} // namespace sycl::ext::oneapi::experimental::this_thread
+----
+!====
+
+_Effects:_ Sets the current default device to `dev` for the calling host thread.
+
+_Preconditions:_ The function is called from a host thread, executing outside
+of a host task or an asynchronous error handler.
+
+== Issues
+. [RESOLVED] Should the current device be global or should we also support a per-thread
+   device? Answer: It should be per-thread to align with the behavior of other programming
+   models.
+. [OPEN] We want to add a default queue per device. Should this queue be in-order or out-of-order?
+   Do we want to allow the user to specify this?

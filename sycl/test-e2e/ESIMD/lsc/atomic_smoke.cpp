@@ -7,15 +7,11 @@
 //===----------------------------------------------------------------------===//
 // This test checks LSC atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
-
-#include <CL/sycl.hpp>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -124,8 +120,6 @@ const char *to_string(DWORDAtomicOp op) {
     return "load";
   case DWORDAtomicOp::store:
     return "store";
-  case DWORDAtomicOp::predec:
-    return "predec";
   }
   return "<unknown>";
 }
@@ -212,8 +206,8 @@ bool test(queue q, const Config &cfg) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<TestID<T, N, ImplF>>(
-          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-            int i = ii;
+          rng, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            int i = ndi.get_global_id(0);
 #ifndef USE_SCALAR_OFFSET
             simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
                                      cfg.stride * sizeof(T));
@@ -332,8 +326,8 @@ bool test(queue q, const Config &cfg) {
     auto e = q.submit([&](handler &cgh) {
       auto accessor = buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<TestID<T, N, ImplF>>(
-          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-            int i = ii;
+          rng, [=](nd_item<1> gid) SYCL_ESIMD_KERNEL {
+            int i = gid.get_global_id(0);
 #ifndef USE_SCALAR_OFFSET
             simd<Toffset, N> offsets(start * sizeof(T), stride * sizeof(T));
 #else
@@ -854,7 +848,8 @@ int main(void) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
 
   Config cfg{
       11,  // int threads_per_group;

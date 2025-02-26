@@ -13,12 +13,12 @@
 // RUN: %{run} %t.out
 
 // Failing on HIP AMD
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   uint8_t *h_A = (uint8_t *)malloc(256);

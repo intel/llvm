@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -16,31 +16,27 @@
 using namespace sycl;
 
 static int ReleaseCounter = 0;
-static pi_result redefinedEventRelease(pi_event event) {
+static ur_result_t redefinedEventRelease(void *) {
   ++ReleaseCounter;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
-                                   void *, pi_mem *,
-                                   const pi_mem_properties *) {
-  return PI_SUCCESS;
-}
+ur_result_t redefinedMemBufferCreate(void *) { return UR_RESULT_SUCCESS; }
 
 class EventDestructionTest : public ::testing::Test {
 public:
-  EventDestructionTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  EventDestructionTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<detail::PiApiKind::piEventRelease>(
-        redefinedEventRelease);
-    Mock.redefineBefore<detail::PiApiKind::piMemBufferCreate>(
-        redefinedMemBufferCreate);
+    mock::getCallbacks().set_before_callback("urEventRelease",
+                                             &redefinedEventRelease);
+    mock::getCallbacks().set_before_callback("urMemBufferCreate",
+                                             &redefinedMemBufferCreate);
   }
 
 protected:
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 

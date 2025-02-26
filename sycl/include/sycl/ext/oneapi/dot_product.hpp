@@ -11,7 +11,7 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 namespace sycl {
 inline namespace _V1 {

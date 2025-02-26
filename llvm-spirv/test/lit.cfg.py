@@ -21,7 +21,7 @@ config.suffixes = ['.cl', '.ll', '.spt', '.spvasm']
 # excludes: A list of directories  and fles to exclude from the testsuite.
 config.excludes = ['CMakeLists.txt']
 
-if config.spirv_tools_found:
+if config.libspirv_dis:
     config.available_features.add('libspirv_dis')
 
 if not config.spirv_skip_debug_info_tests:
@@ -65,11 +65,18 @@ if config.spirv_tools_have_spirv_as:
     config.available_features.add('spirv-as')
     using_spirv_tools = True
 
+if config.spirv_tools_have_spirv_dis:
+    llvm_config.add_tool_substitutions(['spirv-dis'], [config.spirv_tools_bin_dir])
+    config.available_features.add('spirv-dis')
+    using_spirv_tools = True
+
 if config.spirv_tools_have_spirv_link:
     llvm_config.add_tool_substitutions(['spirv-link'], [config.spirv_tools_bin_dir])
     config.available_features.add('spirv-link')
     using_spirv_tools = True
 
+# Unlike spirv-{as,dis,link} above, running spirv-val is optional: if spirv-val is
+# not available, the test must still run and just skip any spirv-val commands.
 if config.spirv_tools_have_spirv_val:
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
     using_spirv_tools = True

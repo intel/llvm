@@ -1,9 +1,9 @@
-// REQUIRES: native_cpu_be
+// REQUIRES: native_cpu
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -g -O0 -o %t %s
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" SYCL_DEVICE_ALLOWLIST="BackendName:native_cpu" %t
 
-#include "sycl.hpp"
+#include <sycl/sycl.hpp>
 class Test1;
 int main() {
   const size_t N = 4;

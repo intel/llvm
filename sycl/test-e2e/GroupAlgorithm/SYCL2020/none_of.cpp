@@ -6,7 +6,8 @@
 #include <cassert>
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 using namespace sycl;
 
 template <class Predicate> class none_of_kernel;

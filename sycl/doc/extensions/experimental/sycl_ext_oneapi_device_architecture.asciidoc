@@ -21,7 +21,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -121,6 +121,16 @@ which version of this extension first included each of these enumerators.
 |Added in version
 |Description
 
+3+^|*Unknown architecture*
+
+a|
+[source]
+----
+unknown
+----
+|-
+|Some architecture which is not one of those listed below.
+
 3+^|*Intel CPU family*
 
 a|
@@ -153,6 +163,17 @@ Intel Xeon processor codenamed Granite Rapids.
 The utility of this enumeration is currently limited.
 See the section "Limitations with the experimental version" for details.
 
+a|
+[source]
+----
+intel_cpu_dmr
+----
+|-
+|
+Intel Xeon processor codenamed Diamond Rapids.
+The utility of this enumeration is currently limited.
+See the section "Limitations with the experimental version" for details.
+
 3+^|*Intel GPU family*
 
 a|
@@ -161,7 +182,7 @@ a|
 intel_gpu_bdw
 ----
 |-
-|Broadwell Intel graphics architecture.
+|Intel(R) microarchitecture code name Broadwell Intel graphics architecture.
 
 a|
 [source]
@@ -169,7 +190,7 @@ a|
 intel_gpu_skl
 ----
 |-
-|Skylake Intel graphics architecture.
+|Intel(R) microarchitecture code name Skylake Intel graphics architecture.
 
 a|
 [source]
@@ -194,7 +215,7 @@ intel_gpu_apl
 intel_gpu_bxt = intel_gpu_apl
 ----
 |-
-|Apollo Lake Intel graphics architecture.
+|Apollo Lake or Broxton Intel graphics architecture.
 
 a|
 [source]
@@ -232,6 +253,7 @@ a|
 [source]
 ----
 intel_gpu_icllp
+intel_gpu_icl = intel_gpu_icllp
 ----
 |-
 |Ice Lake Intel graphics architecture.
@@ -249,6 +271,7 @@ a|
 [source]
 ----
 intel_gpu_tgllp
+intel_gpu_tgl = intel_gpu_tgllp
 ----
 |-
 |Tiger Lake Intel graphics architecture.
@@ -342,6 +365,65 @@ intel_gpu_pvc_vg
 a|
 [source]
 ----
+intel_gpu_mtl_u
+intel_gpu_mtl_s = intel_gpu_mtl_u
+intel_gpu_arl_u = intel_gpu_mtl_u
+intel_gpu_arl_s = intel_gpu_mtl_u
+----
+|-
+|Meteor Lake U/S or Arrow Lake U/S Intel graphics architecture.
+
+a|
+[source]
+----
+intel_gpu_mtl_h
+----
+|-
+|Meteor Lake H Intel graphics architecture.
+
+a|
+[source]
+----
+intel_gpu_arl_h
+----
+|-
+|Arrow Lake H Intel graphics architecture.
+
+a|
+[source]
+----
+intel_gpu_bmg_g21
+----
+|-
+|Battlemage G21 Intel graphics architecture.
+
+a|
+[source]
+----
+intel_gpu_lnl_m
+----
+|-
+|Lunar Lake Intel graphics architecture.
+
+a|
+[source]
+----
+intel_gpu_ptl_h
+----
+|-
+|Panther Lake H Intel graphics architecture.
+
+a|
+[source]
+----
+intel_gpu_ptl_u
+----
+|-
+|Panther Lake U Intel graphics architecture.
+
+a|
+[source]
+----
 intel_gpu_8_0_0 = intel_gpu_bdw
 intel_gpu_9_0_9 = intel_gpu_skl
 intel_gpu_9_1_9 = intel_gpu_kbl
@@ -352,8 +434,25 @@ intel_gpu_9_5_0 = intel_gpu_whl
 intel_gpu_9_6_0 = intel_gpu_aml
 intel_gpu_9_7_0 = intel_gpu_cml
 intel_gpu_11_0_0 = intel_gpu_icllp
+intel_gpu_11_2_0 = intel_gpu_ehl
 intel_gpu_12_0_0 = intel_gpu_tgllp
+intel_gpu_12_1_0 = intel_gpu_rkl
+intel_gpu_12_2_0 = intel_gpu_adl_s
+intel_gpu_12_3_0 = intel_gpu_adl_p
+intel_gpu_12_4_0 = intel_gpu_adl_n
 intel_gpu_12_10_0 = intel_gpu_dg1
+intel_gpu_12_55_8 = intel_gpu_acm_g10
+intel_gpu_12_56_5 = intel_gpu_acm_g11
+intel_gpu_12_57_0 = intel_gpu_acm_g12
+intel_gpu_12_60_7 = intel_gpu_pvc
+intel_gpu_12_61_7 = intel_gpu_pvc_vg
+intel_gpu_12_70_4 = intel_gpu_mtl_u
+intel_gpu_12_71_4 = intel_gpu_mtl_h
+intel_gpu_12_74_4 = intel_gpu_arl_h
+intel_gpu_20_1_4 = intel_gpu_bmg_g21
+intel_gpu_20_4_4 = intel_gpu_lnl_m
+intel_gpu_30_0_4 = intel_gpu_ptl_h
+intel_gpu_30_1_1 = intel_gpu_ptl_u
 ----
 |-
 |Aliases for Intel graphics architectures.
@@ -468,6 +567,7 @@ a|
 [source]
 ----
 nvidia_gpu_sm_90
+nvidia_gpu_sm_90a
 ----
 |-
 |NVIDIA Hopper architecture.
@@ -480,6 +580,9 @@ a|
 amd_gpu_gfx700
 amd_gpu_gfx701
 amd_gpu_gfx702
+amd_gpu_gfx703
+amd_gpu_gfx704
+amd_gpu_gfx705
 ----
 |-
 |AMD GCN 2.0 architecture.
@@ -958,7 +1061,8 @@ struct architecture;
 
 _Return type:_ `sycl::ext::oneapi::experimental::architecture`
 
-_Returns:_ The architecture of the device.
+_Returns:_ The architecture of the device if architecture is supported, otherwise 
+`ext::oneapi::experimental::architecture::unknown`.
 |====
 
 
@@ -1037,7 +1141,7 @@ option.
 These are the target names of the form "intel_gpu_*", "nvidia_gpu_*", or
 "amd_gpu_*".
 
-The architecture enumerations `intel_cpu_spr` and `intel_cpu_gnr` do
+The architecture enumerations `intel_cpu_spr`, `intel_cpu_gnr` and `intel_cpu_dmr` do
 not currently work with any of the APIs described in this extension.
 They cannot be used with the `if_architecture_is` function, the
 `device::ext_oneapi_architecture_is` function, or the
@@ -1045,6 +1149,9 @@ They cannot be used with the `if_architecture_is` function, the
 They currently exist only for use with the
 link:sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix]
 extension.
+
+The architecture enumeration `unknown` is not currently supported with the 
+`if_architecture_is` function.
 
 
 == Implementation notes

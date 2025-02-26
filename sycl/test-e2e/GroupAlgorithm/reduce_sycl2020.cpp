@@ -2,13 +2,15 @@
 // RUN: %{run} %t.out
 
 #include "support.h"
+
+#include <sycl/sub_group.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <complex>
 #include <iostream>
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

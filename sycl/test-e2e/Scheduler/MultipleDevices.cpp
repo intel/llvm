@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
-//
-// XFAIL: hip_nvidia
 
 //===- MultipleDevices.cpp - Test checking multi-device execution --------===//
 //
@@ -11,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 
@@ -93,37 +91,31 @@ int multidevice_test(queue MyQueue1, queue MyQueue2) {
 }
 
 int main() {
-  cpu_selector CPUSelector;
-  gpu_selector GPUSelector;
 
-  int Result = -1;
+  int Error = 0;
   try {
-    queue MyQueue1(CPUSelector);
-    queue MyQueue2(CPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (sycl::runtime_error &) {
+    queue MyQueue1(cpu_selector_v);
+    queue MyQueue2(cpu_selector_v);
+    Error |= multidevice_test(MyQueue1, MyQueue2);
+  } catch (sycl::exception &) {
     std::cout << "Skipping CPU and CPU" << std::endl;
   }
 
   try {
-    queue MyQueue1(CPUSelector);
-    queue MyQueue2(GPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (sycl::runtime_error &) {
-    std::cout << "Skipping CPU and GPU" << std::endl;
-  } catch (sycl::compile_program_error &) {
+    queue MyQueue1(cpu_selector_v);
+    queue MyQueue2(gpu_selector_v);
+    Error |= multidevice_test(MyQueue1, MyQueue2);
+  } catch (sycl::exception &) {
     std::cout << "Skipping CPU and GPU" << std::endl;
   }
 
   try {
-    queue MyQueue1(GPUSelector);
-    queue MyQueue2(GPUSelector);
-    Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch (sycl::runtime_error &) {
+    queue MyQueue1(gpu_selector_v);
+    queue MyQueue2(gpu_selector_v);
+    Error |= multidevice_test(MyQueue1, MyQueue2);
+  } catch (sycl::exception &) {
     std::cout << "Skipping GPU and GPU" << std::endl;
-  } catch (sycl::compile_program_error &) {
-    std::cout << "Skipping CPU and GPU" << std::endl;
   }
 
-  return Result;
+  return Error;
 }

@@ -1,14 +1,12 @@
 // TODO enable on Windows
 // REQUIRES: linux
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 16
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/specialization_id.hpp>
 
 static constexpr int NUM_BINS = 256;
 static constexpr int SLM_SIZE = (NUM_BINS * 4);

@@ -103,7 +103,8 @@ public:
   void transAuxDataInst(SPIRVExtInst *BC);
   std::vector<Value *> transValue(const std::vector<SPIRVValue *> &,
                                   Function *F, BasicBlock *);
-  Function *transFunction(SPIRVFunction *F);
+  Function *transFunction(SPIRVFunction *F, unsigned AS = SPIRAS_Private);
+  void transFunctionAttrs(SPIRVFunction *BF, Function *F);
   Value *transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB);
   Instruction *transWGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
@@ -150,9 +151,10 @@ public:
   // A SPIRV value may be translated to a load instruction of a placeholder
   // global variable. This map records load instruction of these placeholders
   // which are supposed to be replaced by the real values later.
-  typedef std::map<SPIRVValue *, LoadInst *> SPIRVToLLVMPlaceholderMap;
+  typedef std::unordered_map<SPIRVValue *, LoadInst *>
+      SPIRVToLLVMPlaceholderMap;
 
-  typedef std::map<const BasicBlock *, const SPIRVValue *>
+  typedef std::unordered_map<const BasicBlock *, const SPIRVValue *>
       SPIRVToLLVMLoopMetadataMap;
 
   // Store all the allocations to Struct Types that are further
@@ -213,6 +215,13 @@ private:
 
   bool isDirectlyTranslatedToOCL(Op OpCode) const;
   MDString *transOCLKernelArgTypeName(SPIRVFunctionParameter *);
+
+  // Attempt to translate Id as a (specialization) constant.
+  std::optional<uint64_t> transIdAsConstant(SPIRVId Id);
+
+  // Return the value of an Alignment or AlignmentId decoration for V.
+  std::optional<uint64_t> getAlignment(SPIRVValue *V);
+
   Value *mapFunction(SPIRVFunction *BF, Function *F);
   Value *getTranslatedValue(SPIRVValue *BV);
   IntrinsicInst *getLifetimeStartIntrinsic(Instruction *I);
@@ -250,7 +259,7 @@ private:
 
   void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
-  void transGlobalCtorDtors(SPIRVVariable *BV);
+  void transGlobalCtorDtors(SPIRVVariableBase *BV);
   void createCXXStructor(const char *ListName,
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);

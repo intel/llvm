@@ -1,7 +1,7 @@
 // RUN: %{build} %cxx_std_optionc++17 -o %t2.out
 // RUN: %{run} %t2.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

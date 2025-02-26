@@ -45,11 +45,6 @@ template <typename T> void checkIsPropertyOf() {
 }
 
 int main() {
-  static_assert(is_property_key<device_image_scope_key>::value);
-  static_assert(is_property_key<host_access_key>::value);
-  static_assert(is_property_key<init_mode_key>::value);
-  static_assert(is_property_key<implement_in_csr_key>::value);
-
   static_assert(is_property_value<decltype(device_image_scope)>::value);
   static_assert(is_property_value<decltype(host_access_read)>::value);
   static_assert(is_property_value<decltype(host_access_write)>::value);

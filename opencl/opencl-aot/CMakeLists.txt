@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.20.0)
 
 set(LLVM_LINK_COMPONENTS
         ${LLVM_TARGETS_TO_BUILD}
@@ -11,6 +11,11 @@ file(GLOB TARGET_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
 set(OPENCL_AOT_PROJECT_NAME opencl-aot)
 
 add_llvm_tool(${OPENCL_AOT_PROJECT_NAME} ${TARGET_SOURCES})
+
+if (WIN32)
+  # 0x2000: exclude CWD from DLL loading path
+  target_link_options(${OPENCL_AOT_PROJECT_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000")
+endif()
 
 if(NOT MSVC)
   # FIXME: when built with clang it produces a warning.

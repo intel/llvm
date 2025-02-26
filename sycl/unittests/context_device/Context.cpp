@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -20,11 +20,11 @@ public:
   //       default initialization, in case no devices are available before mock
   //       has been initialized.
   ContextTest()
-      : mock{}, deviceA{mock.getPlatform().get_devices().front()},
-        deviceB{mock.getPlatform().get_devices().back()} {}
+      : mock{}, deviceA{sycl::platform().get_devices().front()},
+        deviceB{sycl::platform().get_devices().back()} {}
 
 protected:
-  unittest::PiMock mock;
+  unittest::UrMock<> mock;
   device deviceA, deviceB;
 };
 
@@ -60,4 +60,17 @@ TEST_F(ContextTest, CopyAssignmentOperator) {
   ASSERT_EQ(hash, std::hash<context>()(Context));
   ASSERT_EQ(hash, std::hash<context>()(WillContextCopy));
   ASSERT_EQ(Context, WillContextCopy);
+}
+
+TEST_F(ContextTest, Properties) {
+  try {
+    sycl::context Context(sycl::property::queue::in_order{});
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+    return;
+  }
+
+  FAIL() << "Test must exit in exception handler. Exception is not thrown.";
 }

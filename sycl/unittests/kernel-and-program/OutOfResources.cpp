@@ -11,9 +11,9 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -24,80 +24,51 @@ using namespace sycl;
 class OutOfResourcesKernel1;
 class OutOfResourcesKernel2;
 
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <>
-struct KernelInfo<OutOfResourcesKernel1> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "OutOfResourcesKernel1"; }
-};
+MOCK_INTEGRATION_HEADER(OutOfResourcesKernel1)
+MOCK_INTEGRATION_HEADER(OutOfResourcesKernel2)
 
-template <>
-struct KernelInfo<OutOfResourcesKernel2> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "OutOfResourcesKernel2"; }
-};
+static sycl::unittest::MockDeviceImage Img[2] = {
+    sycl::unittest::generateDefaultImage({"OutOfResourcesKernel1"}),
+    sycl::unittest::generateDefaultImage({"OutOfResourcesKernel2"})};
 
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
-
-static sycl::unittest::PiImage makeImage(const char *kname) {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({kname});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::PiImage Img[2] = {makeImage("OutOfResourcesKernel1"),
-                                         makeImage("OutOfResourcesKernel2")};
-
-static sycl::unittest::PiImageArray<2> ImgArray{Img};
+static sycl::unittest::MockDeviceImageArray<2> ImgArray{Img};
 
 static int nProgramCreate = 0;
 static volatile bool outOfResourcesToggle = false;
+static volatile ur_result_t ErrorCode = UR_RESULT_SUCCESS;
 
-static pi_result redefinedProgramCreate(pi_context context, const void *il,
-                                        size_t length,
-                                        pi_program *res_program) {
+static ur_result_t redefinedProgramCreateWithIL(void *) {
   ++nProgramCreate;
   if (outOfResourcesToggle) {
     outOfResourcesToggle = false;
-    return PI_ERROR_OUT_OF_RESOURCES;
+    return ErrorCode;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-TEST(OutOfResourcesTest, piProgramCreate) {
-  sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piProgramCreate>(
-      redefinedProgramCreate);
+// Parameterized test fixture
+class OutOfResourcesTestSuite : public ::testing::TestWithParam<ur_result_t> {};
 
-  sycl::platform Plt{Mock.getPlatform()};
+TEST_P(OutOfResourcesTestSuite, urProgramCreate) {
+  nProgramCreate = 0;
+  sycl::unittest::UrMock<> Mock;
+  ErrorCode = GetParam();
+  mock::getCallbacks().set_before_callback("urProgramCreateWithIL",
+                                           &redefinedProgramCreateWithIL);
+
+  sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   int runningTotal = 0;
-  // Cache is empty, so one piProgramCreate call.
+  // Cache is empty, so one urProgramCreateWithIL call.
   q.single_task<class OutOfResourcesKernel1>([] {});
   EXPECT_EQ(nProgramCreate, runningTotal += 1);
 
-  // Now, we make the next piProgramCreate call fail with
-  // PI_ERROR_OUT_OF_RESOURCES. The caching mechanism should catch this,
-  // clear the cache, and retry the piProgramCreate.
+  // Now, we make the next urProgramCreateWithIL call fail with
+  // UR_RESULT_ERROR_OUT_OF_RESOURCES. The caching mechanism should catch this,
+  // clear the cache, and retry the urProgramCreateWithIL.
   outOfResourcesToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_FALSE(outOfResourcesToggle);
@@ -108,9 +79,9 @@ TEST(OutOfResourcesTest, piProgramCreate) {
     EXPECT_EQ(Cache.size(), 1U) << "Expected 1 program in the cache";
   }
 
-  // The next piProgramCreate call will fail with
-  // PI_ERROR_OUT_OF_RESOURCES. But OutOfResourcesKernel2 is in
-  // the cache, so we expect no new piProgramCreate calls.
+  // The next urProgramCreateWithIL call will fail with
+  // UR_RESULT_ERROR_OUT_OF_RESOURCES. But OutOfResourcesKernel2 is in
+  // the cache, so we expect no new urProgramCreateWithIL calls.
   outOfResourcesToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_TRUE(outOfResourcesToggle);
@@ -129,7 +100,7 @@ TEST(OutOfResourcesTest, piProgramCreate) {
   }
 
   // Finally, OutOfResourcesKernel1 will be in the cache, but
-  // OutOfResourceKenel2 will not, so one more piProgramCreate.
+  // OutOfResourceKenel2 will not, so one more urProgramCreateWithIL.
   // Toggle is not set, so this should succeed.
   q.single_task<class OutOfResourcesKernel1>([] {});
   q.single_task<class OutOfResourcesKernel2>([] {});
@@ -143,26 +114,23 @@ TEST(OutOfResourcesTest, piProgramCreate) {
 
 static int nProgramLink = 0;
 
-static pi_result
-redefinedProgramLink(pi_context context, pi_uint32 num_devices,
-                     const pi_device *device_list, const char *options,
-                     pi_uint32 num_input_programs,
-                     const pi_program *input_programs,
-                     void (*pfn_notify)(pi_program program, void *user_data),
-                     void *user_data, pi_program *ret_program) {
+static ur_result_t redefinedProgramLink(void *) {
   ++nProgramLink;
   if (outOfResourcesToggle) {
     outOfResourcesToggle = false;
-    return PI_ERROR_OUT_OF_RESOURCES;
+    return ErrorCode;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-TEST(OutOfResourcesTest, piProgramLink) {
-  sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+TEST_P(OutOfResourcesTestSuite, urProgramLink) {
+  nProgramLink = 0;
+  sycl::unittest::UrMock<> Mock;
+  ErrorCode = GetParam();
+  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+                                           &redefinedProgramLink);
 
-  sycl::platform Plt{Mock.getPlatform()};
+  sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
@@ -192,3 +160,9 @@ TEST(OutOfResourcesTest, piProgramLink) {
     EXPECT_EQ(Cache.size(), 0u) << "Expect no programs in the cache";
   }
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    OutOfResourcesParameterizedRun, OutOfResourcesTestSuite,
+    ::testing::Values(UR_RESULT_ERROR_OUT_OF_RESOURCES,
+                      UR_RESULT_ERROR_OUT_OF_HOST_MEMORY,
+                      UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY));

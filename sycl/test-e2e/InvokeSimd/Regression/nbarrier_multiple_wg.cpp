@@ -1,5 +1,5 @@
 // NOTE: named barrier supported only since PVC
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 //
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
@@ -13,14 +13,11 @@
  * data to surface.
  */
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
-
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <functional>
 #include <iostream>
@@ -45,7 +42,7 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
   // 1 named barrier, id 0 reserved for unnamed
   constexpr unsigned bnum = 2;
   constexpr unsigned bid = 1;
-  experimental_esimd::named_barrier_init<bnum>();
+  esimd::named_barrier_init<bnum>();
 
   constexpr unsigned producers = Threads / 2;
   constexpr unsigned consumers = Threads / 2;
@@ -76,11 +73,11 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
     experimental_esimd::lsc_slm_block_store<int, VL>(slm_off, val);
   }
 
-  __ESIMD_ENS::named_barrier_signal(bid, flag, producers, consumers);
+  __ESIMD_NS::named_barrier_signal(bid, flag, producers, consumers);
 
   if (is_consumer) {
     // Consumers waiting here for signal from producer.
-    __ESIMD_ENS::named_barrier_wait(bid);
+    __ESIMD_NS::named_barrier_wait(bid);
     // Consumers simply copying producers data from SLM to global buffer.
     auto ret = experimental_esimd::lsc_slm_block_load<int, VL>(slm_off);
     experimental_esimd::lsc_block_store<int, VL>(o + global_off, ret);
@@ -141,7 +138,7 @@ bool test(queue q) {
       cgh.parallel_for<KernelID<CaseNum>>(
           nd_range<1>(global_range, local_range),
           // This test requires an explicit specification of the subgroup size
-          [=](nd_item<1> item) [[intel::reqd_sub_group_size(VL)]] {
+          [=](nd_item<1> item) [[sycl::reqd_sub_group_size(VL)]] {
             sycl::group<1> g = item.get_group();
             sycl::sub_group sg = item.get_sub_group();
 

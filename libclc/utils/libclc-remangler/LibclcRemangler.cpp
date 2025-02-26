@@ -105,6 +105,8 @@ class BumpPointerAllocator {
 public:
   BumpPointerAllocator()
       : BlockList(new(InitialBuffer) BlockMeta{nullptr, 0}) {}
+  BumpPointerAllocator(const BumpPointerAllocator &) = delete;
+  BumpPointerAllocator &operator=(const BumpPointerAllocator &) = delete;
 
   void *allocate(size_t N) {
     N = (N + 15u) & ~15u;
@@ -396,7 +398,8 @@ private:
           *AST, FDSpecialization->getDeclContext(), SourceLocation(),
           SourceLocation(), 0, TemplateIndex, &II, /* Typename */ true,
           /*ParameterPack*/ false);
-      TTPD->setDefaultArgument(AST->getTrivialTypeSourceInfo(TemplateArgQT));
+      TTPD->setDefaultArgument(*AST,
+        TemplateArgumentLoc());
 
       TemplateNamedDecls.emplace_back(TTPD);
       auto TA = TemplateArgument(TemplateArgQT);
@@ -777,12 +780,17 @@ public:
 
   void Initialize(ASTContext &C) override {
     ASTCtx = &C;
-    SMDiagnostic Err;
     std::unique_ptr<MemoryBuffer> const Buff = ExitOnErr(
         errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputIRFilename)));
+
+    SMDiagnostic Err;
     std::unique_ptr<llvm::Module> const M =
-        ExitOnErr(Expected<std::unique_ptr<llvm::Module>>(
-            parseIR(Buff.get()->getMemBufferRef(), Err, LLVMCtx)));
+        parseIR(Buff.get()->getMemBufferRef(), Err, LLVMCtx);
+
+    if (!M) {
+      Err.print("libclc-remangler", errs());
+      exit(1);
+    }
 
     handleModule(M.get());
   }
@@ -840,7 +848,7 @@ private:
   }
 
   bool remangleFunction(Function &Func, llvm::Module *M) {
-    if (!Func.getName().startswith("_Z"))
+    if (!Func.getName().starts_with("_Z"))
       return true;
 
     std::string const MangledName = Func.getName().str();
@@ -958,7 +966,7 @@ int main(int argc, const char **argv) {
 
   // Use a default Compilation DB instead of the build one, as it might contain
   // toolchain specific options, not compatible with clang.
-  FixedCompilationDatabase Compilations("/", std::vector<std::string>());
+  FixedCompilationDatabase Compilations(".", std::vector<std::string>());
   ClangTool Tool(Compilations, ExpectedParser->getSourcePathList());
 
   LibCLCRemanglerActionFactory LRAF{};

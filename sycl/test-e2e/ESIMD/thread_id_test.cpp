@@ -12,9 +12,11 @@
 
 #include <cmath>
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 #include <vector>
 
 int ErrCnt = 0;

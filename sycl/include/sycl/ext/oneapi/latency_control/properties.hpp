@@ -24,14 +24,18 @@ enum class latency_control_type {
   min
 };
 
-struct latency_anchor_id_key {
+struct latency_anchor_id_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::LatencyAnchorID> {
   template <int Anchor>
   using value_t =
       oneapi::experimental::property_value<latency_anchor_id_key,
                                            std::integral_constant<int, Anchor>>;
 };
 
-struct latency_constraint_key {
+struct latency_constraint_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::LatencyConstraint> {
   template <int Target, latency_control_type Type, int Cycle>
   using value_t = oneapi::experimental::property_value<
       latency_constraint_key, std::integral_constant<int, Target>,
@@ -54,37 +58,20 @@ struct property_value<
     intel::experimental::latency_constraint_key,
     std::integral_constant<int, Target>,
     std::integral_constant<intel::experimental::latency_control_type, Type>,
-    std::integral_constant<int, Cycle>> {
-  using key_t = intel::experimental::latency_constraint_key;
+    std::integral_constant<int, Cycle>>
+    : detail::property_base<
+          property_value<intel::experimental::latency_constraint_key,
+                         std::integral_constant<int, Target>,
+                         std::integral_constant<
+                             intel::experimental::latency_control_type, Type>,
+                         std::integral_constant<int, Cycle>>,
+          oneapi::experimental::detail::PropKind::LatencyConstraint,
+          intel::experimental::latency_constraint_key> {
   static constexpr int target = Target;
   static constexpr intel::experimental::latency_control_type type = Type;
   static constexpr int cycle = Cycle;
 };
 
-template <>
-struct is_property_key<intel::experimental::latency_anchor_id_key>
-    : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::latency_constraint_key>
-    : std::true_type {};
-
-namespace detail {
-
-template <> struct PropertyToKind<intel::experimental::latency_anchor_id_key> {
-  static constexpr PropKind Kind = PropKind::LatencyAnchorID;
-};
-template <> struct PropertyToKind<intel::experimental::latency_constraint_key> {
-  static constexpr PropKind Kind = PropKind::LatencyConstraint;
-};
-
-template <>
-struct IsCompileTimeProperty<intel::experimental::latency_anchor_id_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::latency_constraint_key>
-    : std::true_type {};
-
-} // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

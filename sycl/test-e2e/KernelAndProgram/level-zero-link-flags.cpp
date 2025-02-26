@@ -12,7 +12,8 @@
 //
 //===--------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class MyKernel;
 

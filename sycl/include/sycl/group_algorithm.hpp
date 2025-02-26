@@ -11,7 +11,6 @@
 #include <sycl/detail/array.hpp>       // for array
 #include <sycl/detail/helpers.hpp>     // for loop
 #include <sycl/detail/item_base.hpp>   // for id, range
-#include <sycl/detail/type_list.hpp>   // for is_contained, type_list
 #include <sycl/detail/type_traits.hpp> // for remove_pointer, is_pointer
 #include <sycl/exception.hpp>          // for make_error_code, errc, exception
 #include <sycl/functional.hpp>         // for plus, multiplies, maximum
@@ -21,13 +20,13 @@
 #include <sycl/known_identity.hpp>     // for known_identity_v
 #include <sycl/nd_item.hpp>            // for nd_item
 #include <sycl/range.hpp>              // for range
-#include <sycl/sub_group.hpp>          // for sub_group
-#include <sycl/types.hpp>              // for vec
+#include <sycl/vector.hpp>             // for vec
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 #endif
 #endif
 
@@ -36,6 +35,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+struct sub_group;
 namespace detail {
 
 // ---- linear_id_to_id
@@ -81,19 +81,18 @@ template <typename Group> inline auto get_local_linear_id(Group g) {
 }
 
 // ---- is_native_op
-template <typename T>
-using native_op_list =
-    type_list<sycl::plus<T>, sycl::bit_or<T>, sycl::bit_xor<T>,
-              sycl::bit_and<T>, sycl::maximum<T>, sycl::minimum<T>,
-              sycl::multiplies<T>, sycl::logical_or<T>, sycl::logical_and<T>>;
+template <typename BinaryOperation, typename T>
+inline constexpr bool is_native_binop_on_v =
+    check_type_in_v<BinaryOperation, sycl::plus<T>, sycl::bit_or<T>,
+                    sycl::bit_xor<T>, sycl::bit_and<T>, sycl::maximum<T>,
+                    sycl::minimum<T>, sycl::multiplies<T>, sycl::logical_or<T>,
+                    sycl::logical_and<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
-      is_contained<BinaryOperation,
-                   native_op_list<std::remove_const_t<T>>>::value ||
-      is_contained<BinaryOperation,
-                   native_op_list<std::add_const_t<T>>>::value ||
-      is_contained<BinaryOperation, native_op_list<void>>::value;
+      is_native_binop_on_v<BinaryOperation, std::remove_const_t<T>> ||
+      is_native_binop_on_v<BinaryOperation, std::add_const_t<T>> ||
+      is_native_binop_on_v<BinaryOperation, void>;
 };
 
 // ---- is_plus
@@ -123,8 +122,8 @@ struct is_complex : public std::false_type {};
 // ---- is_arithmetic_or_complex
 template <typename T>
 using is_arithmetic_or_complex =
-    std::integral_constant<bool, sycl::detail::is_complex<T>::value ||
-                                     sycl::detail::is_arithmetic<T>::value>;
+    std::bool_constant<sycl::detail::is_complex<T>::value ||
+                       sycl::detail::is_arithmetic<T>::value>;
 
 template <typename T>
 struct is_vector_arithmetic_or_complex
@@ -522,14 +521,17 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-std::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+std::enable_if_t<((std::is_same_v<std::decay_t<Group>, sub_group> ||
+                   sycl::ext::oneapi::experimental::is_user_constructed_group_v<
+                       std::decay_t<Group>>) &&
                   (std::is_trivially_copyable_v<T> ||
                    detail::is_vec<T>::value)),
                  T>
-shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
+shift_group_left(Group g, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
+  return sycl::detail::spirv::ShuffleDown(g, x, delta);
 #else
+  (void)g;
   (void)x;
   (void)delta;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -541,14 +543,17 @@ shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-std::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+std::enable_if_t<((std::is_same_v<std::decay_t<Group>, sub_group> ||
+                   sycl::ext::oneapi::experimental::is_user_constructed_group_v<
+                       std::decay_t<Group>>) &&
                   (std::is_trivially_copyable_v<T> ||
                    detail::is_vec<T>::value)),
                  T>
-shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
+shift_group_right(Group g, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
+  return sycl::detail::spirv::ShuffleUp(g, x, delta);
 #else
+  (void)g;
   (void)x;
   (void)delta;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -560,14 +565,17 @@ shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-std::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+std::enable_if_t<((std::is_same_v<std::decay_t<Group>, sub_group> ||
+                   sycl::ext::oneapi::experimental::is_user_constructed_group_v<
+                       std::decay_t<Group>>) &&
                   (std::is_trivially_copyable_v<T> ||
                    detail::is_vec<T>::value)),
                  T>
-permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
+permute_group_by_xor(Group g, T x, typename Group::linear_id_type mask) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::SubgroupShuffleXor(x, mask);
+  return sycl::detail::spirv::ShuffleXor(g, x, mask);
 #else
+  (void)g;
   (void)x;
   (void)mask;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -579,14 +587,17 @@ permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-std::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+std::enable_if_t<((std::is_same_v<std::decay_t<Group>, sub_group> ||
+                   sycl::ext::oneapi::experimental::is_user_constructed_group_v<
+                       std::decay_t<Group>>) &&
                   (std::is_trivially_copyable_v<T> ||
                    detail::is_vec<T>::value)),
                  T>
-select_from_group(Group, T x, typename Group::id_type local_id) {
+select_from_group(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::SubgroupShuffle(x, local_id);
+  return sycl::detail::spirv::Shuffle(g, x, local_id);
 #else
+  (void)g;
   (void)x;
   (void)local_id;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -755,25 +766,6 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
 // four argument version of exclusive_scan_over_group is specialized twice
 // once for vector_arithmetic, once for (scalar_arithmetic || complex)
 template <typename Group, typename V, typename T, class BinaryOperation>
-std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_vector_arithmetic_or_complex<V>::value &&
-                  detail::is_vector_arithmetic_or_complex<T>::value &&
-                  detail::is_native_op<V, BinaryOperation>::value &&
-                  detail::is_native_op<T, BinaryOperation>::value),
-                 T>
-exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
-                "Result type of binary_op must match scan accumulation type.");
-  T result;
-  typename detail::get_scalar_binary_op<BinaryOperation>::type
-      scalar_binary_op{};
-  for (int s = 0; s < x.size(); ++s) {
-    result[s] = exclusive_scan_over_group(g, x[s], init[s], scalar_binary_op);
-  }
-  return result;
-}
-
-template <typename Group, typename V, typename T, class BinaryOperation>
 std::enable_if_t<
     (is_group_v<std::decay_t<Group>> &&
      (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
@@ -802,6 +794,25 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif
+}
+
+template <typename Group, typename V, typename T, class BinaryOperation>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<V>::value &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<V, BinaryOperation>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
+exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
+                "Result type of binary_op must match scan accumulation type.");
+  T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
+  for (int s = 0; s < x.size(); ++s) {
+    result[s] = exclusive_scan_over_group(g, x[s], init[s], scalar_binary_op);
+  }
+  return result;
 }
 
 // ---- joint_exclusive_scan
@@ -886,23 +897,6 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
 //   complex
 template <typename Group, typename T, class BinaryOperation>
 std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                  detail::is_vector_arithmetic_or_complex<T>::value &&
-                  detail::is_native_op<T, BinaryOperation>::value),
-                 T>
-inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
-                "Result type of binary_op must match scan accumulation type.");
-  T result;
-  typename detail::get_scalar_binary_op<BinaryOperation>::type
-      scalar_binary_op{};
-  for (int s = 0; s < x.size(); ++s) {
-    result[s] = inclusive_scan_over_group(g, x[s], scalar_binary_op);
-  }
-  return result;
-}
-
-template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   (detail::is_scalar_arithmetic<T>::value ||
                    (detail::is_complex<T>::value &&
                     detail::is_multiplies<T, BinaryOperation>::value)) &&
@@ -926,6 +920,23 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   throw sycl::exception(make_error_code(errc::feature_not_supported),
                         "Group algorithms are not supported on host.");
 #endif
+}
+
+template <typename Group, typename T, class BinaryOperation>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
+inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
+                "Result type of binary_op must match scan accumulation type.");
+  T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
+  for (int s = 0; s < x.size(); ++s) {
+    result[s] = inclusive_scan_over_group(g, x[s], scalar_binary_op);
+  }
+  return result;
 }
 
 // complex specializaiton

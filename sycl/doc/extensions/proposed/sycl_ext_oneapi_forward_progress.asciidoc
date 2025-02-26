@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2024 Intel Corporation.  All rights reserved.
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -254,7 +254,7 @@ of forward progress guarantee defined in the {cpp} core language specification.
 
 [source,c++]
 ----
-namespace ext::oneapi::experimental::sycl {
+namespace sycl::ext::oneapi::experimental {
 
 enum class forward_progress_guarantee {
   concurrent,
@@ -279,7 +279,7 @@ execution within a SYCL implementation.
 
 [source,c++]
 ----
-namespace ext::oneapi::experimental::sycl {
+namespace sycl::ext::oneapi::experimental {
 
 enum class execution_scope {
   work_item,
@@ -422,10 +422,6 @@ inline constexpr sub_group_progress_key::value_t<Guarantee, CoordinationScope> s
 
 template <forward_progress_guarantee Guarantee, execution_scope CoordinationScope>
 inline constexpr work_item_progress_key::value_t<Guarantee, CoordinationScope> work_item_progress;
-
-template <> struct is_property_key<work_group_progress_key> : std::true_type {};
-template <> struct is_property_key<sub_group_progress_key> : std::true_type {};
-template <> struct is_property_key<work_item_progress_key> : std::true_type {};
 
 }
 ----

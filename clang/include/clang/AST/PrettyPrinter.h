@@ -55,33 +55,36 @@ public:
 /// This type is intended to be small and suitable for passing by value.
 /// It is very frequently copied.
 struct PrintingPolicy {
+  enum SuppressInlineNamespaceMode : uint8_t { None, Redundant, All };
+
   /// Create a default printing policy for the specified language.
   PrintingPolicy(const LangOptions &LO)
       : Indentation(2), SuppressSpecifiers(false),
         SuppressTagKeyword(LO.CPlusPlus), IncludeTagDefinition(false),
         SuppressScope(false), SuppressUnwrittenScope(false),
-        SuppressInlineNamespace(true), SuppressElaboration(false),
-        SuppressInitializers(false), ConstantArraySizeAsWritten(false),
-        AnonymousTagLocations(true), SuppressStrongLifetime(false),
-        SuppressLifetimeQualifiers(false), SuppressTypedefs(false),
-        SuppressFinalSpecifier(false),
+        SuppressInlineNamespace(SuppressInlineNamespaceMode::Redundant),
+        SuppressElaboration(false), SuppressInitializers(false),
+        ConstantArraySizeAsWritten(false), AnonymousTagLocations(true),
+        SuppressStrongLifetime(false), SuppressLifetimeQualifiers(false),
+        SuppressTypedefs(false), SuppressFinalSpecifier(false),
         SuppressTemplateArgsInCXXConstructors(false),
-        SuppressDefaultTemplateArgs(true), Bool(LO.Bool),
-        Nullptr(LO.CPlusPlus11 || LO.C23), NullptrTypeInNamespace(LO.CPlusPlus),
-        Restrict(LO.C99), Alignof(LO.CPlusPlus11), UnderscoreAlignof(LO.C11),
+        SuppressDefaultTemplateArgs(true), EnforceDefaultTemplateArgs(false),
+        Bool(LO.Bool), Nullptr(LO.CPlusPlus11 || LO.C23),
+        NullptrTypeInNamespace(LO.CPlusPlus), Restrict(LO.C99),
+        Alignof(LO.CPlusPlus11), UnderscoreAlignof(LO.C11),
         UseVoidForZeroParams(!LO.CPlusPlus),
         SplitTemplateClosers(!LO.CPlusPlus11), TerseOutput(false),
         PolishForDeclaration(false), Half(LO.Half),
         MSWChar(LO.MicrosoftExt && !LO.WChar), IncludeNewlines(true),
         MSVCFormatting(false), ConstantsAsWritten(false),
         SuppressImplicitBase(false), FullyQualifiedName(false),
-        SuppressDefinition(false), SuppressDefaultTemplateArguments(false),
-        PrintCanonicalTypes(false),
+        EnforceScopeForElaboratedTypes(false), SuppressDefinition(false),
+        SuppressDefaultTemplateArguments(false), PrintCanonicalTypes(false),
         SkipCanonicalizationOfTemplateTypeParms(false),
         PrintInjectedClassNameWithArguments(true), UsePreferredNames(true),
         AlwaysIncludeTypeForTemplateArgument(false),
         CleanUglifiedParameters(false), EntireContentsOfLargeArray(true),
-        UseEnumerators(true) {}
+        UseEnumerators(true), UseHLSLTypes(LO.HLSL) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -153,10 +156,12 @@ struct PrintingPolicy {
   unsigned SuppressUnwrittenScope : 1;
 
   /// Suppress printing parts of scope specifiers that correspond
-  /// to inline namespaces, where the name is unambiguous with the specifier
+  /// to inline namespaces.
+  /// If Redudant, where the name is unambiguous with the specifier removed.
+  /// If All, even if the name is ambiguous with the specifier
   /// removed.
-  LLVM_PREFERRED_TYPE(bool)
-  unsigned SuppressInlineNamespace : 1;
+  LLVM_PREFERRED_TYPE(SuppressInlineNamespaceMode)
+  unsigned SuppressInlineNamespace : 2;
 
   /// Ignore qualifiers and tag keywords as specified by elaborated type sugar,
   /// instead letting the underlying type print as normal.
@@ -236,6 +241,11 @@ struct PrintingPolicy {
   /// argument for the parameter.
   LLVM_PREFERRED_TYPE(bool)
   unsigned SuppressDefaultTemplateArgs : 1;
+
+  /// When true, print template arguments that match the default argument for
+  /// the parameter, even if they're not specified in the source.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned EnforceDefaultTemplateArgs : 1;
 
   /// Whether we can use 'bool' rather than '_Bool' (even if the language
   /// doesn't actually have 'bool', because, e.g., it is defined as a macro).
@@ -335,6 +345,10 @@ struct PrintingPolicy {
   LLVM_PREFERRED_TYPE(bool)
   unsigned FullyQualifiedName : 1;
 
+  /// Enforce fully qualified name printing for elaborated types.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned EnforceScopeForElaboratedTypes : 1;
+
   /// When true does not print definition of a type. E.g.
   ///   \code
   ///   template<typename T> class C0 : public C1 {...}
@@ -404,6 +418,11 @@ struct PrintingPolicy {
   /// enumerator name or via cast of an integer.
   LLVM_PREFERRED_TYPE(bool)
   unsigned UseEnumerators : 1;
+
+  /// Whether or not we're printing known HLSL code and should print HLSL
+  /// sugared types when possible.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned UseHLSLTypes : 1;
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;

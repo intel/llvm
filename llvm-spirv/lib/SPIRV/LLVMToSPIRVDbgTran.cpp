@@ -36,6 +36,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "LLVMToSPIRVDbgTran.h"
+#include "SPIRV.debug.h"
 #include "SPIRVWriter.h"
 
 #include "llvm/IR/DebugInfo.h"
@@ -51,6 +52,13 @@ void LLVMToSPIRVDbgTran::transDebugMetadata() {
   DIF.processModule(*M);
   if (DIF.compile_unit_count() == 0)
     return;
+
+  if (isNonSemanticDebugInfo()) {
+    if (!BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_6))
+      BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
+    else
+      BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_6);
+  }
 
   for (DICompileUnit *CU : DIF.compile_units()) {
     transDbgEntry(CU);
@@ -247,8 +255,10 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
                         Col);
         }
       } // Instructions
-    }   // Basic Blocks
-  }     // Functions
+      // Reset current debug line at end of basic block.
+      BM->setCurrentDebugLine(nullptr);
+    } // Basic Blocks
+  } // Functions
 }
 
 // Translation of single debug entry
@@ -283,8 +293,6 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgEntryImpl(const MDNode *MDN) {
   if (!MDN)
     return BM->addDebugInfo(SPIRVDebug::DebugInfoNone, getVoidTy(),
                             SPIRVWordVec());
-  if (isNonSemanticDebugInfo())
-    BM->addExtension(SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
   if (const DINode *DIEntry = dyn_cast<DINode>(MDN)) {
     switch (DIEntry->getTag()) {
     // Types
@@ -492,6 +500,8 @@ SPIRVWord LLVMToSPIRVDbgTran::mapDebugFlags(DINode::DIFlags DFlags) {
   if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
     if (DFlags & DINode::FlagBitField)
       Flags |= SPIRVDebug::FlagBitField;
+  if (DFlags & DINode::FlagEnumClass)
+    Flags |= SPIRVDebug::FlagIsEnumClass;
   return Flags;
 }
 
@@ -1052,20 +1062,32 @@ LLVMToSPIRVDbgTran::transDbgMemberTypeNonSemantic(const DIDerivedType *MT) {
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgInheritance(const DIDerivedType *DT) {
   using namespace SPIRVDebug::Operand::TypeInheritance;
-  const SPIRVWord Offset = isNonSemanticDebugInfo() ? 1 : 0;
-  SPIRVWordVec Ops(OperandCount - Offset);
-  // There is no Child operand in NonSemantic debug spec
-  if (!isNonSemanticDebugInfo())
-    Ops[ChildIdx] = transDbgEntry(DT->getScope())->getId();
-  Ops[ParentIdx - Offset] = transDbgEntry(DT->getBaseType())->getId();
+  unsigned ParentIdx, OffsetIdx, SizeIdx, FlagsIdx, OperandCount;
+  if (isNonSemanticDebugInfo()) {
+    ParentIdx = NonSemantic::ParentIdx;
+    OffsetIdx = NonSemantic::OffsetIdx;
+    SizeIdx = NonSemantic::SizeIdx;
+    FlagsIdx = NonSemantic::FlagsIdx;
+    OperandCount = NonSemantic::OperandCount;
+  } else {
+    ParentIdx = OpenCL::ParentIdx;
+    OffsetIdx = OpenCL::OffsetIdx;
+    SizeIdx = OpenCL::SizeIdx;
+    FlagsIdx = OpenCL::FlagsIdx;
+    OperandCount = OpenCL::OperandCount;
+  }
+  SPIRVWordVec Ops(OperandCount);
+  Ops[ParentIdx] = transDbgEntry(DT->getBaseType())->getId();
   ConstantInt *OffsetInBits = getUInt(M, DT->getOffsetInBits());
-  Ops[OffsetIdx - Offset] =
-      SPIRVWriter->transValue(OffsetInBits, nullptr)->getId();
+  Ops[OffsetIdx] = SPIRVWriter->transValue(OffsetInBits, nullptr)->getId();
   ConstantInt *Size = getUInt(M, DT->getSizeInBits());
-  Ops[SizeIdx - Offset] = SPIRVWriter->transValue(Size, nullptr)->getId();
-  Ops[FlagsIdx - Offset] = transDebugFlags(DT);
-  if (isNonSemanticDebugInfo())
-    transformToConstant(Ops, {FlagsIdx - Offset});
+  Ops[SizeIdx] = SPIRVWriter->transValue(Size, nullptr)->getId();
+  Ops[FlagsIdx] = transDebugFlags(DT);
+  if (isNonSemanticDebugInfo()) {
+    transformToConstant(Ops, {FlagsIdx});
+  } else {
+    Ops[OpenCL::ChildIdx] = transDbgEntry(DT->getScope())->getId();
+  }
   return BM->addDebugInfo(SPIRVDebug::TypeInheritance, getVoidTy(), Ops);
 }
 

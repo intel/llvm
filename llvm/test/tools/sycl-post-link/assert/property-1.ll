@@ -2,16 +2,16 @@
 ; property - it should include only kernels that call assertions in their call
 ; graph.
 
-; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop --implicit-check-not TheKernel2
 ;
-; RUN: sycl-post-link -split=source -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=source -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop --implicit-check-not TheKernel2
 ;
-; RUN: sycl-post-link -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop --implicit-check-not TheKernel2
 ;
-; RUN: sycl-post-link -split=kernel -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=kernel -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes=CHECK-K3
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes=CHECK-K1
 ; RUN: FileCheck %s -input-file=%t_2.prop --check-prefixes=CHECK-K2

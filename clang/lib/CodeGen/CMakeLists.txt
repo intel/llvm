@@ -29,6 +29,7 @@ set(LLVM_LINK_COMPONENTS
   ScalarOpts
   Support
   SYCLLowerIR
+  SYCLNativeCPUUtils
   Target
   TargetParser
   TransformUtils
@@ -40,6 +41,7 @@ set(LLVM_LINK_COMPONENTS
 # our goal is to disable the /Og flag while retaining the other optimizations from the /O1|/O2 set
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES Clang
     AND MSVC_VERSION VERSION_GREATER_EQUAL 1932
+    AND MSVC_VERSION VERSION_LESS 1939
     AND CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64")
 
   string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
@@ -90,6 +92,7 @@ add_clang_library(clangCodeGen
   CGOpenCLRuntime.cpp
   CGOpenMPRuntime.cpp
   CGOpenMPRuntimeGPU.cpp
+  CGPointerAuth.cpp
   CGRecordLayoutBuilder.cpp
   CGStmt.cpp
   CGStmtOpenMP.cpp
@@ -106,10 +109,11 @@ add_clang_library(clangCodeGen
   ConstantInitBuilder.cpp
   CoverageMappingGen.cpp
   ItaniumCXXABI.cpp
+  LinkInModulesPass.cpp
   MacroPPCallbacks.cpp
   MicrosoftCXXABI.cpp
   ModuleBuilder.cpp
-  ObjectFilePCHContainerOperations.cpp
+  ObjectFilePCHContainerWriter.cpp
   PatternInit.cpp
   SanitizerMetadata.cpp
   SwiftCallingConv.cpp
@@ -121,6 +125,7 @@ add_clang_library(clangCodeGen
   Targets/AVR.cpp
   Targets/BPF.cpp
   Targets/CSKY.cpp
+  Targets/DirectX.cpp
   Targets/Hexagon.cpp
   Targets/Lanai.cpp
   Targets/LoongArch.cpp
@@ -143,8 +148,12 @@ add_clang_library(clangCodeGen
 
   DEPENDS
   ${codegen_deps}
+  vt_gen
   intrinsics_gen
   ClangDriverOptions
+  # These generated headers are included transitively.
+  ARMTargetParserTableGen
+  AArch64TargetParserTableGen
 
   LINK_LIBS
   clangAST

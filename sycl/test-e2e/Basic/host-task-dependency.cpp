@@ -1,13 +1,12 @@
 // RUN: %{build} -o %t.out %threads_lib
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 //
 // TODO: Behaviour is unstable for level zero on Windows. Enable when fixed.
-// TODO: The test is sporadically fails on CUDA. Enable when fixed.
-// UNSUPPORTED: (windows && level_zero) || hip_nvidia
+// UNSUPPORTED: (windows && level_zero)
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <atomic>
 #include <condition_variable>
@@ -31,10 +30,10 @@ struct Context {
 
 S::event HostTask_CopyBuf1ToBuf2(Context *Ctx) {
   S::event Event = Ctx->Queue.submit([&](S::handler &CGH) {
-    S::accessor<int, 1, S::access::mode::read, S::access::target::host_buffer>
-        CopierSrcAcc(Ctx->Buf1, CGH);
-    S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
-        CopierDstAcc(Ctx->Buf2, CGH);
+    S::host_accessor<int, 1, S::access::mode::read> CopierSrcAcc(Ctx->Buf1,
+                                                                 CGH);
+    S::host_accessor<int, 1, S::access::mode::write> CopierDstAcc(Ctx->Buf2,
+                                                                  CGH);
 
     auto CopierHostTask = [=] {
       for (size_t Idx = 0; Idx < CopierDstAcc.size(); ++Idx)
@@ -58,24 +57,21 @@ S::event HostTask_CopyBuf1ToBuf2(Context *Ctx) {
 void Thread1Fn(Context *Ctx) {
   // 0. initialize resulting buffer with apriori wrong result
   {
-    S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
-        Acc(Ctx->Buf1);
+    S::host_accessor<int, 1, S::access::mode::write> Acc(Ctx->Buf1);
 
     for (size_t Idx = 0; Idx < Acc.size(); ++Idx)
       Acc[Idx] = -1;
   }
 
   {
-    S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
-        Acc(Ctx->Buf2);
+    S::host_accessor<int, 1, S::access::mode::write> Acc(Ctx->Buf2);
 
     for (size_t Idx = 0; Idx < Acc.size(); ++Idx)
       Acc[Idx] = -2;
   }
 
   {
-    S::accessor<int, 1, S::access::mode::write, S::access::target::host_buffer>
-        Acc(Ctx->Buf3);
+    S::host_accessor<int, 1, S::access::mode::write> Acc(Ctx->Buf3);
 
     for (size_t Idx = 0; Idx < Acc.size(); ++Idx)
       Acc[Idx] = -3;
@@ -116,8 +112,7 @@ void Thread1Fn(Context *Ctx) {
 
   // 4. check data in buffer #3
   {
-    S::accessor<int, 1, S::access::mode::read, S::access::target::host_buffer>
-        Acc(Ctx->Buf3);
+    S::host_accessor<int, 1, S::access::mode::read> Acc(Ctx->Buf3);
 
     bool Failure = false;
 
@@ -162,8 +157,7 @@ void test() {
 
   // 3. check via host accessor that buf 2 contains valid data
   {
-    S::accessor<int, 1, S::access::mode::read, S::access::target::host_buffer>
-        ResultAcc(Ctx.Buf2);
+    S::host_accessor<int, 1, S::access::mode::read> ResultAcc(Ctx.Buf2);
 
     bool Failure = false;
     for (size_t Idx = 0; Idx < ResultAcc.size(); ++Idx) {
@@ -183,15 +177,15 @@ int main() {
 }
 
 // launch of Gen kernel
-// CHECK:---> piKernelCreate(
+// CHECK: <--- urKernelCreate
 // CHECK: NameGen
-// CHECK:---> piEnqueueKernelLaunch(
+// CHECK: <--- urEnqueueKernelLaunch
 // prepare for host task
-// CHECK:---> piEnqueueMemBuffer{{Map|Read}}(
+// CHECK: <--- urEnqueueMemBuffer{{Map|Read}}
 // launch of Copier kernel
-// CHECK:---> piKernelCreate(
+// CHECK: <--- urKernelCreate
 // CHECK: Copier
-// CHECK:---> piEnqueueKernelLaunch(
+// CHECK: <--- urEnqueueKernelLaunch
 
 // CHECK:Third buffer [  0] = 0
 // CHECK:Third buffer [  1] = 1
@@ -214,6 +208,6 @@ int main() {
 // CHECK:Second buffer [  8] = 8
 // CHECK:Second buffer [  9] = 9
 
-// TODO need to check for piEventsWait as "wait on dependencies of host task".
-// At the same time this piEventsWait may occur anywhere after
-// piEnqueueMemBufferMap ("prepare for host task").
+// TODO need to check for urEventWait as "wait on dependencies of host task".
+// At the same time this urEventWait may occur anywhere after
+// urEnqueueMemBufferMap ("prepare for host task").

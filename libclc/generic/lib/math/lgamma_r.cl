@@ -22,9 +22,9 @@
  */
 
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
 
 #include "math.h"
-#include <clcmacro.h>
 
 /*
  * ====================================================
@@ -447,7 +447,7 @@ _CLC_OVERLOAD _CLC_DEF double lgamma_r(double x, private int *ip) {
                 r += fma(-0.5, y, p / q);
         }
     } else if (absx < 8.0) {
-        int i = absx;
+        int i = (int)(long)absx;
         double y = absx - (double) i;
         double p = y * fma(y, fma(y, fma(y, fma(y, fma(y, fma(y, s6, s5), s4), s3), s2), s1), s0);
         double q = fma(y, fma(y, fma(y, fma(y, fma(y, fma(y, r6, r5), r4), r3), r2), r1), 1.0);
@@ -486,6 +486,17 @@ _CLC_OVERLOAD _CLC_DEF double lgamma_r(double x, private int *ip) {
 _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, lgamma_r, double, private, int)
 #endif
 
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_OVERLOAD _CLC_DEF half lgamma_r(half x, private int *iptr) {
+    return (half)lgamma_r((float)x, iptr);
+}
+
+_CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, lgamma_r, half, private, int);
+
+#endif
 
 #define __CLC_ADDRSPACE global
 #define __CLC_BODY <lgamma_r.inc>

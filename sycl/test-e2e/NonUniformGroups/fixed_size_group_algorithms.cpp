@@ -1,11 +1,22 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
-// REQUIRES: gpu
+// RUN: %if any-device-is-cpu && opencl-aot %{ %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-device-code-split=per_kernel -o %t.x86.out %s %}
+// RUN: %if cpu %{ %{run} %t.x86.out %}
+//
+// REQUIRES: build-and-run-mode
+// REQUIRES: cpu || gpu
 // REQUIRES: sg-32
-// UNSUPPORTED: hip
+// REQUIRES: aspect-ext_oneapi_fixed_size_group
 
-#include <sycl/sycl.hpp>
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64702
+// The test is disabled for spirv-backend while we investigate the root cause.
+
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/group_barrier.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -25,6 +36,10 @@ template <size_t PartitionSize> void test() {
   sycl::buffer<bool, 1> ReduceBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ExScanBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> IncScanBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ShiftLeftBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ShiftRightBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> SelectBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> PermuteXorBuf{sycl::range{SGSize}};
 
   const auto NDR = sycl::nd_range<1>{SGSize, SGSize};
   Q.submit([&](sycl::handler &CGH) {
@@ -37,6 +52,10 @@ template <size_t PartitionSize> void test() {
     sycl::accessor ReduceAcc{ReduceBuf, CGH, sycl::write_only};
     sycl::accessor ExScanAcc{ExScanBuf, CGH, sycl::write_only};
     sycl::accessor IncScanAcc{IncScanBuf, CGH, sycl::write_only};
+    sycl::accessor ShiftLeftAcc{ShiftLeftBuf, CGH, sycl::write_only};
+    sycl::accessor ShiftRightAcc{ShiftRightBuf, CGH, sycl::write_only};
+    sycl::accessor SelectAcc{SelectBuf, CGH, sycl::write_only};
+    sycl::accessor PermuteXorAcc{PermuteXorBuf, CGH, sycl::write_only};
     const auto KernelFunc =
         [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(SGSize)]] {
           auto WI = item.get_global_id();
@@ -95,6 +114,25 @@ template <size_t PartitionSize> void test() {
           uint32_t IncScanResult =
               sycl::inclusive_scan_over_group(Partition, 1, sycl::plus<>());
           IncScanAcc[WI] = (IncScanResult == LID + 1);
+
+          uint32_t ShiftLeftResult = sycl::shift_group_left(Partition, LID, 2);
+          ShiftLeftAcc[WI] =
+              (LID + 2 >= PartitionSize || ShiftLeftResult == LID + 2);
+
+          uint32_t ShiftRightResult =
+              sycl::shift_group_right(Partition, LID, 2);
+          ShiftRightAcc[WI] = (LID < 2 || ShiftRightResult == LID - 2);
+
+          uint32_t SelectResult = sycl::select_from_group(
+              Partition, OriginalLID,
+              (Partition.get_local_id() + 2) % PartitionSize);
+          SelectAcc[WI] =
+              SelectResult == OriginalLID - LID + ((LID + 2) % PartitionSize);
+
+          uint32_t Mask = PartitionSize <= 2 ? 0 : 2;
+          uint32_t PermuteXorResult =
+              sycl::permute_group_by_xor(Partition, LID, Mask);
+          PermuteXorAcc[WI] = (PermuteXorResult == (LID ^ Mask));
         };
     CGH.parallel_for<TestKernel<PartitionSize>>(NDR, KernelFunc);
   });
@@ -107,6 +145,10 @@ template <size_t PartitionSize> void test() {
   sycl::host_accessor ReduceAcc{ReduceBuf, sycl::read_only};
   sycl::host_accessor ExScanAcc{ExScanBuf, sycl::read_only};
   sycl::host_accessor IncScanAcc{IncScanBuf, sycl::read_only};
+  sycl::host_accessor ShiftLeftAcc{ShiftLeftBuf, sycl::read_only};
+  sycl::host_accessor ShiftRightAcc{ShiftRightBuf, sycl::read_only};
+  sycl::host_accessor SelectAcc{SelectBuf, sycl::read_only};
+  sycl::host_accessor PermuteXorAcc{PermuteXorBuf, sycl::read_only};
   for (int WI = 0; WI < SGSize; ++WI) {
     assert(BarrierAcc[WI] == true);
     assert(BroadcastAcc[WI] == true);
@@ -116,6 +158,10 @@ template <size_t PartitionSize> void test() {
     assert(ReduceAcc[WI] == true);
     assert(ExScanAcc[WI] == true);
     assert(IncScanAcc[WI] == true);
+    assert(ShiftLeftAcc[WI] == true);
+    assert(ShiftRightAcc[WI] == true);
+    assert(SelectAcc[WI] == true);
+    assert(PermuteXorAcc[WI] == true);
   }
 }
 

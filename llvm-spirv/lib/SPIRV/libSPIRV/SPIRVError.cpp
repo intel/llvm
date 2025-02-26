@@ -36,6 +36,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "LLVMSPIRVLib.h"
+
 #include "SPIRVError.h"
 #include <string>
 

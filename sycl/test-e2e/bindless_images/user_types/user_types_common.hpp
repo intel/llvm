@@ -2,7 +2,9 @@
 // multiple tests that use user-defined types
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 void printTestName(std::string name) {
 #ifdef VERBOSE_PRINT

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -19,7 +19,7 @@ int main(void) {
   esimd_test::printTestLabel(q);
 
   constexpr auto Features = TestFeatures::PVC;
-  bool passed = test_main_acc<Features>(q);
+  bool passed = test_main_acc<Features, true>(q);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

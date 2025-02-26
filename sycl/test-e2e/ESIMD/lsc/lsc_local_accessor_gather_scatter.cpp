@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -14,10 +14,6 @@
 // accessor-based ESIMD intrinsics.
 
 #include "../esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::experimental::esimd;
@@ -52,7 +48,7 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
     q.submit([&](handler &cgh) {
        auto acc = buf.template get_access<access::mode::read_write>(cgh);
        auto LocalAcc = local_accessor<T, 1>(size * STRIDE, cgh);
-       cgh.parallel_for(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
+       cgh.parallel_for(glob_range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          using namespace sycl::ext::intel::esimd;
          simd<T, VL> valsIn;
          valsIn.copy_from(acc, 0);

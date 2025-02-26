@@ -10,6 +10,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: arch-intel_gpu_pvc
+
 // This test checks extended math operations. Combinations of
 // - argument type - half, float
 // - math function - sin, cos, ..., div_ieee, pow
@@ -18,11 +20,8 @@
 #include "esimd_test_utils.hpp"
 
 #include <sycl/builtins_esimd.hpp>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <cmath>
-#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::intel;
@@ -31,7 +30,7 @@ using namespace sycl::ext::intel;
 #define ESIMD_SATURATION_TAG                                                   \
   esimd::saturation_on_tag {}
 #define ESIMD_SATURATE(T, x) esimd::saturate<T>(x)
-#define HOST_SATURATE(x) std::max(0.0f, std::min((x), 1.0f))
+#define HOST_SATURATE(x) (x) >= 1.0f ? 1.0f : ((x) <= 0.0f ? 0.0f : (x))
 #else
 #define ESIMD_SATURATION_TAG                                                   \
   esimd::saturation_off_tag {}
@@ -238,12 +237,13 @@ struct UnaryDeviceFunc {
 
   UnaryDeviceFunc(AccIn &In, AccOut &Out) : In(In), Out(Out) {}
 
-  void operator()(id<1> I) const SYCL_ESIMD_KERNEL {
-    unsigned int Offset = I * N * sizeof(T);
+  void operator()(nd_item<1> ndi) const SYCL_ESIMD_KERNEL {
+    auto gid = ndi.get_global_id(0);
+    unsigned int Offset = gid * N * sizeof(T);
     esimd::simd<T, N> Vx;
     Vx.copy_from(In, Offset);
 
-    if (I.get(0) % 2 == 0) {
+    if (gid % 2 == 0) {
       for (int J = 0; J < N; J++) {
         Kernel<T, N, Op, AllSca> DevF{};
         T Val = Vx[J];
@@ -269,13 +269,14 @@ struct BinaryDeviceFunc {
   BinaryDeviceFunc(AccIn &In1, AccIn &In2, AccOut &Out)
       : In1(In1), In2(In2), Out(Out) {}
 
-  void operator()(id<1> I) const SYCL_ESIMD_KERNEL {
-    unsigned int Offset = I * N * sizeof(T);
+  void operator()(nd_item<1> ndi) const SYCL_ESIMD_KERNEL {
+    auto gid = ndi.get_global_id(0);
+    unsigned int Offset = gid * N * sizeof(T);
     esimd::simd<T, N> V1(In1, Offset);
     esimd::simd<T, N> V2(In2, Offset);
     esimd::simd<T, N> V;
 
-    if (I.get(0) % 2 == 0) {
+    if (gid % 2 == 0) {
       int Ind = 0;
       {
         Kernel<T, N, Op, AllSca> DevF{};
@@ -447,6 +448,28 @@ template <class T, int N> bool testESIMDSqrtIEEE(queue &Q) {
   return Pass;
 }
 
+template <class T, int N> bool testESIMDSqrt(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD sqrt, T=" << typeid(T).name() << ", N = " << N
+            << "...\n";
+  Pass &= test<T, N, MathOp::sqrt, ESIMDf>(Q, "sqrt", InitWide<T>{});
+  return Pass;
+}
+template <class T, int N> bool testESIMDRSqrt(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD rsqrt, T=" << typeid(T).name()
+            << ", N = " << N << "...\n";
+  Pass &= test<T, N, MathOp::rsqrt, ESIMDf>(Q, "rsqrt", InitWide<T>{});
+  return Pass;
+}
+template <class T, int N> bool testESIMDInv(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD inv, T=" << typeid(T).name() << ", N = " << N
+            << "...\n";
+  Pass &= test<T, N, MathOp::inv, ESIMDf>(Q, "inv", InitWide<T>{});
+  return Pass;
+}
+
 template <class T, int N> bool testESIMDDivIEEE(queue &Q) {
   bool Pass = true;
   std::cout << "--- TESTING ESIMD div_ieee, T=" << typeid(T).name()
@@ -486,12 +509,19 @@ int main(void) {
   auto Dev = Q.get_device();
 
   bool Pass = true;
+  if (Dev.has(sycl::aspect::fp64)) {
+    Pass &= testESIMDSqrt<double, 32>(Q);
+    Pass &= testESIMDRSqrt<double, 32>(Q);
+    Pass &= testESIMDInv<double, 32>(Q);
+  }
 #ifdef TEST_IEEE_DIV_REM
   Pass &= testESIMDSqrtIEEE<float, 16>(Q);
   Pass &= testESIMDDivIEEE<float, 8>(Q);
   if (Dev.has(sycl::aspect::fp64)) {
     Pass &= testESIMDSqrtIEEE<double, 32>(Q);
     Pass &= testESIMDDivIEEE<double, 32>(Q);
+    Pass &= testESIMDSqrt<double, 32>(Q);
+    Pass &= testESIMDRSqrt<double, 32>(Q);
   }
 #else // !TEST_IEEE_DIV_REM
   Pass &= testESIMD<half, 8>(Q);

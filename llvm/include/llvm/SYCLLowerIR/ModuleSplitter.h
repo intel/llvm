@@ -13,12 +13,16 @@
 #ifndef LLVM_SYCLLOWERIR_MODULE_SPLITTER_H
 #define LLVM_SYCLLOWERIR_MODULE_SPLITTER_H
 
+#include "SYCLDeviceRequirements.h"
+
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/PropertySetIO.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,7 +31,15 @@ namespace llvm {
 class Function;
 class Module;
 
+namespace cl {
+class OptionCategory;
+}
+
 namespace module_split {
+
+constexpr char SYCL_ESIMD_SPLIT_MD_NAME[] = "sycl-esimd-split-status";
+
+extern cl::OptionCategory &getModuleSplitCategory();
 
 enum IRSplitMode {
   SPLIT_PER_TU,     // one module per translation unit
@@ -35,6 +47,10 @@ enum IRSplitMode {
   SPLIT_AUTO,       // automatically select split mode
   SPLIT_NONE        // no splitting
 };
+
+// \returns IRSplitMode value if \p S is recognized. Otherwise, std::nullopt is
+// returned.
+std::optional<IRSplitMode> convertStringToSplitMode(StringRef S);
 
 // A vector that contains all entry point functions in a split module.
 using EntryPointSet = SetVector<Function *>;
@@ -68,6 +84,11 @@ struct EntryPointGroup {
       // Scope remains global
       return Res;
     }
+
+    // Indicates that this group holds definitions of virtual functions - they
+    // are outlined into separate device images and should be removed from all
+    // other modules. The flag is used in ModuleDesc::cleanup
+    bool HasVirtualFunctionDefinitions = false;
   };
 
   std::string GroupId;
@@ -108,6 +129,7 @@ class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
   bool IsTopLevel = false;
+  mutable std::optional<SYCLDeviceRequirements> Reqs;
 
 public:
   struct Properties {
@@ -193,6 +215,16 @@ public:
 
   ModuleDesc clone() const;
 
+  std::string makeSymbolTable() const;
+
+  const SYCLDeviceRequirements &getOrComputeDeviceRequirements() const {
+    if (!Reqs.has_value())
+      Reqs = computeDeviceRequirements(getModule(), entries());
+    return *Reqs;
+  }
+
+  void saveSplitInformationAsMetadata();
+
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
   void dump() const;
@@ -219,7 +251,7 @@ protected:
   Module &getInputModule() { return Input.getModule(); }
 
   std::unique_ptr<Module> releaseInputModule() {
-    return std::move(Input.releaseModulePtr());
+    return Input.releaseModulePtr();
   }
 
 public:
@@ -256,10 +288,43 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
-void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
+void dumpEntryPoints(const EntryPointSet &C, const char *Msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
-                     const char *msg = "", int Tab = 0);
+                     const char *Msg = "", int Tab = 0);
 #endif // NDEBUG
+
+struct SplitModule {
+  std::string ModuleFilePath;
+  util::PropertySetRegistry Properties;
+  std::string Symbols;
+
+  SplitModule() = default;
+  SplitModule(const SplitModule &) = default;
+  SplitModule &operator=(const SplitModule &) = default;
+  SplitModule(SplitModule &&) = default;
+  SplitModule &operator=(SplitModule &&) = default;
+
+  SplitModule(std::string_view File, util::PropertySetRegistry Properties,
+              std::string Symbols)
+      : ModuleFilePath(File), Properties(std::move(Properties)),
+        Symbols(std::move(Symbols)) {}
+};
+
+struct ModuleSplitterSettings {
+  IRSplitMode Mode;
+  bool OutputAssembly = false; // Bitcode or LLVM IR.
+  StringRef OutputPrefix;
+};
+
+/// Parses the output table file from sycl-post-link tool.
+Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);
+
+/// Splits the given module \p M according to the given \p Settings.
+Expected<std::vector<SplitModule>>
+splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
+
+bool isESIMDFunction(const Function &F);
+bool canBeImportedFunction(const Function &F);
 
 } // namespace module_split
 

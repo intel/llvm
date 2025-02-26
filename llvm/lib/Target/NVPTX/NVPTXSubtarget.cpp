@@ -11,7 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "NVPTXSubtarget.h"
+#include "NVPTXSelectionDAGInfo.h"
 #include "NVPTXTargetMachine.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FormatVariadic.h"
 
 using namespace llvm;
 
@@ -54,7 +57,15 @@ NVPTXSubtarget::NVPTXSubtarget(const Triple &TT, const std::string &CPU,
                                const NVPTXTargetMachine &TM)
     : NVPTXGenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS), PTXVersion(0),
       FullSmVersion(200), SmVersion(getSmVersion()), TM(TM),
-      TLInfo(TM, initializeSubtargetDependencies(CPU, FS)) {}
+      TLInfo(TM, initializeSubtargetDependencies(CPU, FS)) {
+  TSInfo = std::make_unique<NVPTXSelectionDAGInfo>();
+}
+
+NVPTXSubtarget::~NVPTXSubtarget() = default;
+
+const SelectionDAGTargetInfo *NVPTXSubtarget::getSelectionDAGInfo() const {
+  return TSInfo.get();
+}
 
 bool NVPTXSubtarget::hasImageHandles() const {
   // Enable handles for Kepler+, where CUDA supports indirect surfaces and
@@ -68,4 +79,15 @@ bool NVPTXSubtarget::hasImageHandles() const {
 
 bool NVPTXSubtarget::allowFP16Math() const {
   return hasFP16Math() && NoF16Math == false;
+}
+
+void NVPTXSubtarget::failIfClustersUnsupported(
+    std::string const &FailureMessage) const {
+  if (hasClusters())
+    return;
+
+  report_fatal_error(formatv(
+      "NVPTX SM architecture \"{}\" and PTX version \"{}\" do not support {}. "
+      "Requires SM >= 90 and PTX >= 78.",
+      getFullSmVersion(), PTXVersion, FailureMessage));
 }

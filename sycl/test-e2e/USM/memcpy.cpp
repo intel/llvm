@@ -9,7 +9,8 @@
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -85,7 +86,7 @@ void check_on_device(queue q, int *arr) {
           [&](handler &cgh) { cgh.memcpy(nullptr, ARR, sizeof(int) * N); });   \
       q.wait_and_throw();                                                      \
       assert(false && "Expected error from copying to nullptr");               \
-    } catch (runtime_error e) {                                                \
+    } catch (exception e) {                                                    \
     }                                                                          \
     /* Copying to nullptr should throw. */                                     \
     q.submit([&](handler &cgh) { cgh.memcpy(nullptr, ARR, 0); });              \

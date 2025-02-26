@@ -56,8 +56,8 @@ class LLDBTest(TestFormat):
         cmd = [executable] + self.dotest_cmd + [testPath, "-p", testFile]
 
         if isLuaTest:
-            luaExecutable = test.config.lua_executable
-            cmd.extend(["--env", "LUA_EXECUTABLE=%s" % luaExecutable])
+            cmd.extend(["--env", "LUA_EXECUTABLE=%s" % test.config.lua_executable])
+            cmd.extend(["--env", "LLDB_LUA_CPATH=%s" % test.config.lldb_lua_cpath])
 
         timeoutInfo = None
         try:
@@ -101,7 +101,7 @@ class LLDBTest(TestFormat):
         # Example: "OK (skipped=1, expected failures=1)"
         # Example: "FAILED (failures=3)"
         # Example: "OK"
-        result_regex = r"^(?:OK|FAILED)(?: \((.*)\))?$"
+        result_regex = r"^(?:OK|FAILED)(?: \((.*)\))?\r?$"
         results = re.search(result_regex, err, re.MULTILINE)
 
         # If parsing fails mark this test as unresolved.

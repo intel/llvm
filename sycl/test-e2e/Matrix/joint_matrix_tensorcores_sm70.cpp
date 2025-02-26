@@ -1,11 +1,24 @@
+//===---joint_matrix_tensorcores_sm70.cpp - DPC++ joint_matrix-------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
-// REQUIRES: cuda
+// REQUIRES: target-nvidia
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_70 -o %t.out
 // RUN: %{run} %t.out
 //
 // This tests the unified matrix extension interfaces for the cuda backend.
 // This test must be compiled with -Xsycl-target-backend --cuda-gpu-arch=sm_xx,
 // where sm_xx >= sm_70.
+// For some devices it is important to use the sm version (Compute Capability)
+// corresponding to the device that will run the program when specifying e.g.
+// `-fsycl-targets=nvidia_gpu_sm_xx` during compilation. This particularly
+// affects matrix operations using `half` such as those in this test. For more
+// information on this issue consult
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-restrictions
 
 #include "joint_matrix_apply_cuda.hpp"
 #include "joint_matrix_gemm_cuda.hpp"

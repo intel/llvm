@@ -14,7 +14,7 @@
 
 #include <iostream>
 #include <memory>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -59,7 +59,7 @@ struct PFWIFunctor {
     if (id >= wg_chunk)
       return;
     size_t wi_offset = wg_offset + id * wi_chunk;
-    size_t ub = sycl::min(wi_offset + wi_chunk, range_length);
+    size_t ub = std::min(wi_offset + wi_chunk, range_length);
 
     for (size_t ind = wi_offset; ind < ub; ind++)
       dev_ptr[ind] += v;

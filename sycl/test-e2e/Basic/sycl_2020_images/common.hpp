@@ -1,6 +1,10 @@
 // Header file with common utilities for testing SYCL 2020 image functionality.
 
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/detail/vector_convert.hpp>
+#include <sycl/image.hpp>
 
 using namespace sycl;
 
@@ -266,8 +270,11 @@ template <typename T, int Dims> bool AllTrue(const vec<T, Dims> &Vec) {
 
 template <typename T, int Dims>
 bool ApproxEq(const vec<T, Dims> &LHS, const vec<T, Dims> &RHS,
-              float Precision = 0.1) {
-  return AllTrue(sycl::abs(LHS - RHS) <= Precision);
+              T Precision = (T)0.1) {
+  if constexpr (std::is_integral_v<T>)
+    return AllTrue(sycl::abs(LHS - RHS) <= Precision);
+  else
+    return AllTrue(sycl::fabs(LHS - RHS) <= Precision);
 }
 
 template <typename T, int Dims>

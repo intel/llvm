@@ -1,4 +1,4 @@
-#include "sycl/sycl.hpp"
+#include <sycl/detail/core.hpp>
 
 void sub_x_1(sycl::queue q, int *result, int a, int b) {
   q.single_task<class sub_x_1_dummy>([=] { *result = a - b - 1; });

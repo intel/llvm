@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2024-2024 Intel Corporation.  All rights reserved.
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -96,7 +96,7 @@ namespace sycl {
 class queue {
   ...
 
-  event ext_oneapi_get_last_event() const { /*...*/ }
+  std::optional<event> ext_oneapi_get_last_event() const { /*...*/ }
 
   void ext_oneapi_set_external_event(const event &external_event) { /*...*/ }
 }
@@ -113,18 +113,18 @@ These new APIs have the following behaviour:
 a| 
 [source, c++]
 ----
-event ext_oneapi_get_last_event() const;
+std::optional<event> ext_oneapi_get_last_event() const;
 ----
 | Returns an event representing the execution of the last command submitted to
-the queue.
+the queue. If a call to `ext_oneapi_set_external_event()` on the queue happened
+after all previously submitted commands to the queue, this function returns a
+copy of the event that was passed to `ext_oneapi_set_external_event()`.
+
+If no commands have been submitted to the queue prior to a call to
+`ext_oneapi_set_external_event()`, the call will return `std::nullopt`.
 
 Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
-
-Calls to this member function throw a `sycl::exception` with `errc::invalid` if
-the queue has the `ext::oneapi::property::queue::discard_events` property from
-the
-link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
   
 a| 
 [source, c++]
@@ -145,12 +145,12 @@ submission following a call to this member function, `externalEvent.wait()` is
 called and `externalEvent` will not be a dependency on the next command
 submitted to the queue.
 
-Calls to this member function throw a `sycl::exception` with `errc::invalid` if
-the queue does not have the `property::queue::in_order` property.
+The application is required to ensure that `externalEvent` does not reach the
+completed state before the completion of the most recent command that was
+submitted to the queue. If this requirement is violated, the behavior is
+undefined.
 
 Calls to this member function throw a `sycl::exception` with `errc::invalid` if
-the queue has the `ext::oneapi::property::queue::discard_events` property from
-the
-link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
+the queue does not have the `property::queue::in_order` property.
 |====
 --

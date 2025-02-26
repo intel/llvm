@@ -1,11 +1,10 @@
-// UNSUPPORTED: cuda || hip_nvidia
-// REQUIRES: gpu,linux,sg-16
+// REQUIRES: sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 using dataType = sycl::opencl::cl_int;

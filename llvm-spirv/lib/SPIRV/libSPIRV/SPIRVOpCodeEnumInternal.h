@@ -24,6 +24,10 @@ _SPIRV_OP_INTERNAL(CooperativeMatrixStoreCheckedINTEL,
                    internal::OpCooperativeMatrixStoreCheckedINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixConstructCheckedINTEL,
                    internal::OpCooperativeMatrixConstructCheckedINTEL)
+_SPIRV_OP_INTERNAL(CooperativeMatrixLoadOffsetINTEL,
+                   internal::OpCooperativeMatrixLoadOffsetINTEL)
+_SPIRV_OP_INTERNAL(CooperativeMatrixStoreOffsetINTEL,
+                   internal::OpCooperativeMatrixStoreOffsetINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixApplyFunctionINTEL,
                    internal::OpCooperativeMatrixApplyFunctionINTEL)
 _SPIRV_OP_INTERNAL(ComplexFMulINTEL, internal::ComplexFMulINTEL)
@@ -37,3 +41,9 @@ _SPIRV_OP_INTERNAL(TaskSequenceGetINTEL, internal::OpTaskSequenceGetINTEL)
 _SPIRV_OP_INTERNAL(TaskSequenceReleaseINTEL,
                    internal::OpTaskSequenceReleaseINTEL)
 _SPIRV_OP_INTERNAL(TypeTaskSequenceINTEL, internal::OpTypeTaskSequenceINTEL)
+_SPIRV_OP_INTERNAL(ConvertHandleToImageINTEL,
+                   internal::ConvertHandleToImageINTEL)
+_SPIRV_OP_INTERNAL(ConvertHandleToSamplerINTEL,
+                   internal::ConvertHandleToSamplerINTEL)
+_SPIRV_OP_INTERNAL(ConvertHandleToSampledImageINTEL,
+                   internal::ConvertHandleToSampledImageINTEL)

@@ -57,6 +57,11 @@ void TraceTaskExecutionSignals(xpti::trace_event_data_t * /*Parent*/,
   if (!Event)
     return;
 
+  char *Key = 0;
+  uint64_t Value;
+  bool HaveKeyValue =
+      (xptiGetStashedTuple(&Key, Value) == xpti::result_t::XPTI_RESULT_SUCCESS);
+
   std::cout << "[SYCL] Task " << (IsBegin ? "begin" : "end  ")
             << " (event=" << Event << ",instanceID=" << InstanceID << ")"
             << std::endl;
@@ -66,6 +71,10 @@ void TraceTaskExecutionSignals(xpti::trace_event_data_t * /*Parent*/,
   // same event appeared between begin-end points.
   if (!IsBegin || !PrintSyclVerbose)
     return;
+
+  if (HaveKeyValue) {
+    std::cout << "\t  " << Key << " : " << Value << std::endl;
+  }
 
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
   for (auto &Item : *Metadata) {

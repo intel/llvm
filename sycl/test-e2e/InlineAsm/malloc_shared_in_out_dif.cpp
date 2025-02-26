@@ -1,11 +1,10 @@
-// UNSUPPORTED: cuda, hip
-// REQUIRES: gpu,linux,sg-16,aspect-usm_shared_allocations
+// REQUIRES: sg-16,aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 constexpr size_t problem_size = 100;
 

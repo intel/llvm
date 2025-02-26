@@ -1,10 +1,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}
 
-#include <iostream>
-#include <sycl/sycl.hpp>
-
 #include <cassert>
+#include <iostream>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/stream.hpp>
 
 int main() {
   sycl::queue Queue;

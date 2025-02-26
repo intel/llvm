@@ -1,15 +1,13 @@
 // REQUIRES: level_zero
 
-// https://github.com/intel/llvm/issues/11434
-// XFAIL: gpu-intel-dg2
-
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
 // RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --implicit-check-not=LEAK
 // RUN: %{l0_leak_check} %{run} %t.out s 2>&1 | FileCheck %s --implicit-check-not=LEAK
 // RUN: %{l0_leak_check} %{run} %t.out l 2>&1 | FileCheck %s --implicit-check-not=LEAK
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 using namespace sycl;
 
 #include <array>

@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/common_info.hpp>
+
+#include <ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {
@@ -26,6 +27,16 @@ tls_code_loc_t::tls_code_loc_t() {
   // Check TLS to see if a previously stashed code_location object is
   // available; if so, we are in a local scope.
   MLocalScope = GCodeLocTLS.fileName() && GCodeLocTLS.functionName();
+}
+
+ur_code_location_t codeLocationCallback(void *) {
+  ur_code_location_t codeloc;
+  codeloc.columnNumber = GCodeLocTLS.columnNumber();
+  codeloc.lineNumber = GCodeLocTLS.lineNumber();
+  codeloc.functionName = GCodeLocTLS.functionName();
+  codeloc.sourceFile = GCodeLocTLS.fileName();
+
+  return codeloc;
 }
 
 /// @brief Constructor to use at the top level of the calling stack
@@ -53,44 +64,6 @@ tls_code_loc_t::~tls_code_loc_t() {
 }
 
 const detail::code_location &tls_code_loc_t::query() { return GCodeLocTLS; }
-
-const char *stringifyErrorCode(pi_int32 error) {
-  switch (error) {
-#define _PI_ERRC(NAME, VAL)                                                    \
-  case NAME:                                                                   \
-    return #NAME;
-#define _PI_ERRC_WITH_MSG(NAME, VAL, MSG)                                      \
-  case NAME:                                                                   \
-    return MSG;
-#include <sycl/detail/pi_error.def>
-#undef _PI_ERRC
-#undef _PI_ERRC_WITH_MSG
-
-  default:
-    return "Unknown error code";
-  }
-}
-
-std::vector<std::string> split_string(const std::string &str, char delimeter) {
-  std::vector<std::string> Result;
-  size_t Start = 0;
-  size_t End = 0;
-  while ((End = str.find(delimeter, Start)) != std::string::npos) {
-    Result.push_back(str.substr(Start, End - Start));
-    Start = End + 1;
-  }
-  // Get the last substring and ignore the null character so we wouldn't get
-  // double null characters \0\0 at the end of the substring
-  End = str.find('\0');
-  if (Start < End) {
-    std::string LastSubStr(str.substr(Start, End - Start));
-    // In case str has a delimeter at the end, the substring will be empty, so
-    // we shouldn't add it to the final vector
-    if (!LastSubStr.empty())
-      Result.push_back(LastSubStr);
-  }
-  return Result;
-}
 
 } // namespace detail
 } // namespace _V1

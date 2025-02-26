@@ -23,7 +23,7 @@
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID1]]
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID2]]
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID3]]
-; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID4]]
+; CHECK-SPIRV: MemoryBarrier [[#ID2]] [[#ID4]]
 ; CHECK-SPIRV: MemoryBarrier [[#ID1]] [[#ID2]]
 
 

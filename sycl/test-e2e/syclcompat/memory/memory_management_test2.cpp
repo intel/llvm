@@ -30,11 +30,10 @@
 //
 // ===----------------------------------------------------------------------===//
 
-// REQUIRES: usm_shared_allocations
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/memory.hpp>
 
@@ -188,16 +187,10 @@ void test_global_memory() {
       auto g_B_acc = g_B.get_access(cgh);
       auto g_C_acc = g_C.get_access(cgh);
       cgh.parallel_for(sycl::range<2>(DataW, DataH), [=](sycl::id<2> id) {
-        // test_feature:accessor
-        // test_feature:memory_region
         syclcompat::accessor<float, syclcompat::memory_region::global, 2> A(
             g_A_acc);
-        // test_feature:accessor
-        // test_feature:memory_region
         syclcompat::accessor<float, syclcompat::memory_region::global, 2> B(
             g_B_acc);
-        // test_feature:accessor
-        // test_feature:memory_region
         syclcompat::accessor<float, syclcompat::memory_region::global, 2> C(
             g_C_acc);
         int i = id[0], j = id[1];
@@ -213,46 +206,6 @@ void test_global_memory() {
   for (int i = 0; i < DataW; i++) {
     for (int j = 0; j < DataH; j++) {
       assert(fabs(h_C[i][j] - h_A[i][j] - h_B[i][j]) <= 1e-5);
-    }
-  }
-}
-
-void test_shared_memory() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  syclcompat::shared_memory<float, 1> s_A(DataW);
-  syclcompat::shared_memory<float, 1> s_B(DataW);
-  syclcompat::shared_memory<float, 1> s_C(DataW);
-
-  s_A.init();
-  s_B.init();
-  s_C.init();
-
-  for (int i = 0; i < DataW; i++) {
-    s_A[i] = 1.0f;
-    s_B[i] = 2.0f;
-  }
-
-  {
-    syclcompat::get_default_queue().submit([&](sycl::handler &cgh) {
-      float *d_A = s_A.get_ptr();
-      float *d_B = s_B.get_ptr();
-      float *d_C = s_C.get_ptr();
-      cgh.parallel_for(sycl::range<1>(DataW), [=](sycl::id<1> id) {
-        int i = id[0];
-        float *A = d_A;
-        float *B = d_B;
-        float *C = d_C;
-        C[i] = A[i] + B[i];
-      });
-    });
-    syclcompat::get_default_queue().wait_and_throw();
-  }
-
-  // verify hostD
-  for (int i = 0; i < DataW; i++) {
-    for (int j = 0; j < DataH; j++) {
-      assert(fabs(s_C[i] - s_A[i] - s_B[i]) <= 1e-5);
     }
   }
 }
@@ -366,7 +319,6 @@ int main() {
   test_memcpy_pitched_q();
 
   test_global_memory();
-  test_shared_memory();
   test_constant_memory();
   return 0;
 }

@@ -31,10 +31,10 @@
 // ===----------------------------------------------------------------------===//
 
 // REQUIRES: sg-32
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 #define WARP_SIZE 32
@@ -108,7 +108,7 @@ void test_select_from_sub_group() {
       .wait();
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
-                          [[intel::reqd_sub_group_size(32)]] {
+                          [[sycl::reqd_sub_group_size(32)]] {
                             select_from_sub_group1(dev_data_u, item_ct1);
                           });
 
@@ -134,7 +134,7 @@ void test_select_from_sub_group() {
       .wait();
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
-                          [[intel::reqd_sub_group_size(32)]] {
+                          [[sycl::reqd_sub_group_size(32)]] {
                             select_from_sub_group2(dev_data_u, item_ct1);
                           });
 

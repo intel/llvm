@@ -1,12 +1,14 @@
-// RUN: %{build} -o %t.out %threads_lib %opencl_lib
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out %threads_lib %opencl_lib
 // RUN: %{run} %t.out
 // UNSUPPORTED: level_zero, cuda
 // REQUIRES: opencl, opencl_icd
 
 #include <iostream>
+#include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
 #include <sycl/detail/cl.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/interop_handle.hpp>
 
 using namespace sycl;
 using namespace sycl::access;
@@ -44,18 +46,13 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
       int RC = clEnqueueCopyBuffer(NativeQ, SrcMem[0], DstMem[0], 0, 0,
                                    sizeof(DataT) * SrcA.get_count(), 0, nullptr,
                                    &Event);
-      if (RC != CL_SUCCESS)
-        throw runtime_error("Can't enqueue buffer copy", RC);
+      assert(RC == CL_SUCCESS);
 
       RC = clWaitForEvents(1, &Event);
+      assert(RC == CL_SUCCESS);
 
-      if (RC != CL_SUCCESS)
-        throw runtime_error("Can't wait for event on buffer copy", RC);
-
-      if (Q.get_backend() != IH.get_backend())
-        throw runtime_error(
-            "interop_handle::get_backend() returned a wrong value",
-            CL_INVALID_VALUE);
+      assert(Q.get_backend() == IH.get_backend() &&
+             "interop_handle::get_backend() returned a wrong value");
     };
     CGH.host_task(Func);
   });
@@ -170,8 +167,7 @@ void test3(queue &Q) {
       std::vector<cl_event> Ev = get_native<backend::opencl>(Event);
 
       int RC = clWaitForEvents(1, Ev.data());
-      if (RC != CL_SUCCESS)
-        throw runtime_error("Can't wait for events", RC);
+      assert(RC == CL_SUCCESS);
     };
     CGH.host_task(Func);
   });

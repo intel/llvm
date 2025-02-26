@@ -1,7 +1,10 @@
+// REQUIRES: aspect-fp64, aspect-fp16
 // RUN: %{build} -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 int main() {
   sycl::range<1> ndRng(3);

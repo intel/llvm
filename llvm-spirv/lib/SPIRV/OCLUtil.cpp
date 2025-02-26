@@ -35,7 +35,6 @@
 // This file implements OCL utility functions.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "oclutil"
 
 #include "OCLUtil.h"
 #include "SPIRVEntry.h"
@@ -49,6 +48,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "oclutil"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -780,26 +781,39 @@ decodeOCLVer(unsigned Ver) {
 }
 
 unsigned getOCLVersion(Module *M, bool AllowMulti) {
-  NamedMDNode *NamedMD = M->getNamedMetadata(kSPIR2MD::OCLVer);
-  if (!NamedMD)
+  NamedMDNode *NamedMDOCLVer = M->getNamedMetadata(kSPIR2MD::OCLVer);
+  NamedMDNode *NamedMDOCLCXXVer = M->getNamedMetadata(kSPIR2MD::OCLCXXVer);
+  if (!NamedMDOCLVer && !NamedMDOCLCXXVer)
     return 0;
-  assert(NamedMD->getNumOperands() > 0 && "Invalid SPIR");
-  if (!AllowMulti && NamedMD->getNumOperands() != 1)
-    report_fatal_error(
-        llvm::Twine("Multiple OCL version metadata not allowed"));
 
   // If the module was linked with another module, there may be multiple
   // operands.
-  auto GetVer = [=](unsigned I) {
+  auto GetVerPair = [](unsigned I, NamedMDNode *NamedMD) {
     auto *MD = NamedMD->getOperand(I);
     return std::make_pair(getMDOperandAsInt(MD, 0), getMDOperandAsInt(MD, 1));
   };
-  auto Ver = GetVer(0);
-  for (unsigned I = 1, E = NamedMD->getNumOperands(); I != E; ++I)
-    if (Ver != GetVer(I))
-      report_fatal_error(llvm::Twine("OCL version mismatch"));
-
-  return encodeOCLVer(Ver.first, Ver.second, 0);
+  auto GetVer = [=](NamedMDNode *NamedMD) {
+    assert(NamedMD->getNumOperands() && "Invalid SPIR");
+    if (!AllowMulti && NamedMD->getNumOperands() != 1)
+      report_fatal_error(
+          llvm::Twine("Multiple OCL version metadata not allowed"));
+    auto Ver = GetVerPair(0, NamedMD);
+    for (unsigned I = 1, E = NamedMD->getNumOperands(); I != E; ++I)
+      if (Ver != GetVerPair(I, NamedMD))
+        report_fatal_error(llvm::Twine("OCL version mismatch"));
+    return encodeOCLVer(Ver.first, Ver.second, 0);
+  };
+  unsigned OCLVer = NamedMDOCLVer ? GetVer(NamedMDOCLVer) : 0;
+  unsigned OCLCXXVer = NamedMDOCLCXXVer ? GetVer(NamedMDOCLCXXVer) : 0;
+  // Check if OCLCXXVer is compatible with OCLVer
+  if (OCLVer && OCLCXXVer) {
+    if ((OCLVer == kOCLVer::CL20 && OCLCXXVer == kOCLVer::CLCXX10) ||
+        (OCLVer == kOCLVer::CL30 && OCLCXXVer == kOCLVer::CLCXX2021))
+      return OCLCXXVer;
+    report_fatal_error(llvm::Twine(
+        "opencl cxx version is not compatible with opencl c version!"));
+  }
+  return OCLVer;
 }
 
 SmallVector<unsigned, 3> decodeMDNode(MDNode *N) {
@@ -1027,12 +1041,11 @@ public:
       setVarArg(1);
     else if (NameRef.starts_with("write_imageui"))
       addUnsignedArg(2);
-    else if (NameRef.equals("prefetch")) {
+    else if (NameRef == "prefetch") {
       addUnsignedArg(1);
       setArgAttr(0, SPIR::ATTR_CONST);
-    } else if (NameRef.equals("get_kernel_work_group_size") ||
-               NameRef.equals(
-                   "get_kernel_preferred_work_group_size_multiple")) {
+    } else if (NameRef == "get_kernel_work_group_size" ||
+               NameRef == "get_kernel_preferred_work_group_size_multiple") {
       assert(F && "lack of necessary information");
       const size_t BlockArgIdx = 0;
       FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
@@ -1041,8 +1054,8 @@ public:
     } else if (NameRef.starts_with("__enqueue_kernel")) {
       // clang doesn't mangle enqueue_kernel builtins
       setAsDontMangle();
-    } else if (NameRef.starts_with("get_") || NameRef.equals("nan") ||
-               NameRef.equals("mem_fence") || NameRef.starts_with("shuffle")) {
+    } else if (NameRef.starts_with("get_") || NameRef == "nan" ||
+               NameRef == "mem_fence" || NameRef.starts_with("shuffle")) {
       addUnsignedArg(-1);
       if (NameRef.starts_with(kOCLBuiltinName::GetFence)) {
         setArgAttr(0, SPIR::ATTR_CONST);
@@ -1050,10 +1063,9 @@ public:
       }
     } else if (NameRef.contains("barrier")) {
       addUnsignedArg(0);
-      if (NameRef.equals("work_group_barrier") ||
-          NameRef.equals("sub_group_barrier") ||
-          NameRef.equals("intel_work_group_barrier_arrive") ||
-          NameRef.equals("intel_work_group_barrier_wait"))
+      if (NameRef == "work_group_barrier" || NameRef == "sub_group_barrier" ||
+          NameRef == "intel_work_group_barrier_arrive" ||
+          NameRef == "intel_work_group_barrier_wait")
         setEnumArg(1, SPIR::PRIMITIVE_MEMORY_SCOPE);
     } else if (NameRef.starts_with("atomic_work_item_fence")) {
       addUnsignedArg(0);
@@ -1109,18 +1121,18 @@ public:
       NameRef = NameRef.drop_front(1);
       UnmangledName.erase(0, 1);
     } else if (NameRef.starts_with("s_")) {
-      if (NameRef.equals("s_upsample"))
+      if (NameRef == "s_upsample")
         addUnsignedArg(1);
       NameRef = NameRef.drop_front(2);
     } else if (NameRef.starts_with("u_")) {
       addUnsignedArg(-1);
       NameRef = NameRef.drop_front(2);
-    } else if (NameRef.equals("fclamp")) {
+    } else if (NameRef == "fclamp") {
       NameRef = NameRef.drop_front(1);
     }
     // handle [read|write]pipe builtins (plus two i32 literal args
     // required by SPIR 2.0 provisional specification):
-    else if (NameRef.equals("read_pipe_2") || NameRef.equals("write_pipe_2")) {
+    else if (NameRef == "read_pipe_2" || NameRef == "write_pipe_2") {
       // with 2 arguments (plus two i32 literals):
       // int read_pipe (read_only pipe gentype p, gentype *ptr)
       // int write_pipe (write_only pipe gentype p, const gentype *ptr)
@@ -1128,16 +1140,14 @@ public:
       addUnsignedArg(2);
       addUnsignedArg(3);
       // OpenCL-like representation of blocking pipes
-    } else if (NameRef.equals("read_pipe_2_bl") ||
-               NameRef.equals("write_pipe_2_bl")) {
+    } else if (NameRef == "read_pipe_2_bl" || NameRef == "write_pipe_2_bl") {
       // with 2 arguments (plus two i32 literals):
       // int read_pipe_bl (read_only pipe gentype p, gentype *ptr)
       // int write_pipe_bl (write_only pipe gentype p, const gentype *ptr)
       addVoidPtrArg(1);
       addUnsignedArg(2);
       addUnsignedArg(3);
-    } else if (NameRef.equals("read_pipe_4") ||
-               NameRef.equals("write_pipe_4")) {
+    } else if (NameRef == "read_pipe_4" || NameRef == "write_pipe_4") {
       // with 4 arguments (plus two i32 literals):
       // int read_pipe (read_only pipe gentype p, reserve_id_t reserve_id, uint
       // index, gentype *ptr) int write_pipe (write_only pipe gentype p,
@@ -1157,10 +1167,10 @@ public:
       // process [|work_group|sub_group]commit[read|write]pipe builtins
       addUnsignedArg(2);
       addUnsignedArg(3);
-    } else if (NameRef.equals("capture_event_profiling_info")) {
+    } else if (NameRef == "capture_event_profiling_info") {
       addVoidPtrArg(2);
       setEnumArg(1, SPIR::PRIMITIVE_CLK_PROFILING_INFO);
-    } else if (NameRef.equals("enqueue_marker")) {
+    } else if (NameRef == "enqueue_marker") {
       setArgAttr(2, SPIR::ATTR_CONST);
       addUnsignedArg(1);
     } else if (NameRef.starts_with("vload")) {
@@ -1317,6 +1327,20 @@ public:
     } else if (NameRef.starts_with("bitfield_extract_signed") ||
                NameRef.starts_with("bitfield_extract_unsigned")) {
       addUnsignedArgs(1, 2);
+    } else if (NameRef.starts_with("dot_")) {
+      if (NameRef.contains("4x8packed")) {
+        addUnsignedArgs(0, 1);
+        if (NameRef == "dot_acc_sat_4x8packed_uu_uint")
+          addUnsignedArg(2);
+      } else {
+        if (NameRef.ends_with("_uu")) {
+          addUnsignedArgs(0, 1);
+          if (NameRef.starts_with("dot_acc_sat"))
+            addUnsignedArg(2);
+        } else if (NameRef.ends_with("_su"))
+          addUnsignedArg(1);
+        NameRef = NameRef.drop_back(std::string("_uu").length());
+      }
     }
 
     // Store the final version of a function name
@@ -1461,8 +1485,8 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
     OSS << VectorNumElements;
     break;
   case 16:
-    assert(ElementBitSize == 8 &&
-           "16 elements vector allowed only for char builtins");
+    assert((ElementBitSize == 8 || ElementBitSize == 16) &&
+           "16 elements vector allowed only for char and short builtins");
     OSS << VectorNumElements;
     break;
   default:
@@ -1521,7 +1545,7 @@ SPIRV::transSPIRVMemoryScopeIntoOCLMemoryScope(Value *MemScope,
 
   if (auto *CI = dyn_cast<CallInst>(MemScope)) {
     Function *F = CI->getCalledFunction();
-    if (F && F->getName().equals(kSPIRVName::TranslateOCLMemScope)) {
+    if (F && F->getName() == kSPIRVName::TranslateOCLMemScope) {
       // In case the SPIR-V module was created from an OpenCL program by
       // *this* SPIR-V generator, we know that the value passed to
       // __translate_ocl_memory_scope is what we should pass to the
@@ -1545,7 +1569,7 @@ SPIRV::transSPIRVMemorySemanticsIntoOCLMemoryOrder(Value *MemorySemantics,
 
   if (auto *CI = dyn_cast<CallInst>(MemorySemantics)) {
     Function *F = CI->getCalledFunction();
-    if (F && F->getName().equals(kSPIRVName::TranslateOCLMemOrder)) {
+    if (F && F->getName() == kSPIRVName::TranslateOCLMemOrder) {
       // In case the SPIR-V module was created from an OpenCL program by
       // *this* SPIR-V generator, we know that the value passed to
       // __translate_ocl_memory_order is what we should pass to the

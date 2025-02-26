@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.20.0)
 
 message("Configuring SYCL End-to-End Tests")
+
+option(SYCL_E2E_LIT_ALLOW_UNKNOWN_ARCH
+  "Allow unknown architectures when configuring e2e tests" Off)
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(sycl-e2e-test-suite CXX)
@@ -11,6 +14,12 @@ if(SYCL_TEST_E2E_STANDALONE)
   if( NOT OpenCL_LIBRARY )
     find_package(OpenCL)
   endif()
+else()
+  if( NOT OpenCL_LIBRARY )
+    set(OpenCL_LIBRARY "${LLVM_BINARY_DIR}/lib")
+  endif()
+  set(LEVEL_ZERO_INCLUDE "${LLVM_BINARY_DIR}/_deps/level-zero-loader-src/include")
+  set(LEVEL_ZERO_LIBS_DIR "${LLVM_BINARY_DIR}/lib")
 endif() # Standalone.
 
 if(SYCL_TEST_E2E_STANDALONE)
@@ -28,7 +37,7 @@ find_package(Vulkan)
 
 if(NOT LLVM_LIT)
   find_program(LLVM_LIT
-               NAMES llvm-lit lit.py lit
+               NAMES llvm-lit.py llvm-lit lit.py lit
                PATHS "${LLVM_MAIN_SRC_DIR}/utils/lit"
                DOC "Path to lit.py")
 endif()
@@ -57,6 +66,8 @@ if(MSVC AND NOT SYCL_TEST_E2E_STANDALONE)
 else()
   set(SYCL_E2E_CLANG_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 endif()
+
+set(SYCL_E2E_CLANG_CXX_FLAGS "${SYCL_E2E_CLANG_CXX_FLAGS} -Werror")
 
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"

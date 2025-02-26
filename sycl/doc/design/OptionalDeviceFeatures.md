@@ -867,10 +867,10 @@ types:
 
 Property Name             | Property Type
 -------------             | -------------
-"aspect"                  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
-"reqd\_sub\_group\_size"  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
-"reqd\_work\_group\_size" | `PI_PROPERTY_TYPE_BYTE_ARRAY`
-"fixed\_target"           | `PI_PROPERTY_TYPE_BYTE_ARRAY`
+"aspect"                  | `SYCL_PROPERTY_TYPE_BYTE_ARRAY`
+"reqd\_sub\_group\_size"  | `SYCL_PROPERTY_TYPE_BYTE_ARRAY`
+"reqd\_work\_group\_size" | `SYCL_PROPERTY_TYPE_BYTE_ARRAY`
+"fixed\_target"           | `SYCL_PROPERTY_TYPE_BYTE_ARRAY`
 
 The "aspect" property tells the set of aspects that a device must have in order
 to use the image.  The image is only compatible with a device that supports

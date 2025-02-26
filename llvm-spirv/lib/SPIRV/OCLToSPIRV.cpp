@@ -36,7 +36,6 @@
 // friendly IR form for further translation into SPIR-V
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "ocl-to-spv"
 
 #include "OCLToSPIRV.h"
 #include "OCLTypeToSPIRV.h"
@@ -52,7 +51,10 @@
 #include "llvm/Support/Debug.h"
 
 #include <algorithm>
+#include <regex>
 #include <set>
+
+#define DEBUG_TYPE "ocl-to-spv"
 
 using namespace llvm;
 using namespace PatternMatch;
@@ -339,6 +341,10 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
     visitCallDot(&CI, MangledName, DemangledName);
     return;
   }
+  if (DemangledName.starts_with(kOCLBuiltinName::ClockReadPrefix)) {
+    visitCallClockRead(&CI, MangledName, DemangledName);
+    return;
+  }
   if (DemangledName == kOCLBuiltinName::FMin ||
       DemangledName == kOCLBuiltinName::FMax ||
       DemangledName == kOCLBuiltinName::Min ||
@@ -438,12 +444,14 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
   //   local work size
   // The arguments need to add missing members.
   for (size_t I = 1, E = CI->arg_size(); I != E; ++I)
-    Mutator.mapArg(I, [=](Value *V) { return getScalarOrArray(V, Len, CI); });
+    Mutator.mapArg(I, [=](Value *V) {
+      return getScalarOrArray(V, Len, CI->getIterator());
+    });
   switch (CI->arg_size()) {
   case 2: {
     // Has global work size.
     auto *T = Mutator.getArg(1)->getType();
-    auto *C = getScalarOrArrayConstantInt(CI, T, Len, 0);
+    auto *C = getScalarOrArrayConstantInt(CI->getIterator(), T, Len, 0);
     Mutator.appendArg(C);
     Mutator.appendArg(C);
     break;
@@ -451,7 +459,8 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
   case 3: {
     // Has global and local work size.
     auto *T = Mutator.getArg(1)->getType();
-    Mutator.appendArg(getScalarOrArrayConstantInt(CI, T, Len, 0));
+    Mutator.appendArg(
+        getScalarOrArrayConstantInt(CI->getIterator(), T, Len, 0));
     break;
   }
   case 4: {
@@ -479,6 +488,18 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
     auto Mutator = mutateCallInst(CI, kOCLBuiltinName::AtomicCmpXchgStrong);
     Value *Expected = Mutator.getArg(1);
     Type *MemTy = Mutator.getArg(2)->getType();
+    if (MemTy->isFloatTy() || MemTy->isDoubleTy()) {
+      MemTy =
+          MemTy->isFloatTy() ? Type::getInt32Ty(*Ctx) : Type::getInt64Ty(*Ctx);
+      Mutator.replaceArg(
+          0,
+          {Mutator.getArg(0),
+           TypedPointerType::get(
+               MemTy, Mutator.getArg(0)->getType()->getPointerAddressSpace())});
+      Mutator.mapArg(2, [=](IRBuilder<> &Builder, Value *V) {
+        return Builder.CreateBitCast(V, MemTy);
+      });
+    }
     assert(MemTy->isIntegerTy() &&
            "In SPIR-V 1.0 arguments of OpAtomicCompareExchange must be "
            "an integer type scalars");
@@ -496,7 +517,8 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
 }
 
 void OCLToSPIRVBase::visitCallAtomicInit(CallInst *CI) {
-  auto *ST = new StoreInst(CI->getArgOperand(1), CI->getArgOperand(0), CI);
+  auto *ST = new StoreInst(CI->getArgOperand(1), CI->getArgOperand(0),
+                           CI->getIterator());
   ST->takeName(CI);
   CI->dropAllReferences();
   CI->eraseFromParent();
@@ -512,11 +534,11 @@ void OCLToSPIRVBase::visitCallAllAny(spv::Op OC, CallInst *CI) {
   auto *Zero = Constant::getNullValue(Args[0]->getType());
 
   auto *Cmp = CmpInst::Create(CmpInst::ICmp, CmpInst::ICMP_SLT, Args[0], Zero,
-                              "cast", CI);
+                              "cast", CI->getIterator());
 
   if (!isa<VectorType>(ArgTy)) {
-    auto *Cast = CastInst::CreateZExtOrBitCast(Cmp, Type::getInt32Ty(*Ctx), "",
-                                               Cmp->getNextNode());
+    auto *Cast = CastInst::CreateZExtOrBitCast(
+        Cmp, Type::getInt32Ty(*Ctx), "", Cmp->getNextNode()->getIterator());
     CI->replaceAllUsesWith(Cast);
     CI->eraseFromParent();
   } else {
@@ -724,6 +746,13 @@ void OCLToSPIRVBase::visitCallBarrier(CallInst *CI) {
 
 void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
                                       StringRef DemangledName) {
+  // OpenCL Explicit Conversions (6.4.3) formed as below for scalars:
+  // destType convert_destType<_sat><_roundingMode>(sourceType)
+  // and for vector type:
+  // destTypeN convert_destTypeN<_sat><_roundingMode>(sourceTypeN)
+  // If the demangled name is not matching the suggested pattern and does not
+  // meet allowed destination type restrictions - this is not an OpenCL builtin,
+  // return from the function and translate such CallInst as a function call.
   if (eraseUselessConvert(CI, MangledName, DemangledName))
     return;
   Op OC = OpNop;
@@ -735,15 +764,25 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
     SrcTy = VecTy->getElementType();
   auto IsTargetInt = isa<IntegerType>(TargetTy);
 
-  std::string TargetTyName(
-      DemangledName.substr(strlen(kOCLBuiltinName::ConvertPrefix)));
-  auto FirstUnderscoreLoc = TargetTyName.find('_');
-  if (FirstUnderscoreLoc != std::string::npos)
-    TargetTyName = TargetTyName.substr(0, FirstUnderscoreLoc);
-  TargetTyName = std::string("_R") + TargetTyName;
+  // Validate conversion function name and vector size if present
+  std::regex Expr(
+      "convert_(float|double|half|u?char|u?short|u?int|u?long)(2|3|4|8|16)*"
+      "(_sat)*(_rt[ezpn])*$");
+  std::smatch DestTyMatch;
+  std::string ConversionFunc(DemangledName.str());
+  if (!std::regex_match(ConversionFunc, DestTyMatch, Expr))
+    return;
 
-  std::string Sat = DemangledName.find("_sat") != StringRef::npos ? "_sat" : "";
-  auto TargetSigned = DemangledName[8] != 'u';
+  // The first sub_match is the whole string; the next
+  // sub_matches are the parenthesized expressions.
+  enum { TypeIdx = 1, VecSizeIdx = 2, SatIdx = 3, RoundingIdx = 4 };
+  std::string DestTy = DestTyMatch[TypeIdx].str();
+  std::string VecSize = DestTyMatch[VecSizeIdx].str();
+  std::string Sat = DestTyMatch[SatIdx].str();
+  std::string Rounding = DestTyMatch[RoundingIdx].str();
+
+  bool TargetSigned = DestTy[0] != 'u';
+
   if (isa<IntegerType>(SrcTy)) {
     bool Signed = isLastFuncParamSigned(MangledName);
     if (IsTargetInt) {
@@ -760,13 +799,13 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
     } else
       OC = OpFConvert;
   }
-  auto Loc = DemangledName.find("_rt");
-  std::string Rounding;
-  if (Loc != StringRef::npos && !(isa<IntegerType>(SrcTy) && IsTargetInt)) {
-    Rounding = DemangledName.substr(Loc, 4).str();
-  }
+
+  if (!Rounding.empty() && (isa<IntegerType>(SrcTy) && IsTargetInt))
+    return;
+
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  mutateCallInst(CI, getSPIRVFuncName(OC, TargetTyName + Sat + Rounding));
+  mutateCallInst(
+      CI, getSPIRVFuncName(OC, "_R" + DestTy + VecSize + Sat + Rounding));
 }
 
 void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
@@ -920,7 +959,7 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
     Mutator.changeReturnType(
         Info.RetTy, [OldRetTy, &Info](IRBuilder<> &Builder, CallInst *NewCI) {
           if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy()) {
-            return Builder.CreateIntCast(NewCI, OldRetTy, Info.IsRetSigned);
+            return Builder.CreateIntCast(NewCI, OldRetTy, false);
           }
           return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
         });
@@ -1020,13 +1059,15 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1), getInt32(M, 2),
                                  getInt32(M, 3)};
             return new ShuffleVectorInst(NCI, ZeroVec,
-                                         ConstantVector::get(Index), "", CI);
+                                         ConstantVector::get(Index), "",
+                                         CI->getIterator());
 
           } else if (Desc.Dim == Dim2D && Desc.Arrayed) {
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1)};
             Constant *Mask = ConstantVector::get(Index);
             return new ShuffleVectorInst(NCI, UndefValue::get(NCI->getType()),
-                                         Mask, NCI->getName(), CI);
+                                         Mask, NCI->getName(),
+                                         CI->getIterator());
           }
           return NCI;
         }
@@ -1036,7 +1077,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
                          .Case(kOCLBuiltinName::GetImageDepth, 2)
                          .Case(kOCLBuiltinName::GetImageArraySize, Dim - 1);
         return ExtractElementInst::Create(NCI, getUInt32(M, I), "",
-                                          NCI->getNextNode());
+                                          NCI->getNextNode()->getIterator());
       });
 }
 
@@ -1120,7 +1161,7 @@ void OCLToSPIRVBase::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
         .mapArg(Mutator.arg_size() - 1,
                 [&](Value *V) {
                   return std::make_pair(
-                      castToInt8Ptr(V, CI),
+                      castToInt8Ptr(V, CI->getIterator()),
                       TypedPointerType::get(Type::getInt8Ty(V->getContext()),
                                             SPIRAS_Generic));
                 })
@@ -1303,6 +1344,23 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
   }
 }
 
+void OCLToSPIRVBase::visitCallClockRead(CallInst *CI, StringRef MangledName,
+                                        StringRef DemangledName) {
+  // The builtin returns i64 or <2 x i32>, but both variants are mapped to the
+  // same instruction; hence include the return type.
+  std::string OpName = getSPIRVFuncName(OpReadClockKHR, CI->getType());
+
+  // Scope is part of the OpenCL builtin name.
+  Scope ScopeArg = StringSwitch<Scope>(DemangledName)
+                       .EndsWith("device", ScopeDevice)
+                       .EndsWith("work_group", ScopeWorkgroup)
+                       .EndsWith("sub_group", ScopeSubgroup)
+                       .Default(ScopeMax);
+
+  auto Mutator = mutateCallInst(CI, OpName);
+  Mutator.appendArg(getInt32(M, ScopeArg));
+}
+
 void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
                                         StringRef DemangledName) {
   // Check if all arguments have the same type - it's simple case.
@@ -1351,11 +1409,12 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
                               getExtOp(MangledName, DemangledName)));
   for (auto I : ScalarPos)
     Mutator.mapArg(I, [&](Value *V) {
-      Instruction *Inst = InsertElementInst::Create(UndefValue::get(VecTy), V,
-                                                    getInt32(M, 0), "", CI);
+      Instruction *Inst = InsertElementInst::Create(
+          UndefValue::get(VecTy), V, getInt32(M, 0), "", CI->getIterator());
       return new ShuffleVectorInst(
           Inst, UndefValue::get(VecTy),
-          ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "", CI);
+          ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "",
+          CI->getIterator());
     });
 }
 
@@ -1372,7 +1431,7 @@ bool usesSpvExtImageRaw10Raw12Constants(const CallInst *CI) {
   // common use patterns here.
   for (auto *U : CI->users()) {
     for (auto C : ExtConstants) {
-      ICmpInst::Predicate Pred;
+      CmpPredicate Pred;
       if (match(U, m_c_ICmp(Pred, m_Value(), m_SpecificInt(C)))) {
         return true;
       }
@@ -1468,7 +1527,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
           LocalSizeArray->getSourceElementType(), // Pointee type
           LocalSizeArray->getPointerOperand(),    // Alloca
           {getInt32(M, 0), getInt32(M, I)},       // Indices
-          "", CI));
+          "", CI->getIterator()));
   }
 
   StringRef NewName = "__spirv_EnqueueKernel__";
@@ -1477,7 +1536,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   Function *NewF =
       Function::Create(FT, GlobalValue::ExternalLinkage, NewName, M);
   NewF->setCallingConv(CallingConv::SPIR_FUNC);
-  CallInst *NewCall = CallInst::Create(NewF, Args, "", CI);
+  CallInst *NewCall = CallInst::Create(NewF, Args, "", CI->getIterator());
   NewCall->setCallingConv(NewF->getCallingConv());
   CI->replaceAllUsesWith(NewCall);
   CI->eraseFromParent();

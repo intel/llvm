@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/detail/export.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {

@@ -120,8 +120,9 @@ protected:
 private:
   void outputDependencyFile(DiagnosticsEngine &Diags);
 
+  llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS;
   std::string OutputFile;
-  std::string DependencyFilter;
+  std::vector<std::string> DependencyFilter;
   std::vector<std::string> Targets;
   bool IncludeSystemHeaders;
   bool PhonyTarget;

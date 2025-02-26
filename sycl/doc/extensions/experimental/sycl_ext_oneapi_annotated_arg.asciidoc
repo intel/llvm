@@ -200,7 +200,7 @@ template <typename T, typename PropertyListT = empty_properties_t>
 class annotated_arg {
   public:
     annotated_arg() noexcept;
-    annotated_arg(const T& v_, const PropertyListT &P = properties{}) noexcept;
+    annotated_arg(const T& v_, const PropertyListT &P = PropertyListT{}) noexcept;
     template<typename... PropertyValueTs>
     annotated_arg(const T& v_, PropertyValueTs... props) noexcept;
 
@@ -277,7 +277,7 @@ Constructs an `annotated_arg` object which is default initialized.
 a|
 [source,c++]
 ----
-annotated_arg(const T& v_, const PropertyListT &P = properties{}) noexcept;
+annotated_arg(const T& v_, const PropertyListT &P = PropertyListT{}) noexcept;
 ----
 | Not available in device code.
 Constructs an `annotated_arg` object from the input object `v_`.

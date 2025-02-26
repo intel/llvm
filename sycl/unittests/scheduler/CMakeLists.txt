@@ -20,5 +20,5 @@ add_sycl_unittest(SchedulerTests OBJECT
     InOrderQueueSyncCheck.cpp
     EnqueueWithDependsOnDeps.cpp
     AccessorDefaultCtor.cpp
-    KernelFusion.cpp
+    HostTaskAndBarrier.cpp
 )

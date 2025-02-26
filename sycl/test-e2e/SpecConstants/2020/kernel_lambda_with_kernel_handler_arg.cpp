@@ -6,7 +6,9 @@
 // and parallel_for_work_group to verify that this code compiles and runs
 // correctly with user's lambda with and without sycl::kernel_handler argument
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 int main() {
   sycl::queue q;

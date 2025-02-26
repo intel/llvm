@@ -8,8 +8,7 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>             // for decorated, address_space
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
+#include <sycl/access/access.hpp> // for decorated, address_space
 
 namespace sycl {
 inline namespace _V1 {
@@ -28,23 +27,6 @@ template <typename ElementType,
           access::decorated IsDecorated = access::decorated::legacy>
 using global_ptr =
     multi_ptr<ElementType, access::address_space::global_space, IsDecorated>;
-
-// Note: Templated alias deprecation is not currently working in clang. See
-// https://github.com/llvm/llvm-project/issues/18236.
-template <typename ElementType,
-          access::decorated IsDecorated = access::decorated::legacy>
-using device_ptr __SYCL_DEPRECATED(
-    "Use 'sycl::ext::intel::device_ptr' instead.") =
-    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
-              IsDecorated>;
-
-// Note: Templated alias deprecation is not currently working in clang. See
-// https://github.com/llvm/llvm-project/issues/18236.
-template <typename ElementType,
-          access::decorated IsDecorated = access::decorated::legacy>
-using host_ptr __SYCL_DEPRECATED("Use 'sycl::ext::intel::host_ptr' instead.") =
-    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
-              IsDecorated>;
 
 template <typename ElementType,
           access::decorated IsDecorated = access::decorated::legacy>
@@ -66,6 +48,11 @@ using private_ptr =
 // address space information internally.
 
 template <typename ElementType>
+using raw_generic_ptr =
+    multi_ptr<ElementType, access::address_space::generic_space,
+              access::decorated::no>;
+
+template <typename ElementType>
 using raw_global_ptr =
     multi_ptr<ElementType, access::address_space::global_space,
               access::decorated::no>;
@@ -81,6 +68,11 @@ using raw_private_ptr =
 
 // Template specialization aliases for different pointer address spaces.
 // The interface exposes decorated pointer.
+
+template <typename ElementType>
+using decorated_generic_ptr =
+    multi_ptr<ElementType, access::address_space::generic_space,
+              access::decorated::yes>;
 
 template <typename ElementType>
 using decorated_global_ptr =

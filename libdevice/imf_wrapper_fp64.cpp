@@ -7,9 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "device_imf.hpp"
+#include "device.h"
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "device_imf.hpp"
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_double2float_rd(double);
@@ -361,6 +363,12 @@ DEVICE_EXTERN_C_INLINE
 double __imf_copysign(double x, double y) {
   return __devicelib_imf_copysign(x, y);
 }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_rcp64h(double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_rcp64h(double x) { return __devicelib_imf_rcp64h(x); }
 
 DEVICE_EXTERN_C_INLINE
 _iml_half_internal __devicelib_imf_double2half(double);

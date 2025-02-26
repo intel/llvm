@@ -1,26 +1,23 @@
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
-// RUN: %{run} %t.out
-//==- bit_shift_compilation_test.cpp - Test for compilation of bit shift
-// functions -==//
+//==- bit_shift_compilation_test.cpp - Test of bit shift functions -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#include <CL/sycl.hpp>
-#include <ext/intel/esimd.hpp>
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::experimental::esimd;
 
 #define SIMD 16
 #define THREAD_NUM 512
 #define TEST_VALUE 0x55555555
+
+#define NS sycl::ext::intel::esimd
 
 template <typename DataT>
 using shared_allocator = sycl::usm_allocator<DataT, sycl::usm::alloc::shared>;
@@ -29,7 +26,7 @@ using shared_vector = std::vector<DataT, shared_allocator<DataT>>;
 
 template <typename TRes, typename TArg1, typename TArg2,
           class Sat = __ESIMD_NS::saturation_off_tag>
-int test(cl::sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_shl,
+int test(sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_shl,
          TRes expected_shr, TRes expected_lsr, TRes expected_asr) {
   shared_allocator<TArg1> allocator1(q);
   shared_vector<TArg1> input(THREAD_NUM * SIMD, allocator1);
@@ -71,23 +68,23 @@ int test(cl::sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_shl,
       __ESIMD_NS::simd<TRes, 1> scalar_result;
       __ESIMD_NS::simd<TRes, SIMD> result;
 
-      result = shl<TArg1>(input_vec, arg2, sat);
-      scalar_result = shl<TArg1>(arg1, arg2, sat);
+      result = NS::shl<TArg1>(input_vec, arg2, sat);
+      scalar_result = NS::shl<TArg1>(arg1, arg2, sat);
       result.copy_to(shl_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_shl_ptr);
 
-      result = shr<TArg1>(input_vec, arg2, sat);
-      scalar_result = shr<TArg1>(arg1, arg2, sat);
+      result = NS::shr<TArg1>(input_vec, arg2, sat);
+      scalar_result = NS::shr<TArg1>(arg1, arg2, sat);
       result.copy_to(shr_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_shr_ptr);
 
-      result = lsr<TArg1>(input_vec, arg2, sat);
-      scalar_result = lsr<TArg1>(arg1, arg2, sat);
+      result = NS::lsr<TArg1>(input_vec, arg2, sat);
+      scalar_result = NS::lsr<TArg1>(arg1, arg2, sat);
       result.copy_to(lsr_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_lsr_ptr);
 
-      result = asr<TArg1>(input_vec, arg2, sat);
-      scalar_result = asr<TArg1>(arg1, arg2, sat);
+      result = NS::asr<TArg1>(input_vec, arg2, sat);
+      scalar_result = NS::asr<TArg1>(arg1, arg2, sat);
       result.copy_to(asr_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_asr_ptr);
     });
@@ -154,7 +151,36 @@ int main(int argc, char *argv[]) {
                                                    0x1000, 0x1000);
   test_result |= test<uint16_t, uint16_t, int32_t>(q, 0x7FFF, 2, 0xFFFC, 0x1FFF,
                                                    0x1FFF, 0x1FFF);
+#ifdef TEST_INT64
+  test_result |= test<uint64_t, uint64_t, int64_t>(
+      q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |= test<uint64_t, int64_t, int64_t>(
+      q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |= test<int64_t, uint64_t, int64_t>(
+      q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |= test<int64_t, int64_t, int64_t>(
+      q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
 
+  test_result |=
+      test<uint64_t, uint64_t, int64_t, __ESIMD_NS::saturation_on_tag>(
+          q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+          0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |=
+      test<uint64_t, int64_t, int64_t, __ESIMD_NS::saturation_on_tag>(
+          q, 0x5555555555555555, 1, 0x7FFFFFFFFFFFFFFF, 0x2AAAAAAAAAAAAAAA,
+          0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |=
+      test<int64_t, uint64_t, int64_t, __ESIMD_NS::saturation_on_tag>(
+          q, 0x5555555555555555, 1, 0xAAAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA,
+          0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+  test_result |= test<int64_t, int64_t, int64_t, __ESIMD_NS::saturation_on_tag>(
+      q, 0x5555555555555555, 1, 0x7FFFFFFFFFFFFFFF, 0x2AAAAAAAAAAAAAAA,
+      0x2AAAAAAAAAAAAAAA, 0x2AAAAAAAAAAAAAAA);
+#endif
   if (!test_result) {
     std::cout << "Pass" << std::endl;
   }

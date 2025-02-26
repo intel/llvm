@@ -11,10 +11,10 @@
 namespace Fortran::runtime {
 extern "C" {
 
-#if LDBL_MANT_DIG == 113 || HAS_FLOAT128
+#if HAS_LDBL128 || HAS_FLOAT128
 CppTypeFor<TypeCategory::Real, 16> RTDEF(SinF128)(
     CppTypeFor<TypeCategory::Real, 16> x) {
-  return Sin<RTNAME(SinF128)>::invoke(x);
+  return Sin<true>::invoke(x);
 }
 #endif
 

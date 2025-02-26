@@ -8,7 +8,7 @@
 
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -25,28 +25,26 @@ std::unique_ptr<TestCtx> TestContext;
 
 const int ExpectedEventThreshold = 128;
 
-pi_result redefinedQueueCreateEx(pi_context context, pi_device device,
-                                 pi_queue_properties *properties,
-                                 pi_queue *queue) {
-  assert(properties && properties[0] == PI_QUEUE_FLAGS);
+ur_result_t redefinedQueueCreate(void *pParams) {
+  auto params = *static_cast<ur_queue_create_params_t *>(pParams);
+  assert(*params.ppProperties);
   // Use in-order queues to force storing events for calling wait on them,
-  // rather than calling piQueueFinish.
-  if (properties[1] & PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
+  // rather than calling urQueueFinish.
+  if ((*params.ppProperties)->flags &
+      UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
+    return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEventsWait(pi_uint32 num_events,
-                              const pi_event *event_list) {
+ur_result_t redefinedEventsWait(void *) {
   ++TestContext->NEventsWaitedFor;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEventGetInfoAfter(pi_event event, pi_event_info param_name,
-                                     size_t param_value_size, void *param_value,
-                                     size_t *param_value_size_ret) {
-  EXPECT_EQ(param_name, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
+ur_result_t redefinedEventGetInfoAfter(void *pParams) {
+  auto params = *static_cast<ur_event_get_info_params_t *>(pParams);
+  EXPECT_EQ(*params.ppropName, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS)
       << "Unexpected event info requested";
   // Report first half of events as complete.
   // Report second half of events as running.
@@ -54,39 +52,41 @@ pi_result redefinedEventGetInfoAfter(pi_event event, pi_event_info param_name,
   // events are likely to be removed oldest first, and stops removing
   // at the first non-completed event.
   static int Counter = 0;
-  auto *Result = reinterpret_cast<pi_event_status *>(param_value);
-  *Result = (Counter < (ExpectedEventThreshold / 2)) ? PI_EVENT_COMPLETE
-                                                     : PI_EVENT_RUNNING;
+  auto *Result = reinterpret_cast<ur_event_status_t *>(*params.ppPropValue);
+  *Result = (Counter < (ExpectedEventThreshold / 2)) ? UR_EVENT_STATUS_COMPLETE
+                                                     : UR_EVENT_STATUS_RUNNING;
   Counter++;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEventRetain(pi_event event) {
+ur_result_t redefinedEventRetain(void *) {
   ++TestContext->EventReferenceCount;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEventRelease(pi_event event) {
+ur_result_t redefinedEventRelease(void *) {
   --TestContext->EventReferenceCount;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-void preparePiMock(unittest::PiMock &Mock) {
-  Mock.redefineBefore<detail::PiApiKind::piextQueueCreate>(
-      redefinedQueueCreateEx);
-  Mock.redefineBefore<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefineAfter<detail::PiApiKind::piEventGetInfo>(
-      redefinedEventGetInfoAfter);
-  Mock.redefineBefore<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
-  Mock.redefineBefore<detail::PiApiKind::piEventRelease>(redefinedEventRelease);
+void prepareUrMock(unittest::UrMock<> &Mock) {
+  mock::getCallbacks().set_before_callback("urQueueCreate",
+                                           &redefinedQueueCreate);
+  mock::getCallbacks().set_before_callback("urEventWait", &redefinedEventsWait);
+  mock::getCallbacks().set_after_callback("urEventGetInfo",
+                                          &redefinedEventGetInfoAfter);
+  mock::getCallbacks().set_before_callback("urEventRetain",
+                                           &redefinedEventRetain);
+  mock::getCallbacks().set_before_callback("urEventRelease",
+                                           &redefinedEventRelease);
 }
 
 // Check that the USM events are cleared from the queue upon call to wait(),
 // so that they are not waited for multiple times.
 TEST(QueueEventClear, ClearOnQueueWait) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  preparePiMock(Mock);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  prepareUrMock(Mock);
 
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));
@@ -105,9 +105,9 @@ TEST(QueueEventClear, ClearOnQueueWait) {
 // Check that shared events are cleaned up from the queue once their number
 // exceeds a threshold.
 TEST(QueueEventClear, CleanupOnThreshold) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  preparePiMock(Mock);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  prepareUrMock(Mock);
 
   context Ctx{Plt.get_devices()[0]};
   TestContext.reset(new TestCtx(Ctx));

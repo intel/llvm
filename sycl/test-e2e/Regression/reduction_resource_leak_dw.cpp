@@ -1,5 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 // XFAIL: windows
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16418
 //
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
@@ -9,7 +10,9 @@
 // Tests that additional resources required by discard_write reductions do not
 // leak.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
 
 using namespace sycl;
 

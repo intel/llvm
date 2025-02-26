@@ -5,18 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test implements parallel radix sort on GPU
 
 #include "esimd_test_utils.hpp"
-
-#include <algorithm>
-#include <iostream>
-#include <sycl/CL/sycl.hpp>
-#include <sycl/ext/intel/esimd.hpp>
 
 #define LOG2_ELEMENTS 20
 
@@ -588,13 +582,14 @@ int main(int argc, char *argv[]) {
   unsigned log2_element = LOG2_ELEMENTS;
   unsigned int size = 1 << log2_element;
 
-  cl::sycl::range<2> LocalRange{1, 1};
+  sycl::range<2> LocalRange{1, 1};
 
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler(),
           property::queue::in_order());
 
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   auto ctxt = q.get_context();
 
   // allocate and initialized input

@@ -2,7 +2,7 @@
 
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 sycl::event submit(sycl::queue &Q, sycl::buffer<int> &B) {
   return Q.submit([&](sycl::handler &CGH) {

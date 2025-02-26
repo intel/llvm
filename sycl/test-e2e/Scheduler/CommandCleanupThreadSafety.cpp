@@ -1,8 +1,7 @@
-// UNSUPPORTED: windows
-// RUN: %{build} -o %t.out -lpthread
+// RUN: %{build} -o %t.out %threads_lib
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cassert>
 #include <cstddef>

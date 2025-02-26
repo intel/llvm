@@ -5,19 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
+// REQUIRES: gpu-intel-dg2 || arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test verifies the intrinsic fence.
 // It is based on https://en.wikipedia.org/wiki/Memory_barrier#Example
 
-#include <algorithm>
 #include <cmath>
-#include <iostream>
 #include <numeric>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 #include "esimd_test_utils.hpp"
 

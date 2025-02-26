@@ -176,11 +176,11 @@ def AspectExt_oneapi_native_assert : Aspect<"ext_oneapi_native_assert">;
 def AspectHost_debuggable : Aspect<"host_debuggable">;
 def AspectExt_intel_gpu_hw_threads_per_eu : Aspect<"ext_intel_gpu_hw_threads_per_eu">;
 def AspectExt_oneapi_cuda_async_barrier : Aspect<"ext_oneapi_cuda_async_barrier">;
-def AspectExt_oneapi_bfloat16_math_functions : Aspect<"ext_oneapi_bfloat16_math_functions">;
 def AspectExt_intel_free_memory : Aspect<"ext_intel_free_memory">;
 def AspectExt_intel_device_id : Aspect<"ext_intel_device_id">;
 def AspectExt_intel_memory_clock_rate : Aspect<"ext_intel_memory_clock_rate">;
 def AspectExt_intel_memory_bus_width : Aspect<"ext_intel_memory_bus_width">;
+def AspectExt_oneapi_cuda_cluster_group : Aspect<"ext_oneapi_cuda_cluster_group">;
 def AspectEmulated : Aspect<"emulated">;
     
 def TargetTable : DynamicTable { 

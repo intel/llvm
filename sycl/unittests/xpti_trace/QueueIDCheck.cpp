@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
@@ -46,7 +46,7 @@ public:
                                       "libxptifw.so", [] {}};
   unittest::ScopedEnvVar XPTISubscriber{"XPTI_SUBSCRIBERS",
                                         "libxptitest_subscriber.so", [] {}};
-  sycl::unittest::PiMock MockPlugin;
+  sycl::unittest::UrMock<> MockAdapter;
 
   static constexpr size_t KernelSize = 1;
 
@@ -65,19 +65,19 @@ public:
   }
 };
 
-pi_queue QueueHandle = nullptr;
-inline pi_result redefinedQueueCreate(pi_context, pi_device,
-                                      pi_queue_properties *, pi_queue *queue) {
+ur_queue_handle_t QueueHandle = nullptr;
+inline ur_result_t redefinedQueueCreate(void *pParams) {
+  auto params = *static_cast<ur_queue_create_params_t *>(pParams);
   QueueHandle = nullptr;
-  if (queue)
-    QueueHandle = *queue;
-  return PI_SUCCESS;
+  if (*params.pphQueue)
+    QueueHandle = **params.pphQueue;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST_F(QueueID, QueueID_QueueCreationAndDestroy) {
-  sycl::platform Plt{MockPlugin.getPlatform()};
-  MockPlugin.redefineAfter<detail::PiApiKind::piextQueueCreate>(
-      redefinedQueueCreate);
+  sycl::platform Plt{sycl::platform()};
+  mock::getCallbacks().set_after_callback("urQueueCreate",
+                                          &redefinedQueueCreate);
   sycl::context Context{Plt};
   addAnalyzedTraceType(xpti::trace_queue_create);
   addAnalyzedTraceType(xpti::trace_queue_destroy);
@@ -136,7 +136,9 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
   checkTaskBeginEnd(QueueIDSTr);
 }
 
-TEST_F(QueueID, QueueCreationUSMOperations) {
+// Re-enable this test after fixing
+// https://github.com/intel/llvm/issues/12963
+TEST_F(QueueID, DISABLED_QueueCreationUSMOperations) {
   sycl::queue Q0;
   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
   auto QueueIDSTr = std::to_string(Queue0ImplPtr->getQueueID());

@@ -15,7 +15,7 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 ; Check struct X for dead variable xyz from inlined function foo.
 
-; CHECK: Lsection_info
+; CHECK: .section .debug_info,"dr"
 ; CHECK:	DW_TAG_structure_type
 ; CHECK-NEXT:	info_string
 

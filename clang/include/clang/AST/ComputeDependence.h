@@ -95,7 +95,7 @@ class DesignatedInitExpr;
 class ParenListExpr;
 class PseudoObjectExpr;
 class AtomicExpr;
-class OMPArraySectionExpr;
+class ArraySectionExpr;
 class OMPArrayShapingExpr;
 class OMPIteratorExpr;
 class ObjCArrayLiteral;
@@ -112,6 +112,7 @@ class SYCLBuiltinNumFieldsExpr;
 class SYCLBuiltinNumBasesExpr;
 class SYCLBuiltinFieldTypeExpr;
 class SYCLBuiltinBaseTypeExpr;
+class OpenACCAsteriskSizeExpr;
 
 // The following functions are called from constructors of `Expr`, so they
 // should not access anything beyond basic
@@ -137,7 +138,8 @@ ExprDependence computeDependence(ArrayInitLoopExpr *E);
 ExprDependence computeDependence(ImplicitValueInitExpr *E);
 ExprDependence computeDependence(InitListExpr *E);
 ExprDependence computeDependence(ExtVectorElementExpr *E);
-ExprDependence computeDependence(BlockExpr *E);
+ExprDependence computeDependence(BlockExpr *E,
+                                 bool ContainsUnexpandedParameterPack);
 ExprDependence computeDependence(AsTypeExpr *E);
 ExprDependence computeDependence(DeclRefExpr *E, const ASTContext &Ctx);
 ExprDependence computeDependence(RecoveryExpr *E);
@@ -195,7 +197,7 @@ ExprDependence computeDependence(ParenListExpr *E);
 ExprDependence computeDependence(PseudoObjectExpr *E);
 ExprDependence computeDependence(AtomicExpr *E);
 
-ExprDependence computeDependence(OMPArraySectionExpr *E);
+ExprDependence computeDependence(ArraySectionExpr *E);
 ExprDependence computeDependence(OMPArrayShapingExpr *E);
 ExprDependence computeDependence(OMPIteratorExpr *E);
 
@@ -209,6 +211,7 @@ ExprDependence computeDependence(ObjCSubscriptRefExpr *E);
 ExprDependence computeDependence(ObjCIsaExpr *E);
 ExprDependence computeDependence(ObjCIndirectCopyRestoreExpr *E);
 ExprDependence computeDependence(ObjCMessageExpr *E);
+ExprDependence computeDependence(OpenACCAsteriskSizeExpr *E);
 
 ExprDependence computeDependence(SYCLBuiltinNumFieldsExpr *E);
 ExprDependence computeDependence(SYCLBuiltinNumBasesExpr *E);

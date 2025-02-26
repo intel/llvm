@@ -5,7 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
+// REQUIRES-INTEL-DRIVER: lin: 30508
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -13,8 +14,9 @@
 // results.
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -34,7 +36,8 @@ template <typename T> bool test() {
 
   queue q;
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   auto *A = malloc_shared<T>(Size, q);
   auto *B = malloc_shared<T>(Size, q);
   auto *C = malloc_shared<T>(Size, q);

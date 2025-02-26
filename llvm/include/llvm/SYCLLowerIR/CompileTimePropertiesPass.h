@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/PassManager.h"
 
 #include <cassert>
@@ -23,6 +24,7 @@
 namespace llvm {
 
 // Forward declaration.
+class GlobalVariable;
 class IntrinsicInst;
 
 class CompileTimePropertiesPass
@@ -57,7 +59,7 @@ namespace detail {
 ///
 /// @returns \c false if the value of \c Value equals to "false", \c true
 /// otherwise.
-inline bool toBool(StringRef Value) { return !Value.equals("false"); }
+inline bool toBool(StringRef Value) { return Value != "false"; }
 
 } // namespace detail
 

@@ -8,7 +8,6 @@
 
 #include "helper.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
 template <typename... Ts> class sycl_subgr;
 
 using namespace sycl;

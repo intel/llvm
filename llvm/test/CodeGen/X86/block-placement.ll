@@ -251,7 +251,7 @@ define i32 @test_loop_align(i32 %i, ptr %a) {
 ; pass.
 ; CHECK-LABEL: test_loop_align:
 ; CHECK: %entry
-; CHECK: .p2align [[ALIGN:[0-9]+]],
+; CHECK: .p2align [[ALIGN:[0-9]+]]
 ; CHECK-NEXT: %body
 ; CHECK: %exit
 
@@ -276,9 +276,9 @@ define i32 @test_nested_loop_align(i32 %i, ptr %a, ptr %b) {
 ; Check that we provide nested loop body alignment.
 ; CHECK-LABEL: test_nested_loop_align:
 ; CHECK: %entry
-; CHECK: .p2align [[ALIGN]],
+; CHECK: .p2align [[ALIGN]]
 ; CHECK-NEXT: %loop.body.1
-; CHECK: .p2align [[ALIGN]],
+; CHECK: .p2align [[ALIGN]]
 ; CHECK-NEXT: %inner.loop.body
 ; CHECK-NOT: .p2align
 ; CHECK: %exit
@@ -358,7 +358,6 @@ define void @unnatural_cfg2(ptr %p0, i32 %a0) {
 ; CHECK: %loop.body1
 ; CHECK: %loop.body2
 ; CHECK: %loop.body4
-; CHECK: %loop.inner2.begin
 ; CHECK: %loop.inner2.begin
 ; CHECK: %loop.body3
 ; CHECK: %loop.inner1.begin

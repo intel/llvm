@@ -344,3 +344,95 @@ entry:
 }
 
 declare float @llvm.fma.f32(float, float, float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] acos [[x]]
+; CHECK: FunctionEnd
+
+define spir_func float @TestAcos(float %x) {
+entry:
+  %t = tail call float @llvm.acos.f32(float %x)
+  ret float %t
+}
+
+declare float @llvm.acos.f32(float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] asin [[x]]
+; CHECK: FunctionEnd
+
+define spir_func float @TestAsin(float %x) {
+entry:
+  %t = tail call float @llvm.asin.f32(float %x)
+  ret float %t
+}
+
+declare float @llvm.asin.f32(float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] atan [[x]]
+; CHECK: FunctionEnd
+
+define spir_func float @TestAtan(float %x) {
+entry:
+  %t = tail call float @llvm.atan.f32(float %x)
+  ret float %t
+}
+
+declare float @llvm.atan.f32(float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] cosh [[x]]
+; CHECK: FunctionEnd
+
+define spir_func float @TestCosh(float %x) {
+entry:
+  %t = tail call float @llvm.cosh.f32(float %x)
+  ret float %t
+}
+
+declare float @llvm.cosh.f32(float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] sinh [[x]]
+; CHECK: FunctionEnd
+
+define spir_func float @TestSinh(float %x) {
+entry:
+  %t = tail call float @llvm.sinh.f32(float %x)
+  ret float %t
+}
+
+declare float @llvm.sinh.f32(float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] tanh [[x]]
+; CHECK: FunctionEnd
+
+define spir_func float @TestTanh(float %x) {
+entry:
+  %t = tail call float @llvm.tanh.f32(float %x)
+  ret float %t
+}
+
+declare float @llvm.tanh.f32(float)
+
+; CHECK: Function
+; CHECK: FunctionParameter {{[0-9]+}} [[x:[0-9]+]]
+; CHECK: FunctionParameter {{[0-9]+}} [[y:[0-9]+]]
+; CHECK: ExtInst [[var1]] {{[0-9]+}} [[extinst_id]] atan2 [[y]] [[x]]
+; CHECK: FunctionEnd
+
+define spir_func float @TestAtan2(float %x, float %y) {
+entry:
+  %t = tail call float @llvm.atan2.f32(float %y, float %x)
+  ret float %t
+}
+
+declare float @llvm.atan2.f32(float, float)

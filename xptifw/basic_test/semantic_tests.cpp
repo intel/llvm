@@ -88,7 +88,7 @@ enum class TPColumns {
 enum class NColumns { Threads, Notifications, PassRate };
 
 void TestCorrectness::runStringTableTestThreads(
-    int RunNo, int NumThreads, test::utils::TableModel &Model) {
+    int RunNo, int NumThreads, xpti::utils::TableModel &Model) {
   xptiReset();
   constexpr int NumStrings = 1000;
 
@@ -184,9 +184,9 @@ void TestCorrectness::runStringTableTestThreads(
 }
 
 void TestCorrectness::runStringTableTests() {
-  test::utils::TableModel Model;
+  xpti::utils::TableModel Model;
 
-  test::utils::titles_t Columns{"Threads", "Insert", "Lookup", "Duplicate",
+  xpti::utils::titles_t Columns{"Threads", "Insert", "Lookup", "Duplicate",
                                 "Pass rate"};
   std::cout << std::setw(25) << "String Table Tests\n";
   Model.setHeaders(Columns);
@@ -207,7 +207,7 @@ void TestCorrectness::runStringTableTests() {
 }
 
 void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
-                                               test::utils::TableModel &Model) {
+                                               xpti::utils::TableModel &Model) {
   xptiReset();
   constexpr int TracepointCount = 1000;
 
@@ -348,9 +348,9 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
 }
 
 void TestCorrectness::runTracepointTests() {
-  test::utils::TableModel Model;
+  xpti::utils::TableModel Model;
 
-  test::utils::titles_t Columns{"Threads",   "Create",  "Lookup",
+  xpti::utils::titles_t Columns{"Threads",   "Create",  "Lookup",
                                 "Duplicate", "Payload", "Pass rate"};
   std::cout << std::setw(25) << "Tracepoint Tests\n";
   Model.setHeaders(Columns);
@@ -371,7 +371,7 @@ void TestCorrectness::runTracepointTests() {
 }
 
 void TestCorrectness::runNotificationTestThreads(
-    int RunNo, int NumThreads, test::utils::TableModel &Model) {
+    int RunNo, int NumThreads, xpti::utils::TableModel &Model) {
   xptiReset();
   int TPCount = 30, CallbackCount = TPCount * 30;
   std::vector<xpti::payload_t *> Payloads;
@@ -416,8 +416,8 @@ void TestCorrectness::runNotificationTestThreads(
       if (Ev && Ev->unique_id == UIds[Index]) {
         uint8_t TP = (Index % 10) + 1;
         uint16_t TPType = (uint16_t)(TP << 1);
-        xpti::framework::scoped_notify ev("xpti", TPType, nullptr, Ev,
-                                          MInstanceID, nullptr);
+        test::utils::ScopedNotify ev("xpti", TPType, nullptr, Ev, MInstanceID,
+                                     nullptr);
         NotifyCount++;
       }
     }
@@ -483,8 +483,8 @@ void TestCorrectness::runNotificationTestThreads(
         if (Ev && Ev->unique_id == UIds[Index]) {
           uint8_t TP = (Index % 10) + 1;
           uint16_t TPType = (uint16_t)(TP << 1);
-          xpti::framework::scoped_notify ev("xpti", TPType, nullptr, Ev,
-                                            MInstanceID, nullptr);
+          test::utils::ScopedNotify ev("xpti", TPType, nullptr, Ev, MInstanceID,
+                                       nullptr);
           NotifyCount++;
         }
       }
@@ -502,9 +502,9 @@ void TestCorrectness::runNotificationTestThreads(
 }
 
 void TestCorrectness::runNotificationTests() {
-  test::utils::TableModel Model;
+  xpti::utils::TableModel Model;
 
-  test::utils::titles_t Columns{"Threads", "Notify", "Pass rate"};
+  xpti::utils::titles_t Columns{"Threads", "Notify", "Pass rate"};
   std::cout << std::setw(25) << "Notification Tests\n";
   Model.setHeaders(Columns);
 

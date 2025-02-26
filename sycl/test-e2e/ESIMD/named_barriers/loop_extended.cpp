@@ -6,20 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16598
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
+
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // First iteration has 1 barrier and 1 producer, second - 2 barriers and 2
 // producers. Producer stores data to SLM, then all threads read SLM and store
 // data to surface.
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../esimd_test_utils.hpp"
+
+#define NS __ESIMD_NS
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -58,7 +58,7 @@ bool test(QueueTY q) {
             constexpr unsigned SlmSize = Size / 2;     // 32
             constexpr unsigned VL = SlmSize / Threads; // 4
 
-            named_barrier_init<bnum>();
+            NS::named_barrier_init<bnum>();
 
             unsigned int idx = ndi.get_local_id(0);
             unsigned int off = idx * VL * sizeof(int);
@@ -95,10 +95,10 @@ bool test(QueueTY q) {
                 lsc_slm_block_store<int, SlmSize / 2>(p_off, init);
               }
 
-              named_barrier_signal(b, flag, producers, consumers);
+              NS::named_barrier_signal(b, flag, producers, consumers);
 
               if (is_consumer)
-                named_barrier_wait(b); // consumers waiting for signal
+                NS::named_barrier_wait(b); // consumers waiting for signal
 
               auto val = lsc_slm_block_load<int, VL>(off); // reading SLM
               // and storing it to output surface

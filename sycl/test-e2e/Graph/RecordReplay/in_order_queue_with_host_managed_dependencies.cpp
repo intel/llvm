@@ -1,23 +1,19 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// REQUIRES: aspect-usm_shared_allocations
+
 // Tests submitting a host kernel to an in-order queue before recording
 // commands from it.
 
 #include "../graph_common.hpp"
 
+#include <sycl/properties/all_properties.hpp>
+
 int main() {
   using T = int;
 
   queue Queue{sycl::property::queue::in_order{}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
-  // Check if device has usm shared allocation
-  if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations))
-    return 0;
 
   T *TestData = sycl::malloc_shared<T>(Size, Queue);
 

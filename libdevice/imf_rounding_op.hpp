@@ -860,7 +860,7 @@ template <typename Ty> Ty __fp_div(Ty x, Ty y, int rd) {
   }
 }
 
-unsigned get_grs_bits(uint64_t dbits, unsigned bit_num) {
+static unsigned get_grs_bits(uint64_t dbits, unsigned bit_num) {
   if (bit_num == 1)
     return (dbits & 0x1) << 2;
   else if (bit_num == 2)
@@ -873,7 +873,7 @@ unsigned get_grs_bits(uint64_t dbits, unsigned bit_num) {
   }
 }
 
-unsigned get_grs_bits(__iml_ui128 dbits, unsigned bit_num) {
+static unsigned get_grs_bits(__iml_ui128 dbits, unsigned bit_num) {
   if (bit_num == 1)
     return static_cast<uint32_t>(dbits & 0x1) << 2;
   else if (bit_num == 2)

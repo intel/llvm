@@ -71,6 +71,7 @@ class SPIRVTypeFunction;
 class SPIRVTypeInt;
 class SPIRVTypeOpaque;
 class SPIRVTypePointer;
+class SPIRVTypeUntypedPointerKHR;
 class SPIRVTypeImage;
 class SPIRVTypeSampler;
 class SPIRVTypeSampledImage;
@@ -83,7 +84,7 @@ class SPIRVTypeQueue;
 class SPIRVTypePipe;
 class SPIRVTypeVmeImageINTEL;
 class SPIRVValue;
-class SPIRVVariable;
+class SPIRVVariableBase;
 class SPIRVDecorateGeneric;
 class SPIRVDecorationGroup;
 class SPIRVGroupDecorate;
@@ -137,10 +138,11 @@ public:
   virtual SPIRVExtInstSetKind getBuiltinSet(SPIRVId) const = 0;
   virtual std::set<std::string> &getExtension() = 0;
   virtual SPIRVFunction *getFunction(unsigned) const = 0;
-  virtual SPIRVVariable *getVariable(unsigned) const = 0;
+  virtual SPIRVVariableBase *getVariable(unsigned) const = 0;
   virtual SPIRVMemoryModelKind getMemoryModel() const = 0;
   virtual unsigned getNumFunctions() const = 0;
   virtual unsigned getNumVariables() const = 0;
+  virtual std::vector<SPIRVValue *> getFunctionPointers() const = 0;
   virtual SourceLanguage getSourceLanguage(SPIRVWord *) const = 0;
   virtual std::set<std::string> &getSourceExtension() = 0;
   virtual SPIRVValue *getValue(SPIRVId TheId) const = 0;
@@ -157,7 +159,7 @@ public:
   virtual bool isEntryPoint(SPIRVExecutionModelKind, SPIRVId) const = 0;
   virtual unsigned short getGeneratorId() const = 0;
   virtual unsigned short getGeneratorVer() const = 0;
-  virtual SPIRVWord getSPIRVVersion() const = 0;
+  virtual VersionNumber getSPIRVVersion() const = 0;
   virtual const std::vector<SPIRVExtInst *> &getDebugInstVec() const = 0;
   virtual const std::vector<SPIRVExtInst *> &getAuxDataInstVec() const = 0;
 
@@ -177,15 +179,15 @@ public:
   virtual void setGeneratorId(unsigned short) = 0;
   virtual void setGeneratorVer(unsigned short) = 0;
   virtual void resolveUnknownStructFields() = 0;
-  virtual void setSPIRVVersion(SPIRVWord) = 0;
+  virtual void setSPIRVVersion(VersionNumber) = 0;
   virtual void insertEntryNoId(SPIRVEntry *Entry) = 0;
 
   void setMinSPIRVVersion(VersionNumber Ver) {
-    setSPIRVVersion(std::max(static_cast<SPIRVWord>(Ver), getSPIRVVersion()));
+    setSPIRVVersion(std::max(Ver, getSPIRVVersion()));
   }
 
   void setMaxSPIRVVersion(VersionNumber Ver) {
-    assert(static_cast<SPIRVWord>(Ver) >= getSPIRVVersion() &&
+    assert(Ver >= getSPIRVVersion() &&
            "Maximum version can't be lower than minimum version!");
     MaxVersion = std::min(Ver, MaxVersion);
   }
@@ -240,7 +242,7 @@ public:
   virtual void eraseInstruction(SPIRVInstruction *, SPIRVBasicBlock *) = 0;
 
   // Type creation functions
-  virtual SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVConstant *) = 0;
+  virtual SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVValue *) = 0;
   virtual SPIRVTypeBool *addBoolType() = 0;
   virtual SPIRVTypeFloat *addFloatType(unsigned) = 0;
   virtual SPIRVTypeFunction *
@@ -257,6 +259,8 @@ public:
   virtual SPIRVTypeOpaque *addOpaqueType(const std::string &) = 0;
   virtual SPIRVTypePointer *addPointerType(SPIRVStorageClassKind,
                                            SPIRVType *) = 0;
+  virtual SPIRVTypeUntypedPointerKHR *
+      addUntypedPointerKHRType(SPIRVStorageClassKind) = 0;
   virtual SPIRVTypeStruct *openStructType(unsigned, const std::string &) = 0;
   virtual SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) = 0;
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;
@@ -266,6 +270,8 @@ public:
   virtual SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() = 0;
+  virtual SPIRVInstruction *
+  addTaskSequenceGetINTELInst(SPIRVType *, SPIRVValue *, SPIRVBasicBlock *) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
   virtual SPIRVType *addOpaqueGenericType(Op) = 0;
   virtual SPIRVTypeDeviceEvent *addDeviceEventType() = 0;
@@ -307,8 +313,8 @@ public:
                                              SPIRVWord Capacity) = 0;
 
   // Instruction creation functions
-  virtual SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, SPIRVValue *,
-                                                  std::vector<SPIRVValue *>,
+  virtual SPIRVInstruction *addPtrAccessChainInst(SPIRVType *,
+                                                  std::vector<SPIRVWord>,
                                                   SPIRVBasicBlock *, bool) = 0;
   virtual SPIRVInstruction *
   addAsyncGroupCopy(SPIRVValue *Scope, SPIRVValue *Dest, SPIRVValue *Src,
@@ -394,7 +400,8 @@ public:
                                SPIRVBasicBlock *BB, SPIRVType *Ty) = 0;
   virtual SPIRVInstruction *addLoadInst(SPIRVValue *,
                                         const std::vector<SPIRVWord> &,
-                                        SPIRVBasicBlock *) = 0;
+                                        SPIRVBasicBlock *,
+                                        SPIRVType *TheType = nullptr) = 0;
   virtual SPIRVInstruction *addLifetimeInst(Op OC, SPIRVValue *Object,
                                             SPIRVWord Size,
                                             SPIRVBasicBlock *BB) = 0;
@@ -458,8 +465,9 @@ public:
                                              SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
                                          SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addVariable(SPIRVType *, bool, SPIRVLinkageTypeKind,
-                                        SPIRVValue *, const std::string &,
+  virtual SPIRVInstruction *addVariable(SPIRVType *, SPIRVType *, bool,
+                                        SPIRVLinkageTypeKind, SPIRVValue *,
+                                        const std::string &,
                                         SPIRVStorageClassKind,
                                         SPIRVBasicBlock *) = 0;
   virtual SPIRVValue *
@@ -478,18 +486,23 @@ public:
   virtual SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *,
                                                 SPIRVValue *,
                                                 SPIRVBasicBlock *) = 0;
-  virtual SPIRVEntry *getOrAddAliasDomainDeclINTELInst(
-      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
-  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(
-      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
-  virtual SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(
-      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *
+  getOrAddAliasDomainDeclINTELInst(std::vector<SPIRVId> Args,
+                                   llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(std::vector<SPIRVId> Args,
+                                                      llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *
+  getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
+                                      llvm::MDNode *MD) = 0;
   virtual SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
                                                  SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy,
                                              SPIRVValue *Value,
                                              SPIRVValue *ExpectedValue,
                                              SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *
+  addUntypedPrefetchKHRInst(SPIRVType *Ty, std::vector<SPIRVWord> Args,
+                            SPIRVBasicBlock *BB) = 0;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 
@@ -547,6 +560,10 @@ public:
         .shouldPreserveOCLKernelArgTypeMetadataThroughString();
   }
 
+  bool shouldEmitFunctionPtrAddrSpace() const noexcept {
+    return TranslationOpts.shouldEmitFunctionPtrAddrSpace();
+  }
+
   bool preserveAuxData() const noexcept {
     return TranslationOpts.preserveAuxData();
   }
@@ -570,6 +587,8 @@ public:
     return SPIRVEIS_Debug;
   }
 
+  ExtInst getExtInst() const { return TranslationOpts.getExtInst(); }
+
   BIsRepresentation getDesiredBIsRepresentation() const {
     return TranslationOpts.getDesiredBIsRepresentation();
   }
@@ -588,7 +607,6 @@ protected:
 private:
   bool IsValid;
 };
-
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
 

@@ -22,7 +22,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023-2024 Intel Corporation.  All rights reserved.
+Copyright (C) 2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.
@@ -414,9 +414,6 @@ struct build_options {
 };
 using build_options_key = build_options;
 
-template<>
-struct is_property_key<build_options_key> : std::true_type {};
-
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -450,9 +447,6 @@ struct save_log {
   save_log(std::string *to);  (1)
 };
 using save_log_key = save_log;
-
-template<>
-struct is_property_key<save_log_key> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
 ----

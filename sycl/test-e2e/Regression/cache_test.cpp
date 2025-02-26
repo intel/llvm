@@ -7,7 +7,7 @@
 #include <level_zero/ze_api.h>
 #include <stdio.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl::ext::oneapi;
 
@@ -91,8 +91,10 @@ int queryFromNativeHandle(std::vector<sycl::platform> *platform_list,
   zeDeviceGet(l0_drivers[0], &l0_device_count, l0_devices.data());
 
   // Create the platform and device objects using the native handle.
-  auto plt = level_zero::make<sycl::platform>(l0_drivers[0]);
-  auto dev = level_zero::make<sycl::device>(plt, l0_devices[0]);
+  auto plt =
+      sycl::make_platform<sycl::backend::ext_oneapi_level_zero>(l0_drivers[0]);
+  auto dev =
+      sycl::make_device<sycl::backend::ext_oneapi_level_zero>(l0_devices[0]);
 
   // Check to see if this platform is in the platform list.
   std::cout << "Platform created with native handle: "
@@ -116,11 +118,34 @@ int queryFromNativeHandle(std::vector<sycl::platform> *platform_list,
   if (dev_result != device_list->end()) {
     std::cout << "The device list contains: "
               << dev.get_info<sycl::info::device::name>() << std::endl;
-  } else {
-    std::cout << dev.get_info<sycl::info::device::name>()
-              << " was not in the device list.\n";
-    failures++;
+    auto dev_result = std::find_if(device_list->begin(), device_list->end(),
+                                   [&](sycl::device &d) { return d == dev; });
+    if (dev_result != device_list->end()) {
+      // Level-Zero backend specification for sycl::make_device:
+      //
+      //   > Constructs a SYCL device instance from a Level-Zero
+      //   > ze_device_handle_t. The SYCL execution environment for the Level
+      //   > Zero backend contains a fixed number of devices that are enumerated
+      //   > via sycl::device::get_devices() and a fixed number of sub-devices
+      //   > that are enumerated via sycl::device::create_sub_devices(...).
+      //   > Calling this function does not create a new device. Rather it
+      //   > merely creates a sycl::device object that is a copy of one of the
+      //   > devices from those enumerations.
+      //
+      // SYCL 2020's common reference semantics says that such a copy must
+      // result in the same hash value.
+      auto hash = std::hash<sycl::device>{};
+      assert(hash(*dev_result) == hash(dev));
+
+      std::cout << "The device list contains: "
+                << dev.get_info<sycl::info::device::name>() << std::endl;
+    } else {
+      std::cout << dev.get_info<sycl::info::device::name>()
+                << " was not in the device list.\n";
+      failures++;
+    }
   }
+
   return failures;
 }
 

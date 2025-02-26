@@ -6,23 +6,19 @@ on:
       filters:
         description: Matched filters
         value: ${{ jobs.need_check.outputs.filters }}
-      arc_tests:
-        description: Tests to run on Arc
-        value: ${{ jobs.need_check.outputs.arc_tests }}
+
+permissions: read-all
 
 jobs:
   need_check:
     name: Decide which tests could be affected by the changes
-    # Github's ubuntu-* runners are slow to allocate. Use our CUDA runner since
-    # we don't use it for anything right now.
-    runs-on: [Linux, build]
+    runs-on: [Linux, aux-tasks]
     timeout-minutes: 3
     outputs:
       filters: ${{ steps.result.outputs.result }}
-      arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
     steps:
       - name: Check file changes
-        uses: dorny/paths-filter@0bc4621a3135347011ad047f9ecf449bf72ce2bd
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
         id: changes
         with:
           filters: |
@@ -34,9 +30,9 @@ jobs:
             clang: &clang
               - *llvm
               - 'clang/**'
-            sycl_fusion: &sycl-fusion
+            sycl_jit: &sycl-jit
               - *llvm
-              - 'sycl-fusion/**'
+              - 'sycl-jit/**'
             xptifw: &xptifw
               - 'xptifw/**'
             libclc: &libclc
@@ -45,7 +41,7 @@ jobs:
               - 'libclc/**'
             sycl: &sycl
               - *clang
-              - *sycl-fusion
+              - *sycl-jit
               - *llvm_spirv
               - *xptifw
               - *libclc
@@ -59,6 +55,8 @@ jobs:
             drivers:
               - devops/dependencies.json
               - devops/scripts/install_drivers.sh
+            devigccfg:
+              - devops/dependencies-igc-dev.json
             perf-tests:
               - sycl/test-e2e/PerformanceTests/**
             esimd:
@@ -86,15 +84,7 @@ jobs:
               return '${{ steps.changes.outputs.changes }}';
             }
             // Treat everything as changed for huge PRs.
-            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "ci", "esimd"];
+            return ["llvm", "llvm_spirv", "clang", "sycl_jit", "xptifw", "libclc", "sycl", "ci", "esimd"];
 
       - run: echo '${{ steps.result.outputs.result }}'
-
-      - name: Set Arc tests
-        id: arc_tests
-        run: |
-          if [ "${{ contains(steps.result.outputs.result, 'esimd') }}" == "true" ]; then
-            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
-          else
-            echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
-          fi
+     

@@ -5,19 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
 // The test checks functionality of the memory access APIs which are members of
 // the simd class.
 
 #include "../esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

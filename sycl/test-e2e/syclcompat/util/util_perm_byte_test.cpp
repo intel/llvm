@@ -30,12 +30,12 @@
 //
 // ===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 void byte_perm_ref(unsigned int *d_data) {

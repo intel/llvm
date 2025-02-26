@@ -1,13 +1,17 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test to check that we don't insert unnecessary urEnqueueEventsWaitWithBarrier
 // calls if queue is in-order and wait list is empty.
 
-// CHECK-NOT: ---> urEnqueueEventsWaitWithBarrier
+// CHECK-NOT: <--- urEnqueueEventsWaitWithBarrier
 
 #include <condition_variable>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -66,12 +70,9 @@ int main() {
 
   {
     // Test cast 4 - graph.
-    sycl::queue GQueue{
-        {sycl::property::queue::in_order{},
-         sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+    sycl::queue GQueue{sycl::property::queue::in_order{}};
 
-    if (GQueue.get_device().get_info<syclex::info::device::graph_support>() !=
-        syclex::graph_support_level::unsupported) {
+    if (GQueue.get_device().has(sycl::aspect::ext_oneapi_graph)) {
       std::cout << "Test 4" << std::endl;
       syclex::command_graph Graph{GQueue.get_context(), GQueue.get_device()};
       *Res = 1;
@@ -81,7 +82,6 @@ int main() {
         cgh.single_task<class kernel3>([=]() { *Res += 9; });
       });
       auto Barrier = GQueue.ext_oneapi_submit_barrier();
-      assert(Barrier == BeforeBarrierEvent);
       GQueue.submit([&](sycl::handler &cgh) {
         cgh.single_task<class kernel4>([=]() { *Res *= 2; });
       });

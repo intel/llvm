@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   // Non-placeholder accessors.
@@ -155,7 +155,7 @@ int main() {
     assert(host_acc[6] == 1 && host_acc[7] == 2 && host_acc[8] == 3);
   }
 
-  // Non-placeholder noinit and constant_buffer accessors.
+  // Non-placeholder no_init and constant_buffer accessors.
   {
     int data[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
@@ -167,35 +167,35 @@ int main() {
     Queue.submit([&](sycl::handler &cgh) {
 
 #if defined(accessor_new_api_test)
-      sycl::accessor acc_1(buf_data, cgh, sycl::noinit);
-      sycl::accessor acc_2(buf_data, cgh, sycl::range<1>(8), sycl::noinit);
+      sycl::accessor acc_1(buf_data, cgh, sycl::no_init);
+      sycl::accessor acc_2(buf_data, cgh, sycl::range<1>(8), sycl::no_init);
       sycl::accessor acc_3(buf_data, cgh, sycl::range<1>(8), sycl::id<1>(1),
-                           sycl::noinit);
+                           sycl::no_init);
       sycl::accessor acc_4(buf_data, cgh, sycl::read_constant);
       sycl::accessor acc_5(buf_data, cgh, sycl::range<1>(8),
                            sycl::read_constant);
       sycl::accessor acc_6(buf_data, cgh, sycl::range<1>(8), sycl::id<1>(1),
                            sycl::read_constant);
-      sycl::accessor acc_7(buf_data, cgh, sycl::write_only, sycl::noinit);
+      sycl::accessor acc_7(buf_data, cgh, sycl::write_only, sycl::no_init);
       sycl::accessor acc_8(buf_data, cgh, sycl::range<1>(8), sycl::write_only,
-                           sycl::noinit);
+                           sycl::no_init);
       sycl::accessor acc_9(buf_data, cgh, sycl::range<1>(8), sycl::id<1>(1),
-                           sycl::write_only, sycl::noinit);
+                           sycl::write_only, sycl::no_init);
 #elif defined(buffer_new_api_test)
-      auto acc_1 = buf_data.get_access(cgh, sycl::noinit);
-      auto acc_2 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::noinit);
+      auto acc_1 = buf_data.get_access(cgh, sycl::no_init);
+      auto acc_2 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::no_init);
       auto acc_3 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
-                                       sycl::noinit);
+                                       sycl::no_init);
       auto acc_4 = buf_data.get_access(cgh, sycl::read_constant);
       auto acc_5 =
           buf_data.get_access(cgh, sycl::range<1>(8), sycl::read_constant);
       auto acc_6 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
                                        sycl::read_constant);
-      auto acc_7 = buf_data.get_access(cgh, sycl::write_only, sycl::noinit);
+      auto acc_7 = buf_data.get_access(cgh, sycl::write_only, sycl::no_init);
       auto acc_8 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::write_only,
-                                       sycl::noinit);
+                                       sycl::no_init);
       auto acc_9 = buf_data.get_access(cgh, sycl::range<1>(8), sycl::id<1>(1),
-                                       sycl::write_only, sycl::noinit);
+                                       sycl::write_only, sycl::no_init);
 #endif
 
       assert(!acc_1.is_placeholder());
@@ -208,7 +208,7 @@ int main() {
       assert(!acc_8.is_placeholder());
       assert(!acc_9.is_placeholder());
 
-      cgh.single_task<class nonplaceholder_noinit_kernel>([=]() {
+      cgh.single_task<class nonplaceholder_no_init_kernel>([=]() {
         acc_7[6] = 1;
         acc_8[7] = 2;
         acc_9[7] = 3;
@@ -229,7 +229,7 @@ int main() {
     assert(host_acc[6] == 1 && host_acc[7] == 2 && host_acc[8] == 3);
   }
 
-  // Placeholder noinit and constant_buffer accessors.
+  // Placeholder no_init and constant_buffer accessors.
   {
     int data[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
@@ -237,33 +237,33 @@ int main() {
                                   {sycl::property::buffer::use_host_ptr()});
 
 #if defined(accessor_new_api_test)
-    sycl::accessor acc_1(buf_data, sycl::noinit);
-    sycl::accessor acc_2(buf_data, sycl::range<1>(8), sycl::noinit);
+    sycl::accessor acc_1(buf_data, sycl::no_init);
+    sycl::accessor acc_2(buf_data, sycl::range<1>(8), sycl::no_init);
     sycl::accessor acc_3(buf_data, sycl::range<1>(8), sycl::id<1>(1),
-                         sycl::noinit);
+                         sycl::no_init);
     sycl::accessor acc_4(buf_data, sycl::read_constant);
     sycl::accessor acc_5(buf_data, sycl::range<1>(8), sycl::read_constant);
     sycl::accessor acc_6(buf_data, sycl::range<1>(8), sycl::id<1>(1),
                          sycl::read_constant);
-    sycl::accessor acc_7(buf_data, sycl::write_only, sycl::noinit);
+    sycl::accessor acc_7(buf_data, sycl::write_only, sycl::no_init);
     sycl::accessor acc_8(buf_data, sycl::range<1>(8), sycl::write_only,
-                         sycl::noinit);
+                         sycl::no_init);
     sycl::accessor acc_9(buf_data, sycl::range<1>(8), sycl::id<1>(1),
-                         sycl::write_only, sycl::noinit);
+                         sycl::write_only, sycl::no_init);
 #elif defined(buffer_new_api_test)
-    auto acc_1 = buf_data.get_access(sycl::noinit);
-    auto acc_2 = buf_data.get_access(sycl::range<1>(8), sycl::noinit);
+    auto acc_1 = buf_data.get_access(sycl::no_init);
+    auto acc_2 = buf_data.get_access(sycl::range<1>(8), sycl::no_init);
     auto acc_3 =
-        buf_data.get_access(sycl::range<1>(8), sycl::id<1>(1), sycl::noinit);
+        buf_data.get_access(sycl::range<1>(8), sycl::id<1>(1), sycl::no_init);
     auto acc_4 = buf_data.get_access(sycl::read_constant);
     auto acc_5 = buf_data.get_access(sycl::range<1>(8), sycl::read_constant);
     auto acc_6 = buf_data.get_access(sycl::range<1>(8), sycl::id<1>(1),
                                      sycl::read_constant);
-    auto acc_7 = buf_data.get_access(sycl::write_only, sycl::noinit);
+    auto acc_7 = buf_data.get_access(sycl::write_only, sycl::no_init);
     auto acc_8 =
-        buf_data.get_access(sycl::range<1>(8), sycl::write_only, sycl::noinit);
+        buf_data.get_access(sycl::range<1>(8), sycl::write_only, sycl::no_init);
     auto acc_9 = buf_data.get_access(sycl::range<1>(8), sycl::id<1>(1),
-                                     sycl::write_only, sycl::noinit);
+                                     sycl::write_only, sycl::no_init);
 #endif
 
     assert(acc_1.is_placeholder());
@@ -289,7 +289,7 @@ int main() {
       cgh.require(acc_8);
       cgh.require(acc_9);
 
-      cgh.single_task<class placeholder_noinit_kernel>([=]() {
+      cgh.single_task<class placeholder_no_init_kernel>([=]() {
         acc_7[6] = 1;
         acc_8[7] = 2;
         acc_9[7] = 3;

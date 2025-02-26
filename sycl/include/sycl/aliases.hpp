@@ -9,13 +9,12 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <sycl/half_type.hpp>                 // for half
 
 #include <cstdint> // for uint8_t, int16_t, int32_t
 
 namespace sycl {
 inline namespace _V1 {
-template <typename T, int N> class vec;
+template <typename T, int N> class __SYCL_EBO vec;
 namespace detail::half_impl {
 class half;
 } // namespace detail::half_impl
@@ -141,19 +140,11 @@ using cl_double = double;
 } // namespace opencl
 
 // Vector aliases are different between SYCL 1.2.1 and SYCL 2020
-#if SYCL_LANGUAGE_VERSION >= 202001
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(2)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
 __SYCL_2020_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
-#else
-__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(2)
-__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(3)
-__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
-__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
-__SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
-#endif
 } // namespace _V1
 } // namespace sycl
 

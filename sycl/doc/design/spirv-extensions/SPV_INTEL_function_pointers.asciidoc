@@ -97,7 +97,7 @@ OpFunctionPointerCallINTEL
 
 == New Decorations
 
-Decorations added under the *IndirectlyReferencableINTEL* capability:
+Decorations added under the *IndirectReferencesINTEL* capability:
 
 ----
 ReferencedIndirectlyINTEL

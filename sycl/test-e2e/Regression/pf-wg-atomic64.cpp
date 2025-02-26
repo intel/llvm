@@ -1,8 +1,13 @@
-// DISABLED: aspect-atomic64
+// UNSUPPORTED: aspect-atomic64
+// UNSUPPORTED-INTENDED: The test is intended for devices without atomic64
+// support.
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+
 using namespace sycl;
 
 using AtomicRefT =

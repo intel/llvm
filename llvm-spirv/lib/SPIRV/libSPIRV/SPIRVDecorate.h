@@ -89,21 +89,22 @@ public:
     }
   }
 
-  SPIRVWord getRequiredSPIRVVersion() const override {
+  VersionNumber getRequiredSPIRVVersion() const override {
     switch (Dec) {
     case DecorationSpecId:
       if (getModule()->hasCapability(CapabilityKernel))
-        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+        return VersionNumber::SPIRV_1_1;
       else
-        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+        return VersionNumber::SPIRV_1_0;
 
     case DecorationMaxByteOffset:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+      return VersionNumber::SPIRV_1_1;
     case DecorationUserSemantic:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4);
+    case DecorationCounterBuffer:
+      return VersionNumber::SPIRV_1_4;
 
     default:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+      return VersionNumber::SPIRV_1_0;
     }
   }
 
@@ -229,6 +230,8 @@ public:
     assert(WordCount == Literals.size() + FixedWC);
   }
 };
+
+class SPIRVDecorateString : public SPIRVDecorate {};
 
 class SPIRVDecorateId : public SPIRVDecorateGeneric {
 public:
@@ -382,6 +385,8 @@ protected:
   SPIRVWord MemberNumber;
 };
 
+class SPIRVMemberDecorateString : public SPIRVMemberDecorate {};
+
 class SPIRVDecorationGroup : public SPIRVEntry {
 public:
   static const Op OC = OpDecorationGroup;
@@ -513,15 +518,6 @@ public:
   //  Complete constructor for UserSemantic decoration
   SPIRVDecorateUserSemanticAttr(SPIRVEntry *TheTarget,
                                 const std::string &AnnotateString)
-      : SPIRVDecorateStrAttrBase(TheTarget, AnnotateString) {}
-};
-
-class SPIRVDecorateFuncParamDescAttr
-    : public SPIRVDecorateStrAttrBase<internal::DecorationFuncParamDescINTEL> {
-public:
-  //  Complete constructor for UserSemantic decoration
-  SPIRVDecorateFuncParamDescAttr(SPIRVEntry *TheTarget,
-                                 const std::string &AnnotateString)
       : SPIRVDecorateStrAttrBase(TheTarget, AnnotateString) {}
 };
 

@@ -19,43 +19,25 @@
  *  Description:
  *     launch<F> and launch<F> with dinamyc local memory tests
  **************************************************************************/
-
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14387
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_barrier.hpp>
+
 #include <syclcompat/device.hpp>
+#include <syclcompat/id_query.hpp>
 #include <syclcompat/launch.hpp>
+#include <syclcompat/memory.hpp>
 
-#include <type_traits>
-
-#include "../common.hpp"
 #include "launch_fixt.hpp"
 
 // Dummy kernel functions for testing
 inline void empty_kernel(){};
 inline void int_kernel(int a){};
 inline void int_ptr_kernel(int *a){};
-inline void dynamic_local_mem_empty_kernel(char *a){};
-
-template <typename T>
-inline void dynamic_local_mem_basicdt_kernel(T value, char *local_mem){};
-
-template <typename T>
-void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
-  constexpr size_t memsize = LaunchTestWithArgs<T>::LOCAL_MEM_SIZE;
-  constexpr size_t num_elements = memsize / sizeof(T);
-  T *typed_local_mem = reinterpret_cast<T *>(local_mem);
-
-  const int id = sycl::ext::oneapi::experimental::this_item<1>();
-  if (id < num_elements) {
-    typed_local_mem[id] = static_cast<T>(id);
-  }
-  sycl::group_barrier(sycl::ext::oneapi::experimental::this_group<1>());
-  if (id < num_elements) {
-    data[id] = typed_local_mem[num_elements - id - 1];
-  }
-};
 
 template <int Dim>
 void compute_nd_range_3d(RangeParams<Dim> range_param, std::string test_name) {
@@ -137,7 +119,7 @@ void test_ptr_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   LaunchTest lt;
 
-  int *int_ptr;
+  int *int_ptr = nullptr;
 
   syclcompat::launch<int_ptr_kernel>(lt.range_1_, int_ptr);
   syclcompat::launch<int_ptr_kernel>(lt.range_2_, int_ptr);
@@ -150,197 +132,11 @@ void test_ptr_arg_launch() {
   syclcompat::launch<int_ptr_kernel>(lt.grid_, lt.thread_, lt.q_, int_ptr);
 }
 
-void test_dynamic_mem_no_arg_launch() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  LaunchTest lt;
-
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_1_, 1);
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_2_, 1);
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_3_, 1);
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.grid_, lt.thread_, 1);
-}
-
-void test_dynamic_mem_no_arg_launch_q() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  LaunchTest lt;
-
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_1_, 1, lt.q_);
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_2_, 1, lt.q_);
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_3_, 1, lt.q_);
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.grid_, lt.thread_, 1,
-                                                     lt.q_);
-}
-
-template <typename T> void test_basic_dt_launch() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  T d_a = T(1);
-  LaunchTestWithArgs<T> ltt;
-
-  if (ltt.skip_) // Unsupported aspect
-    return;
-
-  syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(ltt.range_1_,
-                                                          ltt.memsize_, d_a);
-  syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(ltt.range_2_,
-                                                          ltt.memsize_, d_a);
-  syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(ltt.range_3_,
-                                                          ltt.memsize_, d_a);
-  syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(
-      ltt.grid_, ltt.thread_, ltt.memsize_, d_a);
-}
-
-template <typename T> void test_basic_dt_launch_q() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  T d_a = T(1);
-  LaunchTestWithArgs<T> ltt;
-
-  if (ltt.skip_) // Unsupported aspect
-    return;
-
-  syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(
-      ltt.range_1_, ltt.memsize_, ltt.in_order_q_, d_a);
-  syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(
-      ltt.range_2_, ltt.memsize_, ltt.in_order_q_, d_a);
-  syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(
-      ltt.range_3_, ltt.memsize_, ltt.in_order_q_, d_a);
-  syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(
-      ltt.grid_, ltt.thread_, ltt.memsize_, ltt.in_order_q_, d_a);
-}
-
-template <typename T> void test_arg_launch() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  LaunchTestWithArgs<T> ltt;
-  if (ltt.skip_) // Unsupported aspect
-    return;
-
-  T *d_a = (T *)syclcompat::malloc(ltt.memsize_);
-
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.range_1_,
-                                                        ltt.memsize_, d_a);
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.range_2_,
-                                                        ltt.memsize_, d_a);
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.range_3_,
-                                                        ltt.memsize_, d_a);
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.grid_, ltt.thread_,
-                                                        ltt.memsize_, d_a);
-
-  syclcompat::free(d_a);
-}
-
-template <typename T> void test_arg_launch_q() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  LaunchTestWithArgs<T> ltt;
-  if (ltt.skip_) // Unsupported aspect
-    return;
-
-  T *d_a = (T *)syclcompat::malloc(ltt.memsize_, ltt.in_order_q_);
-
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(
-      ltt.range_1_, ltt.memsize_, ltt.in_order_q_, d_a);
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(
-      ltt.range_2_, ltt.memsize_, ltt.in_order_q_, d_a);
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(
-      ltt.range_3_, ltt.memsize_, ltt.in_order_q_, d_a);
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(
-      ltt.grid_, ltt.thread_, ltt.memsize_, ltt.in_order_q_, d_a);
-
-  syclcompat::free(d_a, ltt.in_order_q_);
-}
-
-template <typename T> void test_local_mem_usage() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  LaunchTestWithArgs<T> ltt;
-  if (ltt.skip_) // Unsupported aspect
-    return;
-
-  size_t num_elements = ltt.memsize_ / sizeof(T);
-
-  T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_);
-  T *d_a = (T *)syclcompat::malloc(ltt.memsize_);
-
-  // d_a is the kernel output, no memcpy needed
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.grid_, ltt.thread_,
-                                                        ltt.memsize_, d_a);
-
-  syclcompat::memcpy(h_a, d_a, ltt.memsize_);
-  syclcompat::free(d_a);
-
-  for (int i = 0; i < num_elements; i++) {
-    assert(h_a[i] == static_cast<T>(num_elements - i - 1));
-  }
-  syclcompat::free(h_a);
-}
-
-template <typename T> void test_local_mem_usage_q() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  LaunchTestWithArgs<T> ltt;
-  if (ltt.skip_) // Unsupported aspect
-    return;
-
-  size_t num_elements = ltt.memsize_ / sizeof(T);
-  auto &q = ltt.in_order_q_;
-
-  T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_);
-  T *d_a = (T *)syclcompat::malloc(ltt.memsize_, q);
-
-  // d_a is the kernel output, no memcpy needed
-  syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.grid_, ltt.thread_,
-                                                        ltt.memsize_, q, d_a);
-
-  syclcompat::memcpy(h_a, d_a, ltt.memsize_, q);
-  syclcompat::free(d_a, q);
-
-  for (size_t i = 0; i < num_elements; i++) {
-    assert(h_a[i] == static_cast<T>(num_elements - i - 1));
-  }
-
-  syclcompat::free(h_a);
-}
-
-template <typename T> void test_memsize_no_arg_launch() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  LaunchTest lt;
-  T memsize = static_cast<T>(8);
-
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.grid_, lt.thread_,
-                                                     memsize);
-}
-
-template <typename T> void test_memsize_no_arg_launch_q() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  LaunchTest lt;
-  T memsize = static_cast<T>(8);
-
-  syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.grid_, lt.thread_,
-                                                     memsize, lt.q_);
-}
-
 int main() {
   test_launch_compute_nd_range_3d();
   test_no_arg_launch();
   test_one_arg_launch();
   test_ptr_arg_launch();
-
-  test_dynamic_mem_no_arg_launch();
-  test_dynamic_mem_no_arg_launch_q();
-
-  INSTANTIATE_ALL_TYPES(value_type_list, test_basic_dt_launch);
-  INSTANTIATE_ALL_TYPES(value_type_list, test_basic_dt_launch_q);
-  INSTANTIATE_ALL_TYPES(value_type_list, test_arg_launch);
-  INSTANTIATE_ALL_TYPES(value_type_list, test_arg_launch_q);
-  INSTANTIATE_ALL_TYPES(value_type_list, test_local_mem_usage);
-  INSTANTIATE_ALL_TYPES(value_type_list, test_local_mem_usage_q);
-
-  INSTANTIATE_ALL_TYPES(memsize_type_list, test_memsize_no_arg_launch);
-  INSTANTIATE_ALL_TYPES(memsize_type_list, test_memsize_no_arg_launch_q);
 
   return 0;
 }

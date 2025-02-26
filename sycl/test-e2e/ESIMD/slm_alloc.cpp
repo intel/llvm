@@ -1,10 +1,15 @@
 //
+// REQUIRES-INTEL-DRIVER: lin: 28454, win: 101.5333
 // RUN: %{build} -o %t.1.out
 // RUN: %{run} %t.1.out
 //
 // Vary the test case by forcing inlining of the functions with slm_allocator:
 // RUN: %{build} -DFORCE_INLINE -o %t.2.out
 // RUN: %{run} %t.2.out
+
+// Check if the test sill passes with O0
+// RUN: %{build} %O0 -o %t.3.out
+// RUN: %{run} %t.3.out
 
 // This is end-to-end test for the slm_allocator API used together with the
 // slm_init. The call graph is:
@@ -21,8 +26,9 @@
 // SLM resulting from foo, plus appends couple more '100's.
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -86,7 +92,8 @@ __attribute__((noinline))
 int main(void) {
   queue q;
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
+            << "\n";
   std::cout << "force_inline=" << force_inline << "\n";
   auto ctxt = q.get_context();
   uint32_t size = SLM_TOTAL * NUM_WGS / ELEM_SIZE;

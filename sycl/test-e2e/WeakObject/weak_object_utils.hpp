@@ -1,6 +1,12 @@
 // Utilities for weak_object testing
 
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/weak_object.hpp>
+#include <sycl/image.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/sampler.hpp>
+#include <sycl/usm.hpp>
 
 class TestKernel1;
 class TestKernel2;
@@ -46,15 +52,9 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
   sycl::accessor PAcc1D{Buf1D, sycl::read_write};
   sycl::accessor PAcc2D{Buf2D, sycl::read_write};
   sycl::accessor PAcc3D{Buf3D, sycl::read_write};
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc1D;
-  sycl::accessor<int, 2, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc2D;
-  sycl::accessor<int, 3, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc3D;
+  sycl::host_accessor<int, 1, sycl::access::mode::read_write> HAcc1D;
+  sycl::host_accessor<int, 2, sycl::access::mode::read_write> HAcc2D;
+  sycl::host_accessor<int, 3, sycl::access::mode::read_write> HAcc3D;
   sycl::host_accessor<int, 1> HAcc1D_2020;
   sycl::host_accessor<int, 2> HAcc2D_2020;
   sycl::host_accessor<int, 3> HAcc3D_2020;
@@ -105,21 +105,6 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
     sycl::local_accessor<int, 2> LAcc2D{sycl::range<2>{1, 2}, CGH};
     sycl::local_accessor<int, 3> LAcc3D{sycl::range<3>{1, 2, 3}, CGH};
     sycl::stream Stream{1024, 32, CGH};
-    sycl::unsampled_image_accessor<sycl::int4, 1, sycl::access_mode::read,
-                                   sycl::image_target::host_task>
-        UImgAcc1D{UImg1D, CGH};
-    sycl::unsampled_image_accessor<sycl::int4, 2, sycl::access_mode::read,
-                                   sycl::image_target::host_task>
-        UImgAcc2D{UImg2D, CGH};
-    sycl::unsampled_image_accessor<sycl::int4, 3, sycl::access_mode::read,
-                                   sycl::image_target::host_task>
-        UImgAcc3D{UImg3D, CGH};
-    sycl::sampled_image_accessor<sycl::int4, 1, sycl::image_target::host_task>
-        SImgAcc1D{SImg1D, CGH};
-    sycl::sampled_image_accessor<sycl::int4, 2, sycl::image_target::host_task>
-        SImgAcc2D{SImg2D, CGH};
-    sycl::sampled_image_accessor<sycl::int4, 3, sycl::image_target::host_task>
-        SImgAcc3D{SImg3D, CGH};
 
     CallableT<decltype(DAcc1D)>()(DAcc1D);
     CallableT<decltype(DAcc2D)>()(DAcc2D);
@@ -128,13 +113,33 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
     CallableT<decltype(LAcc2D)>()(LAcc2D);
     CallableT<decltype(LAcc3D)>()(LAcc3D);
     CallableT<decltype(Stream)>()(Stream);
-    CallableT<decltype(UImgAcc1D)>()(UImgAcc1D);
-    CallableT<decltype(UImgAcc2D)>()(UImgAcc2D);
-    CallableT<decltype(UImgAcc3D)>()(UImgAcc3D);
-    CallableT<decltype(SImgAcc1D)>()(SImgAcc1D);
-    CallableT<decltype(SImgAcc2D)>()(SImgAcc2D);
-    CallableT<decltype(SImgAcc3D)>()(SImgAcc3D);
   });
+  if (Q.get_device().has(sycl::aspect::ext_intel_legacy_image)) {
+    Q.submit([&](sycl::handler &CGH) {
+      sycl::unsampled_image_accessor<sycl::int4, 1, sycl::access_mode::read,
+                                     sycl::image_target::host_task>
+          UImgAcc1D{UImg1D, CGH};
+      sycl::unsampled_image_accessor<sycl::int4, 2, sycl::access_mode::read,
+                                     sycl::image_target::host_task>
+          UImgAcc2D{UImg2D, CGH};
+      sycl::unsampled_image_accessor<sycl::int4, 3, sycl::access_mode::read,
+                                     sycl::image_target::host_task>
+          UImgAcc3D{UImg3D, CGH};
+      sycl::sampled_image_accessor<sycl::int4, 1, sycl::image_target::host_task>
+          SImgAcc1D{SImg1D, CGH};
+      sycl::sampled_image_accessor<sycl::int4, 2, sycl::image_target::host_task>
+          SImgAcc2D{SImg2D, CGH};
+      sycl::sampled_image_accessor<sycl::int4, 3, sycl::image_target::host_task>
+          SImgAcc3D{SImg3D, CGH};
+
+      CallableT<decltype(UImgAcc1D)>()(UImgAcc1D);
+      CallableT<decltype(UImgAcc2D)>()(UImgAcc2D);
+      CallableT<decltype(UImgAcc3D)>()(UImgAcc3D);
+      CallableT<decltype(SImgAcc1D)>()(SImgAcc1D);
+      CallableT<decltype(SImgAcc2D)>()(SImgAcc2D);
+      CallableT<decltype(SImgAcc3D)>()(SImgAcc3D);
+    });
+  }
 }
 
 template <template <typename> typename CallableT>
@@ -197,24 +202,12 @@ void runTestMulti(sycl::queue Q1) {
   sycl::accessor PAcc2D2{Buf2D2, sycl::read_write};
   sycl::accessor PAcc3D1{Buf3D1, sycl::read_write};
   sycl::accessor PAcc3D2{Buf3D2, sycl::read_write};
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc1D1;
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc1D2;
-  sycl::accessor<int, 2, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc2D1;
-  sycl::accessor<int, 2, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc2D2;
-  sycl::accessor<int, 3, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc3D1;
-  sycl::accessor<int, 3, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc3D2;
+  sycl::host_accessor<int, 1, sycl::access::mode::read_write> HAcc1D1;
+  sycl::host_accessor<int, 1, sycl::access::mode::read_write> HAcc1D2;
+  sycl::host_accessor<int, 2, sycl::access::mode::read_write> HAcc2D1;
+  sycl::host_accessor<int, 2, sycl::access::mode::read_write> HAcc2D2;
+  sycl::host_accessor<int, 3, sycl::access::mode::read_write> HAcc3D1;
+  sycl::host_accessor<int, 3, sycl::access::mode::read_write> HAcc3D2;
   sycl::host_accessor<int, 1> HAcc1D1_2020;
   sycl::host_accessor<int, 2> HAcc2D1_2020;
   sycl::host_accessor<int, 3> HAcc3D1_2020;
@@ -279,37 +272,6 @@ void runTestMulti(sycl::queue Q1) {
     sycl::local_accessor<int, 3> LAcc3D2{sycl::range<3>{1, 2, 3}, CGH};
     sycl::stream Stream1{1024, 32, CGH};
     sycl::stream Stream2{1024, 32, CGH};
-    sycl::unsampled_image_accessor<sycl::int4, 1, sycl::access_mode::read,
-                                   sycl::image_target::host_task>
-        UImgAcc1D1{UImg1D1, CGH};
-    sycl::unsampled_image_accessor<sycl::int4, 2, sycl::access_mode::read,
-                                   sycl::image_target::host_task>
-        UImgAcc2D1{UImg2D1, CGH};
-    sycl::unsampled_image_accessor<sycl::int4, 3, sycl::access_mode::read,
-                                   sycl::image_target::host_task>
-        UImgAcc3D1{UImg3D1, CGH};
-    sycl::unsampled_image_accessor<sycl::int4, 1, sycl::access_mode::read,
-                                   sycl::image_target::host_task>
-        UImgAcc1D2{UImg1D2, CGH};
-    sycl::unsampled_image_accessor<sycl::int4, 2, sycl::access_mode::read,
-                                   sycl::image_target::host_task>
-        UImgAcc2D2{UImg2D2, CGH};
-    sycl::unsampled_image_accessor<sycl::int4, 3, sycl::access_mode::read,
-                                   sycl::image_target::host_task>
-        UImgAcc3D2{UImg3D2, CGH};
-    sycl::sampled_image_accessor<sycl::int4, 1, sycl::image_target::host_task>
-        SImgAcc1D1{SImg1D1, CGH};
-    sycl::sampled_image_accessor<sycl::int4, 2, sycl::image_target::host_task>
-        SImgAcc2D1{SImg2D1, CGH};
-    sycl::sampled_image_accessor<sycl::int4, 3, sycl::image_target::host_task>
-        SImgAcc3D1{SImg3D1, CGH};
-    sycl::sampled_image_accessor<sycl::int4, 1, sycl::image_target::host_task>
-        SImgAcc1D2{SImg1D2, CGH};
-    sycl::sampled_image_accessor<sycl::int4, 2, sycl::image_target::host_task>
-        SImgAcc2D2{SImg2D2, CGH};
-    sycl::sampled_image_accessor<sycl::int4, 3, sycl::image_target::host_task>
-        SImgAcc3D2{SImg3D2, CGH};
-
     CallableT<decltype(DAcc1D1)>()(DAcc1D1, DAcc1D2);
     CallableT<decltype(DAcc2D1)>()(DAcc2D1, DAcc2D2);
     CallableT<decltype(DAcc3D1)>()(DAcc3D1, DAcc3D2);
@@ -317,11 +279,47 @@ void runTestMulti(sycl::queue Q1) {
     CallableT<decltype(LAcc2D1)>()(LAcc2D1, LAcc2D2);
     CallableT<decltype(LAcc3D1)>()(LAcc3D1, LAcc3D2);
     CallableT<decltype(Stream1)>()(Stream1, Stream2);
-    CallableT<decltype(UImgAcc1D1)>()(UImgAcc1D1, UImgAcc1D2);
-    CallableT<decltype(UImgAcc2D1)>()(UImgAcc2D1, UImgAcc2D2);
-    CallableT<decltype(UImgAcc3D1)>()(UImgAcc3D1, UImgAcc3D2);
-    CallableT<decltype(SImgAcc1D1)>()(SImgAcc1D1, SImgAcc1D2);
-    CallableT<decltype(SImgAcc2D1)>()(SImgAcc2D1, SImgAcc2D2);
-    CallableT<decltype(SImgAcc3D1)>()(SImgAcc3D1, SImgAcc3D2);
   });
+
+  if (Q1.get_device().has(sycl::aspect::ext_intel_legacy_image)) {
+    Q1.submit([&](sycl::handler &CGH) {
+      sycl::unsampled_image_accessor<sycl::int4, 1, sycl::access_mode::read,
+                                     sycl::image_target::host_task>
+          UImgAcc1D1{UImg1D1, CGH};
+      sycl::unsampled_image_accessor<sycl::int4, 2, sycl::access_mode::read,
+                                     sycl::image_target::host_task>
+          UImgAcc2D1{UImg2D1, CGH};
+      sycl::unsampled_image_accessor<sycl::int4, 3, sycl::access_mode::read,
+                                     sycl::image_target::host_task>
+          UImgAcc3D1{UImg3D1, CGH};
+      sycl::unsampled_image_accessor<sycl::int4, 1, sycl::access_mode::read,
+                                     sycl::image_target::host_task>
+          UImgAcc1D2{UImg1D2, CGH};
+      sycl::unsampled_image_accessor<sycl::int4, 2, sycl::access_mode::read,
+                                     sycl::image_target::host_task>
+          UImgAcc2D2{UImg2D2, CGH};
+      sycl::unsampled_image_accessor<sycl::int4, 3, sycl::access_mode::read,
+                                     sycl::image_target::host_task>
+          UImgAcc3D2{UImg3D2, CGH};
+      sycl::sampled_image_accessor<sycl::int4, 1, sycl::image_target::host_task>
+          SImgAcc1D1{SImg1D1, CGH};
+      sycl::sampled_image_accessor<sycl::int4, 2, sycl::image_target::host_task>
+          SImgAcc2D1{SImg2D1, CGH};
+      sycl::sampled_image_accessor<sycl::int4, 3, sycl::image_target::host_task>
+          SImgAcc3D1{SImg3D1, CGH};
+      sycl::sampled_image_accessor<sycl::int4, 1, sycl::image_target::host_task>
+          SImgAcc1D2{SImg1D2, CGH};
+      sycl::sampled_image_accessor<sycl::int4, 2, sycl::image_target::host_task>
+          SImgAcc2D2{SImg2D2, CGH};
+      sycl::sampled_image_accessor<sycl::int4, 3, sycl::image_target::host_task>
+          SImgAcc3D2{SImg3D2, CGH};
+
+      CallableT<decltype(UImgAcc1D1)>()(UImgAcc1D1, UImgAcc1D2);
+      CallableT<decltype(UImgAcc2D1)>()(UImgAcc2D1, UImgAcc2D2);
+      CallableT<decltype(UImgAcc3D1)>()(UImgAcc3D1, UImgAcc3D2);
+      CallableT<decltype(SImgAcc1D1)>()(SImgAcc1D1, SImgAcc1D2);
+      CallableT<decltype(SImgAcc2D1)>()(SImgAcc2D1, SImgAcc2D2);
+      CallableT<decltype(SImgAcc3D1)>()(SImgAcc3D1, SImgAcc3D2);
+    });
+  }
 }

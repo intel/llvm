@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 //
 //
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 //
-// RUN: %{build} -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_nonvar.out
-// RUN: %{run} %t_nonvar.out | FileCheck %s
+// RUN: %{build} -fsycl-device-code-split=per_kernel -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -Wno-#warnings -o %t_var.out
+// RUN: %{run} %t_var.out | FileCheck %s
 //
 //===----------------------------------------------------------------------===//
 //
@@ -20,11 +20,8 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include <cstdint>
-#include <iostream>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 using namespace sycl::ext;
 
@@ -70,13 +67,13 @@ int main() {
     Queue.wait();
   }
 
-#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   // Currently printf will promote floating point values to doubles.
-  // __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ changes the behavior to not use
-  // a variadic function, so if it is defined it will not promote the floating
+  // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ changes the behavior to use
+  // a variadic function, so if it is defined it will promote the floating
   // point arguments.
   if (Queue.get_device().has(sycl::aspect::fp64))
-#endif // __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#endif // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   {
     Queue.submit([&](handler &CGH) {
       CGH.single_task<class floating_points>([=]() {
@@ -92,12 +89,12 @@ int main() {
     });
     Queue.wait();
   }
-#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   else {
     std::cout << "Skipped floating point test." << std::endl;
     std::cout << "Skipped floating point test." << std::endl;
   }
-#endif // __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#endif // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   // CHECK-NEXT: {{(33.4|Skipped floating point test.)}}
   // CHECK-NEXT: {{(-33.4|Skipped floating point test.)}}
 

@@ -1,5 +1,7 @@
 #include "FindPrimesSYCL.h"
 
+#include <sycl/stream.hpp>
+
 #include <array>
 #include <chrono>
 #include <iostream>

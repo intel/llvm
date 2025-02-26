@@ -5,7 +5,8 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <cstdlib>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/vector.hpp>
 
 template <typename T, typename ResultT>
 bool testAndOperator(const std::string &typeName) {

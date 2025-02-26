@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/group_local_memory.hpp>
 
 constexpr int N = 5;
 

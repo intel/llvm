@@ -2,6 +2,7 @@
 // cannot do that reliably when number of devices is unknown.
 //
 // REQUIRES: level_zero, ocloc
+// REQUIRES: build-and-run-mode
 //
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
 // DEFINE: %{build_cmd} = %{build}
@@ -13,7 +14,9 @@
 // Check the logs first.
 // RUN: %{build_cmd} -DVALUE=1 -o %t.out
 // RUN: rm -rf %t/cache_dir/*
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if windows %{ --check-prefixes=CHECK,CHECK-WIN %}
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
 //
 // Now try to substitute the cached image and verify it is actually taken and
 // the code/binary there is executed.
@@ -30,7 +33,10 @@
 // Check the logs first.
 // RUN: %{build_cmd} -DVALUE=1 -o %t.out
 // RUN: rm -rf %t/cache_dir/*
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if windows %{ --check-prefixes=CHECK,CHECK-WIN %}
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+
 //
 // Now try to substitute the cached image and verify it is actually taken and
 // the code/binary there is executed.
@@ -47,7 +53,9 @@
 // Check the logs first.
 // RUN: %{build_cmd} -DVALUE=1 -o %t.out
 // RUN: rm -rf %t/cache_dir/*
-// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s %if windows %{ --check-prefixes=CHECK,CHECK-WIN %}
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-WRITE
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s  --check-prefixes=CHECK-CACHE-READ
 //
 // Now try to substitute the cached image and verify it is actually taken and
 // the code/binary there is executed.
@@ -59,9 +67,8 @@
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
 // ******************************
 
-// CHECK:     Code caching: device binary has been cached: [[BIN_FILE:.*]]
-// CHECK-WIN: Code caching: using cached device binary: [[BIN_FILE]]
-// CHECK-WIN: Code caching: using cached device binary: [[BIN_FILE]]
+// CHECK-CACHE-WRITE: [Persistent Cache]: device binary has been cached
+// CHECK-CACHE-READ: [Persistent Cache]: using cached device binary
 
 // RESULT1: Result (0): 1
 // RESULT1: Result (1): 1
@@ -71,7 +78,7 @@
 // RESULT2: Result (1): 2
 // RESULT2: Result (2): 2
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   for (int i = 0; i < 3; ++i) {

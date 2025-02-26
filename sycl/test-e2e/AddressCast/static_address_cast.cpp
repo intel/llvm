@@ -10,7 +10,10 @@
 // UNSUPPORTED: hip, cuda
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/experimental/address_cast.hpp>
 
 int main() {
 
@@ -36,16 +39,16 @@ int main() {
               int *RawGlobalPointer = &GlobalAccessor[Index];
               auto GlobalPointer =
                   sycl::ext::oneapi::experimental::static_address_cast<
-                      sycl::access::address_space::global_space,
-                      sycl::access::decorated::no>(RawGlobalPointer);
+                      sycl::access::address_space::global_space>(
+                      RawGlobalPointer);
               Success &= reinterpret_cast<size_t>(RawGlobalPointer) ==
                          reinterpret_cast<size_t>(GlobalPointer.get_raw());
 
               int *RawLocalPointer = &LocalAccessor[0];
               auto LocalPointer =
                   sycl::ext::oneapi::experimental::static_address_cast<
-                      sycl::access::address_space::local_space,
-                      sycl::access::decorated::no>(RawLocalPointer);
+                      sycl::access::address_space::local_space>(
+                      RawLocalPointer);
               Success &= reinterpret_cast<size_t>(RawLocalPointer) ==
                          reinterpret_cast<size_t>(LocalPointer.get_raw());
 
@@ -53,8 +56,8 @@ int main() {
               int *RawPrivatePointer = &PrivateVariable;
               auto PrivatePointer =
                   sycl::ext::oneapi::experimental::static_address_cast<
-                      sycl::access::address_space::private_space,
-                      sycl::access::decorated::no>(RawPrivatePointer);
+                      sycl::access::address_space::private_space>(
+                      RawPrivatePointer);
               Success &= reinterpret_cast<size_t>(RawPrivatePointer) ==
                          reinterpret_cast<size_t>(PrivatePointer.get_raw());
 

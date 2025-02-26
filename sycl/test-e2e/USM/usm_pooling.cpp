@@ -1,8 +1,8 @@
 // REQUIRES: level_zero
 // RUN: %{build} -o %t.out
 
-// https://github.com/intel/llvm/issues/12397
 // UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12397
 
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
 
@@ -30,7 +30,11 @@
 // RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out h 2>&1 | FileCheck %s --check-prefix CHECK-15
 // RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out d 2>&1 | FileCheck %s --check-prefix CHECK-15
 // RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0 SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=";;2M,4,4M" %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-15
-#include "CL/sycl.hpp"
+
+#include "sycl/detail/core.hpp"
+
+#include <sycl/usm.hpp>
+
 #include <iostream>
 using namespace sycl;
 
@@ -84,11 +88,11 @@ int main(int argc, char *argv[]) {
   context C = Q.get_context();
 
   const char *devType = D.is_cpu() ? "CPU" : "GPU";
-  std::string pluginName =
+  std::string adapterName =
       D.get_platform().get_info<sycl::info::platform::name>();
   std::cout << "Running on device " << devType << " ("
-            << D.get_info<sycl::info::device::name>() << ") " << pluginName
-            << " plugin\n";
+            << D.get_info<sycl::info::device::name>() << ") " << adapterName
+            << " adapter\n";
 
   if (*argv[1] == 'h') {
     std::cerr << "Test zeMemAllocHost\n";

@@ -1,6 +1,9 @@
 #include "Inputs/kernels_in_file2.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #ifdef DEFINE_NDEBUG_INFILE1
 #define NDEBUG
@@ -30,18 +33,19 @@ void enqueueKernel_1_fromFile1(queue *Q) {
 
     CGH.parallel_for<class Kernel_1>(
         sycl::nd_range(Buf.get_range(), sycl::range<1>(4)),
-        [=](sycl::id<1> wiID) {
+        [=](sycl::nd_item<1> ndi) {
+          auto gid = ndi.get_global_id(0);
           int X = 0;
-          if (wiID == 5)
+          if (gid == 5)
             X = checkFunction();
-          Acc[wiID] = X;
+          Acc[gid] = X;
         });
   });
 }
 
 int main(int Argc, const char *Argv[]) {
 
-  queue Q;
+  queue Q({sycl::property::queue::in_order{}});
   enqueueKernel_1_fromFile1(&Q);
   enqueueKernel_2_fromFile2(&Q);
   Q.wait();

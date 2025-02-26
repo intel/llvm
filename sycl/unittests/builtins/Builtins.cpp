@@ -24,8 +24,3 @@ TEST(VectorOfSize1, Clamp) {
   sycl::vec<float, 1> Res = sycl::clamp(A, B, C);
   ASSERT_FLOAT_EQ(Res.x(), 2.0f);
 }
-
-TEST(VectorOfSize1, Length) {
-  float Res = sycl::length(sycl::vec<float, 1>{1.0f});
-  ASSERT_FLOAT_EQ(Res, 1.0f);
-}

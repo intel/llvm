@@ -6,7 +6,10 @@
 // the maximum or minimum operator is computed correctly.
 #include "../helpers.hpp"
 #include <numeric>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 queue q;

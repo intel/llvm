@@ -13,7 +13,7 @@
 void foo() {
   int a[2] = {1, 2};
   auto [bind_x, bind_y] = a;
-  auto Lambda = [=]() { bind_x = 10; };
+  auto Lambda = [=]() { (void)bind_x; };
   sycl::handler h;
   h.single_task<class C>(Lambda);
 }

@@ -369,8 +369,9 @@ enum : unsigned {
 namespace HWEncoding {
 enum : unsigned {
   REG_IDX_MASK = 0xff,
-  IS_VGPR_OR_AGPR = 1 << 8,
-  IS_HI = 1 << 9, // High 16-bit register.
+  IS_VGPR = 1 << 8,
+  IS_AGPR = 1 << 9,
+  IS_HI16 = 1 << 10,
 };
 } // namespace HWEncoding
 
@@ -460,14 +461,14 @@ enum Id { // Message ID, width(4) [3:0].
   ID_RTN_GET_REALTIME = 131,
   ID_RTN_SAVE_WAVE = 132,
   ID_RTN_GET_TBA = 133,
-  ID_RTN_GET_SE_AID_ID = 134,
+  ID_RTN_GET_TBA_TO_PC = 134,
+  ID_RTN_GET_SE_AID_ID = 135,
 
   ID_MASK_PreGFX11_ = 0xF,
   ID_MASK_GFX11Plus_ = 0xFF
 };
 
 enum Op { // Both GS and SYS operation IDs.
-  OP_UNKNOWN_ = -1,
   OP_SHIFT_ = 4,
   OP_NONE_ = 0,
   // Bits used for operation encoding
@@ -478,14 +479,12 @@ enum Op { // Both GS and SYS operation IDs.
   OP_GS_CUT = 1,
   OP_GS_EMIT = 2,
   OP_GS_EMIT_CUT = 3,
-  OP_GS_LAST_,
   OP_GS_FIRST_ = OP_GS_NOP,
   // SYS operations are encoded in bits 6:4
   OP_SYS_ECC_ERR_INTERRUPT = 1,
   OP_SYS_REG_RD = 2,
   OP_SYS_HOST_TRAP_ACK = 3,
   OP_SYS_TTRACE_PC = 4,
-  OP_SYS_LAST_,
   OP_SYS_FIRST_ = OP_SYS_ECC_ERR_INTERRUPT,
 };
 
@@ -549,31 +548,10 @@ enum Id { // HwRegCode, (6) [5:0]
   ID_SQ_PERF_SNAPSHOT_DATA1 = 22,
   ID_SQ_PERF_SNAPSHOT_PC_LO = 23,
   ID_SQ_PERF_SNAPSHOT_PC_HI = 24,
-
-  ID_SHIFT_ = 0,
-  ID_WIDTH_ = 6,
-  ID_MASK_ = (((1 << ID_WIDTH_) - 1) << ID_SHIFT_)
 };
 
 enum Offset : unsigned { // Offset, (5) [10:6]
-  OFFSET_DEFAULT_ = 0,
-  OFFSET_SHIFT_ = 6,
-  OFFSET_WIDTH_ = 5,
-  OFFSET_MASK_ = (((1 << OFFSET_WIDTH_) - 1) << OFFSET_SHIFT_),
-
   OFFSET_MEM_VIOL = 8,
-};
-
-enum WidthMinusOne : unsigned { // WidthMinusOne, (5) [15:11]
-  WIDTH_M1_DEFAULT_ = 31,
-  WIDTH_M1_SHIFT_ = 11,
-  WIDTH_M1_WIDTH_ = 5,
-  WIDTH_M1_MASK_ = (((1 << WIDTH_M1_WIDTH_) - 1) << WIDTH_M1_SHIFT_),
-};
-
-// Some values from WidthMinusOne mapped into Width domain.
-enum Width : unsigned {
-  WIDTH_DEFAULT_ = WIDTH_M1_DEFAULT_ + 1,
 };
 
 enum ModeRegisterMasks : uint32_t {
@@ -863,9 +841,12 @@ enum Id : unsigned { // id of symbolic names
   ID_BITMASK_PERM,
   ID_SWAP,
   ID_REVERSE,
-  ID_BROADCAST
+  ID_BROADCAST,
+  ID_FFT,
+  ID_ROTATE
 };
 
+// clang-format off
 enum EncBits : unsigned {
 
   // swizzle mode encodings
@@ -875,6 +856,14 @@ enum EncBits : unsigned {
 
   BITMASK_PERM_ENC      = 0x0000,
   BITMASK_PERM_ENC_MASK = 0x8000,
+
+  FFT_MODE_ENC          = 0xE000,
+
+  ROTATE_MODE_ENC       = 0xC000,
+  FFT_ROTATE_MODE_MASK  = 0xF000,
+
+  ROTATE_MODE_LO        = 0xC000,
+  FFT_MODE_LO           = 0xE000,
 
   // QUAD_PERM encodings
 
@@ -891,8 +880,21 @@ enum EncBits : unsigned {
 
   BITMASK_AND_SHIFT     = 0,
   BITMASK_OR_SHIFT      = 5,
-  BITMASK_XOR_SHIFT     = 10
+  BITMASK_XOR_SHIFT     = 10,
+
+  // FFT encodings
+
+  FFT_SWIZZLE_MASK      = 0x1F,
+  FFT_SWIZZLE_MAX       = 0x1F,
+
+  // ROTATE encodings
+  ROTATE_MAX_SIZE       = 0x1F,
+  ROTATE_DIR_SHIFT      = 10, // bit position of rotate direction
+  ROTATE_DIR_MASK       = 0x1,
+  ROTATE_SIZE_SHIFT     = 5, // bit position of rotate size
+  ROTATE_SIZE_MASK      = ROTATE_MAX_SIZE,
 };
+// clang-format on
 
 } // namespace Swizzle
 
@@ -1046,6 +1048,18 @@ enum Offset_COV5 : unsigned {
 
 } // namespace ImplicitArg
 
+namespace MFMAScaleFormats {
+// Enum value used in cbsz/blgp for F8F6F4 MFMA operations to select the matrix
+// format.
+enum MFMAScaleFormats {
+  FP8_E4M3 = 0,
+  FP8_E5M2 = 1,
+  FP6_E2M3 = 2,
+  FP6_E3M2 = 3,
+  FP4_E2M1 = 4
+};
+} // namespace MFMAScaleFormats
+
 namespace VirtRegFlag {
 // Virtual register flags used for various target specific handlings during
 // codegen.
@@ -1060,7 +1074,13 @@ enum Register_Flag : uint8_t {
 
 namespace AMDGPU {
 namespace Barrier {
+
 enum Type { TRAP = -2, WORKGROUP = -1 };
+
+enum {
+  BARRIER_SCOPE_WORKGROUP = 0,
+};
+
 } // namespace Barrier
 } // namespace AMDGPU
 
@@ -1134,7 +1154,7 @@ enum Type { TRAP = -2, WORKGROUP = -1 };
 #define   C_00B84C_LDS_SIZE                                           0xFF007FFF
 #define   S_00B84C_EXCP_EN(x)                                         (((x) & 0x7F) << 24)
 #define   G_00B84C_EXCP_EN(x)                                         (((x) >> 24) & 0x7F)
-#define   C_00B84C_EXCP_EN
+#define   C_00B84C_EXCP_EN                                            0x80FFFFFF
 
 #define R_0286CC_SPI_PS_INPUT_ENA                                       0x0286CC
 #define R_0286D0_SPI_PS_INPUT_ADDR                                      0x0286D0

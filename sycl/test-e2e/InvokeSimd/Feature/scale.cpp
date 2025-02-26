@@ -21,9 +21,10 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>
@@ -35,7 +36,7 @@
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
 #else
-#define SUBGROUP_ATTR [[intel::reqd_sub_group_size(VL)]]
+#define SUBGROUP_ATTR [[sycl::reqd_sub_group_size(VL)]]
 #endif
 
 using namespace sycl::ext::oneapi::experimental;
@@ -101,9 +102,16 @@ template <class T, class QueueTY> bool test(QueueTY q) {
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
 
-            T va = sg.load(acca.get_pointer() + offset);
+            T va;
+            group_load(sg,
+                       acca.template get_multi_ptr<access::decorated::yes>() +
+                           offset,
+                       va);
             T vc = invoke_simd(sg, SIMD_CALLEE_scale<T>, va, uniform{n});
-            sg.store(accc.get_pointer() + offset, vc);
+            group_store(
+                sg, vc,
+                accc.template get_multi_ptr<access::decorated::yes>().get() +
+                    offset);
           });
     });
     e.wait();

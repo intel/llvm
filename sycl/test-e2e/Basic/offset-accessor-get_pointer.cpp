@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t.out
 // RUN: %{run} %t.out
 
 // Per the SYCL 2020 spec (4.7.6.12 and others)
@@ -11,7 +11,7 @@
 // accessors in the past. Not relevant for images, which do not support offset
 // accessors.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 using namespace sycl;
 

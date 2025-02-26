@@ -32,58 +32,72 @@ using property_value =
 // Property definitions
 enum class resource_enum : std::uint16_t { mlab, block_ram };
 
-struct resource_key {
+struct resource_key : oneapi::experimental::detail::compile_time_property_key<
+                          oneapi::experimental::detail::PropKind::Resource> {
   template <resource_enum Resource>
   using value_t =
       property_value<resource_key,
                      std::integral_constant<resource_enum, Resource>>;
 };
 
-struct num_banks_key {
+struct num_banks_key : oneapi::experimental::detail::compile_time_property_key<
+                           oneapi::experimental::detail::PropKind::NumBanks> {
   template <size_t Elements>
   using value_t =
       property_value<num_banks_key, std::integral_constant<size_t, Elements>>;
 };
 
-struct stride_size_key {
+struct stride_size_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::StrideSize> {
   template <size_t Elements>
   using value_t =
       property_value<stride_size_key, std::integral_constant<size_t, Elements>>;
 };
 
-struct word_size_key {
+struct word_size_key : oneapi::experimental::detail::compile_time_property_key<
+                           oneapi::experimental::detail::PropKind::WordSize> {
   template <size_t Elements>
   using value_t =
       property_value<word_size_key, std::integral_constant<size_t, Elements>>;
 };
 
-struct bi_directional_ports_key {
+struct bi_directional_ports_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::BiDirectionalPorts> {
   template <bool Enable>
   using value_t =
       property_value<bi_directional_ports_key, std::bool_constant<Enable>>;
 };
 
-struct clock_2x_key {
+struct clock_2x_key : oneapi::experimental::detail::compile_time_property_key<
+                          oneapi::experimental::detail::PropKind::Clock2x> {
   template <bool Enable>
   using value_t = property_value<clock_2x_key, std::bool_constant<Enable>>;
 };
 
 enum class ram_stitching_enum : std::uint16_t { min_ram, max_fmax };
 
-struct ram_stitching_key {
+struct ram_stitching_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::RAMStitching> {
   template <ram_stitching_enum RamStitching>
   using value_t =
       property_value<ram_stitching_key,
                      std::integral_constant<ram_stitching_enum, RamStitching>>;
 };
 
-struct max_private_copies_key {
+struct max_private_copies_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::MaxPrivateCopies> {
   template <size_t N>
   using value_t =
       property_value<max_private_copies_key, std::integral_constant<size_t, N>>;
 };
 
-struct num_replicates_key {
+struct num_replicates_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::NumReplicates> {
   template <size_t N>
   using value_t =
       property_value<num_replicates_key, std::integral_constant<size_t, N>>;
@@ -129,30 +143,6 @@ inline constexpr num_replicates_key::value_t<N> num_replicates;
 
 namespace oneapi::experimental {
 
-template <>
-struct is_property_key<intel::experimental::resource_key> : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::num_banks_key> : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::stride_size_key> : std::true_type {
-};
-template <>
-struct is_property_key<intel::experimental::word_size_key> : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::bi_directional_ports_key>
-    : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::clock_2x_key> : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::ram_stitching_key>
-    : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::max_private_copies_key>
-    : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::num_replicates_key>
-    : std::true_type {};
-
 // Associate properties with fpga_mem
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::resource_key,
@@ -192,65 +182,6 @@ struct is_property_key_of<intel::experimental::num_replicates_key,
     : std::true_type {};
 
 namespace detail {
-// Map Property to a PropKind enum
-template <> struct PropertyToKind<intel::experimental::resource_key> {
-  static constexpr PropKind Kind = PropKind::Resource;
-};
-template <> struct PropertyToKind<intel::experimental::num_banks_key> {
-  static constexpr PropKind Kind = PropKind::NumBanks;
-};
-template <> struct PropertyToKind<intel::experimental::stride_size_key> {
-  static constexpr PropKind Kind = PropKind::StrideSize;
-};
-template <> struct PropertyToKind<intel::experimental::word_size_key> {
-  static constexpr PropKind Kind = PropKind::WordSize;
-};
-template <>
-struct PropertyToKind<intel::experimental::bi_directional_ports_key> {
-  static constexpr PropKind Kind = PropKind::BiDirectionalPorts;
-};
-template <> struct PropertyToKind<intel::experimental::clock_2x_key> {
-  static constexpr PropKind Kind = PropKind::Clock2x;
-};
-template <> struct PropertyToKind<intel::experimental::ram_stitching_key> {
-  static constexpr PropKind Kind = PropKind::RAMStitching;
-};
-template <> struct PropertyToKind<intel::experimental::max_private_copies_key> {
-  static constexpr PropKind Kind = PropKind::MaxPrivateCopies;
-};
-template <> struct PropertyToKind<intel::experimental::num_replicates_key> {
-  static constexpr PropKind Kind = PropKind::NumReplicates;
-};
-
-// Mark the properties as compile-time
-template <>
-struct IsCompileTimeProperty<intel::experimental::resource_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::num_banks_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::stride_size_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::word_size_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::bi_directional_ports_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::clock_2x_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::ram_stitching_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::max_private_copies_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::num_replicates_key>
-    : std::true_type {};
-
 // Map Property to MetaInfo
 template <intel::experimental::resource_enum Value>
 struct PropertyMetaInfo<intel::experimental::resource_key::value_t<Value>> {

@@ -8,9 +8,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include "../esimd_test_utils.hpp"
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -91,8 +88,7 @@ int main() {
   }
 
 #ifdef USE_BF16
-// TODO: Reenable once the issue with bfloat16 is resolved
-// Passed &= test<sycl::ext::oneapi::bfloat16>(Q);
+  Passed &= test<sycl::ext::oneapi::bfloat16>(Q);
 #endif
 #ifdef USE_TF32
   Passed &= test<sycl::ext::intel::experimental::esimd::tfloat32>(Q);

@@ -1,8 +1,18 @@
-// REQUIRES: gpu-amd-gfx90a
-// RUN: %{build} -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx90a -o %t.out
+//===---runtime_query_hip_gfx90a.cpp - DPC++ joint_matrix------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+// REQUIRES: target-amd
+// REQUIRES: arch-amd_gpu_gfx90a
+// RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx90a %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl::ext::oneapi::experimental::matrix;
 

@@ -64,7 +64,7 @@ void test() {
     *aptr = 44;
   // CHECK: [[TMP13:%.*]] = load ptr addrspace(4), ptr addrspace(4) %aptr.ascast
   // CHECK: [[ARRAYDECAY2:%.*]] = getelementptr inbounds [42 x i32], ptr addrspace(4) [[ARR_ASCAST]], i64 0, i64 0
-  // CHECK: [[ADD_PTR3:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[ARRAYDECAY2]], i64 168
+  // CHECK: [[ADD_PTR3:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[ARRAYDECAY2]], i64 168
   // CHECK: [[CMP4:%.*]] = icmp ult ptr addrspace(4) [[TMP13]], [[ADD_PTR3]]
 
   const char *str = "Hello, world!";

@@ -13,7 +13,10 @@
 #ifdef MAIN_CPP
 // main.cpp
 
-#include "sycl/sycl.hpp"
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
+
 #include <iostream>
 
 void add(sycl::queue q, int *result, int a, int b);
@@ -49,6 +52,7 @@ int main() {
     return 1;
   }
   std::cout << "PASSED\n";
+  free(result, q);
   return 0;
 }
 
@@ -56,7 +60,7 @@ int main() {
 
 #ifdef ADD_CPP
 // add.cpp
-#include "sycl/sycl.hpp"
+#include <sycl/detail/core.hpp>
 
 void add(sycl::queue q, int *result, int a, int b) {
   q.single_task<class add_dummy>([=] { *result = a + b; });
@@ -66,7 +70,7 @@ void add(sycl::queue q, int *result, int a, int b) {
 
 #ifdef SUB_CPP
 // sub.cpp
-#include "sycl/sycl.hpp"
+#include <sycl/detail/core.hpp>
 
 void sub(sycl::queue q, int *result, int a, int b) {
   q.single_task<class sub_dummy>([=] { *result = a - b; });

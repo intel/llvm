@@ -1,11 +1,12 @@
-// RUN: %{build} -std=c++17 -o %t.run -Wno-deprecated-declarations
+// RUN: %{build} %cxx_std_optionc++17 -o %t.run -Wno-deprecated-declarations
 // RUN: %{run} %t.run
 
 // Variant of group_asymc_copy.cpp using legacy multi_ptr and the corresponding
 // deprecated async_work_group_copy interfaces.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/vector.hpp>
 #include <typeinfo>
 
 using namespace sycl;

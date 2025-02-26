@@ -2,11 +2,7 @@ set(libc_archive_targets "")
 set(libc_archive_names "")
 set(libc_archive_entrypoint_lists "")
 if(LLVM_LIBC_FULL_BUILD)
-  if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
-    list(APPEND libc_archive_names cgpu mgpu)
-  else()
-    list(APPEND libc_archive_names c m)
-  endif()
+  list(APPEND libc_archive_names c m)
   list(APPEND libc_archive_targets libc libm)
   list(APPEND libc_archive_entrypoint_lists
        TARGET_LIBC_ENTRYPOINTS TARGET_LIBM_ENTRYPOINTS)
@@ -40,6 +36,23 @@ foreach(archive IN ZIP_LISTS
     endif()
   endif()
   list(APPEND added_archive_targets ${archive_1})
+
+  # Add the offloading version of the library for offloading languages. These
+  # are installed in the standard search path separate from the other libraries.
+  if(LIBC_TARGET_OS_IS_GPU)
+    add_bitcode_entrypoint_library(
+      ${archive_1}bitcode
+      ${archive_1}
+      DEPENDS
+        ${${archive_2}}
+    )
+    set_target_properties(
+      ${archive_1}bitcode
+      PROPERTIES
+        OUTPUT_NAME ${archive_1}.bc
+    )
+    list(APPEND added_bitcode_targets ${archive_1}bitcode)
+  endif()
 endforeach()
 
 install(
@@ -47,6 +60,14 @@ install(
   ARCHIVE DESTINATION ${LIBC_INSTALL_LIBRARY_DIR}
   COMPONENT libc
 )
+
+foreach(file ${added_bitcode_targets})
+  install(FILES $<TARGET_FILE:${file}>
+          DESTINATION ${LIBC_INSTALL_LIBRARY_DIR}
+          RENAME $<TARGET_PROPERTY:${file},OUTPUT_NAME>
+          COMPONENT libc
+  )
+endforeach()
 
 if(NOT LIBC_TARGET_OS_IS_BAREMETAL)
   # For now we will disable libc-startup installation for baremetal. The
@@ -61,6 +82,7 @@ endif()
 
 add_custom_target(install-libc
                   DEPENDS ${added_archive_targets}
+                          ${added_bitcode_targets}
                           ${startup_target}
                           ${header_install_target}
                   COMMAND "${CMAKE_COMMAND}"
@@ -68,6 +90,7 @@ add_custom_target(install-libc
                           -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
 add_custom_target(install-libc-stripped
                   DEPENDS ${added_archive_targets}
+                          ${added_bitcode_targets}
                           ${startup_target}
                           ${header_install_target}
                   COMMAND "${CMAKE_COMMAND}"

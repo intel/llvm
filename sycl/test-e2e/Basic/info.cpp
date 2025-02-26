@@ -1,4 +1,4 @@
-// RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -D__SYCL_INTERNAL_API -o %t.out
 // RUN: %{run} %t.out
 
 //==----------------info.cpp - SYCL objects get_info() test ----------------==//
@@ -8,20 +8,20 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cassert>
 #include <cstdint>
 #include <iostream>
+#include <sstream>
 #include <string>
-#include <strstream>
 #include <type_traits>
 
 using namespace sycl;
 
 // Handle unknown info, e.g., from non-standard extensions.
 template <typename T> std::string unknown_info_to_string(T info) {
-  std::strstream stream;
+  std::stringstream stream;
   stream << std::hex << static_cast<std::uint64_t>(info) << " (unknown value)"
          << "\n";
   return stream.str();
@@ -207,8 +207,8 @@ void print_info(const platform &plt, const std::string &name) {
 int main() {
   std::string separator(std::string(80, '-') + "\n");
   std::cout << separator << "Device information\n" << separator;
-  default_selector selector;
-  device dev(selector.select_device());
+  device dev(default_selector_v);
+  backend backend{dev.get_backend()};
 
   print_info<info::device::device_type, info::device_type>(dev, "Device type");
   print_info<info::device::vendor_id, std::uint32_t>(dev, "Vendor ID");
@@ -313,9 +313,17 @@ int main() {
       dev, "Is compiler available");
   print_info<info::device::is_linker_available, bool>(dev,
                                                       "Is linker available");
-  print_info<info::device::execution_capabilities,
-             std::vector<info::execution_capability>>(dev,
-                                                      "Execution capabilities");
+  try {
+    print_info<info::device::execution_capabilities,
+               std::vector<info::execution_capability>>(
+        dev, "Execution capabilities");
+    assert(backend == sycl::backend::opencl &&
+           "An exception is expected for non OpenCL backend");
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid &&
+           backend != sycl::backend::opencl && "Unexpected exception");
+  }
+
   print_info<info::device::queue_profiling, bool>(dev, "Queue profiling");
   print_info<info::device::built_in_kernels, std::vector<std::string>>(
       dev, "Built in kernels");
@@ -323,7 +331,14 @@ int main() {
   print_info<info::device::name, std::string>(dev, "Name");
   print_info<info::device::vendor, std::string>(dev, "Vendor");
   print_info<info::device::driver_version, std::string>(dev, "Driver version");
-  print_info<info::device::profile, std::string>(dev, "Profile");
+  try {
+    print_info<info::device::profile, std::string>(dev, "Profile");
+    assert(backend == sycl::backend::opencl &&
+           "An exception is expected for non OpenCL backend");
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid &&
+           backend != sycl::backend::opencl && "Unexpected exception");
+  }
   print_info<info::device::version, std::string>(dev, "Version");
   print_info<info::device::backend_version, std::string>(dev,
                                                          "Backend version");
@@ -333,11 +348,18 @@ int main() {
                                                                  "Extensions");
   print_info<info::device::printf_buffer_size, size_t>(dev,
                                                        "Printf buffer size");
-  print_info<info::device::preferred_interop_user_sync, bool>(
-      dev, "Preferred interop user sync");
+  try {
+    print_info<info::device::preferred_interop_user_sync, bool>(
+        dev, "Preferred interop user sync");
+    assert(backend == sycl::backend::opencl &&
+           "An exception is expected for non OpenCL backend");
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid &&
+           backend != sycl::backend::opencl && "Unexpected exception");
+  }
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");
-  } catch (sycl::exception e) {
+  } catch (const sycl::exception &e) {
     std::cout << "Expected exception has been caught: " << e.what()
               << std::endl;
   }
@@ -368,7 +390,7 @@ int main() {
       plt, "Extensions");
 
   std::cout << separator << "Queue information\n" << separator;
-  queue q(selector);
+  queue q(default_selector_v);
   auto qdev = q.get_info<sycl::info::queue::device>();
   std::cout << "Device from queue information\n";
   print_info<info::device::name, std::string>(qdev, "Name");

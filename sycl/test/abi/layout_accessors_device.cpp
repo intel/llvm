@@ -5,6 +5,7 @@
 // clang-format off
 
 #include <sycl/accessor.hpp>
+#include <sycl/accessor_image.hpp>
 
 using namespace sycl;
 

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/builtins_preview.hpp>
+#include <sycl/detail/builtins/builtins.hpp>
 
 #include "host_helper_macros.hpp"
 
@@ -90,11 +90,11 @@ BUILTIN_GENINT(ONE_ARG, abs, [](auto x) -> decltype(x) {
 })
 
 BUILTIN_GENINT_SU(TWO_ARGS, abs_diff, [](auto x, auto y) -> decltype(x) {
-  // From SYCL 2020 revision 8:
-  //
-  // > The subtraction is done without modulo overflow. The behavior is
-  // > undefined if the result cannot be represented by the return type.
-  return sycl::abs(x - y);
+  if constexpr (std::is_signed_v<decltype(x)>)
+    if ((x < 0) != (y < 0))
+      return std::abs(x) + std::abs(y);
+
+  return std::max(x, y) - std::min(x, y);
 })
 
 BUILTIN_GENINT_SU(TWO_ARGS, add_sat, [](auto x, auto y) -> decltype(x) {
@@ -150,7 +150,7 @@ BUILTIN_GENINT_SU(
                                                   // negative value.
           return sycl::add_sat(T(a * b), c);
         } else {
-          using UPT = sycl::detail::make_larger_t<T>;
+          using UPT = int64_t;
           UPT mul = UPT(a) * UPT(b);
           UPT res = mul + UPT(c);
           const UPT max = std::numeric_limits<T>::max();
@@ -166,7 +166,7 @@ BUILTIN_GENINT_SU(
             return std::numeric_limits<T>::max();
           return sycl::add_sat(T(a * b), c);
         } else {
-          using UPT = sycl::detail::make_larger_t<T>;
+          using UPT = uint64_t;
           UPT mul = UPT(a) * UPT(b);
           const UPT min = std::numeric_limits<T>::min();
           const UPT max = std::numeric_limits<T>::max();
@@ -176,6 +176,11 @@ BUILTIN_GENINT_SU(
       }
     })
 
+// Moved outside of macro invocation:
+template <typename T>
+using same_signedness_int64_t =
+    std::conditional_t<std::is_signed_v<T>, int64_t, uint64_t>;
+
 BUILTIN_GENINT_SU(TWO_ARGS, mul_hi, [](auto a, auto b) -> decltype(a) {
   using T = decltype(a);
   if constexpr (sizeof(T) == 8) {
@@ -184,7 +189,7 @@ BUILTIN_GENINT_SU(TWO_ARGS, mul_hi, [](auto a, auto b) -> decltype(a) {
     else
       return __u_long_mul_hi(a, b);
   } else {
-    using UPT = sycl::detail::make_larger_t<T>;
+    using UPT = same_signedness_int64_t<T>;
     UPT a_s = a;
     UPT b_s = b;
     UPT mul = a_s * b_s;

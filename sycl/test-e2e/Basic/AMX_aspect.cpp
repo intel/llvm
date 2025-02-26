@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 //
 
 //==--------------- AMX_aspect.cpp - SYCL device test
@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using arch = sycl::ext::oneapi::experimental::architecture;

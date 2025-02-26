@@ -1,19 +1,18 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: hip
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// RUN: %{build} %{mathflags} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} %{mathflags} -o %t1.out
+// RUN: %{run} %t1.out
 
-// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %{mathflags} %s -o %t.out
-// RUN: %if !gpu %{ %{run} %t.out %}
+// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl -fsycl-device-lib-jit-link %{mathflags} %s -o %t2.out
+// RUN: %if !gpu %{ %{run} %t2.out %}
 
 #include "math_utils.hpp"
 #include <cstdint>
 #include <iostream>
 #include <math.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
