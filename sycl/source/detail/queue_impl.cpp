@@ -368,13 +368,14 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   struct Cleanup {
     Cleanup(const std::shared_ptr<queue_impl> &Self,
-      const std::shared_ptr<queue_impl> &PrimaryQueue,
-      const std::shared_ptr<queue_impl> &SecondaryQueue,
-      bool CallerNeedsEvent) {
+            const std::shared_ptr<queue_impl> &PrimaryQueue,
+            const std::shared_ptr<queue_impl> &SecondaryQueue,
+            bool CallerNeedsEvent) {
       if (MHandler)
         MHandler->reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
       else
-        MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
+        MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(
+            Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
     }
     ~Cleanup() { MHandler->reset(nullptr, nullptr, nullptr, false); }
   } cleanup(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
@@ -407,9 +408,10 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
     if (IsKernel)
       // Kernel only uses assert if it's non interop one
-      KernelUsesAssert = !(MHandler->MKernel && MHandler->MKernel->isInterop()) &&
-                         ProgramManager::getInstance().kernelUsesAssert(
-                             MHandler->MKernelName.c_str());
+      KernelUsesAssert =
+          !(MHandler->MKernel && MHandler->MKernel->isInterop()) &&
+          ProgramManager::getInstance().kernelUsesAssert(
+              MHandler->MKernelName.c_str());
     finalizeHandler(*MHandler, Event);
 
     PostProcess(IsKernel, KernelUsesAssert, Event);
