@@ -28,7 +28,6 @@ Release notes for commit range
 
 ### SYCL Library
 
-- Added support for FPGA `task_sequence` and related properties: `fpga_cluster`, `pipelined`, `balanced`, `invocation_capacity`, `response_capacity`. intel/llvm#14750
 - Added support for root group barrier on CUDA backend. intel/llvm#14828
 - Introduced `map_external_linear_memory` for bindless images to enable mapping interop memory to linear USM, returning a `void *`. intel/llvm#14701
 - Enabled aligned USM allocation APIs on Native CPU. intel/llvm#14010
@@ -122,7 +121,6 @@ Release notes for commit range
 - Native CPU now uses a pass to convert ABI-compliant calls to mux builtins, removing vector versions and ensuring the interface remains unaffected by the ABI. intel/llvm#15592
 - The `-fsycl-link=image` behavior is updated to package host objects similarly to `-fsycl-link=early`, ensuring proper linking, especially on Windows. intel/llvm#15539
 - Enabled generation of approximate `div`/`sqrt` with `-ffast-math` for NVTPX. intel/llvm#15553
-- Address sanitizer started to ignore target extension type as we can't know exactly what size it is. intel/llvm#15484
 - Added extra optimization passes in Native CPU pipeline. intel/llvm#14380
 - Updated implementation of `-fsycl-host-compiler` option to only use user-provided hints (i.e. `PATH`) to locate the specified compiler. Previously this option also took into account a few extra locations implicitly known to the toolchain, potentially causing incorrect binary to be used. intel/llvm#15769
 - Deprecated `[[intel::reqd_sub_group_size]]`, the official SYCL 2020 spelling should be used instead (with `sycl::` namespace). intel/llvm#15798
@@ -138,7 +136,6 @@ Release notes for commit range
 - Refactored XPTI framework to use 128-bit keys for collision elimination and added support for 64-bit universal IDs for backward compatibility. Previous 64-bit hash values were used to represent trace points and this has led to a few of hash  collisions. intel/llvm#14467
 - Made calling `command_graph::begin_recording` repeatedly an error. intel/llvm#15192
 - Reduced number of devicelib files that have to be redistributed for CUDA and HIP backends. As a side effect, device libraries cannot be selectively used anymore either all of them are linked, or none. intel/llvm#15048 intel/llvm#15055
-- Improved library to prefer built-ins to retrieve kernel information over integration headers. intel/llvm#15070 intel/llvm#15922
 - Aligned [`sycl_ext_oneapi_address_cast`](https://github.com/intel/llvm/blob/a4c53e4dcd949f9de4cb8d821c8fba63ddb24749/sycl/doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc) implementation with the specification. intel/llvm#15402
 - Optimized `atomic_ref` constructor for SPIR-V target. intel/llvm#15384
 - Added an exception for unsupported `get_native<sycl::context>` specialization for HIP backend.  intel/llvm#14476
