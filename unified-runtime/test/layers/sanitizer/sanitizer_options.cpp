@@ -142,8 +142,19 @@ TEST_F(SanitizerOptionsTest, Normal) {
 
 TEST_F(SanitizerOptionsTest, Error) {
   // invalid format for bool
-  ASSERT_DEATH(SetEnvAndInit("debug:42"), ".*");
+  ASSERT_DEATH(SetEnvAndInit("debug:42"), "for enable");
+  ASSERT_DEATH(SetEnvAndInit("debug:yes"), "for enable");
+
+  // invalid format for uint64
+  ASSERT_DEATH(SetEnvAndInit("quarantine_size_mb:-1"), "The valid range of");
+  ASSERT_DEATH(SetEnvAndInit("quarantine_size_mb:abc"), "The valid range of");
+
+  // out of range error will not result in death, but will clamp to the valid
+  // range. For MaxQuarantineSizeMB, its valid range is [0, UINT32_MAX]
+  SetEnvAndInit("quarantine_size_mb:4294967296");
+  ASSERT_EQ(Options.MaxQuarantineSizeMB, UINT32_MAX);
 
   // invalid format for UR env map
-  ASSERT_DEATH(SetEnvAndInit("debug=42"), ".*");
+  ASSERT_DEATH(SetEnvAndInit("debug=42"), "Proper format is");
+  ASSERT_DEATH(SetEnvAndInit("a:1,b:1"), "Proper format is");
 }
