@@ -33,6 +33,22 @@
 //             graphs, resulting in a potentially new set of graphs containing
 //             all full common trees of a sub-collection of the graphs. Note
 //             that sub-trees do not count as full common trees.
+//
+// Poisoning example:
+//
+//      A    D    Poison B     D
+//     ↙ ↘ ↙    ---------->   ↓
+//    B   C                    C
+//
+// Unify example:
+//
+//       Graph 1         Graph 2                  {1}         {2}   {1 & 2}
+//   [   A    D  E ]    [ D   E ]    Unify    [   A    D ]   [ D ]   [ E ]
+//   [  ↙ ↘ ↙   ↓  ] & [ ↓   ↓  ]  ------->  [  ↙ ↘ ↙   ] & [ ↓ ] & [ ↓ ]
+//   [ B   C     F ]    [ C   F ]             [ B   C    ]   [ C ]   [ F ]
+//
+//   NOTE: Though D and C are in both {1} and {2}, they are not unified as their
+//         full trees are not the same.
 
 #pragma once
 
@@ -77,8 +93,10 @@ public:
     for (size_t I = 0; I < Values.size(); ++I) {
       Node &N = Nodes[I];
       N.Children = Links[I];
-      for (size_t ChildIndex : N.Children)
+      for (size_t ChildIndex : N.Children) {
+        assert(ChildIndex < Nodes.size());
         Nodes[ChildIndex].Parents.push_back(I);
+      }
     }
   }
 
@@ -140,6 +158,7 @@ public:
         // It should not be possible for an unseen node to be dead at this
         // point.
         assert(Nodes[I].Alive);
+        break;
       }
 
       // The amount of work must have grown after looking for cycles, otherwise
@@ -197,6 +216,7 @@ protected:
       //  2. If this node poisoned the parent or if this is the last child
       //     to see the parent, add the parent to the work-list.
       for (size_t ParentIndex : CurrentNode.Parents) {
+        assert(ParentIndex < Nodes.size());
         Node &ParentNode = Nodes[ParentIndex];
         ++Seen[ParentIndex];
 
@@ -225,6 +245,7 @@ protected:
       // the children lists as they will inevitably be cleared.
       if (!CurrentNode.Alive) {
         for (size_t ChildIndex : CurrentNode.Children) {
+          assert(ChildIndex < Nodes.size());
           Node &Child = Nodes[ChildIndex];
           // Dead children must be skipped too.
           if (!Child.Alive)
@@ -276,6 +297,7 @@ protected:
   static void MapTree(const std::map<TagT, LinkGraph> &Graphs, size_t NodeIndex,
                       std::vector<bool> &Visited,
                       std::vector<size_t> &MappedTree) {
+    assert(NodeIndex < Visited.size());
     if (Visited[NodeIndex])
       return;
     Visited[NodeIndex] = true;
@@ -321,7 +343,7 @@ protected:
         Row.second.push_back(Graph.second.Nodes[TreeNodeIndex].Alive);
     }
 
-    // Sorting the matrix lexiconographically makes it easy to iteratively find
+    // Sorting the matrix lexicographically makes it easy to iteratively find
     // the tag groupings.
     std::sort(NodeUseMatrix.begin(), NodeUseMatrix.end(),
               [](const std::pair<TagT, std::vector<bool>> &LHS,
