@@ -346,6 +346,115 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, void *pMemory,
+    const void *pPattern, size_t patternSize, size_t size,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) try {
+
+  // the same issue as in urCommandBufferAppendKernelLaunchExp
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  // sync mechanic can be ignored, because all lists are in-order
+  std::ignore = numSyncPointsInWaitList;
+  std::ignore = pSyncPointWaitList;
+  std::ignore = pSyncPoint;
+
+  std::ignore = phCommand;
+
+  UR_CALL(hCommandBuffer->commandListManager.appendUSMFill(
+      pMemory, patternSize, pPattern, size, 0, nullptr, nullptr));
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
+    const void *pPattern, size_t patternSize, size_t offset, size_t size,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) try {
+
+  // the same issue as in urCommandBufferAppendKernelLaunchExp
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  // sync mechanic can be ignored, because all lists are in-order
+  std::ignore = numSyncPointsInWaitList;
+  std::ignore = pSyncPointWaitList;
+  std::ignore = pSyncPoint;
+
+  std::ignore = phCommand;
+
+  UR_CALL(hCommandBuffer->commandListManager.appendMemBufferFill(
+      hBuffer, pPattern, patternSize, offset, size, 0, nullptr, nullptr));
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urCommandBufferAppendUSMPrefetchExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, const void *pMemory,
+    size_t size, ur_usm_migration_flags_t flags,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) try {
+
+  // the same issue as in urCommandBufferAppendKernelLaunchExp
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  // sync mechanic can be ignored, because all lists are in-order
+  std::ignore = numSyncPointsInWaitList;
+  std::ignore = pSyncPointWaitList;
+  std::ignore = pSyncPoint;
+
+  std::ignore = phCommand;
+
+  UR_CALL(hCommandBuffer->commandListManager.appendUSMPrefetch(
+      pMemory, size, flags, 0, nullptr, nullptr));
+
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urCommandBufferAppendUSMAdviseExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, const void *pMemory,
+    size_t size, ur_usm_advice_flags_t advice, uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) try {
+
+  // the same issue as in urCommandBufferAppendKernelLaunchExp
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  // sync mechanic can be ignored, because all lists are in-order
+  std::ignore = numSyncPointsInWaitList;
+  std::ignore = pSyncPointWaitList;
+  std::ignore = pSyncPoint;
+
+  std::ignore = phCommand;
+
+  UR_CALL(hCommandBuffer->commandListManager.appendUSMAdvise(pMemory, size,
+                                                             advice, nullptr));
+
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 ur_result_t
 urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                           ur_exp_command_buffer_info_t propName,

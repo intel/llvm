@@ -378,7 +378,6 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersEmptyLocalSize) {
 // Test updating A,X,Y parameters to new values and local memory parameters
 // to new smaller values.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
   // Run command-buffer prior to update an verify output
   ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
@@ -1080,11 +1079,6 @@ struct LocalMemoryUpdateTestBaseOutOfOrder : LocalMemoryUpdateTestBase {
     program_name = "saxpy_usm_local_mem";
     UUR_RETURN_ON_FATAL_FAILURE(
         urUpdatableCommandBufferExpExecutionTest::SetUp());
-
-    if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-      GTEST_SKIP()
-          << "Local memory argument update not supported on Level Zero.";
-    }
 
     // HIP has extra args for local memory so we define an offset for arg
     // indices here for updating

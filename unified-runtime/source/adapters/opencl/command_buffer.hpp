@@ -46,6 +46,8 @@ struct ur_exp_command_buffer_handle_t_ {
   /// Set to true if the kernel commands in the command-buffer can be updated,
   /// false otherwise
   bool IsUpdatable;
+  /// Set to true if the command-buffer was created with an in-order queue.
+  bool IsInOrder;
   /// Set to true if the command-buffer has been finalized, false otherwise
   bool IsFinalized;
   /// List of commands in the command-buffer.
@@ -58,10 +60,10 @@ struct ur_exp_command_buffer_handle_t_ {
                                   ur_context_handle_t hContext,
                                   ur_device_handle_t hDevice,
                                   cl_command_buffer_khr CLCommandBuffer,
-                                  bool IsUpdatable)
+                                  bool IsUpdatable, bool IsInOrder)
       : hInternalQueue(hQueue), hContext(hContext), hDevice(hDevice),
         CLCommandBuffer(CLCommandBuffer), IsUpdatable(IsUpdatable),
-        IsFinalized(false), RefCount(0) {}
+        IsInOrder(IsInOrder), IsFinalized(false), RefCount(0) {}
 
   ~ur_exp_command_buffer_handle_t_();
 
