@@ -47,7 +47,7 @@ int main() {
 
   constexpr int ResBufSize = ENUM_SIZE;
   std::vector<int> ResBufData(ResBufSize, 0);
-  std::cout << "Success" << std::endl;
+
   {
     sycl::image<2> Img(Img1HostData.data(), ChanOrder, ChanType, ImgSize);
 
