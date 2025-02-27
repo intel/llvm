@@ -62,10 +62,6 @@ __SYCL_EXPORT void
 free(void *ptr, const queue &q,
      const detail::code_location &CodeLoc = detail::code_location::current());
 
-namespace detail::usm {
-__SYCL_EXPORT void freeInternal(void *Ptr, const context_impl *CtxImpl);
-}
-
 ///
 // Restricted USM
 ///
@@ -354,17 +350,13 @@ __SYCL_EXPORT void release_from_device_copy(const void *Ptr,
                                             const queue &Queue);
 
 class usm_deleter {
-  const detail::context_impl *CtxImpl = nullptr;
+  context ctx;
 
 public:
-  usm_deleter(const context &Ctx)
-      : CtxImpl(detail::getSyclObjImpl(Ctx).get()) {}
-  __SYCL_EXPORT usm_deleter(const queue &Q);
+  usm_deleter(const context &ctx) : ctx(ctx) {}
+  usm_deleter(const queue &q) : ctx(q.get_context()) {}
 
-  template <typename T> void operator()(T *Ptr) const {
-    // FIXME: This bypasses XPTI instrumentation of sycl::free.
-    detail::usm::freeInternal(Ptr, CtxImpl);
-  }
+  template <typename T> void operator()(T *ptr) const { sycl::free(ptr, ctx); }
 };
 
 } // namespace ext::oneapi::experimental

@@ -647,9 +647,6 @@ void release_from_device_copy(const void *Ptr, const context &Ctxt) {
 void release_from_device_copy(const void *Ptr, const queue &Queue) {
   release_from_usm_device_copy(Ptr, Queue.get_context());
 }
-
-__SYCL_EXPORT usm_deleter::usm_deleter(const queue &Q)
-    : CtxImpl(detail::getSyclObjImpl(Q)->getContextImplPtr().get()) {}
 } // namespace ext::oneapi::experimental
 
 __SYCL_EXPORT void verifyUSMAllocatorProperties(const property_list &PropList) {
