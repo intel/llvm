@@ -4,6 +4,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+
 #ifdef __DPCPP_ENABLE_UNFINISHED_KHR_EXTENSIONS
 namespace khr {
 
@@ -297,7 +298,7 @@ inline void memcpy(handler &h, void *dest, const void *src, size_t numBytes) {
 inline void memcpy(queue q, void *dest, const void *src, size_t numBytes,
                    const sycl::detail::code_location &codeLoc =
                        sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { memcpy(h, dest, src, numBytes); }, codeLoc);
+  sycl::ext::oneapi::experimental::memcpy(q, dest, src, numBytes, codeLoc);
 }
 
 template <typename T>
@@ -421,7 +422,7 @@ inline void memset(handler &h, void *ptr, int value, size_t numBytes) {
 inline void memset(queue q, void *ptr, int value, size_t numBytes,
                    const sycl::detail::code_location &codeLoc =
                        sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { memset(h, ptr, value, numBytes); }, codeLoc);
+  sycl::ext::oneapi::experimental::memset(q, ptr, value, numBytes);
 }
 
 template <typename T>
@@ -489,7 +490,7 @@ inline void mem_advise(handler &h, void *ptr, size_t numBytes, int advice) {
 inline void mem_advise(queue q, void *ptr, size_t numBytes, int advice,
                        const sycl::detail::code_location &codeLoc =
                            sycl::detail::code_location::current()) {
-  submit(q, [&](handler &h) { mem_advise(h, ptr, numBytes, advice); }, codeLoc);
+  sycl::ext::oneapi::experimental::mem_advise(q, ptr, numBytes, advice);
 }
 
 inline void command_barrier(handler &h) { h.ext_oneapi_barrier(); }
