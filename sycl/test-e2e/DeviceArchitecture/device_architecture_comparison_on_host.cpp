@@ -4,7 +4,7 @@
 // UNSUPPORTED-INTENDED: This test is written only for Intel architectures. It
 // is expected that this test will fail on NVIDIA and AMD as the checks for
 // ext_oneapi_architecture_is host API expect that device architecture is Intel
-// GPU
+// GPU.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

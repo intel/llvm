@@ -1,8 +1,7 @@
 // RUN: %{build} -o %t.out -Wno-deprecated-declarations -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80
 // RUN: %{run} %t.out
 
-// REQUIRES: aspect-ext_oneapi_cuda_async_barrier
-// REQUIRES: target-nvidia
+// REQUIRES: aspect-ext_oneapi_cuda_async_barrier, target-nvidia
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
