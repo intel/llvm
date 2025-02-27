@@ -123,7 +123,6 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
   }
 
 #ifdef NDEBUG
-  std::ignore = Alignment;
 #else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
@@ -145,7 +144,6 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
   }
 
 #ifdef NDEBUG
-  std::ignore = Alignment;
 #else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
@@ -164,7 +162,6 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t hContext,
   }
 
 #ifdef NDEBUG
-  std::ignore = Alignment;
 #else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
@@ -363,9 +360,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
   }
   return UR_RESULT_SUCCESS;
 #else
-  std::ignore = Context;
-  std::ignore = PoolDesc;
-  std::ignore = Pool;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
 }
