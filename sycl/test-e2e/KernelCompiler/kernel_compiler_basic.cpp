@@ -70,7 +70,7 @@ int main() {
   for (int i = 0; i < NUM; i++) {
     const float truth = 3.14f + static_cast<float>(i);
     if (std::abs(ptr[i] - truth) > eps) {
-      std::cout << "Unexpected result at " << i << ", expected " << truth << " got " << ptr[i] << "\n";
+      std::cout << "Result: " << ptr[i] << " expected " << i << "\n";
       sycl::free(ptr, q);
       exit(1);
     }
