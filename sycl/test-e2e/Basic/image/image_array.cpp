@@ -15,6 +15,7 @@
 #include <sycl/accessor_image.hpp>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/group_barrier.hpp>
 
 #include <iostream>
 #include <vector>
@@ -29,6 +30,7 @@ int main() {
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
 
   const sycl::range<2> ImgSize(4, 4);
+  const sycl::nd_range<2> NDImgSize{ImgSize, ImgSize};
 
   std::vector<sycl::float4> Img1HostData(ImgSize.size(), {1, 2, 3, 4});
 
@@ -45,6 +47,7 @@ int main() {
 
   constexpr int ResBufSize = ENUM_SIZE;
   std::vector<int> ResBufData(ResBufSize, 0);
+  std::cout << "Success" << std::endl;
   {
     sycl::image<2> Img(Img1HostData.data(), ChanOrder, ChanType, ImgSize);
 
@@ -115,42 +118,16 @@ int main() {
 
       auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
 
-      CGH.parallel_for<class Check2_1>(ImgSize, [=](sycl::item<2> Item) {
-        sycl::int2 CoordI{Item[0], Item[1]};
+      CGH.parallel_for<class Check2>(NDImgSize, [=](sycl::nd_item<2> Item) {
+        sycl::int2 CoordI{Item.get_global_id(0), Item.get_global_id(1)};
 
-        // Check data written using image array: step 1 write
+        // CHeck that data written using image array
         const sycl::float4 ValRef{CoordI.x(), 42, 42, CoordI.y()};
         ImgArrayAcc[CoordI.y()].write((int)CoordI.x(), ValRef);
-      });
-    });
-
-    Q.submit([&](sycl::handler &CGH) {
-      auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);
-
-      auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
-
-      CGH.parallel_for<class Check2_2>(ImgSize, [=](sycl::item<2> Item) {
-        sycl::int2 CoordI{Item[0], Item[1]};
-
-        // Check data written using image array: step 2 read
-        const sycl::float4 ValRef{CoordI.x(), 42, 42, CoordI.y()};
+        sycl::group_barrier(Item.get_group());
         auto Val = ImgAcc.read(CoordI);
 
         ResAcc[WRITE1] |= sycl::any(sycl::isnotequal(Val, ValRef));
-      });
-    });
-
-    Q.submit([&](sycl::handler &CGH) {
-      auto ImgAcc = Img.get_access<sycl::float4, SYCLWrite>(CGH);
-
-      auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
-
-      CGH.parallel_for<class Check3_1>(ImgSize, [=](sycl::item<2> Item) {
-        sycl::int2 CoordI{Item[0], Item[1]};
-
-        // Check data read using image array: step 1 write
-        const sycl::float4 ValRef{CoordI.x(), 55, 20, CoordI.y()};
-        ImgAcc.write(CoordI, ValRef);
       });
     });
 
@@ -162,11 +139,13 @@ int main() {
 
       auto ResAcc = ResBuf.get_access<SYCLReadWrite>(CGH);
 
-      CGH.parallel_for<class Check3_2>(ImgSize, [=](sycl::item<2> Item) {
-        sycl::int2 CoordI{Item[0], Item[1]};
+      CGH.parallel_for<class Check3>(NDImgSize, [=](sycl::nd_item<2> Item) {
+        sycl::int2 CoordI{Item.get_global_id(0), Item.get_global_id(1)};
 
-        // Check data read using image array: step 2 read
-        const sycl::float4 ValRef{CoordI.x(), 55, 20, CoordI.y()};
+        // CHeck that data read using image array
+        const sycl::float4 ValRef{CoordI.x(), 53, 55, CoordI.y()};
+        ImgAcc.write(CoordI, ValRef);
+        sycl::group_barrier(Item.get_group());
         auto Val = ImgArrayAcc[CoordI.y()].read((int)CoordI.x());
 
         ResAcc[WRITE2] |= sycl::any(sycl::isnotequal(Val, ValRef));
@@ -174,12 +153,12 @@ int main() {
     });
   }
 
-  for (const auto &Elem : ResBufData) {
+  for (const auto &Elem : ResBufData)
     if (Elem) {
       std::cout << "Failed" << std::endl;
       return 1;
     }
-  }
+
   std::cout << "Success" << std::endl;
   return 0;
 }
