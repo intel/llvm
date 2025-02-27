@@ -16,6 +16,7 @@
 #include <sycl/atomic_fence.hpp>
 #include <sycl/atomic_ref.hpp>
 #include <sycl/backend.hpp>
+
 #if SYCL_BACKEND_OPENCL
 #include <sycl/backend/opencl.hpp>
 #endif
