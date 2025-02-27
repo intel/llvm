@@ -119,6 +119,7 @@ Currently only the following commands are supported:
 * ${x}CommandBufferAppendMemBufferFillExp
 * ${x}CommandBufferAppendUSMPrefetchExp
 * ${x}CommandBufferAppendUSMAdviseExp
+* ${x}CommandBufferAppendNativeCommandExp
 
 It is planned to eventually support any command type from the Core API which can
 actually be appended to the equivalent adapter native constructs.
@@ -208,6 +209,38 @@ wait node that needs to have its event reset by the enqueue of the second
 command-buffer, before the code path returns to user code for the user to
 enqueue the second command-buffer. Resulting in the first command-buffer's
 wait node completing too early for the intended overall executing ordering.
+
+Native Commands
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+The command-buffer interface enables user interop with native backend APIs.
+Through ${x}CommandBufferAppendNativeCommandExp the user can immediately invoke
+some native API calls that add commands to the command-buffer in a way that the
+UR is aware of. In doing so, the UR adapter can respect the dependencies of the
+native commands with the other UR command-buffer commands.
+
+In order for UR to guarantee correct synchronization of commands enqueued
+within the native API through the function passed to
+${x}CommandBufferAppendNativeCommandExp, the ${x}_exp_command_buffer_handle_t
+arguments must only use the native command-buffer accessed through
+${x}CommandBufferGetNativeHandleExp. Use of a native command-buffer that is
+not a native command-buffer returned by ${x}CommandBufferGetNativeHandleExp
+results in undefined behavior.
+
+The ${x}_exp_command_buffer_handle_t ``hChildCommandBuffer`` parameter to
+${x}CommandBufferAppendNativeCommandExp is used by the CUDA & HIP adapters
+to implement this feature, but is ignored by Level-Zero and OpenCL. This
+represents a child graph node that will be added to the parent graph, with
+the child graph node expressing the sync-point dependencies and returned
+sync point. This child graph object will be packed into the ``void* pData``
+argument that will be given to the user in the ``pfnNativeCommand`` callback
+for adding the native nodes to the command-buffer.
+
+Level-Zero & OpenCL backends use barrier nodes to enforce the dependencies
+on the user added nodes, rather than using an append child graph API. As a
+result the native command-buffer object for ``hCommandBuffer`` should
+be packed into ``void* pData``, as the adapters will ignore the
+``hChildCommandBuffer`` parameter.
 
 Enqueueing Command-Buffers
 --------------------------------------------------------------------------------
@@ -485,11 +518,13 @@ Functions
 * ${x}CommandBufferAppendMemBufferFillExp
 * ${x}CommandBufferAppendUSMPrefetchExp
 * ${x}CommandBufferAppendUSMAdviseExp
+* ${x}CommandBufferAppendNativeCommandExp
 * ${x}CommandBufferEnqueueExp
 * ${x}CommandBufferUpdateKernelLaunchExp
 * ${x}CommandBufferUpdateSignalEventExp
 * ${x}CommandBufferUpdateWaitEventsExp
 * ${x}CommandBufferGetInfoExp
+* ${x}CommandBufferGetNativeHandleExp
 
 Changelog
 --------------------------------------------------------------------------------
@@ -513,6 +548,8 @@ Changelog
 | 1.6       | Command level synchronization with event objects      |
 +-----------+-------------------------------------------------------+
 | 1.7       | Remove command handle reference counting and querying |
++-----------+-------------------------------------------------------+
+| 1.8       | Support native commands.                              |
 +-----------+-------------------------------------------------------+
 
 Contributors
