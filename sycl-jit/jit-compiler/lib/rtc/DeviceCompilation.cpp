@@ -495,6 +495,9 @@ static bool getDeviceLibraries(const ArgList &Args,
       {"libsycl-complex-fp64", "libm-fp64"},
       {"libsycl-cmath", "libm-fp32"},
       {"libsycl-cmath-fp64", "libm-fp64"},
+#if defined(_WIN32)
+      {"libsycl-msvc-math", "libm-fp32"},
+#endif
       {"libsycl-imf", "libimf-fp32"},
       {"libsycl-imf-fp64", "libimf-fp64"},
       {"libsycl-imf-bf16", "libimf-bf16"}};
