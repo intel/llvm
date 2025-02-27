@@ -145,4 +145,4 @@ jobs:
 
     - name: Get information about platform
       if: ${{ always() }}
-      run: ${{github.workspace}}/unified-runtime/.github/scripts/get_system_info.sh
+      run: ${{github.workspace}}/devops/scripts/get_system_info.sh
