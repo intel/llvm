@@ -25,13 +25,13 @@ thread_local sycl::device current_device =
 ///
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
-inline sycl::device get_current_device() { return detail::current_device; }
+sycl::device get_current_device() { return detail::current_device; }
 
 /// @brief Sets the current default device to `dev` for the calling host thread.
 ///
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
-inline void set_current_device(sycl::device dev) {
+void set_current_device(sycl::device dev) {
   detail::current_device = dev;
 }
 
