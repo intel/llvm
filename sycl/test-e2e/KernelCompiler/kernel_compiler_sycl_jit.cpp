@@ -238,18 +238,21 @@ int test_build_and_run() {
       syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
                          syclex::registered_kernel_names{"ff_templated<int>"}});
 
-  // extern "C" was used, so the name "ff_cp" is not mangled and can be used
-  // directly.
+  // extern "C" was used, so the name "ff_cp" is implicitly known.
   sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
 
-  // The templated function name will have been mangled. Mapping from original
-  // name to mangled is not yet supported. So we cannot yet do this:
-  // sycl::kernel k2 = kbExe2.ext_oneapi_get_kernel("ff_templated<int>");
+  // The templated function name was registered.
+  sycl::kernel k2 = kbExe2.ext_oneapi_get_kernel("ff_templated<int>");
 
-  // Instead, we can TEMPORARILY use the mangled name. Once demangling is
-  // supported this might no longer work.
-  sycl::kernel k2 =
-      kbExe2.ext_oneapi_get_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_S1_");
+  // Get compiler-generated names.
+  std::string cgn = kbExe2.ext_oneapi_get_raw_kernel_name("ff_cp");
+  std::string cgn2 = kbExe2.ext_oneapi_get_raw_kernel_name("ff_templated<int>");
+  assert(cgn == "__sycl_kernel_ff_cp");
+  assert(cgn2 == "_Z26__sycl_kernel_ff_templatedIiEvPT_S1_");
+
+  // We can also use the compiler-generated names directly.
+  assert(kbExe2.ext_oneapi_has_kernel(cgn));
+  assert(kbExe2.ext_oneapi_has_kernel(cgn2));
 
   // Test the kernels.
   run_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
