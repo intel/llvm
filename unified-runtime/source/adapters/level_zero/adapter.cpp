@@ -300,6 +300,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
 
+#ifdef UR_STATIC_LEVEL_ZERO
+  // Given static linking of the L0 Loader, we must delay the loader's
+  // destruction of its context until after the UR Adapter is destroyed.
+  zelSetDelayLoaderContextTeardown();
+#endif
+
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
   };
@@ -672,7 +678,13 @@ ur_result_t urAdapterRelease(ur_adapter_handle_t) {
   if (GlobalAdapter) {
     std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
     if (--GlobalAdapter->RefCount == 0) {
-      return adapterStateTeardown();
+      auto result = adapterStateTeardown();
+#ifdef UR_STATIC_LEVEL_ZERO
+      // Given static linking of the L0 Loader, we must delay the loader's
+      // destruction of its context until after the UR Adapter is destroyed.
+      zelLoaderContextTeardown();
+#endif
+      return result;
     }
   }
 
