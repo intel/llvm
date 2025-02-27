@@ -999,7 +999,9 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
-
+  // Caching pre-constructed handler to speed up submit(). There is no
+  // nested submit() calls, so we can use TLS.
+  thread_local static std::unique_ptr<sycl::handler> MHandler;
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
 
