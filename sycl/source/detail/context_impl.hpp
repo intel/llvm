@@ -15,6 +15,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
 
@@ -244,6 +245,10 @@ public:
 
   const property_list &getPropList() const { return MPropList; }
 
+  std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
+  get_default_memory_pool(const context &ctx, const device &dev,
+                          const usm::alloc &kind);
+
 private:
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
@@ -255,6 +260,12 @@ private:
   std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
+
+  // Device pools.
+  std::vector<std::pair<
+      device, std::shared_ptr<
+                  sycl::ext::oneapi::experimental::detail::memory_pool_impl>>>
+      MMemPoolImplPtrs;
 
   std::set<const void *> MAssociatedDeviceGlobals;
   std::mutex MAssociatedDeviceGlobalsMutex;

@@ -85,11 +85,15 @@ EXPORTS
 	urEnqueueReadHostPipe
 	urEnqueueTimestampRecordingExp
 	urEnqueueUSMAdvise
+	urEnqueueUSMDeviceAllocExp
 	urEnqueueUSMFill
 	urEnqueueUSMFill2D
+	urEnqueueUSMFreeExp
+	urEnqueueUSMHostAllocExp
 	urEnqueueUSMMemcpy
 	urEnqueueUSMMemcpy2D
 	urEnqueueUSMPrefetch
+	urEnqueueUSMSharedAllocExp
 	urEnqueueWriteHostPipe
 	urEventCreateWithNativeHandle
 	urEventGetInfo
@@ -282,11 +286,15 @@ EXPORTS
 	urPrintEnqueueReadHostPipeParams
 	urPrintEnqueueTimestampRecordingExpParams
 	urPrintEnqueueUsmAdviseParams
+	urPrintEnqueueUsmDeviceAllocExpParams
 	urPrintEnqueueUsmFillParams
 	urPrintEnqueueUsmFill_2dParams
+	urPrintEnqueueUsmFreeExpParams
+	urPrintEnqueueUsmHostAllocExpParams
 	urPrintEnqueueUsmMemcpyParams
 	urPrintEnqueueUsmMemcpy_2dParams
 	urPrintEnqueueUsmPrefetchParams
+	urPrintEnqueueUsmSharedAllocExpParams
 	urPrintEnqueueWriteHostPipeParams
 	urPrintEventCreateWithNativeHandleParams
 	urPrintEventGetInfoParams
@@ -300,6 +308,8 @@ EXPORTS
 	urPrintEventStatus
 	urPrintEventWaitParams
 	urPrintExecutionInfo
+	urPrintExpAsyncUsmAllocFlags
+	urPrintExpAsyncUsmAllocProperties
 	urPrintExpCommandBufferCommandInfo
 	urPrintExpCommandBufferDesc
 	urPrintExpCommandBufferInfo
@@ -480,14 +490,22 @@ EXPORTS
 	urPrintUsmP2pEnablePeerAccessExpParams
 	urPrintUsmP2pPeerAccessGetInfoExpParams
 	urPrintUsmPitchedAllocExpParams
+	urPrintUsmPoolCreateExpParams
 	urPrintUsmPoolCreateParams
 	urPrintUsmPoolDesc
+	urPrintUsmPoolDestroyExpParams
 	urPrintUsmPoolFlags
+	urPrintUsmPoolGetDefaultDevicePoolExpParams
+	urPrintUsmPoolGetDevicePoolExpParams
+	urPrintUsmPoolGetInfoExpParams
 	urPrintUsmPoolGetInfoParams
 	urPrintUsmPoolInfo
 	urPrintUsmPoolLimitsDesc
 	urPrintUsmPoolReleaseParams
 	urPrintUsmPoolRetainParams
+	urPrintUsmPoolSetDevicePoolExpParams
+	urPrintUsmPoolSetThresholdExpParams
+	urPrintUsmPoolTrimToExpParams
 	urPrintUsmReleaseExpParams
 	urPrintUsmSharedAllocParams
 	urPrintUsmType
@@ -539,9 +557,17 @@ EXPORTS
 	urUSMImportExp
 	urUSMPitchedAllocExp
 	urUSMPoolCreate
+	urUSMPoolCreateExp
+	urUSMPoolDestroyExp
+	urUSMPoolGetDefaultDevicePoolExp
+	urUSMPoolGetDevicePoolExp
 	urUSMPoolGetInfo
+	urUSMPoolGetInfoExp
 	urUSMPoolRelease
 	urUSMPoolRetain
+	urUSMPoolSetDevicePoolExp
+	urUSMPoolSetThresholdExp
+	urUSMPoolTrimToExp
 	urUSMReleaseExp
 	urUSMSharedAlloc
 	urUsmP2PDisablePeerAccessExp

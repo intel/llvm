@@ -413,3 +413,221 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
   }
   }
 }
+
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
+                                             ur_device_handle_t Device,
+                                             ur_usm_pool_desc_t *PoolDesc)
+    : Context{Context}, Device{Device} {
+  if (!(PoolDesc->flags & UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP))
+    throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+
+  CUmemPoolProps MemPoolProps{};
+  size_t threshold = 0;
+
+  const void *pNext = PoolDesc->pNext;
+  while (pNext != nullptr) {
+    const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
+    switch (BaseDesc->stype) {
+    case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC: {
+      const ur_usm_pool_limits_desc_t *Limits =
+          reinterpret_cast<const ur_usm_pool_limits_desc_t *>(BaseDesc);
+      MemPoolProps.maxSize =
+          Limits->maxPoolableSize; // CUDA lazily reserves memory for pools in
+                                   // 32MB chunks. maxSize is elevated to the
+                                   // next 32MB multiple. Each 32MB chunk is
+                                   // only reserved when it's needed for the
+                                   // first time (cuMemAllocFromPoolAsync).
+
+      maxSize = Limits->maxPoolableSize;
+      size_t chunkSize = 33554432; // 32MB
+      size_t remainder = Limits->maxPoolableSize % chunkSize;
+      if (remainder != 0) {
+        maxSize = maxSize + chunkSize - remainder;
+      }
+
+      threshold = Limits->minDriverAllocSize;
+      break;
+    }
+    default: {
+      throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+    }
+    }
+    pNext = BaseDesc->pNext;
+  }
+
+  MemPoolProps.allocType = CU_MEM_ALLOCATION_TYPE_PINNED;
+  MemPoolProps.location.id =
+      Device
+          ->getIndex(); // Clarification of what id means here:
+                        // https://forums.developer.nvidia.com/t/incomplete-description-in-cumemlocation-v1-struct-reference/318701
+  MemPoolProps.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+  UR_CHECK_ERROR(cuMemPoolCreate(&CUmemPool, &MemPoolProps));
+
+  // Release threshold is not a property when creating a pool.
+  // It must be set separately.
+  UR_CHECK_ERROR(urUSMPoolSetThresholdExp(Context, Device, this, threshold));
+}
+
+ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
+                                             ur_device_handle_t Device,
+                                             CUmemoryPool CUmemPool)
+    : Context{Context}, Device{Device}, CUmemPool(CUmemPool) {}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreateExp(
+    ur_context_handle_t Context,   ///< [in] handle of the context object
+    ur_device_handle_t Device,     ///< [in] handle of the device object
+    ur_usm_pool_desc_t *pPoolDesc, ///< [in] pointer to USM pool descriptor.
+                                   ///< Can be chained with
+                                   ///< ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_handle_t *pPool    ///< [out] pointer to USM memory pool
+) {
+  // This entry point only supports native mem pools.
+  if (!(pPoolDesc->flags & UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP))
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Zero-init is on by default in CUDA.
+  // Read-only has no support in CUDA.
+  try {
+    *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
+        new ur_usm_pool_handle_t_(Context, Device, pPoolDesc));
+  } catch (ur_result_t err) {
+    return err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolDestroyExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+                    ur_usm_pool_handle_t hPool) {
+
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedContext Active(hDevice);
+
+  try {
+    UR_CHECK_ERROR(cuMemPoolDestroy(hPool->getCudaPool()));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_usm_pool_handle_t hPool, size_t newThreshold) {
+
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedContext Active(hDevice);
+
+  try {
+    UR_CHECK_ERROR(cuMemPoolSetAttribute(hPool->getCudaPool(),
+                                         CU_MEMPOOL_ATTR_RELEASE_THRESHOLD,
+                                         &newThreshold));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_usm_pool_handle_t *pPool) {
+
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedContext Active(hDevice);
+
+  try {
+    CUmemoryPool cuPool;
+    UR_CHECK_ERROR(cuDeviceGetDefaultMemPool(&cuPool, hDevice->get()));
+
+    *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
+        new ur_usm_pool_handle_t_(hContext, hDevice, cuPool));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
+                    void *pPropValue, size_t *pPropSizeRet) {
+
+  CUmemPool_attribute attr;
+
+  switch (propName) {
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    attr = CU_MEMPOOL_ATTR_RELEASE_THRESHOLD;
+    break;
+  case UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP:
+
+    if (pPropValue) {
+      *(size_t *)pPropValue = hPool->maxSize;
+    }
+    if (pPropSizeRet) {
+      *(size_t *)pPropSizeRet = sizeof(size_t);
+    }
+    return UR_RESULT_SUCCESS;
+  case UR_USM_POOL_INFO_RESERVED_CURRENT_EXP:
+    attr = CU_MEMPOOL_ATTR_RESERVED_MEM_CURRENT;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    attr = CU_MEMPOOL_ATTR_RESERVED_MEM_HIGH;
+    break;
+  case UR_USM_POOL_INFO_USED_CURRENT_EXP:
+    attr = CU_MEMPOOL_ATTR_USED_MEM_CURRENT;
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    attr = CU_MEMPOOL_ATTR_USED_MEM_HIGH;
+    break;
+  default:
+    // Unknown enumerator
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  uint64_t value = 0;
+  UR_CHECK_ERROR(
+      cuMemPoolGetAttribute(hPool->getCudaPool(), attr, (void *)&value));
+
+  if (pPropValue) {
+    *(size_t *)pPropValue = value;
+  }
+  if (pPropSizeRet) {
+    *(size_t *)pPropSizeRet = sizeof(size_t);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
+                                                       ur_device_handle_t,
+                                                       ur_usm_pool_handle_t,
+                                                       size_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
