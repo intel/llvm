@@ -18,6 +18,7 @@ Using oneAPI DPC++ for Application Development
    EnvironmentVariables
    MultiTileCardWithLevelZero
    syclgraph/SYCLGraphUsageGuide
+   ReleaseNotes
 
 Design Documents for the oneAPI DPC++ Compiler
 ----------------------------------------------
