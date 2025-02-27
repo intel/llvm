@@ -421,7 +421,7 @@ ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
   UR_CALL_THROWS(ur2zeImageDesc(pImageFormat, pImageDesc, zeImageDesc));
 }
 
-static void verifyImageRegion(ze_image_desc_t &zeImageDesc,
+static void verifyImageRegion([[maybe_unused]] ze_image_desc_t &zeImageDesc,
                               ze_image_region_t &zeRegion, size_t rowPitch,
                               size_t slicePitch) {
 #ifndef NDEBUG
