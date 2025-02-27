@@ -39,6 +39,7 @@ static ur_result_t enqueueUSMAllocHelper(
   auto Device = (Type == UR_USM_TYPE_HOST) ? nullptr : Queue->Device;
 
   std::vector<ur_event_handle_t> ExtEventWaitList;
+  ur_event_handle_t OriginAllocEvent = nullptr;
   auto AsyncAlloc =
       USMPool->allocateEnqueued(Queue, Device, nullptr, Type, Size);
   if (!AsyncAlloc) {
@@ -49,11 +50,13 @@ static ur_result_t enqueueUSMAllocHelper(
     }
   } else {
     *RetMem = std::get<0>(*AsyncAlloc);
-    auto event = std::get<1>(*AsyncAlloc);
-    for (size_t i = 0; i < NumEventsInWaitList; ++i) {
-      ExtEventWaitList.push_back(EventWaitList[i]);
+    OriginAllocEvent = std::get<1>(*AsyncAlloc);
+    if (OriginAllocEvent) {
+      for (size_t I = 0; I < NumEventsInWaitList; ++I) {
+        ExtEventWaitList.push_back(EventWaitList[I]);
+      }
+      ExtEventWaitList.push_back(OriginAllocEvent);
     }
-    ExtEventWaitList.push_back(event);
   }
 
   if (!ExtEventWaitList.empty()) {
@@ -97,6 +100,7 @@ static ur_result_t enqueueUSMAllocHelper(
                                        IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
+  (*Event)->OriginAllocEvent = OriginAllocEvent;
 
   // Signal that USM allocation event was finished
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (CommandList->first, ZeEvent));

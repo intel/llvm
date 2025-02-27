@@ -33,7 +33,7 @@ public:
                                        ur_queue_handle_t Queue);
   void insert(void *Ptr, size_t Size, ur_event_handle_t Event,
               ur_queue_handle_t Queue);
-  void cleanup();
+  bool cleanup();
 
 private:
   struct Comparator {
@@ -54,7 +54,6 @@ private:
   using AllocationSet = std::set<Allocation, Comparator>;
   ur_mutex Mutex;
   AllocationSet Freelist;
-  std::vector<ur_event_handle_t> EventsCleanup;
 };
 
 struct UsmPool {

@@ -81,25 +81,25 @@ void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
   uintptr_t Address = (uintptr_t)Ptr;
   size_t Alignment = Address & (~Address + 1);
   Event->RefCount.increment();
-  EventsCleanup.push_back(Event);
 
   Freelist.emplace(Allocation{Ptr, Size, Event, Queue, Alignment});
 }
 
-void EnqueuedPool::cleanup() {
-  for (auto It : EventsCleanup) {
-    urEventReleaseInternal(It);
-  }
-
-  EventsCleanup.clear();
+bool
+EnqueuedPool::cleanup() {
+  auto FreedAllocations = !Freelist.empty();
   for (auto It : Freelist) {
     auto hPool = umfPoolByPtr(It.Ptr);
     assert(hPool != nullptr);
 
     auto umfRet = umfPoolFree(hPool, It.Ptr);
     assert(umfRet == UMF_RESULT_SUCCESS);
+
+    urEventReleaseInternal(It.Event);
   }
   Freelist.clear();
+
+  return FreedAllocations;
 }
 
 usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
@@ -1177,7 +1177,13 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
     return std::nullopt;
   }
 
-  return std::make_pair(Allocation->Ptr, Allocation->Event);
+  auto *Event = Allocation->Event;
+  if (Event->Completed || (Allocation->Queue == Queue && Queue->isInOrderQueue())) {
+    urEventReleaseInternal(Event);
+    Event = nullptr;
+  }
+
+  return std::make_pair(Allocation->Ptr, Event);
 }
 
 ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
@@ -1240,11 +1246,17 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
 
   *RetMem = umfPoolAlignedMalloc(umfPool, Size, Alignment);
   if (*RetMem == nullptr) {
-    auto umfRet = umfPoolGetLastAllocationError(umfPool);
-    logger::error(
-        "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
-        umfPool);
-    return umf::umf2urResult(umfRet);
+    if (Pool->AsyncPool.cleanup()) { // true means that objects were deallocated
+      // let's try again
+      *RetMem = umfPoolAlignedMalloc(umfPool, Size, Alignment);
+    }
+    if (*RetMem == nullptr) {
+        auto umfRet = umfPoolGetLastAllocationError(umfPool);
+        logger::error(
+            "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
+            umfPool);
+        return umf::umf2urResult(umfRet);
+    }
   }
 
   if (IndirectAccessTrackingEnabled) {
