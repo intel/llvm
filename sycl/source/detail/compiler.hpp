@@ -110,16 +110,20 @@ struct _sycl_offload_entry_struct {
   /// An extra pointer, usually null.
   void *AuxAddr;
 
+  inline bool IsLegacy() {
+    // Check if first 128 bits of this struct are zero, if so, this is a newer
+    // version of the struct.
+    return *(uint64_t *)(this) || *(((uint64_t *)this) + 1);
+  }
+
   // Name is the only field that's used in SYCL.
   inline char *GetName() {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGE
     // Check if the first 64 bits of this struct are not zero, if so, this is an
     // older version of the struct.
-    if (*(uint64_t *)(this)) {
+    if (IsLegacy()) {
       // This is an older version of the struct, use the old name field.
-      return reinterpret_cast<_sycl_offload_entry_struct_legacy *>(this)->name;
+      return reinterpret_cast<sycl_offload_entry_legacy>(this)->name;
     }
-#endif
     return SymbolName;
   }
 };
