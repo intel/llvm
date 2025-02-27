@@ -30,21 +30,21 @@ jobs:
           echo "is_new_commit=false" >> $GITHUB_OUTPUT
         fi
 
-  # ubuntu2204_build:
-  #   needs: [check_for_new_commits]
-  #   if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
-  #   uses: ./.github/workflows/sycl-linux-build.yml
-  #   secrets: inherit
-  #   with:
-  #     build_cache_root: "/__w/"
-  #     build_artifact_suffix: default
-  #     build_configure_extra_args: '--hip --cuda'
-  #     build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-  #     build_ref: draft-sycl-rel-6_1_0-final
+  ubuntu2204_build:
+    needs: [check_for_new_commits]
+    if: ${{ github.repository == 'intel/llvm' && needs.check_for_new_commits.outputs.is_new_commit != 'false' }}
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_artifact_suffix: default
+      build_configure_extra_args: '--hip --cuda'
+      build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+      build_ref: draft-sycl-rel-6_1_0-final
 
-  #     # We upload the build for people to download/use, override its name and
-  #     # prefer widespread gzip compression.
-  #     artifact_archive_name: sycl_linux.tar.gz
+      # We upload the build for people to download/use, override its name and
+      # prefer widespread gzip compression.
+      artifact_archive_name: sycl_linux.tar.gz
 
   # ubuntu2204_test:
   #   needs: [ubuntu2204_build]
@@ -158,8 +158,8 @@ jobs:
   #     ref: sycl-rel-6_0_0
 
   build-sycl-cts:
-    # needs: ubuntu2204_build
-    # if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    needs: ubuntu2204_build
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: Build SYCL-CTS
@@ -171,36 +171,36 @@ jobs:
       devops_ref: sparse-checkout-cts-filters
       tests_ref: ead7474b9cb2189ce48025550912ccad5a72bd30
       sycl_toolchain_artifact: sycl_linux_default
-      # sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-      # sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
-  # run-sycl-cts:
-  #   needs: [ubuntu2204_build, build-sycl-cts]
-  #   if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         - name: SYCL-CTS on OCL CPU
-  #           runner: '["Linux", "gen12"]'
-  #           image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-  #           target_devices: opencl:cpu
+  run-sycl-cts:
+    needs: [ubuntu2204_build, build-sycl-cts]
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SYCL-CTS on OCL CPU
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
 
-  #         - name: SYCL-CTS on L0 gen12
-  #           runner: '["Linux", "gen12"]'
-  #           image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-  #           target_devices: level_zero:gpu
-  #   uses: ./.github/workflows/sycl-linux-run-tests.yml
-  #   with:
-  #     name: ${{ matrix.name }}
-  #     runner: ${{ matrix.runner }}
-  #     cts_testing_mode: 'run-only'
-  #     image_options: ${{ matrix.image_options }}
-  #     target_devices: ${{ matrix.target_devices }}
-  #     tests_selector: cts
-  #     ref: draft-sycl-rel-6_1_0-final
-  #     devops_ref: sparse-checkout-cts-filters
-  #     sycl_toolchain_artifact: sycl_linux_default
-  #     sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
-  #     sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
-  #     sycl_cts_artifact: sycl_cts_bin
+          - name: SYCL-CTS on L0 gen12
+            runner: '["Linux", "gen12"]'
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      cts_testing_mode: 'run-only'
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      tests_selector: cts
+      ref: draft-sycl-rel-6_1_0-final
+      devops_ref: sparse-checkout-cts-filters
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+      sycl_cts_artifact: sycl_cts_bin
