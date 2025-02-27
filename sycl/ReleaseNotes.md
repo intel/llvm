@@ -280,7 +280,7 @@ Release notes for commit range
 - Addressed several issues in GDB xmethods: printing non-sycl types may generate a python exception, accessor subscripts using `size_t` report an unsupported subscript type, multi-dimensional accessors calculate the wrong array layout. intel/llvm#15250
 - Fixed a flaky failure when getting write access to a buffer from multiple threads. intel/llvm#15273
 - Fixed `nullptr` input handling for `make_kernel_bundle` interoperability API. intel/llvm#15247
-- Enabled usage of Windows proxy loader for UR. After switch from PI to UR, SYCL-RT linked with `ur_loader.dll` directly and still  experienced issues with race conditions in the teardown of SYCL-RT and  Unified Runtime. This change is indented to resolve this issue. intel/llvm#15262
+- Enabled usage of Windows proxy loader for UR. After switch from PI to UR, SYCL-RT linked with `ur_loader.dll` directly and still experienced issues with race conditions in the teardown of SYCL-RT and  Unified Runtime. This change is indented to resolve this issue. intel/llvm#15262
 - Fixed "out of device memory" error handling in the Program Manager. intel/llvm#15335
 - Fixed handling of interop events for barrier with waitlist. intel/llvm#15352
 - Fixed image selection for AOT on `intel_cpu_{spr, gnr}`. intel/llvm#15208
@@ -295,7 +295,7 @@ Release notes for commit range
 - Fixed queue barrier with waitlist when used with interoperability events. intel/llvm#15488
 - Fixed edge cases for `exp(complex)` in device code. intel/llvm#15489 intel/llvm#15672 intel/llvm#15980 intel/llvm#15808 intel/llvm#15162
 - Inlined trivial util functions for `half`/`half2` in IMF header to avoid multiple definition linker error. intel/llvm#15518
-- Fixed queue barrier with waitlist  for the case when there are multiple queues targetng different devices and in-order command lists are enabled on L0 adapter. intel/llvm#15516
+- Fixed queue barrier with waitlist  for the case when there are multiple queues targeting different devices and in-order command lists are enabled on L0 adapter. intel/llvm#15516
 - Fixed a thread pool data race during shutdown. intel/llvm#15535
 - Fixed UR error handling in CUDA and HIP adapters to prevent uncaught exceptions from leaking out of adapters. intel/llvm#15568
 - Fixed the L0 adapter to properly handle event dependencies for copy commands which are used for bufffer initialization to ensure that buffers contain correct values. intel/llvm#15559
