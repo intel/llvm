@@ -9818,6 +9818,68 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueCommandBufferExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
+    /// [in] The queue to submit this command-buffer for execution.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Size of the event wait list.
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the command-buffer execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command-buffer execution instance. If phEventWaitList and
+    /// phEvent are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_enqueue_command_buffer_exp_params_t params = {&hQueue, &hCommandBuffer,
+                                                   &numEventsInWaitList,
+                                                   &phEventWaitList, &phEvent};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urEnqueueCommandBufferExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urEnqueueCommandBufferExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    // optional output handle
+    if (phEvent) {
+      *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+    }
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urEnqueueCommandBufferExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     /// [in] Handle of the command-buffer kernel command to update.
@@ -11218,6 +11280,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   ur_result_t result = UR_RESULT_SUCCESS;
 
   pDdiTable->pfnKernelLaunchCustomExp = driver::urEnqueueKernelLaunchCustomExp;
+
+  pDdiTable->pfnCommandBufferExp = driver::urEnqueueCommandBufferExp;
 
   pDdiTable->pfnCooperativeKernelLaunchExp =
       driver::urEnqueueCooperativeKernelLaunchExp;

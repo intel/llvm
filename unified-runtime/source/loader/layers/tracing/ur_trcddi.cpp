@@ -8187,6 +8187,59 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueCommandBufferExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
+    /// [in] The queue to submit this command-buffer for execution.
+    ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Size of the event wait list.
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the command-buffer execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional][alloc] return an event object that identifies this
+    /// particular command-buffer execution instance. If phEventWaitList and
+    /// phEvent are not NULL, phEvent must not refer to an element of the
+    /// phEventWaitList array.
+    ur_event_handle_t *phEvent) {
+  auto pfnCommandBufferExp =
+      getContext()->urDdiTable.EnqueueExp.pfnCommandBufferExp;
+
+  if (nullptr == pfnCommandBufferExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_enqueue_command_buffer_exp_params_t params = {&hQueue, &hCommandBuffer,
+                                                   &numEventsInWaitList,
+                                                   &phEventWaitList, &phEvent};
+  uint64_t instance =
+      getContext()->notify_begin(UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP,
+                                 "urEnqueueCommandBufferExp", &params);
+
+  auto &logger = getContext()->logger;
+  logger.info("   ---> urEnqueueCommandBufferExp\n");
+
+  ur_result_t result = pfnCommandBufferExp(
+      hQueue, hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
+
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP,
+                           "urEnqueueCommandBufferExp", &params, &result,
+                           instance);
+
+  if (logger.getLevel() <= logger::Level::INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP, &params);
+    logger.info("   <--- urEnqueueCommandBufferExp({}) -> {};\n",
+                args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     /// [in] Handle of the command-buffer kernel command to update.
@@ -9542,6 +9595,9 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   dditable.pfnKernelLaunchCustomExp = pDdiTable->pfnKernelLaunchCustomExp;
   pDdiTable->pfnKernelLaunchCustomExp =
       ur_tracing_layer::urEnqueueKernelLaunchCustomExp;
+
+  dditable.pfnCommandBufferExp = pDdiTable->pfnCommandBufferExp;
+  pDdiTable->pfnCommandBufferExp = ur_tracing_layer::urEnqueueCommandBufferExp;
 
   dditable.pfnCooperativeKernelLaunchExp =
       pDdiTable->pfnCooperativeKernelLaunchExp;
