@@ -29,6 +29,8 @@ namespace detail {
 // Treat 0 as reserved for host task traces
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
 
+thread_local std::unique_ptr<sycl::handler> queue_impl::MHandler;
+
 thread_local bool NestedCallsDetector = false;
 class NestedCallsTracker {
 public:
@@ -363,13 +365,27 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  auto HandlerImpl = detail::getSyclObjImpl(Handler);
-  Handler.saveCodeLoc(Loc, IsTopCodeLoc);
+
+  struct Cleanup {
+    Cleanup(const std::shared_ptr<queue_impl> &Self,
+            const std::shared_ptr<queue_impl> &PrimaryQueue,
+            const std::shared_ptr<queue_impl> &SecondaryQueue,
+            bool CallerNeedsEvent) {
+      if (MHandler)
+        MHandler->reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+      else
+        MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(
+            Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
+    }
+    ~Cleanup() { MHandler->reset(nullptr, nullptr, nullptr, false); }
+  } cleanup(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+
+  auto HandlerImpl = detail::getSyclObjImpl(*MHandler);
+  MHandler->saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
     NestedCallsTracker tracker;
-    CGF(Handler);
+    CGF(*MHandler);
   }
 
   // Scheduler will later omit events, that are not required to execute tasks.
@@ -380,7 +396,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
-    Streams = std::move(Handler.MStreamStorage);
+    Streams = std::move(MHandler->MStreamStorage);
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
@@ -392,14 +408,15 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
     if (IsKernel)
       // Kernel only uses assert if it's non interop one
-      KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                         ProgramManager::getInstance().kernelUsesAssert(
-                             Handler.MKernelName.c_str());
-    finalizeHandler(Handler, Event);
+      KernelUsesAssert =
+          !(MHandler->MKernel && MHandler->MKernel->isInterop()) &&
+          ProgramManager::getInstance().kernelUsesAssert(
+              MHandler->MKernelName.c_str());
+    finalizeHandler(*MHandler, Event);
 
     PostProcess(IsKernel, KernelUsesAssert, Event);
   } else
-    finalizeHandler(Handler, Event);
+    finalizeHandler(*MHandler, Event);
 
   addEvent(Event);
 

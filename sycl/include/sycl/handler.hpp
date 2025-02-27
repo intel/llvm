@@ -3452,6 +3452,8 @@ private:
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
+  // to support releasing of queue_impl::MHandler
+  friend struct std::default_delete<sycl::handler>;
   // Make accessor class friend to keep the list of associated accessors.
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder,
@@ -3535,6 +3537,12 @@ private:
   }
   void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                  size_t Size, bool Block = false);
+
+  void reset(const std::shared_ptr<detail::queue_impl> &Queue,
+             const std::shared_ptr<detail::queue_impl> &PrimaryQueue,
+             const std::shared_ptr<detail::queue_impl> &SecondaryQueue,
+             bool CallerNeedsEvent);
+
   friend class ext::oneapi::experimental::detail::graph_impl;
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
   friend class ext::oneapi::experimental::detail::dynamic_command_group_impl;
