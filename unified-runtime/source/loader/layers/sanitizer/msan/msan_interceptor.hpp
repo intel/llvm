@@ -16,9 +16,9 @@
 #include "msan_allocator.hpp"
 #include "msan_buffer.hpp"
 #include "msan_libdevice.hpp"
-#include "msan_options.hpp"
 #include "msan_shadow.hpp"
 #include "sanitizer_common/sanitizer_common.hpp"
+#include "sanitizer_common/sanitizer_options.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -247,8 +247,6 @@ public:
   KernelInfo &getOrCreateKernelInfo(ur_kernel_handle_t Kernel);
   ur_result_t eraseKernelInfo(ur_kernel_handle_t Kernel);
 
-  const MsanOptions &getOptions() { return m_Options; }
-
   void exitWithErrors() {
     m_NormalExit = false;
     exit(1);
@@ -291,8 +289,6 @@ private:
   /// Assumption: all USM chunks are allocated in one VA
   MsanAllocationMap m_AllocationMap;
   ur_shared_mutex m_AllocationMapMutex;
-
-  MsanOptions m_Options;
 
   std::unordered_set<ur_adapter_handle_t> m_Adapters;
   ur_shared_mutex m_AdaptersMutex;

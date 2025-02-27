@@ -5,7 +5,6 @@
 
 // clang-format off
 // RUN: env UR_LOG_SANITIZER=level:debug UR_LAYER_ASAN_OPTIONS=redzone:8 %{run} %t2.out 2>&1 | FileCheck --check-prefixes CHECK-MIN %s
-// RUN: env UR_LOG_SANITIZER=level:debug UR_LAYER_ASAN_OPTIONS=max_redzone:4096 %{run} %t2.out 2>&1 | FileCheck --check-prefixes CHECK-MAX %s
 // clang-format on
 
 #include <sycl/usm.hpp>
@@ -25,8 +24,7 @@ int main() {
   // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
   // CHECK: {{READ of size 1 at kernel <.*Test> LID\(0, 0, 0\) GID\(0, 0, 0\)}}
   // CHECK: {{  #0 .* .*options-redzone.cpp:}}[[@LINE-7]]
-  // CHECK-MIN: Trying to set redzone size to a value less than 16 is ignored
-  // CHECK-MAX: Trying to set max redzone size to a value greater than 2048 is ignored
+  // CHECK-MIN: The valid range of "redzone" is [16, 2048]. Setting to the minimum value 16.
 
   sycl::free(array, q);
   return 0;
