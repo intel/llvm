@@ -34,6 +34,7 @@ public:
   void insert(void *Ptr, size_t Size, ur_event_handle_t Event,
               ur_queue_handle_t Queue);
   bool cleanup();
+  bool cleanupForQueue(ur_queue_handle_t Queue);
 
 private:
   struct Comparator {
@@ -80,6 +81,7 @@ struct ur_usm_pool_handle_t_ : _ur_object {
   bool hasPool(const umf_memory_pool_handle_t Pool);
   UsmPool *getPoolByHandle(const umf_memory_pool_handle_t Pool);
   void cleanupPools();
+  void cleanupPoolsForQueue(ur_queue_handle_t Queue);
 
   ur_context_handle_t Context;
 
