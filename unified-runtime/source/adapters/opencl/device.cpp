@@ -1558,6 +1558,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         ur::cl::getAdapter()->clSetProgramSpecializationConstant != nullptr);
   }
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice), {"cl_intel_devicelib_assert"},
+        Supported));
+    return ReturnValue(Supported);
+  }
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
