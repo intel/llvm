@@ -43,6 +43,7 @@ class SyclBench(Suite):
             f"-DCMAKE_CXX_COMPILER={options.sycl}/bin/clang++",
             f"-DCMAKE_C_COMPILER={options.sycl}/bin/clang",
             f"-DSYCL_IMPL=dpcpp",
+            f"-DCMAKE_CXX_FLAGS=-fsycl -fsycl-targets=nvptx64-nvidia-cuda",
         ]
 
         run(configure_command, add_sycl=True)

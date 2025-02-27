@@ -16,10 +16,18 @@ import shutil
 import os
 
 
+def isCudaDependenciesAvailable():
+    return options.cudnn_directory is not None and options.cublas_directory is not None
+
+
 class VelocityBench(Suite):
     def __init__(self, directory):
         if options.sycl is None:
             return
+        if options.ur_adapter == "cuda" and not isCudaDependenciesAvailable():
+            raise ValueError(
+                "CuDnn and CuBlas libraries directory must be specified with cuda adapter."
+            )
 
         self.directory = directory
 
@@ -66,6 +74,8 @@ class VelocityBase(Benchmark):
         return
 
     def extra_cmake_args(self) -> list[str]:
+        if options.ur_adapter == "cuda":
+            return [f"-DUSE_NVIDIA_BACKEND=YES", f"-DUSE_SM=80"]
         return []
 
     def ld_libraries(self) -> list[str]:
@@ -358,6 +368,12 @@ class DLCifar(VelocityBase):
 
     def extra_cmake_args(self):
         oneapi = get_oneapi()
+        if options.ur_adapter == "cuda":
+            return [
+                f"-DUSE_NVIDIA_BACKEND=YES",
+                f"-DUSE_SM=80",
+                f"-DCMAKE_CXX_FLAGS=-O3 -fsycl -ffast-math -I{oneapi.dnn_include()} -I{oneapi.mkl_include()} -L{oneapi.dnn_lib()} -L{oneapi.mkl_lib()} -L{options.cublas_directory} -L{options.cudnn_directory}",
+            ]
         return [
             f"-DCMAKE_CXX_FLAGS=-O3 -fsycl -ffast-math -I{oneapi.dnn_include()} -I{oneapi.mkl_include()} -L{oneapi.dnn_lib()} -L{oneapi.mkl_lib()}"
         ]
@@ -415,6 +431,12 @@ class DLMnist(VelocityBase):
 
     def extra_cmake_args(self):
         oneapi = get_oneapi()
+        if options.ur_adapter == "cuda":
+            return [
+                f"-DUSE_NVIDIA_BACKEND=YES",
+                f"-DUSE_SM=80",
+                f"-DCMAKE_CXX_FLAGS=-O3 -fsycl -ffast-math -I{oneapi.dnn_include()} -I{oneapi.mkl_include()} -L{oneapi.dnn_lib()} -L{oneapi.mkl_lib()}",
+            ]
         return [
             f"-DCMAKE_CXX_FLAGS=-O3 -fsycl -ffast-math -I{oneapi.dnn_include()} -I{oneapi.mkl_include()} -L{oneapi.dnn_lib()} -L{oneapi.mkl_lib()}"
         ]
@@ -452,6 +474,12 @@ class SVM(VelocityBase):
 
     def extra_cmake_args(self):
         oneapi = get_oneapi()
+        if options.ur_adapter == "cuda":
+            return [
+                f"-DUSE_NVIDIA_BACKEND=YES",
+                f"-DUSE_SM=80",
+                f"-DCMAKE_CXX_FLAGS=-O3 -fsycl -ffast-math -I{oneapi.dnn_include()} -I{oneapi.mkl_include()} -L{oneapi.dnn_lib()} -L{oneapi.mkl_lib()} -L{options.cublas_directory} -L{options.cudnn_directory}",
+            ]
         return [
             f"-DCMAKE_CXX_FLAGS=-O3 -fsycl -ffast-math -I{oneapi.dnn_include()} -I{oneapi.mkl_include()} -L{oneapi.dnn_lib()} -L{oneapi.mkl_lib()}"
         ]
