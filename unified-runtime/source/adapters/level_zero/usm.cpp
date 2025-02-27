@@ -87,6 +87,7 @@ void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
 
 bool
 EnqueuedPool::cleanup() {
+  auto Lock = std::lock_guard(Mutex);
   auto FreedAllocations = !Freelist.empty();
   for (auto It : Freelist) {
     auto hPool = umfPoolByPtr(It.Ptr);
@@ -98,6 +99,33 @@ EnqueuedPool::cleanup() {
     urEventReleaseInternal(It.Event);
   }
   Freelist.clear();
+
+  return FreedAllocations;
+}
+
+bool
+EnqueuedPool::cleanupForQueue(ur_queue_handle_t Queue) {
+  auto Lock = std::lock_guard(Mutex);
+
+  Allocation Alloc = {nullptr, 0, nullptr, Queue, 0};
+  // first allocation on the freelist with the specific queue
+  auto It = Freelist.lower_bound(Alloc);
+
+  bool FreedAllocations = false;
+
+  while (It != Freelist.end() && It->Queue == Queue) {
+    auto hPool = umfPoolByPtr(It->Ptr);
+    assert(hPool != nullptr);
+
+    auto umfRet = umfPoolFree(hPool, It->Ptr);
+    assert(umfRet == UMF_RESULT_SUCCESS);
+
+    urEventReleaseInternal(It->Event);
+
+    // Erase the current allocation and move to the next one
+    It = Freelist.erase(It);
+    FreedAllocations = true;
+  }
 
   return FreedAllocations;
 }
@@ -1285,6 +1313,13 @@ ur_usm_pool_handle_t_::getPoolByHandle(const umf_memory_pool_handle_t UmfPool) {
 void ur_usm_pool_handle_t_::cleanupPools() {
   PoolManager.forEachPool([&](UsmPool *p) {
     p->AsyncPool.cleanup();
+    return true;
+  });
+}
+
+void ur_usm_pool_handle_t_::cleanupPoolsForQueue(ur_queue_handle_t Queue) {
+  PoolManager.forEachPool([&](UsmPool *p) {
+    p->AsyncPool.cleanupForQueue(Queue);
     return true;
   });
 }
