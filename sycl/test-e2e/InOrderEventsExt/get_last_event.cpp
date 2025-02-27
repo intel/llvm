@@ -1,5 +1,9 @@
-// UNSUPPORTED: windows
+// UNSUPPORTED: (windows && cuda)
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14324
+
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17066
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
