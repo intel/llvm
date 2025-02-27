@@ -118,7 +118,6 @@ Release notes for commit range
 - Started obeying `-nocudalib` when linking against libdevice. intel/llvm#15378
 - Fixed misleading diagnostic about non-external function/variable when applying attributes like  `[[sycl_device]]` or `[[intel::device_indirectly_callable]]` on  functions/variables without external linkage. intel/llvm#15372
 - Added `--only-needed` flag to llvm-link for AMDGCN. intel/llvm#15558
-- Native CPU now uses a pass to convert ABI-compliant calls to mux builtins, removing vector versions and ensuring the interface remains unaffected by the ABI. intel/llvm#15592
 - The `-fsycl-link=image` behavior is updated to package host objects similarly to `-fsycl-link=early`, ensuring proper linking, especially on Windows. intel/llvm#15539
 - Enabled generation of approximate `div`/`sqrt` with `-ffast-math` for NVTPX. intel/llvm#15553
 - Added extra optimization passes in Native CPU pipeline. intel/llvm#14380
@@ -238,6 +237,7 @@ Release notes for commit range
 - Addressed issue with code splitting and FPGA archives. intel/llvm#15794
 - Fixed parsing of device values in backend target options. intel/llvm#15876
 - Fixed device sanitizer to report only one error per each kernel instance to avoid false-alarms. intel/llvm#15326
+- Fixed issues with vector shuffle built-ins on NativeCPU backend. intel/llvm#15592
 - Fixed the issue with incorrect symbolizer output for shared libraries in Device Sanitizer. intel/llvm#15797
 - Disabled Address Sanitizer on modules with ESIMD to avoid the instrumented kernel code to become unacceptably large caused by lack of `noinline` support on ESIMD . intel/llvm#15972
 - Added missing supported `gfx7` AMDGPU architectures to SYCL. intel/llvm#15723
