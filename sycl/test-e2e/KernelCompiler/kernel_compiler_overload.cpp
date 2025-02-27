@@ -76,7 +76,9 @@ int main() {
   for (int i = 0; i < NUM; i++) {
     if (ptr[i] != i + 3) {
       std::cout << "Result: " << ptr[i] << " expected " << i << "\n";
+      sycl::free(ptr, q);
       exit(1);
     }
   }
+  sycl::free(ptr, q);
 }

@@ -69,6 +69,11 @@ int main() {
   constexpr float eps = 0.001;
   for (int i = 0; i < NUM; i++) {
     const float truth = 3.14f + static_cast<float>(i);
-    assert(std::abs(ptr[i] - truth) < eps);
+    if (std::abs(ptr[i] - truth) > eps) {
+      std::cout << "Unexpected result at " << i << ", expected " << truth << " got " << ptr[i] << "\n";
+      sycl::free(ptr, q);
+      exit(1);
+    }
   }
+  sycl::free(ptr, q);
 }
