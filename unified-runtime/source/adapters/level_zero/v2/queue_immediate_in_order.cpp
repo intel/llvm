@@ -705,6 +705,33 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueWriteHostPipe(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t ur_queue_immediate_in_order_t::enqueueUSMDeviceAllocExp(
+    ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t ur_queue_immediate_in_order_t::enqueueUSMSharedAllocExp(
+    ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t ur_queue_immediate_in_order_t::enqueueUSMHostAllocExp(
+    ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFreeExp(
+    ur_usm_pool_handle_t, void *, uint32_t, const ur_event_handle_t *,
+    ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
     const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
     const ur_image_desc_t *pDstImageDesc,
