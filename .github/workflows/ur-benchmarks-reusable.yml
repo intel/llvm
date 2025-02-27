@@ -82,7 +82,7 @@ jobs:
 
     - name: Install pip packages
       run: |
-        pip install --force-reinstall -r ${{github.workspace}}/sycl-repo/unified-runtime/scripts/benchmarks/requirements.txt
+        pip install --force-reinstall -r ${{github.workspace}}/unified-runtime/scripts/benchmarks/requirements.txt
 
     # - name: Configure SYCL
     #   run: >
