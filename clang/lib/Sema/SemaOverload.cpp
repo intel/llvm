@@ -11060,11 +11060,21 @@ static bool checkAddressOfFunctionIsAvailable(Sema &S, const FunctionDecl *FD,
                                               bool InOverloadResolution,
                                               SourceLocation Loc) {
   if (Complain && S.getLangOpts().SYCLIsDevice &&
-      S.getLangOpts().SYCLAllowFuncPtr) {
-    if (!FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>()) {
+      S.getLangOpts().getSYCLAllowFuncPtr() !=
+          LangOptions::SYCLFuncPtrPreference::Off) {
+            bool IsMarked = FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>();
+    if (S.getLangOpts().getSYCLAllowFuncPtr() ==
+            LangOptions::SYCLFuncPtrPreference::LabeledOnly &&
+        !IsMarked) {
       S.SYCL().DiagIfDeviceCode(Loc,
                                 diag::err_sycl_taking_address_of_wrong_function,
                                 Sema::DeviceDiagnosticReason::Sycl);
+    } else if (S.getLangOpts().getSYCLAllowFuncPtr() ==
+                   LangOptions::SYCLFuncPtrPreference::DefinedOnly &&
+               !FD->hasBody() && !IsMarked) {
+      // The function has no body, but might be defined later.
+      // Delay the diagnostic until the end of the translation unit.
+      S.SYCL().delayFunctionBodyCheckForAddressTaken(FD, Loc);
     }
   }
 

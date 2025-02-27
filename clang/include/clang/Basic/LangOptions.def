@@ -303,7 +303,9 @@ LANGOPT(OffloadViaLLVM, 1, 0, "target LLVM/Offload as portable offloading runtim
 LANGOPT(SYCLIsDevice      , 1, 0, "Generate code for SYCL device")
 LANGOPT(SYCLIsHost        , 1, 0, "SYCL host compilation")
 LANGOPT(IntelFPGA         , 1, 0, "Perform ahead-of-time compilation for FPGA")
-LANGOPT(SYCLAllowFuncPtr  , 1, 0, "Allow function pointers in SYCL device code")
+ENUM_LANGOPT(SYCLAllowFuncPtr, SYCLFuncPtrPreference, 2,
+    SYCLFuncPtrPreference::Off,
+    "Allow function pointers in SYCL device code")
 LANGOPT(SYCLStdLayoutKernelParams, 1, 0, "Enable standard layout requirement for SYCL kernel parameters")
 LANGOPT(SYCLUnnamedLambda , 1, 0, "Allow unnamed lambda SYCL kernels")
 LANGOPT(SYCLForceInlineKernelLambda , 1, 0, "Force inline SYCL kernel lambdas in entry point")

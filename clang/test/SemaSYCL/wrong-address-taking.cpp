@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-allow-func-ptr -internal-isystem %S/Inputs -fsyntax-only -verify -sycl-std=2020 -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-allow-func-ptr=defined -internal-isystem %S/Inputs -fsyntax-only -verify=defined-func -sycl-std=2020 -std=c++17 %s
 
 #include "sycl.hpp"
 
@@ -50,6 +51,10 @@ template <typename T> void templatedContext() {
   // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   auto p1 = &ForMembers::badMember;
 
+  // expected-error@+2 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
+  // defined-func-error@+1 {{taking address of a function without a definition and not marked with 'intel::device_indirectly_callable'}}
+  auto p2 = &externalBadFoo;
+
   // expected-note@+1 {{called by 'templatedContext<int>'}}
   templateCaller1<badFoo>(1);
 }
@@ -58,6 +63,7 @@ int main() {
 
   myQueue.submit([&](sycl::handler &h) {
     // expected-note@#KernelSingleTaskKernelFuncCall 2{{called by 'kernel_single_task<Basic}}
+    // defined-func-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<Basic}}
     h.single_task<class Basic>(
         [=]() {
           // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
@@ -69,9 +75,13 @@ int main() {
           int (*p3)(int) = &goodFoo;
           int (*p4)(int) = goodFoo;
 
-          // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
+          // expected-error@+2 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
+          // defined-func-error@+1 {{taking address of a function without a definition and not marked with 'intel::device_indirectly_callable'}}
           auto p5 = &externalBadFoo;
           auto *p6 = &externalGoodFoo;
+          // expected-error@+2 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
+          // defined-func-error@+1 {{taking address of a function without a definition and not marked with 'intel::device_indirectly_callable'}}
+          auto p7 = &externalBadFoo;
 
           // Make sure that assignment is diagnosed correctly;
           int (*a)(int);

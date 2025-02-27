@@ -22,6 +22,7 @@
 #include "clang/Sema/SemaBase.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
 
 namespace clang {
@@ -263,6 +264,15 @@ private:
 
   llvm::DenseSet<const FunctionDecl *> SYCLKernelFunctions;
 
+  // Function which had their address taken and for which we need to check they
+  // have a body in this TU.
+  // Maps the function to check against the context and location their address
+  // is taken.
+  llvm::MapVector<
+      const FunctionDecl *,
+      llvm::SmallVector<std::pair<const FunctionDecl *, SourceLocation>>>
+      FunctionAddressTakenToVerify;
+
 public:
   SemaSYCL(Sema &S);
 
@@ -292,6 +302,15 @@ public:
       SourceLocation Loc, unsigned DiagID,
       DeviceDiagnosticReason Reason = DeviceDiagnosticReason::Sycl |
                                       DeviceDiagnosticReason::Esimd);
+  SemaDiagnosticBuilder DiagIfDeviceCode(
+      SourceLocation Loc, unsigned DiagID,
+      const FunctionDecl *FD,
+      DeviceDiagnosticReason Reason = DeviceDiagnosticReason::Sycl |
+                                      DeviceDiagnosticReason::Esimd);
+
+  void delayFunctionBodyCheckForAddressTaken(const FunctionDecl *FD, SourceLocation Loc);
+
+  void checkFunctionWithAddressTaken();
 
   void deepTypeCheckForDevice(SourceLocation UsedAt,
                               llvm::DenseSet<QualType> Visited,
