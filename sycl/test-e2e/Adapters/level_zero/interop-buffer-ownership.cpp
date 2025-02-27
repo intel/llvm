@@ -17,6 +17,7 @@
 
 // Keep ownership
 // CHECK: zeMemFree
+// CHECK: zeMemFree
 
 // Account for zeMemFree used to query page sizes by the UMF (only affects v2 L0
 // adapter)
@@ -31,10 +32,8 @@
 
 // Transfer ownership
 // CHECK: zeMemFree
-// CHECK: zeMemFree
-
-// No other calls to zeMemFree
-// CHECK-NOT: zeMemFree
+// For v2 adapter, all calls (even from this test) are logged
+// CHECK-OPT: zeMemFree
 
 #include "interop-buffer-helpers.hpp"
 #include <sycl/detail/core.hpp>
