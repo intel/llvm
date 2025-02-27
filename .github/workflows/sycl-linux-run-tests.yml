@@ -284,14 +284,12 @@ jobs:
         ls
         unzip ${{ inputs.sycl_toolchain_artifact }}.zip
         rm ${{ inputs.sycl_toolchain_artifact }}.zip
-    - name: Extract SYCL toolchain
+    - name: Extract/Setup SYCL toolchain
       if: inputs.sycl_toolchain_artifact != ''
       run: |
         mkdir toolchain
         tar -I '${{ inputs.sycl_toolchain_decompress_command }}' -xf ${{ inputs.sycl_toolchain_archive }} -C toolchain
         rm -f ${{ inputs.sycl_toolchain_archive }}
-    - name: Setup SYCL toolchain
-      run: |
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - run: which clang++ sycl-ls
