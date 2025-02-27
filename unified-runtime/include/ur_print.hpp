@@ -4186,9 +4186,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH: {
-    const uint32_t *tptr = (const uint32_t *)ptr;
-    if (sizeof(uint32_t) > size) {
-      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t)
+    const uint64_t *tptr = (const uint64_t *)ptr;
+    if (sizeof(uint64_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint64_t)
          << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }

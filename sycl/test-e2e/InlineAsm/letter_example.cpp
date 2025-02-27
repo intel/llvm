@@ -1,5 +1,4 @@
 // REQUIRES: sg-16,aspect-usm_shared_allocations
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

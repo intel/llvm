@@ -46,14 +46,24 @@ inline size_t command_list_descriptor_hash_t::operator()(
   }
 }
 
-command_list_cache_t::command_list_cache_t(ze_context_handle_t ZeContext)
-    : ZeContext{ZeContext} {}
+command_list_cache_t::command_list_cache_t(ze_context_handle_t ZeContext,
+                                           bool ZeCopyOffloadExtensionSupported)
+    : ZeContext{ZeContext},
+      ZeCopyOffloadExtensionSupported{ZeCopyOffloadExtensionSupported} {}
 
 raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
   ZeStruct<zex_intel_queue_copy_operations_offload_hint_exp_desc_t> offloadDesc;
-  offloadDesc.copyOffloadEnabled =
+  auto requestedCopyOffload =
       std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
+
+  if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
+    logger::info(
+        "Copy offload is requested but is not supported by the driver.");
+    offloadDesc.copyOffloadEnabled = false;
+  } else {
+    offloadDesc.copyOffloadEnabled = requestedCopyOffload;
+  }
 
   if (auto ImmCmdDesc =
           std::get_if<immediate_command_list_descriptor_t>(&desc)) {
