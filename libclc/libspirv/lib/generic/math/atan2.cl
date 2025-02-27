@@ -250,6 +250,6 @@ _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_atan2, double,
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_atan2, __builtin_atan2, half, half)
+_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_atan2, __builtin_atan2f16, half, half)
 
 #endif
