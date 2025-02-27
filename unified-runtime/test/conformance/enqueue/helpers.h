@@ -192,7 +192,7 @@ struct urMultiQueueMultiDeviceTest : uur::urAllDevicesTest {
   std::vector<ur_queue_handle_t> queues;
 };
 
-template <size_t minDevices, class T>
+template <size_t minDevices, class T, bool trueMultiDevice = true>
 struct urMultiQueueMultiDeviceTestWithParam
     : uur::urAllDevicesTestWithParam<T> {
   using uur::urAllDevicesTestWithParam<T>::devices;
@@ -203,7 +203,12 @@ struct urMultiQueueMultiDeviceTestWithParam
         urContextCreate(devices.size(), devices.data(), nullptr, &context));
 
     // Duplicate our devices until we hit the minimum size specified.
-    auto srcDevices = devices;
+    std::vector<ur_device_handle_t> srcDevices;
+    if (trueMultiDevice) {
+      srcDevices = devices;
+    } else {
+      srcDevices.push_back(devices[0]);
+    }
     while (devices.size() < minDevices) {
       devices.insert(devices.end(), srcDevices.begin(), srcDevices.end());
     }
