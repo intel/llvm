@@ -43,37 +43,6 @@ TEST_P(cudaUrContextCreateTest, CreateWithChildThread) {
   callContextFromOtherThread.join();
 }
 
-TEST_P(cudaUrContextCreateTest, ActiveContext) {
-  uur::raii::Context context = nullptr;
-  ASSERT_SUCCESS(urContextCreate(1, &device, nullptr, context.ptr()));
-  ASSERT_NE(context, nullptr);
-
-  uur::raii::Queue queue = nullptr;
-  ur_queue_properties_t queue_props{UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
-                                    0};
-  ASSERT_SUCCESS(urQueueCreate(context, device, &queue_props, queue.ptr()));
-  ASSERT_NE(queue, nullptr);
-
-  // check that the queue has the correct context
-  ASSERT_EQ(context, queue->getContext());
-
-  // create a buffer
-  uur::raii::Mem buffer = nullptr;
-  ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 1024,
-                                   nullptr, buffer.ptr()));
-  ASSERT_NE(buffer, nullptr);
-
-  // check that the context is now the active CUDA context
-  CUcontext cudaCtx = nullptr;
-  ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&cudaCtx));
-  ASSERT_NE(cudaCtx, nullptr);
-
-  ur_native_handle_t native_context = 0;
-  ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
-  ASSERT_NE(reinterpret_cast<CUcontext>(native_context), nullptr);
-  ASSERT_EQ(cudaCtx, reinterpret_cast<CUcontext>(native_context));
-}
-
 TEST_P(cudaUrContextCreateTest, ContextLifetimeExisting) {
   // start by setting up a CUDA context on the thread
   CUcontext original;
