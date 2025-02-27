@@ -18,6 +18,7 @@ class E2EExpr(BooleanExpression):
         "system-linux",
         "windows",
         "system-windows",
+        "cl_options",
         "enable-perf-tests",
         "preview-breaking-changes-supported",
         "has_ndebug",
