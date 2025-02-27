@@ -108,6 +108,10 @@ public:
 } // sycl::ext::oneapi::experimental
 ----
 
+This extension doesn't change the fact that smart pointers aren't device
+copyable and application needs to query a raw pointer from them before passing
+it to the device, see example below.
+
 === Example usage
 
 A simple example of using this extension is below.
@@ -121,6 +125,23 @@ A simple example of using this extension is below.
 }
 ```
 
+Alternatively, once can do something like this:
+
+```c++
+{
+  sycl::queue q;
+  auto *p = sycl::malloc_shared<int>(1, q);
+  auto *q = sycl::malloc_device<float>(1, q);
+  auto SmartPtrs = [&](auto *...Ptrs) {
+    using sycl::ext::oneapi::experimental::usm_deleter;
+    return std::tuple{std::unique_ptr<std::remove_pointer_t<decltype(Ptrs)>,
+                                      usm_deleter>{Ptrs, usm_deleter{q}}...};
+  }(p, q);
+  std::unique_ptr<int, usm_deleter> p{sycl::malloc_shared<int>(1, q), {q}};
+  q.single_task([=]() { *p = 42; *q = 42.0f; }).wait();
+}
+```
+
 === Non-normative notes
 
 This helper doesn't introduce any synchronization points so the following would
@@ -131,7 +152,7 @@ result in a race condition:
   sycl::queue q;
   using sycl::ext::oneapi::experimental::usm_deleter;
   std::unique_ptr<int, usm_deleter> p{sycl::malloc_shared<int>(1, q), {q}};
-  q.single_task([=, p = p.get()]() { *p = 42; });
+  q.single_task([=]() { *p = 42; });
   // No wait, memory might be free'ed before the kernel has finished execution.
 }
 ```
