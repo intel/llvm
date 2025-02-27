@@ -210,6 +210,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   pDdiTable->pfnKernelLaunchCustomExp =
       ur::level_zero::urEnqueueKernelLaunchCustomExp;
+  pDdiTable->pfnUSMDeviceAllocExp = ur::level_zero::urEnqueueUSMDeviceAllocExp;
+  pDdiTable->pfnUSMSharedAllocExp = ur::level_zero::urEnqueueUSMSharedAllocExp;
+  pDdiTable->pfnUSMHostAllocExp = ur::level_zero::urEnqueueUSMHostAllocExp;
+  pDdiTable->pfnUSMFreeExp = ur::level_zero::urEnqueueUSMFreeExp;
   pDdiTable->pfnCooperativeKernelLaunchExp =
       ur::level_zero::urEnqueueCooperativeKernelLaunchExp;
   pDdiTable->pfnTimestampRecordingExp =

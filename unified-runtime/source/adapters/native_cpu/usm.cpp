@@ -155,3 +155,64 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
   std::ignore = HostPtr;
   DIE_NO_IMPLEMENTATION;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = size;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = ppMem;
+  std::ignore = phEvent;
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = size;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = ppMem;
+  std::ignore = phEvent;
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = size;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = ppMem;
+  std::ignore = phEvent;
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, void *pMem,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = pMem;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  DIE_NO_IMPLEMENTATION;
+}

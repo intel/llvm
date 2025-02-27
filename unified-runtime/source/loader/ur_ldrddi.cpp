@@ -6171,6 +6171,276 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMDeviceAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue asynchronous USM allocation
+    /// properties
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM device allocation
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+  auto pfnUSMDeviceAllocExp = dditable->ur.EnqueueExp.pfnUSMDeviceAllocExp;
+  if (nullptr == pfnUSMDeviceAllocExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+  // convert loader handle to platform handle
+  pPool = (pPool) ? reinterpret_cast<ur_usm_pool_object_t *>(pPool)->handle
+                  : nullptr;
+
+  // convert loader handles to platform handles
+  auto phEventWaitListLocal =
+      std::vector<ur_event_handle_t>(numEventsInWaitList);
+  for (size_t i = 0; i < numEventsInWaitList; ++i)
+    phEventWaitListLocal[i] =
+        reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+
+  // forward to device-platform
+  result = pfnUSMDeviceAllocExp(hQueue, pPool, size, pProperties,
+                                numEventsInWaitList,
+                                phEventWaitListLocal.data(), ppMem, phEvent);
+
+  // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any
+  // output handles below.
+  if (UR_RESULT_SUCCESS != result && UR_RESULT_ERROR_ADAPTER_SPECIFIC != result)
+    return result;
+  try {
+    // convert platform handle to loader handle
+    if (nullptr != phEvent)
+      *phEvent = reinterpret_cast<ur_event_handle_t>(
+          context->factories.ur_event_factory.getInstance(*phEvent, dditable));
+  } catch (std::bad_alloc &) {
+    result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMSharedAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue asynchronous USM allocation
+    /// properties
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM shared allocation
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+  auto pfnUSMSharedAllocExp = dditable->ur.EnqueueExp.pfnUSMSharedAllocExp;
+  if (nullptr == pfnUSMSharedAllocExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+  // convert loader handle to platform handle
+  pPool = (pPool) ? reinterpret_cast<ur_usm_pool_object_t *>(pPool)->handle
+                  : nullptr;
+
+  // convert loader handles to platform handles
+  auto phEventWaitListLocal =
+      std::vector<ur_event_handle_t>(numEventsInWaitList);
+  for (size_t i = 0; i < numEventsInWaitList; ++i)
+    phEventWaitListLocal[i] =
+        reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+
+  // forward to device-platform
+  result = pfnUSMSharedAllocExp(hQueue, pPool, size, pProperties,
+                                numEventsInWaitList,
+                                phEventWaitListLocal.data(), ppMem, phEvent);
+
+  // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any
+  // output handles below.
+  if (UR_RESULT_SUCCESS != result && UR_RESULT_ERROR_ADAPTER_SPECIFIC != result)
+    return result;
+  try {
+    // convert platform handle to loader handle
+    if (nullptr != phEvent)
+      *phEvent = reinterpret_cast<ur_event_handle_t>(
+          context->factories.ur_event_factory.getInstance(*phEvent, dditable));
+  } catch (std::bad_alloc &) {
+    result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMHostAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue asynchronous USM allocation
+    /// properties
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM host allocation
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+  auto pfnUSMHostAllocExp = dditable->ur.EnqueueExp.pfnUSMHostAllocExp;
+  if (nullptr == pfnUSMHostAllocExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+  // convert loader handle to platform handle
+  pPool = (pPool) ? reinterpret_cast<ur_usm_pool_object_t *>(pPool)->handle
+                  : nullptr;
+
+  // convert loader handles to platform handles
+  auto phEventWaitListLocal =
+      std::vector<ur_event_handle_t>(numEventsInWaitList);
+  for (size_t i = 0; i < numEventsInWaitList; ++i)
+    phEventWaitListLocal[i] =
+        reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+
+  // forward to device-platform
+  result =
+      pfnUSMHostAllocExp(hQueue, pPool, size, pProperties, numEventsInWaitList,
+                         phEventWaitListLocal.data(), ppMem, phEvent);
+
+  // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any
+  // output handles below.
+  if (UR_RESULT_SUCCESS != result && UR_RESULT_ERROR_ADAPTER_SPECIFIC != result)
+    return result;
+  try {
+    // convert platform handle to loader handle
+    if (nullptr != phEvent)
+      *phEvent = reinterpret_cast<ur_event_handle_t>(
+          context->factories.ur_event_factory.getInstance(*phEvent, dditable));
+  } catch (std::bad_alloc &) {
+    result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMFreeExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] pointer to USM memory object
+    void *pMem,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM deallocation
+    ur_event_handle_t *phEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+  auto pfnUSMFreeExp = dditable->ur.EnqueueExp.pfnUSMFreeExp;
+  if (nullptr == pfnUSMFreeExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+  // convert loader handle to platform handle
+  pPool = (pPool) ? reinterpret_cast<ur_usm_pool_object_t *>(pPool)->handle
+                  : nullptr;
+
+  // convert loader handles to platform handles
+  auto phEventWaitListLocal =
+      std::vector<ur_event_handle_t>(numEventsInWaitList);
+  for (size_t i = 0; i < numEventsInWaitList; ++i)
+    phEventWaitListLocal[i] =
+        reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+
+  // forward to device-platform
+  result = pfnUSMFreeExp(hQueue, pPool, pMem, numEventsInWaitList,
+                         phEventWaitListLocal.data(), phEvent);
+
+  // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any
+  // output handles below.
+  if (UR_RESULT_SUCCESS != result && UR_RESULT_ERROR_ADAPTER_SPECIFIC != result)
+    return result;
+  try {
+    // convert platform handle to loader handle
+    if (nullptr != phEvent)
+      *phEvent = reinterpret_cast<ur_event_handle_t>(
+          context->factories.ur_event_factory.getInstance(*phEvent, dditable));
+  } catch (std::bad_alloc &) {
+    result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPitchedAllocExp
 __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     /// [in] handle of the context object
@@ -9697,6 +9967,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
       // return pointers to loader's DDIs
       pDdiTable->pfnKernelLaunchCustomExp =
           ur_loader::urEnqueueKernelLaunchCustomExp;
+      pDdiTable->pfnUSMDeviceAllocExp = ur_loader::urEnqueueUSMDeviceAllocExp;
+      pDdiTable->pfnUSMSharedAllocExp = ur_loader::urEnqueueUSMSharedAllocExp;
+      pDdiTable->pfnUSMHostAllocExp = ur_loader::urEnqueueUSMHostAllocExp;
+      pDdiTable->pfnUSMFreeExp = ur_loader::urEnqueueUSMFreeExp;
       pDdiTable->pfnCooperativeKernelLaunchExp =
           ur_loader::urEnqueueCooperativeKernelLaunchExp;
       pDdiTable->pfnTimestampRecordingExp =

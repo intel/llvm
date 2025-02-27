@@ -80,8 +80,7 @@ void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
     break;
   }
   std::stringstream SS;
-  SS << "\nUR HIP ERROR:"
-     << "\n\tValue:           " << Result
+  SS << "\nUR HIP ERROR:" << "\n\tValue:           " << Result
      << "\n\tName:            " << ErrorName
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
@@ -107,8 +106,7 @@ void checkErrorUR(hipError_t Result, const char *Function, int Line,
   const char *ErrorName = hipGetErrorName(Result);
 
   std::stringstream SS;
-  SS << "\nUR HIP ERROR:"
-     << "\n\tValue:           " << Result
+  SS << "\nUR HIP ERROR:" << "\n\tValue:           " << Result
      << "\n\tName:            " << ErrorName
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
@@ -130,9 +128,9 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
   }
 
   std::stringstream SS;
-  SS << "\nUR HIP ERROR:"
-     << "\n\tValue:           " << Result << "\n\tFunction:        " << Function
-     << "\n\tSource Location: " << File << ":" << Line << "\n";
+  SS << "\nUR HIP ERROR:" << "\n\tValue:           " << Result
+     << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+     << ":" << Line << "\n";
   logger::error("{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
