@@ -224,8 +224,10 @@ ur_result_t createSyncPointBetweenCopyAndCompute(
   // Add the event to the dependencies for future command list to wait on.
   WaitEventList.push_back(SignalPrevCommandEvent->ZeEvent);
 
-  // Mark the event for future reset.
-  CommandBuffer->ZeEventsList.push_back(SignalPrevCommandEvent->ZeEvent);
+  // Get sync point and register the event with it.
+  ur_exp_command_buffer_sync_point_t SyncPoint =
+      CommandBuffer->getNextSyncPoint();
+  CommandBuffer->registerSyncPoint(SyncPoint, SignalPrevCommandEvent);
 
   return UR_RESULT_SUCCESS;
 }
