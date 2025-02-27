@@ -28,6 +28,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   spirv/lib/SOURCES;
   # CLC internal libraries
   clc/lib/generic/SOURCES;
+<<<<<<< HEAD
   # libspirv libraries
   libspirv/lib/generic/SOURCES;
   libspirv/lib/amdgcn-amdhsa/SOURCES;
@@ -35,6 +36,10 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   libspirv/lib/ptx-nvidiacl/SOURCES;
   libspirv/lib/r600/SOURCES;
   libspirv/lib/native_cpu-unknown-linux/SOURCES;
+=======
+  clc/lib/clspv/SOURCES;
+  clc/lib/spirv/SOURCES;
+>>>>>>> e7ad07ffb846a9812d9567b8d4b680045dce5b28
 )
 
 set( LIBCLC_MIN_LLVM 3.9.0 )
