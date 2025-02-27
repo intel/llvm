@@ -215,6 +215,26 @@ public:
                                    uint32_t numEventsInWaitList,
                                    const ur_event_handle_t *phEventWaitList,
                                    ur_event_handle_t *phEvent) override;
+  ur_result_t enqueueUSMDeviceAllocExp(
+      ur_usm_pool_handle_t pPool, const size_t size,
+      const ur_exp_async_usm_alloc_properties_t *pProperties,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      void **ppMem, ur_event_handle_t *phEvent) override;
+  ur_result_t enqueueUSMSharedAllocExp(
+      ur_usm_pool_handle_t pPool, const size_t size,
+      const ur_exp_async_usm_alloc_properties_t *pProperties,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      void **ppMem, ur_event_handle_t *phEvent) override;
+  ur_result_t
+  enqueueUSMHostAllocExp(ur_usm_pool_handle_t pPool, const size_t size,
+                         const ur_exp_async_usm_alloc_properties_t *pProperties,
+                         uint32_t numEventsInWaitList,
+                         const ur_event_handle_t *phEventWaitList, void **ppMem,
+                         ur_event_handle_t *phEvent) override;
+  ur_result_t enqueueUSMFreeExp(ur_usm_pool_handle_t pPool, void *pMem,
+                                uint32_t numEventsInWaitList,
+                                const ur_event_handle_t *phEventWaitList,
+                                ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesImageCopyExp(
       const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
       const ur_image_desc_t *pDstImageDesc,
