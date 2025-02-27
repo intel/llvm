@@ -23,6 +23,8 @@ string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
 
 include(AddSYCLUnitTest)
 
+add_subdirectory(mock_opencl)
+
 add_custom_target(check-sycl-unittests)
 
 add_subdirectory(ur)
