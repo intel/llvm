@@ -250,8 +250,10 @@ inline ur_result_t customProgramRetain(void *pParams) {
 
 class ProgramManagerTest {
 public:
-  static std::unordered_multimap<ur_program_handle_t,
-                                 const sycl::detail::RTDeviceBinaryImage *> &
+  static std::unordered_multimap<
+      ur_program_handle_t,
+      std::pair<std::weak_ptr<sycl::detail::context_impl>,
+                const sycl::detail::RTDeviceBinaryImage *>> &
   getNativePrograms() {
     return sycl::detail::ProgramManager::getInstance().NativePrograms;
   }

@@ -2224,8 +2224,6 @@ protected:
     const auto *this_const = this;
     (void)getSize();
     (void)this_const->getSize();
-    (void)getPtr();
-    (void)this_const->getPtr();
 #endif
   }
 
