@@ -1,7 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_external_memory_import || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
-// RUN: %{build} %link-vulkan -o %t.out %if any-device-is-level_zero %{ -Wno-ignored-attributes -DENABLE_LINEAR_TILING -DTEST_L0_SUPPORTED_VK_FORMAT %}
+// RUN: %{build} %link-vulkan -o %t.out %if target-spir %{ -Wno-ignored-attributes -DENABLE_LINEAR_TILING -DTEST_L0_SUPPORTED_VK_FORMAT %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 // Uncomment to print additional test information
@@ -275,8 +275,6 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     imgType = VK_IMAGE_TYPE_3D;
   }
 
-  using VecType = sycl::vec<DType, NChannels>;
-
   VkFormat format = vkutil::to_vulkan_format(COrder, CType);
   const size_t imageSizeBytes = numElems * NChannels * sizeof(DType);
 
@@ -316,7 +314,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 
   printString("Populating staging buffer\n");
   // Populate staging memory
-  VecType *inputStagingData = nullptr;
+  DType *inputStagingData = nullptr;
   VK_CHECK_CALL(vkMapMemory(vk_device, inputStagingMemory, 0 /*offset*/,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
@@ -329,8 +327,9 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     return i;
   };
   for (int i = 0; i < numElems; ++i) {
-    inputStagingData[i] =
-        bindless_helpers::init_vector<DType, NChannels>(getInputValue(i));
+    DType v = getInputValue(i);
+    for (int j = 0; j < NChannels; ++j)
+      inputStagingData[i * NChannels + j] = v;
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 

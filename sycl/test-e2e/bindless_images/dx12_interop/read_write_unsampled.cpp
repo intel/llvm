@@ -2,7 +2,7 @@
 // REQUIRES: windows
 
 // DEFINE: %{link-flags}=%if cl_options %{ /clang:-ld3d12 /clang:-ldxgi /clang:-ldxguid %} %else %{ -ld3d12 -ldxgi -ldxguid %}
-// RUN: %{build} %{link-flags} -o %t.out %if any-device-is-level_zero %{ -DDISABLE_UNORM_TESTS %}
+// RUN: %{build} %{link-flags} -o %t.out %if target-spir %{ -DDISABLE_UNORM_TESTS %}
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #pragma clang diagnostic ignored "-Waddress-of-temporary"

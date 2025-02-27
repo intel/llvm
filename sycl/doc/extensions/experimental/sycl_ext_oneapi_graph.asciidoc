@@ -551,7 +551,7 @@ Parameters:
 
 |===
 
-==== Dynamic Command Groups
+==== Dynamic Command Groups [[dynamic-command-groups]]
 
 [source,c++]
 ----
@@ -570,12 +570,13 @@ public:
 Dynamic command-groups can be added as nodes to a graph. They provide a
 mechanism that allows updating the command-group function of a node after the
 graph is finalized. There is always one command-group function in the dynamic
-command-group that is set as active, this is the kernel which will execute for
-the node when the graph is finalized into an executable state `command_graph`,
-and all the other command-group functions in `cgfList` will be ignored. The
-executable `command_graph` node can then be updated to a different kernel in
-`cgfList`, by selecting a new active index on the dynamic command-group object
-and calling the `update(node& node)` method on the executable `command_graph`.
+command-group that is set as active, this is the command-group which will
+execute for the node when the graph is finalized into an executable state
+`command_graph`, and all the other command-group functions in `cgfList` will be
+ignored. The executable `command_graph` node can then be updated to a different
+kernel in `cgfList`, by selecting a new active index on the dynamic
+command-group object and calling the `update(node& node)` method on the
+executable `command_graph`.
 
 The `dynamic_command_group` class provides the {crs}[common reference semantics].
 
@@ -584,9 +585,13 @@ about updating command-groups.
 
 ===== Limitations
 
-Dynamic command-groups can only contain kernel operations. Trying to construct
-a dynamic command-group with functions that contain other operations will
-result in an error.
+Dynamic command-groups can only contain the following operations:
+
+* Kernel operations
+* <<host-tasks, Host-tasks>>
+
+Trying to construct a dynamic command-group with functions that contain other
+operations will result in an error.
 
 All the command-group functions in a dynamic command-group must have identical dependencies.
 It is not allowed for a dynamic command-group to have command-group functions that would
@@ -625,9 +630,12 @@ Exceptions:
   property for more information.
 
 * Throws with error code `invalid` if the `dynamic_command_group` is created with
-  command-group functions that are not kernel executions.
+  command-group functions that are not kernel executions or host-tasks.
 
 * Throws with error code `invalid` if `cgfList` is empty.
+
+* Throws with error code `invalid` if the types of all command-groups in
+  `cgfList` do not match.
 
 |
 [source,c++]
@@ -829,10 +837,12 @@ possible.
 
 ===== Supported Features
 
-The only types of nodes that are currently able to be updated in a graph are
-kernel execution nodes.
+The only types of nodes that are currently able to be updated in a graph are:
 
-There are two different API's that can be used to update a graph:
+* Kernel executions
+* <<host-tasks, Host-tasks>>
+
+There are two different APIs that can be used to update a graph:
 
 * <<individual-node-update, Individual Node Update>> which allows updating
 individual nodes of a command-graph.
@@ -840,20 +850,40 @@ individual nodes of a command-graph.
 entirety of the graph simultaneously by using another graph as a
 reference.
 
-The aspects of a kernel execution node that can be changed during update are
-different depending on the API used to perform the update:
+The following table illustrates the aspects of each supported node type that can be changed
+depending on the API used to perform the update.
 
-* For the <<individual-node-update, Individual Node Update>> API it's possible to update
-the kernel function, the parameters to the kernel, and the ND-range.
-* For the <<whole-graph-update, Whole Graph Update>> API, only the parameters of the kernel
-and the ND-range can be updated.
+Table {counter: tableNumber}. Graph update capabilites for supported node types.
+[cols="1,2a,2a"]
+|===
+|Node Type|<<individual-node-update, Individual Node Update>>|<<whole-graph-update, Whole Graph Update>>
+
+|`node_type::kernel`
+|
+
+* Kernel function
+* Kernel parameters
+* ND-range
+
+|
+* Kernel parameters
+* ND-range
+
+|`node_type::host_task`
+|
+* Host-task function
+|
+* Host-task function
+
+|===
 
 ===== Individual Node Update [[individual-node-update]]
 
-Individual nodes of an executable graph can be updated directly. Depending on the attribute
-of the node that requires updating, different API's should be used:
+Individual nodes of an executable graph can be updated directly. Depending on the attribute or `node_type` of the node that requires updating, different API's should be used:
 
 ====== Parameter Updates
+
+_Supported Node Types: Kernel_
 
 Parameters to individual nodes in a graph in the `executable` state can be
 updated between graph executions using dynamic parameters. A `dynamic_parameter`
@@ -884,6 +914,8 @@ will maintain the graphs data dependencies.
 
 ====== Execution Range Updates
 
+_Supported Node Types: Kernel_
+
 Another configuration that can be updated is the execution range of the
 kernel, this can be set through `node::update_nd_range()` or
 `node::update_range()` but does not require any prior registration.
@@ -897,10 +929,13 @@ code may be defined as operating in a different dimension.
 
 ====== Command Group Updates
 
-The command-groups of a kernel node can be updated using dynamic command-groups.
-Dynamic command-groups allow replacing the command-group function of a kernel
-node with a different one. This effectively allows updating the kernel function
-and/or the kernel execution range.
+_Supported Node Types: Kernel, Host-task_
+
+The command-groups of a kernel node can be updated using
+<<dynamic-command-groups, Dynamic Command-Groups>>. Dynamic command-groups allow
+replacing the command-group function of a kernel node with a different one. This
+effectively allows updating the kernel function and/or the kernel execution
+range.
 
 Command-group updates are performed by creating an instance of the
 `dynamic_command_group` class. A dynamic command-group is created with a modifiable
@@ -1972,7 +2007,7 @@ Any code like this should be moved to a separate host-task and added to the
 graph via the recording or explicit APIs in order to be compatible with this
 extension.
 
-=== Host Tasks
+=== Host Tasks [[host-tasks]]
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
 
@@ -1991,6 +2026,9 @@ auto node = graph.add([&](sycl::handler& cgh){
   });
 });
 ----
+
+Host-tasks can be updated using <<executable-graph-update, Executable Graph Update>>.
+
 
 === Queue Behavior In Recording Mode
 
