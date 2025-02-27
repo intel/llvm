@@ -1906,10 +1906,10 @@ void AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI,
 
 /// Check if we want (and can) handle this alloca.
 bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
-  auto PreviouslySeenAllocaInfo = ProcessedAllocas.find(&AI);
+  auto [It, Inserted] = ProcessedAllocas.try_emplace(&AI);
 
-  if (PreviouslySeenAllocaInfo != ProcessedAllocas.end())
-    return PreviouslySeenAllocaInfo->getSecond();
+  if (!Inserted)
+    return It->getSecond();
 
   bool IsInteresting =
       (AI.getAllocatedType()->isSized() &&
@@ -1929,7 +1929,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
        // size it is.
        !getTargetExtType(AI.getAllocatedType()));
 
-  ProcessedAllocas[&AI] = IsInteresting;
+  It->second = IsInteresting;
   return IsInteresting;
 }
 
