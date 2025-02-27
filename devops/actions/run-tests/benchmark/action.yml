@@ -46,6 +46,22 @@ runs:
           echo "# This workflow is not guaranteed to work with other backends."
           echo "#" ;;
       esac
+  - name: (Test) Obtain debug information
+    shell: bash
+    run: |
+      ls /dev/dri
+      echo ----
+      ls /runtimes/oneapi-tbb/lib/intel64/gcc4.8
+      echo ----
+      SYCL_UR_TRACE=-1 sycl-ls
+      echo ----
+      id "$(whoami)"
+      echo ----
+      groups
+      echo ----
+      ls /opt/sycl/lib
+      echo ----
+      ls /usr/lib/x86_64-linux-gnu
   - name: Run compute-benchmarks
     shell: bash
     run: |
