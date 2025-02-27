@@ -204,10 +204,14 @@ struct urMultiQueueMultiDeviceTestWithParam
 
     // Duplicate our devices until we hit the minimum size specified.
     std::vector<ur_device_handle_t> srcDevices;
+
+    // If the test actually only wants one device duplicated a bunch of times
+    // we take devices[0] and discard any other devices that were discovered.
     if (trueMultiDevice) {
       srcDevices = devices;
     } else {
       srcDevices.push_back(devices[0]);
+      devices.clear();
     }
     while (devices.size() < minDevices) {
       devices.insert(devices.end(), srcDevices.begin(), srcDevices.end());
