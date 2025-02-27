@@ -51,6 +51,19 @@ runs:
       if [ -n "$CMAKE_EXTRA_ARGS" ]; then
         echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
       fi
+  - name: Download L0 loader
+    shell: bash
+    run: |
+      git clone https://github.com/oneapi-src/level-zero.git
+      cd level-zero
+      git checkout c4892da92dab13a2d276a18975f9fff4268c2daf
+      mkdir build
+      cd build
+      cmake .. -GNinja
+      ninja
+      cd ../..
+      echo LD_LIBRARY_PATH=$PWD/level-zero/build/lib:$LD_LIBRARY_PATH >> $GITHUB_ENV
+
   - name: Configure E2E tests
     if: inputs.testing_mode != 'run-only'
     shell: bash
