@@ -613,6 +613,42 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+// Quick check to see whether BinImage is a compiler-generated device image.
+static bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage) {
+  // SYCL devicelib image.
+  if (BinImage->getDeviceLibMetadata().isAvailable())
+    return true;
+
+  return false;
+}
+
+static bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
+                                             const device &Dev) {
+  // Decide whether a devicelib image should be used.
+  if (BinImage->getDeviceLibMetadata().isAvailable()) {
+    const RTDeviceBinaryImage::PropertyRange &DeviceLibMetaProp =
+        BinImage->getDeviceLibMetadata();
+    uint32_t DeviceLibMeta =
+        DeviceBinaryProperty(*(DeviceLibMetaProp.begin())).asUint32();
+    // Currently, only bfloat conversion devicelib are supported, so the prop
+    // DeviceLibMeta are only used to represent fallback or native version.
+    // For bfloat16 conversion devicelib, we have fallback and native version.
+    // The native should be used on platform which supports native bfloat16
+    // conversion capability and fallback version should be used on all other
+    // platforms. The native bfloat16 capability can be queried via extension.
+    // TODO: re-design the encode of the devicelib metadata if we must support
+    // more devicelib images in this way.
+    enum { DEVICELIB_FALLBACK = 0, DEVICELIB_NATIVE };
+    const std::shared_ptr<detail::device_impl> &DeviceImpl =
+        detail::getSyclObjImpl(Dev);
+    std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
+    bool NativeBF16Supported = (DeviceImpl->has_extension(NativeBF16ExtName));
+    return NativeBF16Supported == (DeviceLibMeta == DEVICELIB_NATIVE);
+  }
+
+  return false;
+}
+
 static bool checkLinkingSupport(const device &Dev,
                                 const RTDeviceBinaryImage &Img) {
   const char *Target = Img.getRawData().DeviceTargetSpec;
@@ -668,6 +704,9 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       if (Img->getFormat() != Format ||
           !doesDevSupportDeviceRequirements(Dev, *Img) ||
           !compatibleWithDevice(Img, Dev))
+        continue;
+      if (isSpecialDeviceImage(Img) &&
+          !isSpecialDeviceImageShouldBeUsed(Img, Dev))
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
@@ -1798,6 +1837,20 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   return {};
 }
 
+static bool skipEmptyImage(sycl_device_binary RawImg) {
+  // bfloat16 devicelib image must be kept.
+  sycl_device_binary_property_set ImgPS;
+  for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
+       ++ImgPS) {
+    if (ImgPS->Name &&
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
@@ -1805,7 +1858,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
-    if (EntriesB == EntriesE)
+    if ((EntriesB == EntriesE) && skipEmptyImage(RawImg))
       continue;
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
