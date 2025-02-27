@@ -343,7 +343,7 @@ etors:
     - name: BACKEND_RUNTIME_VERSION
       desc: "[char[]] null-terminated version of backend runtime"
     - name: EXTENSIONS
-      desc: "[char[]] Return a null-terminated space separated list of extension names"
+      desc: "[char[]] Return a null-terminated string representing any backend extensions supported by the adapter. Format and content is entirely adapter defined."
     - name: PRINTF_BUFFER_SIZE
       desc: "[size_t] Maximum size in bytes of internal printf buffer"
     - name: PREFERRED_INTEROP_USER_SYNC

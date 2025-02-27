@@ -2975,6 +2975,18 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     os << "UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP";
     break;
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -4963,6 +4975,58 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     ur::details::printFlag<ur_exp_device_2d_block_array_capability_flag_t>(
         os, *tptr);
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
 
     os << ")";
   } break;
