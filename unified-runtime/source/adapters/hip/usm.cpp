@@ -383,12 +383,12 @@ bool ur_usm_pool_handle_t_::hasUMFPool(umf_memory_pool_t *umf_pool) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
     /// [in] handle of the context object
-    ur_context_handle_t Context,
+    ur_context_handle_t /*Context*/,
     /// [in] pointer to USM pool descriptor. Can be chained with
     /// ::ur_usm_pool_limits_desc_t
-    ur_usm_pool_desc_t *PoolDesc,
+    ur_usm_pool_desc_t * /*PoolDesc*/,
     /// [out] pointer to USM memory pool
-    ur_usm_pool_handle_t *Pool) {
+    ur_usm_pool_handle_t * /*Pool*/) {
   // Without pool tracking we can't free pool allocations.
 #ifdef UMF_ENABLE_POOL_TRACKING
   if (PoolDesc->flags & UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK) {
@@ -406,9 +406,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
   }
   return UR_RESULT_SUCCESS;
 #else
-  std::ignore = Context;
-  std::ignore = PoolDesc;
-  std::ignore = Pool;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
 }
