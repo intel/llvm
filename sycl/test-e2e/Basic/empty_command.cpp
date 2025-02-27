@@ -1,18 +1,32 @@
-// RUN: %{build} -o %t.out %cxx_std_optionc++20
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
-#include <latch>
 #include <thread>
 
 using namespace sycl;
 
+// std::latch is not available until c++20
+class simple_latch {
+  std::atomic<unsigned> counter;
+
+public:
+  simple_latch(unsigned init) : counter(init) {}
+
+  void wait() {
+    // block until the counter reaches zero;
+    while (counter)
+      std::this_thread::yield();
+  }
+  void count_down(unsigned by = 1) { counter.fetch_sub(by); }
+};
+
 void test_host_task_dep() {
   queue q;
 
-  std::latch start_execution{1};
+  simple_latch start_execution{1};
 
   int x = 0;
 
@@ -36,7 +50,7 @@ void test_host_task_dep() {
 void test_device_event_dep() {
   queue q;
 
-  std::latch start_execution{1};
+  simple_latch start_execution{1};
   auto *p = sycl::malloc_shared<int>(1, q);
   *p = 0;
 
@@ -58,7 +72,7 @@ void test_device_event_dep() {
 void test_accessor_dep() {
   queue q;
 
-  std::latch start_execution{1};
+  simple_latch start_execution{1};
   auto *p = sycl::malloc_shared<int>(1, q);
   *p = 0;
 
