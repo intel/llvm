@@ -58,7 +58,7 @@ class kernel_bundle_impl {
 
   using SpecConstMapT = std::map<std::string, std::vector<unsigned char>>;
 
-  void common_ctor_checks(bundle_state State) {
+  void common_ctor_checks() const {
     const bool AllDevicesInTheContext =
         checkAllDevicesAreInContext(MDevices, MContext);
     if (MDevices.empty() || !AllDevicesInTheContext)
@@ -67,12 +67,12 @@ class kernel_bundle_impl {
           "Not all devices are associated with the context or "
           "vector of devices is empty");
 
-    if (bundle_state::input == State &&
+    if (bundle_state::input == MState &&
         !checkAllDevicesHaveAspect(MDevices, aspect::online_compiler))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Not all devices have aspect::online_compiler");
 
-    if (bundle_state::object == State &&
+    if (bundle_state::object == MState &&
         !checkAllDevicesHaveAspect(MDevices, aspect::online_linker))
       throw sycl::exception(make_error_code(errc::invalid),
                             "Not all devices have aspect::online_linker");
@@ -82,7 +82,7 @@ public:
   kernel_bundle_impl(context Ctx, std::vector<device> Devs, bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
-    common_ctor_checks(State);
+    common_ctor_checks();
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, State);
@@ -267,7 +267,7 @@ public:
                      bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
-    common_ctor_checks(State);
+    common_ctor_checks();
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, KernelIDs, State);
@@ -278,7 +278,7 @@ public:
                      const DevImgSelectorImpl &Selector, bundle_state State)
       : MContext(std::move(Ctx)), MDevices(std::move(Devs)), MState(State) {
 
-    common_ctor_checks(State);
+    common_ctor_checks();
 
     MDeviceImages = detail::ProgramManager::getInstance().getSYCLDeviceImages(
         MContext, MDevices, Selector, State);
@@ -498,10 +498,8 @@ public:
 
     if (MLanguage == syclex::source_language::sycl_jit) {
       // Build device images via the program manager.
-      // TODO: Support persistent caching.
-
       const std::string &SourceStr = std::get<std::string>(MSource);
-      auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
+      auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_to_SPIRV(
           SourceStr, MIncludePairs, BuildOptions, LogPtr,
           RegisteredKernelNames);
 
@@ -510,9 +508,6 @@ public:
 
       std::vector<kernel_id> KernelIDs;
       std::vector<std::string> KernelNames;
-      // `jit_compiler::compileSYCL(..)` uses `CompilationID + '$'` as prefix
-      // for offload entry names.
-      std::string Prefix = CompilationID + '$';
       for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
         std::string_view KernelName{KernelID.get_name()};
         if (KernelName.find(Prefix) == 0) {

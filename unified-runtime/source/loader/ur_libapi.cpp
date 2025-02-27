@@ -4733,6 +4733,8 @@ ur_result_t UR_APICALL urEventGetInfo(
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
 ur_result_t UR_APICALL urEventGetProfilingInfo(
     /// [in] handle of the event object
     ur_event_handle_t hEvent,

@@ -117,4 +117,16 @@ template <> inline bool isQueryOptional(ur_queue_info_t query) {
                    query) != optional_ur_queue_info_t.end();
 }
 
+constexpr std::array optional_ur_profiling_info_t = {
+    UR_PROFILING_INFO_COMMAND_QUEUED,   UR_PROFILING_INFO_COMMAND_SUBMIT,
+    UR_PROFILING_INFO_COMMAND_START,    UR_PROFILING_INFO_COMMAND_END,
+    UR_PROFILING_INFO_COMMAND_COMPLETE,
+};
+
+template <> inline bool isQueryOptional(ur_profiling_info_t query) {
+  return std::find(optional_ur_profiling_info_t.begin(),
+                   optional_ur_profiling_info_t.end(),
+                   query) != optional_ur_profiling_info_t.end();
+}
+
 } // namespace uur
