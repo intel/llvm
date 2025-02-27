@@ -176,7 +176,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_command_handle_t,
+    ur_exp_command_buffer_handle_t, uint32_t,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
