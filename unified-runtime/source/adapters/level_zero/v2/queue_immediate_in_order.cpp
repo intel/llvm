@@ -706,58 +706,29 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueWriteHostPipe(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMDeviceAllocExp(
-    ur_usm_pool_handle_t pPool, const size_t size,
-    const ur_exp_async_usm_alloc_properties_t *pProperties,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    void **ppMem, ur_event_handle_t *phEvent) {
-  std::ignore = pPool;
-  std::ignore = size;
-  std::ignore = pProperties;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = ppMem;
-  std::ignore = phEvent;
+    ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMSharedAllocExp(
-    ur_usm_pool_handle_t pPool, const size_t size,
-    const ur_exp_async_usm_alloc_properties_t *pProperties,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    void **ppMem, ur_event_handle_t *phEvent) {
-  std::ignore = pPool;
-  std::ignore = size;
-  std::ignore = pProperties;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = ppMem;
-  std::ignore = phEvent;
+    ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMHostAllocExp(
-    ur_usm_pool_handle_t pPool, const size_t size,
-    const ur_exp_async_usm_alloc_properties_t *pProperties,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    void **ppMem, ur_event_handle_t *phEvent) {
-  std::ignore = pPool;
-  std::ignore = size;
-  std::ignore = pProperties;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = ppMem;
-  std::ignore = phEvent;
+    ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFreeExp(
-    ur_usm_pool_handle_t pPool, void *pMem, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = pPool;
-  std::ignore = pMem;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+    ur_usm_pool_handle_t, void *, uint32_t, const ur_event_handle_t *,
+    ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
