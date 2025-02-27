@@ -10,7 +10,7 @@ Release notes for commit range
 ### SYCL Compiler
 
 - Prototyped support for the proposed [`sycl_ext_oneapi_virtual_functions`](https://github.com/intel/llvm/blob/02ba869938b7c77eb7a6a88b9bbbbcc866057084/sycl/doc/extensions/proposed/sycl_ext_oneapi_virtual_functions.asciidoc) extension to gather initial feedback about the future. Please refer to `Known Issues` section regarding known issues and limitations. intel/llvm#14875 intel/llvm#14976 intel/llvm#10540 intel/llvm#14994 intel/llvm#15523 intel/llvm#15577 intel/llvm#15703 intel/llvm#15733
--- Added support for device image compression. Added `--offload-compress` driver option which allows to enable compression and `--offload-compression-level=<int>` driver option to control level of compression by `zstd`. intel/llvm#15124 intel/llvm#15881
+- Added support for device image compression. Added `--offload-compress` driver option which allows to enable compression and `--offload-compression-level=<int>` driver option to control level of compression by `zstd`. intel/llvm#15124 intel/llvm#15881
 - Added `-fsycl-allow-device-image-dependencies` command line option to enable support for dynamic linking. intel/llvm#14575 intel/llvm#14978 intel/llvm#15407
 - Added `-fsycl-dump-device-code` command line option to the new offloading model which allows to save generated SPIRV files in the specified directory. intel/llvm#14827
 - Added support for invalid kernel argument detection via device sanitizer. intel/llvm#14512
@@ -35,7 +35,7 @@ Release notes for commit range
 - Enabled dynamic linking of AOT compiled images for OpenCL GPU. intel/llvm#14778
 - Added implicit queue recording mechanism to SYCL Graph. intel/llvm#14453
 - Introduced mask compressed ESIMD load/store API. intel/llvm#14941
-- Enabled symoblizer for UR santizer layer. intel/llvm#14911
+- Improved address sanitizer messages to include filename and line number for detected issues. intel/llvm#14911
 - Introduced multiple tracing levels for SYCL_UR_TRACE. intel/llvm#14983
 - Added `clamp` API for ESIMD. intel/llvm#15085
 - Added support for the `ext::intel::experimental::esimd::frem` function. intel/llvm#15117
@@ -107,7 +107,7 @@ Release notes for commit range
 - Improved compilation time for ESIMD kernels. intel/llvm#14786
 - Improved the mechanism lowering of SYCL attributes to NVVM annotations. intel/llvm#14634
 - Defined backend macros based on compiler which allows to compile an application for a backend without having to install the matching runtime. intel/llvm#15012
-- Always cleanup private shadow memory before using it to avoid shadow value pollutions. intel/llvm#15065
+- Reduced potential false possitives from address sanitizer by properly cleaning up private shadow memory. intel/llvm#15065
 - Disabled attribute propagation specified by SYCL 1.2.1 and removed remaining SYCL 2017/1.2.1 compatibility elements, including `-Wsycl-strict` diagnostics related to SYCL 2017 compatibility. intel/llvm#14984
 - Ensured that compiler-generated integration header/footer are warning-free to avoid breaking `-Werror` builds, especially when 3rd-party host compiler is used. intel/llvm#15171 intel/llvm#15175 intel/llvm#15197
 - Added pass to finish SROA for cooperative matrices. intel/llvm#15038
