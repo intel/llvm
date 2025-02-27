@@ -490,14 +490,18 @@ static bool getDeviceLibraries(const ArgList &Args,
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
-      {"libsycl-crt", "libc"},
-      {"libsycl-complex", "libm-fp32"},
-      {"libsycl-complex-fp64", "libm-fp64"},
-      {"libsycl-cmath", "libm-fp32"},
-      {"libsycl-cmath-fp64", "libm-fp64"},
-      {"libsycl-imf", "libimf-fp32"},
-      {"libsycl-imf-fp64", "libimf-fp64"},
-      {"libsycl-imf-bf16", "libimf-bf16"}};
+    {"libsycl-crt", "libc"},
+    {"libsycl-complex", "libm-fp32"},
+    {"libsycl-complex-fp64", "libm-fp64"},
+    {"libsycl-cmath", "libm-fp32"},
+    {"libsycl-cmath-fp64", "libm-fp64"},
+#if defined(_WIN32)
+    {"libsycl-msvc-math", "libm-fp32"},
+#endif
+    {"libsycl-imf", "libimf-fp32"},
+    {"libsycl-imf-fp64", "libimf-fp64"},
+    {"libsycl-imf-bf16", "libimf-bf16"}
+  };
   // ITT annotation libraries are linked in separately whenever the device
   // code instrumentation is enabled.
   const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
