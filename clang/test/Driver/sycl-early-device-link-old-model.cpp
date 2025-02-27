@@ -3,7 +3,7 @@
 // Behavior is restricted to spir64_gen targets for now.
 
 // Create object that contains final device image
-// RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
+// RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-spirv \
 // RUN:          --target=x86_64-unknown-linux-gnu -Xsycl-target-backend \
 // RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CREATE_IMAGE
@@ -20,7 +20,7 @@
 // CREATE_IMAGE: clang{{.*}} "-fsycl-is-host"{{.*}} "-o" "[[HOST_OBJECT:.+\.o]]"
 // CREATE_IMAGE: clang-offload-bundler{{.*}} "-targets=sycl-spir64_gen_image-unknown-unknown,host-x86_64-unknown-linux-gnu" "-output={{.*}}" "-input=[[DEVICE_OBJECT]]" "-input=[[HOST_OBJECT]]"
  
-// RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
+// RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-spirv \
 // RUN:          --target=x86_64-unknown-linux-gnu -Xsycl-target-backend \
 // RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -ccc-print-phases %s \
 // RUN:          -fsycl-instrument-device-code -fno-sycl-device-lib=all 2>&1 \

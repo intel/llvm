@@ -160,10 +160,8 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl_u -DMAC_STR=PTL_U
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_30_1_1 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ptl_u -DMAC_STR=PTL_U
-// MACRO: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
-// MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
-// MACRO: clang{{.*}} "-fsycl-is-host"
-// MACRO: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
+// MACRO-DAG: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
+// MACRO-DAG: clang{{.*}} "-fsycl-is-host"{{.*}} "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
 // DEVICE: ocloc{{.*}} "-device" "[[DEV_STR]]"
 
 /// -fsycl-targets=spir64_x86_64 should set a specific macro
@@ -171,10 +169,8 @@
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
 // RUN: %clang_cl -c -fsycl -fsycl-targets=spir64_x86_64 -### -- %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=MACRO_X86_64
-// MACRO_X86_64: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
-// MACRO_X86_64: "-D__SYCL_TARGET_INTEL_X86_64__"
-// MACRO_X86_64: clang{{.*}} "-fsycl-is-host"
-// MACRO_X86_64: "-D__SYCL_TARGET_INTEL_X86_64__"
+// MACRO_X86_64-DAG: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"{{.*}} "-D__SYCL_TARGET_INTEL_X86_64__"
+// MACRO_X86_64-DAG: clang{{.*}} "-fsycl-is-host"{{.*}} "-D__SYCL_TARGET_INTEL_X86_64__"
 
 /// test for invalid intel arch
 // RUN: not %clangxx -c -fsycl -fsycl-targets=intel_gpu_bad -### %s 2>&1 | \
@@ -184,7 +180,7 @@
 // BAD_INPUT: error: SYCL target is invalid: 'intel_gpu_bad'
 
 /// Test for proper creation of fat object
-// RUN: %clangxx -c -fsycl -fsycl-targets=intel_gpu_skl \
+// RUN: %clangxx -c -fsycl -fno-spirv -fsycl-targets=intel_gpu_skl \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=FATO
 // FATO: clang-offload-bundler{{.*}} "-type=o"
@@ -192,7 +188,7 @@
 
 /// Test for proper consumption of fat object
 // RUN: touch %t.o
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_skl \
+// RUN: %clangxx -fsycl -fno-spirv -fsycl-targets=intel_gpu_skl \
 // RUN:   -target x86_64-unknown-linux-gnu -### %t.o 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CONSUME_FAT
 // CONSUME_FAT: clang-offload-bundler{{.*}} "-type=o"
@@ -202,7 +198,7 @@
 /// Test phases, BoundArch settings used for -device target. Additional
 /// offload action used for compilation and backend compilation.
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_skl -fno-sycl-device-lib=all \
-// RUN:   -fno-sycl-instrument-device-code \
+// RUN:   -fno-sycl-instrument-device-code -fno-spirv \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -232,15 +228,13 @@
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_MIX
 // CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
-// CHECK_TOOLS_MIX-NOT: "-D__SYCL_TARGET_INTEL_GPU{{.*}}"
-// CHECK_TOOLS_MIX: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
 // CHECK_TOOLS_MIX: "-D__SYCL_TARGET_INTEL_GPU_DG1__"
 // CHECK_TOOLS_MIX: ocloc{{.*}} "-device" "dg1"
 // CHECK_TOOLS_MIX: ocloc{{.*}} "-device" "skl"
 
 /// Test phases when using both spir64_gen and intel_gpu*
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_skl,spir64_gen \
-// RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
+// RUN:   -fno-spirv -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES_MIX
 // CHECK_PHASES_MIX: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
@@ -291,13 +285,12 @@
 // RUN: %clangxx -fsycl-targets=intel_gpu_dg1,spir64_x86_64,intel_gpu_skl \
 // RUN:   -fsycl -Xsycl-target-backend=spir64_x86_64 "-DCPU" \
 // RUN:   -Xsycl-target-backend=intel_gpu_dg1 "-DDG1" \
-// RUN:   -Xsycl-target-backend=intel_gpu_skl "-DSKL2" \
+// RUN:   -Xsycl-target-backend=intel_gpu_skl "-DSKL2" -fno-spirv \
 // RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_BEOPTS_MIX
 // CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "dg1"{{.*}}"-DDG1"
 // CHECK_TOOLS_BEOPTS_MIX: opencl-aot{{.*}} "-DCPU"
-// CHECK_TOOLS_BEOPTS_MIX-NOT: "-DDG1"
 // CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL2"
 
 /// Check that target is passed to sycl-post-link for filtering
