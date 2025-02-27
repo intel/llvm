@@ -66,50 +66,58 @@ jobs:
             body: body
           })
 
-    - name: Checkout SYCL
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      with:
-        path: sycl-repo
+    # - name: Checkout SYCL
+    #   uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+    #   with:
+    #     path: sycl-repo
 
-    # We need to fetch special ref for proper PR's merge commit. Note, this ref may be absent if the PR is already merged.
-    - name: Fetch PR's merge commit
-      if: ${{ inputs.pr_no != 0 }}
-      working-directory: ${{github.workspace}}/sycl-repo
-      run: |
-        git fetch -- https://github.com/${{github.repository}} +refs/pull/${{ inputs.pr_no }}/*:refs/remotes/origin/pr/${{ inputs.pr_no }}/*
-        git checkout origin/pr/${{ inputs.pr_no }}/merge
-        git rev-parse origin/pr/${{ inputs.pr_no }}/merge
+    # # We need to fetch special ref for proper PR's merge commit. Note, this ref may be absent if the PR is already merged.
+    # - name: Fetch PR's merge commit
+    #   if: ${{ inputs.pr_no != 0 }}
+    #   working-directory: ${{github.workspace}}/sycl-repo
+    #   run: |
+    #     git fetch -- https://github.com/${{github.repository}} +refs/pull/${{ inputs.pr_no }}/*:refs/remotes/origin/pr/${{ inputs.pr_no }}/*
+    #     git checkout origin/pr/${{ inputs.pr_no }}/merge
+    #     git rev-parse origin/pr/${{ inputs.pr_no }}/merge
 
     - name: Install pip packages
       run: |
         pip install --force-reinstall -r ${{github.workspace}}/sycl-repo/unified-runtime/scripts/benchmarks/requirements.txt
 
-    - name: Configure SYCL
-      run: >
-        python3 sycl-repo/buildbot/configure.py
-        -t ${{matrix.build_type}}
-        -o ${{github.workspace}}/sycl_build
-        --cmake-gen "Ninja"
-        --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
-        --cmake-opt="-DSYCL_PI_TESTS=OFF"
-        --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache
-        --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-        ${{matrix.adapter.sycl_config}}
+    # - name: Configure SYCL
+    #   run: >
+    #     python3 sycl-repo/buildbot/configure.py
+    #     -t ${{matrix.build_type}}
+    #     -o ${{github.workspace}}/sycl_build
+    #     --cmake-gen "Ninja"
+    #     --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
+    #     --cmake-opt="-DSYCL_PI_TESTS=OFF"
+    #     --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache
+    #     --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+    #     ${{matrix.adapter.sycl_config}}
 
-    - name: Build SYCL
-      run: cmake --build ${{github.workspace}}/sycl_build -j $(nproc)
+    # - name: Build SYCL
+    #   run: cmake --build ${{github.workspace}}/sycl_build -j $(nproc)
 
+    - name: Download DPC++
+      run: |
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2025-12-12/sycl_linux.tar.gz
+        mkdir dpcpp_compiler
+        tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
+
+        
     # We need a complete installed UR for compute-benchmarks.
     - name: Configure UR
       run: >
         cmake -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
-        -S${{github.workspace}}/sycl-repo/unified-runtime
+        -S${{github.workspace}}/llvm/unified-runtime
         -B${{github.workspace}}/ur_build
         -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/ur_install
+        -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
+        -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
         -DUR_BUILD_TESTS=OFF
         -DUR_BUILD_ADAPTER_L0=ON
         -DUR_BUILD_ADAPTER_L0_V2=ON
-        -DUMF_DISABLE_HWLOC=ON
 
     - name: Build UR
       run: cmake --build ${{github.workspace}}/ur_build -j $(nproc)
