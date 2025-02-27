@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO enable opaque pointers support on CPU.
-// UNSUPPORTED: cpu
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if preview-breaking-changes-supported %{  %{build} -fpreview-breaking-changes -o %t2.out   %}
