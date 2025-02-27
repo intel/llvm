@@ -217,7 +217,8 @@ static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
         if (I->getFunction() == F) {
           for (Use &IU : I->uses()) {
             if (LoadInst *LI = dyn_cast<LoadInst>(IU.getUser()))
-              return LI;
+              if (LI->getFunction() == F)
+                return LI;
           }
         }
       }
