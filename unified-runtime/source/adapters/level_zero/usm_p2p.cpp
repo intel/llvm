@@ -13,21 +13,15 @@
 
 namespace ur::level_zero {
 
-ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t commandDevice,
-                                        ur_device_handle_t peerDevice) {
-
-  std::ignore = commandDevice;
-  std::ignore = peerDevice;
+ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t /*commandDevice*/,
+                                        ur_device_handle_t /*peerDevice*/) {
 
   // L0 has peer devices enabled by default
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t commandDevice,
-                                         ur_device_handle_t peerDevice) {
-
-  std::ignore = commandDevice;
-  std::ignore = peerDevice;
+ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t /*commandDevice*/,
+                                         ur_device_handle_t /*peerDevice*/) {
 
   // L0 has peer devices enabled by default
   return UR_RESULT_SUCCESS;
