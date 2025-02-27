@@ -1,5 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_cubemap
-// REQUIRES: build-and-run-mode
+// REQUIRES: target-nvidia, aspect-ext_oneapi_cubemap
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
