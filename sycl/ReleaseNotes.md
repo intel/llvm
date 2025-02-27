@@ -109,7 +109,7 @@ Release notes for commit range
 - Reduced potential false possitives from address sanitizer by properly cleaning up private shadow memory. intel/llvm#15065
 - Disabled attribute propagation specified by SYCL 1.2.1 and removed remaining SYCL 2017/1.2.1 compatibility elements, including `-Wsycl-strict` diagnostics related to SYCL 2017 compatibility. intel/llvm#14984
 - Ensured that compiler-generated integration header/footer are warning-free to avoid breaking `-Werror` builds, especially when 3rd-party host compiler is used. intel/llvm#15171 intel/llvm#15175 intel/llvm#15197
-- Added pass to finish SROA for cooperative matrices. intel/llvm#15038
+- SYCL `joint_matrix` extension basic functionality is now built on top of `SPV_KHR_cooperative_matrix` extension. intel/llvm#16045 intel/llvm#15038
 - Removed `-full-main-file-name` and `-fsycl-use-main-file-name` options because `-include-footer` option is sufficient. intel/llvm#15072
 - Added more supported aspects for CPU AOT target. intel/llvm#15263
 - Removed workaround for `readnone` function parameter attribute as it is properly handled by CPU runtime now. intel/llvm#15298
@@ -125,7 +125,7 @@ Release notes for commit range
 - Deprecated `[[intel::reqd_sub_group_size]]`, the official SYCL 2020 spelling should be used instead (with `sycl::` namespace). intel/llvm#15798
 - Disabled ITT annotations in device code by default to reduce device code size. intel/llvm#14910
 - Enabled floating point atomics via `atomicrmw` instructions for Native CPU. intel/llvm#15888
-- Enabled nonsemantic debug info by default (except fpga target). This should slightly improve debugging experience. intel/llvm#16120
+- Enabled nonsemantic debug info by default. This should slightly improve debugging experience. intel/llvm#16120
 
 ### SYCL Library
 
