@@ -12,6 +12,8 @@
 // Tests that the optimization to use the L0 Copy Engine for memory commands
 // does not interfere with the linear graph optimization
 
+// REQUIRES: aspect-usm_host_allocations
+
 #include "../graph_common.hpp"
 
 #include <sycl/properties/queue_properties.hpp>
@@ -44,7 +46,7 @@ int main() {
                                                  Queue.get_device()};
 
   T *PtrA = malloc_device<T>(Size, Queue);
-  T *PtrB = malloc_device<T>(Size, Queue);
+  T *PtrB = malloc_host<T>(Size, Queue);
   T *PtrC = malloc_device<T>(Size, Queue);
 
   Queue.copy(DataA.data(), PtrA, Size);
