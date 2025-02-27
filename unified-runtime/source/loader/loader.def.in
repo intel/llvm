@@ -61,6 +61,7 @@ EXPORTS
 	urDeviceRelease
 	urDeviceRetain
 	urDeviceSelectBinary
+	urEnqueueCommandBufferExp
 	urEnqueueCooperativeKernelLaunchExp
 	urEnqueueDeviceGlobalVariableRead
 	urEnqueueDeviceGlobalVariableWrite
@@ -258,6 +259,7 @@ EXPORTS
 	urPrintDeviceSelectBinaryParams
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
+	urPrintEnqueueCommandBufferExpParams
 	urPrintEnqueueCooperativeKernelLaunchExpParams
 	urPrintEnqueueDeviceGlobalVariableReadParams
 	urPrintEnqueueDeviceGlobalVariableWriteParams
