@@ -77,9 +77,6 @@ entry:
 ; CHECK: [[META4:![0-9]+]] = !{i32 2, !"Debug Info Version", i32 3}
 ; CHECK: [[META5:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}
 ; CHECK: [[META7:![0-9]+]] = !{i32 1, i32 4}
-; CHECK: [[META8:![0-9]+]] = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
-; CHECK: [[META9:![0-9]+]] = !{null, !"align", i32 16}
-; CHECK: [[META10:![0-9]+]] = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
 ; CHECK: [[DBG12]] = distinct !DISubprogram(name: "other_function", scope: [[META1]], file: [[META1]], line: 3, type: [[META13:![0-9]+]], scopeLine: 3, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition, unit: [[META0]], retainedNodes: [[META2]])
 ; CHECK: [[META13]] = !DISubroutineType(types: [[META14:![0-9]+]])
 ; CHECK: [[META14]] = !{null}

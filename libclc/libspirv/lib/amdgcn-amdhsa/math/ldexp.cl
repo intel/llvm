@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clcmacro.h>
-#include <config.h>
-#include <math/math.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
 #include <libspirv/spirv.h>
 
 float __ocml_ldexp_f32(float, int);

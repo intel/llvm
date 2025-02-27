@@ -16,7 +16,7 @@ target triple = "spir64-unknown-unknown"
 
 %struct.a = type { i32 }
 
-define i32 @bar(ptr nocapture %b) nounwind ssp !dbg !0 {
+define i32 @bar(ptr captures(none) %b) nounwind ssp !dbg !0 {
 entry:
   tail call void @llvm.dbg.value(metadata ptr %b, metadata !6, metadata !DIExpression()), !dbg !13
   %tmp2 = load i32, ptr %b, align 4, !dbg !14

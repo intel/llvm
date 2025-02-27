@@ -23,12 +23,11 @@
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <clc/math/clc_mad.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
+#include <clc/math/tables.h>
 #include <clc/relational/clc_isnan.h>
-#include <libspirv/math/tables.h>
 #include <libspirv/spirv.h>
-
-#include <config.h>
-#include <math/math.h>
 
 //    Algorithm:
 //

@@ -102,7 +102,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: nounwind
 define linkonce_odr spir_func void @_ZN3FooclEv(ptr addrspace(4) %this) #2 comdat align 2 {
@@ -114,7 +114,7 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr captures(none)) #1
 ; Function Attrs: nounwind
 define spir_kernel void @_ZTSZ3barvE12kernel_name2() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
 entry:

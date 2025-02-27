@@ -45,7 +45,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV-NOT: {{[0-9]*}} ExtInst {{[0-9]*}} {{[0-9]*}} {{[0-9]*}} get_image_array_size
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_image1d(ptr addrspace(1) nocapture %sizes, ptr addrspace(1) %img, ptr addrspace(1) %buffer, ptr addrspace(1) %array) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @test_image1d(ptr addrspace(1) captures(none) %sizes, ptr addrspace(1) %img, ptr addrspace(1) %buffer, ptr addrspace(1) %array) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
   %1 = tail call spir_func i32 @_Z15get_image_width14ocl_image1d_ro(ptr addrspace(1) %img) #1
   %2 = tail call spir_func i32 @_Z15get_image_width21ocl_image1d_buffer_ro(ptr addrspace(1) %buffer) #1
   %3 = tail call spir_func i32 @_Z15get_image_width20ocl_image1d_array_ro(ptr addrspace(1) %array) #1
@@ -103,7 +103,7 @@ declare spir_func i64 @_Z20get_image_array_size20ocl_image1d_array_ro(ptr addrsp
 ; CHECK:   shufflevector <3 x i32> {{.*}} <2 x i32>
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_image2d(ptr addrspace(1) nocapture %sizes, ptr addrspace(1) %img, ptr addrspace(1) nocapture %img_depth, ptr addrspace(1) %array, ptr addrspace(1) nocapture %array_depth) #0 !kernel_arg_addr_space !7 !kernel_arg_access_qual !8 !kernel_arg_type !9 !kernel_arg_base_type !11 !kernel_arg_type_qual !10 {
+define spir_kernel void @test_image2d(ptr addrspace(1) captures(none) %sizes, ptr addrspace(1) %img, ptr addrspace(1) captures(none) %img_depth, ptr addrspace(1) %array, ptr addrspace(1) captures(none) %array_depth) #0 !kernel_arg_addr_space !7 !kernel_arg_access_qual !8 !kernel_arg_type !9 !kernel_arg_base_type !11 !kernel_arg_type_qual !10 {
   %1 = tail call spir_func i32 @_Z15get_image_width14ocl_image2d_ro(ptr addrspace(1) %img) #1
   %2 = tail call spir_func i32 @_Z16get_image_height14ocl_image2d_ro(ptr addrspace(1) %img) #1
   %3 = tail call spir_func <2 x i32> @_Z13get_image_dim14ocl_image2d_ro(ptr addrspace(1) %img) #1
@@ -168,7 +168,7 @@ declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(ptr addrspa
 ; CHECK:   shufflevector <3 x i32> {{.*}} <4 x i32>
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_image3d(ptr addrspace(1) nocapture %sizes, ptr addrspace(1) %img) #0 !kernel_arg_addr_space !13 !kernel_arg_access_qual !14 !kernel_arg_type !15 !kernel_arg_base_type !17 !kernel_arg_type_qual !16 {
+define spir_kernel void @test_image3d(ptr addrspace(1) captures(none) %sizes, ptr addrspace(1) %img) #0 !kernel_arg_addr_space !13 !kernel_arg_access_qual !14 !kernel_arg_type !15 !kernel_arg_base_type !17 !kernel_arg_type_qual !16 {
   %1 = tail call spir_func i32 @_Z15get_image_width14ocl_image3d_ro(ptr addrspace(1) %img) #1
   %2 = tail call spir_func i32 @_Z16get_image_height14ocl_image3d_ro(ptr addrspace(1) %img) #1
   %3 = tail call spir_func i32 @_Z15get_image_depth14ocl_image3d_ro(ptr addrspace(1) %img) #1
@@ -216,7 +216,7 @@ declare spir_func <4 x i32> @_Z13get_image_dim14ocl_image3d_ro(ptr addrspace(1))
 ; CHECK:   extractelement <3 x i32> {{.*}} 1
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_image2d_array_depth_t(ptr addrspace(1) nocapture %sizes, ptr addrspace(1) %array) #0 !kernel_arg_addr_space !27 !kernel_arg_access_qual !28 !kernel_arg_type !29 !kernel_arg_base_type !31 !kernel_arg_type_qual !30 {
+define spir_kernel void @test_image2d_array_depth_t(ptr addrspace(1) captures(none) %sizes, ptr addrspace(1) %array) #0 !kernel_arg_addr_space !27 !kernel_arg_access_qual !28 !kernel_arg_type !29 !kernel_arg_base_type !31 !kernel_arg_type_qual !30 {
   %1 = tail call spir_func i32 @_Z15get_image_width26ocl_image2d_array_depth_ro(ptr addrspace(1) %array) #1
   %2 = tail call spir_func i32 @_Z16get_image_height26ocl_image2d_array_depth_ro(ptr addrspace(1) %array) #1
   %3 = tail call spir_func i64 @_Z20get_image_array_size26ocl_image2d_array_depth_ro(ptr addrspace(1) %array) #1
