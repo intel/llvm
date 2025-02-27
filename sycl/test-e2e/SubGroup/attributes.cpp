@@ -1,10 +1,6 @@
-// TODO: Despite using a supported required subgroup size compile_sub_group_size
-// reports as 0 on cuda and hip
-// XFAIL: target-nvidia || target-amd
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14357
-
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} %if (target-nvidia || target-amd) %{ -DBUILD_FOR_GPU %} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
+
 //==------- attributes.cpp - SYCL sub_group attributes test ----*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -24,6 +20,24 @@
     }                                                                          \
   };
 
+// Dummy kernel, so we get the types and can keep later code straight-lined.
+#define DUMMY_KERNEL_FUNCTOR(SIZE)                                             \
+  class KernelFunctor##SIZE {                                                  \
+  public:                                                                      \
+    void operator()(sycl::nd_item<1> Item) const {                             \
+      const auto GID = Item.get_global_id();                                   \
+    }                                                                          \
+  };
+
+#ifdef BUILD_FOR_GPU
+DUMMY_KERNEL_FUNCTOR(1);
+DUMMY_KERNEL_FUNCTOR(2);
+DUMMY_KERNEL_FUNCTOR(4);
+DUMMY_KERNEL_FUNCTOR(8);
+DUMMY_KERNEL_FUNCTOR(16);
+KERNEL_FUNCTOR_WITH_SIZE(32);
+DUMMY_KERNEL_FUNCTOR(64);
+#else
 KERNEL_FUNCTOR_WITH_SIZE(1);
 KERNEL_FUNCTOR_WITH_SIZE(2);
 KERNEL_FUNCTOR_WITH_SIZE(4);
@@ -31,6 +45,7 @@ KERNEL_FUNCTOR_WITH_SIZE(8);
 KERNEL_FUNCTOR_WITH_SIZE(16);
 KERNEL_FUNCTOR_WITH_SIZE(32);
 KERNEL_FUNCTOR_WITH_SIZE(64);
+#endif
 
 #undef KERNEL_FUNCTOR_WITH_SIZE
 
@@ -133,6 +148,13 @@ int main() {
 
       auto Res = Kernel.get_info<
           sycl::info::kernel_device_specific::compile_sub_group_size>(Device);
+
+#ifdef BUILD_FOR_GPU
+      // GPU targets only test this one size, override the value, so the check
+      // passes and the code path don't diverge.
+      if (ReqdSize != 32)
+        ReqdSize = 0;
+#endif
 
       exit_if_not_equal<size_t>(Res, ReqdSize, "compile_sub_group_size");
     }

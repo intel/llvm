@@ -39,6 +39,7 @@ struct ur_program_handle_t_ {
   std::unordered_map<std::string, std::string> GlobalIDMD;
   std::unordered_map<std::string, std::tuple<uint32_t, uint32_t, uint32_t>>
       KernelReqdWorkGroupSizeMD;
+  std::unordered_map<std::string, uint32_t> KernelReqdSubGroupSizeMD;
 
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 
@@ -48,7 +49,8 @@ struct ur_program_handle_t_ {
 
   ur_program_handle_t_(ur_context_handle_t Ctxt, ur_device_handle_t Device)
       : Module{nullptr}, Binary{}, BinarySizeInBytes{0}, RefCount{1},
-        Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{} {
+        Context{Ctxt}, Device{Device}, KernelReqdWorkGroupSizeMD{},
+        KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
     urDeviceRetain(Device);
   }
