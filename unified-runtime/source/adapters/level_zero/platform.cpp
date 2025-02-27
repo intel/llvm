@@ -470,12 +470,18 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // Check if ImmediateAppendCommandList is supported and initialize the
   // function pointer.
   if (ZeImmediateCommandListAppendExtensionFound) {
+#ifdef UR_STATIC_LEVEL_ZERO
+    ZeCommandListImmediateAppendExt
+        .zeCommandListImmediateAppendCommandListsExp =
+        zeCommandListImmediateAppendCommandListsExp;
+#else
     ZeCommandListImmediateAppendExt
         .zeCommandListImmediateAppendCommandListsExp =
         (ze_pfnCommandListImmediateAppendCommandListsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListImmediateAppendCommandListsExp");
+#endif
     ZeCommandListImmediateAppendExt.Supported =
         ZeCommandListImmediateAppendExt
             .zeCommandListImmediateAppendCommandListsExp != nullptr;
