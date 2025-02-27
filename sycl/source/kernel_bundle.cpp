@@ -137,6 +137,11 @@ kernel kernel_bundle_plain::ext_oneapi_get_kernel(detail::string_view name) {
   return impl->ext_oneapi_get_kernel(name.data(), impl);
 }
 
+detail::string
+kernel_bundle_plain::ext_oneapi_get_raw_kernel_name(detail::string_view name) {
+  return detail::string{impl->ext_oneapi_get_raw_kernel_name(name.data())};
+}
+
 //////////////////////////////////
 ///// sycl::detail free functions
 //////////////////////////////////
