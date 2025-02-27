@@ -241,7 +241,6 @@ Release notes for commit range
 - Addressed issue with code splitting and FPGA archives. intel/llvm#15794
 - Fixed parsing of device values in backend target options. intel/llvm#15876
 - Fixed device sanitizer to report only one error per each kernel instance to avoid false-alarms. intel/llvm#15326
-- Disabled bundle compression when offloading to HIP. intel/llvm#15881
 - Fixed the issue with incorrect symbolizer output for shared libraries in Device Sanitizer. intel/llvm#15797
 - Disabled Address Sanitizer on modules with ESIMD to avoid the instrumented kernel code to become unacceptably large caused by lack of `noinline` support on ESIMD . intel/llvm#15972
 - Added missing supported `gfx7` AMDGPU architectures to SYCL. intel/llvm#15723
