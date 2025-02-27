@@ -823,11 +823,10 @@ template <bundle_state State>
 class kernel_bundle {
   // Continued from "New kernel bundle member functions"
 
-  bool ext_oneapi_has_device_global(const std::string &name, const device &dev);
+  bool ext_oneapi_has_device_global(const std::string &name);
   void *ext_oneapi_get_device_global_address(const std::string &name,
                                              const device &dev);
-  size_t ext_oneapi_get_device_global_size(const std::string &name,
-                                           const device &dev);
+  size_t ext_oneapi_get_device_global_size(const std::string &name);
 };
 
 } // namespace sycl
@@ -840,7 +839,7 @@ a|
 a!
 [source,c++]
 ----
-bool ext_oneapi_has_device_global(const std::string &name, const device &dev)
+bool ext_oneapi_has_device_global(const std::string &name)
 ----
 !====
 
@@ -852,8 +851,7 @@ _Returns:_ The value `true` only if
 * the kernel bundle was created from a bundle of state
   `bundle_state::ext_oneapi_source` in the language `source_language::sycl`, and
 * it defines a device global whose name is `name` and which was declared without
-  the `device_image_scope` property, and
-* `dev` is contained by the context associated with this bundle.
+  the `device_image_scope` property.
 
 `name` must be a {cpp} identifier that is valid for referencing the device
 global at the bottom of the source code.
@@ -872,16 +870,20 @@ void *ext_oneapi_get_device_global_address(const std::string &name,
 _Constraints:_ This function is not available when `State` is
 `bundle_state::ext_oneapi_source`.
 
-_Effects:_ If device memory for `name` has not been allocated at the time of
-this call, it will be allocated and zero-initialized synchronously.
+_Returns:_ A device USM pointer to the storage for the device global `name` on
+device `dev`.
 
-_Returns:_ Returns a USM pointer to the device global `name`'s storage on device
-`dev`.
+_Remarks:_ The contents of the device global may be read or written from the
+host by reading from or writing to this address. If the address is read before
+any kernel writes to the device global, the read operation returns the device
+global's initial value.
 
 _Throws:_
 
 * An `exception` with the `errc::invalid` error code if
-  `ext_oneapi_has_device_global(name, dev)` returns `false`.
+  `ext_oneapi_has_device_global(name)` returns `false`.
+* An `exception` with the `errc::invalid` error code if the context associated
+  with this bundle does not contain device `dev`.
 * An `exception` with the `errc::memory_allocation` error code if the allocation
   or initialization of the device global's storage fails.
 
@@ -891,20 +893,19 @@ a|
 a!
 [source,c++]
 ----
-size_t ext_oneapi_get_device_global_size(const std::string &name,
-                                         const device &dev)
+size_t ext_oneapi_get_device_global_size(const std::string &name)
 ----
 !====
 
 _Constraints:_ This function is not available when `State` is
 `bundle_state::ext_oneapi_source`.
 
-_Returns:_ Returns the size in bytes of device global `name`.
+_Returns:_ The size in bytes of the USM storage for device global `name`.
 
 _Throws:_
 
 * An `exception` with the `errc::invalid` error code if
-  `ext_oneapi_has_device_global(name, dev)` returns `false`.
+  `ext_oneapi_has_device_global(name)` returns `false`.
 |====
   
 
@@ -1080,8 +1081,7 @@ int main() {
   float scale = 0.1f;
   void *scale_addr =
     kb_exe.ext_oneapi_get_device_global_address("scale", q.get_device());
-  size_t scale_size =
-    kb_exe.ext_oneapi_get_device_global_size("scale", q.get_device());
+  size_t scale_size = kb_exe.ext_oneapi_get_device_global_size("scale");
   q.memcpy(scale_addr, &scale, scale_size).wait();
 
   // Get the kernel via its compiler-generated name, and launch it as before.
