@@ -71,7 +71,7 @@ TEST(CurrentDeviceTest,
 
   sycl::platform Plt = sycl::platform();
 
-  ASSERT_EQ(Plt.get_devices().size(), 2);
+  ASSERT_EQ(Plt.get_devices().size(), 2ull);
 
   sycl::device cpu_device = Plt.get_devices()[0];
   sycl::device gpu_device = Plt.get_devices()[1];
