@@ -113,7 +113,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_device_handle_t Device,
                                ur_usm_device_mem_flags_t, size_t Size,
-                               uint32_t Alignment) {
+                               [[maybe_unused]] uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
     *ResultPtr = umfPoolMalloc(Device->MemoryPoolDevice, Size);
@@ -122,11 +122,8 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
     return Err;
   }
 
-#ifdef NDEBUG
-#else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
-#endif
   return UR_RESULT_SUCCESS;
 }
 
@@ -134,7 +131,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_device_handle_t Device,
                                ur_usm_host_mem_flags_t,
                                ur_usm_device_mem_flags_t, size_t Size,
-                               uint32_t Alignment) {
+                               [[maybe_unused]] uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
     *ResultPtr = umfPoolMalloc(Device->MemoryPoolShared, Size);
@@ -143,17 +140,14 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
     return Err;
   }
 
-#ifdef NDEBUG
-#else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
-#endif
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t hContext,
                              ur_usm_host_mem_flags_t, size_t Size,
-                             uint32_t Alignment) {
+                             [[maybe_unused]] uint32_t Alignment) {
   try {
     *ResultPtr = umfPoolMalloc(hContext->MemoryPoolHost, Size);
     UMF_CHECK_PTR(*ResultPtr);
@@ -161,11 +155,8 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t hContext,
     return Err;
   }
 
-#ifdef NDEBUG
-#else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
-#endif
   return UR_RESULT_SUCCESS;
 }
 
