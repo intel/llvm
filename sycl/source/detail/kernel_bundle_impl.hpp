@@ -498,10 +498,8 @@ public:
 
     if (MLanguage == syclex::source_language::sycl_jit) {
       // Build device images via the program manager.
-      // TODO: Support persistent caching.
-
       const std::string &SourceStr = std::get<std::string>(MSource);
-      auto [Binaries, CompilationID] = syclex::detail::SYCL_JIT_to_SPIRV(
+      auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_to_SPIRV(
           SourceStr, MIncludePairs, BuildOptions, LogPtr,
           RegisteredKernelNames);
 
@@ -510,9 +508,6 @@ public:
 
       std::vector<kernel_id> KernelIDs;
       std::vector<std::string> KernelNames;
-      // `jit_compiler::compileSYCL(..)` uses `CompilationID + '$'` as prefix
-      // for offload entry names.
-      std::string Prefix = CompilationID + '$';
       for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
         std::string_view KernelName{KernelID.get_name()};
         if (KernelName.find(Prefix) == 0) {
