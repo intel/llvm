@@ -422,7 +422,7 @@ inline void memset(handler &h, void *ptr, int value, size_t numBytes) {
 inline void memset(queue q, void *ptr, int value, size_t numBytes,
                    const sycl::detail::code_location &codeLoc =
                        sycl::detail::code_location::current()) {
-  sycl::ext::oneapi::experimental::memset(q, ptr, value, numBytes);
+  sycl::ext::oneapi::experimental::memset(q, ptr, value, numBytes, codeLoc);
 }
 
 template <typename T>
@@ -490,7 +490,8 @@ inline void mem_advise(handler &h, void *ptr, size_t numBytes, int advice) {
 inline void mem_advise(queue q, void *ptr, size_t numBytes, int advice,
                        const sycl::detail::code_location &codeLoc =
                            sycl::detail::code_location::current()) {
-  sycl::ext::oneapi::experimental::mem_advise(q, ptr, numBytes, advice);
+  sycl::ext::oneapi::experimental::mem_advise(q, ptr, numBytes, advice,
+                                              codeLoc);
 }
 
 inline void command_barrier(handler &h) { h.ext_oneapi_barrier(); }
