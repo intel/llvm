@@ -113,8 +113,8 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
   return WGSize;
 }
 
-__SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
-                                            size_t LocalMemBytesPerWorkItem) {
+__SYCL_EXPORT size_t reduGetPreferredDeviceWGSize(
+    std::shared_ptr<queue_impl> &Queue, size_t LocalMemBytesPerWorkItem) {
   // TODO: Graphs extension explicit API uses a handler with a null queue to
   // process CGFs, in future we should have access to the device so we can
   // correctly calculate this.
