@@ -76,21 +76,21 @@ void launch(handler &h, range<3> r, const kernel &k, ArgsT &&...args) {
 template <typename... ArgsT>
 void launch(queue q, range<1> r, const kernel &k, ArgsT &&...args) {
   submit(q, [&](handler &h) {
-    parallel_for(h, r, k, std::forward<ArgsT>(args)...);
+    launch<KernelType>(h, r, k, std::forward<ArgsT>(args)...);
   });
 }
 
 template <typename... ArgsT>
 void launch(queue q, range<2> r, const kernel &k, ArgsT &&...args) {
   submit(q, [&](handler &h) {
-    parallel_for(h, r, k, std::forward<ArgsT>(args)...);
+    launch<KernelType>(h, r, k, std::forward<ArgsT>(args)...);
   });
 }
 
 template <typename... ArgsT>
 void launch(queue q, range<3> r, const kernel &k, ArgsT &&...args) {
   submit(q, [&](handler &h) {
-    parallel_for(h, r, k, std::forward<ArgsT>(args)...);
+    launch<KernelType>(h, r, k, std::forward<ArgsT>(args)...);
   });
 }
 
