@@ -225,7 +225,7 @@ jobs:
       if: inputs.tests_selector == 'cts' && inputs.devops_ref != ''
       run: |
         git fetch origin ${{ inputs.ref }}
-        git checkout ${{ inputs.ref }} -- devops/cts_exclude_filter
+        git checkout origin/${{ inputs.ref }} -- devops/cts_exclude_filter
 
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
