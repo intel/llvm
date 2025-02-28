@@ -102,10 +102,10 @@ public:
 
   // Interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
-                     device_image_plain &DevImage)
+                     device_image_plain &&DevImage)
       : kernel_bundle_impl(Ctx, Devs) {
     MDeviceImages.emplace_back(DevImage);
-    MUniqueDeviceImages.emplace_back(DevImage);
+    MUniqueDeviceImages.emplace_back(std::move(DevImage));
   }
 
   // Matches sycl::build and sycl::compile
@@ -367,10 +367,10 @@ public:
   // oneapi_ext_kernel_compiler
   // interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
-                     device_image_plain &DevImage,
+                     device_image_plain &&DevImage,
                      std::vector<std::string> KNames,
                      syclex::source_language Lang)
-      : kernel_bundle_impl(Ctx, Devs, DevImage) {
+      : kernel_bundle_impl(Ctx, Devs, std::move(DevImage)) {
     MState = bundle_state::executable;
     MKernelNames = std::move(KNames);
     MLanguage = Lang;
@@ -611,7 +611,6 @@ public:
     auto DevImgImpl = std::make_shared<device_image_impl>(
         nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
         UrProgram);
-    device_image_plain DevImg{DevImgImpl};
 
     // If caching enabled and kernel not fetched from cache, cache.
     if (PersistentDeviceCodeCache::isEnabled() && !FetchedFromCache &&
@@ -621,7 +620,8 @@ public:
           *SourceStrPtr, UrProgram);
     }
 
-    return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
+    return std::make_shared<kernel_bundle_impl>(MContext, MDevices,
+                                                device_image_plain{DevImgImpl},
                                                 KernelNames, MLanguage);
   }
 

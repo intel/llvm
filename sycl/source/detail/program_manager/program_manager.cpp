@@ -2675,8 +2675,8 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
     DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
         InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
         bundle_state::object, InputImpl->get_kernel_ids_ptr(), Prog,
-        InputImpl->get_spec_const_data_ref(),
-        InputImpl->get_spec_const_blob_ref());
+        device_image_impl::SpecConstMapT{InputImpl->get_spec_const_data_ref()},
+        std::vector<unsigned char>{InputImpl->get_spec_const_blob_ref()});
 
     std::string CompileOptions;
     applyCompileOptionsFromEnvironment(CompileOptions);
