@@ -659,6 +659,13 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t *phCommand);
+ur_result_t urCommandBufferAppendNativeCommandExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    void *pData, ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint);
 ur_result_t urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
@@ -678,6 +685,9 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                           ur_exp_command_buffer_info_t propName,
                           size_t propSize, void *pPropValue,
                           size_t *pPropSizeRet);
+ur_result_t
+urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+                                  ur_native_handle_t *phNativeCommandBuffer);
 ur_result_t urEnqueueCooperativeKernelLaunchExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,

@@ -291,6 +291,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnGetInfoExp = urCommandBufferGetInfoExp;
   pDdiTable->pfnUpdateWaitEventsExp = urCommandBufferUpdateWaitEventsExp;
   pDdiTable->pfnUpdateSignalEventExp = urCommandBufferUpdateSignalEventExp;
+  pDdiTable->pfnAppendNativeCommandExp = urCommandBufferAppendNativeCommandExp;
+  pDdiTable->pfnGetNativeHandleExp = urCommandBufferGetNativeHandleExp;
 
   return retVal;
 }

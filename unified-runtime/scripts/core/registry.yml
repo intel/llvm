@@ -601,6 +601,12 @@ etors:
 - name: PHYSICAL_MEM_GET_INFO
   desc: Enumerator for $xPhysicalMemGetInfo
   value: '249'
+- name: COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP
+  desc: Enumerator for $xCommandBufferAppendNativeCommandExp
+  value: '250'
+- name: COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xCommandBufferGetNativeHandleExp
+  value: '252'
 ---
 type: enum
 desc: Defines structure types
