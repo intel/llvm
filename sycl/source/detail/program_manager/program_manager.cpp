@@ -1837,7 +1837,7 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   return {};
 }
 
-static bool skipEmptyImage(sycl_device_binary RawImg) {
+static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
   // bfloat16 devicelib image must be kept.
   sycl_device_binary_property_set ImgPS;
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
@@ -1858,7 +1858,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
-    if ((EntriesB == EntriesE) && skipEmptyImage(RawImg))
+    if ((EntriesB == EntriesE) && shouldSkipEmptyImage(RawImg))
       continue;
 
     std::unique_ptr<RTDeviceBinaryImage> Img;

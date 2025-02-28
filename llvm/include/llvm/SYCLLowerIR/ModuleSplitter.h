@@ -148,8 +148,10 @@ public:
     // DeviceLib module doesn't include any entry point,it can be constructed
     // using ctor without any entry point related parameter.
     for (auto Fn : SYCLDeviceLibs) {
-      if (Name == std::string(Fn))
+      if (StringRef(Fn) == Name) {
         IsSYCLDeviceLib = true;
+        break;
+      }
     }
   }
 
