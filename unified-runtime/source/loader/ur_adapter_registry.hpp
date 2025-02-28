@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
+#include <cctype>
 #ifndef UR_ADAPTER_REGISTRY_HPP
 #define UR_ADAPTER_REGISTRY_HPP 1
 
@@ -66,7 +67,9 @@ struct FilterTerm {
       return true;
     }
     for (auto deviceString : devices) {
-      if (deviceString.front() == '*') {
+      // We don't have a way to determine anything about device indices or
+      // sub-devices at this stage so just match any numeric value we get.
+      if (deviceString.front() == '*' || std::isdigit(deviceString.front())) {
         return true;
       }
       auto deviceIter = deviceTypeMap.find(deviceString);
