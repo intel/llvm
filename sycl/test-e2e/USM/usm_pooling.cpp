@@ -1,6 +1,9 @@
 // REQUIRES: level_zero
 // RUN: %{build} -o %t.out
 
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: memory allocation logs are not emitted in level_zero_v2_adapter
+
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
 
 // With no pooling: 1,2,3,4,5 allocs lead to ZE call.
