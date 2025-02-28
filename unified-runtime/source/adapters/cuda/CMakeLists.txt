@@ -110,8 +110,8 @@ if (UR_ENABLE_TRACING)
 endif()
 
 if (CUDA_cupti_LIBRARY)
+  # cupti is dynamically loaded so the adapter still works if it's not available
   target_compile_definitions("ur_adapter_cuda" PRIVATE CUPTI_LIB_PATH="${CUDA_cupti_LIBRARY}")
-  list(APPEND EXTRA_LIBS ${CUDA_cupti_LIBRARY})
 endif()
 
 target_link_libraries(${TARGET_NAME} PRIVATE
