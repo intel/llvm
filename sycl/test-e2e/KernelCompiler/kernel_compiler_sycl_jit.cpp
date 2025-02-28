@@ -107,8 +107,9 @@ void vec_add(T* in1, T* in2, T* out){
 
 auto constexpr DeviceLibrariesSource = R"===(
 #include <sycl/sycl.hpp>
-#include <sycl/ext/intel/math.hpp>
 #include <cmath>
+#include <complex>
+#include <sycl/ext/intel/math.hpp>
 
 extern "C" SYCL_EXTERNAL 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::single_task_kernel)
@@ -123,7 +124,7 @@ void device_libs_kernel(float *ptr) {
   ptr[0] = erff(ptr[0]);
 
   // cl_intel_devicelib_complex
-  ptr[1] = cabsf(((float __complex__){1.0f, ptr[1]}));
+  ptr[1] = std::abs(std::complex<float>{1.0f, ptr[1]});
 
   // cl_intel_devicelib_cstring
   ptr[2] = memcmp(ptr + 2, ptr + 2, sizeof(float));
