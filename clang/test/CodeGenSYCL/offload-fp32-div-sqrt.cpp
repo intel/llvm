@@ -286,7 +286,14 @@
 
 #include "sycl.hpp"
 
+namespace sycl {
+  class half {};
+}
+typedef sycl::half my_half;
+
 extern "C" SYCL_EXTERNAL float sqrt(float);
+extern "C" SYCL_EXTERNAL float sqrt_half(my_half);
+extern "C" SYCL_EXTERNAL float fdiv(my_half, my_half);
 
 using namespace sycl;
 
@@ -295,6 +302,8 @@ int main() {
   range<1> numOfItems{array_size};
   float Value1 = .5f;
   float Value2 = .9f;
+  my_half HalfValue1;
+  my_half HalfValue2;
   queue deviceQueue;
   float *a;
 
@@ -319,6 +328,15 @@ int main() {
   });
 
   deviceQueue.submit([&](handler& cgh) {
+    cgh.parallel_for<class KernelHalfSqrt>(numOfItems,
+    [=](id<1> wiID) {
+      // NFPA: call spir_func float @sqrt_half(ptr noundef byval({{.*}}) align 1 {{.*}})
+      // NFPA-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @sqrt_half(ptr noundef byval({{.*}}) align 1 {{.*}})
+      (void)sqrt_half(HalfValue1);
+    });
+  });
+
+  deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class KernelFdiv>(numOfItems,
     [=](id<1> wiID) {
       // PREC-SQRT: fdiv float {{.*}}, {{.*}}
@@ -336,6 +354,15 @@ int main() {
       // LOW-PREC-DIV: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_FDIV_LOW:[0-9]+]]
       // LOW-PREC-SQRT: fdiv float {{.*}}, {{.*}}
       a[0] = Value1 / Value2;
+    });
+  });
+
+  deviceQueue.submit([&](handler& cgh) {
+    cgh.parallel_for<class KernelHalfSqrt>(numOfItems,
+    [=](id<1> wiID) {
+      // NFPA: call spir_func float @fdiv(ptr noundef byval({{.*}}) align 1 {{.*}}, ptr noundef byval({{.*}}) align 1 {{.*}})
+      // NFPA-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @fdiv(ptr noundef byval({{.*}}) align 1 {{.*}}, ptr noundef byval({{.*}}) align 1 {{.*}})
+      a[0] = fdiv(HalfValue1, HalfValue2);
     });
   });
 
