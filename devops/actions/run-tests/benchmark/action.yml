@@ -47,6 +47,7 @@ runs:
           echo "#" ;;
       esac
   - name: Compute CPU core range to run benchmarks on
+    shell: bash
     run: |
       # Taken from ur-benchmark-reusable.yml:
 
