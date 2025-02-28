@@ -307,6 +307,7 @@ private:
                       matchesFilter) &&
           std::none_of(negativeFilters.begin(), negativeFilters.end(),
                        matchesFilter)) {
+        logger::debug("Adapter library {} matches a filter.", manifest.library);
         adapterNames.insert(manifest.library);
       }
     }
