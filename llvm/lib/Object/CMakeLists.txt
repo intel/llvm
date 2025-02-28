@@ -24,6 +24,7 @@ add_llvm_component_library(LLVMObject
   OffloadBinary.cpp
   RecordStreamer.cpp
   RelocationResolver.cpp
+  SYCLBIN.cpp
   SymbolicFile.cpp
   SymbolSize.cpp
   TapiFile.cpp
