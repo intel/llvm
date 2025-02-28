@@ -449,7 +449,7 @@ __msan_poison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
     auto *local_arg = &GetMsanLaunchInfo->LocalArgs[i];
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_local_arg, i, local_arg->Size));
 
-    __msan_set_shadow_static_local(args[i], local_arg->Size);
+    __msan_poison_shadow_static_local(args[i], local_arg->Size);
   }
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_dynamic_local_end));

@@ -810,6 +810,13 @@ private:
   DenseMap<Function *, SmallVector<Constant *, 8>> KernelToLocalMemMap;
   DenseMap<Function *, DenseSet<Function *>> FuncToKernelCallerMap;
 
+  // Make sure that we insert barriers only once per function, and the barrier
+  // needs to be inserted after all "MsanPoisonShadowStaticLocalFunc" and
+  // "MsanPoisonShadowDynamicLocalFunc", and before
+  // "MsanUnpoisonShadowStaticLocalFunc" and
+  // "MsanUnpoisonShadowDynamicLocalFunc".
+  DenseMap<Function *, bool> InsertBarrier;
+
   FunctionCallee MsanPoisonShadowStaticLocalFunc;
   FunctionCallee MsanUnpoisonShadowStaticLocalFunc;
   FunctionCallee MsanPoisonShadowDynamicLocalFunc;
@@ -884,9 +891,8 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   //   uptr ptr,
   //   uint32_t num_args
   // )
-  MsanPoisonShadowDynamicLocalFunc =
-      M.getOrInsertFunction("__msan_poison_shadow_dynamic_local",
-                            IRB.getVoidTy(), IntptrTy, IntptrTy);
+  MsanPoisonShadowDynamicLocalFunc = M.getOrInsertFunction(
+      "__msan_poison_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty);
 
   // __asan_unpoison_shadow_dynamic_local(
   //   uptr ptr,
@@ -894,7 +900,7 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   // )
   MsanUnpoisonShadowDynamicLocalFunc =
       M.getOrInsertFunction("__msan_unpoison_shadow_dynamic_local",
-                            IRB.getVoidTy(), IntptrTy, IntptrTy);
+                            IRB.getVoidTy(), IntptrTy, Int32Ty);
 
   // __msan_barrier()
   MsanBarrierFunc = M.getOrInsertFunction("__msan_barrier", IRB.getVoidTy());
@@ -973,16 +979,15 @@ void MemorySanitizerOnSpirv::instrumentStaticLocalMemory() {
   if (!ClSpirOffloadLocals)
     return;
 
-  DenseMap<Function *, bool> InsertBarrier;
-
-  auto Instrument = [this, &InsertBarrier](GlobalVariable *G, Function *F) {
+  auto Instrument = [this](GlobalVariable *G, Function *F) {
     const uint64_t SizeInBytes = DL.getTypeAllocSize(G->getValueType());
 
-    // Poison shadow of static local memory
     if (!InsertBarrier[F]) {
       IRBuilder<> Builder(&F->getEntryBlock().front());
       Builder.CreateCall(MsanBarrierFunc);
     }
+
+    // Poison shadow of static local memory
     IRBuilder<> Builder(&F->getEntryBlock().front());
     Builder.CreateCall(MsanPoisonShadowStaticLocalFunc,
                        {Builder.CreatePointerCast(G, IntptrTy),
@@ -1027,8 +1032,6 @@ void MemorySanitizerOnSpirv::instrumentDynamicLocalMemory(Function &F) {
   if (!ClSpirOffloadLocals)
     return;
 
-  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
-
   // Poison shadow of local memory in kernel argument, required by CPU device
   SmallVector<Argument *> LocalArgs;
   for (auto &Arg : F.args()) {
@@ -1039,6 +1042,13 @@ void MemorySanitizerOnSpirv::instrumentDynamicLocalMemory(Function &F) {
 
   if (LocalArgs.empty())
     return;
+
+  if (!InsertBarrier[&F]) {
+    IRBuilder<> Builder(&F.getEntryBlock().front());
+    Builder.CreateCall(MsanBarrierFunc);
+  }
+
+  IRBuilder<> IRB(&F.getEntryBlock().front());
 
   AllocaInst *ArgsArray = IRB.CreateAlloca(
       IntptrTy, ConstantInt::get(Int32Ty, LocalArgs.size()), "local_args");
@@ -1056,10 +1066,14 @@ void MemorySanitizerOnSpirv::instrumentDynamicLocalMemory(Function &F) {
   initializeRetVecMap(&F);
   for (Instruction *Ret : KernelToRetVecMap[&F]) {
     IRBuilder<> IRBRet(Ret);
+    if (!InsertBarrier[&F])
+      IRBRet.CreateCall(MsanBarrierFunc);
     IRBRet.CreateCall(
         MsanUnpoisonShadowDynamicLocalFunc,
         {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
   }
+
+  InsertBarrier[&F] = true;
 }
 
 // Instrument __MsanKernelMetadata, which records information of sanitized
