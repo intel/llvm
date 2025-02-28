@@ -1,4 +1,4 @@
-name: Benchmarks Reusable
+name: Benchmarks Reusable.
 
 on:
   workflow_call:
