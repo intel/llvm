@@ -11,278 +11,278 @@
 // DEFINE: -fsycl-is-device -emit-llvm -triple spir64-unknown-unknown
 
 // RUN: %clang_cc1 %{common_opts_spirv32} %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -foffload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -foffload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix PREC-DIV %s
+// RUN: | FileCheck --check-prefixes=PREC-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-ROUNDED-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
 // RUN:-fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math -foffload-fp32-prec-div \
-// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+// RUN: %s -o - | FileCheck --check-prefixes=PREC-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math -foffload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+// RUN: %s -o - | FileCheck --check-prefixes=PREC-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT-FAST %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
 // RUN: -fno-offload-fp32-prec-sqrt -foffload-fp32-prec-div \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-SQRT-PREC-DIV %s
+// RUN: %s -o - | FileCheck --check-prefixes=ROUNDED-SQRT-PREC-DIV,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-PREC-SQRT %s
+// RUN: %s -o - | FileCheck --check-prefixes=ROUNDED-DIV-PREC-SQRT,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
-// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT-FAST %s
+// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-ROUNDED-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-div \
 // RUN: -ffp-builtin-accuracy=high %s -o - \
-// RUN: | FileCheck --check-prefix LOW-PREC-DIV %s
+// RUN: | FileCheck --check-prefixes=LOW-PREC-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffp-builtin-accuracy=high:div \
 // RUN: -fno-offload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-sqrt \
 // RUN: -ffp-builtin-accuracy=high %s -o - \
-// RUN: | FileCheck --check-prefix LOW-PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=LOW-PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-div \
 // RUN: -ffp-builtin-accuracy=high:sin %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-sqrt \
 // RUN: -ffp-builtin-accuracy=high:sin %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT,NFPA %s
 
 //
 
 // RUN: %clang_cc1 %{common_opts_spirv64} %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -foffload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -foffload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix PREC-DIV %s
+// RUN: | FileCheck --check-prefixes=PREC-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-ROUNDED-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math -foffload-fp32-prec-div \
-// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+// RUN: %s -o - | FileCheck --check-prefixes=PREC-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT-FAST %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math \
 // RUN: -fno-offload-fp32-prec-sqrt -foffload-fp32-prec-div \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-SQRT-PREC-DIV %s
+// RUN: %s -o - | FileCheck --check-prefixes=ROUNDED-SQRT-PREC-DIV,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-PREC-SQRT %s
+// RUN: %s -o - | FileCheck --check-prefixes=ROUNDED-DIV-PREC-SQRT,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math \
-// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT-FAST %s
+// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-ROUNDED-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-div \
 // RUN: -ffp-builtin-accuracy=high %s -o - \
-// RUN: | FileCheck --check-prefix LOW-PREC-DIV %s
+// RUN: | FileCheck --check-prefixes=LOW-PREC-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffp-builtin-accuracy=high:div  \
 // RUN: -fno-offload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-sqrt \
 // RUN: -ffp-builtin-accuracy=high %s -o - \
-// RUN: | FileCheck --check-prefix LOW-PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=LOW-PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-div \
 // RUN: -ffp-builtin-accuracy=high:sin %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-sqrt \
 // RUN: -ffp-builtin-accuracy=high:sin %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -foffload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -foffload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix PREC-DIV %s
+// RUN: | FileCheck --check-prefixes=PREC-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-ROUNDED-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
 // RUN:-fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math -foffload-fp32-prec-div \
-// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+// RUN: %s -o - | FileCheck --check-prefixes=PREC-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math -foffload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+// RUN: %s -o - | FileCheck --check-prefixes=PREC-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT-FAST %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
 // RUN: -fno-offload-fp32-prec-sqrt -foffload-fp32-prec-div \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-SQRT-PREC-DIV %s
+// RUN: %s -o - | FileCheck --check-prefixes=ROUNDED-SQRT-PREC-DIV,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-PREC-SQRT %s
+// RUN: %s -o - | FileCheck --check-prefixes=ROUNDED-DIV-PREC-SQRT,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
-// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT-FAST %s
+// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-ROUNDED-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-div \
 // RUN: -ffp-builtin-accuracy=high %s -o - \
-// RUN: | FileCheck --check-prefix LOW-PREC-DIV %s
+// RUN: | FileCheck --check-prefixes=LOW-PREC-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -ffp-builtin-accuracy=high:div \
 // RUN: -fno-offload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-sqrt \
 // RUN: -ffp-builtin-accuracy=high %s -o - \
-// RUN: | FileCheck --check-prefix LOW-PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=LOW-PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-div \
 // RUN: -ffp-builtin-accuracy=high:sin %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-sqrt \
 // RUN: -ffp-builtin-accuracy=high:sin %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT,NFPA %s
 
 //
 
 // RUN: %clang_cc1 %{common_opts_spir64} %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -foffload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -foffload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix PREC-DIV %s
+// RUN: | FileCheck --check-prefixes=PREC-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-ROUNDED-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -ffast-math -foffload-fp32-prec-div \
-// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+// RUN: %s -o - | FileCheck --check-prefixes=PREC-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt %s -o - \
-// RUN: | FileCheck --check-prefix PREC-SQRT-FAST %s
+// RUN: | FileCheck --check-prefixes=PREC-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -ffast-math \
 // RUN: -fno-offload-fp32-prec-sqrt -foffload-fp32-prec-div \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-SQRT-PREC-DIV %s
+// RUN: %s -o - | FileCheck --check-prefixes=ROUNDED-SQRT-PREC-DIV,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-PREC-SQRT %s
+// RUN: %s -o - | FileCheck --check-prefixes=ROUNDED-DIV-PREC-SQRT,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -ffast-math \
-// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt \
-// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT-FAST %s
+// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV-ROUNDED-SQRT-FAST,NFPA-FAST %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-div \
 // RUN: -ffp-builtin-accuracy=high %s -o - \
-// RUN: | FileCheck --check-prefix LOW-PREC-DIV %s
+// RUN: | FileCheck --check-prefixes=LOW-PREC-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -ffp-builtin-accuracy=high:div  \
 // RUN: -fno-offload-fp32-prec-div %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-sqrt \
 // RUN: -ffp-builtin-accuracy=high %s -o - \
-// RUN: | FileCheck --check-prefix LOW-PREC-SQRT %s
+// RUN: | FileCheck --check-prefixes=LOW-PREC-SQRT,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-div \
 // RUN: -ffp-builtin-accuracy=high:sin %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-DIV,NFPA %s
 
 // RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-sqrt \
 // RUN: -ffp-builtin-accuracy=high:sin %s -o - \
-// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+// RUN: | FileCheck --check-prefixes=ROUNDED-SQRT,NFPA %s
 
 #include "sycl.hpp"
 
