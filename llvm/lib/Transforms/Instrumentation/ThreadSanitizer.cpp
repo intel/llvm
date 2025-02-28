@@ -961,12 +961,10 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
       OnAccessFunc = TsanCompoundRW[Idx];
     else if (IsVolatile)
       OnAccessFunc = IsWrite ? TsanVolatileWrite[Idx] : TsanVolatileRead[Idx];
-    else {
-      if (Spirv)
-        OnAccessFunc = IsWrite ? Spirv->TsanWrite[Idx] : Spirv->TsanRead[Idx];
-      else
-        OnAccessFunc = IsWrite ? TsanWrite[Idx] : TsanRead[Idx];
-    }
+    else if (Spirv)
+      OnAccessFunc = IsWrite ? Spirv->TsanWrite[Idx] : Spirv->TsanRead[Idx];
+    else
+      OnAccessFunc = IsWrite ? TsanWrite[Idx] : TsanRead[Idx];
   } else {
     if (IsCompoundRW)
       OnAccessFunc = TsanUnalignedCompoundRW[Idx];
