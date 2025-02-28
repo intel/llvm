@@ -17,6 +17,9 @@
 
 #include <vector>
 
+typedef void SymbolizeCodeFunction(const char *ModuleName,
+                                   uint64_t ModuleOffset, char *ResultString,
+                                   size_t ResultSize, size_t *RetSize);
 namespace ur_sanitizer_layer {
 
 constexpr size_t MAX_BACKTRACE_FRAMES = 64;
