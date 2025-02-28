@@ -130,7 +130,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   auto &tp = hQueue->getDevice()->tp;
   const size_t numParallelThreads = tp.num_threads();
   std::vector<std::future<void>> futures;
-  std::vector<std::function<void(size_t, ur_kernel_handle_t_ &)>> groups;
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
