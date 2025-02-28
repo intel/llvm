@@ -1242,5 +1242,5 @@ making the entire extension experimental
 |4|2022-11-14|Andrey Fedorov|Fixed size arrays, key-value sorting and properties
 |5|2023-11-09|Andrey Fedorov|Changed `memory_required` functions for default sorters
 |6|2024-07-17|Artur Gainullin|Align the description of data placement properties with the implementation
-|7|2025-02-25|Andrey Fedorov|Add a possibility to pass `memory_scope::device` to `memory_required`
+|7|2025-02-28|Andrey Fedorov|Add a possibility to pass `memory_scope::device` to `memory_required`
 |========================================
