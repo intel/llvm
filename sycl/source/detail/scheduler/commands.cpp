@@ -3654,6 +3654,34 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
             OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
   }
+  case CGType::AsyncAlloc: {
+    // NO-OP.
+
+    // Set event carried from async alloc execution.
+    CGAsyncAlloc *AsyncAlloc = (CGAsyncAlloc *)MCommandGroup.get();
+    if (Event)
+      *Event = AsyncAlloc->getEvent();
+
+    SetEventHandleOrDiscard();
+
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::AsyncFree: {
+    CGAsyncFree *AsyncFree = (CGAsyncFree *)MCommandGroup.get();
+    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    void *ptr = AsyncFree->getPtr();
+
+    if (auto Result =
+            Adapter->call_nocheck<sycl::detail::UrApiKind::urEnqueueUSMFreeExp>(
+                MQueue->getHandleRef(), nullptr, ptr, RawEvents.size(),
+                RawEvents.data(), Event);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    SetEventHandleOrDiscard();
+
+    return UR_RESULT_SUCCESS;
+  }
   case CGType::None: {
     if (RawEvents.empty()) {
       // urEnqueueEventsWait with zero events acts like a barrier which is NOT
