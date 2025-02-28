@@ -86,7 +86,7 @@ jobs:
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       env: ${{ matrix.env || '{}' }}
 
-      ref: ${{ github.sha }}
+      repo_ref: ${{ github.sha }}
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
