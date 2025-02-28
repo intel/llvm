@@ -196,6 +196,7 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   DeviceRequirements.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
   VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
+  RegisteredKernels.init(Bin, __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS);
 
   ImageId = ImageCounter++;
 }

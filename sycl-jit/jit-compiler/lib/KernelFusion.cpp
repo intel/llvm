@@ -27,6 +27,7 @@
 
 #include <clang/Driver/Options.h>
 
+#include <chrono>
 #include <sstream>
 
 using namespace jit_compiler;

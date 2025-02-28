@@ -235,6 +235,9 @@ public:
   const PropertyRange &getHostPipes() const { return HostPipes; }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
   const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
+  const PropertyRange &getRegisteredKernels() const {
+    return RegisteredKernels;
+  }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -262,6 +265,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
   RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
+  RTDeviceBinaryImage::PropertyRange RegisteredKernels;
 
   std::vector<ur_program_metadata_t> ProgramMetadataUR;
 
