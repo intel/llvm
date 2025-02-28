@@ -15,8 +15,10 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental::this_thread {
 
 namespace detail {
-inline thread_local sycl::device current_device =
-    sycl::device{sycl::default_selector_v};
+inline sycl::device &get_current_device_ref() {
+  static thread_local sycl::device current_device{sycl::default_selector_v};
+  return current_device;
+}
 } // namespace detail
 
 /// @return The current default device for the calling host thread. If
@@ -25,14 +27,16 @@ inline thread_local sycl::device current_device =
 ///
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
-inline sycl::device get_current_device() { return detail::current_device; }
+inline sycl::device get_current_device() {
+  return detail::get_current_device_ref();
+}
 
 /// @brief Sets the current default device to `dev` for the calling host thread.
 ///
 /// @pre The function is called from a host thread, executing outside of a host
 /// task or an asynchronous error handler.
 inline void set_current_device(sycl::device dev) {
-  detail::current_device = dev;
+  detail::get_current_device_ref() = dev;
 }
 
 } // namespace ext::oneapi::experimental::this_thread

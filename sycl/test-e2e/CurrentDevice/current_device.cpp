@@ -67,7 +67,7 @@ int main() {
   auto device_2 =
       sycl::ext::oneapi::experimental::this_thread::get_current_device();
   if (device_2 != sycl::device{sycl::cpu_selector_v})
-    assert(false && "set_current_device check failed.");
+    assert(false && "set/get_current_device check failed.");
 
   return 0;
 }
