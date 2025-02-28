@@ -126,7 +126,7 @@ _CLC_DEF float __clc_tanf_piby4(float x, int regn) {
 
 _CLC_DEF void __clc_fullMulS(float *hi, float *lo, float a, float b, float bh,
                              float bt) {
-  if (HAVE_HW_FMA32()) {
+  if (__CLC_HAVE_HW_FMA32()) {
     float ph = a * b;
     *hi = ph;
     *lo = __spirv_ocl_fma(a, b, -ph);
@@ -317,7 +317,7 @@ _CLC_DEF int __clc_argReductionLargeS(private float *r, private float *rr,
 
   float rh, rt;
 
-  if (HAVE_HW_FMA32()) {
+  if (__CLC_HAVE_HW_FMA32()) {
     rh = q1 * pio2h;
     rt = __spirv_ocl_fma(
         q0, pio2h, __spirv_ocl_fma(q1, pio2t, __spirv_ocl_fma(q1, pio2h, -rh)));

@@ -84,7 +84,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeMachineDominatorTreeWrapperPassPass(Registry);
   initializeMachineFunctionPrinterPassPass(Registry);
   initializeMachineFunctionSplitterPass(Registry);
-  initializeMachineLateInstrsCleanupPass(Registry);
+  initializeMachineLateInstrsCleanupLegacyPass(Registry);
   initializeMachineLICMPass(Registry);
   initializeMachineLoopInfoWrapperPassPass(Registry);
   initializeMachineModuleInfoWrapperPassPass(Registry);
