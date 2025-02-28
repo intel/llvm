@@ -29,6 +29,9 @@ void test_div() {
   int ulpDist = std::abs(sycl::bit_cast<int32_t>(hostRef) -
                          sycl::bit_cast<int32_t>(*output));
   assert(ulpDist == 0 && "Division is not precise");
+  sycl::free(inValue, q);
+  sycl::free(inDivider, q);
+  sycl::free(output, q);
 }
 
 void test_sqrt() {
@@ -47,6 +50,8 @@ void test_sqrt() {
   int ulpDist = std::abs(sycl::bit_cast<int32_t>(hostRef) -
                          sycl::bit_cast<int32_t>(*output));
   assert(ulpDist == 0 && "Sqrt is not precise");
+  sycl::free(inValue, q);
+  sycl::free(output, q);
 }
 
 int main() {
