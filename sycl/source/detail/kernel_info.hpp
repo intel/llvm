@@ -162,9 +162,9 @@ get_kernel_device_specific_info<
   size_t DeviceCount = ResultSize / sizeof(uint32_t);
 
   // Second call to retrieve the data
-  std::vector<uint32_t> Result(DeviceCount);
+  std::vector<uint32_t> Device2SpillMap(DeviceCount);
   Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_SPILL_MEM_SIZE, ResultSize,
-                                            Result.data(), nullptr);
+                                            Device2SpillMap.data(), nullptr);
 
   ur_program_handle_t Program;
   Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_PROGRAM,
@@ -180,12 +180,12 @@ get_kernel_device_specific_info<
   Adapter->call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
                                              URDevicesSize, URDevices.data(),
                                              nullptr);
-  assert(Result.size() == URDevices.size());
+  assert(Device2SpillMap.size() == URDevices.size());
 
   // Map the result back to the program devices
   for (size_t idx = 0; idx < URDevices.size(); ++idx) {
     if (URDevices[idx] == Device)
-      return size_t{Result[idx]};
+      return size_t{Device2SpillMap[idx]};
   }
   throw exception(
       make_error_code(errc::runtime),
