@@ -75,7 +75,7 @@ if(MSVC)
     add_link_options("LINKER:/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
-    check_linker_flag(CXX "LINKER:/OPT:REF LINKER:/OPT:ICF" LINKER_SUPPORTS_OPTS)
+    check_linker_flag(CXX "LINKER:/OPT:REF,/OPT:ICF" LINKER_SUPPORTS_OPTS)
     if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
       add_link_options("LINKER:/OPT:REF" "LINKER:/OPT:ICF")
     endif()
@@ -234,25 +234,31 @@ string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCLCOMPAT_DIR "${HEADERS_IN_SYCLCOMPAT_DIR}")
 
+set(OUT_UR_HEADERS
+  ${SYCL_INCLUDE_BUILD_DIR}/ur_api.h
+  ${SYCL_INCLUDE_BUILD_DIR}/ur_api_funcs.def
+  ${SYCL_INCLUDE_BUILD_DIR}/ur_print.hpp)
+set(UR_HEADERS_TO_COPY
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def
+  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp)
+
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
   DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
+          ${OUT_UR_HEADERS}
           sycl-device-aspect-macros-header
           boost_mp11-headers)
 
-list(APPEND UR_HEADERS_TO_COPY
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def
-  ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp
-)
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
+          ${OUT_UR_HEADERS}
   DEPENDS ${HEADERS_IN_SYCL_DIR}
           ${HEADERS_IN_CL_DIR}
           ${HEADERS_IN_STD_DIR}
@@ -400,6 +406,10 @@ if (WIN32)
   add_dependencies(sycl-toolchain ur_win_proxy_loader)
 endif()
 
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_dependencies(sycl-toolchain clang-nvlink-wrapper)
+endif()
+
 # Enable new IN_LIST operator.
 cmake_policy(SET CMP0057 NEW)
 
@@ -473,6 +483,10 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
+
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS clang-nvlink-wrapper)
+endif()
 
 if (WIN32)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_win_proxy_loader)

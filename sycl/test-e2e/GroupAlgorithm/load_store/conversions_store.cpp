@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: spirv-backend && cpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 

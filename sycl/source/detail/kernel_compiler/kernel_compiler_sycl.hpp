@@ -35,10 +35,16 @@ bool SYCL_Compilation_Available();
 
 std::string userArgsAsString(const std::vector<std::string> &UserArguments);
 
-std::pair<sycl_device_binaries, std::string>
-SYCL_JIT_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
-                  const std::vector<std::string> &UserArgs, std::string *LogPtr,
-                  const std::vector<std::string> &RegisteredKernelNames);
+// Compile the given SYCL source string and virtual include files into the image
+// format understood by the program manager.
+//
+// Returns a pointer to the image (owned by the `jit_compiler` class), and the
+// bundle-specific prefix used for loading the kernels.
+std::pair<sycl_device_binaries, std::string> SYCL_JIT_to_SPIRV(
+    const std::string &Source, const include_pairs_t &IncludePairs,
+    const std::vector<std::string> &UserArgs, std::string *LogPtr);
+
+void SYCL_JIT_destroy(sycl_device_binaries Binaries);
 
 bool SYCL_JIT_Compilation_Available();
 

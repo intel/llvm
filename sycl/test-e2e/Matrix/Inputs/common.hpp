@@ -5,7 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <bitset>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <random>
 #include <sycl/detail/core.hpp>
@@ -17,6 +19,18 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 namespace syclex = sycl::ext::oneapi::experimental;
 namespace syclintelex = sycl::ext::intel::experimental;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
+
+void print_float_as_hex(float value) {
+  union {
+    float f;
+    uint32_t i;
+  } v;
+  v.f = value;
+
+  std::ios_base::fmtflags f(std::cout.flags());
+  std::cout << std::hex << std::setw(8) << std::setfill('0') << v.i;
+  std::cout.flags(f);
+}
 
 // Most of the time, failures related to floating-point calculations (both float
 // and bfloat16) are caused by accumulation errors rather than the algorithm
@@ -183,10 +197,10 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
         }
       } else if constexpr (exact || std::is_integral_v<T1>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
-          std::cerr << "Incorrect result in matrix."
+          std::cerr << "Incorrect result in matrix. "
                     << "i: " << i << ", j: " << j
-                    << ", Ref: " << ref[i * cols + j]
-                    << ", Val: " << src[i * cols + j] << "\n";
+                    << ", Ref: " << (int)ref[i * cols + j]
+                    << ", Val: " << (int)src[i * cols + j] << "\n";
           return false;
         }
       } else {
@@ -220,4 +234,30 @@ template <typename KernelName> size_t get_sg_size(queue q) {
   return kernel
       .template get_info<info::kernel_device_specific::max_sub_group_size>(
           q.get_device());
+}
+
+template <typename T>
+void matrix_print(unsigned int rows, unsigned int cols, T *mat,
+                  bool hex = false) {
+  for (unsigned int i = 0; i < rows; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      if constexpr (std::is_integral_v<T>)
+        std::cout << (int)mat[i * cols + j] << " ";
+      else {
+        if (hex)
+          print_float_as_hex((float)mat[i * cols + j]);
+        else
+          std::cout << (float)mat[i * cols + j];
+        std::cout << " ";
+      }
+    }
+    std::cout << "\n";
+  }
+}
+
+template <typename T, layout Layout> constexpr int vnni_factor() {
+  if constexpr (Layout != layout::ext_intel_packed)
+    return 1;
+  static_assert(sizeof(T) <= 4 && "Unsupported type in vnni_factor().");
+  return 4 / sizeof(T);
 }

@@ -8,6 +8,16 @@
 
 #pragma once
 
+#define __SYCL_USE_NEW_VEC_IMPL 1
+
+#ifndef __SYCL_USE_NEW_VEC_IMPL
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#define __SYCL_USE_NEW_VEC_IMPL 1
+#else
+#define __SYCL_USE_NEW_VEC_IMPL 0
+#endif
+#endif
+
 #include <cstddef>
 #include <type_traits>
 
@@ -23,6 +33,22 @@ namespace detail {
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp;
+
+// Utility for converting a swizzle to a vector or preserve the type if it isn't
+// a swizzle.
+template <typename T> struct simplify_if_swizzle {
+  using type = T;
+};
+
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct simplify_if_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                     OperationCurrentT, Indexes...>> {
+  using type = vec<typename VecT::element_type, sizeof...(Indexes)>;
+};
+
+template <typename T>
+using simplify_if_swizzle_t = typename simplify_if_swizzle<T>::type;
 
 // --------- is_* traits ------------------ //
 template <typename> struct is_vec : std::false_type {};

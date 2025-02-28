@@ -8,14 +8,10 @@
 // RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl  %t1.o %t2.o  -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda, hip
+// UNSUPPORTED: target-nvidia, target-amd
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
-
-// Depends on SPIR-V Backend & run-time drivers version.
-// XFAIL: spirv-backend && gpu
-// XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include "imf_utils.hpp"
 #include <cmath>

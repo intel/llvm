@@ -1104,6 +1104,13 @@ enum AttributeDeclKind {
   ExpectedFunctionVariableOrClass,
   ExpectedKernelFunction,
   ExpectedFunctionWithProtoType,
+  ExpectedForLoopStatement,
+  ExpectedVirtualFunction,
+  ExpectedParameterOrImplicitObjectParameter,
+  ExpectedNonMemberFunction,
+  ExpectedFunctionOrClassOrEnum,
+  ExpectedClass,
+  ExpectedTypedef,
 };
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,

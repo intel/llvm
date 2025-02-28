@@ -21,8 +21,9 @@ int main() {
   // Use a large N to try and make the kernel slow
   const size_t N = 1 << 16;
 
-  // Reduce amount of work compared to version of test without free functions
-  // due to CMPLRLLVM-64841
+  // Reduce amount of work compared to version of test with lambdas,
+  // as using explicit parameters in the free function signature results
+  // in slower IR than is created from constant folding in the lambda.
   const size_t NumKernelLoops = 1;
   const size_t NumSubmitLoops = 1;
 
