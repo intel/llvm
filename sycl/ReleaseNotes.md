@@ -104,7 +104,6 @@ Release notes for commit range
 
 - Improved the free function kernels extension by removing the need for `SYCL_EXTERNAL` attribute in free function kernel definitions. intel/llvm#14170
 - Improved compilation time for ESIMD kernels. intel/llvm#14786
-- Improved the mechanism lowering of SYCL attributes to NVVM annotations. intel/llvm#14634
 - Defined backend macros based on compiler which allows to compile an application for a backend without having to install the matching runtime. intel/llvm#15012
 - Reduced potential false possitives from address sanitizer by properly cleaning up private shadow memory. intel/llvm#15065
 - Disabled attribute propagation specified by SYCL 1.2.1 and removed remaining SYCL 2017/1.2.1 compatibility elements, including `-Wsycl-strict` diagnostics related to SYCL 2017 compatibility. intel/llvm#14984
@@ -115,9 +114,7 @@ Release notes for commit range
 - Removed workaround for `readnone` function parameter attribute as it is properly handled by CPU runtime now. intel/llvm#15298
 - Added diagnostic for bad argument with `-fsycl-device-obj`. intel/llvm#15381
 - Added a warning for cases when kernel-only attributes are applied to non-kernel functions. intel/llvm#15154
-- Started obeying `-nocudalib` when linking against libdevice. intel/llvm#15378
 - Fixed misleading diagnostic about non-external function/variable when applying attributes like  `[[sycl_device]]` or `[[intel::device_indirectly_callable]]` on  functions/variables without external linkage. intel/llvm#15372
-- Added `--only-needed` flag to llvm-link for AMDGCN. intel/llvm#15558
 - The `-fsycl-link=image` behavior is updated to package host objects similarly to `-fsycl-link=early`, ensuring proper linking, especially on Windows. intel/llvm#15539
 - Enabled generation of approximate `div`/`sqrt` with `-ffast-math` for NVTPX. intel/llvm#15553
 - Added extra optimization passes in Native CPU pipeline. intel/llvm#14380
@@ -201,6 +198,7 @@ Release notes for commit range
 ### SYCL Compiler
 
 - Fixed support for `ccache`. intel/llvm#15634
+- Fixed a bug for NVPTX/AMDGCN targets where kernel properties were not correctly propagated through the compiler (to the code generator). intel/llvm#14634
 - Fixed kernel tagging mechanism for AMDGPU target, before that handling was not competely correct causing some of the kernels to be missed. intel/llvm#14713
 - Fixed Device Sanitizer for kernels with large work group size. intel/llvm#14818
 - Fixed Device Sanitizer for the case when specialization constants are used. intel/llvm#14740
@@ -218,6 +216,7 @@ Release notes for commit range
 - Fixed local scope module variables for Native CPU. intel/llvm#15280
 - Fixed device libraries requirement mask for SPIRV target to ensure that all required device libraries are linked to the program. intel/llvm#15336
 - Fixed device library identification for NVPTX. intel/llvm#15357
+- Fixed a bug where the compiler would ignore `-nocudalib` and would unconditionally link against CUDA's libdevice when compiling for NVPTX. intel/llvm#15378
 - Suppressed system errors when loading adapters on Windows. intel/llvm#15388
 - Made SPIRV translator to ignore `llvm.debugtrap` to avoid crash while it is not supported. intel/llvm#15397
 - Disabled internalization of kernels for dynamic linking scenario, kernels must be visible so that host code can find them. intel/llvm#15307
@@ -226,6 +225,7 @@ Release notes for commit range
 - Fixed the bug to avoid adding `include/sycl/` to the system includes path to enforce SYCL headers to be included with `#include <sycl/sycl.hpp>` instead of `#include <sycl.hpp>`. intel/llvm#15437
 - Fixed device module splitting for ESIMD  related to using `assert` in user code. intel/llvm#15527
 - Fixed the logic to correctly assign architectures only to their respective targets when using the `-fsycl-targets` option with multiple targets. intel/llvm#15501
+- Fixed a bug where an incorrect number of kernel IDs were being reported for AMDGCN. intel/llvm#15558
 - Fixed spelling of SM version macro when AOT compiling. intel/llvm#15615
 - Fixed devicelib handling when linking multiple images. intel/llvm#15655
 - Matched up `-device_options` with `-device` for AOT GPU. intel/llvm#15678
