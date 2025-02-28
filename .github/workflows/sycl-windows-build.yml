@@ -83,6 +83,9 @@ jobs:
       continue-on-error: true
       run: |
         Invoke-WebRequest -Uri "https://raw.githubusercontent.com/intel/llvm/refs/heads/sycl/devops/scripts/windows_detect_hung_tests.ps1" -OutFile "windows_detect_hung_tests.ps1"
+        $installLocation = "C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit"
+        Write-Output $installLocation >> $env:GITHUB_PATH
+        Write-Output "WPR_INSTALL_LOCATION=$installLocation" >> $env:GITHUB_ENV
         powershell.exe -File windows_detect_hung_tests.ps1
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
