@@ -1431,6 +1431,7 @@ Exceptions:
   created.
 * Throws with error code `invalid` if `node` is not part of the
   graph.
+* If any other exception is thrown the state of the graph node is undefined.
 
 |
 [source,c++]
@@ -1465,6 +1466,7 @@ Exceptions:
   `property::graph::updatable` was not set when the executable graph was created.
 * Throws with error code `invalid` if any node in `nodes` is not part of the
   graph.
+* If any other exception is thrown the state of the graph nodes is undefined.
 
 |
 [source, c++]
@@ -1517,6 +1519,8 @@ Exceptions:
 * Throws synchronously with error code `invalid` if
   `property::graph::updatable` was not set when the executable graph was
   created.
+
+* If any other exception is thrown the state of the graph nodes is undefined.
 |===
 
 Table {counter: tableNumber}. Member functions of the `command_graph` class for
