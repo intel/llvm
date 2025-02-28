@@ -4982,6 +4982,11 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to execute a kernel
 ///
+/// @details
+///     - Adapters may perform validation on the number of arguments set to the
+///       kernel, but are not required to do so and may return
+///       `::UR_RESULT_SUCCESS` even for invalid invocations.
+///
 /// @remarks
 ///   _Analogues_
 ///     - **clEnqueueNDRangeKernel**
@@ -5009,8 +5014,9 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
-///     have not been specified."
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS
+///         + The kernel argument values have not been specified and the adapter
+///         is able to detect this.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urEnqueueKernelLaunch(
