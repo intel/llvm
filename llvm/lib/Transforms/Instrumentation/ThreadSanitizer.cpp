@@ -257,9 +257,7 @@ void ThreadSanitizerOnSpirv::initialize() {
 
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
     const unsigned ByteSize = 1U << i;
-    const unsigned BitSize = ByteSize * 8;
     std::string ByteSizeStr = utostr(ByteSize);
-    std::string BitSizeStr = utostr(BitSize);
     // __tsan_readX/__tsan_writeX(
     //   ...
     //   char* file,
@@ -392,7 +390,7 @@ void ThreadSanitizerOnSpirv::extendSpirKernelArgs() {
       Types.push_back(I->getType());
     }
 
-    // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
+    // New argument: uintptr_t as(1)*, which is allocated in USM buffer
     Types.push_back(PointerType::get(IntptrTy, kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
