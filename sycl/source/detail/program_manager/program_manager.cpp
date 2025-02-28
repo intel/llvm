@@ -1866,7 +1866,16 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 
     m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
-    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;) {
+    sycl_offload_entry EntriesIt;
+    auto IncrementEntriesIt = [&]() {
+      if (EntriesIt->IsLegacy())
+        EntriesIt = reinterpret_cast<sycl_offload_entry>(
+            reinterpret_cast<sycl_offload_entry_legacy>(EntriesIt) + 1);
+      else
+        EntriesIt++;
+    };
+
+    for (EntriesIt = EntriesB; EntriesIt != EntriesE; IncrementEntriesIt()) {
 
       auto name = EntriesIt->GetName();
 
@@ -1897,13 +1906,6 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
       }
       m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
       m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
-
-      // Increment iterator.
-      if (EntriesIt->IsLegacy())
-        EntriesIt = reinterpret_cast<sycl_offload_entry>(
-            reinterpret_cast<sycl_offload_entry_legacy>(EntriesIt) + 1);
-      else
-        EntriesIt++;
     }
 
     cacheKernelUsesAssertInfo(*Img);
@@ -2025,8 +2027,17 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Acquire lock to modify maps for kernel bundles
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
+    sycl_offload_entry EntriesIt;
+    auto IncrementEntriesIt = [&]() {
+      if (EntriesIt->IsLegacy())
+        EntriesIt = reinterpret_cast<sycl_offload_entry>(
+            reinterpret_cast<sycl_offload_entry_legacy>(EntriesIt) + 1);
+      else
+        EntriesIt++;
+    };
+
     // Unmap the unique kernel IDs for the offload entries
-    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;) {
+    for (EntriesIt = EntriesB; EntriesIt != EntriesE; IncrementEntriesIt()) {
 
       // Drop entry for service kernel
       if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
@@ -2049,13 +2060,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
         m_KernelName2KernelIDs.erase(It);
         m_KernelIDs2BinImage.erase(It->second);
       }
-
-      // Increment iterator.
-      if (EntriesIt->IsLegacy())
-        EntriesIt = reinterpret_cast<sycl_offload_entry>(
-            reinterpret_cast<sycl_offload_entry_legacy>(EntriesIt) + 1);
-      else
-        EntriesIt++;
     }
 
     // Drop reverse mapping
