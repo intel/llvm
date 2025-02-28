@@ -156,15 +156,16 @@ get_kernel_device_specific_info<
   size_t ResultSize = 0;
 
   // First call to get the number of device images
-  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_SPILL_MEM_SIZE, 0, nullptr,
-                                            &ResultSize);
+  Adapter->call<UrApiKind::urKernelGetInfo>(
+      Kernel, UR_KERNEL_INFO_SPILL_MEM_SIZE, 0, nullptr, &ResultSize);
 
   size_t DeviceCount = ResultSize / sizeof(uint32_t);
 
   // Second call to retrieve the data
   std::vector<uint32_t> Device2SpillMap(DeviceCount);
-  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_SPILL_MEM_SIZE, ResultSize,
-                                            Device2SpillMap.data(), nullptr);
+  Adapter->call<UrApiKind::urKernelGetInfo>(
+      Kernel, UR_KERNEL_INFO_SPILL_MEM_SIZE, ResultSize, Device2SpillMap.data(),
+      nullptr);
 
   ur_program_handle_t Program;
   Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_PROGRAM,
