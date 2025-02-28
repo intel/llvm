@@ -91,15 +91,8 @@ TEST_P(urProgramSetSpecializationConstantsNegativeTest, Unsupported) {
 }
 
 TEST_P(urProgramSetSpecializationConstantsTest, UseDefaultValue) {
-  ur_platform_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(ur_platform_backend_t), &backend,
-                                   nullptr));
-  if (backend == UR_PLATFORM_BACKEND_CUDA ||
-      backend == UR_PLATFORM_BACKEND_HIP) {
-    GTEST_FAIL() << "This test is known to cause crashes on Nvidia and "
-                    "AMD; not running.";
-  }
+  // This test is known to cause crashes on Nvidia and AMD.
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
 
   ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
   auto entry_points =
