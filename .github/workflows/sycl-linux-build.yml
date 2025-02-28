@@ -246,14 +246,11 @@ jobs:
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
 
-    - name: Copy/Setup toolchain
+    - name: Copy toolchain
       if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       # We must have the compiler in the same location as it will be in the E2E
       # run-tests job.
-      run: |
-        cp -r $GITHUB_WORKSPACE/build/install $GITHUB_WORKSPACE/toolchain
-        echo PATH=$GITHUB_WORKSPACE/toolchain/bin/:$PATH >> $GITHUB_ENV
-        echo LD_LIBRARY_PATH=$GITHUB_WORKSPACE/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+      run: cp -r $GITHUB_WORKSPACE/build/install $GITHUB_WORKSPACE/toolchain
 
     - name: Source OneAPI TBB vars.sh
       if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
