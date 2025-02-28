@@ -182,7 +182,8 @@ get_kernel_device_specific_info<
                                              nullptr);
   assert(Device2SpillMap.size() == URDevices.size());
 
-  // Map the result back to the program devices
+  // Map the result back to the program devices. UR provides the following guarantee:
+  //   > The order of the devices is guaranteed (i.e., the same as queried by urDeviceGet) by the UR within a single application even if the runtime is reinitialized.
   for (size_t idx = 0; idx < URDevices.size(); ++idx) {
     if (URDevices[idx] == Device)
       return size_t{Device2SpillMap[idx]};
