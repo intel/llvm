@@ -154,17 +154,16 @@ get_kernel_device_specific_info<
     ur_kernel_handle_t Kernel, ur_device_handle_t Device,
     const AdapterPtr &Adapter) {
   size_t ResultSize = 0;
-  ur_kernel_info_t PropName = UR_KERNEL_INFO_SPILL_MEM_SIZE;
 
   // First call to get the number of device images
-  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, PropName, 0, nullptr,
+  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_SPILL_MEM_SIZE, 0, nullptr,
                                             &ResultSize);
 
   size_t DeviceCount = ResultSize / sizeof(uint32_t);
 
   // Second call to retrieve the data
   std::vector<uint32_t> Result(DeviceCount);
-  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, PropName, ResultSize,
+  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_SPILL_MEM_SIZE, ResultSize,
                                             Result.data(), nullptr);
 
   ur_program_handle_t Program;
