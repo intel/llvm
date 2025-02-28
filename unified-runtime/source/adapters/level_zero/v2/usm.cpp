@@ -136,6 +136,9 @@ makeProvider(usm::pool_descriptor poolDescriptor) {
         hParams, residentZeHandles.data(), residentZeHandles.size()));
   }
 
+  UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetFreePolicy(
+      hParams, UMF_LEVEL_ZERO_MEMORY_PROVIDER_FREE_POLICY_BLOCKING_FREE));
+
   auto [ret, provider] =
       umf::providerMakeUniqueFromOps(umfLevelZeroMemoryProviderOps(), hParams);
   if (ret != UMF_RESULT_SUCCESS) {
