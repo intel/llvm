@@ -173,6 +173,9 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
+# So we can make subprocess calls with the same env that we use for the tests
+env_str = "env " + " ".join([var+"=\""+val+"\"" for var,val in config.environment.items()])
+
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
 if platform.system() == "Windows":
     config.substitutions.append(
@@ -263,7 +266,7 @@ def open_check_file(file_name):
 
 # check if compiler supports CL command line options
 cl_options = False
-sp = subprocess.getstatusoutput(config.dpcpp_compiler + " /help")
+sp = subprocess.getstatusoutput(env_str + " " + config.dpcpp_compiler + " /help")
 if sp[0] == 0:
     cl_options = True
     config.available_features.add("cl_options")
@@ -322,7 +325,7 @@ if cl_options:
 config.substitutions.append(("%level_zero_options", level_zero_options))
 
 sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
+    env_str + " " + config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
 )
 if sp[0] == 0:
     config.available_features.add("level_zero_dev_kit")
@@ -350,7 +353,8 @@ else:
         )
 
     sp = subprocess.getstatusoutput(
-        config.dpcpp_compiler
+        env_str + " "
+        + config.dpcpp_compiler
         + " -fsycl -fpreview-breaking-changes "
         + check_preview_breaking_changes_file
     )
@@ -419,7 +423,7 @@ if cl_options:
 config.substitutions.append(("%cuda_options", cuda_options))
 
 sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options
+    env_str + " " + config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options
 )
 if sp[0] == 0:
     config.available_features.add("cuda_dev_kit")
