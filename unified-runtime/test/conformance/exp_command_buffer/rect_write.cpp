@@ -120,7 +120,7 @@ TEST_P(urCommandBufferAppendMemBufferWriteRectTestWithParam, Success) {
   const auto name = getParam().name;
 
   // This file is based on enqueue/urEnqueueMemBufferWriteRect.cpp
-  // because of this, these checks are present here, 
+  // because of this, these checks are present here,
   // since there were present in original code
   if (name.find("write_row_2D") != std::string::npos) {
     UUR_KNOWN_FAILURE_ON(uur::HIP{});
