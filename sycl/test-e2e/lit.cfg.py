@@ -174,7 +174,9 @@ if config.extra_environment:
             llvm_config.with_environment(var, "")
 
 # So we can make subprocess calls with the same env that we use for the tests
-env_str = "env " + " ".join([var+"=\""+val+"\"" for var,val in config.environment.items()])
+env_str = "env " + " ".join(
+    [var + '="' + val + '"' for var, val in config.environment.items()]
+)
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
 if platform.system() == "Windows":
@@ -325,7 +327,12 @@ if cl_options:
 config.substitutions.append(("%level_zero_options", level_zero_options))
 
 sp = subprocess.getstatusoutput(
-    env_str + " " + config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
+    env_str
+    + " "
+    + config.dpcpp_compiler
+    + " -fsycl  "
+    + check_l0_file
+    + level_zero_options
 )
 if sp[0] == 0:
     config.available_features.add("level_zero_dev_kit")
@@ -353,7 +360,8 @@ else:
         )
 
     sp = subprocess.getstatusoutput(
-        env_str + " "
+        env_str
+        + " "
         + config.dpcpp_compiler
         + " -fsycl -fpreview-breaking-changes "
         + check_preview_breaking_changes_file
