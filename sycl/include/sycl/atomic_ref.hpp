@@ -158,16 +158,9 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__)
   explicit atomic_ref_base(T &ref)
       : ptr(ext::oneapi::experimental::static_address_cast<AddressSpace>(
             &ref)) {}
-#else
-  // CUDA/HIP don't support `ext::oneapi::experimental::static_address_cast`
-  // yet.
-  explicit atomic_ref_base(T &ref)
-      : ptr(address_space_cast<AddressSpace, access::decorated::no>(&ref)) {}
-#endif
 #else
   // FIXME: This reinterpret_cast is UB, but happens to work for now
   explicit atomic_ref_base(T &ref)
