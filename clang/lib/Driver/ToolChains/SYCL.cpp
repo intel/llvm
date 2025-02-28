@@ -154,7 +154,8 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
 
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
-    const llvm::opt::ArgList &Args) : D(D) {}
+    const llvm::opt::ArgList &Args)
+    : D(D) {}
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
@@ -1703,9 +1704,9 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
       options::OPT_fprofile_instr_generate,
       options::OPT_fprofile_instr_generate_EQ,
       options::OPT_fprofile_arcs,
-      options::OPT_fno_profile_arcs, // -f[no-]profile-arcs
+      options::OPT_fno_profile_arcs,           // -f[no-]profile-arcs
       options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate
-      options::OPT_fcreate_profile,  // -fcreate-profile
+      options::OPT_fcreate_profile,            // -fcreate-profile
       options::OPT_fprofile_instr_use,
       options::OPT_fprofile_instr_use_EQ,       // -fprofile-instr-use
       options::OPT_forder_file_instrumentation, // -forder-file-instrumentation
