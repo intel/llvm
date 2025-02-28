@@ -3268,7 +3268,8 @@ bool X86TargetLowering::shouldReduceLoadWidth(SDNode *Load,
   // those uses are extracted directly into a store, then the extract + store
   // can be store-folded. Therefore, it's probably not worth splitting the load.
   EVT VT = Load->getValueType(0);
-  if ((VT.is256BitVector() || VT.is512BitVector()) && !Load->hasOneUse()) {
+  if ((VT.is256BitVector() || VT.is512BitVector()) &&
+      !SDValue(Load, 0).hasOneUse()) {
     for (SDUse &Use : Load->uses()) {
       // Skip uses of the chain value. Result 0 of the node is the load value.
       if (Use.getResNo() != 0)
@@ -4075,9 +4076,12 @@ static SDValue extractSubVector(SDValue Vec, unsigned IdxVal, SelectionDAG &DAG,
                                 const SDLoc &dl, unsigned vectorWidth) {
   EVT VT = Vec.getValueType();
   EVT ElVT = VT.getVectorElementType();
-  unsigned Factor = VT.getSizeInBits() / vectorWidth;
-  EVT ResultVT = EVT::getVectorVT(*DAG.getContext(), ElVT,
-                                  VT.getVectorNumElements() / Factor);
+  unsigned ResultNumElts =
+      (VT.getVectorNumElements() * vectorWidth) / VT.getSizeInBits();
+  EVT ResultVT = EVT::getVectorVT(*DAG.getContext(), ElVT, ResultNumElts);
+
+  assert(ResultVT.getSizeInBits() == vectorWidth &&
+         "Illegal subvector extraction");
 
   // Extract the relevant vectorWidth bits.  Generate an EXTRACT_SUBVECTOR
   unsigned ElemsPerChunk = vectorWidth / ElVT.getSizeInBits();
