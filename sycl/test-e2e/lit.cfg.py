@@ -173,15 +173,18 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
+
 # Temporarily modify environment to be the same that we use when running tests
-class test_env():
+class test_env:
     def __enter__(self):
         self.old_environ = dict(os.environ)
         os.environ.clear()
         os.environ.update(config.environment)
+
     def __exit__(self, exc_type, exc_value, exc_traceback):
         os.environ.clear()
         os.environ.update(self.old_environ)
+
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
 if platform.system() == "Windows":
