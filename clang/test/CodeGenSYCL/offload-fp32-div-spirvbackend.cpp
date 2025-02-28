@@ -1,4 +1,7 @@
-// RUN: %clang_cc1 -fsycl -fno-offload-fp32-prec-div -fsycl-use-spirv-backend-for-spirv-gen %s -o -
+// RUN: %clang_cc1 -fsycl-is-device -emit-llvm -triple spirv64-unknown-unknown \
+// RUN: -fno-offload-fp32-prec-div %s -o %t.ll
+// RUN: llc -mtriple=spirv64-unknown-unknown %t.ll -o -
+
 // Test that codegen doesn't crash.
 
 #include "Inputs/sycl.hpp"
