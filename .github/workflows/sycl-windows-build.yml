@@ -133,8 +133,6 @@ jobs:
           --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=ccache" ^
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" ^
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
-    - name: Start trace
-      uses: chad-golden/setup-wpr/start@main
     - name: Build
       id: build
       shell: bash
@@ -169,17 +167,7 @@ jobs:
     - name: check-libdevice
       if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
-        cmake --build build --target check-libdevice
-    - name: Stop trace
-      uses: chad-golden/setup-wpr/stop@main
-      with:
-       trace-file-name: D:\my-trace.etl
-
-    - name: Upload Trace
-      uses: actions/upload-artifact@v4
-      with:
-       name: trace-${{ github.run_id }}
-       path: D:\my-trace.etl        
+        cmake --build build --target check-libdevice       
     - name: Generate/diff new ABI symbols
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       shell: bash
