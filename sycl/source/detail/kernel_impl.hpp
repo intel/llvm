@@ -518,7 +518,6 @@ ADD_TEMPLATE_METHOD_SPEC(num_sub_groups, 1, urKernelGetSubGroupInfo,
                          UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS)
 
 #undef ADD_TEMPLATE_METHOD_SPEC
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
