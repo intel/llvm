@@ -489,15 +489,15 @@ ur_result_t ur_exp_command_buffer_handle_t_::getFenceForQueue(
     ze_command_queue_handle_t &ZeCommandQueue, ze_fence_handle_t &ZeFence) {
   // If we already have created a fence for this queue, first reset then reuse
   // it, otherwise create a new fence.
-  auto ZeWorkloadFenceForQueue = this->ZeFencesMap.find(ZeCommandQueue);
-  if (ZeWorkloadFenceForQueue == this->ZeFencesMap.end()) {
-    ZeStruct<ze_fence_desc_t> ZeFenceDesc;
-    ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-    this->ZeFencesMap.insert({{ZeCommandQueue, ZeFence}});
-  } else {
-    ZeFence = ZeWorkloadFenceForQueue->second;
-    ZE2UR_CALL(zeFenceReset, (ZeFence));
-  }
+  //  auto ZeWorkloadFenceForQueue = this->ZeFencesMap.find(ZeCommandQueue);
+  //  if (ZeWorkloadFenceForQueue == this->ZeFencesMap.end()) {
+  ZeStruct<ze_fence_desc_t> ZeFenceDesc;
+  ZE2UR_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
+  this->ZeFencesMap.insert({{ZeCommandQueue, ZeFence}});
+  //  } /*else {
+  //    ZeFence = ZeWorkloadFenceForQueue->second;
+  //    ZE2UR_CALL(zeFenceReset, (ZeFence));
+  //  } */
   this->ZeActiveFence = ZeFence;
   return UR_RESULT_SUCCESS;
 }
@@ -554,7 +554,7 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
   // For non-linear graph, dependencies between commands are explicitly enforced
   // by sync points when enqueuing. Consequently, relax the command ordering in
   // the command list can enable the backend to further optimize the workload
-  ZeCommandListDesc.flags = IsInOrder ? ZE_COMMAND_LIST_FLAG_IN_ORDER
+;  ZeCommandListDesc.flags = IsInOrder ? ZE_COMMAND_LIST_FLAG_IN_ORDER
                                       : ZE_COMMAND_LIST_FLAG_RELAXED_ORDERING;
 
   DEBUG_LOG(ZeCommandListDesc.flags);
@@ -1658,65 +1658,149 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
                                  ur_command_list_ptr_t SignalCommandList,
                                  bool DoProfiling) {
 
-  ze_command_queue_handle_t ZeCommandQueue;
-  getZeCommandQueue(Queue, false, ZeCommandQueue);
+  static int IsProblematic = 0;
 
-  ze_fence_handle_t ZeFence;
-  CommandBuffer->getFenceForQueue(ZeCommandQueue, ZeFence);
 
-  UR_CALL(waitForDependencies(CommandBuffer, Queue, NumEventsInWaitList,
-                              EventWaitList));
-
-  // Submit reset events command-list. This command-list is of a batch
-  // command-list type, regardless of the UR Queue type. We therefore need to
-  // submit the list directly using the Level-Zero API to avoid type
-  // mismatches if using UR functions.
-  ZE2UR_CALL(
-      zeCommandQueueExecuteCommandLists,
-      (ZeCommandQueue, 1, &CommandBuffer->ZeCommandListResetEvents, nullptr));
 
   // Submit main command-list. This command-list is of a batch command-list
   // type, regardless of the UR Queue type. We therefore need to submit the
   // list directly using the Level-Zero API to avoid type mismatches if using
   // UR functions.
-  ZE2UR_CALL(
-      zeCommandQueueExecuteCommandLists,
-      (ZeCommandQueue, 1, &CommandBuffer->ZeComputeCommandList, ZeFence));
+  if (IsProblematic != 2) {
 
-  // The Copy command-list is submitted to the main copy queue if it is not
-  // empty.
-  if (!CommandBuffer->MCopyCommandListEmpty) {
-    ze_command_queue_handle_t ZeCopyCommandQueue;
-    getZeCommandQueue(Queue, true, ZeCopyCommandQueue);
+    ze_command_queue_handle_t ZeCommandQueue;
+    getZeCommandQueue(Queue, false, ZeCommandQueue);
+
+    ze_fence_handle_t ZeFence;
+    CommandBuffer->getFenceForQueue(ZeCommandQueue, ZeFence);
+
+    UR_CALL(waitForDependencies(CommandBuffer, Queue, NumEventsInWaitList,
+                                EventWaitList));
+
+    // Submit reset events command-list. This command-list is of a batch
+    // command-list type, regardless of the UR Queue type. We therefore need to
+    // submit the list directly using the Level-Zero API to avoid type
+    // mismatches if using UR functions.
     ZE2UR_CALL(
         zeCommandQueueExecuteCommandLists,
-        (ZeCopyCommandQueue, 1, &CommandBuffer->ZeCopyCommandList, nullptr));
+        (ZeCommandQueue, 1, &CommandBuffer->ZeCommandListResetEvents, nullptr));
+
+    ZE2UR_CALL(
+        zeCommandQueueExecuteCommandLists,
+        (ZeCommandQueue, 1, &CommandBuffer->ZeComputeCommandList, ZeFence));
+
+    // The Copy command-list is submitted to the main copy queue if it is not
+    // empty.
+    if (!CommandBuffer->MCopyCommandListEmpty) {
+      ze_command_queue_handle_t ZeCopyCommandQueue;
+      getZeCommandQueue(Queue, true, ZeCopyCommandQueue);
+      ZE2UR_CALL(
+          zeCommandQueueExecuteCommandLists,
+          (ZeCopyCommandQueue, 1, &CommandBuffer->ZeCopyCommandList, nullptr));
+    }
+
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (SignalCommandList->first, nullptr, 1,
+                &(CommandBuffer->ExecutionFinishedEvent->ZeEvent)));
+
+    // Reset the wait-event for the UR command-buffer that is signaled when its
+    // submission dependencies have been satisfied.
+    ZE2UR_CALL(zeCommandListAppendEventReset,
+               (SignalCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
+
+    // Reset the all-reset-event for the UR command-buffer that is signaled when
+    // all events of the main command-list have been reset.
+    ZE2UR_CALL(
+        zeCommandListAppendEventReset,
+        (SignalCommandList->first, CommandBuffer->AllResetEvent->ZeEvent));
+
+    if (DoProfiling) {
+      UR_CALL(appendProfilingQueries(CommandBuffer, SignalCommandList->first,
+                                     nullptr, nullptr, *Event));
+    }
+
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (SignalCommandList->first, (*Event)->ZeEvent, 0, nullptr));
+
+    UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,
+                                      false /*OKToBatchCommand*/));
+  } else {
+
+    ze_command_queue_handle_t ZeCommandQueue;
+    getZeCommandQueue(Queue, false, ZeCommandQueue);
+
+    ze_fence_handle_t ZeFence;
+    CommandBuffer->getFenceForQueue(ZeCommandQueue, ZeFence);
+
+    UR_CALL(waitForDependencies(CommandBuffer, Queue, NumEventsInWaitList,
+                                EventWaitList));
+
+//    // Submit reset events command-list. This command-list is of a batch
+//    // command-list type, regardless of the UR Queue type. We therefore need to
+//    // submit the list directly using the Level-Zero API to avoid type
+//    // mismatches if using UR functions.
+    ZE2UR_CALL(
+        zeCommandQueueExecuteCommandLists,
+        (ZeCommandQueue, 1, &CommandBuffer->ZeCommandListResetEvents, nullptr));
+//
+//    ZE2UR_CALL(
+//        zeCommandQueueExecuteCommandLists,
+//        (ZeCommandQueue, 1, &CommandBuffer->ZeComputeCommandList, nullptr));
+//
+//    // The Copy command-list is submitted to the main copy queue if it is not
+//    // empty.
+//    if (!CommandBuffer->MCopyCommandListEmpty) {
+//      ze_command_queue_handle_t ZeCopyCommandQueue;
+//      getZeCommandQueue(Queue, true, ZeCopyCommandQueue);
+//      ZE2UR_CALL(
+//          zeCommandQueueExecuteCommandLists,
+//          (ZeCopyCommandQueue, 1, &CommandBuffer->ZeCopyCommandList, nullptr));
+//    }
+//
+//    ZE2UR_CALL(zeEventHostSignal, (CommandBuffer->ExecutionFinishedEvent->ZeEvent));
+//    ZE2UR_CALL(zeCommandListAppendBarrier,
+//               (SignalCommandList->first, nullptr, 1,
+//                &(CommandBuffer->ExecutionFinishedEvent->ZeEvent)));
+//    ZE2UR_CALL(zeCommandListAppendWaitOnEvents, (SignalCommandList->first, 1,
+//                &(CommandBuffer->ExecutionFinishedEvent->ZeEvent)));
+
+    // Reset the wait-event for the UR command-buffer that is signaled when its
+    // submission dependencies have been satisfied.
+    ZE2UR_CALL(zeCommandListAppendEventReset,
+               (SignalCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
+
+    // Reset the all-reset-event for the UR command-buffer that is signaled when
+    // all events of the main command-list have been reset.
+    ZE2UR_CALL(
+        zeCommandListAppendEventReset,
+        (SignalCommandList->first, CommandBuffer->AllResetEvent->ZeEvent));
+
+//    if (DoProfiling) {
+//      UR_CALL(appendProfilingQueries(CommandBuffer, SignalCommandList->first,
+//                                     nullptr, nullptr, *Event));
+//    }
+//
+    for (int i = 0; i < 1000; ++i) {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (SignalCommandList->first, nullptr, 0, nullptr));
+    }
+
+
+//    ze_device_mem_alloc_desc_t  desc = {ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC, 0, 0};
+//    void* ppt;
+//    int pattern = 1;
+//    ZE2UR_CALL(zeMemAllocDevice, (CommandBuffer->Context->getZeHandle(), &desc,
+//                                  4, 0, CommandBuffer->Device->ZeDevice, &ppt));
+//    ZE2UR_CALL(zeCommandListAppendMemoryFill,
+//               (SignalCommandList->first, ppt, &pattern, sizeof(int),
+//                sizeof(int), nullptr, 0, nullptr));
+
+    ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
+
+    //    UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,
+//                                      false /*OKToBatchCommand*/));
   }
-
-  ZE2UR_CALL(zeCommandListAppendBarrier,
-             (SignalCommandList->first, nullptr, 1,
-              &(CommandBuffer->ExecutionFinishedEvent->ZeEvent)));
-
-  // Reset the wait-event for the UR command-buffer that is signaled when its
-  // submission dependencies have been satisfied.
-  ZE2UR_CALL(zeCommandListAppendEventReset,
-             (SignalCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
-
-  // Reset the all-reset-event for the UR command-buffer that is signaled when
-  // all events of the main command-list have been reset.
-  ZE2UR_CALL(zeCommandListAppendEventReset,
-             (SignalCommandList->first, CommandBuffer->AllResetEvent->ZeEvent));
-
-  if (DoProfiling) {
-    UR_CALL(appendProfilingQueries(CommandBuffer, SignalCommandList->first,
-                                   nullptr, nullptr, *Event));
-  }
-
-  ZE2UR_CALL(zeCommandListAppendBarrier,
-             (SignalCommandList->first, (*Event)->ZeEvent, 0, nullptr));
-
-  UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,
-                                    false /*OKToBatchCommand*/));
+  IsProblematic++;
 
   return UR_RESULT_SUCCESS;
 }

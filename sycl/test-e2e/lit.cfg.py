@@ -132,9 +132,9 @@ llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 if platform.system() == "Linux":
     config.available_features.add("linux")
     llvm_config.with_system_environment(["LD_LIBRARY_PATH", "LIBRARY_PATH", "CPATH"])
-    llvm_config.with_environment(
-        "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
-    )
+    # llvm_config.with_environment(
+    #     "LD_LIBRARY_PATH", config.sycl_libs_dir, append_path=True
+    # )
 
 elif platform.system() == "Windows":
     config.available_features.add("windows")

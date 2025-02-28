@@ -106,5 +106,6 @@ add_custom_target(check-sycl-e2e
   USES_TERMINAL
 )
 
+add_executable(fence_performance Graph/Update/fence_performance_reproducer.cpp)
 add_subdirectory(External)
 add_subdirectory(ExtraTests)
