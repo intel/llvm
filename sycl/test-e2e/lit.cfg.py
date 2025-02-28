@@ -173,8 +173,14 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
-# So we can make subprocess calls with the same env that we use for the tests
-env_str = "env " + " ".join([var+"=\""+val+"\"" for var,val in config.environment.items()])
+class test_env():
+    def __enter__(self):
+        self.old_environ = dict(os.environ)
+        os.environ.clear()
+        os.environ.update(config.environment)
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        os.environ.clear()
+        os.environ.update(self.old_environ)
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
 if platform.system() == "Windows":
@@ -266,10 +272,11 @@ def open_check_file(file_name):
 
 # check if compiler supports CL command line options
 cl_options = False
-sp = subprocess.getstatusoutput(env_str + " " + config.dpcpp_compiler + " /help")
-if sp[0] == 0:
-    cl_options = True
-    config.available_features.add("cl_options")
+with test_env():
+    sp = subprocess.getstatusoutput(config.dpcpp_compiler + " /help")
+    if sp[0] == 0:
+        cl_options = True
+        config.available_features.add("cl_options")
 
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
@@ -324,14 +331,15 @@ if cl_options:
 
 config.substitutions.append(("%level_zero_options", level_zero_options))
 
-sp = subprocess.getstatusoutput(
-    env_str + " " + config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
-)
-if sp[0] == 0:
-    config.available_features.add("level_zero_dev_kit")
-    config.substitutions.append(("%level_zero_options", level_zero_options))
-else:
-    config.substitutions.append(("%level_zero_options", ""))
+with test_env():
+    sp = subprocess.getstatusoutput(
+        config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
+    )
+    if sp[0] == 0:
+        config.available_features.add("level_zero_dev_kit")
+        config.substitutions.append(("%level_zero_options", level_zero_options))
+    else:
+        config.substitutions.append(("%level_zero_options", ""))
 
 if lit_config.params.get("test-preview-mode", False):
     config.available_features.add("preview-mode")
@@ -352,14 +360,14 @@ else:
             file=fp,
         )
 
-    sp = subprocess.getstatusoutput(
-        env_str + " "
-        + config.dpcpp_compiler
-        + " -fsycl -fpreview-breaking-changes "
-        + check_preview_breaking_changes_file
-    )
-    if sp[0] == 0:
-        config.available_features.add("preview-breaking-changes-supported")
+    with test_env():
+        sp = subprocess.getstatusoutput(
+            config.dpcpp_compiler
+            + " -fsycl -fpreview-breaking-changes "
+            + check_preview_breaking_changes_file
+        )
+        if sp[0] == 0:
+            config.available_features.add("preview-breaking-changes-supported")
 
 # Check if clang is built with ZSTD and compression support.
 fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
@@ -422,14 +430,15 @@ if cl_options:
 
 config.substitutions.append(("%cuda_options", cuda_options))
 
-sp = subprocess.getstatusoutput(
-    env_str + " " + config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options
-)
-if sp[0] == 0:
-    config.available_features.add("cuda_dev_kit")
-    config.substitutions.append(("%cuda_options", cuda_options))
-else:
-    config.substitutions.append(("%cuda_options", ""))
+with test_env():
+    sp = subprocess.getstatusoutput(
+        config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options
+    )
+    if sp[0] == 0:
+        config.available_features.add("cuda_dev_kit")
+        config.substitutions.append(("%cuda_options", cuda_options))
+    else:
+        config.substitutions.append(("%cuda_options", ""))
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
