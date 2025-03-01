@@ -1139,28 +1139,28 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
-    // L0 does not support fetching 1D USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 1D USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
-    // L0 does not not support fetching 1D non-USM sampled image data.
+    // L0 does not support fetching 1D non-USM sampled image data.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
-    // L0 does not support fetching 2D USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 2D USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
-    // L0 does not support fetching 2D non-USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 2D non-USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
-    // L0 does not support fetching 3D non-USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 3D non-USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP: {
-    // L0 does not support image arrays
-    return ReturnValue(false);
+    // L0 does support image arrays
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
     // L0 does not support unique addressing per dimension
@@ -1171,7 +1171,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
-    // L0 does not support sampling 1D USM sampled image data.
+    // L0 does not support sampling 2D USM sampled image data.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
