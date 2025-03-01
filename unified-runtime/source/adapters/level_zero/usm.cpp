@@ -197,10 +197,8 @@ static ur_result_t USMAllocationMakeResident(
 
 static ur_result_t USMDeviceAllocImpl(void **ResultPtr,
                                       ur_context_handle_t Context,
-                                      ur_device_handle_t Device,
-                                      ur_usm_device_mem_flags_t Flags,
-                                      size_t Size, uint32_t Alignment) {
-  std::ignore = Flags;
+                                      ur_device_handle_t Device, size_t Size,
+                                      uint32_t Alignment) {
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_device_mem_alloc_desc_t> ZeDesc;
   ZeDesc.flags = 0;
@@ -287,10 +285,8 @@ USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 }
 
 static ur_result_t USMHostAllocImpl(void **ResultPtr,
-                                    ur_context_handle_t Context,
-                                    ur_usm_host_mem_flags_t Flags, size_t Size,
+                                    ur_context_handle_t Context, size_t Size,
                                     uint32_t Alignment) {
-  std::ignore = Flags;
   // TODO: translate PI properties to Level Zero flags
   ZeStruct<ze_host_mem_alloc_desc_t> ZeHostDesc;
   ZeHostDesc.flags = 0;
@@ -511,7 +507,6 @@ ur_result_t urUSMSharedAlloc(
       const ur_usm_host_desc_t *UsmHostDesc =
           reinterpret_cast<const ur_usm_host_desc_t *>(pNext);
       UsmHostFlags = UsmHostDesc->flags;
-      std::ignore = UsmHostFlags;
     }
     pNext = const_cast<void *>(BaseDesc->pNext);
   }
@@ -940,7 +935,6 @@ err_set_status:
 }
 
 umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
-  std::ignore = Ptr;
 
   // Query L0 for min page size. Use provided 'Ptr'.
   if (Ptr) {
@@ -977,9 +971,8 @@ umf_result_t L0MemoryProvider::get_ipc_handle_size(size_t *Size) {
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t Size,
+umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t /*Size*/,
                                               void *IpcData) {
-  std::ignore = Size;
 
   UR_ASSERT(Ptr && IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
   ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
@@ -997,7 +990,6 @@ umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t Size,
 umf_result_t L0MemoryProvider::put_ipc_handle(void *IpcData) {
   UR_ASSERT(IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
   ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
-  std::ignore = zeIpcData;
 
   // zeMemPutIpcHandle was introduced in Level Zero 1.6. Before Level Zero 1.6,
   // IPC handle was released automatically when corresponding memory buffer
@@ -1044,8 +1036,7 @@ umf_result_t L0MemoryProvider::open_ipc_handle(void *IpcData, void **Ptr) {
   return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t L0MemoryProvider::close_ipc_handle(void *Ptr, size_t Size) {
-  std::ignore = Size;
+umf_result_t L0MemoryProvider::close_ipc_handle(void *Ptr, size_t /*Size*/) {
 
   UR_ASSERT(Ptr, UMF_RESULT_ERROR_INVALID_ARGUMENT);
   auto Ret = ZE_CALL_NOCHECK(zeMemCloseIpcHandle, (Context->ZeContext, Ptr));
@@ -1073,13 +1064,13 @@ ur_result_t L0SharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
 
 ur_result_t L0DeviceMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                  uint32_t Alignment) {
-  return USMDeviceAllocImpl(ResultPtr, Context, Device, /* flags */ 0, Size,
+  return USMDeviceAllocImpl(ResultPtr, Context, Device, /* flags */ Size,
                             Alignment);
 }
 
 ur_result_t L0HostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                uint32_t Alignment) {
-  return USMHostAllocImpl(ResultPtr, Context, /* flags */ 0, Size, Alignment);
+  return USMHostAllocImpl(ResultPtr, Context, /* flags */ Size, Alignment);
 }
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
