@@ -9,7 +9,7 @@
 #include "AMDGPUOpenMP.h"
 #include "AMDGPU.h"
 #include "CommonArgs.h"
-#include "ToolChains/ROCm.h"
+#include "ROCm.h"
 #include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
@@ -111,11 +111,11 @@ const char *AMDGCN::OpenMPLinker::constructLLVMLinkCommand(
       //    to do basically the same work as llvm-link but with that call first
       //  - write an opt pass that sets that on every function it sees and pipe
       //    the device-libs bitcode through that on the way to this llvm-link
-      SmallVector<std::string, 12> BCLibs =
+      SmallVector<ToolChain::BitCodeLibraryInfo, 12> BCLibs =
           AMDGPUOpenMPTC.getCommonDeviceLibNames(Args, SubArchName.str(),
                                                  Action::OFK_OpenMP);
-      for (StringRef BCFile : BCLibs)
-        CmdArgs.push_back(Args.MakeArgString(BCFile));
+      for (auto BCLib : BCLibs)
+        CmdArgs.push_back(Args.MakeArgString(BCLib.Path));
     }
   }
 
@@ -375,11 +375,6 @@ AMDGPUOpenMPToolChain::getDeviceLibs(
     const Action::OffloadKind DeviceOffloadingKind) const {
   if (Args.hasArg(options::OPT_nogpulib))
     return {};
-
-  if (!RocmInstallation->hasDeviceLibrary()) {
-    getDriver().Diag(diag::err_drv_no_rocm_device_lib) << 0;
-    return {};
-  }
 
   StringRef GpuArch = getProcessorFromTargetID(
       getTriple(), Args.getLastArgValue(options::OPT_march_EQ));

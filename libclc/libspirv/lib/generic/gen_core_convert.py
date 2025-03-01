@@ -85,6 +85,10 @@ print(
 */
 
 #include <core/clc_core.h>
+#include <clc/integer/clc_abs.h>
+#include <clc/shared/clc_clamp.h>
+#include <clc/shared/clc_max.h>
+#include <clc/shared/clc_min.h>
 #include <libspirv/spirv.h>
 
 #ifdef cl_khr_fp16

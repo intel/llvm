@@ -20,15 +20,14 @@
  * THE SOFTWARE.
  */
 
-#include <libspirv/spirv.h>
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <clc/math/clc_fabs.h>
 #include <clc/math/clc_mad.h>
-
-#include <libspirv/math/tables.h>
-#include <config.h>
-#include <math/math.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
+#include <clc/math/tables.h>
+#include <libspirv/spirv.h>
 
 /*
  compute pow using log and exp

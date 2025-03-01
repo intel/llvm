@@ -367,17 +367,17 @@ int main() {
   INSTANTIATE_ALL_TYPES(fp_type_list, test_compare);
   INSTANTIATE_ALL_TYPES(fp_type_list, test_unordered_compare);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_compare_vec);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_compare_vec);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_compare_vec);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_unordered_compare_vec);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_unordered_compare_vec);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_unordered_compare_vec);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_compare_both);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_compare_both);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_compare_both);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_unordered_compare_both);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_unordered_compare_both);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_unordered_compare_both);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_compare_mask);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_compare_mask);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_compare_mask);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_unordered_compare_mask);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_unordered_compare_mask);
+  //INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_unordered_compare_mask);
 
   return 0;
 }

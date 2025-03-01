@@ -104,7 +104,7 @@ target triple = "spir64"
 ; CHECK-LLVM: call spir_func i32 @_Z15sub_group_electv()
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testSubGroupElect(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testSubGroupElect(ptr addrspace(1) captures(none)) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func i32 @_Z15sub_group_electv() #2
   store i32 %2, ptr addrspace(1) %0, align 4, !tbaa !7
   ret void
@@ -121,7 +121,7 @@ declare dso_local spir_func i32 @_Z15sub_group_electv() local_unnamed_addr #1
 ; CHECK-LLVM: call spir_func i32 @_Z25sub_group_non_uniform_alli(i32 {{.*}})
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testSubGroupNonUniformAll(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testSubGroupNonUniformAll(ptr addrspace(1) captures(none)) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func i32 @_Z25sub_group_non_uniform_alli(i32 0) #2
   store i32 %2, ptr addrspace(1) %0, align 4, !tbaa !7
   ret void
@@ -138,7 +138,7 @@ declare dso_local spir_func i32 @_Z25sub_group_non_uniform_alli(i32) local_unnam
 ; CHECK-LLVM: call spir_func i32 @_Z25sub_group_non_uniform_anyi(i32 {{.*}})
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testSubGroupNonUniformAny(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testSubGroupNonUniformAny(ptr addrspace(1) captures(none)) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func i32 @_Z25sub_group_non_uniform_anyi(i32 0) #2
   store i32 %2, ptr addrspace(1) %0, align 4, !tbaa !7
   ret void
@@ -175,7 +175,7 @@ declare dso_local spir_func i32 @_Z25sub_group_non_uniform_anyi(i32) local_unnam
 ; CHECK-LLVM: call spir_func i32 @_Z31sub_group_non_uniform_all_equald(double {{.*}})
 
 ; Function Attrs: convergent nounwind
-define dso_local spir_kernel void @testSubGroupNonUniformAllEqual(ptr addrspace(1) nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @testSubGroupNonUniformAllEqual(ptr addrspace(1) captures(none)) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
   %2 = tail call spir_func i32 @_Z31sub_group_non_uniform_all_equalc(i8 signext 0) #2
   store i32 %2, ptr addrspace(1) %0, align 4, !tbaa !7
   %3 = tail call spir_func i32 @_Z31sub_group_non_uniform_all_equalh(i8 zeroext 0) #2

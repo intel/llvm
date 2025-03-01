@@ -159,8 +159,10 @@ void SPIRVToLLVMDbgTran::transDbgInfo(const SPIRVValue *SV, Value *V) {
     return;
 
   if (Instruction *I = dyn_cast<Instruction>(V)) {
-    const SPIRVInstruction *SI = static_cast<const SPIRVInstruction *>(SV);
-    I->setDebugLoc(transDebugScope(SI));
+    if (SV->isInst()) {
+      const SPIRVInstruction *SI = static_cast<const SPIRVInstruction *>(SV);
+      I->setDebugLoc(transDebugScope(SI));
+    }
   }
 }
 
@@ -1581,7 +1583,9 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
       // DIBuilder::insertDeclare doesn't allow to pass nullptr for the Storage
       // parameter. To work around this limitation we create a dummy temp
       // alloca, use it to create llvm.dbg.declare, and then remove the alloca.
-      auto *AI = new AllocaInst(Type::getInt8Ty(M->getContext()), 0, "tmp", BB);
+      auto *AI =
+          new AllocaInst(Type::getInt8Ty(M->getContext()),
+                         M->getDataLayout().getAllocaAddrSpace(), "tmp", BB);
       DbgInstPtr DbgDeclare = DIB.insertDeclare(
           AI, LocalVar.first, GetExpression(Ops[ExpressionIdx]),
           LocalVar.second, BB);
