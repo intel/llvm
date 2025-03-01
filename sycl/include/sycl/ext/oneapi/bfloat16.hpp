@@ -53,10 +53,6 @@ class bfloat16;
 namespace detail {
 using Bfloat16StorageT = uint16_t;
 
-// Class to convert different data types to Bfloat16
-// with different rounding modes.
-class ConvertToBfloat16;
-
 template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   const uint16_t *src_i16 = sycl::bit_cast<const uint16_t *>(src);
