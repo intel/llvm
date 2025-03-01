@@ -300,8 +300,18 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
 
+#ifdef UR_STATIC_LEVEL_ZERO
+  // Given static linking of the L0 Loader, we must delay the loader's
+  // destruction of its context until after the UR Adapter is destroyed.
+  zelSetDelayLoaderContextTeardown();
+#endif
+
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
+    setEnvVar("ZEL_ENABLE_LOADER_LOGGING", "1");
+    setEnvVar("ZEL_LOADER_LOGGING_LEVEL", "trace");
+    setEnvVar("ZEL_LOADER_LOG_CONSOLE", "1");
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
   };
 
   if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
@@ -310,18 +320,6 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   }
 
   PlatformCache.Compute = [](Result<PlatformVec> &result) {
-    static std::once_flag ZeCallCountInitialized;
-    try {
-      std::call_once(ZeCallCountInitialized, []() {
-        if (UrL0LeaksDebug) {
-          ZeCallCount = new std::map<std::string, int>;
-        }
-      });
-    } catch (...) {
-      result = exceptionToResult(std::current_exception());
-      return;
-    }
-
     uint32_t UserForcedSysManInit = 0;
     // Check if the user has disabled the default L0 Env initialization.
     const int UrSysManEnvInitEnabled = [&UserForcedSysManInit] {
@@ -335,10 +333,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     // Dynamically load the new L0 apis separately.
     // This must be done to avoid attempting to use symbols that do
     // not exist in older loader runtimes.
+#ifndef UR_STATIC_LEVEL_ZERO
 #ifdef _WIN32
-    HMODULE processHandle = GetModuleHandle(NULL);
+    GlobalAdapter->processHandle = GetModuleHandle(NULL);
 #else
-    HMODULE processHandle = nullptr;
+    GlobalAdapter->processHandle = nullptr;
+#endif
 #endif
 
     // initialize level zero only once.
@@ -412,9 +412,13 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       }
 
       if (useInitDrivers) {
+#ifdef UR_STATIC_LEVEL_ZERO
+        GlobalAdapter->initDriversFunctionPtr = zeInitDrivers;
+#else
         GlobalAdapter->initDriversFunctionPtr =
             (ze_pfnInitDrivers_t)ur_loader::LibLoader::getFunctionPtr(
-                processHandle, "zeInitDrivers");
+                GlobalAdapter->processHandle, "zeInitDrivers");
+#endif
         if (GlobalAdapter->initDriversFunctionPtr) {
           logger::debug("\nzeInitDrivers with flags value of {}\n",
                         static_cast<int>(GlobalAdapter->InitDriversDesc.flags));
@@ -455,14 +459,6 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
       return;
     }
-    // Dynamically load the new L0 SysMan separate init and new EXP apis
-    // separately. This must be done to avoid attempting to use symbols that do
-    // not exist in older loader runtimes.
-#ifdef _WIN32
-    GlobalAdapter->processHandle = GetModuleHandle(NULL);
-#else
-    GlobalAdapter->processHandle = nullptr;
-#endif
 
     // Check if the user has enabled the default L0 SysMan initialization.
     const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {
@@ -484,6 +480,11 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       ZesInitNeeded = true;
     }
     if (ZesInitNeeded) {
+#ifdef UR_STATIC_LEVEL_ZERO
+      GlobalAdapter->getDeviceByUUIdFunctionPtr = zesDriverGetDeviceByUuidExp;
+      GlobalAdapter->getSysManDriversFunctionPtr = zesDriverGet;
+      GlobalAdapter->sysManInitFunctionPtr = zesInit;
+#else
       GlobalAdapter->getDeviceByUUIdFunctionPtr =
           (zes_pfnDriverGetDeviceByUuidExp_t)
               ur_loader::LibLoader::getFunctionPtr(
@@ -494,6 +495,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       GlobalAdapter->sysManInitFunctionPtr =
           (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(
               GlobalAdapter->processHandle, "zesInit");
+#endif
     }
     if (GlobalAdapter->getDeviceByUUIdFunctionPtr &&
         GlobalAdapter->getSysManDriversFunctionPtr &&
@@ -523,97 +525,6 @@ void globalAdapterOnDemandCleanup() {
 }
 
 ur_result_t adapterStateTeardown() {
-  // Print the balance of various create/destroy native calls.
-  // The idea is to verify if the number of create(+) and destroy(-) calls are
-  // matched.
-  if (ZeCallCount && (UrL0LeaksDebug) != 0) {
-    bool LeakFound = false;
-    // clang-format off
-    //
-    // The format of this table is such that each row accounts for a
-    // specific type of objects, and all elements in the raw except the last
-    // one are allocating objects of that type, while the last element is known
-    // to deallocate objects of that type.
-    //
-    std::vector<std::vector<std::string>> CreateDestroySet = {
-      {"zeContextCreate",      "zeContextDestroy"},
-      {"zeCommandQueueCreate", "zeCommandQueueDestroy"},
-      {"zeModuleCreate",       "zeModuleDestroy"},
-      {"zeKernelCreate",       "zeKernelDestroy"},
-      {"zeEventPoolCreate",    "zeEventPoolDestroy"},
-      {"zeCommandListCreateImmediate", "zeCommandListCreate", "zeCommandListDestroy"},
-      {"zeEventCreate",        "zeEventDestroy"},
-      {"zeFenceCreate",        "zeFenceDestroy"},
-      {"zeImageCreate","zeImageViewCreateExt",        "zeImageDestroy"},
-      {"zeSamplerCreate",      "zeSamplerDestroy"},
-      {"zeMemAllocDevice", "zeMemAllocHost", "zeMemAllocShared", "zeMemFree"},
-    };
-
-    // A sample output aimed below is this:
-    // ------------------------------------------------------------------------
-    //                zeContextCreate = 1     \--->        zeContextDestroy = 1
-    //           zeCommandQueueCreate = 1     \--->   zeCommandQueueDestroy = 1
-    //                 zeModuleCreate = 1     \--->         zeModuleDestroy = 1
-    //                 zeKernelCreate = 1     \--->         zeKernelDestroy = 1
-    //              zeEventPoolCreate = 1     \--->      zeEventPoolDestroy = 1
-    //   zeCommandListCreateImmediate = 1     |
-    //            zeCommandListCreate = 1     \--->    zeCommandListDestroy = 1  ---> LEAK = 1
-    //                  zeEventCreate = 2     \--->          zeEventDestroy = 2
-    //                  zeFenceCreate = 1     \--->          zeFenceDestroy = 1
-    //                  zeImageCreate = 0     \--->          zeImageDestroy = 0
-    //                zeSamplerCreate = 0     \--->        zeSamplerDestroy = 0
-    //               zeMemAllocDevice = 0     |
-    //                 zeMemAllocHost = 1     |
-    //               zeMemAllocShared = 0     \--->               zeMemFree = 1
-    //
-    // clang-format on
-    // TODO: use logger to print this messages
-    std::cerr << "Check balance of create/destroy calls\n";
-    std::cerr << "----------------------------------------------------------\n";
-    std::stringstream ss;
-    for (const auto &Row : CreateDestroySet) {
-      int diff = 0;
-      for (auto I = Row.begin(); I != Row.end();) {
-        const char *ZeName = (*I).c_str();
-        const auto &ZeCount = (*ZeCallCount)[*I];
-
-        bool First = (I == Row.begin());
-        bool Last = (++I == Row.end());
-
-        if (Last) {
-          ss << " \\--->";
-          diff -= ZeCount;
-        } else {
-          diff += ZeCount;
-          if (!First) {
-            ss << " | ";
-            std::cerr << ss.str() << "\n";
-            ss.str("");
-            ss.clear();
-          }
-        }
-        ss << std::setw(30) << std::right << ZeName;
-        ss << " = ";
-        ss << std::setw(5) << std::left << ZeCount;
-      }
-
-      if (diff) {
-        LeakFound = true;
-        ss << " ---> LEAK = " << diff;
-      }
-
-      std::cerr << ss.str() << '\n';
-      ss.str("");
-      ss.clear();
-    }
-
-    ZeCallCount->clear();
-    delete ZeCallCount;
-    ZeCallCount = nullptr;
-    if (LeakFound)
-      return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
-  }
-
   // Due to multiple DLLMain definitions with SYCL, register to cleanup the
   // Global Adapter after refcnt is 0
 #if defined(_WIN32)
@@ -668,7 +579,13 @@ ur_result_t urAdapterRelease(ur_adapter_handle_t) {
   if (GlobalAdapter) {
     std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
     if (--GlobalAdapter->RefCount == 0) {
-      return adapterStateTeardown();
+      auto result = adapterStateTeardown();
+#ifdef UR_STATIC_LEVEL_ZERO
+      // Given static linking of the L0 Loader, we must delay the loader's
+      // destruction of its context until after the UR Adapter is destroyed.
+      zelLoaderContextTeardown();
+#endif
+      return result;
     }
   }
 
