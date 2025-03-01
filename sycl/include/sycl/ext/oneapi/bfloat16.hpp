@@ -232,6 +232,10 @@ extern "C" __DPCPP_SYCL_EXTERNAL void
 __devicelib_ConvertBF16ToFINTELVec16(const uint16_t *, float *) noexcept;
 #endif
 
+/// \brief Converts a vector of bfloat16 to a vector of floats.
+/// \tparam N The size of the vector. Supported sizes are 1, 2, 3, 4, 8, and 16.
+/// \param src The source vector of bfloat16.
+/// \param dst The destination vector of floats.
 template <int N>
 inline void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
   static_assert(N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16,
@@ -273,6 +277,10 @@ extern "C" __DPCPP_SYCL_EXTERNAL void
 __devicelib_ConvertFToBF16INTELVec16(const float *, uint16_t *) noexcept;
 #endif
 
+/// \brief Converts a vector of floats to a vector of bfloat16.
+/// \tparam N The size of the vector.
+/// \param src The source vector of floats.
+/// \param dst The destination vector of bfloat16.
 template <int N> inline void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
   static_assert(N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16,
                 "Unsupported vector size");
@@ -292,8 +300,8 @@ template <int N> inline void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
     __devicelib_ConvertFToBF16INTELVec16(src, dst_i16);
 #else
   for (int i = 0; i < N; ++i) {
-    // No need to cast as bfloat16 has a assignment op overload that takes
-    // a float.
+    // No need to cast as bfloat16 has an assignment operator overload that
+    // takes a float.
     dst[i] = src[i];
   }
 #endif
@@ -450,10 +458,10 @@ template <typename Ty> inline size_t get_msb_pos(const Ty &x) {
   return (sizeof(Ty) * 8 - 1 - idx);
 }
 
-  // Helper function to get BF16 from unsigned integral data types
-  // with different rounding modes.
-  // Reference:
-  // https://github.com/intel/llvm/blob/sycl/libdevice/imf_bf16.hpp#L302
+// Helper function to get BF16 from unsigned integral data types
+// with different rounding modes.
+// Reference:
+// https://github.com/intel/llvm/blob/sycl/libdevice/imf_bf16.hpp#L302
 template <typename T>
 inline bfloat16
 getBFloat16FromUIntegralWithRoundingMode(T &u, SYCLRoundingMode roundingMode) {
@@ -505,9 +513,9 @@ getBFloat16FromUIntegralWithRoundingMode(T &u, SYCLRoundingMode roundingMode) {
   return bit_cast<bfloat16, uint16_t>((b_exp << 7) | b_mant);
 }
 
-  // Helper function to get BF16 from signed integral data types.
-  // Reference:
-  // https://github.com/intel/llvm/blob/sycl/libdevice/imf_bf16.hpp#L353
+// Helper function to get BF16 from signed integral data types.
+// Reference:
+// https://github.com/intel/llvm/blob/sycl/libdevice/imf_bf16.hpp#L353
 template <typename T>
 inline bfloat16
 getBFloat16FromSIntegralWithRoundingMode(T &i, SYCLRoundingMode roundingMode) {
@@ -557,6 +565,10 @@ getBFloat16FromSIntegralWithRoundingMode(T &i, SYCLRoundingMode roundingMode) {
   return bit_cast<bfloat16, uint16_t>(b_sign | (b_exp << 7) | b_mant);
 }
 
+/// \brief Converts a given value to bfloat16 with a specified rounding mode.
+/// \tparam rm The rounding mode to be used for conversion.
+/// \param a The input value to be converted.
+/// \return The converted bfloat16 value.
 template <typename Ty, int rm>
 inline bfloat16 getBfloat16WithRoundingMode(const Ty &a) {
   if (a == 0)
