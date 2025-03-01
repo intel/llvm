@@ -4,6 +4,9 @@
 // UNSUPPORTED: gpu-intel-dg2
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12397
 
+// UNSUPPORTED: adapter-v2
+// UNSUPPORTED-INTENDED: memory allocation logs are not emitted in adapter-v2
+
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
 
 // With no pooling: 1,2,3,4,5 allocs lead to ZE call.

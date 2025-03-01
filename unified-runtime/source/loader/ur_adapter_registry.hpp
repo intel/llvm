@@ -274,6 +274,19 @@ private:
           continue;
         }
       }
+      // Skip legacy L0 adapter if the v2 adapter is requested, and vice versa.
+      if (std::string(adapterName).find("level_zero") != std::string::npos) {
+        auto v2Requested = getenv_tobool("UR_LOADER_USE_LEVEL_ZERO_V2", false);
+        auto v2Adapter =
+            std::string(adapterName).find("v2") != std::string::npos;
+
+        if (v2Requested != v2Adapter) {
+          logger::info("The adapter '{}' is skipped because {} is{}set.",
+                       adapterName, "UR_LOADER_USE_LEVEL_ZERO_V2",
+                       v2Requested ? " " : " not ");
+          continue;
+        }
+      }
       std::vector<fs::path> loadPaths;
 
       // Adapter search order:

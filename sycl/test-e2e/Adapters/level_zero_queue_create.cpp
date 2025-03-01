@@ -1,5 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-
+// UNSUPPORTED: adapter-v2
+// UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
 //
