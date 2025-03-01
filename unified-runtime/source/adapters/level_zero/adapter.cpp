@@ -300,6 +300,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
   ZeInitResult = ZE_RESULT_ERROR_UNINITIALIZED;
   ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
 
+#ifdef UR_STATIC_LEVEL_ZERO
+  // Given static linking of the L0 Loader, we must delay the loader's
+  // destruction of its context until after the UR Adapter is destroyed.
+  zelSetDelayLoaderContextTeardown();
+#endif
+
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
   };
@@ -335,10 +341,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     // Dynamically load the new L0 apis separately.
     // This must be done to avoid attempting to use symbols that do
     // not exist in older loader runtimes.
+#ifndef UR_STATIC_LEVEL_ZERO
 #ifdef _WIN32
-    HMODULE processHandle = GetModuleHandle(NULL);
+    GlobalAdapter->processHandle = GetModuleHandle(NULL);
 #else
-    HMODULE processHandle = nullptr;
+    GlobalAdapter->processHandle = nullptr;
+#endif
 #endif
 
     // initialize level zero only once.
@@ -412,9 +420,13 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       }
 
       if (useInitDrivers) {
+#ifdef UR_STATIC_LEVEL_ZERO
+        GlobalAdapter->initDriversFunctionPtr = zeInitDrivers;
+#else
         GlobalAdapter->initDriversFunctionPtr =
             (ze_pfnInitDrivers_t)ur_loader::LibLoader::getFunctionPtr(
-                processHandle, "zeInitDrivers");
+                GlobalAdapter->processHandle, "zeInitDrivers");
+#endif
         if (GlobalAdapter->initDriversFunctionPtr) {
           logger::debug("\nzeInitDrivers with flags value of {}\n",
                         static_cast<int>(GlobalAdapter->InitDriversDesc.flags));
@@ -455,14 +467,6 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
       return;
     }
-    // Dynamically load the new L0 SysMan separate init and new EXP apis
-    // separately. This must be done to avoid attempting to use symbols that do
-    // not exist in older loader runtimes.
-#ifdef _WIN32
-    GlobalAdapter->processHandle = GetModuleHandle(NULL);
-#else
-    GlobalAdapter->processHandle = nullptr;
-#endif
 
     // Check if the user has enabled the default L0 SysMan initialization.
     const int UrSysmanZesinitEnable = [&UserForcedSysManInit] {
@@ -484,6 +488,11 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       ZesInitNeeded = true;
     }
     if (ZesInitNeeded) {
+#ifdef UR_STATIC_LEVEL_ZERO
+      GlobalAdapter->getDeviceByUUIdFunctionPtr = zesDriverGetDeviceByUuidExp;
+      GlobalAdapter->getSysManDriversFunctionPtr = zesDriverGet;
+      GlobalAdapter->sysManInitFunctionPtr = zesInit;
+#else
       GlobalAdapter->getDeviceByUUIdFunctionPtr =
           (zes_pfnDriverGetDeviceByUuidExp_t)
               ur_loader::LibLoader::getFunctionPtr(
@@ -494,6 +503,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       GlobalAdapter->sysManInitFunctionPtr =
           (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(
               GlobalAdapter->processHandle, "zesInit");
+#endif
     }
     if (GlobalAdapter->getDeviceByUUIdFunctionPtr &&
         GlobalAdapter->getSysManDriversFunctionPtr &&
@@ -668,7 +678,13 @@ ur_result_t urAdapterRelease(ur_adapter_handle_t) {
   if (GlobalAdapter) {
     std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
     if (--GlobalAdapter->RefCount == 0) {
-      return adapterStateTeardown();
+      auto result = adapterStateTeardown();
+#ifdef UR_STATIC_LEVEL_ZERO
+      // Given static linking of the L0 Loader, we must delay the loader's
+      // destruction of its context until after the UR Adapter is destroyed.
+      zelLoaderContextTeardown();
+#endif
+      return result;
     }
   }
 
