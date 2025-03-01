@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: opencl && arch-intel_gpu_pvc
-
 //==- copyto_char_test.cpp - Test for using copy_to to copy char buffers -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
