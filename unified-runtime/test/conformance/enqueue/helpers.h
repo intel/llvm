@@ -203,7 +203,15 @@ struct urMultiQueueMultiDeviceTestWithParam
         urContextCreate(devices.size(), devices.data(), nullptr, &context));
 
     // Duplicate our devices until we hit the minimum size specified.
-    auto srcDevices = devices;
+    std::vector<ur_device_handle_t> srcDevices;
+    // If the test actually only wants one device duplicated a bunch of times
+    // we take devices[0] and discard any other devices that were discovered.
+    if (trueMultiDevice) {
+      srcDevices = devices;
+    } else {
+      srcDevices.push_back(devices[0]);
+      devices.clear();
+    }
     while (devices.size() < minDevices) {
       devices.insert(devices.end(), srcDevices.begin(), srcDevices.end());
     }
@@ -224,6 +232,7 @@ struct urMultiQueueMultiDeviceTestWithParam
 
   ur_context_handle_t context;
   std::vector<ur_queue_handle_t> queues;
+  bool trueMultiDevice = true;
 };
 
 } // namespace uur
