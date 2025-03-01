@@ -232,7 +232,8 @@ extern "C" __DPCPP_SYCL_EXTERNAL void
 __devicelib_ConvertBF16ToFINTELVec16(const uint16_t *, float *) noexcept;
 #endif
 
-template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
+template <int N>
+inline void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
   static_assert(N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16,
                 "Unsupported vector size");
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
@@ -272,7 +273,7 @@ extern "C" __DPCPP_SYCL_EXTERNAL void
 __devicelib_ConvertFToBF16INTELVec16(const float *, uint16_t *) noexcept;
 #endif
 
-template <int N> void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
+template <int N> inline void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
   static_assert(N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16,
                 "Unsupported vector size");
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
@@ -436,7 +437,7 @@ inline bfloat16 getBFloat16FromDoubleWithRTE(const double &d) {
 }
 
 // Function to get the most significant bit position of a number.
-template <typename Ty> size_t get_msb_pos(const Ty &x) {
+template <typename Ty> inline size_t get_msb_pos(const Ty &x) {
   assert(x != 0);
   size_t idx = 0;
   Ty mask = ((Ty)1 << (sizeof(Ty) * 8 - 1));
@@ -454,7 +455,7 @@ template <typename Ty> size_t get_msb_pos(const Ty &x) {
   // Reference:
   // https://github.com/intel/llvm/blob/sycl/libdevice/imf_bf16.hpp#L302
 template <typename T>
-bfloat16
+inline bfloat16
 getBFloat16FromUIntegralWithRoundingMode(T &u, SYCLRoundingMode roundingMode) {
 
   size_t msb_pos = get_msb_pos(u);
@@ -508,7 +509,7 @@ getBFloat16FromUIntegralWithRoundingMode(T &u, SYCLRoundingMode roundingMode) {
   // Reference:
   // https://github.com/intel/llvm/blob/sycl/libdevice/imf_bf16.hpp#L353
 template <typename T>
-bfloat16
+inline bfloat16
 getBFloat16FromSIntegralWithRoundingMode(T &i, SYCLRoundingMode roundingMode) {
   // Get unsigned type corresponding to T.
   typedef typename std::make_unsigned_t<T> UTy;
@@ -557,9 +558,8 @@ getBFloat16FromSIntegralWithRoundingMode(T &i, SYCLRoundingMode roundingMode) {
 }
 
 template <typename Ty, int rm>
-bfloat16 getBfloat16WithRoundingMode(const Ty &a) {
-
-  if (!a)
+inline bfloat16 getBfloat16WithRoundingMode(const Ty &a) {
+  if (a == 0)
     return bfloat16{0.0f};
 
   constexpr SYCLRoundingMode roundingMode = static_cast<SYCLRoundingMode>(rm);
