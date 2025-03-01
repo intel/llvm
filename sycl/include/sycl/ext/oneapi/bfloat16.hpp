@@ -19,7 +19,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {
 
-class bfloat16 final {
+class bfloat16 {
 public:
   using Bfloat16StorageT = uint16_t;
 
