@@ -7013,14 +7013,14 @@ def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimizati
   HelpText<"Disables elimination of DPC++ dead kernel arguments">;
 def fsycl_device_lib_EQ : CommaJoined<["-"], "fsycl-device-lib=">,
   Flags<[NoXarchOption]>,
-  Values<"libc,libm-fp32,libm-fp64,libimf-fp32,libimf-fp64,libimf-bf16,all">,
+  Values<"libc,libm-fp32,libm-fp64,libimf-fp32,libimf-fp64,libimf-bf16,libgsort-fp32,all">,
   HelpText<"Control inclusion of device libraries into device binary linkage. "
            "Valid arguments are libc, libm-fp32, libm-fp64, libimf-fp32, "
-           "libimf-fp64, libimf-bf16, all">;
+           "libimf-fp64, libimf-bf16, libgsort-fp32, all">;
 def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">,
-  Flags<[NoXarchOption]>, Values<"libc, libm-fp32, libm-fp64, all">,
+  Flags<[NoXarchOption]>, Values<"libc, libm-fp32, libm-fp64, libgsort-fp32, all">,
   HelpText<"Control exclusion of device libraries from device binary linkage. "
-           "Valid arguments are libc, libm-fp32, libm-fp64, all">;
+           "Valid arguments are libc, libm-fp32, libm-fp64, libgsort-fp32, all">;
 def fsycl_device_lib_jit_link : Flag<["-"], "fsycl-device-lib-jit-link">,
   HelpText<"Enables sycl device library jit link (experimental)">;
 def fno_sycl_device_lib_jit_link : Flag<["-"], "fno-sycl-device-lib-jit-link">,

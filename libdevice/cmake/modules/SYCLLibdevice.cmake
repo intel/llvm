@@ -214,9 +214,8 @@ function(add_devicelibs filename)
       DEPENDENCIES ${ARG_DEPENDENCIES}
       EXTRA_OPTS ${ARG_EXTRA_OPTS} ${bc_device_compile_opts}
                  ${compile_opts_${arch}})
-
-    append_to_property(${bc_binary_dir}/${filename}-${arch}.bc
-      PROPERTY_NAME BC_DEVICE_LIBS_${arch})
+      append_to_property(${bc_binary_dir}/${filename}-${arch}.bc
+        PROPERTY_NAME BC_DEVICE_LIBS_${arch})
   endforeach()
 endfunction()
 
@@ -235,7 +234,7 @@ set(itt_obj_deps device_itt.h spirv_vars.h device.h ${sycl-compiler_deps})
 set(bfloat16_obj_deps sycl-headers ${sycl-compiler_deps})
 if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
   set(asan_obj_deps
-    device.h atomic.hpp spirv_vars.h
+    device.h atomic.hpp spirv_vars.h spirv_decls.hpp
     ${UR_SANITIZER_INCLUDE_DIR}/asan/asan_libdevice.hpp
     include/asan_rtl.hpp
     include/sanitizer_defs.hpp
@@ -300,6 +299,7 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/spir_global_var.hpp
     sycl-compiler)
 endif()
+set(gsort_obj_deps device.h spirv_decls.hpp spirv_vars.h group_helper.hpp sort_helper.hpp sycl-compiler)
 
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   if (NOT DEFINED NATIVE_CPU_DIR)
@@ -433,6 +433,11 @@ add_devicelibs(libsycl-fallback-bfloat16
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
   DEPENDENCIES ${bfloat16_obj_deps})
+add_devicelibs(libsycl-fallback-gsort
+  SRC fallback-gsort.cpp
+  DEPENDENCIES ${gsort_obj_deps}
+  EXTRA_OPTS -fno-sycl-instrument-device-code
+  SKIP_ARCHS amdgcn-amd-amdhsa)
 
 # Create dependency and source lists for Intel math function libraries.
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
