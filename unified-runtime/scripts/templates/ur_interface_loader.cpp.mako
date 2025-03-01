@@ -20,6 +20,7 @@ from templates import helper as th
 //===----------------------------------------------------------------------===//
 #include <${n}_api.h>
 #include <${n}_ddi.h>
+#include <mutex>
 
 #include "ur_interface_loader.hpp"
 
@@ -68,22 +69,45 @@ ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${tbl['export']['name']}(
 } // extern "C"
 #endif
 
-#ifdef UR_STATIC_ADAPTER_${Adapter}
-namespace ur::${adapter} {
-ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
-  if (ddi == nullptr) {
+namespace {
+ur_result_t populateDdiTable(ur_dditable_t *ddi) {
+    if (ddi == nullptr) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   ur_result_t result;
 
+#ifdef UR_STATIC_ADAPTER_${Adapter}
+#define NAMESPACE_ ::ur::${adapter}
+#else
+#define NAMESPACE_
+#endif
+
 %for tbl in th.get_pfntables(specs, meta, n, tags):
-  result = ${n}::${adapter}::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &ddi->${tbl['name']} );
+  result = NAMESPACE_::${tbl['export']['name']}( ${X}_API_VERSION_CURRENT, &ddi->${tbl['name']} );
   if (result != UR_RESULT_SUCCESS)
     return result;
 %endfor
 
+#undef NAMESPACE_
+
   return result;
 }
 }
+
+
+namespace ur::${adapter} {
+const ${x}_dditable_t *ddi_getter::value() {
+  static std::once_flag flag;
+  static ${x}_dditable_t table;
+
+  std::call_once(flag, []() { populateDdiTable(&table); });
+  return &table;
+}
+
+#ifdef UR_STATIC_ADAPTER_${Adapter}
+ur_result_t urAdapterGetDdiTables(${x}_dditable_t *ddi) {
+  return populateDdiTable(ddi);
+}
 #endif
+}

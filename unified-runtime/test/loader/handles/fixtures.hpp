@@ -15,41 +15,9 @@
 #define ASSERT_SUCCESS(ACTUAL) ASSERT_EQ(UR_RESULT_SUCCESS, ACTUAL)
 #endif
 
-ur_result_t replace_urPlatformGet(void *pParams) {
-  const auto &params = *static_cast<ur_platform_get_params_t *>(pParams);
-
-  if (*params.ppNumPlatforms) {
-    **params.ppNumPlatforms = 1;
-  }
-
-  if (*params.pphPlatforms && *params.pNumEntries == 1) {
-    **params.pphPlatforms = reinterpret_cast<ur_platform_handle_t>(0x1);
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t replace_urDeviceGetInfo(void *pParams) {
-  const auto &params = *static_cast<ur_device_get_info_params_t *>(pParams);
-  if (*params.ppropName == UR_DEVICE_INFO_PLATFORM) {
-    if (*params.ppPropSizeRet) {
-      **params.ppPropSizeRet = sizeof(ur_platform_handle_t);
-    }
-    if (*params.ppPropValue) {
-      **(reinterpret_cast<ur_platform_handle_t **>(params.ppPropValue)) =
-          reinterpret_cast<ur_platform_handle_t>(0x1);
-    }
-  }
-  return UR_RESULT_SUCCESS;
-}
-
 struct LoaderHandleTest : ::testing::Test {
   void SetUp() override {
     urLoaderInit(0, nullptr);
-    mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                              &replace_urDeviceGetInfo);
-    mock::getCallbacks().set_replace_callback("urPlatformGet",
-                                              &replace_urPlatformGet);
     uint32_t nadapters = 0;
     adapter = nullptr;
     ASSERT_SUCCESS(urAdapterGet(1, &adapter, &nadapters));
