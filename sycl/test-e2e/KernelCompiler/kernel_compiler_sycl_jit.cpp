@@ -133,7 +133,7 @@ void ff_cp(int *ptr) {
 }
 )===";
 
-void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
+void run_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   constexpr int Range = 10;
   int *usmPtr = sycl::malloc_shared<int>(Range, Queue);
   int start = 3;
@@ -157,6 +157,41 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   std::cout << std::endl;
 
   sycl::free(usmPtr, Queue);
+}
+
+void run_2(sycl::queue &Queue, sycl::kernel &Kernel, bool ESIMD, float seed) {
+  constexpr int VL = 16; // this constant also in ESIMDSource string.
+  constexpr int size = VL * 16;
+
+  float *A = sycl::malloc_shared<float>(size, Queue);
+  float *B = sycl::malloc_shared<float>(size, Queue);
+  float *C = sycl::malloc_shared<float>(size, Queue);
+  for (size_t i = 0; i < size; i++) {
+    A[i] = seed;
+    B[i] = seed * 2.0f;
+    C[i] = 0.0f;
+  }
+  sycl::range<1> GlobalRange(size / (ESIMD ? VL : 1));
+  sycl::range<1> LocalRange(ESIMD ? 1 : VL);
+  sycl::nd_range<1> NDRange{GlobalRange, LocalRange};
+
+  Queue
+      .submit([&](sycl::handler &Handler) {
+        Handler.set_arg(0, A);
+        Handler.set_arg(1, B);
+        Handler.set_arg(2, C);
+        Handler.parallel_for(NDRange, Kernel);
+      })
+      .wait();
+
+  // Check.
+  for (size_t i = 0; i < size; i++) {
+    assert(C[i] == seed * 3.0f);
+  }
+
+  sycl::free(A, Queue);
+  sycl::free(B, Queue);
+  sycl::free(C, Queue);
 }
 
 int test_build_and_run() {
@@ -220,8 +255,8 @@ int test_build_and_run() {
   assert(kbExe2.ext_oneapi_has_kernel(cgn2));
 
   // Test the kernels.
-  test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
-  test_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
+  run_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
+  run_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
 
   // Create and compile new bundle with different header.
   std::string AddEmHModified = AddEmH;
@@ -234,11 +269,11 @@ int test_build_and_run() {
 
   exe_kb kbExe3 = syclex::build(kbSrc2);
   sycl::kernel k3 = kbExe3.ext_oneapi_get_kernel("ff_cp");
-  test_1(q, k3, 37 + 7);
+  run_1(q, k3, 37 + 7);
 
   // Can we still run the original compilation?
   sycl::kernel k4 = kbExe1.ext_oneapi_get_kernel("ff_cp");
-  test_1(q, k4, 37 + 5);
+  run_1(q, k4, 37 + 5);
 
   return 0;
 }
@@ -382,36 +417,24 @@ int test_esimd() {
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("vector_add_esimd");
 
   // Now test it.
-  constexpr int VL = 16; // this constant also in ESIMDSource string.
-  constexpr int size = VL * 16;
+  run_2(q, k, true, 3.14f);
 
-  float *A = sycl::malloc_shared<float>(size, q);
-  float *B = sycl::malloc_shared<float>(size, q);
-  float *C = sycl::malloc_shared<float>(size, q);
-  for (size_t i = 0; i < size; i++) {
-    A[i] = float(1);
-    B[i] = float(2);
-    C[i] = 0.0f;
-  }
-  sycl::range<1> GlobalRange{size / VL};
-  sycl::range<1> LocalRange{1};
-  sycl::nd_range<1> NDRange{GlobalRange, LocalRange};
+  // Mix ESIMD and normal kernel.
+  std::string mixedSource = std::string{ESIMDSource} + SYCLSource2;
+  source_kb kbSrcMixed = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, mixedSource);
+  exe_kb kbExeMixed = syclex::build(kbSrcMixed);
 
-  q.submit([&](sycl::handler &h) {
-     h.set_arg(0, A);
-     h.set_arg(1, B);
-     h.set_arg(2, C);
-     h.parallel_for(NDRange, k);
-   }).wait();
+  // Both kernels should be available.
+  sycl::kernel kESIMD = kbExeMixed.ext_oneapi_get_kernel("vector_add_esimd");
+  sycl::kernel kSYCL = kbExeMixed.ext_oneapi_get_kernel("vec_add");
 
-  // Check.
-  for (size_t i = 0; i < size; i++) {
-    assert(C[i] == 3.0f);
-  }
+  // Device code split is mandatory.
+  assert(std::distance(kbExeMixed.begin(), kbExeMixed.end()) == 2);
 
-  sycl::free(A, q);
-  sycl::free(B, q);
-  sycl::free(C, q);
+  // Test execution.
+  run_2(q, kESIMD, true, 2.38f);
+  run_2(q, kSYCL, false, 1.41f);
 
   return 0;
 }
