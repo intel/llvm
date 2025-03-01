@@ -202,6 +202,16 @@ public:
   /// Potential event mode for the result event of the command.
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
+
+  /// Memory pool and allocation size for asynchronous allocation - held for
+  /// potential logging.
+  /// Event computed from async alloc which is passed through for processing.
+  std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl> MMemPool;
+  size_t MAllocSize;
+  ur_event_handle_t MAsyncAllocEvent;
+
+  // Allocation ptr to be freed asynchronously.
+  void *MFreePtr = nullptr;
 };
 
 } // namespace detail
