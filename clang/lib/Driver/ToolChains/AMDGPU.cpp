@@ -1054,11 +1054,10 @@ llvm::SmallVector<std::string, 12> ROCMToolChain::getCommonDeviceLibNames(
   bool FastRelaxedMath = DriverArgs.hasFlag(options::OPT_ffast_math,
                                             options::OPT_fno_fast_math, false);
   bool CorrectSqrt = false;
-  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+  if (DeviceOffloadingKind == Action::OFK_SYCL)
     // When using SYCL, sqrt is only correctly rounded if the flag is specified
-    CorrectSqrt = DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt) ||
-                  DriverArgs.hasArg(options::OPT_foffload_fp32_prec_sqrt);
-  } else
+    CorrectSqrt = DriverArgs.hasArg(options::OPT_foffload_fp32_prec_sqrt);
+  else
     CorrectSqrt = DriverArgs.hasFlag(
         options::OPT_fhip_fp32_correctly_rounded_divide_sqrt,
         options::OPT_fno_hip_fp32_correctly_rounded_divide_sqrt, true);
