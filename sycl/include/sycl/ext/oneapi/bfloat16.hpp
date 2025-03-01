@@ -235,7 +235,7 @@ __devicelib_ConvertBF16ToFINTELVec16(const uint16_t *, float *) noexcept;
 template <int N>
 inline void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
   static_assert(N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16,
-                "Unsupported vector size");
+                "Unsupported vector size for bfloat16 conversion");
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   const uint16_t *src_i16 = sycl::bit_cast<const uint16_t *>(src);
   if constexpr (N == 1)
@@ -593,7 +593,8 @@ inline bfloat16 getBfloat16WithRoundingMode(const Ty &a) {
     return getBFloat16FromSIntegralWithRoundingMode<Ty>(a, roundingMode);
   } else {
     static_assert(std::is_integral_v<Ty> || std::is_floating_point_v<Ty>,
-                  "Only integral and floating point types are supported.");
+                  "Only integral and floating-point types are supported for "
+                  "conversion to bfloat16.");
   }
 }
 } // namespace ConvertToBfloat16
