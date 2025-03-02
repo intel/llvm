@@ -263,8 +263,7 @@ int main(int argc, char **argv) {
     // Do not start execution of a new job until previous one(s) are finished,
     // if the maximum number of parallel workers is reached.
     if (JobsSubmitted.size() == JobsInParallel)
-      if (int Result =
-              checkIfJobsAreFinished(JobsSubmitted))
+      if (int Result = checkIfJobsAreFinished(JobsSubmitted))
         Res = Result;
 
     JobsSubmitted.emplace_back(
