@@ -1875,7 +1875,8 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
         return EntriesIt + 1;
     };
 
-    for (EntriesIt = EntriesB; EntriesIt != EntriesE; EntriesIt = IncrementEntriesIt()) {
+    for (EntriesIt = EntriesB; EntriesIt != EntriesE;
+         EntriesIt = IncrementEntriesIt()) {
 
       auto name = EntriesIt->GetName();
 
@@ -2037,7 +2038,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     };
 
     // Unmap the unique kernel IDs for the offload entries
-    for (EntriesIt = EntriesB; EntriesIt != EntriesE; EntriesIt = IncrementEntriesIt()) {
+    for (EntriesIt = EntriesB; EntriesIt != EntriesE;
+         EntriesIt = IncrementEntriesIt()) {
 
       // Drop entry for service kernel
       if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
