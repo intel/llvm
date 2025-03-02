@@ -1869,13 +1869,13 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     sycl_offload_entry EntriesIt;
     auto IncrementEntriesIt = [&]() {
       if (EntriesIt->IsLegacy())
-        EntriesIt = reinterpret_cast<sycl_offload_entry>(
+        return reinterpret_cast<sycl_offload_entry>(
             reinterpret_cast<sycl_offload_entry_legacy>(EntriesIt) + 1);
       else
-        EntriesIt++;
+        return EntriesIt + 1;
     };
 
-    for (EntriesIt = EntriesB; EntriesIt != EntriesE; IncrementEntriesIt()) {
+    for (EntriesIt = EntriesB; EntriesIt != EntriesE; EntriesIt = IncrementEntriesIt()) {
 
       auto name = EntriesIt->GetName();
 
