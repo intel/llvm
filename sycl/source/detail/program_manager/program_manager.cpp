@@ -2030,14 +2030,14 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     sycl_offload_entry EntriesIt;
     auto IncrementEntriesIt = [&]() {
       if (EntriesIt->IsLegacy())
-        EntriesIt = reinterpret_cast<sycl_offload_entry>(
+        return reinterpret_cast<sycl_offload_entry>(
             reinterpret_cast<sycl_offload_entry_legacy>(EntriesIt) + 1);
       else
-        EntriesIt++;
+        return EntriesIt + 1;
     };
 
     // Unmap the unique kernel IDs for the offload entries
-    for (EntriesIt = EntriesB; EntriesIt != EntriesE; IncrementEntriesIt()) {
+    for (EntriesIt = EntriesB; EntriesIt != EntriesE; EntriesIt = IncrementEntriesIt()) {
 
       // Drop entry for service kernel
       if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
