@@ -997,7 +997,8 @@ Value *InstCombinerImpl::simplifyNonNullOperand(Value *V,
   if (!V->hasOneUse())
     return nullptr;
 
-  if (Depth == 1)
+  constexpr unsigned RecursionLimit = 3;
+  if (Depth == RecursionLimit)
     return nullptr;
 
   if (auto *GEP = dyn_cast<GetElementPtrInst>(V)) {
