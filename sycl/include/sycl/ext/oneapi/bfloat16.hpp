@@ -154,6 +154,8 @@ private:
   friend class sycl::vec<bfloat16, 16>;
 };
 
+// Conversion functions for bfloat16
+
 // Helper functions for conversions between bfloat16 and float scalar types.
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
 extern "C" __DPCPP_SYCL_EXTERNAL float
@@ -214,8 +216,6 @@ inline bfloat16::Bfloat16StorageT bfloat16::from_float(const float &a) {
 }
 
 namespace detail {
-// Conversion functions for bfloat16
-
 // Helper functions for vector conversions from bfloat16 to float
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
 extern "C" __DPCPP_SYCL_EXTERNAL void
