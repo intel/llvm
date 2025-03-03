@@ -19,6 +19,6 @@
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_fdim, __builtin_fdim, half, half)
+_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_fdim, __builtin_fdimf, half, half)
 
 #endif

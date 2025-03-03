@@ -176,6 +176,11 @@ void test_build_and_run() {
   // extern "C" was used, so the name "ff_cp" is not mangled and can be used directly.
   sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
 
+  // Get compiler generated name and use it to query the kernel.
+  std::string cgn = kbExe2.ext_oneapi_get_raw_kernel_name("ff_cp");
+  assert(cgn == "__sycl_kernel_ff_cp");
+  assert(kbExe2.ext_oneapi_has_kernel(cgn));
+
   // The templated function name will have been mangled. Mapping from original
   // name to mangled is not yet supported. So we cannot yet do this:
   // sycl::kernel k2 = kbExe2.ext_oneapi_get_kernel("ff_templated<int>");

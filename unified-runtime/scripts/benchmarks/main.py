@@ -262,9 +262,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             compare_names.append(saved_name)
 
     if options.output_html:
-        html_content = generate_html(
-            history.runs, "oneapi-src/unified-runtime", compare_names
-        )
+        html_content = generate_html(history.runs, "intel/llvm", compare_names)
 
         with open("benchmark_results.html", "w") as file:
             file.write(html_content)

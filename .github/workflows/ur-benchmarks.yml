@@ -1,0 +1,53 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      str_name:
+        description: Adapter
+        type: choice
+        required: true
+        default: 'level_zero'
+        options:
+          - level_zero
+          - level_zero_v2
+      pr_no:
+        description: PR number (0 is sycl main branch)
+        type: number
+        required: true
+      bench_script_params:
+        description: Benchmark script arguments
+        type: string
+        required: false
+        default: ''
+      sycl_config_params:
+        description: Extra params for SYCL configuration
+        type: string
+        required: false
+        default: ''
+      compute_runtime_commit:
+        description: 'Compute Runtime commit'
+        type: string
+        required: false
+        default: ''
+      upload_report:
+        description: 'Upload HTML report'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  manual:
+    name: Compute Benchmarks
+    uses: ./.github/workflows/ur-benchmarks-reusable.yml
+    with:
+      str_name: ${{ inputs.str_name }}
+      pr_no: ${{ inputs.pr_no }}
+      bench_script_params: ${{ inputs.bench_script_params }}
+      sycl_config_params: ${{ inputs.sycl_config_params }}
+      compute_runtime_commit: ${{ inputs.compute_runtime_commit }}
+      upload_report: ${{ inputs.upload_report }}
