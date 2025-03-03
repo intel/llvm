@@ -165,7 +165,6 @@
 // CHECK-NEXT: ESIMD/api/svm_gather_scatter.cpp
 // CHECK-NEXT: ESIMD/api/svm_gather_scatter_scalar_off.cpp
 // CHECK-NEXT: ESIMD/api/unary_ops_heavy.cpp
-// CHECK-NEXT: ESIMD/assert.cpp
 // CHECK-NEXT: ESIMD/ext_math.cpp
 // CHECK-NEXT: ESIMD/ext_math_fast.cpp
 // CHECK-NEXT: ESIMD/ext_math_saturate.cpp
