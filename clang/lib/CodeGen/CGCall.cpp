@@ -5895,10 +5895,17 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           (FuncName == "sqrt" && !getLangOpts().OffloadFP32PrecSqrt &&
            IsFloat32Type);
       bool ArgsTypeIsFloat = true;
-      for (auto Arg : IRCallArgs) {
-        if (!Arg->getType()->isFPOrFPVectorTy()) {
-          ArgsTypeIsFloat = false;
-          break;
+      // In sycl mode, functions' arguments of type half are expanded
+      // to pointer types. Exclude these functions from bein emitted
+      // as fpbuiltins.
+      if (!getLangOpts().OffloadFP32PrecSqrt ||
+          !getLangOpts().OffloadFP32PrecDiv) {
+        for (auto Arg : IRCallArgs) {
+          if (!Arg->getType()->isFPOrFPVectorTy() &&
+              !Arg->getType()->isIntOrIntVectorTy()) {
+            ArgsTypeIsFloat = false;
+            break;
+          }
         }
       }
       if (ArgsTypeIsFloat &&
