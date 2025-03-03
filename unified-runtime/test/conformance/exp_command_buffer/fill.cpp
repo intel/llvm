@@ -108,16 +108,16 @@ TEST_P(urCommandBufferFillCommandsTest, Buffer) {
       cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
       0, nullptr, &sync_point, nullptr, nullptr));
 
-  std::vector<uint8_t> output(size, 1);
-  ASSERT_SUCCESS(urCommandBufferAppendMemBufferReadExp(
-      cmd_buf_handle, buffer, 0, size, output.data(), 1, &sync_point, 0,
-      nullptr, nullptr, nullptr, nullptr));
-
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
   ASSERT_SUCCESS(
       urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
+
+  std::vector<uint8_t> output(size, 1);
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(
+    queue, buffer, true, 0, size, output.data(), 0,
+    nullptr, nullptr));
 
   verifyData(output, size);
 }
@@ -127,16 +127,16 @@ TEST_P(urCommandBufferFillCommandsTest, USM) {
       cmd_buf_handle, device_ptr, pattern.data(), pattern_size, size, 0,
       nullptr, 0, nullptr, &sync_point, nullptr, nullptr));
 
-  std::vector<uint8_t> output(size, 1);
-  ASSERT_SUCCESS(urCommandBufferAppendUSMMemcpyExp(
-      cmd_buf_handle, output.data(), device_ptr, size, 1, &sync_point, 0,
-      nullptr, nullptr, nullptr, nullptr));
-
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
   ASSERT_SUCCESS(
       urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
+
+  std::vector<uint8_t> output(size, 1);
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, output.data(),
+      device_ptr, size, 0,
+      nullptr, nullptr));
 
   verifyData(output, size);
 }
