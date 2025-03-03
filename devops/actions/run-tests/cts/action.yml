@@ -21,6 +21,18 @@ inputs:
 runs:
   using: "composite"
   steps:
+  - name: Checkout cts_exclude_filter folder
+    uses: actions/checkout@v4
+    with:
+      ref: ${{ inputs.cts_exclude_ref }}
+      path: tmp
+      sparse-checkout: |
+        cts_exclude_filter
+  - name: Move cts_exclude_filter to root
+    shell: bash
+    run: |
+      mv tmp/cts_exclude_filter .
+      rm -rf tmp
   - name: Checkout SYCL CTS tests
     if: inputs.cts_testing_mode != 'run-only'
     uses: ./devops/actions/cached_checkout
@@ -29,13 +41,6 @@ runs:
       repository: 'KhronosGroup/SYCL-CTS'
       ref: ${{ inputs.ref }}
       cache_path: "/__w/repo_cache/"
-  # NOTE: this action removes devops dir.
-  - name: Checkout cts_exclude_filter
-    uses: actions/checkout@v4
-    with:
-      ref: ${{ inputs.cts_exclude_ref }}
-      sparse-checkout: |
-        cts_exclude_filter
   - name: SYCL CTS GIT submodules init
     if: inputs.cts_testing_mode != 'run-only'
     shell: bash
