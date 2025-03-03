@@ -2129,7 +2129,7 @@ void handler::reset(const std::shared_ptr<detail::queue_impl> &Queue,
   MQueue = Queue;
 
   // do cleanup on exit from submit_impl
-  if (! Queue) {
+  if (!Queue) {
     MLocalAccStorage.clear();
     MStreamStorage.clear();
     MKernelName = detail::string();
