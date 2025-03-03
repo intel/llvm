@@ -78,7 +78,6 @@ math/clc_powr.cl
 math/clc_remainder.cl
 math/clc_remquo.cl
 math/clc_rootn.cl
-math/clc_sqrt.cl
 math/clc_tan.cl
 math/clc_tanpi.cl
 math/copysign.cl
