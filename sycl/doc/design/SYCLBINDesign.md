@@ -40,6 +40,9 @@ containing information about the [abstract modules](#abstract-module),
 | Metadata byte table                                                   |
 | Binary byte table                                                     |
 
+The headers and each byte table are all aligned to 8 bytes. The fields in the
+headers use C/C++ type notation, including the fixed-size integer types defined
+in the `<cstdint>` header, and will have the same size and alignment.
 
 ### File header
 
@@ -60,8 +63,6 @@ file.
 | `uint64_t` | Byte size of the binary byte table.                            |
 | `uint64_t` | Byte offset of the global metadata in the metadata byte table. |
 | `uint64_t` | Byte size of the global metadata in the metadata byte table.   |
-
-__Alignment:__ 64 bits.
 
 
 #### Global metadata
@@ -98,8 +99,6 @@ A abstract module header contains the following fields in the stated order:
 | `uint32_t` | Number of native device code images.                                                       |
 | `uint32_t` | Index of the first native device code images header native device code image header array. |
 
-__Alignment:__ 64 bits.
-
 #### Abstract module metadata
 
 An abstract module metadata entry contains any number of property sets, as
@@ -126,8 +125,6 @@ A IR module header contains the following fields in the stated order:
 | `uint64_t` | Byte size of the metadata in the metadata byte table.     |
 | `uint64_t` | Byte offset of the raw IR bytes in the binary byte table. |
 | `uint64_t` | Byte size of the raw IR bytes in the binary byte table.   |
-
-__Alignment:__ 64 bits.
 
 
 ##### IR module metadata
@@ -156,8 +153,6 @@ order:
 | `uint64_t` | Byte offset of the device code image bytes in the binary byte table. |
 | `uint64_t` | Byte size of the device code image bytes in the binary byte table.   |
 
-__Alignment:__ 64 bits.
-
 
 ##### Native device code image metadata
 
@@ -172,9 +167,6 @@ design document.
 
 A byte table contains dynamic data, such as metadata and binary blobs. The
 contents of it is generally referenced by an offset specified in the headers.
-
-__Alignment:__ 64 bits. This alignment guarantee does not apply to the
-structures contained in the table.
 
 
 ### SYCLBIN version changelog
