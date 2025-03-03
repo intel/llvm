@@ -774,3 +774,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
                                                        size_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t,
+                                                          const void *, void *,
+                                                          size_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

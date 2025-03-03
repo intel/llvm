@@ -637,6 +637,9 @@ etors:
 - name: USM_POOL_GET_INFO_EXP
   desc: Enumerator for $xUSMPoolGetInfoExp
   value: '262'
+- name: USM_CONTEXT_MEMCPY_EXP
+  desc: Enumerator for $xUSMContextMemcpyExp
+  value: '264'
 ---
 type: enum
 desc: Defines structure types

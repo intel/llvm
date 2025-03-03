@@ -1210,6 +1210,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
+    return ReturnValue(true);
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,

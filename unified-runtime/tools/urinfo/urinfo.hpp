@@ -422,5 +422,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
       hDevice, UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP);
 }
 } // namespace urinfo
