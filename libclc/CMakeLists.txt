@@ -531,8 +531,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       -D${CLC_TARGET_DEFINE}
       # All libclc builtin libraries see CLC headers
       -I${CMAKE_CURRENT_SOURCE_DIR}/clc/include
-      # FIXME: Fix libclc to not require disabling this noisy warning
-      -Wno-bitwise-conditional-parentheses
     )
 
     if( NOT "${cpu}" STREQUAL "" )
@@ -578,6 +576,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
       # FIXME: OpenCL bindings shouldn't depend on libspirv
       -I${CMAKE_CURRENT_SOURCE_DIR}/libspirv/include/
+      # FIXME: Fix libclc to not require disabling this noisy warning
+      -Wno-bitwise-conditional-parentheses
     )
 
     add_libclc_builtin_set(
