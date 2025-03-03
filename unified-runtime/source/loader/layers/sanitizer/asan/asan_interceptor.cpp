@@ -14,11 +14,11 @@
 
 #include "asan_interceptor.hpp"
 #include "asan_ddi.hpp"
-#include "asan_options.hpp"
 #include "asan_quarantine.hpp"
 #include "asan_report.hpp"
 #include "asan_shadow.hpp"
 #include "asan_validator.hpp"
+#include "sanitizer_common/sanitizer_options.hpp"
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
 
@@ -26,9 +26,9 @@ namespace ur_sanitizer_layer {
 namespace asan {
 
 AsanInterceptor::AsanInterceptor() {
-  if (getOptions().MaxQuarantineSizeMB) {
+  if (getContext()->Options.MaxQuarantineSizeMB) {
     m_Quarantine = std::make_unique<Quarantine>(
-        static_cast<uint64_t>(getOptions().MaxQuarantineSizeMB) * 1024 * 1024);
+        getContext()->Options.MaxQuarantineSizeMB * 1024 * 1024);
   }
 }
 
@@ -90,8 +90,7 @@ ur_result_t AsanInterceptor::allocateMemory(ur_context_handle_t Context,
     Alignment = MinAlignment;
   }
 
-  uptr RZLog =
-      ComputeRZLog(Size, getOptions().MinRZSize, getOptions().MaxRZSize);
+  uptr RZLog = ComputeRZLog(Size, getContext()->Options.MinRZSize);
   uptr RZSize = RZLog2Size(RZLog);
   uptr RoundedSize = RoundUpTo(Size, Alignment);
   uptr NeededSize = RoundedSize + RZSize * 2;
@@ -175,7 +174,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
   if (!AllocInfoItOp) {
     // "Addr" might be a host pointer
     ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
-    if (getOptions().HaltOnError) {
+    if (getContext()->Options.HaltOnError) {
       exitWithErrors();
     }
     return UR_RESULT_SUCCESS;
@@ -193,7 +192,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
       // "Addr" might be a host pointer
       ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
     }
-    if (getOptions().HaltOnError) {
+    if (getContext()->Options.HaltOnError) {
       exitWithErrors();
     }
     return UR_RESULT_SUCCESS;
@@ -201,7 +200,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
   if (Addr != AllocInfo->UserBegin) {
     ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
-    if (getOptions().HaltOnError) {
+    if (getContext()->Options.HaltOnError) {
       exitWithErrors();
     }
     return UR_RESULT_SUCCESS;
@@ -209,7 +208,7 @@ ur_result_t AsanInterceptor::releaseMemory(ur_context_handle_t Context,
 
   if (AllocInfo->IsReleased) {
     ReportDoubleFree(Addr, GetCurrentBacktrace(), AllocInfo);
-    if (getOptions().HaltOnError) {
+    if (getContext()->Options.HaltOnError) {
       exitWithErrors();
     }
     return UR_RESULT_SUCCESS;
@@ -736,7 +735,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
       LocalMemoryUsage, PrivateMemoryUsage);
 
   // Validate pointer arguments
-  if (getOptions().DetectKernelArguments) {
+  if (getContext()->Options.DetectKernelArguments) {
     for (const auto &[ArgIndex, PtrPair] : KernelInfo.PointerArgs) {
       auto Ptr = PtrPair.first;
       if (Ptr == nullptr) {
@@ -813,10 +812,10 @@ ur_result_t AsanInterceptor::prepareLaunch(
   LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
   LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
-  LaunchInfo.Data.Host.Debug = getOptions().Debug ? 1 : 0;
+  LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
 
   // Write shadow memory offset for local memory
-  if (getOptions().DetectLocals) {
+  if (getContext()->Options.DetectLocals) {
     if (DeviceInfo->Shadow->AllocLocalShadow(
             Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
             LaunchInfo.Data.Host.LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
@@ -836,7 +835,7 @@ ur_result_t AsanInterceptor::prepareLaunch(
   }
 
   // Write shadow memory offset for private memory
-  if (getOptions().DetectPrivates) {
+  if (getContext()->Options.DetectPrivates) {
     if (DeviceInfo->Shadow->AllocPrivateShadow(
             Queue, NumWG, LaunchInfo.Data.Host.PrivateShadowOffset,
             LaunchInfo.Data.Host.PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
@@ -928,7 +927,7 @@ ContextInfo::~ContextInfo() {
   assert(URes == UR_RESULT_SUCCESS);
 
   // check memory leaks
-  if (getAsanInterceptor()->getOptions().DetectLeaks &&
+  if (getContext()->Options.DetectLeaks &&
       getAsanInterceptor()->isNormalExit()) {
     std::vector<AllocationIterator> AllocInfos =
         getAsanInterceptor()->findAllocInfoByContext(Handle);

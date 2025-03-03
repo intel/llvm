@@ -16,7 +16,7 @@
 #include <umf/memory_pool_ops.h>
 #include <umf/memory_provider.h>
 #include <umf/memory_provider_ops.h>
-#include <umf/providers/provider_cuda.h>
+#include <umf/pools/pool_proxy.h>
 #include <ur_api.h>
 
 #include "logger/ur_logger.hpp"
@@ -30,11 +30,10 @@
 
 #define UMF_CHECK_ERROR(UmfResult) UR_CHECK_ERROR(umf::umf2urResult(UmfResult));
 
-#define UMF_RETURN_UMF_ERROR(UmfResult)                                        \
+#define UMF_CHECK_PTR(ptr)                                                     \
   do {                                                                         \
-    umf_result_t UmfResult_ = (UmfResult);                                     \
-    if (UmfResult_ != UMF_RESULT_SUCCESS) {                                    \
-      return UmfResult_;                                                       \
+    if ((ptr) == nullptr) {                                                    \
+      UR_CHECK_ERROR(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY);                      \
     }                                                                          \
   } while (0)
 
@@ -54,9 +53,6 @@ using pool_unique_handle_t =
 using provider_unique_handle_t =
     std::unique_ptr<umf_memory_provider_t,
                     std::function<void(umf_memory_provider_handle_t)>>;
-using cuda_params_unique_handle_t = std::unique_ptr<
-    umf_cuda_memory_provider_params_t,
-    std::function<umf_result_t(umf_cuda_memory_provider_params_handle_t)>>;
 
 #define DEFINE_CHECK_OP(op)                                                    \
   template <typename T> class HAS_OP_##op {                                    \
@@ -243,6 +239,21 @@ static inline auto poolMakeUniqueFromOps(umf_memory_pool_ops_t *ops,
       UMF_RESULT_SUCCESS, pool_unique_handle_t(hPool, umfPoolDestroy)};
 }
 
+static inline auto
+poolMakeUniqueFromOpsProviderHandle(umf_memory_pool_ops_t *ops,
+                                    umf_memory_provider_handle_t provider,
+                                    void *params) {
+  umf_memory_pool_handle_t hPool;
+  auto ret = umfPoolCreate(ops, provider, params, 0, &hPool);
+  if (ret != UMF_RESULT_SUCCESS) {
+    return std::pair<umf_result_t, pool_unique_handle_t>{
+        ret, pool_unique_handle_t(nullptr, nullptr)};
+  }
+
+  return std::pair<umf_result_t, pool_unique_handle_t>{
+      UMF_RESULT_SUCCESS, pool_unique_handle_t(hPool, umfPoolDestroy)};
+}
+
 static inline auto providerMakeUniqueFromOps(umf_memory_provider_ops_t *ops,
                                              void *params) {
   umf_memory_provider_handle_t hProvider;
@@ -299,33 +310,6 @@ inline ur_result_t umf2urResult(umf_result_t umfResult) {
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   };
-}
-
-inline umf_result_t createMemoryProvider(
-    umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams,
-    int cuDevice, void *cuContext, umf_usm_memory_type_t memType,
-    umf_memory_provider_handle_t *provider) {
-
-  umf_result_t UmfResult =
-      umfCUDAMemoryProviderParamsSetContext(CUMemoryProviderParams, cuContext);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  UmfResult =
-      umfCUDAMemoryProviderParamsSetDevice(CUMemoryProviderParams, cuDevice);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  UmfResult =
-      umfCUDAMemoryProviderParamsSetMemoryType(CUMemoryProviderParams, memType);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  umf_memory_provider_handle_t umfCUDAprovider = nullptr;
-  UmfResult = umfMemoryProviderCreate(umfCUDAMemoryProviderOps(),
-                                      CUMemoryProviderParams, &umfCUDAprovider);
-  UMF_RETURN_UMF_ERROR(UmfResult);
-
-  *provider = umfCUDAprovider;
-
-  return UMF_RESULT_SUCCESS;
 }
 
 } // namespace umf

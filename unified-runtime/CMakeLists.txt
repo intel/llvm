@@ -137,8 +137,16 @@ if(UR_ENABLE_TRACING)
     add_compile_definitions(UR_ENABLE_TRACING)
 
     if (UR_BUILD_XPTI_LIBS)
-        # fetch xpti proxy library for the tracing layer
-        FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "nightly-2024-10-22" "xpti")
+        set(UR_XPTI_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../xpti")
+        cmake_path(NORMAL_PATH UR_XPTI_SOURCE_DIR
+            OUTPUT_VARIABLE UR_XPTI_SOURCE_DIR)
+        if(IS_DIRECTORY "${UR_XPTI_SOURCE_DIR}")
+            FetchContent_Declare(xpti SOURCE_DIR "${UR_XPTI_SOURCE_DIR}")
+        else()
+            # fetch xpti proxy library for the tracing layer
+            FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "nightly-2024-10-22" "xpti")
+        endif()
+
         FetchContent_MakeAvailable(xpti)
 
         # set -fPIC for xpti since we are linking it with a shared library
@@ -150,7 +158,14 @@ if(UR_ENABLE_TRACING)
         set(XPTI_DIR ${xpti_SOURCE_DIR})
         set(XPTI_ENABLE_TESTS OFF CACHE INTERNAL "Turn off xptifw tests")
 
-        FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "nightly-2024-10-22" "xptifw")
+        set(UR_XPTIFW_SOURCE_DIR "${PROJECT_SOURCE_DIR}/../xptifw")
+        cmake_path(NORMAL_PATH UR_XPTIFW_SOURCE_DIR
+            OUTPUT_VARIABLE UR_XPTIFW_SOURCE_DIR)
+        if(IS_DIRECTORY "${UR_XPTI_SOURCE_DIR}")
+            FetchContent_Declare(xptifw SOURCE_DIR "${UR_XPTIFW_SOURCE_DIR}")
+        else()
+            FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "nightly-2024-10-22" "xptifw")
+        endif()
 
         FetchContent_MakeAvailable(xptifw)
 
@@ -236,13 +251,13 @@ endif()
 
 # Check if clang-format (in correct version) is available for Cpp code formatting.
 if(UR_FORMAT_CPP_STYLE)
-    find_program(CLANG_FORMAT NAMES clang-format-18 clang-format-18.1 clang-format)
+    find_program(CLANG_FORMAT NAMES clang-format-19 clang-format-19.1 clang-format)
 
     if(CLANG_FORMAT)
         get_program_version_major_minor(${CLANG_FORMAT} CLANG_FORMAT_VERSION)
         message(STATUS "Found clang-format: ${CLANG_FORMAT} (version: ${CLANG_FORMAT_VERSION})")
 
-        set(CLANG_FORMAT_REQUIRED "18.1")
+        set(CLANG_FORMAT_REQUIRED "19.1")
         if(NOT (CLANG_FORMAT_VERSION VERSION_EQUAL CLANG_FORMAT_REQUIRED))
             message(FATAL_ERROR "required clang-format version is ${CLANG_FORMAT_REQUIRED}")
         endif()
