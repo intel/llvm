@@ -212,6 +212,10 @@ etors:
     desc: "Win32 NT handle"
   - name: WIN32_NT_DX12_FENCE
     desc: "Win32 NT DirectX 12 fence handle"
+  - name: TIMELINE_FD
+    desc: "Timeline file descriptor"
+  - name: TIMELINE_WIN32_NT
+    desc: "Timeline Win32 NT handle"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "File descriptor"

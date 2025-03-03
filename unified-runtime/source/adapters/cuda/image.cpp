@@ -1234,7 +1234,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
             static_cast<const ur_exp_file_descriptor_t *>(pNext);
 
         extSemDesc.handle.fd = FileDescriptor->fd;
-        extSemDesc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
+        switch (semHandleType) {
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
+          extSemDesc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD:
+          extSemDesc.type =
+              CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_TIMELINE_SEMAPHORE_FD;
+          break;
+        default:
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
       } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
         auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
         switch (semHandleType) {
@@ -1244,7 +1254,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
         case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
           extSemDesc.type = CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE;
           break;
-        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
+          extSemDesc.type =
+              CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_TIMELINE_SEMAPHORE_WIN32;
+          break;
         default:
           return UR_RESULT_ERROR_INVALID_VALUE;
         }
