@@ -107,6 +107,13 @@ jobs:
             target_devices: level_zero:gpu
             # The new Xe kernel driver used by BMG doesn't support resetting.
             reset_intel_gpu: false
+          - name: SPIR-V Backend / Intel Battlemage Graphics
+            runner: '["Linux", "bmg"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            reset_intel_gpu: false
+            extra_lit_opts: --param spirv-backend=True
+            e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -120,7 +127,7 @@ jobs:
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-      e2e_binaries_artifact: sycl_e2e_bin_default
+      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'sycl_e2e_bin_default' }}
       e2e_testing_mode: 'run-only'
 
       # Do not install drivers on AMD and CUDA runners.

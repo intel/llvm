@@ -10,6 +10,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/async_alloc.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
@@ -109,8 +110,8 @@ if (UR_ENABLE_TRACING)
 endif()
 
 if (CUDA_cupti_LIBRARY)
+  # cupti is dynamically loaded so the adapter still works if it's not available
   target_compile_definitions("ur_adapter_cuda" PRIVATE CUPTI_LIB_PATH="${CUDA_cupti_LIBRARY}")
-  list(APPEND EXTRA_LIBS ${CUDA_cupti_LIBRARY})
 endif()
 
 target_link_libraries(${TARGET_NAME} PRIVATE

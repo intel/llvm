@@ -75,6 +75,9 @@ class LlamaCppBench(Suite):
         if options.sycl is None:
             return []
 
+        if options.ur_adapter == "cuda":
+            return []
+
         return [LlamaBench(self)]
 
 

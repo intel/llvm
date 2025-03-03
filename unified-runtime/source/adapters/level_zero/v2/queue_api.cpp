@@ -342,6 +342,49 @@ ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
+ur_result_t urEnqueueUSMDeviceAllocExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueUSMDeviceAllocExp(
+      pPool, size, pProperties, numEventsInWaitList, phEventWaitList, ppMem,
+      phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueUSMSharedAllocExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueUSMSharedAllocExp(
+      pPool, size, pProperties, numEventsInWaitList, phEventWaitList, ppMem,
+      phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueUSMHostAllocExp(
+    ur_queue_handle_t hQueue, ur_usm_pool_handle_t pPool, const size_t size,
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    void **ppMem, ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueUSMHostAllocExp(pPool, size, pProperties,
+                                              numEventsInWaitList,
+                                              phEventWaitList, ppMem, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+ur_result_t urEnqueueUSMFreeExp(ur_queue_handle_t hQueue,
+                                ur_usm_pool_handle_t pPool, void *pMem,
+                                uint32_t numEventsInWaitList,
+                                const ur_event_handle_t *phEventWaitList,
+                                ur_event_handle_t *phEvent) try {
+  return hQueue->get().enqueueUSMFreeExp(pPool, pMem, numEventsInWaitList,
+                                         phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
 ur_result_t urBindlessImagesImageCopyExp(
     ur_queue_handle_t hQueue, const void *pSrc, void *pDst,
     const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,

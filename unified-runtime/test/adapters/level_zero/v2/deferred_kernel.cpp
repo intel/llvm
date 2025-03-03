@@ -13,6 +13,9 @@
 
 struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {
   void SetUp() override {
+    // Initialize Level Zero driver is required if this test is linked
+    // statically with Level Zero loader, the driver will not be init otherwise.
+    zeInit(ZE_INIT_FLAG_GPU_ONLY);
     program_name = "fill";
     UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
   }
