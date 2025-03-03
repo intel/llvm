@@ -368,8 +368,8 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
         if (A->getNumValues())
           AliasOpt += A->getValue();
       }
-      Diag(diag::warn_drv_deprecated_option_release) << Used->getAsString(Args)
-          << !AliasOpt.empty() << AliasOpt;
+      Diag(diag::warn_drv_deprecated_option_release)
+          << Used->getAsString(Args) << !AliasOpt.empty() << AliasOpt;
       ContainsError |= Diags.getDiagnosticLevel(
                            diag::warn_drv_deprecated_option_release,
                            SourceLocation()) > DiagnosticsEngine::Warning;
