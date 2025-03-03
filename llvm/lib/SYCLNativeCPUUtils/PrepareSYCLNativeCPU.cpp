@@ -212,24 +212,23 @@ static Function *getReplaceFunc(Module &M, StringRef Name, const Use &U,
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
   if (StateTLS) {
     // Find previous read from thread_local, if any
-    for (const Use &U : StateTLS->uses()) {
-      if (const CallInst *I = dyn_cast<CallInst>(U.getUser())) {
-        if (I->getFunction() == F) {
-          for (const Use &IU : I->uses()) {
-            if (LoadInst *LI = dyn_cast<LoadInst>(IU.getUser())) {
-              const Function *const CF = F;
-              auto it = CF->getEntryBlock().getFirstInsertionPt();
-              if (it.isValid() && &*it == I) {
-                const auto next = ++it;
-                if (next.isValid() && &*next == LI)
-                  return LI;
-              }
+    const auto IP = F->getEntryBlock().getFirstInsertionPt();
+    if (IP.isValid()) {
+      if (const CallInst *I = dyn_cast<CallInst>(&*IP)) {
+        if (I->getIntrinsicID() == Intrinsic::threadlocal_address &&
+            I->getOperand(0) == StateTLS) {
+          auto temp = IP;
+          const auto Next = ++temp;
+          if (Next.isValid()) {
+            if (LoadInst *LI = dyn_cast<LoadInst>(&*Next)) {
+              if (LI->getPointerOperand() == I)
+                return LI;
             }
           }
         }
       }
     }
-    IRBuilder<> BB(&*F->getEntryBlock().getFirstInsertionPt());
+    IRBuilder<> BB(&*IP);
     llvm::Value *V = BB.CreateThreadLocalAddress(StateTLS);
     return BB.CreateLoad(StateTLS->getType(), V);
   }
