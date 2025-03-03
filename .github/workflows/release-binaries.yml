@@ -66,7 +66,7 @@ jobs:
     steps:
     # It's good practice to use setup-python, but this is also required on macos-14
     # due to https://github.com/actions/runner-images/issues/10385
-    - uses: actions/setup-python@39cd14951b08e74b54015e9e001cdefcf80e669f
+    - uses: actions/setup-python@6ca8e8598faa206f7140a65ba31b899bebe16f58
       with:
         python-version: '3.12'
 
@@ -299,7 +299,7 @@ jobs:
 
     - name: Attest Build Provenance
       id: provenance
-      uses: actions/attest-build-provenance@7668571508540a607bdfd90a87a560489fe372eb # v2.1.0
+      uses: actions/attest-build-provenance@bd77c077858b8d561b7a36cbe48ef4cc642ca39d # v2.2.2
       with:
         subject-path: ${{ needs.prepare.outputs.release-binary-filename }}
 
