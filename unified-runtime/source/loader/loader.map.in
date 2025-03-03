@@ -475,6 +475,7 @@
 		urPrintUsmAdviceFlags;
 		urPrintUsmAllocInfo;
 		urPrintUsmAllocLocationDesc;
+		urPrintUsmContextMemcpyExpParams;
 		urPrintUsmDesc;
 		urPrintUsmDeviceAllocParams;
 		urPrintUsmDeviceDesc;
@@ -550,6 +551,7 @@
 		urSamplerGetNativeHandle;
 		urSamplerRelease;
 		urSamplerRetain;
+		urUSMContextMemcpyExp;
 		urUSMDeviceAlloc;
 		urUSMFree;
 		urUSMGetMemAllocInfo;

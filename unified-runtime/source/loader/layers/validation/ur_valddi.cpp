@@ -496,7 +496,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP < propName)
+    if (UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -10032,6 +10032,46 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
+  auto pfnContextMemcpyExp =
+      getContext()->urDdiTable.USMExp.pfnContextMemcpyExp;
+
+  if (nullptr == pfnContextMemcpyExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  ur_result_t result = pfnContextMemcpyExp(hContext, pDst, pSrc, size);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -11509,6 +11549,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
   pDdiTable->pfnPitchedAllocExp = ur_validation_layer::urUSMPitchedAllocExp;
+
+  dditable.pfnContextMemcpyExp = pDdiTable->pfnContextMemcpyExp;
+  pDdiTable->pfnContextMemcpyExp = ur_validation_layer::urUSMContextMemcpyExp;
 
   dditable.pfnImportExp = pDdiTable->pfnImportExp;
   pDdiTable->pfnImportExp = ur_validation_layer::urUSMImportExp;

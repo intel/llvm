@@ -9537,6 +9537,37 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMContextMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
+    /// [in] Context associated with the device(s) that own the allocations
+    /// `pSrc` and `pDst`.
+    ur_context_handle_t hContext,
+    /// [in] Destination pointer to copy to.
+    void *pDst,
+    /// [in] Source pointer to copy from.
+    const void *pSrc,
+    /// [in] Size in bytes to be copied.
+    size_t size) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+  auto pfnContextMemcpyExp = dditable->ur.USMExp.pfnContextMemcpyExp;
+  if (nullptr == pfnContextMemcpyExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
+
+  // forward to device-platform
+  result = pfnContextMemcpyExp(hContext, pDst, pSrc, size);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -10997,6 +11028,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
       pDdiTable->pfnPoolGetDevicePoolExp = ur_loader::urUSMPoolGetDevicePoolExp;
       pDdiTable->pfnPoolTrimToExp = ur_loader::urUSMPoolTrimToExp;
       pDdiTable->pfnPitchedAllocExp = ur_loader::urUSMPitchedAllocExp;
+      pDdiTable->pfnContextMemcpyExp = ur_loader::urUSMContextMemcpyExp;
       pDdiTable->pfnImportExp = ur_loader::urUSMImportExp;
       pDdiTable->pfnReleaseExp = ur_loader::urUSMReleaseExp;
     } else {
