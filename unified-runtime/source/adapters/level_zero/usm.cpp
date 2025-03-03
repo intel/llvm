@@ -803,6 +803,54 @@ ur_result_t urUSMReleaseExp(ur_context_handle_t Context, void *HostPtr) {
         Context->getPlatform()->ZeDriverHandleExpTranslated, HostPtr);
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t,
+                                          ur_device_handle_t,
+                                          ur_usm_pool_desc_t *,
+                                          ur_usm_pool_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t,
+                                           ur_device_handle_t,
+                                           ur_usm_pool_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolSetThresholdExp(ur_context_handle_t,
+                                                ur_device_handle_t,
+                                                ur_usm_pool_handle_t, size_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t,
+                                           ur_usm_pool_info_t, void *,
+                                           size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(ur_context_handle_t,
+                                                 ur_device_handle_t,
+                                                 ur_usm_pool_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(ur_context_handle_t,
+                                                 ur_device_handle_t,
+                                                 ur_usm_pool_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
+                                          ur_device_handle_t,
+                                          ur_usm_pool_handle_t, size_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
 } // namespace ur::level_zero
 
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
