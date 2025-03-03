@@ -94,6 +94,8 @@ Release notes for commit range
 - Added `max_work_group_size`and `max_linear_work_group_size` kernel properties
    to allow users to specify the  maximum work-group size that a kernel will
    be invoked with. intel/llvm#14518
+- Added some C++ standard library math function support on AMD. Created one
+   bitcode library for AMD. #15055
 - Added support for `*global_[device|host] _space` in
    `static_address_cast`. intel/llvm#15498
 - Added support for command-buffer kernel updates on CUDA and
@@ -244,10 +246,9 @@ Release notes for commit range
    to a few of hash  collisions. intel/llvm#14467
 - Made calling `command_graph::begin_recording` repeatedly an
    error. intel/llvm#15192
-- Reduced number of devicelib files that have to be redistributed for CUDA
-   and HIP backends. As a side effect, device libraries cannot be selectively
-   used anymore either all of them are linked, or none. intel/llvm#15048
-   intel/llvm#15055
+- Reduced number of devicelib files that have to be redistributed for CUDA.
+   As a side effect, device libraries cannot be selectively used anymore either
+   all of them are linked, or none. intel/llvm#15048
 - Aligned
    [`sycl_ext_oneapi_address_cast`](https://github.com/intel/llvm/blob/a4c53e4dcd949f9de4cb8d821c8fba63ddb24749/sycl/doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc)
    implementation with the specification. intel/llvm#15402
