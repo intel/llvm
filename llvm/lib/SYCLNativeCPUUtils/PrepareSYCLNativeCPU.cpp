@@ -217,8 +217,7 @@ static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
       if (const CallInst *I = dyn_cast<CallInst>(&*IP)) {
         if (I->getIntrinsicID() == Intrinsic::threadlocal_address &&
             I->getOperand(0) == StateTLS) {
-          auto temp = IP;
-          const auto Next = ++temp;
+          const auto Next = std::next(IP);
           if (Next.isValid()) {
             if (LoadInst *LI = dyn_cast<LoadInst>(&*Next)) {
               if (LI->getPointerOperand() == I)
