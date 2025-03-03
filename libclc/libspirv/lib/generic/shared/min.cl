@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <core/clc_core.h>
+#include <clc/shared/clc_min.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <min.inc>

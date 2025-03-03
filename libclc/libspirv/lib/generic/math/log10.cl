@@ -8,7 +8,7 @@
 
 #include <libspirv/spirv.h>
 
-#include <libspirv/math/tables.h>
+#include <clc/math/tables.h>
 #include <clc/clcmacro.h>
 
 #ifdef cl_khr_fp64
@@ -29,6 +29,6 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_log10, double);
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_log10, __builtin_log10, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_log10, __builtin_log10f16, half)
 
 #endif

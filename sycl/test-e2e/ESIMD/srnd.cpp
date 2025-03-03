@@ -26,7 +26,8 @@ bool test(queue &Q) {
   for (int i = 0; i < N; ++i) {
     float value = esimd_test::getRandomValue<float>();
     while (sycl::fabs(value) > std::numeric_limits<half>::max() ||
-           sycl::fabs(value) < std::numeric_limits<half>::min() || std::isnan(value))
+           sycl::fabs(value) < std::numeric_limits<half>::min() ||
+           std::isnan(value))
       value = esimd_test::getRandomValue<float>();
 
     Input[i] = value;

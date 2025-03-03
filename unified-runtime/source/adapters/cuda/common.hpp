@@ -73,10 +73,6 @@ void assertion(bool Condition, const char *Message = nullptr);
 
 namespace umf {
 
-using cuda_params_unique_handle_t = std::unique_ptr<
-    umf_cuda_memory_provider_params_t,
-    std::function<umf_result_t(umf_cuda_memory_provider_params_handle_t)>>;
-
 inline umf_result_t setCUMemoryProviderParams(
     umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams,
     int cuDevice, void *cuContext, umf_usm_memory_type_t memType) {

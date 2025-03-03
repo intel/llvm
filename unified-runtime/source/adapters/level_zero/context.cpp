@@ -333,7 +333,7 @@ ur_result_t ur_context_handle_t_::initialize() {
       Device->useDriverCounterBasedEvents()) {
     logger::debug(
         "L0 Synchronous Immediate Command List needed with In Order property.");
-    ZeCommandQueueDesc.flags |= ZE_COMMAND_LIST_FLAG_IN_ORDER;
+    ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
   }
   ZE2UR_CALL(
       zeCommandListCreateImmediate,

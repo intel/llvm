@@ -30,7 +30,7 @@ target triple = "spir-unknown-unknown"
 %structtype = type { float, float }
 
 ; Function Attrs: nounwind
-define spir_func void @_Z19cmul_kernel_complexPSt7complexIfES1_S1_(ptr noalias nocapture readonly %a, ptr noalias nocapture readonly %b, ptr noalias nocapture %c) #0 {
+define spir_func void @_Z19cmul_kernel_complexPSt7complexIfES1_S1_(ptr noalias captures(none) readonly %a, ptr noalias captures(none) readonly %b, ptr noalias captures(none) %c) #0 {
 entry:
   %0 = load <2 x float>, ptr %a, align 4
   %1 = load <2 x float>, ptr %b, align 4

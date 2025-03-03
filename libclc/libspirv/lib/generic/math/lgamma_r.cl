@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 /*
  * ====================================================

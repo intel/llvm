@@ -9,9 +9,9 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <config.h>
+#include <clc/math/clc_subnormal_config.h>
 #include <math/clc_remainder.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_DEF _CLC_OVERLOAD float __clc_remainder(float x, float y) {
   int ux = as_int(x);
@@ -207,7 +207,7 @@ _CLC_BINARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_remainder, double,
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(half, __clc_remainder, __builtin_remainder, half,
+_CLC_DEFINE_BINARY_BUILTIN(half, __clc_remainder, __builtin_remainderf, half,
                            half)
 
 #endif

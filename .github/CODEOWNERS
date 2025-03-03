@@ -193,9 +193,12 @@ llvm/include/llvm/Transforms/Instrumentation/AddressSanitizer.h @intel/dpcpp-san
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/ThreadSanitizer.h @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/MemorySanitizer.cpp @intel/dpcpp-sanitizers-review
+llvm/lib/Transforms/Instrumentation/ThreadSanitizer.cpp @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/MemorySanitizer/ @intel/dpcpp-sanitizers-review
+llvm/test/Instrumentation/ThreadSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/MemorySanitizer/ @intel/dpcpp-sanitizers-review

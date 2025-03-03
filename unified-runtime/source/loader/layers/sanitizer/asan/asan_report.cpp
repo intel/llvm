@@ -15,8 +15,8 @@
 #include "asan_allocator.hpp"
 #include "asan_interceptor.hpp"
 #include "asan_libdevice.hpp"
-#include "asan_options.hpp"
 #include "asan_validator.hpp"
+#include "sanitizer_common/sanitizer_options.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
 
@@ -135,7 +135,7 @@ void ReportUseAfterFree(const AsanErrorReport &Report,
   getContext()->logger.always("  #0 {} {}:{}", Func, File, Report.Line);
   getContext()->logger.always("");
 
-  if (getAsanInterceptor()->getOptions().MaxQuarantineSizeMB > 0) {
+  if (getContext()->Options.MaxQuarantineSizeMB > 0) {
     auto AllocInfoItOp =
         getAsanInterceptor()->findAllocInfoByAddress(Report.Address);
 

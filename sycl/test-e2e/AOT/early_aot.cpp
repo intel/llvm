@@ -1,7 +1,6 @@
 // Test early-AOT behaviors with -fsycl -fno-sycl-rdc.  This targets spir64_gen
 
-// REQUIRES: ocloc, gpu
-// UNSUPPORTED: cuda, hip
+// REQUIRES: ocloc, gpu, target-spir
 
 // Build the early AOT device binaries
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -fno-sycl-rdc -c -DADD_CPP %s -o %t_add.o

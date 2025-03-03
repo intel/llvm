@@ -26,9 +26,9 @@ entry:
   ret void, !dbg !25
 }
 
-declare i32 @puts(ptr addrspace(1) nocapture) nounwind
+declare i32 @puts(ptr addrspace(1) captures(none)) nounwind
 
-define i32 @main(i32 %argc, ptr nocapture %argv) nounwind !dbg !12 {
+define i32 @main(i32 %argc, ptr captures(none) %argv) nounwind !dbg !12 {
 entry:
   tail call void @llvm.dbg.value(metadata i32 %argc, metadata !21, metadata !DIExpression()), !dbg !26
   ; Avoid talking about the pointer size in debug info because that's target dependent

@@ -239,7 +239,6 @@ inline void SPIRVMap<Attribute::AttrKind, SPIRVFuncParamAttrKind>::init() {
   add(Attribute::ByVal, FunctionParameterAttributeByVal);
   add(Attribute::StructRet, FunctionParameterAttributeSret);
   add(Attribute::NoAlias, FunctionParameterAttributeNoAlias);
-  add(Attribute::NoCapture, FunctionParameterAttributeNoCapture);
   add(Attribute::ReadOnly, FunctionParameterAttributeNoWrite);
   add(Attribute::ReadNone, FunctionParameterAttributeNoReadWrite);
 }

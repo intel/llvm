@@ -27,8 +27,8 @@ CreateDeviceMemoryProvidersPools(ur_platform_handle_t_ *Platform) {
       umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams);
   UMF_RETURN_UR_ERROR(UmfResult);
 
-  umf::cuda_params_unique_handle_t CUMemoryProviderParamsUnique(
-      CUMemoryProviderParams, umfCUDAMemoryProviderParamsDestroy);
+  OnScopeExit Cleanup(
+      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
 
   for (auto &Device : Platform->Devices) {
     ur_device_handle_t_ *device_handle = Device.get();
@@ -37,25 +37,23 @@ CreateDeviceMemoryProvidersPools(ur_platform_handle_t_ *Platform) {
 
     // create UMF CUDA memory provider for the device memory
     // (UMF_MEMORY_TYPE_DEVICE)
-    UmfResult =
-        umf::setCUMemoryProviderParams(CUMemoryProviderParamsUnique.get(),
-                                       device, context, UMF_MEMORY_TYPE_DEVICE);
+    UmfResult = umf::setCUMemoryProviderParams(CUMemoryProviderParams, device,
+                                               context, UMF_MEMORY_TYPE_DEVICE);
     UMF_RETURN_UR_ERROR(UmfResult);
 
     UmfResult = umfMemoryProviderCreate(umfCUDAMemoryProviderOps(),
-                                        CUMemoryProviderParamsUnique.get(),
+                                        CUMemoryProviderParams,
                                         &device_handle->MemoryProviderDevice);
     UMF_RETURN_UR_ERROR(UmfResult);
 
     // create UMF CUDA memory provider for the shared memory
     // (UMF_MEMORY_TYPE_SHARED)
-    UmfResult =
-        umf::setCUMemoryProviderParams(CUMemoryProviderParamsUnique.get(),
-                                       device, context, UMF_MEMORY_TYPE_SHARED);
+    UmfResult = umf::setCUMemoryProviderParams(CUMemoryProviderParams, device,
+                                               context, UMF_MEMORY_TYPE_SHARED);
     UMF_RETURN_UR_ERROR(UmfResult);
 
     UmfResult = umfMemoryProviderCreate(umfCUDAMemoryProviderOps(),
-                                        CUMemoryProviderParamsUnique.get(),
+                                        CUMemoryProviderParams,
                                         &device_handle->MemoryProviderShared);
     UMF_RETURN_UR_ERROR(UmfResult);
 
