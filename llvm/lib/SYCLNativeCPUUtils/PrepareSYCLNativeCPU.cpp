@@ -212,13 +212,19 @@ static Function *getReplaceFunc(Module &M, StringRef Name, const Use &U,
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
   if (StateTLS) {
     // Find previous read from thread_local, if any
-    for (Use &U : StateTLS->uses()) {
-      if (CallInst *I = dyn_cast<CallInst>(U.getUser())) {
+    for (const Use &U : StateTLS->uses()) {
+      if (const CallInst *I = dyn_cast<CallInst>(U.getUser())) {
         if (I->getFunction() == F) {
-          for (Use &IU : I->uses()) {
-            if (LoadInst *LI = dyn_cast<LoadInst>(IU.getUser()))
-              if (LI->getFunction() == F)
-                return LI;
+          for (const Use &IU : I->uses()) {
+            if (LoadInst *LI = dyn_cast<LoadInst>(IU.getUser())) {
+              const Function *const CF = F;
+              auto it = CF->getEntryBlock().getFirstInsertionPt();
+              if (it.isValid() && &*it == I) {
+                const auto next = ++it;
+                if (next.isValid() && &*next == LI)
+                  return LI;
+              }
+            }
           }
         }
       }
