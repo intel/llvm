@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/aliases.hpp>                   // for half
+#include <sycl/bit_cast.hpp>                  // for bit_cast
 #include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
 #include <sycl/half_type.hpp>                 // for half
 
@@ -51,11 +52,6 @@ class bfloat16;
 
 namespace detail {
 using Bfloat16StorageT = uint16_t;
-Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value);
-bfloat16 bitsToBfloat16(const Bfloat16StorageT Value);
-// Class to convert different data types to Bfloat16
-// with different rounding modes.
-class ConvertToBfloat16;
 
 template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
 #if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
@@ -83,12 +79,6 @@ template <int N> void BF16VecToFloatVec(const bfloat16 src[N], float dst[N]) {
 class bfloat16 {
 protected:
   detail::Bfloat16StorageT value;
-
-  friend inline detail::Bfloat16StorageT
-  detail::bfloat16ToBits(const bfloat16 &Value);
-  friend inline bfloat16
-  detail::bitsToBfloat16(const detail::Bfloat16StorageT Value);
-  friend class detail::ConvertToBfloat16;
 
 public:
   bfloat16() = default;
@@ -187,7 +177,7 @@ public:
     (__SYCL_CUDA_ARCH__ >= 800)
     detail::Bfloat16StorageT res;
     asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(lhs.value));
-    return detail::bitsToBfloat16(res);
+    return bit_cast<bfloat16>(res);
 #elif defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
     return bfloat16{-__devicelib_ConvertBF16ToFINTEL(lhs.value)};
 #else
@@ -294,19 +284,6 @@ template <int N> void FloatVecToBF16Vec(float src[N], bfloat16 dst[N]) {
 #endif
 }
 
-// Helper function for getting the internal representation of a bfloat16.
-inline Bfloat16StorageT bfloat16ToBits(const bfloat16 &Value) {
-  return Value.value;
-}
-
-// Helper function for creating a float16 from a value with the same type as the
-// internal representation.
-inline bfloat16 bitsToBfloat16(const Bfloat16StorageT Value) {
-  bfloat16 res;
-  res.value = Value;
-  return res;
-}
-
 // Class to convert different data types to Bfloat16
 // with different rounding modes.
 class ConvertToBfloat16 {
@@ -348,15 +325,15 @@ class ConvertToBfloat16 {
       // +/-infinity and NAN
       if (bf16_exp == 0xFF) {
         if (!f_mant)
-          return bitsToBfloat16(bf16_sign ? 0xFF80 : 0x7F80);
+          return bit_cast<bfloat16, uint16_t>(bf16_sign ? 0xFF80 : 0x7F80);
         else
-          return bitsToBfloat16((bf16_sign << 15) | (bf16_exp << 7) |
-                                bf16_mant);
+          return bit_cast<bfloat16, uint16_t>((bf16_sign << 15) |
+                                              (bf16_exp << 7) | bf16_mant);
       }
 
       // +/-0
       if (!bf16_exp && !f_mant) {
-        return bitsToBfloat16(bf16_sign ? 0x8000 : 0x0);
+        return bit_cast<bfloat16, uint16_t>(bf16_sign ? 0x8000 : 0x0);
       }
 
       uint16_t mant_discard = static_cast<uint16_t>(f_mant & 0xFFFF);
@@ -385,7 +362,8 @@ class ConvertToBfloat16 {
         bf16_exp++;
       }
 
-      return bitsToBfloat16((bf16_sign << 15) | (bf16_exp << 7) | bf16_mant);
+      return bit_cast<bfloat16, uint16_t>((bf16_sign << 15) | (bf16_exp << 7) |
+                                          bf16_mant);
     }
   }
 
@@ -401,7 +379,7 @@ class ConvertToBfloat16 {
     size_t msb_pos = get_msb_pos(u);
     // return half representation for 1
     if (msb_pos == 0)
-      return bitsToBfloat16(0x3F80);
+      return bit_cast<bfloat16, uint16_t>(0x3F80);
 
     T mant = u & ((static_cast<T>(1) << msb_pos) - 1);
     // Unsigned integral value can be represented by 1.mant * (2^msb_pos),
@@ -442,7 +420,7 @@ class ConvertToBfloat16 {
     }
 
     b_exp += 127;
-    return bitsToBfloat16((b_exp << 7) | b_mant);
+    return bit_cast<bfloat16, uint16_t>((b_exp << 7) | b_mant);
   }
 
   // Helper function to get BF16 from signed integral data types.
@@ -459,7 +437,7 @@ class ConvertToBfloat16 {
     UTy ui = (i > 0) ? static_cast<UTy>(i) : static_cast<UTy>(-i);
     size_t msb_pos = get_msb_pos<UTy>(ui);
     if (msb_pos == 0)
-      return bitsToBfloat16(b_sign ? 0xBF80 : 0x3F80);
+      return bit_cast<bfloat16, uint16_t>(b_sign ? 0xBF80 : 0x3F80);
     UTy mant = ui & ((static_cast<UTy>(1) << msb_pos) - 1);
 
     uint16_t b_exp = msb_pos;
@@ -495,7 +473,7 @@ class ConvertToBfloat16 {
       b_mant = 0;
     }
     b_exp += 127;
-    return bitsToBfloat16(b_sign | (b_exp << 7) | b_mant);
+    return bit_cast<bfloat16, uint16_t>(b_sign | (b_exp << 7) | b_mant);
   }
 
   // Helper function to get BF16 from double with RTE rounding modes.
