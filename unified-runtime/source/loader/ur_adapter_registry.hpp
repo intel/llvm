@@ -8,11 +8,11 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
-#include <cctype>
 #ifndef UR_ADAPTER_REGISTRY_HPP
 #define UR_ADAPTER_REGISTRY_HPP 1
 
 #include <algorithm>
+#include <cctype>
 #include <set>
 
 #include "logger/ur_logger.hpp"
@@ -276,18 +276,6 @@ private:
       // Make sure the backend is lower case
       std::transform(backend.begin(), backend.end(), backend.begin(),
                      [](unsigned char c) { return std::tolower(c); });
-
-      // Verify that the backend string is valid, otherwise ignore the filter.
-      if ((strcmp(backend.c_str(), "*") != 0) &&
-          (strcmp(backend.c_str(), "level_zero") != 0) &&
-          (strcmp(backend.c_str(), "opencl") != 0) &&
-          (strcmp(backend.c_str(), "cuda") != 0) &&
-          (strcmp(backend.c_str(), "hip") != 0)) {
-        logger::debug("ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal "
-                      "backend '{}' ",
-                      backend);
-        continue;
-      }
 
       if (PositiveFilter) {
         positiveFilters.push_back({backend, termPair.second});
