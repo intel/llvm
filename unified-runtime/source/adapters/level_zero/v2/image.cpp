@@ -163,7 +163,6 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
   ZeImageDesc.arraylevels = ur_cast<uint32_t>(ImageDesc->arraySize);
   ZeImageDesc.miplevels = ImageDesc->numMipLevel;
 
-  std::cerr << "[L0_v2]" << __FUNCTION__ << " success" <<std::endl;
   return UR_RESULT_SUCCESS;
 }
 
@@ -383,8 +382,9 @@ urBindlessImagesImageFreeExp([[maybe_unused]] ur_context_handle_t hContext,
                              [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem) {
 
   std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << " hImageMem=0x" << std::hex << hImageMem << std::endl;
-  UR_CALL(ur::level_zero::urMemRelease(
-      reinterpret_cast<ur_mem_handle_t>(hImageMem)));
+//   UR_CALL(ur::level_zero::urMemRelease(
+//       reinterpret_cast<ur_mem_handle_t>(hImageMem)));
+  ZE2UR_CALL(zeImageDestroy, (reinterpret_cast<ze_image_handle_t>(hImageMem)));
   return UR_RESULT_SUCCESS;
 }
 

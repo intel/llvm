@@ -122,10 +122,14 @@ int main() {
     std::cout << __FUNCTION__ << ":out[250]:" << out[250][0] << std::endl;
 
     // Extension: cleanup
-    std::cerr << "[SYCL] cleanup" << std::endl;
+    std::cerr << "[SYCL] cleanup 1" << std::endl;
     sycl::ext::oneapi::experimental::destroy_image_handle(imgIn1, dev, ctxt);
+    std::cerr << "[SYCL] cleanup 2" << std::endl;
     sycl::ext::oneapi::experimental::destroy_image_handle(imgIn2, dev, ctxt);
+    std::cerr << "[SYCL] cleanup out" << std::endl;
     sycl::ext::oneapi::experimental::destroy_image_handle(imgOut, dev, ctxt);
+    std::cerr << "[SYCL] cleanup done" << std::endl;
+
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
     return 1;
@@ -133,7 +137,7 @@ int main() {
     std::cerr << "Unknown exception caught!\n";
     return 2;
   }
-
+  std::cerr << "[SYCL] validate" << std::endl;
   // collect and validate output
   bool validated = true;
   for (int i = 0; i < N; i++) {
