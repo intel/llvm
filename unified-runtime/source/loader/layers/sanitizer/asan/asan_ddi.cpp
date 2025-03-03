@@ -13,7 +13,6 @@
 
 #include "asan_ddi.hpp"
 #include "asan_interceptor.hpp"
-#include "asan_options.hpp"
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
@@ -1559,7 +1558,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
       pArgValue);
 
   std::shared_ptr<KernelInfo> KI;
-  if (getAsanInterceptor()->getOptions().DetectKernelArguments) {
+  if (getContext()->Options.DetectKernelArguments) {
     auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
     std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
     KI.PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
