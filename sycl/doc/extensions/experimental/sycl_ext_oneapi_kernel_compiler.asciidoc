@@ -502,8 +502,8 @@ struct is_property_key<registered_names_key> : std::true_type {};
 
 This property is useful when the source language represents names differently in
 the source code and the generated code.
-For example, {cpp} function names in the generated code are "mangled" in an
-implementation-defined way.
+For example, {cpp} function names and the names of static variables at global
+scope are "mangled" in an implementation-defined way in the generated code.
 The precise meaning of this property is defined by each source language, but in
 general it allows the application to supply a list of names as they appear in
 the source code.
