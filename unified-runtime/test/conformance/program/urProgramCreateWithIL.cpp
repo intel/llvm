@@ -46,8 +46,39 @@ TEST_P(urProgramCreateWithILTest, Success) {
 TEST_P(urProgramCreateWithILTest, SuccessWithProperties) {
   UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
-  ur_program_properties_t properties{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
-                                     nullptr, 0, nullptr};
+  std::string string = "test metadata";
+  ur_program_metadata_value_t md_value_string;
+  md_value_string.pString = string.data();
+  ur_program_metadata_t meta_string = {string.data(),
+                                       UR_PROGRAM_METADATA_TYPE_STRING,
+                                       string.size(), md_value_string};
+
+  ur_program_metadata_value_t md_value_32;
+  md_value_32.data32 = 32;
+  ur_program_metadata_t meta_32 = {string.data(),
+                                   UR_PROGRAM_METADATA_TYPE_UINT32,
+                                   sizeof(uint32_t), md_value_32};
+
+  ur_program_metadata_value_t md_value_64;
+  md_value_64.data64 = 64;
+  ur_program_metadata_t meta_64 = {string.data(),
+                                   UR_PROGRAM_METADATA_TYPE_UINT64,
+                                   sizeof(uint64_t), md_value_64};
+
+  ur_program_metadata_value_t md_value_data;
+  std::vector<uint8_t> metadataValue = {0xDE, 0xAD, 0xBE, 0xEF};
+  md_value_data.pData = metadataValue.data();
+  ur_program_metadata_t meta_data = {string.data(),
+                                     UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
+                                     metadataValue.size(), md_value_data};
+
+  std::vector<ur_program_metadata_t> metadatas = {meta_string, meta_32, meta_64,
+                                                  meta_data};
+
+  ur_program_properties_t properties{
+      UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
+      static_cast<uint32_t>(metadatas.size()), metadatas.data()};
+
   ur_program_handle_t program = nullptr;
   ASSERT_SUCCESS(urProgramCreateWithIL(
       context, il_binary->data(), il_binary->size(), &properties, &program));
@@ -56,33 +87,51 @@ TEST_P(urProgramCreateWithILTest, SuccessWithProperties) {
 }
 
 TEST_P(urProgramCreateWithILTest, InvalidNullHandle) {
-  ur_program_handle_t program = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urProgramCreateWithIL(nullptr, il_binary->data(),
-                                         il_binary->size(), nullptr, &program));
+                                         il_binary->size(), nullptr, nullptr));
 }
 
-TEST_P(urProgramCreateWithILTest, InvalidNullPointerSource) {
-  ur_program_handle_t program = nullptr;
+TEST_P(urProgramCreateWithILTest, InvalidNullPointer) {
+
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                    urProgramCreateWithIL(context, nullptr, il_binary->size(),
-                                         nullptr, &program));
+                                         nullptr, nullptr));
+
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                   urProgramCreateWithIL(context, il_binary->data(),
+                                         il_binary->size(), nullptr, nullptr));
+
+  ur_program_properties_t properties{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
+                                     nullptr, 1, nullptr};
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                   urProgramCreateWithIL(context, il_binary->data(),
+                                         il_binary->size(), &properties,
+                                         nullptr));
 }
 
-TEST_P(urProgramCreateWithILTest, InvalidSizeLength) {
+TEST_P(urProgramCreateWithILTest, InvalidSize) {
   ur_program_handle_t program = nullptr;
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_SIZE,
       urProgramCreateWithIL(context, il_binary->data(), 0, nullptr, &program));
+
+  std::string md_string = "test metadata";
+  ur_program_metadata_value_t md_value = {};
+  md_value.pString = md_string.data();
+  ur_program_metadata_t metadata = {md_string.data(),
+                                    UR_PROGRAM_METADATA_TYPE_STRING,
+                                    md_string.size(), md_value};
+
+  ur_program_properties_t properties{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
+                                     nullptr, 0, &metadata};
+
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                   urProgramCreateWithIL(context, il_binary->data(), 1,
+                                         &properties, &program));
 }
 
-TEST_P(urProgramCreateWithILTest, InvalidNullPointerProgram) {
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                   urProgramCreateWithIL(context, il_binary->data(),
-                                         il_binary->size(), nullptr, nullptr));
-}
-
-TEST_P(urProgramCreateWithILTest, BuildInvalidProgram) {
+TEST_P(urProgramCreateWithILTest, InvalidBinary) {
   UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   ur_program_handle_t program = nullptr;
@@ -91,4 +140,19 @@ TEST_P(urProgramCreateWithILTest, BuildInvalidProgram) {
   // The driver is not required to reject the binary
   ASSERT_TRUE(result == UR_RESULT_ERROR_INVALID_BINARY ||
               result == UR_RESULT_SUCCESS);
+}
+
+TEST_P(urProgramCreateWithILTest, CompilerNotAvailable) {
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+
+  ur_bool_t compiler_available = false;
+  urDeviceGetInfo(device, UR_DEVICE_INFO_COMPILER_AVAILABLE, sizeof(ur_bool_t),
+                  &compiler_available, nullptr);
+
+  if (!compiler_available) {
+    ur_program_handle_t program = nullptr;
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE,
+                     urProgramCreateWithIL(context, il_binary->data(), 1,
+                                           nullptr, &program));
+  }
 }
