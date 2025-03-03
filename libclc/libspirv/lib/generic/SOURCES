@@ -72,7 +72,6 @@ math/ceil.cl
 math/clc_exp10.cl
 math/clc_fmod.cl
 math/clc_hypot.cl
-math/clc_ldexp.cl
 math/clc_pow.cl
 math/clc_pown.cl
 math/clc_powr.cl

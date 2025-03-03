@@ -415,16 +415,24 @@ static bool isLTOPreLink(ThinOrFullLTOPhase Phase) {
          Phase == ThinOrFullLTOPhase::FullLTOPreLink;
 }
 
+// Helper to check if the current compilation phase is LTO backend
+static bool isLTOPostLink(ThinOrFullLTOPhase Phase) {
+  return Phase == ThinOrFullLTOPhase::ThinLTOPostLink ||
+         Phase == ThinOrFullLTOPhase::FullLTOPostLink;
+}
+
 // Helper to wrap conditionally Coro passes.
 static CoroConditionalWrapper buildCoroWrapper(ThinOrFullLTOPhase Phase) {
-  // TODO: Skip passes according to Phase.
   ModulePassManager CoroPM;
-  CoroPM.addPass(CoroEarlyPass());
-  CGSCCPassManager CGPM;
-  CGPM.addPass(CoroSplitPass());
-  CoroPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(std::move(CGPM)));
-  CoroPM.addPass(CoroCleanupPass());
-  CoroPM.addPass(GlobalDCEPass());
+  if (!isLTOPostLink(Phase))
+    CoroPM.addPass(CoroEarlyPass());
+  if (!isLTOPreLink(Phase)) {
+    CGSCCPassManager CGPM;
+    CGPM.addPass(CoroSplitPass());
+    CoroPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(std::move(CGPM)));
+    CoroPM.addPass(CoroCleanupPass());
+    CoroPM.addPass(GlobalDCEPass());
+  }
   return CoroConditionalWrapper(std::move(CoroPM));
 }
 
@@ -1027,7 +1035,7 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level,
   MainCGPipeline.addPass(createCGSCCToFunctionPassAdaptor(
       RequireAnalysisPass<ShouldNotRunFunctionPassesAnalysis, Function>()));
 
-  if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink) {
+  if (!isLTOPreLink(Phase)) {
     MainCGPipeline.addPass(CoroSplitPass(Level != OptimizationLevel::O0));
     MainCGPipeline.addPass(CoroAnnotationElidePass());
   }
@@ -1077,7 +1085,7 @@ PassBuilder::buildModuleInlinerPipeline(OptimizationLevel Level,
       buildFunctionSimplificationPipeline(Level, Phase),
       PTO.EagerlyInvalidateAnalyses));
 
-  if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink) {
+  if (!isLTOPreLink(Phase)) {
     MPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(
         CoroSplitPass(Level != OptimizationLevel::O0)));
     MPM.addPass(
@@ -1137,7 +1145,8 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
     // Do basic inference of function attributes from known properties of system
     // libraries and other oracles.
     MPM.addPass(InferFunctionAttrsPass());
-    MPM.addPass(CoroEarlyPass());
+    if (!isLTOPostLink(Phase))
+      MPM.addPass(CoroEarlyPass());
 
     FunctionPassManager EarlyFPM;
     EarlyFPM.addPass(EntryExitInstrumenterPass(/*PostInlining=*/false));
@@ -1300,7 +1309,7 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   // and argument promotion.
   MPM.addPass(DeadArgumentEliminationPass());
 
-  if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink)
+  if (!isLTOPreLink(Phase))
     MPM.addPass(CoroCleanupPass());
 
   // Optimize globals now that functions are fully simplified.
@@ -1639,8 +1648,7 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
     MPM.addPass(MergeFunctionsPass());
 
   if (PTO.CallGraphProfile && !LTOPreLink)
-    MPM.addPass(CGProfilePass(LTOPhase == ThinOrFullLTOPhase::FullLTOPostLink ||
-                              LTOPhase == ThinOrFullLTOPhase::ThinLTOPostLink));
+    MPM.addPass(CGProfilePass(isLTOPostLink(LTOPhase)));
 
   // RelLookupTableConverterPass runs later in LTO post-link pipeline.
   if (!LTOPreLink)
@@ -1968,9 +1976,6 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
     return MPM;
   }
-
-  // TODO: Skip to match buildCoroWrapper.
-  MPM.addPass(CoroEarlyPass());
 
   // Optimize globals to try and fold them into constants.
   MPM.addPass(GlobalOptPass());
