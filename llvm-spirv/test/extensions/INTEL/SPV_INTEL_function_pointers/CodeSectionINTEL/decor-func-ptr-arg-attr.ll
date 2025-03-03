@@ -1,6 +1,3 @@
-; TODO: update for nocapture -> captures(none) LLVM change.
-; XFAIL: *
-
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spt -spirv-text -spirv-ext=+SPV_INTEL_function_pointers
 ; RUN: FileCheck < %t.spt %s --check-prefix CHECK-SPIRV
@@ -13,13 +10,13 @@
 ; CHECK-SPIRV: Capability FunctionPointersINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
 
-; CHECK-SPIRV: Decorate [[#TargetId:]] ArgumentAttributeINTEL 0 4
-; CHECK-SPIRV: Decorate [[#TargetId]] ArgumentAttributeINTEL 0 5
+; CHECK-SPIRV: Decorate [[#TargetId:]] ArgumentAttributeINTEL 0 5
+; CHECK-SPIRV: Decorate [[#TargetId]] ArgumentAttributeINTEL 0 4
 ; CHECK-SPIRV: Decorate [[#TargetId]] ArgumentAttributeINTEL 0 2
 ; CHECK-SPIRV: FunctionPointerCallINTEL
 ; CHECK-SPIRV-SAME: [[#TargetId]]
 
-; CHECK-LLVM: call spir_func addrspace(9) void %cond.i.i(ptr noalias captures(none) byval(%multi_ptr) %agg.tmp.i.i)
+; CHECK-LLVM: call spir_func addrspace(9) void %cond.i.i(ptr noalias byval(%multi_ptr) captures(none) %agg.tmp.i.i)
 
 ; ModuleID = 'sycl_test.cpp'
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

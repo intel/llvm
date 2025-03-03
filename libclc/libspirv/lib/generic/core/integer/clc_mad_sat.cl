@@ -7,4 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clcmacro.h>
+#include <clc/integer/clc_mad24.h>
+#include <clc/integer/clc_mul_hi.h>
+#include <clc/integer/clc_upsample.h>
+#include <clc/shared/clc_clamp.h>
 #include <core/clc_core.h>
