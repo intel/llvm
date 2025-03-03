@@ -8,8 +8,6 @@
 
 #pragma once
 
-#define __SYCL_USE_NEW_VEC_IMPL 1
-
 #ifndef __SYCL_USE_NEW_VEC_IMPL
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_USE_NEW_VEC_IMPL 1
