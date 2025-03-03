@@ -58,6 +58,9 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return []
 
+        if options.ur_adapter == "cuda":
+            return []
+
         benches = [
             SubmitKernelL0(self, 0),
             SubmitKernelL0(self, 1),
