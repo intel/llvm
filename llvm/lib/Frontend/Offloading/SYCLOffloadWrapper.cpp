@@ -62,18 +62,6 @@ int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
   }
 }
 
-StructType* getLegacyOffloadEntryTy(Module &M) {
-  LLVMContext &C = M.getContext();
-  StructType *EntryTy =
-      StructType::getTypeByName(C, "struct.__tgt_offload_entry");
-  if (!EntryTy)
-    EntryTy = StructType::create(
-        "struct.__tgt_offload_entry", PointerType::getUnqual(C),
-        PointerType::getUnqual(C), M.getDataLayout().getIntPtrType(C),
-        Type::getInt32Ty(C), Type::getInt32Ty(C));
-  return EntryTy;
-}
-
 /// Wrapper helper class that creates all LLVM IRs wrapping given images.
 /// Note: All created structures, "_pi_device_*", "__sycl_*" and "__tgt*" names
 /// in this implementation are aligned with "sycl/include/sycl/detail/pi.h".
@@ -95,7 +83,7 @@ struct Wrapper {
 
     SyclPropTy = getSyclPropTy();
     SyclPropSetTy = getSyclPropSetTy();
-    EntryTy = getLegacyOffloadEntryTy(M);
+    EntryTy = offloading::getEntryTy(M);
     SyclDeviceImageTy = getSyclDeviceImageTy();
     SyclBinDescTy = getSyclBinDescTy();
   }
