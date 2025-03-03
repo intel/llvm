@@ -596,7 +596,6 @@ Instruction *emitSpecConstantRecursiveImpl(
     unsigned &Index, unsigned CurrentOffset,
     const SmallVectorImpl<std::pair<uint64_t, Constant *>> &DefinedElements) {
   const Module &M = *InsertBefore->getModule();
-  auto DL = M.getDataLayout();
   if (!Ty->isArrayTy() && !Ty->isStructTy() && !Ty->isVectorTy()) { // Scalar
     auto It = llvm::lower_bound(DefinedElements, CurrentOffset,
                                 [](const std::pair<uint64_t, Constant *> &LHS,
@@ -640,6 +639,7 @@ Instruction *emitSpecConstantRecursiveImpl(
           ElTy, InsertBefore, IDs, Index, ElOffset, DefinedElements));
   };
 
+  auto DL = M.getDataLayout();
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     uint64_t ElSize = DL.getTypeAllocSize(ArrTy->getElementType());
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I)
