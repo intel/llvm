@@ -218,15 +218,6 @@ jobs:
         ref: ${{ inputs.devops_ref || inputs.ref }}
         sparse-checkout: |
           devops
-
-    # If the devops dir above was checked out from devops_ref - it may contain
-    # inappropriate devops/cts_exclude_filter/. Check out from testing branch.
-    - name: Checkout cts_exclude_filter from testing branch
-      if: inputs.tests_selector == 'cts' && inputs.devops_ref != ''
-      run: |
-        git fetch origin ${{ inputs.ref }}
-        git checkout origin/${{ inputs.ref }} -- devops/cts_exclude_filter
-
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - name: Install drivers
@@ -327,6 +318,7 @@ jobs:
       uses: ./devops/actions/run-tests/cts
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
+        cts_exclude_ref: ${{ inputs.ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
