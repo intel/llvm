@@ -1,8 +1,7 @@
 #include <clc/clc.h>
-#include <libspirv/spirv.h>
+#include <clc/integer/clc_popcount.h>
 
-#define __CLC_FUNC popcount
-#define __CLC_IMPL_FUNC __spirv_ocl_popcount
+#define FUNCTION popcount
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-#define __CLC_BODY "../clc_unary.inc"
 #include <clc/integer/gentype.inc>
