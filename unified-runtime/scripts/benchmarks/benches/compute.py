@@ -12,6 +12,7 @@ from .result import Result
 from options import options
 from enum import Enum
 
+
 class ComputeBench(Suite):
     def __init__(self, directory):
         self.directory = directory

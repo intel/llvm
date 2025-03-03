@@ -19,6 +19,9 @@ class TestSuite(Suite):
     def setup(self):
         return
 
+    def name(self) -> str:
+        return "Test Suite"
+
     def benchmarks(self) -> list[Benchmark]:
         bench_configs = [
             ("Memory Bandwidth", 2000, 200, "Foo Group"),
@@ -36,18 +39,18 @@ class TestSuite(Suite):
                 value = base_value * value_multiplier
                 diff = base_diff * value_multiplier
 
-                result.append(TestBench(name, value, diff, group))
+                result.append(TestBench(self, name, value, diff, group))
 
         return result
 
 
 class TestBench(Benchmark):
-    def __init__(self, name, value, diff, group=""):
+    def __init__(self, suite, name, value, diff, group=""):
+        super().__init__("", suite)
         self.bname = name
         self.value = value
         self.diff = diff
         self.group = group
-        super().__init__("")
 
     def name(self):
         return self.bname
@@ -65,7 +68,7 @@ class TestBench(Benchmark):
                 label=self.name(),
                 explicit_group=self.group,
                 value=random_value,
-                command="",
+                command="test",
                 env={"A": "B"},
                 stdout="no output",
                 unit="ms",
