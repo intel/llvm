@@ -52,17 +52,17 @@ is 0x53594249 (or "SYBI".) Immediately following the magic number is the version
 number, which is used by SYCLBIN consumers when parsing data in the rest of the
 file.
 
-| Type       | Description                                                    |
-| ---------- | -------------------------------------------------------------- |
-| `uint32_t` | Magic number. (0x53594249)                                     |
-| `uint32_t` | SYCLBIN version number.                                        |
-| `uint32_t` | Number of abstract modules.                                    |
-| `uint32_t` | Number of IR modules.                                          |
-| `uint32_t` | Number of native device code images.                           |
-| `uint64_t` | Byte size of the metadata byte table.                          |
-| `uint64_t` | Byte size of the binary byte table.                            |
-| `uint64_t` | Byte offset of the global metadata in the metadata byte table. |
-| `uint64_t` | Byte size of the global metadata in the metadata byte table.   |
+| Type       | Description                                                                   |
+| ---------- | ----------------------------------------------------------------------------- |
+| `uint32_t` | Magic number. (0x53594249)                                                    |
+| `uint32_t` | SYCLBIN version number.                                                       |
+| `uint32_t` | Number of abstract modules.                                                   |
+| `uint32_t` | Number of IR modules.                                                         |
+| `uint32_t` | Number of native device code images.                                          |
+| `uint64_t` | Byte size of the metadata byte table.                                         |
+| `uint64_t` | Byte size of the binary byte table.                                           |
+| `uint64_t` | Byte offset of the global metadata from the start of the metadata byte table. |
+| `uint64_t` | Byte size of the global metadata from the start of the metadata byte table.   |
 
 
 #### Global metadata
@@ -92,7 +92,7 @@ A abstract module header contains the following fields in the stated order:
 
 | Type       | Description                                                                                |
 | ---------- | ------------------------------------------------------------------------------------------ |
-| `uint64_t` | Byte offset of the metadata in the metadata byte table.                                    |
+| `uint64_t` | Byte offset of the metadata from the start of the metadata byte table.                     |
 | `uint64_t` | Byte size of the metadata in the metadata byte table.                                      |
 | `uint32_t` | Number of IR modules.                                                                      |
 | `uint32_t` | Index of the first IR module header in the IR module header array.                         |
@@ -119,12 +119,12 @@ given IR representation, identified by the IR type field.
 
 A IR module header contains the following fields in the stated order:
 
-| Type       | Description                                               |
-| ---------- | --------------------------------------------------------- |
-| `uint64_t` | Byte offset of the metadata in the metadata byte table.   |
-| `uint64_t` | Byte size of the metadata in the metadata byte table.     |
-| `uint64_t` | Byte offset of the raw IR bytes in the binary byte table. |
-| `uint64_t` | Byte size of the raw IR bytes in the binary byte table.   |
+| Type       | Description                                                              |
+| ---------- | ------------------------------------------------------------------------ |
+| `uint64_t` | Byte offset of the metadata from the start of the metadata byte table.   |
+| `uint64_t` | Byte size of the metadata in the metadata byte table.                    |
+| `uint64_t` | Byte offset of the raw IR bytes from the start of the binary byte table. |
+| `uint64_t` | Byte size of the raw IR bytes in the binary byte table.                  |
 
 
 ##### IR module metadata
@@ -146,12 +146,12 @@ string.
 A native device code image header contains the following fields in the stated
 order:
 
-| Type       | Description                                                          |
-| ---------- | -------------------------------------------------------------------- |
-| `uint64_t` | Byte offset of the metadata in the metadata byte table.              |
-| `uint64_t` | Byte size of the metadata in the metadata byte table.                |
-| `uint64_t` | Byte offset of the device code image bytes in the binary byte table. |
-| `uint64_t` | Byte size of the device code image bytes in the binary byte table.   |
+| Type       | Description                                                                         |
+| ---------- | ----------------------------------------------------------------------------------- |
+| `uint64_t` | Byte offset of the metadata from the start of the metadata byte table.              |
+| `uint64_t` | Byte size of the metadata in the metadata byte table.                               |
+| `uint64_t` | Byte offset of the device code image bytes from the start of the binary byte table. |
+| `uint64_t` | Byte size of the device code image bytes in the binary byte table.                  |
 
 
 ##### Native device code image metadata
