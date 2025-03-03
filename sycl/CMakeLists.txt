@@ -176,7 +176,7 @@ if ("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_OPENCL ON)
 endif()
 if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
-  set(SYCL_BUILD_BACKENDLEVEL_ZERO ON)
+  set(SYCL_BUILD_BACKEND_LEVEL_ZERO ON)
 endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
@@ -404,6 +404,10 @@ add_custom_target( sycl-toolchain ALL
 
 if (WIN32)
   add_dependencies(sycl-toolchain ur_win_proxy_loader)
+endif()
+
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_dependencies(sycl-toolchain clang-nvlink-wrapper)
 endif()
 
 # Enable new IN_LIST operator.
