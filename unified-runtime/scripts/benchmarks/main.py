@@ -144,6 +144,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
     suites = (
         [
+            ComputeBench(directory),
             VelocityBench(directory),
             SyclBench(directory),
             LlamaCppBench(directory),
@@ -153,9 +154,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         if not options.dry_run
         else []
     )
-
-    if not options.ur_adapter == "cuda":
-        suites.append(ComputeBench(directory))
 
     benchmarks = []
 
