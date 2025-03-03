@@ -17,14 +17,14 @@
 
 // -- Test again, with caching.
 // DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
-// RUN: rm -rf %t/cache_dir
-// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+// RUN: %{run-aux} rm -rf %t/cache_dir
+// RUN: %{cache_vars} %{run} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{cache_vars} %{run} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // -- Add leak check.
-// RUN: rm -rf %t/cache_dir
-// RUN:  %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN:  %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+// RUN: %{run-aux} rm -rf %t/cache_dir
+// RUN: %{l0_leak_check} %{cache_vars} %{run} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{l0_leak_check} %{cache_vars} %{run} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
 // CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
@@ -138,6 +138,10 @@ void test_build_and_run() {
   assert(hasMyKernel && "my_kernel should exist, but doesn't");
   assert(hasHerKernel && "her_kernel should exist, but doesn't");
   assert(!notExistKernel && "non-existing kernel should NOT exist, but does?");
+
+  assert(
+      kbExe2.ext_oneapi_get_raw_kernel_name("my_kernel") == "my_kernel" &&
+      "source code name and compiler-generated name should match, but don't");
 
   sycl::kernel my_kernel = kbExe2.ext_oneapi_get_kernel("my_kernel");
   sycl::kernel her_kernel = kbExe2.ext_oneapi_get_kernel("her_kernel");

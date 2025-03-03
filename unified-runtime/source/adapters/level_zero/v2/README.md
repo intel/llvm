@@ -4,6 +4,8 @@ This is the home directory for L0 v2 adapter sources. This is a redesigned versi
 
 L0 v2 adapter can be enabled by setting passing `UR_BUILD_ADAPTER_L0_V2=1` option to cmake. When enabled, `libur_adapter_level_zero_v2.[so|dll]` will be created.
 
+Currently, L0 v2 is only available as an experimental adapter to gather feedback and adding missing features. L0 v2 is planned to be the default adapter for L0 in 2026.0 release.
+
 # Code structure
 
 v2 adapters is is a standalone adapter but reuses some logic from the legacy L0 adapter implementation - most notably: adapter.cpp, platform.cpp, device.cpp
