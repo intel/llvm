@@ -32,7 +32,8 @@
 ; CHECK-SPIRV-DAG: TypeCooperativeMatrixKHR [[#MatTy3:]] [[#Int8Ty]] [[#Const2]] [[#Const48]] [[#Const12]] [[#Const1]]
 ; CHECK-SPIRV: CompositeConstruct [[#MatTy1]]
 ; CHECK-SPIRV: CooperativeMatrixLoadKHR [[#MatTy2]] [[#Load1:]]
-; CHECK-SPIRV: CooperativeMatrixLengthKHR [[#Int32Ty]] [[#]] [[#MatTy2]]
+; TODO: Pass Matrix Type Id instead of Matrix Id to CooperativeMatrixLengthKHR.
+; CHECK-SPIRV: CooperativeMatrixLengthKHR [[#Int32Ty]] [[#]] [[#Load1]]
 ; CHECK-SPIRV: CooperativeMatrixPrefetchINTEL
 ; CHECK-SPIRV: CooperativeMatrixLoadKHR [[#MatTy3]]
 ; CHECK-SPIRV: CooperativeMatrixMulAddKHR [[#MatTy1]]

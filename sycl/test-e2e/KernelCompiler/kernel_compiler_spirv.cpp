@@ -177,6 +177,11 @@ void testKernelsFromSpvFile(std::string kernels_file,
   sycl::queue q;
   auto bundle = loadKernelsFromFile(q, kernels_file);
 
+  // Test queries.
+  assert(bundle.ext_oneapi_has_kernel("my_kernel"));
+  assert(!bundle.ext_oneapi_has_kernel("not_exist"));
+  assert(bundle.ext_oneapi_get_raw_kernel_name("my_kernel") == "my_kernel");
+
   // Test simple kernel.
   testSimpleKernel(q, getKernel(bundle, "my_kernel"), 2, 100);
 

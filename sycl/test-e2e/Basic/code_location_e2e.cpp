@@ -1,5 +1,3 @@
-// UNSUPPORTED: cuda
-
 // RUN: %{build} -DNDEBUG -o %t1.out
 // RUN: %{run} %t1.out | FileCheck %s
 

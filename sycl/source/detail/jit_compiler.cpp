@@ -1259,29 +1259,16 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 std::pair<sycl_device_binaries, std::string> jit_compiler::compileSYCL(
     const std::string &CompilationID, const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
-    const std::vector<std::string> &UserArgs, std::string *LogPtr,
-    const std::vector<std::string> &RegisteredKernelNames) {
+    const std::vector<std::string> &UserArgs, std::string *LogPtr) {
   auto appendToLog = [LogPtr](const char *Msg) {
     if (LogPtr) {
       LogPtr->append(Msg);
     }
   };
 
-  // RegisteredKernelNames may contain template specializations, so we just put
-  // them in main() which ensures they are instantiated.
-  std::ostringstream ss;
-  ss << SYCLSource << '\n';
-  ss << "int main() {\n";
-  for (const std::string &KernelName : RegisteredKernelNames) {
-    ss << "  (void)" << KernelName << ";\n";
-  }
-  ss << "  return 0;\n}\n" << std::endl;
-
-  std::string FinalSource = ss.str();
-
   std::string SYCLFileName = CompilationID + ".cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
-                                          FinalSource.c_str()};
+                                          SYCLSource.c_str()};
 
   std::vector<::jit_compiler::InMemoryFile> IncludeFilesView;
   IncludeFilesView.reserve(IncludePairs.size());
