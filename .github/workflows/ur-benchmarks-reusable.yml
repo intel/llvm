@@ -1,23 +1,10 @@
 name: Benchmarks Reusable
 
-on:
-  workflow_call:
-    inputs:
-      str_name:
-        required: true
-        type: string
-      pr_no:
-        required: true
-        # even though this is a number, this is a workaround for issues with
-        # reusable workflow calls that result in "Unexpected value '0'" error.
-        type: string
-      upload_report:
-        required: false
-        type: boolean
-        default: false
-      compute_runtime_commit:
-        required: false
-        type: string
-        default: ''
+# This workflow is a WIP: This workflow file acts as a placeholder.
+
+on: [ workflow_call ]
 
 jobs:
+  do-nothing:
+    runs-on: ubuntu-latest
+  

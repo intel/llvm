@@ -1,29 +1,9 @@
 name: Benchmarks
 
-on:
-  workflow_dispatch:
-    inputs:
-      str_name:
-        description: Adapter
-        type: choice
-        required: true
-        default: 'level_zero'
-        options:
-          - level_zero
-          - level_zero_v2
-      pr_no:
-        description: PR number (0 is sycl main branch)
-        type: number
-        required: true
-      compute_runtime_commit:
-        description: 'Compute Runtime commit'
-        type: string
-        required: false
-        default: ''
-      upload_report:
-        description: 'Upload HTML report'
-        type: boolean
-        required: false
-        default: false
+# This workflow is a WIP: this workflow file acts as a placeholder.
+
+on: [ workflow_dispatch ]
 
 jobs:
+  do-nothing:
+    runs-on: ubuntu-latest
