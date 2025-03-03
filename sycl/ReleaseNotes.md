@@ -71,7 +71,6 @@ Release notes for commit range
 - Aligned [`sycl_ext_oneapi_work_group_memory`](https://github.com/intel/llvm/blob/acf2ca8edcd62511e7cc6f6e49554e71931e7cbe/sycl/doc/extensions/proposed/sycl_ext_oneapi_work_group_memory.asciidoc) implementation with the latest revision of the specification (added indeterminate constructor). intel/llvm#16003
 - Added support for work group memory free function kernel parameter. intel/llvm#15861
 - Implemented eviction mechanism for in-memory program cache. intel/llvm#16062
-- Now Level Zero adapter allows for multiple heterogenous drivers to coexist in a single Level Zero process.  intel/llvm#16034
 
 ### SYCLcompat library
 
@@ -110,7 +109,6 @@ Release notes for commit range
 - Ensured that compiler-generated integration header/footer are warning-free to avoid breaking `-Werror` builds, especially when 3rd-party host compiler is used. intel/llvm#15171 intel/llvm#15175 intel/llvm#15197
 - SYCL `joint_matrix` extension basic functionality is now built on top of `SPV_KHR_cooperative_matrix` extension. intel/llvm#16045 intel/llvm#15038
 - Added more supported aspects for CPU AOT target. intel/llvm#15263
-- Removed workaround for `readnone` function parameter attribute as it is properly handled by CPU runtime now. intel/llvm#15298
 - Added diagnostic for bad argument with `-fsycl-device-obj`. intel/llvm#15381
 - Added a warning for cases when kernel-only attributes are applied to non-kernel functions. intel/llvm#15154
 - Fixed misleading diagnostic about non-external function/variable when applying attributes like  `[[sycl_device]]` or `[[intel::device_indirectly_callable]]` on  functions/variables without external linkage. intel/llvm#15372
@@ -142,7 +140,6 @@ Release notes for commit range
 - Added property validation to core SYCL object constructors. intel/llvm#15253
 - Deprecated `__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__`. intel/llvm#15623
 - Improved implementation to enforce data type restrictions in `marray`/`vec`. intel/llvm#15662
-- Improved handling of invalid/unsupported specialization constants in UR adapters. intel/llvm#13204
 - Improved [`sycl_ext_oneapi_address_cast`](https://github.com/intel/llvm/blob/a4c53e4dcd949f9de4cb8d821c8fba63ddb24749/sycl/doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc) implementation by changing "dynamic" behavior to "static" whenever the specification allows that. intel/llvm#15543 intel/llvm#15931
 - Enhanced `sycl-ls` to report `ext::intel::info::device::device_id`. intel/llvm#15689
 - Added no-op implementations for runtime APIs to compile and link a program for Native CPU because for Native CPU the program is currently  compiled offline. intel/llvm#15616
