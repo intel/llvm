@@ -70,6 +70,10 @@ __Value type:__ 32 bit integer. ("1")
 
 __Value:__ A bitmask of which device libraries the binary uses.
 
+__Notes:__
+
+1. If this property set is missing, no device libraries are used by the binary.
+
 
 #### [SYCL/kernel param opt]
 
@@ -80,32 +84,39 @@ __Value type:__ Byte array. ("2")
 __Value:__ A bitmask identifying the arguments of the kernel that have been
 removed by the dead-argument-elimination optimization pass.
 
+__Notes:__
+
+1. If no entry is present for a given kernel in the binary, no arguments have
+been eliminated.
+2. If this property set is missing, no kernels in the binary have any eliminated
+arguments.
+
 
 #### [SYCL/program metadata]
 
-__Key:__ An arbitrary metadata key. This is often some identifier, such as a
-kernel name, followed by a '@' and some metadata identifier.
+Program metadata properties:
 
-__Value type:__ Byte array. ("2")
-
-__Value:__ Unspecified. Depends on the metadata key.
+| Key                                      | Value type            | Value                                                                                                            |
+| ---------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `kernel` + "@reqd_work_group_size"       | Byte array. ("2")     | Specifies the required work-group size for the kernel identified by the name `kernel`.                           |
+| `kernel` + "@work_group_num_dim"         | Byte array. ("2")     | Specifies the work-group dimensionality of the kernel identified by the name `kernel`.                           |
+| `kernel` + "@max_work_group_size"        | Byte array. ("2")     | Specifies the max work-group size for the kernel identified by the name `kernel`.                                |
+| `kernel` + "@max_linear_work_group_size" | Byte array. ("2")     | Specifies the max linear work-group size for the kernel identified by the name `kernel`.                         |
+| `variable` + "@global_id_mapping"        | Byte array. ("2")     | Specifies the mapping between the global variable with unique identifier `variable` and its name in the binary.  |
 
 
 #### [SYCL/misc properties]
 
 Miscellaneous properties:
 
-| Key                             | Value type            | Value                                                                                         |
-| ------------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
-| "isEsimdImage"                  | 32 bit integer. ("1") | 1 if the image is ESIMD and 0 or missing otherwise.                                           |
-| "sycl-register-alloc-mode"      | 32 bit integer. ("1") | The register allocation mode: 0 for automatic and 2 for large.                                |
-| "sycl-grf-size"                 | 32 bit integer. ("1") | The GRF size. Automatic if 0.                                                                 |
-| "optLevel"                      | 32 bit integer. ("1") | Optimization level, corresponding to the `-O` option used during compilation.                 |
-| "sanUsed"                       | Byte array. ("2")     | Specifying if address sanitization ("asan") or memory sanitization ("msan") is used.          |
-| "specConstsReplacedWithDefault" | 32 bit integer. ("1") | 1 if the specialization constants have been replaced by their default values and 0 otherwise. |
-
-__NOTE:__ All of these properties are optional and not having them will result
-in implementation defined behavior.
+| Key                             | Value type            | Value                                                                                                            |
+| ------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| "isEsimdImage"                  | 32 bit integer. ("1") | 1 if the image is ESIMD and 0 or missing otherwise.                                                              |
+| "sycl-register-alloc-mode"      | 32 bit integer. ("1") | The register allocation mode: 2 for large and 0 or missing for automatic.                                        |
+| "sycl-grf-size"                 | 32 bit integer. ("1") | The GRF size. Automatic if 0 or missing.                                                                         |
+| "optLevel"                      | 32 bit integer. ("1") | Optimization level, corresponding to the `-O` option used during compilation.                                    |
+| "sanUsed"                       | Byte array. ("2")     | Specifying if address sanitization ("asan") or memory sanitization ("msan") is used. Missing if neither is used. |
+| "specConstsReplacedWithDefault" | 32 bit integer. ("1") | 1 if the specialization constants have been replaced by their default values and 0 or missing otherwise.         |
 
 
 #### [SYCL/assert used]
@@ -114,7 +125,7 @@ __Key:__ Kernel name.
 
 __Value type:__ 32 bit integer. ("1")
 
-__Value:__ 1. The key will not be in the set unless the kernel uses assertions.
+__Value:__ 1 if the kernel uses assertions and 0 or missing otherwise.
 
 
 #### [SYCL/exported symbols]
@@ -123,7 +134,7 @@ __Key:__ Symbol name.
 
 __Value type:__ 32 bit integer. ("1")
 
-__Value:__ 1. The key will not be in the set unless the symbols is exported.
+__Value:__ 1 if the symbol is exported by the binary and 0 or missing otherwise.
 
 
 #### [SYCL/imported symbols]
@@ -132,7 +143,7 @@ __Key:__ Symbol name.
 
 __Value type:__ 32 bit integer. ("1")
 
-__Value:__ 1. The key will not be in the set unless the symbols is exported.
+__Value:__ 1 if the symbol is imported by the binary and 0 or missing otherwise.
 
 
 #### [SYCL/device globals]
@@ -155,26 +166,28 @@ fields:
   uint32_t DeviceImageScope;
 ```
 
+__Notes:__
+
+1. If this property set is missing, the binary does not contain any device
+global variables.
+
 
 #### [SYCL/device requirements]
 
 Set of device requirements for the entire module:
 
-| Key                             | Value type        | Value                                                                                                                            |
-| ------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| "aspects"                       | Byte array. ("2") | A collection of 32 bit integers representing the SYCL aspects used. These correspond 1:1 with the enum values of `sycl::aspect`. |
-| "fixed_target"                  | Byte array. ("2") | The string literals specified in `-fsycl-fixed-targets`.                                                                         |
-| "reqd_work_group_size_uint64_t" | Byte array. ("2") | At most three 64 bit unsigned integers representing the required work group size.                                                |
+| Key                             | Value type        | Value                                                                                                                                                         |
+| ------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "aspects"                       | Byte array. ("2") | A collection of 32 bit integers representing the SYCL aspects used. These correspond 1:1 with the enum values of `sycl::aspect`.                              |
+| "fixed_target"                  | Byte array. ("2") | The string literals specified in `-fsycl-fixed-targets`.                                                                                                      |
+| "reqd_work_group_size_uint64_t" | Byte array. ("2") | At most three 64 bit unsigned integers representing the required work-group size. If this entry is missing, there is no work-group size requirement.          |
 | "joint_matrix"                  | Byte array. ("2") | A string containing a semi-colon-separated list of comma-separated descriptors for used matrices. The descriptors in the order they appear are: <ul><li>sycl-joint-matrix-type</li><li>sycl-joint-matrix-use</li><li>sycl-joint-matrix-rows</li><li>sycl-joint-matrix-cols</li></ul> |
 | "joint_matrix_mad"              | Byte array. ("2") | A string containing a semi-colon-separated list of comma-separated descriptors for used matrix MAD operations. The descriptors in the order they appear are: <ul><li>sycl-joint-matrix-mad-type-A</li><li>sycl-joint-matrix-mad-type-B</li><li>sycl-joint-matrix-mad-type-C</li><li>sycl-joint-matrix-mad-type-D</li><li>sycl-joint-matrix-mad-size-M</li><li>sycl-joint-matrix-mad-size-K</li><li>sycl-joint-matrix-mad-size-N</li></ul> |
-| "reqd_sub_group_size"           | Byte array. ("2") | At most three 32 bit unsigned integers representing the required sub-group size.                                                 |
-| "work_group_num_dim"            | Byte array. ("2") | At most three 32 bit unsigned integers representing the work group dimensionality.                                               |
+| "reqd_sub_group_size"           | Byte array. ("2") | At most three 32 bit unsigned integers representing the required sub-group size. If this entry is missing, there is no sub-group size requirement.            |
+| "work_group_num_dim"            | Byte array. ("2") | At most three 32 bit unsigned integers representing the work-group dimensionality. If this entry is missing, there is no specified work-group dimensionality. |
 
 
 See also [OptionalDeviceFeatures.md](OptionalDeviceFeatures.md).
-
-__NOTE:__ All of these properties are optional and not having them will result
-in implementation defined behavior.
 
 
 #### [SYCL/host pipes]
@@ -191,18 +204,20 @@ fields:
   uint32_t Size;
 ```
 
+__Notes:__
+
+1. If this property set is missing, the binary does not contain any host pipe
+variables.
+
 
 #### [SYCL/virtual functions]
 
 Set of information about virtual function usage in the module.
 
-| Key                          | Value type        | Value                                                                                       |
-| ---------------------------- | ----------------- | ------------------------------------------------------------------------------------------- |
-| "virtual-functions-set"      | Byte array. ("2") | A string identifying the set of virtual functions contained in the module.                  |
-| "uses-virtual-functions-set" | Byte array. ("2") | A string containing a comma-separated list of sets of virtual functions used by the module. |
-
-__NOTE:__ All of these properties are optional and not having them will result
-in implementation defined behavior.
+| Key                          | Value type        | Value                                                                                                                                                              |
+| ---------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| "virtual-functions-set"      | Byte array. ("2") | A string identifying the set of virtual functions contained in the module. If this is missing, the module does not contain any virtual function sets.              |
+| "uses-virtual-functions-set" | Byte array. ("2") | A string containing a comma-separated list of sets of virtual functions used by the module. If this is missing, the module does not use any virtual function sets. |
 
 
 #### [SYCL/implicit local arg]
@@ -213,6 +228,13 @@ __Value type:__ 32 bit integer. ("1")
 
 __Value:__ Index of the implicit local memory argument.
 
+__Notes:__
+
+1. If no entry is present for a given kernel in the binary, the kernel does not
+have an implicit local memory argument.
+2. If this property set is missing, no kernels in the binary have an implicit
+local memory argument.
+
 
 #### [SYCL/registered kernels]
 
@@ -221,6 +243,11 @@ __Key:__ "Registered" kernel name.
 __Value type:__ Byte array. ("2")
 
 __Value:__ The name of the kernel corresponding to the registered kernel name.
+
+__Notes:__
+
+1. If this property set is missing, the binary does not have any registered
+kernel names.
 
 
 #### [SYCLBIN/global metadata]
