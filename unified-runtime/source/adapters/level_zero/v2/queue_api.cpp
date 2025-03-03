@@ -350,10 +350,19 @@ ur_result_t urBindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-  return hQueue->get().bindlessImagesImageCopyExp(
+    std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
+    std::cerr << __FUNCTION__ << ":pSrc[ 50]:" << reinterpret_cast<const float*>(pSrc)[50 * 4] << std::endl;
+    std::cerr << __FUNCTION__ << ":pSrc[150]:" << reinterpret_cast<const float*>(pSrc)[150 * 4] << std::endl;
+    std::cerr << __FUNCTION__ << ":pSrc[250]:" << reinterpret_cast<const float*>(pSrc)[250 * 4] << std::endl;
+
+   ur_result_t res = hQueue->get().bindlessImagesImageCopyExp(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
       pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,
       phEventWaitList, phEvent);
+    std::cerr << __FUNCTION__ << ":pDst[ 50]:" << reinterpret_cast<const float*>(pDst)[ 50 * 4] << std::endl;
+    std::cerr << __FUNCTION__ << ":pDst[150]:" << reinterpret_cast<const float*>(pDst)[150 * 4] << std::endl;
+    std::cerr << __FUNCTION__ << ":pDst[250]:" << reinterpret_cast<const float*>(pDst)[250 * 4] << std::endl;
+    return res;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

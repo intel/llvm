@@ -976,7 +976,6 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
       ToCleanUp.push_back(this);
     }
   }
-
   // Emit this correlation signal before the task end
   emitEnqueuedEventSignal(MEvent->getHandle());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -3074,20 +3073,16 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   bool DiscardUrEvent = MQueue && (MQueue->MDiscardEvents || !MEventNeeded) &&
                         MQueue->supportsDiscardingPiEvents() &&
                         MCommandGroup->getRequirements().size() == 0;
-
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
   detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
-
   auto SetEventHandleOrDiscard = [&]() {
     if (Event)
       MEvent->setHandle(*Event);
     else
       MEvent->setStateDiscarded();
   };
-
   switch (MCommandGroup->getType()) {
-
   case CGType::UpdateHost: {
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "Update host should be handled by the Scheduler. " +

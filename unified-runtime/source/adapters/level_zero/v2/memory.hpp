@@ -224,6 +224,7 @@ struct ur_mem_handle_t_ {
                                           std::decay_t<decltype(arg)>>) {
             return static_cast<ur_mem_buffer_t *>(&arg);
           } else {
+            std::cerr << "[L0_v2][MEM]" <<__FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
             throw UR_RESULT_ERROR_INVALID_MEM_OBJECT;
           }
         },
@@ -237,6 +238,7 @@ struct ur_mem_handle_t_ {
                                        std::decay_t<decltype(arg)>>) {
             return static_cast<ur_mem_image_t *>(&arg);
           } else {
+            std::cerr << "[L0_v2][MEM]" <<__FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
             throw UR_RESULT_ERROR_INVALID_MEM_OBJECT;
           }
         },

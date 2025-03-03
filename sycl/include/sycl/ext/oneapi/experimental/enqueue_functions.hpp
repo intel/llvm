@@ -107,6 +107,7 @@ template <typename CommandGroupFunc, typename PropertiesT>
 event submit_with_event_impl(queue &Q, PropertiesT Props,
                              CommandGroupFunc &&CGF,
                              const sycl::detail::code_location &CodeLoc) {
+  std::cerr << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
   return Q.submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
       Props, detail::type_erased_cgfo_ty{CGF}, nullptr, CodeLoc);
 }

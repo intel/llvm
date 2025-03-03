@@ -384,6 +384,7 @@ ur_mem_sub_buffer_t::~ur_mem_sub_buffer_t() {
 void *ur_mem_sub_buffer_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
     size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
+        std::cerr << "[L0_v2][MEM]" <<__FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
   return hParent->getBuffer()->getDevicePtr(
       hDevice, access, offset + this->offset, size, migrate);
 }
@@ -391,6 +392,7 @@ void *ur_mem_sub_buffer_t::getDevicePtr(
 void *ur_mem_sub_buffer_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t size,
     std::function<void(void *src, void *dst, size_t)> migrate) {
+        std::cerr << "[L0_v2][MEM]" <<__FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
   return hParent->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
                                           migrate);
 }
@@ -398,10 +400,12 @@ void *ur_mem_sub_buffer_t::mapHostPtr(
 void ur_mem_sub_buffer_t::unmapHostPtr(
     void *pMappedPtr,
     std::function<void(void *src, void *dst, size_t)> migrate) {
+        std::cerr << "[L0_v2][MEM]" <<__FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
   return hParent->getBuffer()->unmapHostPtr(pMappedPtr, migrate);
 }
 
 ur_shared_mutex &ur_mem_sub_buffer_t::getMutex() {
+    std::cerr << "[L0_v2][MEM]" <<__FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
   return hParent->getBuffer()->getMutex();
 }
 

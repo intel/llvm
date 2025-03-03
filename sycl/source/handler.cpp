@@ -1253,7 +1253,6 @@ void handler::ext_oneapi_copy(
 
   detail::fill_copy_args(impl, DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE);
-
   setType(detail::CGType::CopyImage);
 }
 
