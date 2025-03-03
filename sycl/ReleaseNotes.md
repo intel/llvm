@@ -713,10 +713,11 @@ Release notes for commit range
   on Windows for some edge-case input. The problems have been fixed in the
   SYCL implementation, and the remaining issues are thought to be in MSVC.
 - [new] There are known issues and limitations in virtual functions
-    functionality, such as: - Optional kernel features handling
-    implementation is not complete yet.  - AOT support is not
-    complete yet.  - A virtual function definition and definitions of
-    all kernels using it must be in the same translation unit.  Please refer to
+    functionality, such as:
+    - Optional kernel features handling implementation is not complete yet.
+    - AOT support is not complete yet.
+    - A virtual function definition and definitions of all kernels using it
+    must be in the same translation unit. Please refer to
     [`sycl/test-e2e/VirtualFunctions`](https://github.com/intel/llvm/tree/8398698f4f101f5e5b7b9b16ab585e2bb19cfe8d/sycl/test-e2e/VirtualFunctions)
     to see the list of working and non-working examples.
 
