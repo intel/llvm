@@ -374,7 +374,8 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   bool IsKernel = false;
 
   {
-    // RAII handler around MHandler. submit_impl() must not be called in the scope.
+    // RAII handler around MHandler. submit_impl() must not be called in the
+    // scope.
     struct Cleanup {
       Cleanup(const std::shared_ptr<queue_impl> &Self,
               const std::shared_ptr<queue_impl> &PrimaryQueue,
