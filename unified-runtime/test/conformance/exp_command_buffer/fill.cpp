@@ -115,9 +115,8 @@ TEST_P(urCommandBufferFillCommandsTest, Buffer) {
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   std::vector<uint8_t> output(size, 1);
-  ASSERT_SUCCESS(urEnqueueMemBufferRead(
-    queue, buffer, true, 0, size, output.data(), 0,
-    nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
+                                        output.data(), 0, nullptr, nullptr));
 
   verifyData(output, size);
 }
@@ -134,9 +133,8 @@ TEST_P(urCommandBufferFillCommandsTest, USM) {
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   std::vector<uint8_t> output(size, 1);
-  ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, output.data(),
-      device_ptr, size, 0,
-      nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, output.data(), device_ptr,
+                                    size, 0, nullptr, nullptr));
 
   verifyData(output, size);
 }
