@@ -366,57 +366,63 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
 
-  struct Cleanup {
-    Cleanup(const std::shared_ptr<queue_impl> &Self,
-            const std::shared_ptr<queue_impl> &PrimaryQueue,
-            const std::shared_ptr<queue_impl> &SecondaryQueue,
-            bool CallerNeedsEvent) {
-      if (MHandler)
-        MHandler->reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-      else
-        MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(
-            Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
-    }
-    ~Cleanup() { MHandler->reset(nullptr, nullptr, nullptr, false); }
-  } cleanup(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-
-  auto HandlerImpl = detail::getSyclObjImpl(*MHandler);
-  MHandler->saveCodeLoc(Loc, IsTopCodeLoc);
-
-  {
-    NestedCallsTracker tracker;
-    CGF(*MHandler);
-  }
-
-  // Scheduler will later omit events, that are not required to execute tasks.
-  // Host and interop tasks, however, are not submitted to low-level runtimes
-  // and require separate dependency management.
-  const CGType Type = HandlerImpl->MCGType;
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
-  if (Type == CGType::Kernel)
-    Streams = std::move(MHandler->MStreamStorage);
+  bool CallPostProcess = false;
+  bool KernelUsesAssert = false;
+  bool IsKernel = false;
 
-  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+  {
+    // RAII handler around MHandler. submit_impl() must not be called in the scope.
+    struct Cleanup {
+      Cleanup(const std::shared_ptr<queue_impl> &Self,
+              const std::shared_ptr<queue_impl> &PrimaryQueue,
+              const std::shared_ptr<queue_impl> &SecondaryQueue,
+              bool CallerNeedsEvent) {
+        if (MHandler)
+          MHandler->reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+        else
+          MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(
+              Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
+      }
+      ~Cleanup() { MHandler->reset(nullptr, nullptr, nullptr, false); }
+    } cleanup(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
 
-  if (SubmitInfo.PostProcessorFunc()) {
-    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+    auto HandlerImpl = detail::getSyclObjImpl(*MHandler);
+    MHandler->saveCodeLoc(Loc, IsTopCodeLoc);
 
-    bool IsKernel = Type == CGType::Kernel;
-    bool KernelUsesAssert = false;
+    {
+      NestedCallsTracker tracker;
+      CGF(*MHandler);
+    }
 
-    if (IsKernel)
-      // Kernel only uses assert if it's non interop one
-      KernelUsesAssert =
-          !(MHandler->MKernel && MHandler->MKernel->isInterop()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              MHandler->MKernelName.c_str());
+    // Scheduler will later omit events, that are not required to execute tasks.
+    // Host and interop tasks, however, are not submitted to low-level runtimes
+    // and require separate dependency management.
+    const CGType Type = HandlerImpl->MCGType;
+    if (Type == CGType::Kernel)
+      Streams = std::move(MHandler->MStreamStorage);
+
+    HandlerImpl->MEventMode = SubmitInfo.EventMode();
+
+    if (SubmitInfo.PostProcessorFunc()) {
+      IsKernel = Type == CGType::Kernel;
+
+      if (IsKernel)
+        // Kernel only uses assert if it's non interop one
+        KernelUsesAssert =
+            !(MHandler->MKernel && MHandler->MKernel->isInterop()) &&
+            ProgramManager::getInstance().kernelUsesAssert(
+                MHandler->MKernelName.c_str());
+      CallPostProcess = true;
+    }
+
     finalizeHandler(*MHandler, Event);
+  }
 
-    PostProcess(IsKernel, KernelUsesAssert, Event);
-  } else
-    finalizeHandler(*MHandler, Event);
+  if (CallPostProcess)
+    (*SubmitInfo.PostProcessorFunc())(IsKernel, KernelUsesAssert, Event);
 
   addEvent(Event);
 
