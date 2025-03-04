@@ -2775,7 +2775,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   void handleNoAliasProperty(ParmVarDecl *Param, QualType PropTy,
                              SourceLocation Loc) {
     ASTContext &Ctx = SemaSYCLRef.getASTContext();
-    Param->addAttr(RestrictAttr::CreateImplicit(Ctx, Loc));
+    Param->addAttr(
+        RestrictAttr::CreateImplicit(Ctx, nullptr, ParamIdx(1, Param), Loc));
   }
 
   // Obtain an integer value stored in a template parameter of buffer_location
