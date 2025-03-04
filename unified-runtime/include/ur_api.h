@@ -10447,6 +10447,21 @@ typedef struct ur_exp_command_buffer_desc_t {
 } ur_exp_command_buffer_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief A value that identifies a command inside of a command-buffer, used
+/// for
+///        defining dependencies between commands in the same command-buffer.
+typedef uint32_t ur_exp_command_buffer_sync_point_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of Command-Buffer object
+typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of a Command-Buffer command
+typedef struct ur_exp_command_buffer_command_handle_t_
+    *ur_exp_command_buffer_command_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for updating a kernel command memobj argument.
 typedef struct ur_exp_command_buffer_update_memobj_arg_desc_t {
   /// [in] type of this structure, must be
@@ -10509,6 +10524,8 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
   ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
+  /// [in] Handle of the command-buffer kernel command to update.
+  ur_exp_command_buffer_command_handle_t hCommand;
   /// [in][optional] The new kernel handle. If this parameter is nullptr,
   /// the current kernel handle in `hCommand`
   /// will be used. If a kernel handle is passed, it must be a valid kernel
@@ -10557,21 +10574,6 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
   size_t *pNewLocalWorkSize;
 
 } ur_exp_command_buffer_update_kernel_launch_desc_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief A value that identifies a command inside of a command-buffer, used
-/// for
-///        defining dependencies between commands in the same command-buffer.
-typedef uint32_t ur_exp_command_buffer_sync_point_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of Command-Buffer object
-typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of a Command-Buffer command
-typedef struct ur_exp_command_buffer_command_handle_t_
-    *ur_exp_command_buffer_command_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a Command-Buffer object
@@ -11520,7 +11522,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///
 /// @details
 /// This entry-point is synchronous and may block if the command-buffer is
-/// executing when the entry-point is called.
+/// executing when the entry-point is called. On error, the state of the
+/// command-buffer commands being updated is undefined.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -11528,66 +11531,75 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommand`
+///         + `NULL == hCommandBuffer`
+///         + `NULL == pUpdateKernelLaunch->hCommand`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUpdateKernelLaunch`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `numKernelUpdates == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS
-///         is not supported by the device, but any of
-///         `pUpdateKernelLaunch->numNewMemObjArgs`,
-///         `pUpdateKernelLaunch->numNewPointerArgs`, or
-///         `pUpdateKernelLaunch->numNewValueArgs` are not zero.
+///         is not supported by the device, and for any of any element of
+///         `pUpdateKernelLaunch` the `numNewMemObjArgs`, `numNewPointerArgs`,
+///         or `numNewValueArgs` members are not zero.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is nullptr and
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is nullptr and
+///         `pNewGlobalWorkSize` is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkSize` member is not nullptr
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkOffset` member is not
+///         nullptr.
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE
-///         is not supported by the device but `pUpdateKernelLaunch->hNewKernel`
-///         is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `hNewKernel` member is not nullptr.
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true
-///         on creation of the command-buffer `hCommand` belongs to.
-///         + If the command-buffer `hCommand` belongs to has not been
-///         finalized.
+///         on creation of the `hCommandBuffer`.
+///         + If `hCommandBuffer`  has not been finalized.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
-///         + If `hCommand` is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         was not created from `hCommandBuffer`.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pUpdateKernelLaunch->newWorkDim < 1 ||
-///         pUpdateKernelLaunch->newWorkDim > 3`
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is less than 1 or greater than 3.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + If `pUpdateKernelLaunch->hNewKernel` was not passed to the
-///         `hKernel` or `phKernelAlternatives` parameters of
-///         ::urCommandBufferAppendKernelLaunchExp when this command was
-///         created.
-///         + If `pUpdateKernelLaunch->newWorkDim` is different from the current
-///         workDim in `hCommand` and,
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize`, or
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` are nullptr.
+///         + If for any element of `pUpdateKernelLaunch` the `hNewKernel`
+///         member was not passed to the `hKernel` or `phKernelAlternatives`
+///         parameters of ::urCommandBufferAppendKernelLaunchExp when the
+///         command was created.
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is different from the current workDim in the `hCommand`
+///         member, and `pNewGlobalWorkSize` or `pNewGlobalWorkOffset` are
+///         nullptr.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    /// [in] Handle of the command-buffer kernel command to update.
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] Struct defining how the kernel command is to be updated.
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Length of pUpdateKernelLaunch.
+    uint32_t numKernelUpdates,
+    /// [in][range(0, numKernelUpdates)]  List of structs defining how a
+    /// kernel commands are to be updated.
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch);
 
@@ -14820,7 +14832,8 @@ typedef struct ur_command_buffer_enqueue_exp_params_t {
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_command_buffer_update_kernel_launch_exp_params_t {
-  ur_exp_command_buffer_command_handle_t *phCommand;
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  uint32_t *pnumKernelUpdates;
   const ur_exp_command_buffer_update_kernel_launch_desc_t *
       *ppUpdateKernelLaunch;
 } ur_command_buffer_update_kernel_launch_exp_params_t;
