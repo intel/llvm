@@ -89,7 +89,7 @@ public:
       TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
       TestKI::getColumnNumber());
   const std::string URLevelFailMessage = "Native API failed";
-  const std::string SYCLLevelFailMessage = "Enqueue process failed tst";
+  const std::string SYCLLevelFailMessage = "Enqueue process failed";
 };
 
 TEST_F(QueueApiFailures, QueueSubmit) {

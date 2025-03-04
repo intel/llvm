@@ -763,9 +763,6 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
   ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
   ur2zeImageDesc(pDstImageFormat, pDstImageDesc, zeDstImageDesc);
 
-  std::cerr << "[L0_v2]" << __FUNCTION__ << " SRC width=" << pSrcImageDesc->width << " height=" << pSrcImageDesc->height << std::endl;
-  std::cerr << "[L0_v2]" << __FUNCTION__ << " DST width=" << pDstImageDesc->width << " height=" << pDstImageDesc->height << std::endl;
-
   ze_image_handle_t zeSrcImgHandle;
   ze_image_handle_t zeDstImgHandle;
   ZE2UR_CALL(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice, &zeSrcImageDesc, &zeSrcImgHandle));
@@ -793,9 +790,6 @@ if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
           pCopyRegion->srcOffset.y * SrcRowPitch +
           pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
 
-    std::cerr << __FUNCTION__ << ":SrcPtr[ 50]:" << reinterpret_cast<const float*>(SrcPtr)[ 50*4] << std::endl;
-    std::cerr << __FUNCTION__ << ":SrcPtr[150]:" << reinterpret_cast<const float*>(SrcPtr)[150*4] << std::endl;
-    std::cerr << __FUNCTION__ << ":SrcPtr[250]:" << reinterpret_cast<const float*>(SrcPtr)[250*4] << std::endl;
     std::cerr << "[L0_v2]" << __FUNCTION__ << " SrcPtr=" << static_cast<const void*>(SrcPtr) << " zeDstImg=" << zeDstImg << std::endl;
 
     ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,

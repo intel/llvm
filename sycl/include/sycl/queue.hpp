@@ -380,8 +380,6 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-          std::cerr << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
-
     return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
         sycl::ext::oneapi::experimental::empty_properties_t{},
         detail::type_erased_cgfo_ty{CGF},
@@ -3648,7 +3646,6 @@ private:
                                   TlsCodeLocCapture.query());
             }
           };
-  std::cerr << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;        
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
   }

@@ -260,7 +260,6 @@ event queue::submit_with_event_impl(std::function<void(handler &)> CGH,
                                     const detail::SubmissionInfo &SubmitInfo,
                                     const detail::code_location &CodeLoc,
                                     bool IsTopCodeLoc) {
-    std::cerr << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl; 
   return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 
@@ -276,7 +275,6 @@ event queue::submit_with_event_impl(const detail::type_erased_cgfo_ty &CGH,
                                     const detail::SubmissionInfo &SubmitInfo,
                                     const detail::code_location &CodeLoc,
                                     bool IsTopCodeLoc) {
-  std::cerr << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;                                         
   return impl->submit_with_event(CGH, impl, SubmitInfo, CodeLoc, IsTopCodeLoc);
 }
 

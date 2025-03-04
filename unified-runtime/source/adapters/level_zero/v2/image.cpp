@@ -206,7 +206,6 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
     // _ur_image *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
     ze_image_handle_t zeImg = reinterpret_cast<ze_image_handle_t>(hImageMem);
 
-    // std::cerr << "[L0_v2]" << __FUNCTION__ << " hImageMem=" << UrImage << std::endl;
     ZE2UR_CALL(zeImageViewCreateExt,
                (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc,
                 /* UrImage->ZeImage */zeImg, &ZeImage));
@@ -266,13 +265,13 @@ namespace ur::level_zero {
 ur_result_t urUSMPitchedAllocExp([[maybe_unused]] ur_context_handle_t hContext,
                                  [[maybe_unused]] ur_device_handle_t hDevice,
                                  [[maybe_unused]] const ur_usm_desc_t *pUSMDesc,
-                                 [[maybe_unused]] ur_usm_pool_handle_t pool, 
+                                 [[maybe_unused]] ur_usm_pool_handle_t pool,
                                  [[maybe_unused]] size_t widthInBytes,
-                                 [[maybe_unused]] size_t height, 
+                                 [[maybe_unused]] size_t height,
                                  [[maybe_unused]] size_t elementSizeBytes,
-                                 [[maybe_unused]] void **ppMem, 
+                                 [[maybe_unused]] void **ppMem,
                                  [[maybe_unused]] size_t *pResultPitch) {
-    std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
+  std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
 
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -336,11 +335,9 @@ ur_result_t urBindlessImagesSampledImageHandleDestroyExp(
     [[maybe_unused]] ur_context_handle_t hContext, 
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] ur_exp_image_native_handle_t hImage) {
-  std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
-  logger::error(logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return static_cast<ur_result_t>(2);
-
+  
+  return ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp(
+      hContext, hDevice, hImage);
 }
 
 ur_result_t urBindlessImagesImageAllocateExp(
@@ -382,8 +379,7 @@ urBindlessImagesImageFreeExp([[maybe_unused]] ur_context_handle_t hContext,
                              [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem) {
 
   std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << " hImageMem=0x" << std::hex << hImageMem << std::endl;
-//   UR_CALL(ur::level_zero::urMemRelease(
-//       reinterpret_cast<ur_mem_handle_t>(hImageMem)));
+//   UR_CALL(ur::level_zero::urMemRelease(reinterpret_cast<ur_mem_handle_t>(hImageMem)));
   ZE2UR_CALL(zeImageDestroy, (reinterpret_cast<ze_image_handle_t>(hImageMem)));
   return UR_RESULT_SUCCESS;
 }
@@ -399,8 +395,6 @@ ur_result_t urBindlessImagesUnsampledImageCreateExp(
   std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
   UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
                                     pImageDesc, nullptr, phImage));
-
-  std::cerr << "[UR API][L0v2 adapter] urBindlessImagesUnsampledImageCreateExp done" << std::endl;
   return UR_RESULT_SUCCESS;
 }
 
@@ -419,8 +413,6 @@ ur_result_t urBindlessImagesSampledImageCreateExp(
                                    pImageDesc, nullptr, phImage));
   return UR_RESULT_SUCCESS;
 }
-
-
 
 ur_result_t urBindlessImagesImageGetInfoExp(
     [[maybe_unused]] ur_context_handle_t, 
@@ -506,7 +498,7 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
   std::ignore = hExternalMem;
   std::ignore = phRetMem;
 
-std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
+  std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
   logger::error(logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return static_cast<ur_result_t>(12);
@@ -517,7 +509,7 @@ ur_result_t urBindlessImagesReleaseExternalMemoryExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem) {
 
-std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
+  std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
 
   logger::error(logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
@@ -530,7 +522,7 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
     [[maybe_unused]] ur_exp_external_semaphore_type_t semHandleType,
     [[maybe_unused]] ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
     [[maybe_unused]] ur_exp_external_semaphore_handle_t *phExternalSemaphoreHandle) {
-std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
+  std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
   logger::error(logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return static_cast<ur_result_t>(14);
@@ -541,7 +533,7 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
     [[maybe_unused]] ur_context_handle_t hContext, 
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] ur_exp_external_semaphore_handle_t hExternalSemaphore) {
-std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
+  std::cerr << "[UR API][L0_v2]" <<__FUNCTION__ << std::endl;
   logger::error(logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return static_cast<ur_result_t>(15);

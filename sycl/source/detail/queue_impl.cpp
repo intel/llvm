@@ -363,7 +363,6 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  std::cerr << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;                                 
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
   auto HandlerImpl = detail::getSyclObjImpl(Handler);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
@@ -372,6 +371,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     NestedCallsTracker tracker;
     CGF(Handler);
   }
+
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.

@@ -10,8 +10,6 @@ FetchContent_Declare(
   GIT_TAG        release-1.12.1
 )
 
-set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build." FORCE)
-
 set(UR_TEST_DEVICES_COUNT 1 CACHE STRING "Count of devices on which conformance and adapters tests will be run")
 set(UR_TEST_PLATFORMS_COUNT 1 CACHE STRING "Count of platforms on which conformance and adapters tests will be run")
 set(UR_TEST_FUZZTESTS ON CACHE BOOL "Run fuzz tests if using clang and UR_DPCXX is specified")

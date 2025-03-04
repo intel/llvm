@@ -9,7 +9,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
-#define VERBOSE_PRINT
+// #define VERBOSE_PRINT
 
 class image_addition;
 
@@ -38,7 +38,6 @@ int main() {
         {width}, 4, sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
-    std::cerr << "[SYCL] Creating image memory objects" << std::endl;
     sycl::ext::oneapi::experimental::image_mem imgMem0(desc, dev, ctxt);
     sycl::ext::oneapi::experimental::image_mem imgMem1(desc, dev, ctxt);
 
@@ -49,20 +48,16 @@ int main() {
 
     // We're able to use move semantics
     // Move construct
-    std::cerr << "[SYCL] Move construct" << std::endl;
     sycl::ext::oneapi::experimental::image_mem imgMem0MoveConstruct(
         std::move(imgMem0));
     // Move assign
-    std::cerr << "[SYCL] Move assign" << std::endl;
     sycl::ext::oneapi::experimental::image_mem imgMem0MoveAssign;
     imgMem0MoveAssign = std::move(imgMem0MoveConstruct);
 
     // We're able to use copy semantics
     // Copy construct
-    std::cerr << "[SYCL] Copy construct" << std::endl;
     sycl::ext::oneapi::experimental::image_mem imgMem1CopyConstruct(imgMem1);
     // Copy assign
-    std::cerr << "[SYCL] Copy assign" << std::endl;
     sycl::ext::oneapi::experimental::image_mem imgMem1CopyAssign;
     imgMem1CopyAssign = imgMem1CopyConstruct;
 
@@ -75,7 +70,6 @@ int main() {
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1;
 
     // Extension: create the image and return the handle
-    std::cerr << "[SYCL] Creating image objects" << std::endl;
     sycl::ext::oneapi::experimental::unsampled_image_handle tmpHandle =
         sycl::ext::oneapi::experimental::create_image(imgMem0MoveAssign, desc,
                                                       dev, ctxt);
@@ -88,15 +82,11 @@ int main() {
     imgHandle1.raw_handle = tmpHandle.raw_handle;
 
     // Extension: copy over data to device
-    std::cerr << "[SYCL] Copying data to device(1)" << std::endl;
-    std::cerr << "[SYCL] Src: " << dataIn1.data() << " Handle: " << reinterpret_cast<void *>(imgMem0MoveAssign.get_handle().raw_handle) << std::endl;
     q.ext_oneapi_copy(dataIn1.data(), imgMem0MoveAssign.get_handle(), desc);
-    std::cerr << "[SYCL] Copying data to device(2)" << std::endl;
     q.ext_oneapi_copy(dataIn2.data(), imgMem1CopyAssign.get_handle(), desc);
-    std::cerr << "[SYCL] Copying data - wait" << std::endl;
+
     q.wait_and_throw();
 
-    std::cerr << "[SYCL] Running kernel" << std::endl;
     sycl::buffer<float, 1> buf((float *)out.data(), width);
     q.submit([&](sycl::handler &cgh) {
       auto outAcc = buf.get_access<sycl::access_mode::write>(cgh, width);
@@ -119,7 +109,6 @@ int main() {
     q.wait_and_throw();
 
     // Extension: cleanup
-    std::cerr << "[SYCL] Cleaning up" << std::endl;
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle1, dev,
                                                           ctxt);
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle2, dev,

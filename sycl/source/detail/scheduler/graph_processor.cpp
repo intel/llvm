@@ -36,7 +36,7 @@ void Scheduler::GraphProcessor::waitForEvent(const EventImplPtr &Event,
       enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
-    throw exception(make_error_code(errc::runtime), "Enqueue process failed 1.");
+    throw exception(make_error_code(errc::runtime), "Enqueue process failed.");
 
   assert(Cmd->getEvent() == Event);
 
@@ -73,7 +73,6 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, ReadLockT &GraphReadLock, EnqueueResultT &EnqueueResult,
     std::vector<Command *> &ToCleanUp, Command *RootCommand,
     BlockingT Blocking) {
-  std::cerr << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
   if (!Cmd)
     return true;
   if (Cmd->isSuccessfullyEnqueued())
