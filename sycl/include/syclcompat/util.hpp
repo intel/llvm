@@ -1127,6 +1127,7 @@ public:
   template <int i>
   using arg_type =
       std::tuple_element_t<account_for_default_params<i>(), std::tuple<Ts...>>;
+  static constexpr int params_num = sizeof...(Ts);
 
 private:
   template <int i> static constexpr int get_offset() {
@@ -1184,4 +1185,21 @@ public:
   }
 };
 
+/// \brief This struct template used to get the type of the N-th argument of a
+/// callable type `Func`. It supports both function types (e.g., `void(int,
+/// double)`) and callable objects such as lambdas or functors.
+///
+/// \tparam Func The callable type from which to extract the argument type.
+/// \tparam N The index of the argument to retrieve.
+///
+/// Example:
+/// using Func = void(int, double, const char*);
+/// static_assert(std::is_same<nth_argument_type<Func, 0>::type, int>::value,
+/// "Unexpected type");
+template <typename Func, std::size_t N> struct nth_argument_type {
+  template <typename R, typename... Args>
+  static auto helper(R(Args...))
+      -> std::tuple_element_t<N, std::tuple<Args...>>;
+  using type = decltype(helper(std::declval<Func>()));
+};
 } // namespace syclcompat
