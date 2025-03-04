@@ -411,6 +411,18 @@ if __name__ == "__main__":
         help="The name of the results which should be used as a baseline for metrics calculation",
         default=options.current_run_name,
     )
+    parser.add_argument(
+        "--cudnn_directory",
+        type=str,
+        help="Directory for cudnn library",
+        default=None,
+    )
+    parser.add_argument(
+        "--cublas_directory",
+        type=str,
+        help="Directory for cublas library",
+        default=None,
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -434,6 +446,8 @@ if __name__ == "__main__":
     options.iterations_stddev = args.iterations_stddev
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
+    options.cudnn_directory = args.cudnn_directory
+    options.cublas_directory = args.cublas_directory
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")

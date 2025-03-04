@@ -145,7 +145,6 @@ on:
           - 'level_zero:gpu'
           - 'opencl:cpu'
           - 'opencl:gpu'
-          - 'opencl:fpga'
           - 'hip:gpu'
           - 'cuda:gpu'
       tests_selector:
