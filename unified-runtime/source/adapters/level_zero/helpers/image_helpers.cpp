@@ -282,11 +282,50 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       break;
     default:
       logger::error("ur2zeImageDesc: unexpected data type Size\n");
+      std::cerr << "ur2zeImageDesc: unexpected data type Size\n";
       return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     }
     break;
   }
+  case UR_IMAGE_CHANNEL_ORDER_R: {
+    switch (ZeImageFormatTypeSize) {
+    case 8:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8;
+      break;
+    case 16:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_16;
+      break;
+    case 32:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32;
+      break;
+    default:
+      logger::error("ur2zeImageDesc: unexpected data type Size\n");
+      std::cerr << "ur2zeImageDesc: unexpected data type Size\n";
+      return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+    }
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RG: {
+    switch (ZeImageFormatTypeSize) {
+    case 8:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8;
+      break;
+    case 16:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_16_16;
+      break;
+    case 32:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32;
+      break;
+    default:
+      logger::error("ur2zeImageDesc: unexpected data type Size\n");
+      std::cerr << "ur2zeImageDesc: unexpected data type Size\n";
+      return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+    }
+    break;
+
+  }
   default:
+    std::cerr << "format layout = " << ImageFormat->channelOrder  << std::endl;
     logger::error("format layout = {}", ImageFormat->channelOrder);
     return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     break;
@@ -316,6 +355,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
     ZeImageType = ZE_IMAGE_TYPE_2DARRAY;
     break;
   default:
+    std::cerr << "ur2zeImageDesc: unsupported image type" << std::endl;
     logger::error("ur2zeImageDesc: unsupported image type");
     return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
   }
