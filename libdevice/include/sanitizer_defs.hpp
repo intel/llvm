@@ -63,4 +63,11 @@ __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
 }
 
+void workgroup_linear_id() {
+  return __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+             __spirv_BuiltInNumWorkgroups.z +
+         __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+         __spirv_BuiltInWorkgroupId.z;
+}
+
 #endif // __SPIR__ || __SPIRV__
