@@ -3,7 +3,6 @@ from lit.BooleanExpression import BooleanExpression
 
 class E2EExpr(BooleanExpression):
     build_specific_features = {
-        "build-and-run-mode",
         "preview-mode",
         "target-spir",
         "target-nvidia",
@@ -18,6 +17,7 @@ class E2EExpr(BooleanExpression):
         "system-linux",
         "windows",
         "system-windows",
+        "cl_options",
         "enable-perf-tests",
         "preview-breaking-changes-supported",
         "has_ndebug",
