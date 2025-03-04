@@ -192,7 +192,7 @@ std::string KernelsEnvironment::getTargetName(ur_platform_handle_t platform) {
   }
 
   // special case for AMD as it doesn't support IL.
-  ur_platform_backend_t backend;
+  ur_backend_t backend;
   if (urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, sizeof(backend),
                         &backend, nullptr)) {
     error = "failed to get backend from platform.";
@@ -201,14 +201,14 @@ std::string KernelsEnvironment::getTargetName(ur_platform_handle_t platform) {
 
   std::string target = "";
   switch (backend) {
-  case UR_PLATFORM_BACKEND_OPENCL:
-  case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+  case UR_BACKEND_OPENCL:
+  case UR_BACKEND_LEVEL_ZERO:
     return "spir64";
-  case UR_PLATFORM_BACKEND_CUDA:
+  case UR_BACKEND_CUDA:
     return "nvptx64-nvidia-cuda";
-  case UR_PLATFORM_BACKEND_HIP:
+  case UR_BACKEND_HIP:
     return "amdgcn-amd-amdhsa";
-  case UR_PLATFORM_BACKEND_NATIVE_CPU:
+  case UR_BACKEND_NATIVE_CPU:
     error = "native_cpu doesn't support kernel tests yet";
     return {};
   default:
@@ -277,14 +277,12 @@ ur_result_t KernelsEnvironment::CreateProgram(
     ur_platform_handle_t hPlatform, ur_context_handle_t hContext,
     ur_device_handle_t hDevice, const std::vector<char> &binary,
     const ur_program_properties_t *properties, ur_program_handle_t *phProgram) {
-  ur_platform_backend_t backend;
-  if (auto error =
-          urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
-                            sizeof(ur_platform_backend_t), &backend, nullptr)) {
+  ur_backend_t backend;
+  if (auto error = urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
+                                     sizeof(ur_backend_t), &backend, nullptr)) {
     return error;
   }
-  if (backend == UR_PLATFORM_BACKEND_HIP ||
-      backend == UR_PLATFORM_BACKEND_CUDA) {
+  if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA) {
     // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
     // need to use urProgramCreateWithBinary instead.
     auto size = binary.size();

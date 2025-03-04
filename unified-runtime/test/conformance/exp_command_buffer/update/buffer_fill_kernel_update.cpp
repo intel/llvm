@@ -26,7 +26,7 @@ struct BufferFillCommandTest
 
     // Add accessor arguments depending on backend.
     // HIP has 3 offset parameters and other backends only have 1.
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       size_t val = 0;
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
                                          sizeof(size_t), nullptr, &val));
@@ -105,7 +105,7 @@ TEST_P(BufferFillCommandTest, UpdateParameters) {
   };
 
   // Set argument index 2 as new value to fill (index 1 is buffer accessor)
-  const uint32_t arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
+  const uint32_t arg_index = (backend == UR_BACKEND_HIP) ? 4 : 2;
   uint32_t new_val = 33;
   ur_exp_command_buffer_update_value_arg_desc_t new_input_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
@@ -242,7 +242,7 @@ TEST_P(BufferFillCommandTest, SeparateUpdateCalls) {
                                                       1, &output_update_desc));
 
   uint32_t new_val = 33;
-  const uint32_t arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
+  const uint32_t arg_index = (backend == UR_BACKEND_HIP) ? 4 : 2;
   ur_exp_command_buffer_update_value_arg_desc_t new_input_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
       nullptr,                                                    // pNext
@@ -307,7 +307,7 @@ TEST_P(BufferFillCommandTest, OverrideUpdate) {
   ASSERT_SUCCESS(urQueueFinish(queue));
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 
-  const uint32_t arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
+  const uint32_t arg_index = (backend == UR_BACKEND_HIP) ? 4 : 2;
   uint32_t first_val = 33;
   ur_exp_command_buffer_update_value_arg_desc_t first_input_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
@@ -384,7 +384,7 @@ TEST_P(BufferFillCommandTest, OverrideArgList) {
   ValidateBuffer(buffer, sizeof(val) * global_size, val);
 
   ur_exp_command_buffer_update_value_arg_desc_t input_descs[2];
-  const uint32_t arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
+  const uint32_t arg_index = (backend == UR_BACKEND_HIP) ? 4 : 2;
   uint32_t first_val = 33;
   input_descs[0] = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
