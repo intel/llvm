@@ -261,15 +261,8 @@ protected:
   device Dev;
   const char *EntryName = "Entry";
   _sycl_offload_entry_struct EntryStruct = {
-      /*Reserved*/ 0,
-      /*Version*/ 0,
-      /*Kind*/ 0,
-      /*Flags*/ 0,
-      /*Address*/ nullptr,
-      /*Name*/ const_cast<char *>(EntryName),
-      /*Size*/ strlen(EntryName),
-      /*Data*/ 0,
-      /*AuxAddr*/ nullptr};
+      /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
+      /*flags*/ 0, /*reserved*/ 0};
   sycl_device_binary_struct BinStruct{/*Version*/ 1,
                                       /*Kind*/ 4,
                                       /*Format*/ GetParam(),
@@ -318,15 +311,8 @@ TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
 TEST_P(PersistentDeviceCodeCache, MultipleImages) {
   const char *ExtraEntryName = "ExtraEntry";
   _sycl_offload_entry_struct ExtraEntryStruct = {
-      /*Reserved*/ 0,
-      /*Version*/ 0,
-      /*Kind*/ 0,
-      /*Flags*/ 0,
-      /*Address*/ nullptr,
-      /*Name*/ const_cast<char *>(ExtraEntryName),
-      /*Size*/ strlen(ExtraEntryName),
-      /*Data*/ 0,
-      /*AuxAddr*/ nullptr};
+      /*addr*/ nullptr, const_cast<char *>(ExtraEntryName),
+      strlen(ExtraEntryName), /*flags*/ 0, /*reserved*/ 0};
   sycl_device_binary_struct ExtraBinStruct{/*Version*/ 1,
                                            /*Kind*/ 4,
                                            /*Format*/ GetParam(),

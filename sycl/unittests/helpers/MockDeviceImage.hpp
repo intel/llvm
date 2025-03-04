@@ -80,7 +80,7 @@ public:
   using NativeType = _sycl_offload_entry_struct;
 
   MockOffloadEntry(const std::string &Name, std::vector<char> Data,
-                   uint32_t Flags)
+                   int32_t Flags)
       : MName(Name), MData(std::move(Data)), MFlags(Flags) {
     updateNativeType();
   }
@@ -104,13 +104,13 @@ public:
 private:
   void updateNativeType() {
     MNative = NativeType{
-        0 /*Reserved*/, 0 /*Version*/,       0 /*Kind*/,
-        MFlags,         nullptr /*Address*/, const_cast<char *>(MName.data()),
-        MData.size(),   0 /*Data*/,          nullptr /*AuxAddr*/};
+        const_cast<char *>(MData.data()), MName.data(), MData.size(), MFlags,
+        0 // Reserved
+    };
   }
   std::string MName;
   std::vector<char> MData;
-  uint32_t MFlags;
+  int32_t MFlags;
   NativeType MNative;
 };
 

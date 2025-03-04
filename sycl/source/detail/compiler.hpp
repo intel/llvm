@@ -78,21 +78,9 @@
 
 #define __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGE
-// Entry type, matches OpenMP for compatibility
-struct _sycl_offload_entry_struct_legacy {
-  void *addr;
-  char *name;
-  size_t size;
-  int32_t flags;
-  int32_t reserved;
-};
-using sycl_offload_entry_legacy = _sycl_offload_entry_struct_legacy *;
-#endif
-
 // New entry type after
 // https://github.com/llvm/llvm-project/pull/124018
-struct _sycl_offload_entry_struct {
+struct _sycl_offload_entry_struct_new {
   /// Reserved bytes used to detect an older version of the struct, always zero.
   uint64_t Reserved;
   /// The current version of the struct for runtime forward compatibility.
@@ -111,26 +99,36 @@ struct _sycl_offload_entry_struct {
   uint64_t Data;
   /// An extra pointer, usually null.
   void *AuxAddr;
+};
+using sycl_offload_entry_new = _sycl_offload_entry_struct_new *;
 
-  bool IsLegacy() {
+// Entry type, matches OpenMP for compatibility
+struct _sycl_offload_entry_struct {
+  void *addr;
+  char *name;
+  size_t size;
+  int32_t flags;
+  int32_t reserved;
+
+  bool IsNewOffloadEntryType() {
+    // Assume this is the new version of the struct.
+    auto newStruct = reinterpret_cast<sycl_offload_entry_new>(this);
+
     // Chek if first 64 bits is 0, next 16 bits is equal to 1, next 16 bits
     // is equal to 4 (OK_SYCL), and Flags should be zero. If all these
     // conditions are met, then this is a newer version of the struct.
     // We can not just rely on checking the first 64 bits, because even for the
     // older version of the struct, the first 64 bits (void* addr) are zero.
-    return !(this->Reserved == 0 && this->Version == 1 && this->Kind == 4 &&
-             this->Flags == 0);
+    return newStruct->Reserved == 0 && newStruct->Version == 1 &&
+           newStruct->Kind == 4 && newStruct->Flags == 0;
   }
 
   // Name is the only field that's used in SYCL.
   inline char *GetName() {
-    // Check if the first 64 bits of this struct are not zero, if so, this is an
-    // older version of the struct.
-    if (IsLegacy()) {
-      // This is an older version of the struct, use the old name field.
-      return reinterpret_cast<sycl_offload_entry_legacy>(this)->name;
-    }
-    return SymbolName;
+    if (IsNewOffloadEntryType())
+      return reinterpret_cast<sycl_offload_entry_new>(this)->SymbolName;
+
+    return name;
   }
 };
 using sycl_offload_entry = _sycl_offload_entry_struct *;

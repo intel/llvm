@@ -18,14 +18,13 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-/// Representation of _sycl_offload_entry_struct for creation of JIT
-/// device binaries at runtime. Owns the necessary data and provides raw
-/// pointers for the UR struct.
+/// Representation of _sycl_offload_entry_struct for creation of JIT device
+/// binaries at runtime. Owns the necessary data and provides raw pointers for
+/// the UR struct.
 class OffloadEntryContainer {
 public:
-  OffloadEntryContainer(uint64_t _Reserved, uint16_t _Version, uint16_t _Kind,
-                        uint32_t _Flags, void *_Addr, const std::string &_Name,
-                        uint64_t _Size, uint64_t _Data, void *_AuxAddr);
+  OffloadEntryContainer(const std::string &Name, void *Addr, size_t Size,
+                        int32_t Flags, int32_t Reserved);
 
   OffloadEntryContainer(OffloadEntryContainer &&) = default;
   OffloadEntryContainer &operator=(OffloadEntryContainer &&) = default;
@@ -37,25 +36,12 @@ public:
   _sycl_offload_entry_struct getPIOffloadEntry();
 
 private:
-  // Reserved bytes used to detect an older version of the struct, always zero.
-  uint64_t Reserved;
-  // The current version of the struct for runtime forward compatibility.
-  uint16_t Version;
-  // The expected consumer of this entry, e.g. CUDA or OpenMP.
-  uint16_t Kind;
-  // Flags associated with the global.
-  uint32_t EntryFlags;
-  // The address of the global to be registered by the runtime.
-  void *Address;
-  // The name of the symbol in the device image. This is the only field that's
-  // used in SYCL.
   std::unique_ptr<char[]> KernelName;
-  // The number of bytes the symbol takes.
-  uint64_t EntrySize;
-  // Extra generic data used to register this entry.
-  uint64_t Data;
-  // An extra pointer, usually null.
-  void *AuxAddr;
+
+  void *Address;
+  size_t EntrySize;
+  int32_t EntryFlags;
+  int32_t EntryReserved;
 };
 
 /// Representation of _sycl_device_binary_property_struct for creation of JIT

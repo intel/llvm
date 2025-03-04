@@ -1868,9 +1868,9 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 
     sycl_offload_entry EntriesIt;
     auto IncrementEntriesIt = [&]() {
-      if (EntriesIt->IsLegacy())
+      if (EntriesIt->IsNewOffloadEntryType())
         return reinterpret_cast<sycl_offload_entry>(
-            reinterpret_cast<sycl_offload_entry_legacy>(EntriesIt) + 1);
+            reinterpret_cast<sycl_offload_entry_new>(EntriesIt) + 1);
       else
         return EntriesIt + 1;
     };
@@ -2030,9 +2030,9 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
     sycl_offload_entry EntriesIt;
     auto IncrementEntriesIt = [&]() {
-      if (EntriesIt->IsLegacy())
+      if (EntriesIt->IsNewOffloadEntryType())
         return reinterpret_cast<sycl_offload_entry>(
-            reinterpret_cast<sycl_offload_entry_legacy>(EntriesIt) + 1);
+            reinterpret_cast<sycl_offload_entry_new>(EntriesIt) + 1);
       else
         return EntriesIt + 1;
     };
