@@ -338,7 +338,7 @@ uptr MsanShadowMemoryPVC::MemToShadow(uptr Ptr) {
   if (Ptr < ShadowBegin) {
     return Ptr + (ShadowBegin - 0xff00'0000'0000'0000ULL);
   } else {
-    return Ptr - (0xff00'ffff'ffff'ffffULL - ShadowEnd);
+    return Ptr - (0xff00'ffff'ffff'ffffULL - ShadowEnd + 1);
   }
 }
 
@@ -347,7 +347,7 @@ uptr MsanShadowMemoryDG2::MemToShadow(uptr Ptr) {
   if (Ptr < ShadowBegin) {
     return Ptr + (ShadowBegin - 0xffff'8000'0000'0000ULL);
   } else {
-    return Ptr - (0xffff'ffff'ffff'ffffULL - ShadowEnd);
+    return Ptr - (0xffff'ffff'ffff'ffffULL - ShadowEnd + 1);
   }
 }
 

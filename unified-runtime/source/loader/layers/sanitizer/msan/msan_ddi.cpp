@@ -1390,6 +1390,31 @@ ur_result_t urKernelSetArgMemObj(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgLocal
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of the local buffer to be allocated by the runtime
+    size_t argSize,
+    /// [in][optional] pointer to local buffer properties.
+    const ur_kernel_arg_local_properties_t *pProperties) {
+  auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
+
+  getContext()->logger.debug(
+      "==== urKernelSetArgLocal (argIndex={}, argSize={})", argIndex, argSize);
+
+  {
+    auto &KI = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+    KI.LocalArgs[argIndex] = MsanLocalArgsInfo{argSize};
+  }
+
+  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMFill
 ur_result_t UR_APICALL urEnqueueUSMFill(
     /// [in] handle of the queue object
@@ -1738,6 +1763,7 @@ ur_result_t urGetKernelProcAddrTable(
   pDdiTable->pfnRelease = ur_sanitizer_layer::msan::urKernelRelease;
   pDdiTable->pfnSetArgValue = ur_sanitizer_layer::msan::urKernelSetArgValue;
   pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::msan::urKernelSetArgMemObj;
+  pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::msan::urKernelSetArgLocal;
 
   return result;
 }
