@@ -61,6 +61,7 @@ TEST_P(urDevicePartitionTest, PartitionByCountsSuccess) {
 
   uint32_t n_cu_in_device = 0;
   ASSERT_NO_FATAL_FAILURE(getNumberComputeUnits(device, n_cu_in_device));
+  ASSERT_NE(n_cu_in_device, 0);
 
   enum class Combination { ONE, HALF, ALL_MINUS_ONE, ALL };
 
