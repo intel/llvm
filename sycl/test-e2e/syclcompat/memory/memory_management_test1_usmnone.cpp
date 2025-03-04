@@ -10,6 +10,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: adapter-v2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17271
+
 #define SYCLCOMPAT_USM_LEVEL_NONE
 #include <sycl/detail/core.hpp>
 #include <syclcompat/memory.hpp>
