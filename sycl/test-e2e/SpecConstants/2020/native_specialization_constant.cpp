@@ -3,8 +3,7 @@
 // (because only SPIR-V supports specialization constants natively)
 
 // FIXME: This set is never satisfied all at once in our infrastructure.
-// REQUIRES: opencl, level-zero, cpu, gpu, opencl-aot, ocloc
-// REQUIRES: build-and-run-mode
+// REQUIRES: build-and-run-mode, opencl-aot, ocloc, target-spir
 
 // RUN: %clangxx -fsycl -DJIT %s -o %t.out
 // RUN: %{run} %t.out
@@ -13,7 +12,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
-
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 constexpr sycl::specialization_id<float> float_id(3.14f);
