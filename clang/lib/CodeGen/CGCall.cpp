@@ -5900,7 +5900,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       // as fpbuiltins.
       if (!getLangOpts().OffloadFP32PrecSqrt ||
           !getLangOpts().OffloadFP32PrecDiv) {
-        for (auto Arg : IRCallArgs) {
+        for (auto &Arg : IRCallArgs) {
           if (!Arg->getType()->isFPOrFPVectorTy() &&
               !Arg->getType()->isIntOrIntVectorTy()) {
             ArgsTypeIsFloat = false;

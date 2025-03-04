@@ -285,15 +285,10 @@
 // RUN: | FileCheck --check-prefixes=ROUNDED-SQRT,NFPA %s
 
 #include "sycl.hpp"
-
-namespace sycl {
-  class half {};
-}
-typedef sycl::half my_half;
+#include "half_type.hpp"
 
 extern "C" SYCL_EXTERNAL float sqrt(float);
-extern "C" SYCL_EXTERNAL float sqrt_half(my_half);
-extern "C" SYCL_EXTERNAL float operator /(my_half, my_half);
+extern "C" SYCL_EXTERNAL float sqrt_half(half);
 
 using namespace sycl;
 
@@ -302,8 +297,8 @@ int main() {
   range<1> numOfItems{array_size};
   float Value1 = .5f;
   float Value2 = .9f;
-  my_half HalfValue1;
-  my_half HalfValue2;
+  half HalfValue1;
+  half HalfValue2;
   queue deviceQueue;
   float *a;
 
@@ -330,8 +325,8 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class KernelHalfSqrt>(numOfItems,
     [=](id<1> wiID) {
-      // NFPA: call spir_func float @sqrt_half(ptr noundef byval({{.*}}) align 1 {{.*}})
-      // NFPA-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @sqrt_half(ptr noundef byval({{.*}}) align 1 {{.*}})
+      // NFPA: call spir_func float @sqrt_half(ptr noundef byval({{.*}}) align 2 {{.*}})
+      // NFPA-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @sqrt_half(ptr noundef byval({{.*}}) align 2 {{.*}})
       (void)sqrt_half(HalfValue1);
     });
   });
@@ -360,8 +355,8 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class KernelHalDiv>(numOfItems,
     [=](id<1> wiID) {
-      // NFPA: call spir_func float @_ZdvN4sycl4halfES0_(ptr noundef byval({{.*}}) align 1 {{.*}}, ptr noundef byval({{.*}}) align 1 {{.*}})
-      // NFPA-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @_ZdvN4sycl4halfES0_(ptr noundef byval({{.*}}) align 1 {{.*}}, ptr noundef byval({{.*}}) align 1 {{.*}})
+      // NFPA: call spir_func noundef float @_ZNK4halfcvfEv(ptr addrspace(4) noundef align 2 dereferenceable_or_null(2) {{.*}})
+      // NFPA-FAST: call reassoc nnan ninf nsz arcp afn spir_func noundef nofpclass(nan inf) float @_ZNK4halfcvfEv(ptr addrspace(4) noundef align 2 dereferenceable_or_null(2) {{.*}})
        a[0] = HalfValue1 / HalfValue2;
     });
   });
