@@ -271,7 +271,20 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     // No operations were performed on the mem object
     return true;
 
-  {
+#ifdef _WIN32
+  // If we are shutting down on Windows it may not be
+  // safe to wait on host threads, as the OS may
+  // abandon them. But no worries, the memory WILL be reclaimed.
+  bool allowWait =
+      MemObj->hasUserDataPtr() || GlobalHandler::instance().isOkToDefer();
+  if (!allowWait) {
+    StrictLock = false;
+  }
+#else
+  bool allowWait = true;
+#endif
+
+  if (allowWait) {
     // This only needs a shared mutex as it only involves enqueueing and
     // awaiting for events
     ReadLockT Lock = StrictLock ? ReadLockT(MGraphLock)
@@ -281,10 +294,20 @@ bool Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj,
     waitForRecordToFinish(Record, Lock);
   }
   {
+    // If allowWait is false, it means the application is shutting down.
+    // On Windows we can't safely wait on threads, because they have likely been
+    // abandoned. So we will try to get the lock. If we can, great, we'll remove
+    // the record. But if we can't, we just skip. The OS will reclaim the
+    // memory.
     WriteLockT Lock = StrictLock ? acquireWriteLock()
                                  : WriteLockT(MGraphLock, std::try_to_lock);
-    if (!Lock.owns_lock())
-      return false;
+    if (!Lock.owns_lock()) {
+
+      if (allowWait)
+        return false; // Record was not removed, the caller may try again.
+      else
+        return true; // skip.
+    }
     MGraphBuilder.decrementLeafCountersForRecord(Record);
     MGraphBuilder.cleanupCommandsForRecord(Record);
     MGraphBuilder.removeRecordForMemObj(MemObj);
@@ -567,11 +590,10 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
   for (auto It = MAuxiliaryResources.begin();
        It != MAuxiliaryResources.end();) {
-    const EventImplPtr &Event = It->first;
     if (Blocking == BlockingT::BLOCKING) {
-      Event->waitInternal();
+      It->first->waitInternal();
       It = MAuxiliaryResources.erase(It);
-    } else if (Event->isCompleted())
+    } else if (It->first->isCompleted())
       It = MAuxiliaryResources.erase(It);
     else
       ++It;
