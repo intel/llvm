@@ -76,20 +76,27 @@ event::event(std::shared_ptr<detail::event_impl> event_impl)
 template <typename Param>
 typename detail::is_event_info_desc<Param>::return_type
 event::get_info() const {
-  return impl->template get_info<Param>();
+  if (impl)
+    return impl->template get_info<Param>();
+  return {};
 }
 
 template <typename Param>
 typename detail::is_backend_info_desc<Param>::return_type
 event::get_backend_info() const {
-  return impl->get_backend_info<Param>();
+  if (impl)
+    return impl->get_backend_info<Param>();
+  return {};
 }
 
-void event::reset() { impl.reset(); }
+void event::make_empty() { impl.reset(); }
 
 template <typename Param>
 typename detail::is_event_profiling_info_desc<Param>::return_type
 event::get_profiling_info() const {
+  if (!impl)
+    return {};
+
   if (impl->getCommandGraph()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Profiling information is unavailable for events "
@@ -133,10 +140,16 @@ backend event::get_backend() const noexcept try {
   std::abort();
 }
 
-ur_native_handle_t event::getNative() const { return impl->getNative(); }
+ur_native_handle_t event::getNative() const {
+  if (impl)
+    return impl->getNative();
+  return {};
+}
 
 std::vector<ur_native_handle_t> event::getNativeVector() const {
-  std::vector<ur_native_handle_t> ReturnVector = {impl->getNative()};
+  std::vector<ur_native_handle_t> ReturnVector;
+  if (impl)
+    ReturnVector.push_back(impl->getNative());
   return ReturnVector;
 }
 

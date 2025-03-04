@@ -2146,7 +2146,9 @@ void handler::reset(const std::shared_ptr<detail::queue_impl> &Queue,
     MIsFinalized = false;
     // creation of empty event::impl is too time-consuming, so reset impl to
     // empty state
-    MLastEvent.reset();
+    MLastEvent.make_empty();
+
+    auto v = MLastEvent.get_profiling_info<sycl::info::event_profiling::command_end>();
   }
 }
 
