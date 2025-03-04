@@ -816,7 +816,7 @@ int main() {
     extern "C"
     SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
     void iota(float start, float *ptr) {
-      size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
       ptr[id] = start + static_cast<float>(id);
     }
   )""";
@@ -845,6 +845,7 @@ int main() {
     sycl::nd_range ndr{{NUM}, {WGSIZE}};
     cgh.parallel_for(ndr, iota);
   }).wait();
+  sycl::free(ptr, q);
 }
 ----
 
@@ -872,13 +873,13 @@ int main() {
 
     SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
     void iota(float start, float *ptr) {
-      size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
       ptr[id] = start + static_cast<float>(id);
     }
 
-    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::range_kernel<1>))
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
     void iota(int start, int *ptr) {
-      size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
       ptr[id] = start + static_cast<int>(id);
     }
   )""";
@@ -910,6 +911,7 @@ int main() {
     sycl::nd_range ndr{{NUM}, {WGSIZE}};
     cgh.parallel_for(ndr, iota);
   }).wait();
+  sycl::free(ptr, q);
 }
 ----
 
