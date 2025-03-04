@@ -38,7 +38,10 @@ bool event::operator==(const event &rhs) const { return rhs.impl == impl; }
 
 bool event::operator!=(const event &rhs) const { return !(*this == rhs); }
 
-void event::wait() { if (impl) impl->wait(impl); }
+void event::wait() {
+  if (impl)
+    impl->wait(impl);
+}
 
 void event::wait(const std::vector<event> &EventList) {
   for (auto E : EventList) {
@@ -46,7 +49,10 @@ void event::wait(const std::vector<event> &EventList) {
   }
 }
 
-void event::wait_and_throw() { if (impl) impl->wait_and_throw(impl); }
+void event::wait_and_throw() {
+  if (impl)
+    impl->wait_and_throw(impl);
+}
 
 void event::wait_and_throw(const std::vector<event> &EventList) {
   for (auto E : EventList) {
@@ -79,9 +85,7 @@ event::get_backend_info() const {
   return impl->get_backend_info<Param>();
 }
 
-void event::reset() {
-  impl.reset();
-}
+void event::reset() { impl.reset(); }
 
 template <typename Param>
 typename detail::is_event_profiling_info_desc<Param>::return_type

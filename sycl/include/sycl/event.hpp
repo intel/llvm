@@ -149,6 +149,7 @@ public:
 
   /// Reset event to empty state.
   void reset();
+
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
