@@ -871,32 +871,6 @@ store_direct_striped(const ItemT &item, OutputIteratorT output_iter,
       work_item_iter[i * work_group_size] = data[i];
 }
 
-// loads a linear segment of workgroup items into a subgroup striped
-// arrangement. Created as free function until exchange mechanism is
-// implemented.
-// To-do: inline this function with BLOCK_LOAD_WARP_TRANSPOSE mechanism
-template <size_t ITEMS_PER_WORK_ITEM, typename InputT, typename InputIteratorT,
-          typename Item>
-__syclcompat_inline__ void
-uninitialized_load_subgroup_striped(const Item &item, InputIteratorT block_itr,
-                                    InputT (&items)[ITEMS_PER_WORK_ITEM]) {
-
-  // This implementation does not take in account range loading across
-  // workgroup items To-do: Decide whether range loading is required for group
-  // loading
-  // This implementation uses unintialized memory for loading linear segments
-  // into warp striped arrangement.
-  uint32_t subgroup_offset = item.get_sub_group().get_local_linear_id();
-  uint32_t subgroup_size = item.get_sub_group().get_local_linear_range();
-  uint32_t subgroup_idx = item.get_sub_group().get_group_linear_id();
-  uint32_t initial_offset =
-      (subgroup_idx * ITEMS_PER_WORK_ITEM * subgroup_size) + subgroup_offset;
-#pragma unroll
-  for (size_t idx = 0; idx < ITEMS_PER_WORK_ITEM; idx++) {
-    new (&items[idx]) InputT(block_itr[initial_offset + (idx * subgroup_size)]);
-  }
-}
-
 /// Enumerates alternative algorithms for syclcompat::group::group_load to read
 /// a linear segment of data from memory into a blocked arrangement across a
 /// work-group.
