@@ -160,7 +160,7 @@ inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
   if (addr < shadow_begin) {
     return addr + (shadow_begin - DG2_DEVICE_USM_BEGIN);
   } else {
-    return addr - (DG2_DEVICE_USM_END - shadow_end);
+    return addr - (DG2_DEVICE_USM_END - shadow_end + 1);
   }
 }
 
@@ -176,7 +176,7 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
     if (addr < shadow_begin) {
       return addr + (shadow_begin - PVC_DEVICE_USM_BEGIN);
     } else {
-      return addr - (PVC_DEVICE_USM_END - shadow_end);
+      return addr - (PVC_DEVICE_USM_END - shadow_end + 1);
     }
   } else if (as == ADDRESS_SPACE_LOCAL) {
     // The size of SLM is 128KB on PVC
