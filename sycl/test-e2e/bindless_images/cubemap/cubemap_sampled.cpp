@@ -1,6 +1,5 @@
 // REQUIRES: cuda,aspect-ext_oneapi_cubemap
 // REQUIRES: aspect-ext_oneapi_cubemap_seamless_filtering
-// REQUIRES: build-and-run-mode
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

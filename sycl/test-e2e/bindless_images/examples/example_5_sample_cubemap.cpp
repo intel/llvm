@@ -1,5 +1,4 @@
 // REQUIRES: cuda
-// REQUIRES: build-and-run-mode
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
