@@ -46,6 +46,10 @@
 
 #include <ur_mock_helpers.hpp>
 
+#ifdef _MSC_VER
+#include "windows.h"
+#endif
+
 namespace sycl {
 
 inline namespace _V1 {
@@ -531,8 +535,11 @@ inline ur_result_t mock_urCommandBufferAppendKernelLaunchExp(void *pParams) {
 
 } // namespace MockAdapter
 
-#if _MSC_VER
-__declspec(dllimport) void loadMockOpenCL();
+#ifdef _MSC_VER
+void loadMockOpenCL() {
+  SetDllDirectoryA("D:/github/_work/llvm/llvm/build/tools/sycl/unittests/lib");
+  LoadLibraryA("OpenCL.dll");
+}
 #else
 void loadMockOpenCL();
 #endif
