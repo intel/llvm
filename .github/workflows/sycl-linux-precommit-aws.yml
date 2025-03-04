@@ -71,7 +71,7 @@ jobs:
       target_devices: cuda:gpu
       # No idea why but that seems to work and be in sync with the main
       # pre-commit workflow.
-      ref: ${{ github.event.workflow_run.referenced_workflows[0].sha }}
+      repo_ref: ${{ github.event.workflow_run.referenced_workflows[0].sha }}
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: llvm_sycl.tar.zst
