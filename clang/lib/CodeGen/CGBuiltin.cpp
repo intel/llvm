@@ -10353,6 +10353,7 @@ llvm::Type *CodeGenFunction::getEltType(const SVETypeFlags &TypeFlags) {
   default:
     llvm_unreachable("Invalid SVETypeFlag!");
 
+  case SVETypeFlags::EltTyMFloat8:
   case SVETypeFlags::EltTyInt8:
     return Builder.getInt8Ty();
   case SVETypeFlags::EltTyInt16:
@@ -10782,7 +10783,7 @@ Value *CodeGenFunction::EmitSVEMaskedLoad(const CallExpr *E,
                                           unsigned IntrinsicID,
                                           bool IsZExtReturn) {
   QualType LangPTy = E->getArg(1)->getType();
-  llvm::Type *MemEltTy = CGM.getTypes().ConvertType(
+  llvm::Type *MemEltTy = CGM.getTypes().ConvertTypeForMem(
       LangPTy->castAs<PointerType>()->getPointeeType());
 
   // The vector type that is returned may be different from the
@@ -10830,7 +10831,7 @@ Value *CodeGenFunction::EmitSVEMaskedStore(const CallExpr *E,
                                            SmallVectorImpl<Value *> &Ops,
                                            unsigned IntrinsicID) {
   QualType LangPTy = E->getArg(1)->getType();
-  llvm::Type *MemEltTy = CGM.getTypes().ConvertType(
+  llvm::Type *MemEltTy = CGM.getTypes().ConvertTypeForMem(
       LangPTy->castAs<PointerType>()->getPointeeType());
 
   // The vector type that is stored may be different from the
