@@ -741,6 +741,20 @@ def get_adapter_handles(specs):
 
 """
 Public:
+    returns a list of all adapter manifests
+"""
+
+
+def get_adapter_manifests(specs):
+    objs = []
+    for s in specs:
+        for obj in s["objects"]:
+            if "manifest" in obj["type"]:
+                objs.append(obj)
+    return objs
+
+"""
+Public:
     returns a list of all loader API functions' names
 """
 
