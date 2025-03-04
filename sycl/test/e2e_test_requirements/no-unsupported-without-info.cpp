@@ -164,7 +164,6 @@
 // CHECK-NEXT: ESIMD/matrix_transpose2.cpp
 // CHECK-NEXT: ESIMD/private_memory/private_memory.cpp
 // CHECK-NEXT: ESIMD/regression/bitreverse.cpp
-// CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
 // CHECK-NEXT: ESIMD/regression/variable_gather_mask.cpp
 // CHECK-NEXT: ESIMD/slm_alloc_many_kernels_many_funcs.cpp
 // CHECK-NEXT: ESIMD/slm_alloc_many_kernels_one_func.cpp
