@@ -1,5 +1,9 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: target-amd, cuda
+//
+// UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: CUDA doesn't fully support SYCL 1.2.1 images, bindless
+// images should be used instead.
+//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

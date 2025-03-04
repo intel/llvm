@@ -1,5 +1,7 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: Legacy images aren't supported on AMD, but also fail
+// to compile, bindless images should be used instead.
 
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
