@@ -293,7 +293,7 @@ typedef sycl::half my_half;
 
 extern "C" SYCL_EXTERNAL float sqrt(float);
 extern "C" SYCL_EXTERNAL float sqrt_half(my_half);
-extern "C" SYCL_EXTERNAL float fdiv(my_half, my_half);
+extern "C" SYCL_EXTERNAL float operator /(my_half, my_half);
 
 using namespace sycl;
 
@@ -358,11 +358,11 @@ int main() {
   });
 
   deviceQueue.submit([&](handler& cgh) {
-    cgh.parallel_for<class KernelHalfSqrt>(numOfItems,
+    cgh.parallel_for<class KernelHalDiv>(numOfItems,
     [=](id<1> wiID) {
-      // NFPA: call spir_func float @fdiv(ptr noundef byval({{.*}}) align 1 {{.*}}, ptr noundef byval({{.*}}) align 1 {{.*}})
-      // NFPA-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @fdiv(ptr noundef byval({{.*}}) align 1 {{.*}}, ptr noundef byval({{.*}}) align 1 {{.*}})
-      a[0] = fdiv(HalfValue1, HalfValue2);
+      // NFPA: call spir_func float @_ZdvN4sycl4halfES0_(ptr noundef byval({{.*}}) align 1 {{.*}}, ptr noundef byval({{.*}}) align 1 {{.*}})
+      // NFPA-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @_ZdvN4sycl4halfES0_(ptr noundef byval({{.*}}) align 1 {{.*}}, ptr noundef byval({{.*}}) align 1 {{.*}})
+       a[0] = HalfValue1 / HalfValue2;
     });
   });
 
