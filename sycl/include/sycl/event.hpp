@@ -148,7 +148,7 @@ public:
   backend get_backend() const noexcept;
 
   /// Reset event to empty state.
-  void reset();
+  void make_empty();
 
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
