@@ -523,17 +523,16 @@ ur_result_t MsanInterceptor::prepareLaunch(
                                 (void *)LaunchInfo.Data->LocalShadowOffset,
                                 (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
     }
-  }
-
-  // Write local arguments info
-  if (!KernelInfo.LocalArgs.empty()) {
-    std::vector<MsanLocalArgsInfo> LocalArgsInfo;
-    for (auto [ArgIndex, ArgInfo] : KernelInfo.LocalArgs) {
-      LocalArgsInfo.push_back(ArgInfo);
-      getContext()->logger.debug("LocalArgs (argIndex={}, size={})", ArgIndex,
-                                 ArgInfo.Size);
+    // Write local arguments info
+    if (!KernelInfo.LocalArgs.empty()) {
+      std::vector<MsanLocalArgsInfo> LocalArgsInfo;
+      for (auto [ArgIndex, ArgInfo] : KernelInfo.LocalArgs) {
+        LocalArgsInfo.push_back(ArgInfo);
+        getContext()->logger.debug("LocalArgs (argIndex={}, size={})", ArgIndex,
+                                   ArgInfo.Size);
+      }
+      UR_CALL(LaunchInfo.importLocalArgsInfo(Queue, LocalArgsInfo));
     }
-    UR_CALL(LaunchInfo.importLocalArgsInfo(Queue, LocalArgsInfo));
   }
 
   getContext()->logger.info(
