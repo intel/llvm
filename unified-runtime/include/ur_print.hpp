@@ -1168,8 +1168,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP:
     os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP";
     break;
-  case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP:
-    os << "UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP";
+  case UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP:
+    os << "UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP";
     break;
   case UR_FUNCTION_COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP:
     os << "UR_FUNCTION_COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP";
@@ -10093,8 +10093,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
   case UR_COMMAND_WRITE_HOST_PIPE:
     os << "UR_COMMAND_WRITE_HOST_PIPE";
     break;
-  case UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP:
-    os << "UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP";
+  case UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP:
+    os << "UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP";
     break;
   case UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP:
     os << "UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP";
@@ -16728,6 +16728,53 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_command_buffer_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_enqueue_command_buffer_exp_params_t
+               *params) {
+
+  os << ".hQueue = ";
+
+  ur::details::printPtr(os, *(params->phQueue));
+
+  os << ", ";
+  os << ".hCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phCommandBuffer));
+
+  os << ", ";
+  os << ".numEventsInWaitList = ";
+
+  os << *(params->pnumEventsInWaitList);
+
+  os << ", ";
+  os << ".phEventWaitList = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+  if (*(params->pphEventWaitList) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
+
+      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+  }
+
+  os << ", ";
+  os << ".phEvent = ";
+
+  ur::details::printPtr(os, *(params->pphEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
 /// ur_enqueue_cooperative_kernel_launch_exp_params_t type
 /// @returns
@@ -19382,53 +19429,6 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_command_buffer_enqueue_exp_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_command_buffer_enqueue_exp_params_t
-               *params) {
-
-  os << ".hCommandBuffer = ";
-
-  ur::details::printPtr(os, *(params->phCommandBuffer));
-
-  os << ", ";
-  os << ".hQueue = ";
-
-  ur::details::printPtr(os, *(params->phQueue));
-
-  os << ", ";
-  os << ".numEventsInWaitList = ";
-
-  os << *(params->pnumEventsInWaitList);
-
-  os << ", ";
-  os << ".phEventWaitList = ";
-  ur::details::printPtr(
-      os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
-  if (*(params->pphEventWaitList) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
-
-      ur::details::printPtr(os, (*(params->pphEventWaitList))[i]);
-    }
-    os << "}";
-  }
-
-  os << ", ";
-  os << ".phEvent = ";
-
-  ur::details::printPtr(os, *(params->pphEvent));
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
 /// ur_command_buffer_update_kernel_launch_exp_params_t type
 /// @returns
@@ -20664,6 +20664,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_ENQUEUE_USM_FREE_EXP: {
     os << (const struct ur_enqueue_usm_free_exp_params_t *)params;
   } break;
+  case UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP: {
+    os << (const struct ur_enqueue_command_buffer_exp_params_t *)params;
+  } break;
   case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
     os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)
             params;
@@ -20862,9 +20865,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP: {
     os << (const struct ur_command_buffer_append_usm_advise_exp_params_t *)
             params;
-  } break;
-  case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP: {
-    os << (const struct ur_command_buffer_enqueue_exp_params_t *)params;
   } break;
   case UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP: {
     os << (const struct ur_command_buffer_update_kernel_launch_exp_params_t *)

@@ -96,8 +96,8 @@ extend: true
 desc: "Extend command type enumeration for Command-Buffer experimental feature."
 name: $x_command_t
 etors:
-    - name: COMMAND_BUFFER_ENQUEUE_EXP
-      desc: Event created by $xCommandBufferEnqueueExp
+    - name: ENQUEUE_COMMAND_BUFFER_EXP
+      desc: Event created by $xEnqueueCommandBufferExp
       value: "0x1000"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -1135,15 +1135,15 @@ returns:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Submit a command-buffer for execution on a queue."
-class: $xCommandBuffer
-name: EnqueueExp
+class: $xEnqueue
+name: CommandBufferExp
 params:
-    - type: $x_exp_command_buffer_handle_t
-      name: hCommandBuffer
-      desc: "[in] Handle of the command-buffer object."
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] The queue to submit this command-buffer for execution."
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] Handle of the command-buffer object."
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] Size of the event wait list."

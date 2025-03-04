@@ -80,7 +80,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMFillCommandTest);
 // Test using a different global size to fill and larger USM output buffer
 TEST_P(USMFillCommandTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   Validate((uint32_t *)shared_ptr, global_size, val);
@@ -134,7 +134,7 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
   // Update kernel and enqueue command-buffer again
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
                                                       1, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -189,7 +189,7 @@ TEST_P(USMFillCommandTest, UpdateBeforeEnqueue) {
   // Update kernel and enqueue command-buffer
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
                                                       1, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -200,7 +200,7 @@ TEST_P(USMFillCommandTest, UpdateBeforeEnqueue) {
 // Test using a different global size to fill and larger USM output buffer
 TEST_P(USMFillCommandTest, UpdateNull) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   Validate((uint32_t *)shared_ptr, global_size, val);
@@ -322,7 +322,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMMultipleFillCommandTest);
 // Test updating all the kernels commands in the command-buffer
 TEST_P(USMMultipleFillCommandTest, UpdateAllKernels) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -384,7 +384,7 @@ TEST_P(USMMultipleFillCommandTest, UpdateAllKernels) {
   }
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
