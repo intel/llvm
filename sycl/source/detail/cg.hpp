@@ -8,24 +8,27 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>        // for AccessorImplHost, AccessorImplPtr
-#include <sycl/detail/cg_types.hpp> // for ArgDesc, HostTask, HostKernelBase
-#include <sycl/detail/common.hpp>   // for code_location
-#include <sycl/detail/helpers.hpp>  // for context_impl
-#include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
-#include <sycl/event.hpp>           // for event_impl
-#include <sycl/exception_list.hpp>  // for queue_impl
+#include <sycl/accessor.hpp>           // for AccessorImplHost, AccessorImplPtr
+#include <sycl/detail/cg_types.hpp>    // for ArgDesc, HostTask, HostKernelBase
+#include <sycl/detail/common.hpp>      // for code_location
+#include <sycl/detail/helpers.hpp>     // for context_impl
+#include <sycl/detail/ur.hpp>          // for ur_rect_region_t, ur_rect_offset_t
+#include <sycl/event.hpp>              // for event_impl
+#include <sycl/exception_list.hpp>     // for queue_impl
 #include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
-#include <sycl/kernel.hpp>        // for kernel_impl
-#include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // for prefetch_type
+#endif
+#include <sycl/kernel.hpp>             // for kernel_impl
+#include <sycl/kernel_bundle.hpp>      // for kernel_bundle_impl
 
-#include <assert.h> // for assert
-#include <memory>   // for shared_ptr, unique_ptr
-#include <stddef.h> // for size_t
-#include <stdint.h> // for int32_t
-#include <string>   // for string
-#include <utility>  // for move
-#include <vector>   // for vector
+#include <assert.h>                    // for assert
+#include <memory>                      // for shared_ptr, unique_ptr
+#include <stddef.h>                    // for size_t
+#include <stdint.h>                    // for int32_t
+#include <string>                      // for string
+#include <utility>                     // for move
+#include <vector>                      // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -405,6 +408,41 @@ public:
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
 };
+
+/// Command group class for experimental USM prefetch provided in the enqueue
+/// functions extension.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+class CGPrefetchUSMExp : public CG {
+  void *MDst;
+  size_t MLength;
+  ext::oneapi::experimental::prefetch_type MPrefetchType;
+
+public:
+  CGPrefetchUSMExp(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                   ext::oneapi::experimental::prefetch_type Type,
+                   detail::code_location loc = {})
+      : CG(CGType::PrefetchUSMExp, std::move(CGData), std::move(loc)),
+        MDst(DstPtr), MLength(Length), MPrefetchType(Type) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+  ext::oneapi::experimental::prefetch_type getPrefetchType() {
+    return MPrefetchType;
+  }
+};
+#else
+class CGPrefetchUSMExpD2H : public CG {
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGPrefetchUSMExpD2H(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                      detail::code_location loc = {})
+      : CG(CGType::PrefetchUSMExpD2H, std::move(CGData), std::move(loc)),
+        MDst(DstPtr), MLength(Length) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
+};
+#endif
 
 /// "Advise USM" command group class.
 class CGAdviseUSM : public CG {
