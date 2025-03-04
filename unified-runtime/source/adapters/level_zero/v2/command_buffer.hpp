@@ -13,6 +13,7 @@
 #include "common.hpp"
 #include "context.hpp"
 #include "kernel.hpp"
+#include "lockable.hpp"
 #include "queue_api.hpp"
 #include <ze_api.h>
 
@@ -24,7 +25,7 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
 
   ~ur_exp_command_buffer_handle_t_() = default;
 
-  ur_command_list_manager commandListManager;
+  lockable<ur_command_list_manager> commandListManager;
 
   ur_result_t finalizeCommandBuffer();
   // Indicates if command-buffer commands can be updated after it is closed.
