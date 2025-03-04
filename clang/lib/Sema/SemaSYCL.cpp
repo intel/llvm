@@ -682,7 +682,7 @@ public:
         SemaSYCLRef.Diag(e->getExprLoc(), diag::err_builtin_target_unsupported)
             << Name << "SYCL device";
       }
-    } else if (!SemaSYCLRef.getLangOpts().SYCLAllowFuncPtr &&
+    } else if (SemaSYCLRef.getLangOpts().getSYCLAllowFuncPtr() == LangOptions::SYCLFuncPtrPreference::Off &&
                !e->isTypeDependent() &&
                !isa<CXXPseudoDestructorExpr>(e->getCallee())) {
       bool MaybeConstantExpr = false;
@@ -5792,10 +5792,10 @@ void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
 
 Sema::SemaDiagnosticBuilder
 SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
+                           const FunctionDecl *FD,
                            DeviceDiagnosticReason Reason) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
-  FunctionDecl *FD = dyn_cast<FunctionDecl>(SemaRef.getCurLexicalContext());
   SemaDiagnosticBuilder::Kind DiagKind = [this, FD, Reason] {
     if (DiagnosingSYCLKernel)
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
@@ -5820,6 +5820,36 @@ SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
     return SemaDiagnosticBuilder::K_Deferred;
   }();
   return SemaDiagnosticBuilder(DiagKind, Loc, DiagID, FD, SemaRef, Reason);
+}
+
+Sema::SemaDiagnosticBuilder
+SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
+                           DeviceDiagnosticReason Reason) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
+  FunctionDecl *FD = dyn_cast<FunctionDecl>(SemaRef.getCurLexicalContext());
+  return DiagIfDeviceCode(Loc, DiagID, FD, Reason);
+}
+
+void SemaSYCL::delayFunctionBodyCheckForAddressTaken(const FunctionDecl *FD,
+                                                     SourceLocation Loc) {
+  if (FunctionDecl *FDCtx =
+          dyn_cast<FunctionDecl>(SemaRef.getCurLexicalContext()))
+    FunctionAddressTakenToVerify[FD].emplace_back(FDCtx, Loc);
+}
+
+void SemaSYCL::checkFunctionWithAddressTaken() {
+  for (auto &FuncUsePair : FunctionAddressTakenToVerify) {
+    const FunctionDecl *FD = FuncUsePair.first;
+    if (!FD->hasBody())
+      for (auto &CtxLocPair : FuncUsePair.second) {
+        const FunctionDecl *LexCtx = CtxLocPair.first;
+        SourceLocation Loc = CtxLocPair.second;
+        SemaRef.SYCL().DiagIfDeviceCode(
+            Loc, diag::err_sycl_taking_address_of_function_with_no_definition, LexCtx,
+            Sema::DeviceDiagnosticReason::Sycl);
+      }
+  }
 }
 
 void SemaSYCL::deepTypeCheckForDevice(SourceLocation UsedAt,
