@@ -58,20 +58,14 @@ config.unsupported_features = []
 config.test_mode = lit_config.params.get("test-mode", "full")
 config.fallback_build_run_only = False
 if config.test_mode == "full":
+    config.available_features.add("build-mode")
     config.available_features.add("run-mode")
-    config.available_features.add("build-and-run-mode")
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
-    # run-only uses external shell, some tests might have hacks to workaround
-    # failures caused by that.
-    config.available_features.add("test-mode-run-only")
-
     config.available_features.add("run-mode")
-    if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
-        config.available_features.add("build-and-run-mode")
-        config.fallback_build_run_only = True
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
+    config.available_features.add("build-mode")
     config.sycl_devices = []
     if not config.amd_arch:
         config.amd_arch = "gfx1030"
@@ -173,6 +167,19 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
+
+# Temporarily modify environment to be the same that we use when running tests
+class test_env:
+    def __enter__(self):
+        self.old_environ = dict(os.environ)
+        os.environ.clear()
+        os.environ.update(config.environment)
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        os.environ.clear()
+        os.environ.update(self.old_environ)
+
+
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
 if platform.system() == "Windows":
     config.substitutions.append(
@@ -263,10 +270,11 @@ def open_check_file(file_name):
 
 # check if compiler supports CL command line options
 cl_options = False
-sp = subprocess.getstatusoutput(config.dpcpp_compiler + " /help")
-if sp[0] == 0:
-    cl_options = True
-    config.available_features.add("cl_options")
+with test_env():
+    sp = subprocess.getstatusoutput(config.dpcpp_compiler + " /help")
+    if sp[0] == 0:
+        cl_options = True
+        config.available_features.add("cl_options")
 
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
@@ -321,14 +329,15 @@ if cl_options:
 
 config.substitutions.append(("%level_zero_options", level_zero_options))
 
-sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
-)
-if sp[0] == 0:
-    config.available_features.add("level_zero_dev_kit")
-    config.substitutions.append(("%level_zero_options", level_zero_options))
-else:
-    config.substitutions.append(("%level_zero_options", ""))
+with test_env():
+    sp = subprocess.getstatusoutput(
+        config.dpcpp_compiler + " -fsycl  " + check_l0_file + level_zero_options
+    )
+    if sp[0] == 0:
+        config.available_features.add("level_zero_dev_kit")
+        config.substitutions.append(("%level_zero_options", level_zero_options))
+    else:
+        config.substitutions.append(("%level_zero_options", ""))
 
 if lit_config.params.get("test-preview-mode", False):
     config.available_features.add("preview-mode")
@@ -349,13 +358,14 @@ else:
             file=fp,
         )
 
-    sp = subprocess.getstatusoutput(
-        config.dpcpp_compiler
-        + " -fsycl -fpreview-breaking-changes "
-        + check_preview_breaking_changes_file
-    )
-    if sp[0] == 0:
-        config.available_features.add("preview-breaking-changes-supported")
+    with test_env():
+        sp = subprocess.getstatusoutput(
+            config.dpcpp_compiler
+            + " -fsycl -fpreview-breaking-changes "
+            + check_preview_breaking_changes_file
+        )
+        if sp[0] == 0:
+            config.available_features.add("preview-breaking-changes-supported")
 
 # Check if clang is built with ZSTD and compression support.
 fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
@@ -418,14 +428,15 @@ if cl_options:
 
 config.substitutions.append(("%cuda_options", cuda_options))
 
-sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options
-)
-if sp[0] == 0:
-    config.available_features.add("cuda_dev_kit")
-    config.substitutions.append(("%cuda_options", cuda_options))
-else:
-    config.substitutions.append(("%cuda_options", ""))
+with test_env():
+    sp = subprocess.getstatusoutput(
+        config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options
+    )
+    if sp[0] == 0:
+        config.available_features.add("cuda_dev_kit")
+        config.substitutions.append(("%cuda_options", cuda_options))
+    else:
+        config.substitutions.append(("%cuda_options", ""))
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
@@ -524,6 +535,17 @@ lit_config.note("Targeted devices: {}".format(", ".join(config.sycl_devices)))
 sycl_ls = FindTool("sycl-ls").resolve(llvm_config, config.llvm_tools_dir)
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
+
+if (
+    len(config.sycl_build_targets) == 1
+    and next(iter(config.sycl_build_targets)) == "target-all"
+):
+    config.sycl_build_targets = {"target-spir"}
+    sp = subprocess.getstatusoutput(config.dpcpp_compiler + " --print-targets")
+    if "nvptx64" in sp[1]:
+        config.sycl_build_targets.add("target-nvidia")
+    if "amdgcn" in sp[1]:
+        config.sycl_build_targets.add("target-amd")
 
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     devices = set()

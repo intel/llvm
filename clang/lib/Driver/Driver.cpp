@@ -442,12 +442,12 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
     // -{fsyntax-only,-analyze,emit-ast} only run up to the compiler.
   } else if ((PhaseArg = DAL.getLastArg(options::OPT_fsyntax_only)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_print_supported_cpus)) ||
-             (PhaseArg = DAL.getLastArg(options::OPT_print_enabled_extensions)) ||
+             (PhaseArg =
+                  DAL.getLastArg(options::OPT_print_enabled_extensions)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_module_file_info)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_verify_pch)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_rewrite_objc)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_rewrite_legacy_objc)) ||
-             (PhaseArg = DAL.getLastArg(options::OPT__migrate)) ||
              (PhaseArg = DAL.getLastArg(options::OPT__analyze)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_emit_cir)) ||
              (PhaseArg = DAL.getLastArg(options::OPT_emit_ast))) {
@@ -683,6 +683,10 @@ static llvm::Triple computeTargetTriple(const Driver &D,
         Target.setArch(AT);
     }
   }
+
+  // Currently the only architecture supported by *-uefi triples are x86_64.
+  if (Target.isUEFI() && Target.getArch() != llvm::Triple::x86_64)
+    D.Diag(diag::err_target_unknown_triple) << Target.str();
 
   // The `-maix[32|64]` flags are only valid for AIX targets.
   if (Arg *A = Args.getLastArgNoClaim(options::OPT_maix32, options::OPT_maix64);
@@ -3888,8 +3892,21 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   auto resolveStaticLib = [&](StringRef LibName, bool IsStatic) -> bool {
     if (!LibName.starts_with("-l"))
       return false;
+    // Put together the library name.  For any -l<arg> type names, we create
+    // a full name as lib<arg>.<ext>.  For any -l:<arg> type names, we take the
+    // literal <arg>.
+    SmallString<128> RenderedLibName;
+    bool OverrideLinkType = false;
+    if (LibName.starts_with("-l:")) {
+      RenderedLibName = LibName.substr(3);
+      // We override the link type as passed in, as we want to treat the library
+      // in question as the name passed in.
+      OverrideLinkType = true;
+    } else
+      RenderedLibName = Twine("lib" + LibName.substr(2) + ".a").str();
+
     for (auto &LPath : LibPaths) {
-      if (!IsStatic) {
+      if (!IsStatic && !OverrideLinkType) {
         // Current linking state is dynamic.  We will first check for the
         // shared object and not pull in the static library if it is found.
         SmallString<128> SoLibName(LPath);
@@ -3899,8 +3916,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
           return false;
       }
       SmallString<128> FullName(LPath);
-      llvm::sys::path::append(FullName,
-                              Twine("lib" + LibName.substr(2) + ".a").str());
+      llvm::sys::path::append(FullName, RenderedLibName);
       if (llvm::sys::fs::exists(FullName)) {
         LibArgs.push_back(Args.MakeArgString(FullName));
         return true;
@@ -8535,8 +8551,6 @@ Action *Driver::ConstructPhaseAction(
                                             types::TY_RewrittenLegacyObjC);
     if (Args.hasArg(options::OPT__analyze))
       return C.MakeAction<AnalyzeJobAction>(Input, types::TY_Plist);
-    if (Args.hasArg(options::OPT__migrate))
-      return C.MakeAction<MigrateJobAction>(Input, types::TY_Remap);
     if (Args.hasArg(options::OPT_emit_ast))
       return C.MakeAction<CompileJobAction>(Input, types::TY_AST);
     if (Args.hasArg(options::OPT_emit_cir))

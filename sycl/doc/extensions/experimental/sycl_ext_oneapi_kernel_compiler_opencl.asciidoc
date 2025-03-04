@@ -254,11 +254,15 @@ If the device does not support kernel bundles written in
 
 |====
 
-=== Build options
+=== Supported properties
 
-The `build_options` property accepts any of the compiler or linker options
-defined by the OpenCL specification, except for those that are specific to
-creating an OpenCL library.
+The `opencl` language supports only those properties from
+link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
+sycl_ext_oneapi_kernel_compiler] that are common to all source languages.
+
+The `build_options` property that is passed to the `build` function may contain
+any of the compiler or linker options defined by the OpenCL specification,
+except for those that are specific to creating an OpenCL library.
 The kernel compiler can be used to create an OpenCL program, but not an OpenCL
 library.
 

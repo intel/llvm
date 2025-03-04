@@ -11,8 +11,8 @@
 #include <libspirv/spirv.h>
 
 #include "ep_log.h"
-#include <libspirv/math/tables.h>
-#include <math/math.h>
+#include <clc/math/tables.h>
+#include <clc/math/math.h>
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
