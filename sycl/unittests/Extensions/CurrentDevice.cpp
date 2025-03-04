@@ -57,6 +57,9 @@ void callable_set_get_eq(sycl::device dev) {
 } // namespace
 
 TEST(CurrentDeviceTest, CheckGetCurrentDeviceReturnDefaultDeviceInHostThread) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urDeviceGet",
+                                            &redefine_urDeviceGet);
   ASSERT_EQ(sycl::ext::oneapi::experimental::this_thread::get_current_device(),
             sycl::device{sycl::default_selector_v});
 }
