@@ -13,6 +13,7 @@
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: bfloat16 device library is not used on AMD and Nvidia.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>

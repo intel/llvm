@@ -10,6 +10,7 @@
 // RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-imported-symbols -properties -o %t.txt %t.bc
 // RUN: cat %t_0.prop | FileCheck %s -check-prefixes=CHECK-BF16
 // UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: bfloat16 device library is not used on AMD and Nvidia.
 
 // sycl-post-link tool will analyze device code to check whether sycl bfloat16
 // device library is used. If yes, the used functions will be added to imported
