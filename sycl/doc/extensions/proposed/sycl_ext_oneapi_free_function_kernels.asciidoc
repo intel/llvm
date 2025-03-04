@@ -43,7 +43,7 @@ the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+* link:../supported/sycl_ext_oneapi_free_function_queries.rst[
   sycl_ext_oneapi_free_function_queries]
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties]
@@ -667,7 +667,7 @@ parameters are used to pass the kernel arguments instead.
 Therefore, a free function kernel must obtain the iteration ID in some other
 way.
 Typically, a free function kernel uses the functions specified in
-link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+link:../supported/sycl_ext_oneapi_free_function_queries.rst[
 sycl_ext_oneapi_free_function_queries] for this purpose.
 
 === Address space of kernel arguments
@@ -893,7 +893,7 @@ when the kernel adheres to the following restrictions:
 * The kernel function is declared as `extern "C"`;
 * Each formal argument to the kernel is either a {cpp} trivially copyable type
   or the `work_group_memory` type (see
-  link:../proposed/sycl_ext_oneapi_work_group_memory.asciidoc[
+  link:../proposed/sycl_ext_oneapi_work_group_memory.rst[
   sycl_ext_oneapi_work_group_memory]); and
 * The translation unit containing the kernel is compiled with the
   `-fno-sycl-dead-args-optimization` option.
@@ -1094,7 +1094,7 @@ void iota(sycl::nd_item<1> nditem, float start, float *ptr) { /*...*/  }
 ```
 
 The advantage is that the user wouldn't need to use the functions in
-link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+link:../supported/sycl_ext_oneapi_free_function_queries.rst[
 sycl_ext_oneapi_free_function_queries] to get the iteration index.
 Doing this raises some new questions, though:
 
