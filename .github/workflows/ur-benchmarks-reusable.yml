@@ -111,7 +111,7 @@ jobs:
     - name: Configure UR
       run: >
         cmake -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
-        -S${{github.workspace}}/llvm/sycl-repo/unified-runtime
+        -S${{github.workspace}}/sycl-repo/unified-runtime
         -B${{github.workspace}}/ur_build
         -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/ur_install
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
