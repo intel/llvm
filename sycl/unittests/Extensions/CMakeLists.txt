@@ -19,6 +19,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   WorkGroupMemoryBackendArgument.cpp
   GetLastEvent.cpp
   BFloat16.cpp
+  LaunchQueries.cpp
   EventMode.cpp
 )
 
