@@ -236,7 +236,7 @@ int test_build_and_run() {
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs,
       syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
-                         syclex::registered_kernel_names{"ff_templated<int>"}});
+                         syclex::registered_names{"ff_templated<int>"}});
 
   // extern "C" was used, so the name "ff_cp" is implicitly known.
   sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
@@ -355,7 +355,7 @@ int test_device_code_split() {
   auto build = [&](const std::string &mode) -> size_t {
     exe_kb kbExe = syclex::build(
         kbSrc, syclex::properties{
-                   syclex::registered_kernel_names{names},
+                   syclex::registered_names{names},
                    syclex::build_options{"-fsycl-device-code-split=" + mode}});
     return std::distance(kbExe.begin(), kbExe.end());
   };
@@ -372,8 +372,8 @@ int test_device_code_split() {
 
   // Test implicit device code split
   names = {"vec_add<float, 8>", "vec_add<float, 16>"};
-  exe_kb kbDiffWorkGroupSizes = syclex::build(
-      kbSrc, syclex::properties{syclex::registered_kernel_names{names}});
+  exe_kb kbDiffWorkGroupSizes =
+      syclex::build(kbSrc, syclex::properties{syclex::registered_names{names}});
   assert(std::distance(kbDiffWorkGroupSizes.begin(),
                        kbDiffWorkGroupSizes.end()) == 2);
 
