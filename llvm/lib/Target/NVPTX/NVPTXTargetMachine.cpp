@@ -109,6 +109,7 @@ void initializeNVPTXLowerUnreachablePass(PassRegistry &);
 void initializeNVPTXCtorDtorLoweringLegacyPass(PassRegistry &);
 void initializeNVPTXLowerArgsPass(PassRegistry &);
 void initializeNVPTXProxyRegErasurePass(PassRegistry &);
+void initializeNVPTXForwardParamsPassPass(PassRegistry &);
 void initializeNVVMIntrRangePass(PassRegistry &);
 void initializeNVVMReflectPass(PassRegistry &);
 void initializeNVPTXAAWrapperPassPass(PassRegistry &);
@@ -139,6 +140,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeNVPTXTarget() {
   initializeNVPTXCtorDtorLoweringLegacyPass(PR);
   initializeNVPTXLowerAggrCopiesPass(PR);
   initializeNVPTXProxyRegErasurePass(PR);
+  initializeNVPTXForwardParamsPassPass(PR);
   initializeNVPTXDAGToDAGISelLegacyPass(PR);
   initializeNVPTXAAWrapperPassPass(PR);
   initializeNVPTXExternalAAWrapperPass(PR);
@@ -452,6 +454,7 @@ bool NVPTXPassConfig::addInstSelector() {
 }
 
 void NVPTXPassConfig::addPreRegAlloc() {
+  addPass(createNVPTXForwardParamsPass());
   // Remove Proxy Register pseudo instructions used to keep `callseq_end` alive.
   addPass(createNVPTXProxyRegErasurePass());
 }
@@ -529,7 +532,7 @@ void NVPTXPassConfig::addMachineSSAOptimization() {
   addPass(&EarlyMachineLICMID);
   addPass(&MachineCSELegacyID);
 
-  addPass(&MachineSinkingID);
+  addPass(&MachineSinkingLegacyID);
   printAndVerify("After Machine LICM, CSE and Sinking passes");
 
   addPass(&PeepholeOptimizerLegacyID);

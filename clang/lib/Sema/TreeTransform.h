@@ -11661,7 +11661,8 @@ class OpenACCClauseTransform final
       if (!Res.isUsable())
         continue;
 
-      Res = Self.getSema().OpenACC().ActOnVar(ParsedClause.getClauseKind(),
+      Res = Self.getSema().OpenACC().ActOnVar(ParsedClause.getDirectiveKind(),
+                                              ParsedClause.getClauseKind(),
                                               Res.get());
 
       if (Res.isUsable())
@@ -11726,7 +11727,8 @@ void OpenACCClauseTransform<Derived>::VisitSelfClause(
       if (!Res.isUsable())
         continue;
 
-      Res = Self.getSema().OpenACC().ActOnVar(ParsedClause.getClauseKind(),
+      Res = Self.getSema().OpenACC().ActOnVar(ParsedClause.getDirectiveKind(),
+                                              ParsedClause.getClauseKind(),
                                               Res.get());
 
       if (Res.isUsable())
@@ -11870,6 +11872,18 @@ void OpenACCClauseTransform<Derived>::VisitCopyClause(
       Self.getSema().getASTContext(), ParsedClause.getClauseKind(),
       ParsedClause.getBeginLoc(), ParsedClause.getLParenLoc(),
       ParsedClause.getVarList(), ParsedClause.getEndLoc());
+}
+
+template <typename Derived>
+void OpenACCClauseTransform<Derived>::VisitLinkClause(
+    const OpenACCLinkClause &C) {
+  llvm_unreachable("link clause not valid unless a decl transform");
+}
+
+template <typename Derived>
+void OpenACCClauseTransform<Derived>::VisitDeviceResidentClause(
+    const OpenACCDeviceResidentClause &C) {
+  llvm_unreachable("device_resident clause not valid unless a decl transform");
 }
 
 template <typename Derived>

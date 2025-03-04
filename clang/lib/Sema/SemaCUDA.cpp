@@ -512,7 +512,9 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
     if (!SMOR.getMethod())
       continue;
 
-    CUDAFunctionTarget BaseMethodTarget = IdentifyTarget(SMOR.getMethod());
+    CUDAFunctionTarget BaseMethodTarget =
+        IdentifyTarget(SMOR.getMethod(), IsExpVDtor);
+
     if (!InferredTarget) {
       InferredTarget = BaseMethodTarget;
     } else {
@@ -556,7 +558,9 @@ bool SemaCUDA::inferTargetForImplicitSpecialMember(CXXRecordDecl *ClassDecl,
     if (!SMOR.getMethod())
       continue;
 
-    CUDAFunctionTarget FieldMethodTarget = IdentifyTarget(SMOR.getMethod());
+    CUDAFunctionTarget FieldMethodTarget =
+        IdentifyTarget(SMOR.getMethod(), IsExpVDtor);
+
     if (!InferredTarget) {
       InferredTarget = FieldMethodTarget;
     } else {
