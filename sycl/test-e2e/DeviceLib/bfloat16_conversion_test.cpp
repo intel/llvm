@@ -35,9 +35,7 @@ void foo(queue &deviceQueue) {
         .submit([&](handler &cgh) {
           auto fp32_acc = fp32_buffer.template get_access<sycl_read>(cgh);
           auto bf16_acc = bf16_buffer.template get_access<sycl_write>(cgh);
-          cgh.single_task([=]() {
-            bf16_acc[0] = BFP{fp32_acc[0]};
-          });
+          cgh.single_task([=]() { bf16_acc[0] = BFP{fp32_acc[0]}; });
         })
         .wait();
   }
@@ -45,9 +43,8 @@ void foo(queue &deviceQueue) {
 }
 #endif
 
-
 #ifdef BUILD_EXE
-  void foo(queue &deviceQueue);
+void foo(queue &deviceQueue);
 #endif
 
 int main() {
