@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 314
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 313
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -162,7 +162,6 @@
 // CHECK-NEXT: ESIMD/lsc/lsc_usm_store_u8_u16.cpp
 // CHECK-NEXT: ESIMD/lsc/lsc_usm_store_u8_u16_64.cpp
 // CHECK-NEXT: ESIMD/matrix_transpose2.cpp
-// CHECK-NEXT: ESIMD/preemption.cpp
 // CHECK-NEXT: ESIMD/private_memory/private_memory.cpp
 // CHECK-NEXT: ESIMD/regression/bitreverse.cpp
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
