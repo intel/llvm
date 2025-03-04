@@ -13,8 +13,7 @@
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 1
-// RUN: %{l0_leak_check} %{run} %t.out 1
+// RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -47,7 +46,7 @@ int main() {
       syclexp::create_kernel_bundle_from_source(
           q.get_context(), syclexp::source_language::sycl_jit, source);
 
-  // Compile the kernel.  There is no need to use the "registered_kernel_names"
+  // Compile the kernel.  There is no need to use the "registered_names"
   // property because the kernel is declared extern "C".
   sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
       syclexp::build(kb_src);

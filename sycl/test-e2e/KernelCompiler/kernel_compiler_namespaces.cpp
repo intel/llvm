@@ -13,8 +13,7 @@
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 1
-// RUN: %{l0_leak_check} %{run} %t.out 1
+// RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -56,7 +55,7 @@ int main() {
   // Compile the kernel. Select kernel from the mykernels namespace
   std::string iota_name{"mykernels::iota"};
   sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe = syclexp::build(
-      kb_src, syclexp::properties{syclexp::registered_kernel_names{iota_name}});
+      kb_src, syclexp::properties{syclexp::registered_names{iota_name}});
 
   sycl::kernel iota = kb_exe.ext_oneapi_get_kernel(iota_name);
 
