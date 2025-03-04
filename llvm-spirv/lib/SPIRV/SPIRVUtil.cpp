@@ -1511,7 +1511,9 @@ Value *getScalarOrArrayConstantInt(BasicBlock::iterator Pos, Type *T,
     auto *AT = ArrayType::get(ET, Len);
     std::vector<Constant *> EV(Len, ConstantInt::get(ET, V, IsSigned));
     auto *CA = ConstantArray::get(AT, EV);
-    auto *Alloca = new AllocaInst(AT, 0, "", Pos);
+    auto *Alloca = new AllocaInst(
+        AT, Pos->getParent()->getParent()->getDataLayout().getAllocaAddrSpace(),
+        "", Pos);
     new StoreInst(CA, Alloca, Pos);
     auto *Zero = ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
     Value *Index[] = {Zero, Zero};
@@ -2184,16 +2186,11 @@ bool lowerBuiltinCallsToVariables(Module *M) {
     for (auto *U : F.users()) {
       auto *CI = dyn_cast<CallInst>(U);
       assert(CI && "invalid instruction");
-      const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI->getIterator());
-      if (DLoc)
-        NewValue->setDebugLoc(DLoc);
+      IRBuilder<> Builder(CI);
+      Value *NewValue = Builder.CreateLoad(GVType, BV);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
-        NewValue = ExtractElementInst::Create(NewValue, CI->getArgOperand(0),
-                                              "", CI->getIterator());
-        if (DLoc)
-          NewValue->setDebugLoc(DLoc);
+        NewValue = Builder.CreateExtractElement(NewValue, CI->getArgOperand(0));
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
       }
       NewValue->takeName(CI);
@@ -2294,7 +2291,9 @@ bool postProcessBuiltinWithArrayArguments(Function *F,
           auto *T = I->getType();
           if (!T->isArrayTy())
             continue;
-          auto *Alloca = new AllocaInst(T, 0, "", FBegin);
+          auto *Alloca = new AllocaInst(
+              T, F->getParent()->getDataLayout().getAllocaAddrSpace(), "",
+              FBegin);
           new StoreInst(I, Alloca, false, CI->getIterator());
           auto *Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
