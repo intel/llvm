@@ -41,9 +41,10 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
 ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   // It is not allowed to append to command list from multiple threads.
   std::scoped_lock<ur_shared_mutex> guard(this->Mutex);
+  auto commandListLocked = commandListManager.lock();
   UR_ASSERT(!isFinalized, UR_RESULT_ERROR_INVALID_OPERATION);
   // Close the command lists and have them ready for dispatch.
-  ZE2UR_CALL(zeCommandListClose, (this->commandListManager.getZeCommandList()));
+  ZE2UR_CALL(zeCommandListClose, (commandListLocked->getZeCommandList()));
   isFinalized = true;
   return UR_RESULT_SUCCESS;
 }
@@ -130,7 +131,8 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   std::ignore = numKernelAlternatives;
   std::ignore = kernelAlternatives;
   std::ignore = command;
-  UR_CALL(commandBuffer->commandListManager.appendKernelLaunch(
+  auto commandListLocked = commandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
       nullptr, nullptr));
   return UR_RESULT_SUCCESS;
@@ -157,8 +159,9 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
 
   std::ignore = phCommand;
   // Responsibility of UMD to offload to copy engine
-  UR_CALL(hCommandBuffer->commandListManager.appendUSMMemcpy(
-      false, pDst, pSrc, size, 0, nullptr, nullptr));
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendUSMMemcpy(false, pDst, pSrc, size, 0,
+                                             nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -185,7 +188,8 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
 
   std::ignore = phCommand;
   // Responsibility of UMD to offload to copy engine
-  UR_CALL(hCommandBuffer->commandListManager.appendMemBufferCopy(
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendMemBufferCopy(
       hSrcMem, hDstMem, srcOffset, dstOffset, size, 0, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
@@ -213,8 +217,9 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
 
   std::ignore = phCommand;
   // Responsibility of UMD to offload to copy engine
-  UR_CALL(hCommandBuffer->commandListManager.appendMemBufferWrite(
-      hBuffer, false, offset, size, pSrc, 0, nullptr, nullptr));
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendMemBufferWrite(hBuffer, false, offset, size,
+                                                  pSrc, 0, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -241,8 +246,9 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
   std::ignore = phCommand;
 
   // Responsibility of UMD to offload to copy engine
-  UR_CALL(hCommandBuffer->commandListManager.appendMemBufferRead(
-      hBuffer, false, offset, size, pDst, 0, nullptr, nullptr));
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendMemBufferRead(hBuffer, false, offset, size,
+                                                 pDst, 0, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -271,7 +277,8 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
 
   std::ignore = phCommand;
   // Responsibility of UMD to offload to copy engine
-  UR_CALL(hCommandBuffer->commandListManager.appendMemBufferCopyRect(
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendMemBufferCopyRect(
       hSrcMem, hDstMem, srcOrigin, dstOrigin, region, srcRowPitch,
       srcSlicePitch, dstRowPitch, dstSlicePitch, 0, nullptr, nullptr));
 
@@ -303,7 +310,8 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
   std::ignore = phCommand;
 
   // Responsibility of UMD to offload to copy engine
-  UR_CALL(hCommandBuffer->commandListManager.appendMemBufferWriteRect(
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendMemBufferWriteRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc, 0, nullptr,
       nullptr));
@@ -336,7 +344,8 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
   std::ignore = phCommand;
 
   // Responsibility of UMD to offload to copy engine
-  UR_CALL(hCommandBuffer->commandListManager.appendMemBufferReadRect(
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendMemBufferReadRect(
       hBuffer, false, bufferOffset, hostOffset, region, bufferRowPitch,
       bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst, 0, nullptr,
       nullptr));
@@ -366,8 +375,9 @@ ur_result_t urCommandBufferAppendUSMFillExp(
 
   std::ignore = phCommand;
 
-  UR_CALL(hCommandBuffer->commandListManager.appendUSMFill(
-      pMemory, patternSize, pPattern, size, 0, nullptr, nullptr));
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendUSMFill(pMemory, patternSize, pPattern, size,
+                                           0, nullptr, nullptr));
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -393,7 +403,8 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
 
   std::ignore = phCommand;
 
-  UR_CALL(hCommandBuffer->commandListManager.appendMemBufferFill(
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendMemBufferFill(
       hBuffer, pPattern, patternSize, offset, size, 0, nullptr, nullptr));
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -420,8 +431,9 @@ ur_result_t urCommandBufferAppendUSMPrefetchExp(
 
   std::ignore = phCommand;
 
-  UR_CALL(hCommandBuffer->commandListManager.appendUSMPrefetch(
-      pMemory, size, flags, 0, nullptr, nullptr));
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendUSMPrefetch(pMemory, size, flags, 0, nullptr,
+                                               nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -447,8 +459,8 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
 
   std::ignore = phCommand;
 
-  UR_CALL(hCommandBuffer->commandListManager.appendUSMAdvise(pMemory, size,
-                                                             advice, nullptr));
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendUSMAdvise(pMemory, size, advice, nullptr));
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -479,6 +491,18 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
     assert(false && "Command-buffer info request not implemented");
   }
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urCommandBufferEnqueueExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t UrQueue,
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *Event) try {
+  auto commandListLocked = CommandBuffer->commandListManager.lock();
+  return UrQueue->get().enqueueCommandBuffer(
+      commandListLocked->getZeCommandList(), Event, NumEventsInWaitList,
+      EventWaitList);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

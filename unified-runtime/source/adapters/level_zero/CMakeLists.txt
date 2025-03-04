@@ -158,6 +158,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/lockable.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
