@@ -112,10 +112,14 @@ struct _sycl_offload_entry_struct {
   /// An extra pointer, usually null.
   void *AuxAddr;
 
-  inline bool IsLegacy() {
-    // Check if first 128 bits of this struct are zero, if so, this is a newer
-    // version of the struct.
-    return *(uint64_t *)(this) || *(((uint64_t *)this) + 1);
+  bool IsLegacy() {
+    // Chek if first 64 bits is 0, next 16 bits is equal to 1, next 16 bits
+    // is equal to 4 (OK_SYCL), and Flags should be zero. If all these
+    // conditions are met, then this is a newer version of the struct.
+    // We can not just rely on checking the first 64 bits, because even for the
+    // older version of the struct, the first 64 bits (void* addr) are zero.
+    return !(this->Reserved == 0 && this->Version == 1 && this->Kind == 4 &&
+             this->Flags == 0);
   }
 
   // Name is the only field that's used in SYCL.
