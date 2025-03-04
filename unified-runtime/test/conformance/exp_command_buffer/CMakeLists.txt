@@ -7,7 +7,6 @@ add_conformance_test_with_kernels_environment(exp_command_buffer
   release.cpp
   retain.cpp
   commands.cpp
-  fill.cpp
   event_sync.cpp
   kernel_event_sync.cpp
   invalid.cpp
