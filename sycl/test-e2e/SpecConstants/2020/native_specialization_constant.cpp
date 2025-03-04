@@ -2,7 +2,7 @@
 // on opencl & level-zero backends
 // (because only SPIR-V supports specialization constants natively)
 
-// REQUIRES: build-and-run-mode, opencl-aot, ocloc, target-spir
+// REQUIRES: opencl-aot, ocloc, target-spir
 
 // RUN: %clangxx -fsycl -DJIT %s -o %t.out
 // RUN: %{run} %t.out
