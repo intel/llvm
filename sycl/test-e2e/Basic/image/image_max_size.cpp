@@ -4,7 +4,7 @@
 
 // UNSUPPORTED: cuda
 // UNSUPPORTED-INTENDED: CUDA does not support info::device::image3d_max_width
-// query, bindless images should be used instead.
+// query. Bindless images should be used instead.
 
 // The test checks that 'image' with max allowed sizes is handled correctly.
 
