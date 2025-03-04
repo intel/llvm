@@ -389,6 +389,7 @@ project must keep using `<sycl/sycl.hpp>` provided by the SYCL2020
 specification.**
 
 ### Compiling and executing tests on separate systems
+
 The execution of e2e tests can be separated into compilation and execution
 stages via the `test-mode` lit parameter. This allows us to reduce testing time
 by compiling tests on more powerful systems and reusing the binaries on other
@@ -398,7 +399,7 @@ to only run the compilation stage, or the execution stage respectively.
 
 #### Run only mode
   
-  Set with: `--param test-mode=run-only`
+  Pass: `--param test-mode=run-only`
 
   In this mode, tests will not be compiled, they will only run. To do this only
   the `RUN:` lines that contain a "run" expansion will be executed (`%{run}`,
@@ -415,7 +416,7 @@ to only run the compilation stage, or the execution stage respectively.
 
 #### Build only mode
 
-  Set with: `--param test-mode=build-only`
+  Pass: `--param test-mode=build-only`
 
   This mode can be used to compile all test binaries that can be built on the
   system. To do this `REQUIRES`, and `UNSUPPORTED` statements are handled
@@ -429,8 +430,8 @@ to only run the compilation stage, or the execution stage respectively.
   requirements. The list of device-agnostic features that are not considered
   unknown in `build-only` is found in the `E2EExpr.py`.
 
-  The triples to compile for in this mode are set via the `sycl_build_targets`
-  lit parameter. Valid build targets are: `spir`,`nvidia`, `amd`, `native_cpu`.
+  The triples to compile in this mode are set via the `sycl_build_targets` lit
+  parameter. Valid build targets are: `spir`,`nvidia`, `amd`, `native_cpu`.
   These correspond to `spir64`, `nvptx64-nvidia-cuda`, `amdgcn-amd-amdhsa`, and
   `native_cpu` triples respectively. Each build target should be separated with
   a semicolon. This parameter is set to `all` by default, which enables
@@ -449,8 +450,9 @@ to only run the compilation stage, or the execution stage respectively.
 
   The `build-mode` feature is added when in this mode.
 
-  Some examples of `REQUIRES`/`UNSUPPORTED` in build-only. If `linux` and `zstd`
-  are available, and `sycl_build_targets` is set to `spir;amd;nvidia`
+  Some examples of `REQUIRES`/`UNSUPPORTED` in build-only:
+  If `linux` and `zstd` are available, and `sycl_build_targets` is set to
+  `spir;amd`
   * `REQUIRES: linux && zstd`: This would be supported, this is treated normally
   since both features are device-agnostic.
   * `REQUIRES: linux && sg-32`: Despite the `sg-32` feature not being available,
@@ -465,6 +467,13 @@ to only run the compilation stage, or the execution stage respectively.
   either true or false the overall expression evaluates to unknown.
   * `UNSUPPORTED: !sg-32`: this would be supported. `sg-32` is evaluated as
   unknown, and the negation of unknown is also unknown.
+  * `REQUIRES: target-spir`: This will be supported, and only the `spir64`
+  triple will be selected.
+  * `REQUIRES: target-spir && target-amd`: This will not be supported. When
+  checking if `target-spir` should be selected, `target-amd` will not be an
+  available feature, and vice versa when checking `target-amd`.
+  * `REQUIRES: target-spir && any-target-is-amd`: This will be supported, but
+  only the `spir64` triple will be selected.
 
 #### Common Issues with separate build and run
 
