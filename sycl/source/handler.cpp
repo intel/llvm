@@ -2144,8 +2144,9 @@ void handler::reset(const std::shared_ptr<detail::queue_impl> &Queue,
     MCodeLoc = {};
 
     MIsFinalized = false;
-    // Handle MLastEvent
-    MLastEvent = {};
+    // creation of empty event::impl is too time-consuming, so reset impl to
+    // empty state
+    MLastEvent.reset();
   }
 }
 
