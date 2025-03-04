@@ -191,6 +191,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         )
     endif()
 
+    target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_LEVEL_ZERO)
     target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_ADAPTER_LEVEL_ZERO_V2)
 
     # TODO: fix level_zero adapter conversion warnings
