@@ -218,12 +218,11 @@ jobs:
     - name: Setup SYCL toolchain
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        ls
     - name: Configure E2E
       shell: cmd
       run: |
         mkdir build-e2e
-        cmake -GNinja -B build-e2e -S.\src\sycl\test-e2e -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLEVEL_ZERO_INCLUDE="D:\github\level-zero_win-sdk\include" -DLLVM_LIT=".\src\llvm\utils\lit\lit.py"
+        cmake -GNinja -B build-e2e -S"$env:GITHUB_WORKSPACE\src\sycl\test-e2e" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLEVEL_ZERO_INCLUDE="D:\github\level-zero_win-sdk\include" -DLLVM_LIT="$env:GITHUB_WORKSPACE\src\llvm\utils\lit\lit.py"
 
     - name: Run End-to-End tests
       shell: bash
