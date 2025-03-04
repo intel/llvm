@@ -81,12 +81,6 @@
 // RUN:   %clang_cl -### -fsycl-force-inline-kernel-lambda  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-force-inline-kernel-lambda %s
 
-// Warning should be emitted when using -fsycl-fp32-prec-sqrt without -fsycl
-// RUN:   %clang -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-fp32-prec-sqrt %s
-// RUN:   %clang_cl -### -fsycl-fp32-prec-sqrt  %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-fp32-prec-sqrt %s
-
 // Warning should be emitted when using -fsycl-id-queries-fit-in-int without -fsycl
 // RUN:   %clang -### -fsycl-id-queries-fit-in-int  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-id-queries-fit-in-int %s
