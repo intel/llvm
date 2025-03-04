@@ -496,7 +496,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName)
+    if (UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -2082,7 +2082,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_USM_POOL_INFO_CONTEXT < propName)
+    if (UR_USM_POOL_INFO_USED_HIGH_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -6575,6 +6575,629 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMDeviceAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMDeviceAllocExp =
+      getContext()->urDdiTable.EnqueueExp.pfnUSMDeviceAllocExp;
+
+  if (nullptr == pfnUSMDeviceAllocExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL != pProperties &&
+        UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    getContext()->refCountContext->logInvalidReference(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    getContext()->refCountContext->logInvalidReference(pPool);
+  }
+
+  ur_result_t result = pfnUSMDeviceAllocExp(hQueue, pPool, size, pProperties,
+                                            numEventsInWaitList,
+                                            phEventWaitList, ppMem, phEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMSharedAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMSharedAllocExp =
+      getContext()->urDdiTable.EnqueueExp.pfnUSMSharedAllocExp;
+
+  if (nullptr == pfnUSMSharedAllocExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL != pProperties &&
+        UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    getContext()->refCountContext->logInvalidReference(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    getContext()->refCountContext->logInvalidReference(pPool);
+  }
+
+  ur_result_t result = pfnUSMSharedAllocExp(hQueue, pPool, size, pProperties,
+                                            numEventsInWaitList,
+                                            phEventWaitList, ppMem, phEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMHostAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMHostAllocExp =
+      getContext()->urDdiTable.EnqueueExp.pfnUSMHostAllocExp;
+
+  if (nullptr == pfnUSMHostAllocExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL != pProperties &&
+        UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    getContext()->refCountContext->logInvalidReference(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    getContext()->refCountContext->logInvalidReference(pPool);
+  }
+
+  ur_result_t result =
+      pfnUSMHostAllocExp(hQueue, pPool, size, pProperties, numEventsInWaitList,
+                         phEventWaitList, ppMem, phEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMFreeExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] pointer to USM memory object
+    void *pMem,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMFreeExp = getContext()->urDdiTable.EnqueueExp.pfnUSMFreeExp;
+
+  if (nullptr == pfnUSMFreeExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    getContext()->refCountContext->logInvalidReference(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    getContext()->refCountContext->logInvalidReference(pPool);
+  }
+
+  ur_result_t result = pfnUSMFreeExp(hQueue, pPool, pMem, numEventsInWaitList,
+                                     phEventWaitList, phEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolCreateExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to USM pool descriptor. Can be chained with
+    /// ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_desc_t *pPoolDesc,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool) {
+  auto pfnPoolCreateExp = getContext()->urDdiTable.USMExp.pfnPoolCreateExp;
+
+  if (nullptr == pfnPoolCreateExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pPoolDesc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == pPool)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  ur_result_t result = pfnPoolCreateExp(hContext, hDevice, pPoolDesc, pPool);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    getContext()->refCountContext->createRefCount(*pPool);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolDestroyExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolDestroyExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool to be destroyed
+    ur_usm_pool_handle_t hPool) {
+  auto pfnPoolDestroyExp = getContext()->urDdiTable.USMExp.pfnPoolDestroyExp;
+
+  if (nullptr == pfnPoolDestroyExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    getContext()->refCountContext->logInvalidReference(hPool);
+  }
+
+  ur_result_t result = pfnPoolDestroyExp(hContext, hDevice, hPool);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetThresholdExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool for the threshold to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] release threshold to be set
+    size_t newThreshold) {
+  auto pfnPoolSetThresholdExp =
+      getContext()->urDdiTable.USMExp.pfnPoolSetThresholdExp;
+
+  if (nullptr == pfnPoolSetThresholdExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    getContext()->refCountContext->logInvalidReference(hPool);
+  }
+
+  ur_result_t result =
+      pfnPoolSetThresholdExp(hContext, hDevice, hPool, newThreshold);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetDefaultDevicePoolExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool) {
+  auto pfnPoolGetDefaultDevicePoolExp =
+      getContext()->urDdiTable.USMExp.pfnPoolGetDefaultDevicePoolExp;
+
+  if (nullptr == pfnPoolGetDefaultDevicePoolExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pPool)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  ur_result_t result = pfnPoolGetDefaultDevicePoolExp(hContext, hDevice, pPool);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
+    /// [in] handle to USM memory pool for property retrieval
+    ur_usm_pool_handle_t hPool,
+    /// [in] queried property name
+    ur_usm_pool_info_t propName,
+    /// [out][optional] returned query value
+    void *pPropValue,
+    /// [out][optional] returned query value size
+    size_t *pPropSizeRet) {
+  auto pfnPoolGetInfoExp = getContext()->urDdiTable.USMExp.pfnPoolGetInfoExp;
+
+  if (nullptr == pfnPoolGetInfoExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (pPropValue == NULL && pPropSizeRet == NULL)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (UR_USM_POOL_INFO_USED_HIGH_EXP < propName)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    getContext()->refCountContext->logInvalidReference(hPool);
+  }
+
+  ur_result_t result =
+      pfnPoolGetInfoExp(hPool, propName, pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetDevicePoolExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool to set for a device
+    ur_usm_pool_handle_t hPool) {
+  auto pfnPoolSetDevicePoolExp =
+      getContext()->urDdiTable.USMExp.pfnPoolSetDevicePoolExp;
+
+  if (nullptr == pfnPoolSetDevicePoolExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    getContext()->refCountContext->logInvalidReference(hPool);
+  }
+
+  ur_result_t result = pfnPoolSetDevicePoolExp(hContext, hDevice, hPool);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolGetDevicePoolExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool) {
+  auto pfnPoolGetDevicePoolExp =
+      getContext()->urDdiTable.USMExp.pfnPoolGetDevicePoolExp;
+
+  if (nullptr == pfnPoolGetDevicePoolExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pPool)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  ur_result_t result = pfnPoolGetDevicePoolExp(hContext, hDevice, pPool);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolTrimToExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolTrimToExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool for trimming
+    ur_usm_pool_handle_t hPool,
+    /// [in] minimum number of bytes to keep in the pool
+    size_t minBytesToKeep) {
+  auto pfnPoolTrimToExp = getContext()->urDdiTable.USMExp.pfnPoolTrimToExp;
+
+  if (nullptr == pfnPoolTrimToExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hContext)) {
+    getContext()->refCountContext->logInvalidReference(hContext);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hDevice)) {
+    getContext()->refCountContext->logInvalidReference(hDevice);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    getContext()->refCountContext->logInvalidReference(hPool);
+  }
+
+  ur_result_t result =
+      pfnPoolTrimToExp(hContext, hDevice, hPool, minBytesToKeep);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPitchedAllocExp
 __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     /// [in] handle of the context object
@@ -10202,6 +10825,20 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnKernelLaunchCustomExp =
       ur_validation_layer::urEnqueueKernelLaunchCustomExp;
 
+  dditable.pfnUSMDeviceAllocExp = pDdiTable->pfnUSMDeviceAllocExp;
+  pDdiTable->pfnUSMDeviceAllocExp =
+      ur_validation_layer::urEnqueueUSMDeviceAllocExp;
+
+  dditable.pfnUSMSharedAllocExp = pDdiTable->pfnUSMSharedAllocExp;
+  pDdiTable->pfnUSMSharedAllocExp =
+      ur_validation_layer::urEnqueueUSMSharedAllocExp;
+
+  dditable.pfnUSMHostAllocExp = pDdiTable->pfnUSMHostAllocExp;
+  pDdiTable->pfnUSMHostAllocExp = ur_validation_layer::urEnqueueUSMHostAllocExp;
+
+  dditable.pfnUSMFreeExp = pDdiTable->pfnUSMFreeExp;
+  pDdiTable->pfnUSMFreeExp = ur_validation_layer::urEnqueueUSMFreeExp;
+
   dditable.pfnCooperativeKernelLaunchExp =
       pDdiTable->pfnCooperativeKernelLaunchExp;
   pDdiTable->pfnCooperativeKernelLaunchExp =
@@ -10840,6 +11477,35 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
 
   ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnPoolCreateExp = pDdiTable->pfnPoolCreateExp;
+  pDdiTable->pfnPoolCreateExp = ur_validation_layer::urUSMPoolCreateExp;
+
+  dditable.pfnPoolDestroyExp = pDdiTable->pfnPoolDestroyExp;
+  pDdiTable->pfnPoolDestroyExp = ur_validation_layer::urUSMPoolDestroyExp;
+
+  dditable.pfnPoolSetThresholdExp = pDdiTable->pfnPoolSetThresholdExp;
+  pDdiTable->pfnPoolSetThresholdExp =
+      ur_validation_layer::urUSMPoolSetThresholdExp;
+
+  dditable.pfnPoolGetDefaultDevicePoolExp =
+      pDdiTable->pfnPoolGetDefaultDevicePoolExp;
+  pDdiTable->pfnPoolGetDefaultDevicePoolExp =
+      ur_validation_layer::urUSMPoolGetDefaultDevicePoolExp;
+
+  dditable.pfnPoolGetInfoExp = pDdiTable->pfnPoolGetInfoExp;
+  pDdiTable->pfnPoolGetInfoExp = ur_validation_layer::urUSMPoolGetInfoExp;
+
+  dditable.pfnPoolSetDevicePoolExp = pDdiTable->pfnPoolSetDevicePoolExp;
+  pDdiTable->pfnPoolSetDevicePoolExp =
+      ur_validation_layer::urUSMPoolSetDevicePoolExp;
+
+  dditable.pfnPoolGetDevicePoolExp = pDdiTable->pfnPoolGetDevicePoolExp;
+  pDdiTable->pfnPoolGetDevicePoolExp =
+      ur_validation_layer::urUSMPoolGetDevicePoolExp;
+
+  dditable.pfnPoolTrimToExp = pDdiTable->pfnPoolTrimToExp;
+  pDdiTable->pfnPoolTrimToExp = ur_validation_layer::urUSMPoolTrimToExp;
 
   dditable.pfnPitchedAllocExp = pDdiTable->pfnPitchedAllocExp;
   pDdiTable->pfnPitchedAllocExp = ur_validation_layer::urUSMPitchedAllocExp;
