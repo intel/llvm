@@ -261,6 +261,7 @@ struct work_item_progress_capabilities;
 } // namespace ext::oneapi::experimental::info::device
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
+#include <sycl/info/ext_intel_kernel_info_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
 

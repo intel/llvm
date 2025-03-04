@@ -417,6 +417,23 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
 }
 
 template <>
+inline typename ext::intel::info::kernel_device_specific::spill_memory_size::
+    return_type
+    kernel_impl::get_info<
+        ext::intel::info::kernel_device_specific::spill_memory_size>(
+        const device &Device) const {
+  if (!Device.has(aspect::ext_intel_spill_memory_size))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "This device does not have the ext_intel_spill_memory_size aspect");
+
+  return get_kernel_device_specific_info<
+      ext::intel::info::kernel_device_specific::spill_memory_size>(
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
+      getAdapter());
+}
+
+template <>
 inline typename syclex::info::kernel_queue_specific::max_work_group_size::
     return_type
     kernel_impl::ext_oneapi_get_info<

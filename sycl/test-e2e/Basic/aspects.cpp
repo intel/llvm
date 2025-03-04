@@ -90,6 +90,9 @@ int main() {
     if (plt.has(aspect::ext_oneapi_virtual_functions)) {
       std::cout << "  ext_oneapi_virtual_functions" << std::endl;
     }
+    if (plt.has(aspect::ext_intel_spill_memory_size)) {
+      std::cout << "  ext_intel_spill_memory_size" << std::endl;
+    }
   }
   std::cout << "Passed." << std::endl;
   return 0;
