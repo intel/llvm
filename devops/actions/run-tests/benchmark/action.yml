@@ -46,6 +46,26 @@ runs:
           echo "# This workflow is not guaranteed to work with other backends."
           echo "#" ;;
       esac
+  - name: Compute CPU core range to run benchmarks on
+    run: |
+      # Taken from ur-benchmark-reusable.yml:
+
+      # Compute the core range for the first NUMA node; second node is used by
+      # UMF. Skip the first 4 cores as the kernel is likely to schedule more
+      # work on these.
+      CORES="$(lscpu | awk '
+        /NUMA node0 CPU|On-line CPU/ {line=$0}
+        END {
+          split(line, a, " ")
+          split(a[4], b, ",")
+          sub(/^0/, "4", b[1])
+          print b[1]
+        }')"
+      echo "CPU core range to use: $CORES"
+      echo "CORES=$CORES" >> $GITHUB_ENV
+
+      ZE_AFFINITY_MASK=0
+      echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
   - name: Run compute-benchmarks
     shell: bash
     run: |
@@ -69,7 +89,7 @@ runs:
       echo "-----"
       sycl-ls
       echo "-----"
-      ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s || exit 1
+      taskset -c "$CORES" ./devops/scripts/benchmarking/benchmark.sh -n '${{ runner.name }}' -s || exit 1
   - name: Push compute-benchmarks results
     if: always()
     shell: bash
