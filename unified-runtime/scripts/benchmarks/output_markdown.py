@@ -138,17 +138,6 @@ def generate_markdown_details(
         env_dict = res.env
         command = res.command
 
-        # If data is collected from already saved results,
-        # the content is parsed as strings
-        if isinstance(res.env, str):
-            # Since the scripts would be used solely on data prepared
-            # by our scripts, this should be safe
-            # However, maybe needs an additional blessing
-            # https://docs.python.org/3/library/ast.html#ast.literal_eval
-            env_dict = ast.literal_eval(res.env)
-        if isinstance(res.command, str):
-            command = ast.literal_eval(res.command)
-
         section = (
             "\n<details>\n"
             f"<summary>{res.label}</summary>\n\n"
