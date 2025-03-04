@@ -1003,7 +1003,7 @@ ur_result_t urKernelSetExecInfo(
       else
         // Unexpected cache configuration value.
         return UR_RESULT_ERROR_INVALID_VALUE;
-      ZE2UR_CALL(zeKernelSetCacheConfig, (ZeKernel, ZeCacheConfig););
+      ZE2UR_CALL(zeKernelSetCacheConfig, (ZeKernel, ZeCacheConfig));
     } else {
       logger::error("urKernelSetExecInfo: unsupported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
