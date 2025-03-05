@@ -4,8 +4,8 @@ target triple = "spir64-unknown-unknown"
 
 @WGLocal = internal addrspace(3) global i64 zeroinitializer, align 8
 
-define spir_kernel void @MyKernelMemset(ptr addrspace(3) noundef align 4 %_arg_acc) sanitize_memory {
-; CHECK-LABEL: @MyKernelMemset
+define spir_kernel void @MyKernel(ptr addrspace(3) noundef align 4 %_arg_acc) sanitize_memory {
+; CHECK-LABEL: @MyKernel
 entry:
   ; CHECK: %local_args = alloca i64, align 8
   ; CHECK-NEXT: %0 = getelementptr i64, ptr %local_args, i32 0
