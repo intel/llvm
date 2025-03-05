@@ -4874,6 +4874,10 @@ public:
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
       addParam(PD, ParamTy, SYCLIntegrationHeader::kind_work_group_memory);
+    else if (SemaSYCL::isSyclType(ParamTy,
+                                  SYCLTypeAttr::dynamic_work_group_memory))
+      addParam(PD, ParamTy,
+               SYCLIntegrationHeader::kind_dynamic_work_group_memory);
     else
       unsupportedFreeFunctionParamType(); // TODO
     return true;
