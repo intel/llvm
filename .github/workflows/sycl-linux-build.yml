@@ -105,7 +105,7 @@ permissions: read-all
 jobs:
   build:
     name: Build + LIT
-    runs-on: [Linux, build]
+    runs-on: [UR_L0]
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
