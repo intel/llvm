@@ -959,6 +959,13 @@ struct include_files
     record.emplace_back(std::make_pair(name, content));
   }
   void add(const std::string &name, const std::string &content) {
+    if (std::find_if(record.begin(), record.end(), [&name](auto &p) {
+          return p.first == name;
+        }) != record.end()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Include file '" + name +
+                                "' is already registered");
+    }
     record.emplace_back(std::make_pair(name, content));
   }
   std::vector<std::pair<std::string, std::string>> record;

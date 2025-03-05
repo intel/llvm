@@ -177,10 +177,24 @@ int test_include_paths(const std::string &baseDir) {
   return 0;
 }
 
+int test_errors() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  syclex::include_files includes;
+  includes.add("foo.h", "/**/");
+  try {
+    includes.add("foo.h", "/**/");
+    assert(false && "Expected exception");
+  } catch (sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid && "Expected errc::invalid");
+  }
+
+  return 0;
+}
+
 int main(int argc, char **argv) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   assert(argc >= 2);
-  return test_include_paths(argv[1]);
+  return test_include_paths(argv[1]) || test_errors();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
