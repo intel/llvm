@@ -517,10 +517,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
       getContext()->logger.warning("Skip checking local memory of kernel <{}> ",
                                    GetKernelName(Kernel));
     } else {
-      getContext()->logger.info("ShadowMemory(Local, WorkGroup={}, {} - {})",
-                                NumWG,
-                                (void *)LaunchInfo.Data->LocalShadowOffset,
-                                (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+      getContext()->logger.debug("ShadowMemory(Local, WorkGroup={}, {} - {})",
+                                 NumWG,
+                                 (void *)LaunchInfo.Data->LocalShadowOffset,
+                                 (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
     }
   }
 
@@ -537,7 +537,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
       getContext()->logger.warning(
           "Skip checking private memory of kernel <{}>", GetKernelName(Kernel));
     } else {
-      getContext()->logger.info(
+      getContext()->logger.debug(
           "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,
           (void *)LaunchInfo.Data->PrivateShadowOffset,
           (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
