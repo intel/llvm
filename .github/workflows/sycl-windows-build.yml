@@ -218,6 +218,10 @@ jobs:
     - name: Setup SYCL toolchain
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - run: |
+        sycl-ls
+    - run: |
+        sycl-ls --verbose
     - name: Configure E2E
       shell: cmd
       run: |
