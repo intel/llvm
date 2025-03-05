@@ -257,7 +257,7 @@ if(UR_FORMAT_CPP_STYLE)
         get_program_version_major_minor(${CLANG_FORMAT} CLANG_FORMAT_VERSION)
         message(STATUS "Found clang-format: ${CLANG_FORMAT} (version: ${CLANG_FORMAT_VERSION})")
 
-        set(CLANG_FORMAT_REQUIRED "18.1")
+        set(CLANG_FORMAT_REQUIRED "19.1")
         if(NOT (CLANG_FORMAT_VERSION VERSION_EQUAL CLANG_FORMAT_REQUIRED))
             message(FATAL_ERROR "required clang-format version is ${CLANG_FORMAT_REQUIRED}")
         endif()
