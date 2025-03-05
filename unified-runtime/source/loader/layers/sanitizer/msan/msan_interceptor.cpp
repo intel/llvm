@@ -549,7 +549,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
       "CleanShadow={}, "
       "Device={}, Debug={})",
       (void *)LaunchInfo.Data, (void *)LaunchInfo.Data->GlobalShadowOffset,
-      (void *)LaunchInfo.Data->LocalShadowOffset, (void *)LaunchInfo.Data->PrivateShadowOffset,
+      (void *)LaunchInfo.Data->LocalShadowOffset,
+      (void *)LaunchInfo.Data->PrivateShadowOffset,
       (void *)LaunchInfo.Data->CleanShadow, ToString(LaunchInfo.Data->DeviceTy),
       LaunchInfo.Data->Debug);
 
