@@ -442,10 +442,8 @@ private:
   ///        is null if no secondary queue is associated with the submission.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue,
-          std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue,
-          bool CallerNeedsEvent);
+  handler(detail::handler_impl *HandlerImpl,
+    std::shared_ptr<detail::queue_impl> Queue);
 
   /// Constructs SYCL handler from Graph.
   ///
@@ -453,7 +451,7 @@ private:
   /// enqueueing it straight away.
   ///
   /// \param Graph is a SYCL command_graph
-  handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
+  handler(detail::handler_impl *HandlerImpl);
 
   void *storeRawArg(const void *Ptr, size_t Size);
 
@@ -3425,7 +3423,8 @@ public:
       uint64_t SignalValue);
 
 private:
-  std::shared_ptr<detail::handler_impl> impl;
+  std::unique_ptr<detail::handler_impl> MImplOwner;
+  detail::handler_impl *impl;
   std::shared_ptr<detail::queue_impl> MQueue;
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
@@ -3878,6 +3877,8 @@ private:
                                   int Dims);
 
   friend class detail::HandlerAccess;
+
+  detail::handler_impl *get_handler_impl() { return impl; }
 
 protected:
   /// Registers event dependencies in this command group.

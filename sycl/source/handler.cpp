@@ -189,7 +189,7 @@ fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
                const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
@@ -256,7 +256,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &Desc,
                ur_exp_image_copy_flags_t ImageCopyFlags,
                sycl::range<3> SrcOffset = {0, 0, 0},
@@ -271,7 +271,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &Desc,
                ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
                size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
@@ -285,7 +285,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
                const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                ur_exp_image_copy_flags_t ImageCopyFlags,
@@ -304,20 +304,17 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
+      : MImplOwner(std::make_unique<detail::handler_impl>(Queue, nullptr, CallerNeedsEvent)),
+        impl(MImplOwner.get()),
+        MQueue(std::move(Queue)) {}
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                  std::move(SecondaryQueue),
-                                                  CallerNeedsEvent)),
+handler::handler(detail::handler_impl *HandlerImpl,
+                 std::shared_ptr<detail::queue_impl> Queue)
+    : impl(HandlerImpl),
       MQueue(std::move(Queue)) {}
 
-handler::handler(
-    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))) {}
+handler::handler(detail::handler_impl *HandlerImpl)
+    : impl(HandlerImpl) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
