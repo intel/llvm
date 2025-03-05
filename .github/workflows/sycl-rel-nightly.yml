@@ -40,7 +40,7 @@ jobs:
       build_artifact_suffix: default
       build_configure_extra_args: '--hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-      build_ref: sycl-rel-6_1_0-test-cts
+      build_ref: sycl-rel-6_1_0-test-cts-2
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
@@ -167,7 +167,7 @@ jobs:
       cts_testing_mode: 'build-only'
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
-      ref: sycl-rel-6_1_0-test-cts
+      ref: sycl-rel-6_1_0-test-cts-2
       devops_ref: sparse-checkout-cts-filters-2
       tests_ref: ead7474b9cb2189ce48025550912ccad5a72bd30
       sycl_toolchain_artifact: sycl_linux_default
@@ -198,7 +198,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
-      ref: sycl-rel-6_1_0-test-cts
+      ref: sycl-rel-6_1_0-test-cts-2
       devops_ref: sparse-checkout-cts-filters-2
       tests_ref: ead7474b9cb2189ce48025550912ccad5a72bd30
       sycl_toolchain_artifact: sycl_linux_default
