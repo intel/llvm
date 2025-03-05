@@ -1,0 +1,205 @@
+<!--
+  Copyright (C) 2024 Intel Corporation
+  Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+  See LICENSE.TXT
+  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+-->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Benchmark Results</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="data.js"></script>
+    <script src="config.js"></script>
+    <script src="scripts.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: #f8f9fa;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: #212529;
+            text-align: center;
+            margin-bottom: 24px;
+            font-weight: 500;
+        }
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+            .chart-container {
+                padding: 16px;
+                border-radius: 6px;
+            }
+            h1 {
+                font-size: 24px;
+                margin-bottom: 16px;
+            }
+        }
+        .filter-container {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .filter-container input {
+            padding: 8px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 400px;
+            max-width: 100%;
+        }
+        .suite-filter-container {
+            text-align: center;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: #e9ecef;
+            border-radius: 8px;
+        }
+        .suite-checkbox {
+            margin: 0 8px;
+        }
+        details {
+            margin-bottom: 24px;
+        }
+        summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 8px;
+            background: #e9ecef;
+            border-radius: 8px;
+            user-select: none;
+        }
+        summary:hover {
+            background: #dee2e6;
+        }
+        .extra-info {
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+        .run-selector {
+            text-align: center;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: #e9ecef;
+            border-radius: 8px;
+        }
+        .run-selector select {
+            width: 300px;
+            padding: 8px;
+            margin-right: 8px;
+        }
+        .run-selector button {
+            padding: 8px 16px;
+            background: #0068B5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .run-selector button:hover {
+            background: #00C7FD;
+        }
+        .selected-runs {
+            margin-top: 12px;
+        }
+        .selected-run {
+            display: inline-block;
+            padding: 4px 8px;
+            margin: 4px;
+            background: #e2e6ea;
+            border-radius: 4px;
+        }
+        .selected-run button {
+            margin-left: 8px;
+            padding: 0 4px;
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+        }
+        .download-button {
+            background: none;
+            border: none;
+            color: #0068B5;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            margin-left: 8px;
+        }
+        .download-button:hover {
+            color: #00C7FD;
+        }
+        .loading-indicator {
+            text-align: center;
+            font-size: 18px;
+            color: #0068B5;
+            margin-bottom: 20px;
+        }
+        .extra-info-entry {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .extra-info-entry strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .extra-info-entry em {
+            color: #555;
+        }
+</style>
+</head>
+<body>
+    <div class="container">
+        <h1>Benchmark Results</h1>
+        <div id="loading-indicator" class="loading-indicator" style="display: none;">
+            Loading data, please wait...
+        </div>
+        <div class="filter-container">
+            <input type="text" id="bench-filter" placeholder="Regex...">
+        </div>
+        <div class="suite-filter-container" id="suite-filters">
+            <!-- Suite checkboxes will be generated by JavaScript -->
+        </div>
+        <div class="run-selector">
+            <select id="run-select">
+                <option value="">Select a run to compare...</option>
+            </select>
+            <button onclick="addSelectedRun()">Add</button>
+            <div id="selected-runs" class="selected-runs"></div>
+        </div>
+        <details class="timeseries" open>
+            <summary>Historical Results</summary>
+            <div class="charts"></div>
+        </details>
+        <details class="bar-charts" open>
+            <summary>Comparisons</summary>
+            <div class="charts"></div>
+        </details>
+    </div>
+</body>
+</html>

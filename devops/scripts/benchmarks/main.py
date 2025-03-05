@@ -27,23 +27,27 @@ INTERNAL_WORKDIR_VERSION = "2.0"
 
 
 def run_iterations(
-    benchmark: Benchmark, env_vars, iters: int, results: dict[str, list[Result]]
+    benchmark: Benchmark,
+    env_vars,
+    iters: int,
+    results: dict[str, list[Result]],
+    failures: dict[str, str],
 ):
     for iter in range(iters):
-        print(f"running {benchmark.name()}, iteration {iter}... ", end="", flush=True)
+        print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
         bench_results = benchmark.run(env_vars)
         if bench_results is None:
-            print(f"did not finish (OK for sycl-bench).")
+            failures[benchmark.name()] = "benchmark produced no results!"
             break
 
         for bench_result in bench_results:
-            # TODO: report failures in markdown/html ?
             if not bench_result.passed:
-                print(f"complete ({bench_result.label}: verification FAILED)")
+                failures[bench_result.label] = "verification failed"
+                print(f"complete ({bench_result.label}: verification failed).")
                 continue
 
             print(
-                f"complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
             )
 
             bench_result.name = bench_result.label
@@ -156,6 +160,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     )
 
     benchmarks = []
+    failures = {}
 
     for s in suites:
         suite_benchmarks = s.benchmarks()
@@ -170,7 +175,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             print(f"Setting up {type(s).__name__}")
             try:
                 s.setup()
-            except:
+            except Exception as e:
+                failures[s.name()] = f"Suite setup failure: {e}"
                 print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
             else:
                 print(f"{type(s).__name__} setup complete.")
@@ -189,6 +195,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             if options.exit_on_failure:
                 raise e
             else:
+                failures[benchmark.name()] = f"Benchmark setup failure: {e}"
                 print(f"failed: {e}")
 
     results = []
@@ -199,7 +206,11 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             processed: list[Result] = []
             for _ in range(options.iterations_stddev):
                 run_iterations(
-                    benchmark, merged_env_vars, options.iterations, intermediate_results
+                    benchmark,
+                    merged_env_vars,
+                    options.iterations,
+                    intermediate_results,
+                    failures,
                 )
                 valid, processed = process_results(
                     intermediate_results, benchmark.stddev_threshold()
@@ -211,12 +222,16 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             if options.exit_on_failure:
                 raise e
             else:
+                failures[benchmark.name()] = f"Benchmark run failure: {e}"
                 print(f"failed: {e}")
 
     for benchmark in benchmarks:
-        print(f"tearing down {benchmark.name()}... ", end="", flush=True)
+        # this never has any useful information anyway, so hide it behind verbose
+        if options.verbose:
+            print(f"tearing down {benchmark.name()}... ", flush=True)
         benchmark.teardown()
-        print("complete.")
+        if options.verbose:
+            print("{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}
@@ -241,7 +256,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
     if options.output_markdown:
         markdown_content = generate_markdown(
-            this_name, chart_data, options.output_markdown
+            this_name, chart_data, failures, options.output_markdown
         )
 
         with open("benchmark_results.md", "w") as file:
@@ -262,14 +277,9 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             compare_names.append(saved_name)
 
     if options.output_html:
-        html_content = generate_html(history.runs, "intel/llvm", compare_names)
+        generate_html(history.runs, compare_names)
 
-        with open("benchmark_results.html", "w") as file:
-            file.write(html_content)
-
-        print(
-            f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html"
-        )
+        print(f"See {os.getcwd()}/html/index.html for the results.")
 
 
 def validate_and_parse_env_args(env_args):
@@ -303,6 +313,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no-rebuild",
         help="Do not rebuild the benchmarks from scratch.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--redownload",
+        help="Always download benchmark data dependencies, even if they already exist.",
         action="store_true",
     )
     parser.add_argument(
@@ -430,6 +445,7 @@ if __name__ == "__main__":
     options.workdir = args.benchmark_directory
     options.verbose = args.verbose
     options.rebuild = not args.no_rebuild
+    options.redownload = args.redownload
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
