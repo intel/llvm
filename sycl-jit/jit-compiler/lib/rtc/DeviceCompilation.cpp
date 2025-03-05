@@ -333,9 +333,10 @@ static void adjustArgs(const InputArgList &UserArgList,
   DAL.eraseArg(OPT_ftime_trace_granularity_EQ);
   DAL.eraseArg(OPT_ftime_trace_verbose);
 
-  for (auto *Arg : DAL) {
-    CommandLine.emplace_back(Arg->getAsString(DAL));
-  }
+  ArgStringList ASL;
+  for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
+  transform(ASL, std::back_inserter(CommandLine),
+            [](const char *AS) { return std::string{AS}; });
 }
 
 static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
