@@ -7190,17 +7190,19 @@ def fsycl_allow_func_ptr_EQ : Joined<["-"], "fsycl-allow-func-ptr=">,
   NormalizedValuesScope<"LangOptions::SYCLFuncPtrPreference">,
   NormalizedValues<["Off", "LabeledOnly", "DefinedOnly"]>,
   MarshallingInfoEnum<LangOpts<"SYCLAllowFuncPtr">, "Off">,
-  HelpText<"Options for allowing function pointers in SYCL device: "
+  HelpText<"Options for allowing function pointers in SYCL device code: "
            "off (no function pointers allowed) "
            "labeled (only with functions with the intel::device_indirectly_callable attribute) "
            "defined (only with labeled or defined functions)."
            "Default is 'off'">;
 def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
   Alias<fsycl_allow_func_ptr_EQ>, AliasArgs<["labeled"]>,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
   HelpText<"Same as -fsycl-allow-func-ptr=labeled.">;
 def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">,
   Alias<fsycl_allow_func_ptr_EQ>, AliasArgs<["off"]>,
-  HelpText<"Same as -fsycl-allow-func-ptr=off instead.">;
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  HelpText<"Same as -fsycl-allow-func-ptr=off.">;
 
 } // let Group = sycl_Group
 

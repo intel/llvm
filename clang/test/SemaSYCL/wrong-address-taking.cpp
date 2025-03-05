@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsycl-allow-func-ptr -internal-isystem %S/Inputs -fsyntax-only -verify -sycl-std=2020 -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-allow-func-ptr=labeled -internal-isystem %S/Inputs -fsyntax-only -verify -sycl-std=2020 -std=c++17 %s
 // RUN: %clang_cc1 -fsycl-is-device -fsycl-allow-func-ptr=defined -internal-isystem %S/Inputs -fsyntax-only -verify=defined-func -sycl-std=2020 -std=c++17 %s
 
 #include "sycl.hpp"
