@@ -846,8 +846,8 @@ processInputModule(std::unique_ptr<Module> M, LLVMContext &Context) {
   if (M->getTargetTriple().find("spir") != std::string::npos)
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
-  // MemorySanitizer specific passes
-  if (isModuleUsingAsan(*M) || isModuleUsingMsan(*M)) {
+  // Sanitizer specific passes
+  if (isModuleUsingAsan(*M) || isModuleUsingMsan(*M) || isModuleUsingTsan(*M)) {
     // Fix attributes and metadata of KernelMetadata
     Modified |= runModulePass<SanitizerKernelMetadataPass>(*M);
   }

@@ -54,6 +54,10 @@ bool isModuleUsingMsan(const Module &M) {
   return M.getNamedGlobal("__MsanKernelMetadata");
 }
 
+bool isModuleUsingTsan(const Module &M) {
+  return M.getNamedGlobal("__TsanKernelMetadata");
+}
+
 // This function traverses over reversed call graph by BFS algorithm.
 // It means that an edge links some function @func with functions
 // which contain call of function @func. It starts from
@@ -435,6 +439,8 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
     else if (isModuleUsingMsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "msan");
+    else if (isModuleUsingTsan(M))
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "tsan");
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {
