@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 
 // Test flakily times out on many platforms
-// UNSUPPORTED: *
+// UNSUPPORTED: true
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16877
 
 // XFAIL: arch-intel_gpu_pvc && opencl && !spirv-backend
