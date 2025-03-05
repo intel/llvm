@@ -48,10 +48,25 @@ Tests in this category may not perform some useful actions to exercise the
 extension functionality in full, but instead they are focused on making sure
 that all APIs are consistent with respect to other APIs.
 
-#### Consistency of `max_subgroup_size` queries
+#### Consistency with device-specific queries
+
+Verify, for each query in the extension, that the value returned is smaller
+than or equal than the value returned when querying the corresponding
+device-specific queries.
+
+For example, 
+
+- `max_work_item_sizes<dim>` can be compared with 
+`sycl::info::device::max_work_item_sizes<dim>`
+- `max_work_group_size` can be compared with `sycl::info::device::max_work_group_size`
+- `max_num_work_groups` can be compared with `sycl::ext::oneapi::experimental::info::device::max_work_groups<dim>`
+- `max_sub_group_size` can be compared with `sycl::info::kernel_device_specific::max_sub_group_size`
+- `num_sub_groups` can be compared with `sycl::info::device::max_num_sub_groups`
+
+#### Consistency of `max_sub_group_size` queries
 
 The test needs to check that all three `ext_oneapi_get_info` queries for
-which `Param == max_subgroup_size` return the same value as
+which `Param == max_sub_group_size` return the same value as
 `sub_group::get_max_local_range()` inside the kernel.
 
 #### Check behavior in the case of invalid arguments to queries
