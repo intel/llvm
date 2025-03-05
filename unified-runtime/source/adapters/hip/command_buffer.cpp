@@ -865,30 +865,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 
 /**
  * Validates contents of the update command description.
- * @param[in] Command The command which is being updated.
+ * @param[in] CommandBuffer The command-buffer which is being updated.
  * @param[in] UpdateCommandDesc The update command description.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t
-validateCommandDesc(ur_exp_command_buffer_command_handle_t Command,
+validateCommandDesc(ur_exp_command_buffer_handle_t CommandBuffer,
                     const ur_exp_command_buffer_update_kernel_launch_desc_t
-                        *UpdateCommandDesc) {
-
-  auto CommandBuffer = Command->CommandBuffer;
-
+                        &UpdateCommandDesc) {
   // Update requires the command-buffer to be finalized and updatable.
   if (!CommandBuffer->HIPGraphExec || !CommandBuffer->IsUpdatable) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  if (UpdateCommandDesc->newWorkDim != Command->WorkDim &&
-      (!UpdateCommandDesc->pNewGlobalWorkOffset ||
-       !UpdateCommandDesc->pNewGlobalWorkSize)) {
+  auto Command = UpdateCommandDesc.hCommand;
+  if (CommandBuffer != Command->CommandBuffer) {
+    return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP;
+  }
+
+  if (UpdateCommandDesc.newWorkDim != Command->WorkDim &&
+      (!UpdateCommandDesc.pNewGlobalWorkOffset ||
+       !UpdateCommandDesc.pNewGlobalWorkSize)) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  if (UpdateCommandDesc->hNewKernel &&
-      !Command->ValidKernelHandles.count(UpdateCommandDesc->hNewKernel)) {
+  if (UpdateCommandDesc.hNewKernel &&
+      !Command->ValidKernelHandles.count(UpdateCommandDesc.hNewKernel)) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -897,23 +899,21 @@ validateCommandDesc(ur_exp_command_buffer_command_handle_t Command,
 
 /**
  * Updates the arguments of a kernel command.
- * @param[in] Command The command associated with the kernel node being updated.
  * @param[in] UpdateCommandDesc The update command description that contains the
- * new arguments.
+ * new configuration.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t
-updateKernelArguments(ur_exp_command_buffer_command_handle_t Command,
-                      const ur_exp_command_buffer_update_kernel_launch_desc_t
-                          *UpdateCommandDesc) {
-
+updateKernelArguments(const ur_exp_command_buffer_update_kernel_launch_desc_t
+                          &UpdateCommandDesc) {
+  auto Command = UpdateCommandDesc.hCommand;
   ur_kernel_handle_t Kernel = Command->Kernel;
   ur_device_handle_t Device = Command->CommandBuffer->Device;
 
   // Update pointer arguments to the kernel
-  uint32_t NumPointerArgs = UpdateCommandDesc->numNewPointerArgs;
+  uint32_t NumPointerArgs = UpdateCommandDesc.numNewPointerArgs;
   const ur_exp_command_buffer_update_pointer_arg_desc_t *ArgPointerList =
-      UpdateCommandDesc->pNewPointerArgList;
+      UpdateCommandDesc.pNewPointerArgList;
   for (uint32_t i = 0; i < NumPointerArgs; i++) {
     const auto &PointerArgDesc = ArgPointerList[i];
     uint32_t ArgIndex = PointerArgDesc.argIndex;
@@ -927,9 +927,9 @@ updateKernelArguments(ur_exp_command_buffer_command_handle_t Command,
   }
 
   // Update memobj arguments to the kernel
-  uint32_t NumMemobjArgs = UpdateCommandDesc->numNewMemObjArgs;
+  uint32_t NumMemobjArgs = UpdateCommandDesc.numNewMemObjArgs;
   const ur_exp_command_buffer_update_memobj_arg_desc_t *ArgMemobjList =
-      UpdateCommandDesc->pNewMemObjArgList;
+      UpdateCommandDesc.pNewMemObjArgList;
   for (uint32_t i = 0; i < NumMemobjArgs; i++) {
     const auto &MemobjArgDesc = ArgMemobjList[i];
     uint32_t ArgIndex = MemobjArgDesc.argIndex;
@@ -948,9 +948,9 @@ updateKernelArguments(ur_exp_command_buffer_command_handle_t Command,
   }
 
   // Update value arguments to the kernel
-  uint32_t NumValueArgs = UpdateCommandDesc->numNewValueArgs;
+  uint32_t NumValueArgs = UpdateCommandDesc.numNewValueArgs;
   const ur_exp_command_buffer_update_value_arg_desc_t *ArgValueList =
-      UpdateCommandDesc->pNewValueArgList;
+      UpdateCommandDesc.pNewValueArgList;
   for (uint32_t i = 0; i < NumValueArgs; i++) {
     const auto &ValueArgDesc = ArgValueList[i];
     uint32_t ArgIndex = ValueArgDesc.argIndex;
@@ -975,83 +975,94 @@ updateKernelArguments(ur_exp_command_buffer_command_handle_t Command,
 /**
  * Updates the command-buffer command with new values from the update
  * description.
- * @param[in] Command The command to be updated.
  * @param[in] UpdateCommandDesc The update command description.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t
-updateCommand(ur_exp_command_buffer_command_handle_t Command,
-              const ur_exp_command_buffer_update_kernel_launch_desc_t
-                  *UpdateCommandDesc) {
-
-  if (UpdateCommandDesc->hNewKernel) {
-    Command->Kernel = UpdateCommandDesc->hNewKernel;
+updateCommand(const ur_exp_command_buffer_update_kernel_launch_desc_t
+                  &UpdateCommandDesc) {
+  auto Command = UpdateCommandDesc.hCommand;
+  if (UpdateCommandDesc.hNewKernel) {
+    Command->Kernel = UpdateCommandDesc.hNewKernel;
   }
 
-  if (UpdateCommandDesc->hNewKernel) {
-    Command->WorkDim = UpdateCommandDesc->newWorkDim;
+  if (UpdateCommandDesc.hNewKernel) {
+    Command->WorkDim = UpdateCommandDesc.newWorkDim;
   }
 
-  if (UpdateCommandDesc->pNewGlobalWorkOffset) {
-    Command->setGlobalOffset(UpdateCommandDesc->pNewGlobalWorkOffset);
+  if (UpdateCommandDesc.pNewGlobalWorkOffset) {
+    Command->setGlobalOffset(UpdateCommandDesc.pNewGlobalWorkOffset);
   }
 
-  if (UpdateCommandDesc->pNewGlobalWorkSize) {
-    Command->setGlobalSize(UpdateCommandDesc->pNewGlobalWorkSize);
-    if (!UpdateCommandDesc->pNewLocalWorkSize) {
+  if (UpdateCommandDesc.pNewGlobalWorkSize) {
+    Command->setGlobalSize(UpdateCommandDesc.pNewGlobalWorkSize);
+    if (!UpdateCommandDesc.pNewLocalWorkSize) {
       Command->setNullLocalSize();
     }
   }
 
-  if (UpdateCommandDesc->pNewLocalWorkSize) {
-    Command->setLocalSize(UpdateCommandDesc->pNewLocalWorkSize);
+  if (UpdateCommandDesc.pNewLocalWorkSize) {
+    Command->setLocalSize(UpdateCommandDesc.pNewLocalWorkSize);
   }
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
+    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) try {
+  // First validate user inputs, as no update should be propagated if there
+  // are errors.
+  for (uint32_t i = 0; i < numKernelUpdates; i++) {
+    UR_CHECK_ERROR(validateCommandDesc(hCommandBuffer, pUpdateKernelLaunch[i]));
+  }
 
-  ur_exp_command_buffer_handle_t CommandBuffer = hCommand->CommandBuffer;
+  // Store changes in config struct in command handle object
+  for (uint32_t i = 0; i < numKernelUpdates; i++) {
+    UR_CHECK_ERROR(updateCommand(pUpdateKernelLaunch[i]));
+    UR_CHECK_ERROR(updateKernelArguments(pUpdateKernelLaunch[i]));
+  }
 
-  UR_CHECK_ERROR(validateCommandDesc(hCommand, pUpdateKernelLaunch));
-  UR_CHECK_ERROR(updateCommand(hCommand, pUpdateKernelLaunch));
-  UR_CHECK_ERROR(updateKernelArguments(hCommand, pUpdateKernelLaunch));
+  // Propagate changes to HIP driver API
+  for (uint32_t i = 0; i < numKernelUpdates; i++) {
+    const auto &UpdateCommandDesc = pUpdateKernelLaunch[i];
 
-  // If no worksize is provided make sure we pass nullptr to setKernelParams
-  // so it can guess the local work size.
-  const bool ProvidedLocalSize = !hCommand->isNullLocalSize();
-  size_t *LocalWorkSize = ProvidedLocalSize ? hCommand->LocalWorkSize : nullptr;
+    // If no worksize is provided make sure we pass nullptr to setKernelParams
+    // so it can guess the local work size.
+    auto Command = UpdateCommandDesc.hCommand;
+    const bool ProvidedLocalSize = !Command->isNullLocalSize();
+    size_t *LocalWorkSize =
+        ProvidedLocalSize ? Command->LocalWorkSize : nullptr;
 
-  // Set the number of threads per block to the number of threads per warp
-  // by default unless user has provided a better number
-  size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
-  size_t BlocksPerGrid[3] = {1u, 1u, 1u};
-  hipFunction_t HIPFunc = hCommand->Kernel->get();
-  UR_CHECK_ERROR(setKernelParams(
-      CommandBuffer->Device, hCommand->WorkDim, hCommand->GlobalWorkOffset,
-      hCommand->GlobalWorkSize, LocalWorkSize, hCommand->Kernel, HIPFunc,
-      ThreadsPerBlock, BlocksPerGrid));
+    // Set the number of threads per block to the number of threads per warp
+    // by default unless user has provided a better number
+    size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
+    size_t BlocksPerGrid[3] = {1u, 1u, 1u};
+    hipFunction_t HIPFunc = Command->Kernel->get();
+    UR_CHECK_ERROR(setKernelParams(
+        hCommandBuffer->Device, Command->WorkDim, Command->GlobalWorkOffset,
+        Command->GlobalWorkSize, LocalWorkSize, Command->Kernel, HIPFunc,
+        ThreadsPerBlock, BlocksPerGrid));
 
-  hipKernelNodeParams &Params = hCommand->Params;
+    hipKernelNodeParams &Params = Command->Params;
 
-  Params.func = HIPFunc;
-  Params.gridDim.x = BlocksPerGrid[0];
-  Params.gridDim.y = BlocksPerGrid[1];
-  Params.gridDim.z = BlocksPerGrid[2];
-  Params.blockDim.x = ThreadsPerBlock[0];
-  Params.blockDim.y = ThreadsPerBlock[1];
-  Params.blockDim.z = ThreadsPerBlock[2];
-  Params.sharedMemBytes = hCommand->Kernel->getLocalSize();
-  Params.kernelParams =
-      const_cast<void **>(hCommand->Kernel->getArgPointers().data());
+    Params.func = HIPFunc;
+    Params.gridDim.x = BlocksPerGrid[0];
+    Params.gridDim.y = BlocksPerGrid[1];
+    Params.gridDim.z = BlocksPerGrid[2];
+    Params.blockDim.x = ThreadsPerBlock[0];
+    Params.blockDim.y = ThreadsPerBlock[1];
+    Params.blockDim.z = ThreadsPerBlock[2];
+    Params.sharedMemBytes = Command->Kernel->getLocalSize();
+    Params.kernelParams =
+        const_cast<void **>(Command->Kernel->getArgPointers().data());
 
-  hipGraphNode_t Node = hCommand->Node;
-  hipGraphExec_t HipGraphExec = CommandBuffer->HIPGraphExec;
-  UR_CHECK_ERROR(hipGraphExecKernelNodeSetParams(HipGraphExec, Node, &Params));
+    hipGraphNode_t Node = Command->Node;
+    hipGraphExec_t HipGraphExec = hCommandBuffer->HIPGraphExec;
+    UR_CHECK_ERROR(
+        hipGraphExecKernelNodeSetParams(HipGraphExec, Node, &Params));
+  }
   return UR_RESULT_SUCCESS;
 } catch (ur_result_t Err) {
   return Err;
@@ -1093,7 +1104,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     return ReturnValue(Descriptor);
   }
   default:
-    assert(!"Command-buffer info request not implemented");
+    assert(false && "Command-buffer info request not implemented");
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;

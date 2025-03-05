@@ -58,6 +58,9 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return []
 
+        if options.ur_adapter == "cuda":
+            return []
+
         benches = [
             SubmitKernelL0(self, 0),
             SubmitKernelL0(self, 1),
@@ -88,14 +91,6 @@ class ComputeBench(Suite):
             GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 5),
             GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 0, 100),
             GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 100),
-            # Submit
-            GraphApiSubmitExecGraph(self, 0, 1, 10),
-            GraphApiSubmitExecGraph(self, 1, 1, 10),
-            GraphApiSubmitExecGraph(self, 1, 1, 100),
-            # Exec
-            GraphApiSubmitExecGraph(self, 0, 0, 10),
-            GraphApiSubmitExecGraph(self, 1, 0, 10),
-            GraphApiSubmitExecGraph(self, 1, 0, 100),
         ]
 
         if options.ur is not None:
