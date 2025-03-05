@@ -684,7 +684,7 @@ The following header files are implicitly available from the local filesystem.
 * The {cpp} standard library headers;
 * The SYCL backend headers `"sycl/backend/<backend_name>.hpp"` for any backends
   that the implementation supports; and
-* Any SYCL extension headers in "sycl/ext" for extensions that the
+* Any SYCL extension headers in `"sycl/ext"` for extensions that the
   implementation supports.
 
 === Obtaining a kernel when the language is `sycl`
