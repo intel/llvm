@@ -504,7 +504,7 @@
 		urPrintUsmPoolReleaseParams;
 		urPrintUsmPoolRetainParams;
 		urPrintUsmPoolSetDevicePoolExpParams;
-		urPrintUsmPoolSetThresholdExpParams;
+		urPrintUsmPoolSetInfoExpParams;
 		urPrintUsmPoolTrimToExpParams;
 		urPrintUsmReleaseExpParams;
 		urPrintUsmSharedAllocParams;
@@ -566,7 +566,7 @@
 		urUSMPoolRelease;
 		urUSMPoolRetain;
 		urUSMPoolSetDevicePoolExp;
-		urUSMPoolSetThresholdExp;
+		urUSMPoolSetInfoExp;
 		urUSMPoolTrimToExp;
 		urUSMReleaseExp;
 		urUSMSharedAlloc;

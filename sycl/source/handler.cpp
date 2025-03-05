@@ -1690,7 +1690,7 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
                           "Queue operation cannot depend on discarded event.");
   }
 
-  // Async alloc calls apater immediately. Any explicit/implicit dependencies
+  // Async alloc calls adapter immediately. Any explicit/implicit dependencies
   // are handled at that point, including in order queue deps. Further calls to
   // depends_on after an async alloc are explicitly disallowed.
   if (getType() == CGType::AsyncAlloc) {

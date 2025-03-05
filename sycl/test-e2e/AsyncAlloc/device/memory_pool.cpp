@@ -91,12 +91,21 @@ int main() {
                    .get_maximum_size() == maximumSize.get_maximum_size() &&
            "Pool property values do not match!");
 
-    size_t maxSizeGet = memPool1.get_max_size();
     size_t releaseThresholdGet = memPool1.get_threshold();
+    size_t reservedSizeCurrent = memPool1.get_reserved_size_current();
+    size_t reservedSizeHigh = memPool1.get_reserved_size_high();
+    size_t usedSizeCurrent = memPool1.get_used_size_current();
+    size_t usedSizeHigh = memPool1.get_used_size_high();
 #ifdef VERBOSE_PRINT
-    std::cout << "Memory pool maximum size: " << maxSizeGet << std::endl;
     std::cout << "Memory pool release threshold: " << releaseThresholdGet
               << std::endl;
+    std::cout << "Memory pool current reserved size: " << reservedSizeCurrent
+              << std::endl;
+    std::cout << "Memory pool high reserved size: " << reservedSizeHigh
+              << std::endl;
+    std::cout << "Memory pool current used size: " << usedSizeCurrent
+              << std::endl;
+    std::cout << "Memory pool high used size: " << usedSizeHigh << std::endl;
 #endif
 
     // Set new threshold -- then check getter
@@ -107,6 +116,13 @@ int main() {
     std::cout << "Newly set memory pool release threshold: "
               << releaseThresholdGet << std::endl;
 #endif
+
+    // Reset high watermarks
+    memPool1.reset_reserved_size_high();
+    memPool1.reset_used_size_high();
+
+    // Pool trimming
+    memPool1.trim_to(1024);
 
     // Default memory pool
     syclexp::memory_pool defaultPool =

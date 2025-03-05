@@ -465,7 +465,8 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
 
   // Release threshold is not a property when creating a pool.
   // It must be set separately.
-  UR_CHECK_ERROR(urUSMPoolSetThresholdExp(Context, Device, this, threshold));
+  UR_CHECK_ERROR(urUSMPoolSetInfoExp(
+      this, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &threshold, 8));
 }
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
@@ -513,28 +514,6 @@ urUSMPoolDestroyExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_usm_pool_handle_t hPool, size_t newThreshold) {
-
-  UR_ASSERT(std::find(hContext->getDevices().begin(),
-                      hContext->getDevices().end(),
-                      hDevice) != hContext->getDevices().end(),
-            UR_RESULT_ERROR_INVALID_CONTEXT);
-  ScopedContext Active(hDevice);
-
-  try {
-    UR_CHECK_ERROR(cuMemPoolSetAttribute(hPool->getCudaPool(),
-                                         CU_MEMPOOL_ATTR_RELEASE_THRESHOLD,
-                                         &newThreshold));
-  } catch (ur_result_t Err) {
-    return Err;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_usm_pool_handle_t *pPool) {
@@ -570,15 +549,6 @@ urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
   case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
     attr = CU_MEMPOOL_ATTR_RELEASE_THRESHOLD;
     break;
-  case UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP:
-
-    if (pPropValue) {
-      *(size_t *)pPropValue = hPool->maxSize;
-    }
-    if (pPropSizeRet) {
-      *(size_t *)pPropSizeRet = sizeof(size_t);
-    }
-    return UR_RESULT_SUCCESS;
   case UR_USM_POOL_INFO_RESERVED_CURRENT_EXP:
     attr = CU_MEMPOOL_ATTR_RESERVED_MEM_CURRENT;
     break;
@@ -593,7 +563,7 @@ urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
     break;
   default:
     // Unknown enumerator
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
 
   uint64_t value = 0;
@@ -610,6 +580,38 @@ urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolSetInfoExp(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
+                    void *pPropValue, size_t) {
+
+  CUmemPool_attribute attr;
+
+  // All current values are expected to be of size uint64_t
+  switch (propName) {
+  case UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP:
+    attr = CU_MEMPOOL_ATTR_RELEASE_THRESHOLD;
+    break;
+  case UR_USM_POOL_INFO_RESERVED_HIGH_EXP:
+    attr = CU_MEMPOOL_ATTR_RESERVED_MEM_HIGH;
+    break;
+  case UR_USM_POOL_INFO_USED_HIGH_EXP:
+    attr = CU_MEMPOOL_ATTR_USED_MEM_HIGH;
+    break;
+  default:
+    // Unknown enumerator
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+  try {
+    UR_CHECK_ERROR(
+        cuMemPoolSetAttribute(hPool->getCudaPool(), attr, pPropValue));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
     ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -620,9 +622,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
-                                                       ur_device_handle_t,
-                                                       ur_usm_pool_handle_t,
-                                                       size_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolTrimToExp(ur_context_handle_t hContext, ur_device_handle_t hDevice,
+                   ur_usm_pool_handle_t hPool, size_t minBytesToKeep) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+  ScopedContext Active(hDevice);
+
+  try {
+    UR_CHECK_ERROR(cuMemPoolTrimTo(hPool->getCudaPool(), minBytesToKeep));
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }

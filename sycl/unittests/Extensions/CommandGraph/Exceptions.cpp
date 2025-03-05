@@ -213,6 +213,115 @@ void addImagesCopies(experimental::detail::modifiable_command_graph &G,
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
+
+/// Tries to add nodes including asynchronous allocation instructions to the
+/// graph G. It tests that an invalid exception has been thrown since the
+/// sycl_ext_oneapi_async_alloc can not be used along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Size Size in bytes to allocate.
+/// @param MemPool Memory pool to allocate to.
+/// @param Ptr Generic pointer to allocated memory.
+template <OperationPath PathKind>
+void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
+                   size_t Size,
+                   sycl::ext::oneapi::experimental::memory_pool &memPool,
+                   void *Ptr) {
+  // simple alloc with specified pool
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        Ptr = sycl::ext::oneapi::experimental::async_malloc_from_pool(CGH, Size,
+                                                                      memPool);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Ptr = sycl::ext::oneapi::experimental::async_malloc_from_pool(Q, Size,
+                                                                    memPool);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        Ptr = sycl::ext::oneapi::experimental::async_malloc_from_pool(CGH, Size,
+                                                                      memPool);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+/// Tries to add nodes including asynchronous allocation instructions to the
+/// graph G. It tests that an invalid exception has been thrown since the
+/// sycl_ext_oneapi_async_alloc can not be used along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Size Size in bytes to allocate.
+/// @param Ptr Generic pointer to allocated memory.
+template <OperationPath PathKind>
+void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
+                   size_t Size, void *Ptr) {
+  // simple alloc
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        Ptr = sycl::ext::oneapi::experimental::async_malloc(
+            CGH, sycl::usm::alloc::device, Size);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Ptr = sycl::ext::oneapi::experimental::async_malloc(
+          Q, sycl::usm::alloc::device, Size);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        Ptr = sycl::ext::oneapi::experimental::async_malloc(
+            CGH, sycl::usm::alloc::device, Size);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+/// Tries to add nodes including asynchronous free instructions to the graph G.
+/// It tests that an invalid exception has been thrown since the
+/// sycl_ext_oneapi_async_alloc can not be used along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Ptr Pointer to asynchronously allocated memory to free.
+template <OperationPath PathKind>
+void addAsyncFree(experimental::detail::modifiable_command_graph &G, queue &Q,
+                  void *Ptr) {
+  // simple free
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        sycl::ext::oneapi::experimental::async_free(CGH, Ptr);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      sycl::ext::oneapi::experimental::async_free(Q, Ptr);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        sycl::ext::oneapi::experimental::async_free(CGH, Ptr);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
 } // anonymous namespace
 
 TEST_F(CommandGraphTest, ExplicitBarrierException) {
@@ -883,4 +992,35 @@ TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
 
   experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
   ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+}
+
+// ext_oneapi_async_alloc isn't currently supported with SYCL graphs
+TEST_F(CommandGraphTest, AsyncAllocExceptionCheck) {
+  auto ctx = Queue.get_context();
+  auto dev = Queue.get_device();
+
+  // Create pool
+  sycl::ext::oneapi::experimental::memory_pool memPool(
+      ctx, dev, sycl::usm::alloc::device);
+
+  void *ptr1 = nullptr;
+  void *ptr2 = nullptr;
+
+  Graph.begin_recording(Queue);
+
+  addAsyncAlloc<OperationPath::RecordReplay>(Graph, Queue, 1024, memPool, ptr1);
+  addAsyncAlloc<OperationPath::Shortcut>(Graph, Queue, 1024, ptr2);
+
+  addAsyncFree<OperationPath::RecordReplay>(Graph, Queue, ptr1);
+  addAsyncFree<OperationPath::Shortcut>(Graph, Queue, ptr2);
+
+  Graph.end_recording();
+
+  void *ptr3 = nullptr;
+  void *ptr4 = nullptr;
+  addAsyncAlloc<OperationPath::Explicit>(Graph, Queue, 1024, memPool, ptr3);
+  addAsyncAlloc<OperationPath::Explicit>(Graph, Queue, 1024, ptr4);
+
+  addAsyncFree<OperationPath::Explicit>(Graph, Queue, ptr3);
+  addAsyncFree<OperationPath::Explicit>(Graph, Queue, ptr4);
 }

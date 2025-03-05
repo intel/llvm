@@ -70,9 +70,9 @@ Functions
 * ${x}EnqueueUSMFreeExp
 * ${x}USMPoolCreateExp
 * ${x}USMPoolDestroyExp
-* ${x}USMPoolSetThresholdExp
 * ${x}USMPoolGetDefaultDevicePoolExp
 * ${x}USMPoolGetInfoExp
+* ${x}USMPoolSetInfoExp
 * ${x}USMPoolSetDevicePoolExp
 * ${x}USMPoolGetDevicePoolExp
 * ${x}USMPoolTrimToExp
@@ -89,6 +89,9 @@ Changelog
 | 1.1      | Fix typos/warnings/descriptions                          |
 |          | Change enum values                                       |
 |          | Add missing properties/enums/funcs to API list           |
++----------+----------------------------------------------------------+
+| 1.2      | Remove USMPoolSetThresholdExp                            |
+|          | Replace with USMPoolSetInfoExp                           |
 +----------+----------------------------------------------------------+
 
 Support

@@ -139,34 +139,6 @@ detail::memory_pool_impl::~memory_pool_impl() {
   destroy_memory_pool(ctx, dev, handle);
 }
 
-void detail::memory_pool_impl::set_new_threshold(size_t newThreshold) {
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  ur_context_handle_t C = CtxImpl->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  ur_device_handle_t Device = DevImpl->getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
-
-  Adapter->call<sycl::errc::runtime,
-                sycl::detail::UrApiKind::urUSMPoolSetThresholdExp>(
-      C, Device, poolHandle, newThreshold);
-}
-
-size_t detail::memory_pool_impl::get_max_size() const {
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
-
-  size_t maxSize = 0;
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          poolHandle, UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP, &maxSize, nullptr);
-
-  return maxSize;
-}
-
 size_t detail::memory_pool_impl::get_threshold() const {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
@@ -181,21 +153,159 @@ size_t detail::memory_pool_impl::get_threshold() const {
   return threshold;
 }
 
+size_t detail::memory_pool_impl::get_reserved_size_current() const {
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  size_t resSizeCurrent = 0;
+  Adapter
+      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
+          poolHandle, UR_USM_POOL_INFO_RESERVED_CURRENT_EXP, &resSizeCurrent,
+          nullptr);
+
+  return resSizeCurrent;
+}
+
+size_t detail::memory_pool_impl::get_reserved_size_high() const {
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  size_t resSizeHigh = 0;
+  Adapter
+      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
+          poolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP, &resSizeHigh,
+          nullptr);
+
+  return resSizeHigh;
+}
+
+size_t detail::memory_pool_impl::get_used_size_current() const {
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  size_t usedSizeCurrent = 0;
+  Adapter
+      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
+          poolHandle, UR_USM_POOL_INFO_USED_CURRENT_EXP, &usedSizeCurrent,
+          nullptr);
+
+  return usedSizeCurrent;
+}
+
+size_t detail::memory_pool_impl::get_used_size_high() const {
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  size_t usedSizeHigh = 0;
+  Adapter
+      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
+          poolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP, &usedSizeHigh, nullptr);
+
+  return usedSizeHigh;
+}
+
+void detail::memory_pool_impl::set_new_threshold(size_t newThreshold) {
+
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  Adapter
+      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
+          poolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &newThreshold,
+          8 /*uint64_t*/);
+}
+
+void detail::memory_pool_impl::reset_reserved_size_high() {
+
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  uint64_t resetVal = 0; // Reset to zero
+  Adapter
+      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
+          poolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP,
+          static_cast<void *>(&resetVal), 8 /*uint64_t*/);
+}
+
+void detail::memory_pool_impl::reset_used_size_high() {
+
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  uint64_t resetVal = 0; // Reset to zero
+  Adapter
+      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
+          poolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP,
+          static_cast<void *>(&resetVal), 8 /*uint64_t*/);
+}
+
+void detail::memory_pool_impl::trim_to(size_t minBytesToKeep) {
+
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  ur_context_handle_t C = CtxImpl->getHandleRef();
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(syclDevice);
+  ur_device_handle_t Device = DevImpl->getHandleRef();
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  Adapter
+      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolTrimToExp>(
+          C, Device, poolHandle, minBytesToKeep);
+}
+
 // <--- Memory pool --->
-__SYCL_EXPORT void memory_pool::set_new_threshold(size_t newThreshold) {
-  impl->set_new_threshold(newThreshold);
-}
-
-__SYCL_EXPORT size_t memory_pool::get_max_size() const {
-  return impl->get_max_size();
-}
-
 __SYCL_EXPORT size_t memory_pool::get_threshold() const {
   return impl->get_threshold();
 }
 
 __SYCL_EXPORT const property_list &memory_pool::getPropList() const {
   return impl->getPropList();
+}
+
+__SYCL_EXPORT size_t memory_pool::get_reserved_size_current() const {
+  return impl->get_reserved_size_current();
+}
+
+__SYCL_EXPORT size_t memory_pool::get_reserved_size_high() const {
+  return impl->get_reserved_size_high();
+}
+
+__SYCL_EXPORT size_t memory_pool::get_used_size_current() const {
+  return impl->get_used_size_current();
+}
+
+__SYCL_EXPORT size_t memory_pool::get_used_size_high() const {
+  return impl->get_used_size_high();
+}
+
+__SYCL_EXPORT void memory_pool::set_new_threshold(size_t newThreshold) {
+
+  // Throw when threshold is being reduced
+  if (newThreshold < get_threshold()) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Lowering the release threshold is disallowed!");
+  }
+  impl->set_new_threshold(newThreshold);
+}
+
+__SYCL_EXPORT void memory_pool::reset_reserved_size_high() {
+  impl->reset_reserved_size_high();
+}
+
+__SYCL_EXPORT void memory_pool::reset_used_size_high() {
+  impl->reset_used_size_high();
+}
+
+__SYCL_EXPORT void memory_pool::trim_to(size_t minBytesToKeep) {
+  return impl->trim_to(minBytesToKeep);
 }
 
 __SYCL_EXPORT memory_pool::memory_pool(const sycl::context &ctx,
@@ -250,6 +360,10 @@ __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
         "Host allocated pools are unsupported!");
   }
 
+  h.throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_async_alloc>();
+
   auto &Adapter = h.getContextImplPtr()->getAdapter();
   auto &Q = h.MQueue->getHandleRef();
 
@@ -291,6 +405,11 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
 
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
                                            memory_pool &pool) {
+
+  h.throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_async_alloc>();
+
   auto &Adapter = h.getContextImplPtr()->getAdapter();
   auto &Q = h.MQueue->getHandleRef();
   auto &memPoolImpl = sycl::detail::getSyclObjImpl(pool);
@@ -333,6 +452,10 @@ async_malloc_from_pool(const sycl::queue &q, size_t size, memory_pool &pool,
 }
 
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr) {
+  h.throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_async_alloc>();
+
   h.impl->MFreePtr = ptr;
   h.setType(detail::CGType::AsyncFree);
 }

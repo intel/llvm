@@ -78,9 +78,16 @@ public:
   const property_list &getPropList() const { return propList; }
 
   // Returns backend specific values.
-  size_t get_max_size() const;
   size_t get_threshold() const;
+  size_t get_reserved_size_current() const;
+  size_t get_reserved_size_high() const;
+  size_t get_used_size_current() const;
+  size_t get_used_size_high() const;
+
   void set_new_threshold(size_t newThreshold);
+  void reset_reserved_size_high();
+  void reset_used_size_high();
+  void trim_to(size_t minBytesToKeep);
 
 private:
   sycl::context syclContext;
@@ -124,9 +131,16 @@ public:
   sycl::device get_device() const { return impl->get_device(); }
   sycl::usm::alloc get_alloc_kind() const { return impl->get_alloc_kind(); }
 
-  size_t get_max_size() const;
   size_t get_threshold() const;
+  size_t get_reserved_size_current() const;
+  size_t get_reserved_size_high() const;
+  size_t get_used_size_current() const;
+  size_t get_used_size_high() const;
+
   void set_new_threshold(size_t newThreshold);
+  void reset_reserved_size_high();
+  void reset_used_size_high();
+  void trim_to(size_t minBytesToKeep);
 
   // Property getters.
   template <typename propertyT> bool has_property() const noexcept {

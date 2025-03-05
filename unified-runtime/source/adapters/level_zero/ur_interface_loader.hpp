@@ -493,16 +493,15 @@ ur_result_t urUSMPoolCreateExp(ur_context_handle_t hContext,
 ur_result_t urUSMPoolDestroyExp(ur_context_handle_t hContext,
                                 ur_device_handle_t hDevice,
                                 ur_usm_pool_handle_t hPool);
-ur_result_t urUSMPoolSetThresholdExp(ur_context_handle_t hContext,
-                                     ur_device_handle_t hDevice,
-                                     ur_usm_pool_handle_t hPool,
-                                     size_t newThreshold);
 ur_result_t urUSMPoolGetDefaultDevicePoolExp(ur_context_handle_t hContext,
                                              ur_device_handle_t hDevice,
                                              ur_usm_pool_handle_t *pPool);
 ur_result_t urUSMPoolGetInfoExp(ur_usm_pool_handle_t hPool,
                                 ur_usm_pool_info_t propName, void *pPropValue,
                                 size_t *pPropSizeRet);
+ur_result_t urUSMPoolSetInfoExp(ur_usm_pool_handle_t hPool,
+                                ur_usm_pool_info_t propName, void *pPropValue,
+                                size_t propSize);
 ur_result_t urUSMPoolSetDevicePoolExp(ur_context_handle_t hContext,
                                       ur_device_handle_t hDevice,
                                       ur_usm_pool_handle_t hPool);
