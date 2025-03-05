@@ -51,8 +51,8 @@ ur_result_t after_urDeviceGetInfo(void *pParams) {
 
 void callable_set_get_eq(sycl::device dev) {
   sycl::ext::oneapi::experimental::this_thread::set_current_device(dev);
-  ASSERT_EQ(sycl::ext::oneapi::experimental::this_thread::get_current_device(),
-            dev);
+  ASSERT_NO_FATAL_FAILURE(
+    sycl::ext::oneapi::experimental::this_thread::get_current_device() = dev);
 }
 } // namespace
 
