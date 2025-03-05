@@ -176,6 +176,7 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,  // hCommand
       kernel,          // hNewKernel
       2,               // numNewMemObjArgs
       0,               // numNewPointerArgs
@@ -190,8 +191,8 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
   ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));

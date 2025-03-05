@@ -14,7 +14,6 @@
 
 #include "msan_interceptor.hpp"
 #include "msan_ddi.hpp"
-#include "msan_options.hpp"
 #include "msan_report.hpp"
 #include "msan_shadow.hpp"
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
@@ -476,7 +475,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
   LaunchInfo.Data->GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
 
   LaunchInfo.Data->DeviceTy = DeviceInfo->Type;
-  LaunchInfo.Data->Debug = getOptions().Debug ? 1 : 0;
+  LaunchInfo.Data->Debug = getContext()->Options.Debug ? 1 : 0;
   UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
       ContextInfo->MaxAllocatedSize, (void **)&LaunchInfo.Data->CleanShadow));

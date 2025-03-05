@@ -143,14 +143,14 @@ target triple = "spir-unknown-unknown"
 @"func_object1" = internal addrspace(3) global %class.kfunc zeroinitializer, align 8
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_full_move(%struct.SomeStruct addrspace(1)* nocapture readonly %in, %struct.SomeStruct addrspace(1)* nocapture %out) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @test_full_move(%struct.SomeStruct addrspace(1)* captures(none) readonly %in, %struct.SomeStruct addrspace(1)* captures(none) %out) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
   %1 = bitcast %struct.SomeStruct addrspace(1)* %in to i8 addrspace(1)*
   %2 = bitcast %struct.SomeStruct addrspace(1)* %out to i8 addrspace(1)*
   call void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* align 64 %2, i8 addrspace(1)* align 64 %1, i32 128, i1 false)
   ret void
 }
 
-define spir_kernel void @test_partial_move(%struct.SomeStruct addrspace(1)* nocapture readonly %in, %struct.SomeStruct addrspace(4)* nocapture %out) {
+define spir_kernel void @test_partial_move(%struct.SomeStruct addrspace(1)* captures(none) readonly %in, %struct.SomeStruct addrspace(4)* captures(none) %out) {
   %1 = bitcast %struct.SomeStruct addrspace(1)* %in to i8 addrspace(1)*
   %2 = bitcast %struct.SomeStruct addrspace(4)* %out to i8 addrspace(4)*
   %3 = addrspacecast i8 addrspace(4)* %2 to i8 addrspace(1)*
@@ -189,10 +189,10 @@ merge:                                            ; preds = %entry.merge_crit_ed
 }
 
 ; Function Attrs: argmemonly nofree nosync nounwind willreturn
-declare void @llvm.memmove.p4i8.p4i8.i64(i8 addrspace(4)* nocapture writeonly, i8 addrspace(4)* nocapture readonly, i64, i1 immarg)
+declare void @llvm.memmove.p4i8.p4i8.i64(i8 addrspace(4)* captures(none) writeonly, i8 addrspace(4)* captures(none) readonly, i64, i1 immarg)
 
 ; Function Attrs: nounwind
-declare void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* nocapture, i8 addrspace(1)* nocapture readonly, i32, i1) #1
+declare void @llvm.memmove.p1i8.p1i8.i32(i8 addrspace(1)* captures(none), i8 addrspace(1)* captures(none) readonly, i32, i1) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no_infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind }
