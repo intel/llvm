@@ -681,6 +681,12 @@ private:
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
 
+  // setArgHelper for graph dynamic_work_group_memory
+  void
+  setArgHelper(int ArgIndex,
+               ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+                   &DynWorkGroupMemParam);
+
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
                     sycl::ext::oneapi::experimental::raw_kernel_arg &&Arg) {
@@ -1871,6 +1877,16 @@ public:
   void set_arg(int argIndex,
                ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
     setArgHelper(argIndex, dynamicParam);
+  }
+
+  // set_arg for graph dynamic_work_group_memory
+  template <typename DataT>
+  void set_arg(int argIndex,
+               ext::oneapi::experimental::dynamic_work_group_memory<DataT>
+                   &dynWorkGroupMem) {
+    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+        &dynWorkGroupMemImpl = dynWorkGroupMem;
+    setArgHelper(argIndex, dynWorkGroupMemImpl);
   }
 
   // set_arg for the raw_kernel_arg extension type.
