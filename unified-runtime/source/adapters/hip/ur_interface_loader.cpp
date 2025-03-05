@@ -359,6 +359,14 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     return result;
   }
   pDdiTable->pfnPitchedAllocExp = urUSMPitchedAllocExp;
+  pDdiTable->pfnPoolCreateExp = urUSMPoolCreateExp;
+  pDdiTable->pfnPoolDestroyExp = urUSMPoolDestroyExp;
+  pDdiTable->pfnPoolGetDefaultDevicePoolExp = urUSMPoolGetDefaultDevicePoolExp;
+  pDdiTable->pfnPoolSetThresholdExp = urUSMPoolSetThresholdExp;
+  pDdiTable->pfnPoolGetInfoExp = urUSMPoolGetInfoExp;
+  pDdiTable->pfnPoolSetDevicePoolExp = urUSMPoolSetDevicePoolExp;
+  pDdiTable->pfnPoolGetDevicePoolExp = urUSMPoolGetDevicePoolExp;
+  pDdiTable->pfnPoolTrimToExp = urUSMPoolTrimToExp;
   return UR_RESULT_SUCCESS;
 }
 
