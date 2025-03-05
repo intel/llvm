@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "sycl/detail/helpers.hpp"
-#include "sycl/ext/oneapi/experimental/graph.hpp"
 #include "ur_api.h"
 #include <algorithm>
 
@@ -34,6 +33,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include "sycl/ext/oneapi/experimental/graph.hpp"
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
@@ -1058,18 +1058,14 @@ void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
 void handler::setArgHelper(
     int ArgIndex,
     ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-        &DynWorkGroupMemParam) {
+        &DynWorkGroupBase) {
 
-  impl->MDynWorkGroupMemoryParams.push_back(
-      std::make_shared<
-          ext::oneapi::experimental::detail::dynamic_work_group_memory_base>(
-          DynWorkGroupMemParam));
   addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
-         impl->MDynWorkGroupMemoryParams.back().get(), 0, ArgIndex);
+         &DynWorkGroupBase, 0, ArgIndex);
 
   // Register the dynamic parameter with the handler for later association
   // with the node being added
-  registerDynamicParameter(DynWorkGroupMemParam, ArgIndex);
+  registerDynamicParameter(DynWorkGroupBase, ArgIndex);
 }
 
 // The argument can take up more space to store additional information about
@@ -2102,7 +2098,7 @@ void handler::registerDynamicParameter(
   }
 
   auto Paraimpl = detail::getSyclObjImpl(DynamicParamBase);
-  if (Paraimpl->MGraph != this->impl->MGraph) {
+  if (Paraimpl->MGraph.lock() != this->impl->MGraph) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Cannot use a Dynamic Parameter with a node associated with a graph "

@@ -161,8 +161,8 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
-class dynamic_work_group_memory_base;
 class dynamic_parameter_base;
+class dynamic_work_group_memory_base;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
@@ -687,7 +687,7 @@ private:
   void
   setArgHelper(int ArgIndex,
                ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-                   &DynWorkGroupMemParam);
+                   &DynWorkGroupBase);
 
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
@@ -1889,13 +1889,15 @@ public:
   }
 
   // set_arg for graph dynamic_work_group_memory
-  template <typename DataT>
-  void set_arg(int argIndex,
-               ext::oneapi::experimental::dynamic_work_group_memory<DataT>
-                   &dynWorkGroupMem) {
+  template <typename DataT, typename PropertyListT =
+                                ext::oneapi::experimental::empty_properties_t>
+  void set_arg(
+      int argIndex,
+      ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
+          &dynWorkGroupMem) {
     ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-        &dynWorkGroupMemImpl = dynWorkGroupMem;
-    setArgHelper(argIndex, dynWorkGroupMemImpl);
+        &dynWorkGroupBase = dynWorkGroupMem;
+    setArgHelper(argIndex, dynWorkGroupBase);
   }
 
   // set_arg for the raw_kernel_arg extension type.

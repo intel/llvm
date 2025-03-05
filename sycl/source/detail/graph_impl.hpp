@@ -1588,7 +1588,7 @@ public:
   // Dynamic command-groups which will be updated
   std::vector<DynamicCGInfo> MDynCGs;
 
-  std::shared_ptr<graph_impl> MGraph;
+  std::weak_ptr<graph_impl> MGraph;
   std::vector<std::byte> MValueStorage;
 
 private:
