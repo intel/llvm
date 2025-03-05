@@ -5896,7 +5896,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
            IsFloat32Type);
       bool ArgsTypeIsFloat = true;
       // In sycl mode, functions' arguments of type half are expanded
-      // to pointer types. Exclude these functions from bein emitted
+      // to pointer types. Exclude these functions from being emitted
       // as fpbuiltins.
       if (!getLangOpts().OffloadFP32PrecSqrt ||
           !getLangOpts().OffloadFP32PrecDiv) {
