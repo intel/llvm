@@ -171,7 +171,7 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
 }
 
 ur_result_t urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
+    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
   logger::error("{} function not implemented!", __FUNCTION__);

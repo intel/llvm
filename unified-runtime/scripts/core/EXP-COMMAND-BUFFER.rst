@@ -309,7 +309,8 @@ ${x}CommandBufferUpdateKernelLaunchExp.
     ${x}_exp_command_buffer_update_kernel_launch_desc_t update {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr, // pNext
-        hNewKernel  // hNewKernel
+        hCommand, // hCommand
+        hNewKernel,  // hNewKernel
         2, // numNewMemobjArgs
         0, // numNewPointerArgs
         0, // numNewValueArgs
@@ -325,7 +326,7 @@ ${x}CommandBufferUpdateKernelLaunchExp.
     };
 
     // Perform the update
-    ${x}CommandBufferUpdateKernelLaunchExp(hCommand, &update);
+    ${x}CommandBufferUpdateKernelLaunchExp(hCommandBuffer, 1, &update);
 
 Command Event Update
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -513,6 +514,8 @@ Changelog
 | 1.6       | Command level synchronization with event objects      |
 +-----------+-------------------------------------------------------+
 | 1.7       | Remove command handle reference counting and querying |
++-----------+-------------------------------------------------------+
+| 1.8       | Change Kernel command update API to take a list       |
 +-----------+-------------------------------------------------------+
 
 Contributors

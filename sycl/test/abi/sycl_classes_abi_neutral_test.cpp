@@ -33,9 +33,9 @@
 // CHECK-NEXT:         0 |           class {{(std::__new_allocator|__gnu_cxx::new_allocator)}}<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > (base) (empty)
 // CHECK-NEXT:         0 |         {{(struct std::_Vector_base<struct std::pair<class std::basic_string<char>, class std::basic_string<char> >, class std::allocator<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > >::_Vector_impl_data \(base\)|pointer _M_start)}}
 
-// CHECK: 0 | struct sycl::ext::oneapi::experimental::registered_kernel_names
+// CHECK: 0 | struct sycl::ext::oneapi::experimental::registered_names
 // CHECK-NEXT:         0 |   struct sycl::ext::oneapi::experimental::detail::run_time_property_key
-// CHECK:              0 |   class std::vector<class std::basic_string<char> > kernel_names
+// CHECK:              0 |   class std::vector<class std::basic_string<char> > names
 // CHECK-NEXT:         0 |     struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > > (base)
 // CHECK-NEXT:         0 |       struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > >::_Vector_impl _M_impl
 // CHECK-NEXT:         0 |         class std::allocator<class std::basic_string<char> > (base) (empty)
