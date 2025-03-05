@@ -63,12 +63,29 @@ class BenchmarkHistory:
         try:
             result = run("git rev-parse --short HEAD")
             git_hash = result.stdout.decode().strip()
+
+            # Get the GitHub repo URL from git remote
+            remote_result = run("git remote get-url origin")
+            remote_url = remote_result.stdout.decode().strip()
+
+            # Convert SSH or HTTPS URL to owner/repo format
+            if remote_url.startswith("git@github.com:"):
+                # SSH format: git@github.com:owner/repo.git
+                github_repo = remote_url.split("git@github.com:")[1].rstrip(".git")
+            elif remote_url.startswith("https://github.com/"):
+                # HTTPS format: https://github.com/owner/repo.git
+                github_repo = remote_url.split("https://github.com/")[1].rstrip(".git")
+            else:
+                github_repo = None
+
         except:
             git_hash = "unknown"
+            github_repo = None
 
         return BenchmarkRun(
             name=name,
             git_hash=git_hash,
+            github_repo=github_repo,
             date=datetime.now(tz=timezone.utc),
             results=results,
         )
