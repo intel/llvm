@@ -481,12 +481,19 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
 
 void saveDeviceLibModule(
     std::vector<std::unique_ptr<util::SimpleTable>> &OutTables, int I,
-    LLVMContext &Context, const std::string &DeviceLibFileName) {
+    const std::string &DeviceLibFileName) {
   SMDiagnostic Err;
+  LLVMContext Context;
   StringRef DeviceLibLoc = DeviceLibDir;
   std::string DeviceLibPath = DeviceLibLoc.str() + "/" + DeviceLibFileName;
   std::unique_ptr<Module> DeviceLibIR =
       parseIRFile(DeviceLibPath, Err, Context);
+  Module *DeviceLibMPtr = DeviceLibIR.get();
+  if (!DeviceLibMPtr) {
+    errs() << "sycl-post-link NOTE: fail to load bfloat16 device library "
+              "modules\n";
+    return;
+  }
   llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR),
                                              DeviceLibFileName);
   saveModule(OutTables, DeviceLibMD, I, DeviceLibFileName);
@@ -947,8 +954,8 @@ processInputModule(std::unique_ptr<Module> M, LLVMContext &Context) {
   }
 
   if (IsBF16DeviceLibUsed && (DeviceLibDir.getNumOccurrences() > 0)) {
-    saveDeviceLibModule(Tables, ID, Context, "libsycl-fallback-bfloat16.bc");
-    saveDeviceLibModule(Tables, ID + 1, Context, "libsycl-native-bfloat16.bc");
+    saveDeviceLibModule(Tables, ID, "libsycl-fallback-bfloat16.bc");
+    saveDeviceLibModule(Tables, ID + 1, "libsycl-native-bfloat16.bc");
   }
   return Tables;
 }
