@@ -359,10 +359,11 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       // a wrapper function from the work item loops. In this case we also steal
       // the original kernel name.
       auto Name = compiler::utils::getOrigFnName(*OldF);
-      Function *OrigF = M.getFunction(Name);
       if (Name != OldF->getName()) {
+        Function *OrigF = M.getFunction(Name);
         if (OrigF != nullptr) {
           OldF->takeName(OrigF);
+          OrigF->setComdat(nullptr);
           if (OrigF->use_empty()) {
             RemovableFuncs.insert(OrigF);
           }
@@ -404,7 +405,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     NewF->takeName(OldF);
     OldF->replaceAllUsesWith(NewF);
     OldF->eraseFromParent();
-    NewKernels.push_back(NewF);
+    if (NewF->getName() != "")
+      NewKernels.push_back(NewF);
     ModuleChanged = true;
   }
 

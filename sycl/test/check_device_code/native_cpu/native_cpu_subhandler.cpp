@@ -1,5 +1,6 @@
 // RUN: %clangxx -fsycl-device-only -O2 -g -fexceptions  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o %t_temp.ll %s
 // RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s
+// RUN: %clangxx -mllvm -sycl-native-cpu-backend -O2 -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-O2
 
 // Checks that the subhandler is correctly emitted in the module
 #include <sycl/sycl.hpp>
@@ -29,6 +30,9 @@ template <typename name, typename Func>
 __attribute__((sycl_kernel)) void launch(const Func &kernelFunc) {
   kernelFunc();
 }
+
+//There should be no definition with that name
+//CHECK-O2-NOT: define {{.*}} @.SYCLNCPU(
 
 void test() {
   queue q;
