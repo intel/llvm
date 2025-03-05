@@ -1,5 +1,5 @@
 ; This test checks that the sycl-post-link tool correctly handles
-; intel_reqd_sub_group_siz metadata.
+; intel_reqd_sub_group_size metadata.
 
 ; RUN: sycl-post-link -properties -emit-program-metadata -device-globals -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files.table --check-prefixes CHECK-TABLE
