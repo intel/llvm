@@ -55,13 +55,14 @@ if(UR_BUILD_ADAPTER_L0)
     )
     install_ur_library(ur_adapter_level_zero)
 
+    target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_LEVEL_ZERO)
     if(UR_STATIC_ADAPTER_L0)
         target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO)
 
         # 'utils' target from 'level-zero-loader' includes path which is prefixed
         # in the source directory, this breaks the installation of 'utils' target.
-        set_target_properties(utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-        install(TARGETS ur_umf LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers ze_loader utils
+        set_target_properties(level_zero_utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+        install(TARGETS ur_umf LevelZeroLoader LevelZeroLoader-Headers ComputeRuntimeLevelZero-Headers ze_loader level_zero_utils
             EXPORT ${PROJECT_NAME}-targets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
