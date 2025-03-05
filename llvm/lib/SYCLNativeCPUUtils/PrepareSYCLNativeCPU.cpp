@@ -401,6 +401,12 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   for (auto &OldF : OldKernels) {
     auto *NewF =
         cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);
+    if (O3 && !NewF->hasFnAttribute(Attribute::NoInline)) {
+      if (!NewF->hasFnAttribute(Attribute::AlwaysInline))
+        NewF->addFnAttr(Attribute::AlwaysInline);
+      // Set internal linkage to enable removal of kernel after inlining
+      NewF->setLinkage(llvm::GlobalValue::LinkageTypes::InternalLinkage);
+    }
     NewF->takeName(OldF);
     OldF->replaceAllUsesWith(NewF);
     OldF->eraseFromParent();
