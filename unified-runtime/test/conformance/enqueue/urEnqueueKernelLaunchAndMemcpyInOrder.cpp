@@ -155,13 +155,14 @@ struct urEnqueueKernelLaunchIncrementTest
 
   using Param = uur::BoolTestParam;
 
-  using urMultiQueueLaunchMemcpyTest<numOps, Param>::context;
   using urMultiQueueLaunchMemcpyTest<numOps, Param>::queues;
-  using urMultiQueueLaunchMemcpyTest<numOps, Param>::devices;
   using urMultiQueueLaunchMemcpyTest<numOps, Param>::kernels;
   using urMultiQueueLaunchMemcpyTest<numOps, Param>::SharedMem;
 
   void SetUp() override {
+    // We actually need a single device used multiple times for this test, as
+    // opposed to utilizing all available devices for the platform.
+    this->trueMultiDevice = false;
     UUR_RETURN_ON_FATAL_FAILURE(
         urMultiQueueLaunchMemcpyTest<numOps, Param>::
             SetUp()); // Use single device, duplicated numOps times
@@ -344,9 +345,28 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   }
 }
 
-using urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest =
-    urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<
-        std::tuple<uur::BoolTestParam, uur::BoolTestParam>>;
+struct urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest
+    : urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<
+          std::tuple<uur::BoolTestParam, uur::BoolTestParam>> {
+  using Param = std::tuple<uur::BoolTestParam, uur::BoolTestParam>;
+
+  using urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<Param>::devices;
+  using urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<Param>::queues;
+  using urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<Param>::kernels;
+  using urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<
+      Param>::SharedMem;
+
+  void SetUp() override {
+    useEvents = std::get<0>(getParam()).value;
+    queuePerThread = std::get<1>(getParam()).value;
+    // With !queuePerThread this becomes a test on a single device
+    this->trueMultiDevice = queuePerThread;
+    urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<Param>::SetUp();
+  }
+
+  bool useEvents;
+  bool queuePerThread;
+};
 
 UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
     urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest,
@@ -356,11 +376,7 @@ UUR_PLATFORM_TEST_SUITE_WITH_PARAM(
     printParams<urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest>);
 
 // Enqueue kernelLaunch concurrently from multiple threads
-// With !queuePerThread this becomes a test on a single device
 TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
-  auto useEvents = std::get<0>(getParam()).value;
-  auto queuePerThread = std::get<1>(getParam()).value;
-
   if (!queuePerThread) {
     UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
   }
@@ -371,11 +387,11 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
   static constexpr size_t numOpsPerThread = 6;
 
   for (size_t i = 0; i < numThreads; i++) {
-    threads.emplace_back([this, i, queuePerThread, useEvents]() {
+    threads.emplace_back([this, i]() {
       constexpr size_t global_offset = 0;
       constexpr size_t n_dimensions = 1;
 
-      auto queue = queuePerThread ? queues[i] : queues.back();
+      auto queue = this->queuePerThread ? queues[i] : queues.back();
       auto kernel = kernels[i];
       auto sharedPtr = SharedMem[i];
 
@@ -385,7 +401,7 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
         ur_event_handle_t *lastEvent = nullptr;
         ur_event_handle_t *signalEvent = nullptr;
 
-        if (useEvents) {
+        if (this->useEvents) {
           waitNum = j > 0 ? 1 : 0;
           lastEvent = j > 0 ? Events[j - 1].ptr() : nullptr;
           signalEvent = Events[j].ptr();

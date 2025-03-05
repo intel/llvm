@@ -9467,9 +9467,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    /// [in] Handle of the command-buffer kernel command to update.
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] Struct defining how the kernel command is to be updated.
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Length of pUpdateKernelLaunch.
+    uint32_t numKernelUpdates,
+    /// [in][range(0, numKernelUpdates)]  List of structs defining how a
+    /// kernel commands are to be updated.
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
   auto pfnUpdateKernelLaunchExp =
@@ -9480,18 +9483,21 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommand)
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pUpdateKernelLaunch->hCommand)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == pUpdateKernelLaunch)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (pUpdateKernelLaunch->newWorkDim < 1 ||
-        pUpdateKernelLaunch->newWorkDim > 3)
-      return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
+    if (numKernelUpdates == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
   }
 
-  ur_result_t result = pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+  ur_result_t result = pfnUpdateKernelLaunchExp(
+      hCommandBuffer, numKernelUpdates, pUpdateKernelLaunch);
 
   return result;
 }

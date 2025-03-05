@@ -191,6 +191,9 @@ function(add_ur_executable name)
     add_ur_target_compile_options(${name})
     add_ur_target_exec_options(${name})
     add_ur_target_link_options(${name})
+    if(UR_EXTERNAL_DEPENDENCIES)
+        add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})
+    endif()
 endfunction()
 
 function(add_ur_library name)
@@ -201,6 +204,9 @@ function(add_ur_library name)
         target_link_options(${name} PRIVATE
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
+    endif()
+    if(UR_EXTERNAL_DEPENDENCIES)
+        add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})
     endif()
 endfunction()
 

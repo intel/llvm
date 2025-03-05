@@ -79,7 +79,9 @@ else()
   message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
 endif()
 
-if (UR_ENABLE_TRACING)
+# Only enable xpti tracing on Linux as tracing tools aren't available on
+# Windows yet.
+if (UR_ENABLE_TRACING AND UNIX)
   include(FindCUDACupti)
   # The following two ifs can be removed when FindCUDA -> FindCUDAToolkit.
   # CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
@@ -109,18 +111,12 @@ if (UR_ENABLE_TRACING)
   target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})
 endif()
 
-if (CUDA_cupti_LIBRARY)
-  # cupti is dynamically loaded so the adapter still works if it's not available
-  target_compile_definitions("ur_adapter_cuda" PRIVATE CUPTI_LIB_PATH="${CUDA_cupti_LIBRARY}")
-endif()
-
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::umf
     Threads::Threads
     cudadrv
-    ${EXTRA_LIBS}
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE

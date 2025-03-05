@@ -8,6 +8,9 @@
 //
 // Make sure that memory migration works for buffers across devices in a context
 // when using host tasks.
+//
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17026
 
 #include <cuda.h>
 #include <iostream>

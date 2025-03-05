@@ -8735,9 +8735,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    /// [in] Handle of the command-buffer kernel command to update.
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] Struct defining how the kernel command is to be updated.
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Length of pUpdateKernelLaunch.
+    uint32_t numKernelUpdates,
+    /// [in][range(0, numKernelUpdates)]  List of structs defining how a
+    /// kernel commands are to be updated.
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
   auto pfnUpdateKernelLaunchExp =
@@ -8747,7 +8750,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   ur_command_buffer_update_kernel_launch_exp_params_t params = {
-      &hCommand, &pUpdateKernelLaunch};
+      &hCommandBuffer, &numKernelUpdates, &pUpdateKernelLaunch};
   uint64_t instance = getContext()->notify_begin(
       UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP,
       "urCommandBufferUpdateKernelLaunchExp", &params);
@@ -8755,7 +8758,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   auto &logger = getContext()->logger;
   logger.info("   ---> urCommandBufferUpdateKernelLaunchExp\n");
 
-  ur_result_t result = pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+  ur_result_t result = pfnUpdateKernelLaunchExp(
+      hCommandBuffer, numKernelUpdates, pUpdateKernelLaunch);
 
   getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP,
                            "urCommandBufferUpdateKernelLaunchExp", &params,

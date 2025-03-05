@@ -1,6 +1,9 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_bindless_images_2d_usm
 // REQUIRES: cuda
+//
+// UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17231
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

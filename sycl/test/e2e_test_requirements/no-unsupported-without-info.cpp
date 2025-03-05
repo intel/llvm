@@ -54,13 +54,12 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 342
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 282
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
 //
 // CHECK: Adapters/enqueue-arg-order-image.cpp
-// CHECK-NEXT: Adapters/enqueue-arg-order-image.cpp
 // CHECK-NEXT: Adapters/interop-l0-direct.cpp
 // CHECK-NEXT: Adapters/interop-level-zero-buffer-ownership.cpp
 // CHECK-NEXT: Adapters/interop-level-zero-buffer.cpp
@@ -94,19 +93,7 @@
 // CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
 // CHECK-NEXT: Basic/group_async_copy.cpp
 // CHECK-NEXT: Basic/host-task-dependency.cpp
-// CHECK-NEXT: Basic/image/image.cpp
 // CHECK-NEXT: Basic/image/image_accessor_range.cpp
-// CHECK-NEXT: Basic/image/image_accessor_range.cpp
-// CHECK-NEXT: Basic/image/image_accessor_readsampler.cpp
-// CHECK-NEXT: Basic/image/image_accessor_readwrite.cpp
-// CHECK-NEXT: Basic/image/image_accessor_readwrite_half.cpp
-// CHECK-NEXT: Basic/image/image_array.cpp
-// CHECK-NEXT: Basic/image/image_max_size.cpp
-// CHECK-NEXT: Basic/image/image_read.cpp
-// CHECK-NEXT: Basic/image/image_read_fp16.cpp
-// CHECK-NEXT: Basic/image/image_sample.cpp
-// CHECK-NEXT: Basic/image/image_write.cpp
-// CHECK-NEXT: Basic/image/image_write_fp16.cpp
 // CHECK-NEXT: Basic/kernel_info_attr.cpp
 // CHECK-NEXT: Basic/submit_time.cpp
 // CHECK-NEXT: DeviceImageDependencies/dynamic.cpp
@@ -162,7 +149,6 @@
 // CHECK-NEXT: ESIMD/lsc/lsc_usm_store_u8_u16.cpp
 // CHECK-NEXT: ESIMD/lsc/lsc_usm_store_u8_u16_64.cpp
 // CHECK-NEXT: ESIMD/matrix_transpose2.cpp
-// CHECK-NEXT: ESIMD/preemption.cpp
 // CHECK-NEXT: ESIMD/private_memory/private_memory.cpp
 // CHECK-NEXT: ESIMD/regression/bitreverse.cpp
 // CHECK-NEXT: ESIMD/regression/copyto_char_test.cpp
@@ -320,7 +306,6 @@
 // CHECK-NEXT: Regression/event_destruction.cpp
 // CHECK-NEXT: Regression/get_subgroup_sizes.cpp
 // CHECK-NEXT: Regression/get_subgroup_sizes.cpp
-// CHECK-NEXT: Regression/image_access.cpp
 // CHECK-NEXT: Regression/invalid_reqd_wg_size_correct_exception.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
@@ -329,23 +314,6 @@
 // CHECK-NEXT: Regression/reduction_resource_leak_usm.cpp
 // CHECK-NEXT: Regression/static-buffer-dtor.cpp
 // CHECK-NEXT: Regression/static-buffer-dtor.cpp
-// CHECK-NEXT: Sampler/basic-rw-float.cpp
-// CHECK-NEXT: Sampler/basic-rw.cpp
-// CHECK-NEXT: Sampler/normalized-clamp-linear-float.cpp
-// CHECK-NEXT: Sampler/normalized-clamp-nearest.cpp
-// CHECK-NEXT: Sampler/normalized-clampedge-linear-float.cpp
-// CHECK-NEXT: Sampler/normalized-mirror-linear-float.cpp
-// CHECK-NEXT: Sampler/normalized-mirror-nearest.cpp
-// CHECK-NEXT: Sampler/normalized-none-linear-float.cpp
-// CHECK-NEXT: Sampler/normalized-none-nearest.cpp
-// CHECK-NEXT: Sampler/normalized-repeat-linear-float.cpp
-// CHECK-NEXT: Sampler/normalized-repeat-nearest.cpp
-// CHECK-NEXT: Sampler/unnormalized-clamp-linear-float.cpp
-// CHECK-NEXT: Sampler/unnormalized-clamp-nearest.cpp
-// CHECK-NEXT: Sampler/unnormalized-clampedge-linear-float.cpp
-// CHECK-NEXT: Sampler/unnormalized-clampedge-nearest.cpp
-// CHECK-NEXT: Sampler/unnormalized-none-linear-float.cpp
-// CHECK-NEXT: Sampler/unnormalized-none-nearest.cpp
 // CHECK-NEXT: Scheduler/HostAccDestruction.cpp
 // CHECK-NEXT: Scheduler/InOrderQueueDeps.cpp
 // CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
@@ -361,38 +329,10 @@
 // CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp
 // CHECK-NEXT: USM/badmalloc.cpp
 // CHECK-NEXT: USM/free_during_kernel_execution.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_device_to_device.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_device_to_dhost.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_device_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_device_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_dhost_to_device.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_dhost_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_dhost_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_dhost_to_shared.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_host_to_device.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_host_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_host_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_host_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_device.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_device_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_device_to_dhost.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_device_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_device_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_shared.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_host_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_host_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_host_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_host_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_shared.cpp
 // CHECK-NEXT: USM/pointer_query_descendent_device.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_arith.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_bitwise.cpp

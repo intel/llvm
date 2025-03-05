@@ -11482,6 +11482,11 @@ inline std::ostream &operator<<(
   ur::details::printStruct(os, (params.pNext));
 
   os << ", ";
+  os << ".hCommand = ";
+
+  ur::details::printPtr(os, (params.hCommand));
+
+  os << ", ";
   os << ".hNewKernel = ";
 
   ur::details::printPtr(os, (params.hNewKernel));
@@ -19432,14 +19437,30 @@ inline std::ostream &
 operator<<(std::ostream &os, [[maybe_unused]] const struct
            ur_command_buffer_update_kernel_launch_exp_params_t *params) {
 
-  os << ".hCommand = ";
+  os << ".hCommandBuffer = ";
 
-  ur::details::printPtr(os, *(params->phCommand));
+  ur::details::printPtr(os, *(params->phCommandBuffer));
+
+  os << ", ";
+  os << ".numKernelUpdates = ";
+
+  os << *(params->pnumKernelUpdates);
 
   os << ", ";
   os << ".pUpdateKernelLaunch = ";
+  ur::details::printPtr(
+      os, reinterpret_cast<const void *>(*(params->ppUpdateKernelLaunch)));
+  if (*(params->ppUpdateKernelLaunch) != NULL) {
+    os << " {";
+    for (size_t i = 0; i < *params->pnumKernelUpdates; ++i) {
+      if (i != 0) {
+        os << ", ";
+      }
 
-  ur::details::printPtr(os, *(params->ppUpdateKernelLaunch));
+      os << (*(params->ppUpdateKernelLaunch))[i];
+    }
+    os << "}";
+  }
 
   return os;
 }

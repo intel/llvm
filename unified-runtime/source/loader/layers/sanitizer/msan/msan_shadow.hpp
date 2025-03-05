@@ -43,6 +43,9 @@ struct MsanShadowMemory {
     return UR_RESULT_SUCCESS;
   }
 
+  virtual ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
+                                       uptr &Begin, uptr &End) = 0;
+
   ur_context_handle_t Context{};
 
   ur_device_handle_t Device{};
@@ -83,6 +86,13 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
                       uint32_t NumEvents = 0,
                       const ur_event_handle_t *EventWaitList = nullptr,
                       ur_event_handle_t *OutEvent = nullptr) override;
+
+  ur_result_t AllocLocalShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
+                               uptr &End) override {
+    Begin = ShadowBegin;
+    End = ShadowEnd;
+    return UR_RESULT_SUCCESS;
+  }
 };
 
 struct MsanShadowMemoryGPU : public MsanShadowMemory {
@@ -101,6 +111,9 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
 
   ur_result_t ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) override final;
 
+  ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
+                               uptr &Begin, uptr &End) override final;
+
   virtual size_t GetShadowSize() = 0;
 
   virtual uptr GetStartAddress() { return 0; }
@@ -115,6 +128,10 @@ private:
                       std::unordered_set<std::shared_ptr<MsanAllocInfo>>>>
       VirtualMemMaps;
   ur_mutex VirtualMemMapsMutex;
+
+  uptr LocalShadowOffset = 0;
+
+  uptr PrivateShadowOffset = 0;
 };
 
 /// Shadow Memory layout of GPU PVC device
@@ -133,6 +150,8 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
   MsanShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
       : MsanShadowMemoryGPU(Context, Device) {}
 
+  static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 52 == 0xff0; }
+
   uptr MemToShadow(uptr Ptr) override;
 
   size_t GetShadowSize() override { return 0x8000'0000'0000ULL; }
@@ -149,6 +168,8 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
 struct MsanShadowMemoryDG2 final : public MsanShadowMemoryGPU {
   MsanShadowMemoryDG2(ur_context_handle_t Context, ur_device_handle_t Device)
       : MsanShadowMemoryGPU(Context, Device) {}
+
+  static bool IsDeviceUSM(uptr Ptr) { return Ptr >> 48; }
 
   uptr MemToShadow(uptr Ptr) override;
 

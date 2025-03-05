@@ -50,6 +50,8 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
                                             void **ResultPtr) {
 
   auto ContextInfo = getContextInfo(Context);
+  std::shared_ptr<DeviceInfo> DeviceInfo =
+      Device ? getDeviceInfo(Device) : nullptr;
 
   void *Allocated = nullptr;
 
@@ -72,9 +74,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   if (Type != AllocType::DEVICE_USM) {
     return UR_RESULT_SUCCESS;
   }
-
   assert(Device);
-  std::shared_ptr<DeviceInfo> DeviceInfo = getDeviceInfo(Device);
 
   auto AI = std::make_shared<MsanAllocInfo>(MsanAllocInfo{(uptr)Allocated,
                                                           Size,
@@ -224,13 +224,16 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
 
-      getContext()->logger.info("SpirKernel(name='{}', isInstrumented={})",
-                                KernelName, true);
+      getContext()->logger.info("SpirKernel(name='{}', isInstrumented={}, "
+                                "checkLocals={}, checkPrivates={})",
+                                KernelName, true, (bool)SKI.CheckLocals,
+                                (bool)SKI.CheckPrivates);
 
-      PI->InstrumentedKernels.insert(std::move(KernelName));
+      PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetada{
+          (bool)SKI.CheckLocals, (bool)SKI.CheckPrivates};
     }
     getContext()->logger.info("Number of sanitized kernel: {}",
-                              PI->InstrumentedKernels.size());
+                              PI->KernelMetadataMap.size());
   }
 
   return UR_RESULT_SUCCESS;
@@ -274,10 +277,18 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
     auto DeviceInfo = getMsanInterceptor()->getDeviceInfo(Device);
     for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
       const auto &GVInfo = GVInfos[i];
-      UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
-                                                      GVInfo.Size, 0));
-      ContextInfo->MaxAllocatedSize =
-          std::max(ContextInfo->MaxAllocatedSize, GVInfo.Size);
+
+      // Only support device global USM
+      if (DeviceInfo->Type == DeviceType::CPU ||
+          (DeviceInfo->Type == DeviceType::GPU_PVC &&
+           MsanShadowMemoryPVC::IsDeviceUSM(GVInfo.Addr)) ||
+          (DeviceInfo->Type == DeviceType::GPU_DG2 &&
+           MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
+        UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
+                                                        GVInfo.Size, 0));
+        ContextInfo->MaxAllocatedSize =
+            std::max(ContextInfo->MaxAllocatedSize, GVInfo.Size);
+      }
     }
   }
 
@@ -367,13 +378,18 @@ KernelInfo &MsanInterceptor::getOrCreateKernelInfo(ur_kernel_handle_t Kernel) {
   }
 
   // Create new KernelInfo
-  auto Program = GetProgram(Kernel);
-  auto PI = getProgramInfo(Program);
-  bool IsInstrumented = PI->isKernelInstrumented(Kernel);
+  auto PI = getProgramInfo(GetProgram(Kernel));
+  auto KI = std::make_unique<KernelInfo>(Kernel);
+
+  KI->IsInstrumented = PI->isKernelInstrumented(Kernel);
+  if (KI->IsInstrumented) {
+    auto &KM = PI->getKernelMetadata(Kernel);
+    KI->IsCheckLocals = KM.CheckLocals;
+    KI->IsCheckPrivates = KM.CheckPrivates;
+  }
 
   std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
-  m_KernelMap.emplace(Kernel,
-                      std::make_unique<KernelInfo>(Kernel, IsInstrumented));
+  m_KernelMap.emplace(Kernel, std::move(KI));
   return *m_KernelMap[Kernel].get();
 }
 
@@ -429,6 +445,12 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   // Set membuffer arguments
   auto &KernelInfo = getOrCreateKernelInfo(Kernel);
+  getContext()->logger.info("KernelInfo {} (Name=<{}>, IsInstrumented={}, "
+                            "IsCheckLocals={}, IsCheckPrivates={})",
+                            (void *)Kernel, GetKernelName(Kernel),
+                            KernelInfo.IsInstrumented, KernelInfo.IsCheckLocals,
+                            KernelInfo.IsCheckPrivates);
+
   std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
 
   for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
@@ -451,16 +473,64 @@ ur_result_t MsanInterceptor::prepareLaunch(
   auto ContextInfo = getContextInfo(LaunchInfo.Context);
   LaunchInfo.Data->GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
   LaunchInfo.Data->GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+
   LaunchInfo.Data->DeviceTy = DeviceInfo->Type;
   LaunchInfo.Data->Debug = getContext()->Options.Debug ? 1 : 0;
   UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-      ContextInfo->MaxAllocatedSize, &LaunchInfo.Data->CleanShadow));
+      ContextInfo->MaxAllocatedSize, (void **)&LaunchInfo.Data->CleanShadow));
+
+  if (LaunchInfo.LocalWorkSize.empty()) {
+    LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
+    auto URes = getContext()->urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize(
+        Kernel, Queue, LaunchInfo.WorkDim, LaunchInfo.GlobalWorkOffset,
+        LaunchInfo.GlobalWorkSize, LaunchInfo.LocalWorkSize.data());
+    if (URes != UR_RESULT_SUCCESS) {
+      if (URes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        return URes;
+      }
+      // If urKernelGetSuggestedLocalWorkSize is not supported by driver, we
+      // fallback to inefficient implementation
+      for (size_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+        LaunchInfo.LocalWorkSize[Dim] = 1;
+      }
+    }
+  }
+
+  const size_t *LocalWorkSize = LaunchInfo.LocalWorkSize.data();
+  uint32_t NumWG = 1;
+  for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
+    NumWG *= (LaunchInfo.GlobalWorkSize[Dim] + LocalWorkSize[Dim] - 1) /
+             LocalWorkSize[Dim];
+  }
+
+  // Write shadow memory offset for local memory
+  if (KernelInfo.IsCheckLocals) {
+    if (DeviceInfo->Shadow->AllocLocalShadow(
+            Queue, NumWG, LaunchInfo.Data->LocalShadowOffset,
+            LaunchInfo.Data->LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+      getContext()->logger.warning(
+          "Failed to allocate shadow memory for local "
+          "memory, maybe the number of workgroup ({}) is too "
+          "large",
+          NumWG);
+      getContext()->logger.warning("Skip checking local memory of kernel <{}> ",
+                                   GetKernelName(Kernel));
+    } else {
+      getContext()->logger.info("ShadowMemory(Local, WorkGroup={}, {} - {})",
+                                NumWG,
+                                (void *)LaunchInfo.Data->LocalShadowOffset,
+                                (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+    }
+  }
 
   getContext()->logger.info(
-      "launch_info {} (GlobalShadow={}, Device={}, Debug={})",
-      (void *)LaunchInfo.Data, LaunchInfo.Data->GlobalShadowOffset,
-      ToString(LaunchInfo.Data->DeviceTy), LaunchInfo.Data->Debug);
+      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, CleanShadow={}, "
+      "Device={}, Debug={})",
+      (void *)LaunchInfo.Data, (void *)LaunchInfo.Data->GlobalShadowOffset,
+      (void *)LaunchInfo.Data->LocalShadowOffset,
+      (void *)LaunchInfo.Data->CleanShadow, ToString(LaunchInfo.Data->DeviceTy),
+      LaunchInfo.Data->Debug);
 
   ur_result_t URes =
       EnqueueWriteGlobal("__MsanLaunchInfo", &LaunchInfo.Data, sizeof(uptr));
@@ -517,7 +587,14 @@ ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
 
 bool ProgramInfo::isKernelInstrumented(ur_kernel_handle_t Kernel) const {
   const auto Name = GetKernelName(Kernel);
-  return InstrumentedKernels.find(Name) != InstrumentedKernels.end();
+  return KernelMetadataMap.find(Name) != KernelMetadataMap.end();
+}
+
+const ProgramInfo::KernelMetada &
+ProgramInfo::getKernelMetadata(ur_kernel_handle_t Kernel) const {
+  const auto Name = GetKernelName(Kernel);
+  assert(KernelMetadataMap.find(Name) != KernelMetadataMap.end());
+  return KernelMetadataMap.at(Name);
 }
 
 ContextInfo::~ContextInfo() {
@@ -540,7 +617,8 @@ USMLaunchInfo::~USMLaunchInfo() {
   [[maybe_unused]] ur_result_t Result;
   if (Data) {
     if (Data->CleanShadow) {
-      Result = getContext()->urDdiTable.USM.pfnFree(Context, Data->CleanShadow);
+      Result = getContext()->urDdiTable.USM.pfnFree(Context,
+                                                    (void *)Data->CleanShadow);
       assert(Result == UR_RESULT_SUCCESS);
     }
     Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Data);
