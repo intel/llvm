@@ -204,9 +204,15 @@ public:
   /// Return this platform's default context
   ///
   /// \return the default context
+  __SYCL_DEPRECATED("use khr_get_default_context() instead")
   context ext_oneapi_get_default_context() const;
 
   std::vector<device> ext_oneapi_get_composite_devices() const;
+
+  /// Returns a copy of the default context object for this platform.
+  ///
+  /// \return the default context
+  context khr_get_default_context() const;
 
 private:
   ur_native_handle_t getNative() const;

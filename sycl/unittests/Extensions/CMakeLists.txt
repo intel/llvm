@@ -18,6 +18,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   WorkGroupMemoryBackendArgument.cpp
   GetLastEvent.cpp
   BFloat16.cpp
+  LaunchQueries.cpp
   EventMode.cpp
 )
 
@@ -25,3 +26,4 @@ add_subdirectory(CommandGraph)
 add_subdirectory(VirtualFunctions)
 add_subdirectory(VirtualMemory)
 add_subdirectory(NumComputeUnits)
+add_subdirectory(FreeFunctionCommands)

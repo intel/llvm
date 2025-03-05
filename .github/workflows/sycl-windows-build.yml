@@ -43,6 +43,7 @@ on:
         type: choice
         options:
           - "[]"
+          - '[sycl]'
           - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
       build_cache_suffix:
         type: choice
@@ -90,7 +91,6 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.ref || github.sha }} 
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
@@ -165,6 +165,19 @@ jobs:
       if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
         cmake --build build --target check-libdevice
+    - name: Generate/diff new ABI symbols
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      shell: bash
+      run: |
+        LLVM_BIN_PATH="build/bin" python.exe src/sycl/tools/abi_check.py --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll
+        diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
+    - name: Upload new ABI symbols
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_windows_abi_symbols
+        path: build/new_sycl_symbols_windows.dump
+        retention-days: ${{ inputs.retention-days }}
     - name: Install
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash

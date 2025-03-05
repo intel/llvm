@@ -102,7 +102,6 @@ def EnumConversion : DiagGroup<"enum-conversion",
                                [EnumEnumConversion,
                                 EnumFloatConversion,
                                 EnumCompareConditional]>;
-def DeprecatedNoRelaxedTemplateTemplateArgs : DiagGroup<"deprecated-no-relaxed-template-template-args">;
 def DeprecatedOFast : DiagGroup<"deprecated-ofast">;
 def ObjCSignedCharBoolImplicitIntConversion :
   DiagGroup<"objc-signed-char-bool-implicit-int-conversion">;
@@ -115,11 +114,10 @@ def ImplicitIntFloatConversion : DiagGroup<"implicit-int-float-conversion",
  [ImplicitConstIntFloatConversion]>;
 def ObjCSignedCharBoolImplicitFloatConversion :
   DiagGroup<"objc-signed-char-bool-implicit-float-conversion">;
-def ImplicitFloatSizeConversion :
-  DiagGroup<"implicit-float-size-conversion">;
+def SyclImplicitFloatSizeConversion : DiagGroup<"sycl-implicit-float-size-conversion">;
 def ImplicitFloatConversion : DiagGroup<"implicit-float-conversion",
   [ImplicitIntFloatConversion,
-   ObjCSignedCharBoolImplicitFloatConversion, ImplicitFloatSizeConversion]>;
+   ObjCSignedCharBoolImplicitFloatConversion, SyclImplicitFloatSizeConversion]>;
 def ImplicitFixedPointConversion : DiagGroup<"implicit-fixed-point-conversion">;
 
 def FloatOverflowConversion : DiagGroup<"float-overflow-conversion">;
@@ -232,7 +230,6 @@ def Deprecated : DiagGroup<"deprecated", [DeprecatedAnonEnumEnumConversion,
                                           DeprecatedLiteralOperator,
                                           DeprecatedPragma,
                                           DeprecatedRegister,
-                                          DeprecatedNoRelaxedTemplateTemplateArgs,
                                           DeprecatedOFast,
                                           DeprecatedThisCapture,
                                           DeprecatedType,

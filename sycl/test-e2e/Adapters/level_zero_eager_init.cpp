@@ -1,4 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
+// UNSUPPORTED: ze_debug
+// UNSUPPORTED-INTENDED: ze_debug UR emits summary of leaks that contains
+// function names that we match in the test.
 
 // RUN: %{build} -Wno-error=deprecated-declarations %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 SYCL_EAGER_INIT=1 %{run} %t.out 2>&1 | FileCheck %s
@@ -7,9 +10,9 @@
 // heavy L0 initialization in the hot reportable path.
 //
 // CHECK-LABEL: HOT HOT HOT
-// CHECK-NOT: ZE ---> zeCommandQueueCreate
-// CHECK-NOT: ZE ---> zeCommandListCreate
-// CHECK-NOT: ZE ---> zeFenceCreate
+// CHECK-NOT: zeCommandQueueCreate
+// CHECK-NOT: zeCommandListCreate
+// CHECK-NOT: zeFenceCreate
 //
 
 #include <sycl/detail/core.hpp>
