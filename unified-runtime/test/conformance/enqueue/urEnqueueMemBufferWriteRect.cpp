@@ -87,7 +87,7 @@ TEST_P(urEnqueueMemBufferWriteRectTestWithParam, Success) {
     UUR_KNOWN_FAILURE_ON(uur::HIP{});
   }
 
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
   // Unpack the parameters.
   const auto host_size = getParam().src_size;
