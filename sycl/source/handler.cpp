@@ -1043,6 +1043,23 @@ void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
          impl->MWorkGroupMemoryObjects.back().get(), 0, ArgIndex);
 }
 
+void handler::setArgHelper(
+    int ArgIndex,
+    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+        &DynWorkGroupMemParam) {
+
+  impl->MDynWorkGroupMemoryParams.push_back(
+      std::make_shared<
+          ext::oneapi::experimental::detail::dynamic_work_group_memory_base>(
+          DynWorkGroupMemParam));
+  addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
+         impl->MDynWorkGroupMemoryParams.back().get(), 0, ArgIndex);
+
+  // Register the dynamic parameter with the handler for later association
+  // with the node being added
+  registerDynamicParameter(DynWorkGroupMemParam, ArgIndex);
+}
+
 // The argument can take up more space to store additional information about
 // MAccessRange, MMemoryRange, and MOffset added with addArgsForGlobalAccessor.
 // We use the worst-case estimate because the lifetime of the vector is short.
