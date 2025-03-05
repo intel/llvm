@@ -363,20 +363,12 @@ whose _Name_ is `foo/bar.h`.
 If such an entry is found, the compiler uses the associated _Content_ as the
 content of the include file.
 
-When the source language is `source_language::sycl`, the following header files
-are implicitly available.
-Therefore, the source string may `#include` these even without defining their
-content via the `include_files` property:
-
-* `<sycl/sycl.hpp>`;
-* The {cpp} standard library headers;
-* The SYCL backend headers `"sycl/backend/<backend_name>.hpp"` for any backends
-  that the implementation supports; and
-* Any SYCL extension headers in "sycl/ext" for extensions that the
-  implementation supports.
-
-The include files defined via the `include_files` property are searched first,
-before these implicitly available headers.
+Note that not every file referenced in an `#include` statement must be added
+manually to this property: The compiler automatically considers headers from the
+currrent working directory and any explicitly added include path. A set of
+standard headers (e.g., `sycl/sycl.hpp`) are implicitly available as well.
+Include file handling is described in more detail below in the section
+"Including files when the language is ``sycl``".
 
 _Effects (1):_ Creates a new `include_files` property with no (_Name_,
 _Content_) pairs.
@@ -654,6 +646,46 @@ _Throws:_
 * An `exception` with the `errc::invalid` error code if
   `ext_oneapi_has_kernel(name)` returns `false`.
 |====
+
+=== Including files when the language is `sycl`
+
+When the source language is `source_language::sycl`, the compiler searches for
+files referenced by `#include` statements in the source string in the following
+locations, in the given order:
+
+1. `include_files` property
+2. Current working directory
+3. Any path added explicitly to the search list via the `build_options` property
+4. Set of implicitly available header files
+
+==== Adding paths to the search list
+
+Directories on the local filesystem can be appended to the search path by adding
+one or more occurences of the `-I` option to the `build_options` property. This
+is useful, for example, to compile kernels using external libraries. The
+following spellings are supported (note that the path is a separate element in
+the `build_options` list for the second and fourth form):
+
+[source,c++]
+----
+build_options{{
+  {"-Ipath"},
+  {"-I"}, {"path"},
+  {"--include-directory=path"},
+  {"--include-directory"}, {"path"}
+}}
+----
+
+==== Implicitly available headers
+
+The following header files are implicitly available from the local filesystem.
+
+* `<sycl/sycl.hpp>`;
+* The {cpp} standard library headers;
+* The SYCL backend headers `"sycl/backend/<backend_name>.hpp"` for any backends
+  that the implementation supports; and
+* Any SYCL extension headers in "sycl/ext" for extensions that the
+  implementation supports.
 
 === Obtaining a kernel when the language is `sycl`
 
