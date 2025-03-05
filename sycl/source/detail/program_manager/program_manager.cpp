@@ -1838,16 +1838,46 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
 }
 
 static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
-  // bfloat16 devicelib image must be kept.
+  // For bfloat16 device library image, we should keep it. However, in some
+  // scenario, __sycl_register_lib can be called multiple times and the same
+  // bfloat16 device library image may be handled multiple times which is not
+  // needed. 2 static bool variables are created to record whether native or
+  // fallback bfloat16 device library image has been handled, if yes, we just
+  // need to skip it.
   sycl_device_binary_property_set ImgPS;
+  static bool IsNativeBF16DeviceLibHandled = false;
+  static bool IsFallbackBF16DeviceLibHandled = false;
   for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
        ++ImgPS) {
     if (ImgPS->Name &&
         !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
+      sycl_device_binary_property ImgP;
+      for (ImgP = ImgPS->PropertiesBegin; ImgP != ImgPS->PropertiesEnd;
+           ++ImgP) {
+        if (ImgP->Name && !strcmp("bfloat16", ImgP->Name) &&
+            (ImgP->Type == SYCL_PROPERTY_TYPE_UINT32))
+          break;
+      }
+      if (ImgP == ImgPS->PropertiesEnd)
+        return true;
+
+      // A valid bfloat16 device library image is found here, need to check
+      // wheter it has been handled already.
+      const uint8_t *Temp = reinterpret_cast<const uint8_t *>(&ImgP->ValSize);
+      uint32_t BF16NativeVal =
+          Temp[0] | (Temp[1] << 8) | (Temp[2] << 16) | (Temp[3] << 24);
+      if (((BF16NativeVal == 0) && IsFallbackBF16DeviceLibHandled) ||
+          ((BF16NativeVal == 1) && IsNativeBF16DeviceLibHandled))
+        return true;
+
+      if (BF16NativeVal == 0)
+        IsFallbackBF16DeviceLibHandled = true;
+      else
+        IsNativeBF16DeviceLibHandled = true;
+
       return false;
     }
   }
-
   return true;
 }
 

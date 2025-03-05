@@ -177,7 +177,7 @@ PropSetRegTy computeDeviceLibProperties(const Module &M,
     if (DeviceLibName.find("native") != std::string::npos)
       IsNativeBF16DeviceLib = 1;
     std::map<StringRef, uint32_t> BF16DeviceLibMeta = {
-        {"DeviceLibMeta", IsNativeBF16DeviceLib}};
+        {"bfloat16", IsNativeBF16DeviceLib}};
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_METADATA, BF16DeviceLibMeta);
   }
 
