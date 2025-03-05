@@ -2,7 +2,7 @@
 
 // REQUIRES: ocloc, gpu, target-spir
 
-// XFAIL: linux && (gpu-intel-gen12 || gpu-intel-dg2)
+// XFAIL: linux && gpu
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/17305
 
 // Build the early AOT device binaries
