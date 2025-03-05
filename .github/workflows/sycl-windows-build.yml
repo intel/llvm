@@ -243,6 +243,18 @@ jobs:
         $exitCode = $LASTEXITCODE
         Remove-Item -Path "windows_detect_hung_tests.ps1"
         exit $exitCode
+    - name: Pack E2E test binaries
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      shell: bash
+      run: |
+        tar -czf e2e_bin -C build-e2e .
+    - name: Upload E2E test binaries
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_windows_e2ebin
+        path: e2e_bin
+        retention-days: 3
     - name: Cleanup
       shell: cmd
       if: always()
