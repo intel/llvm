@@ -3,9 +3,9 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
-from dataclasses_json import dataclass_json
+from dataclasses_json import config, dataclass_json
 from datetime import datetime
 
 
@@ -14,8 +14,8 @@ from datetime import datetime
 class Result:
     label: str
     value: float
-    command: str
-    env: str
+    command: list[str]
+    env: dict[str, str]
     stdout: str
     passed: bool = True
     unit: str = ""
@@ -26,9 +26,8 @@ class Result:
     # values below should not be set by the benchmark
     name: str = ""
     lower_is_better: bool = True
-    git_hash: str = ""
-    date: Optional[datetime] = None
     suite: str = "Unknown"
+    description: str = "No description provided."
 
 
 @dataclass_json
@@ -37,4 +36,8 @@ class BenchmarkRun:
     results: list[Result]
     name: str = "This PR"
     git_hash: str = ""
-    date: datetime = None
+    github_repo: str = None
+    date: datetime = field(
+        default=None,
+        metadata=config(encoder=datetime.isoformat, decoder=datetime.fromisoformat),
+    )

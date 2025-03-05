@@ -8,10 +8,10 @@ import io
 from pathlib import Path
 from utils.utils import download, git_clone
 from .base import Benchmark, Suite
-from .result import Result
+from utils.result import Result
 from utils.utils import run, create_build_path
 from options import options
-from .oneapi import get_oneapi
+from utils.oneapi import get_oneapi
 import os
 
 
@@ -43,6 +43,7 @@ class LlamaCppBench(Suite):
             self.models_dir,
             "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
             "Phi-3-mini-4k-instruct-q4.gguf",
+            checksum="fc4f45c9729874a33a527465b2ec78189a18e5726b7121182623feeae38632ace4f280617b01d4a04875acf49d263ee4",
         )
 
         self.oneapi = get_oneapi()
@@ -62,9 +63,9 @@ class LlamaCppBench(Suite):
             f'-DCMAKE_CXX_FLAGS=-I"{self.oneapi.mkl_include()}"',
             f"-DCMAKE_SHARED_LINKER_FLAGS=-L{self.oneapi.compiler_lib()} -L{self.oneapi.mkl_lib()}",
         ]
-        print(f"{self.__class__.__name__}: Run {configure_command}")
+
         run(configure_command, add_sycl=True)
-        print(f"{self.__class__.__name__}: Run cmake --build {self.build_path} -j")
+
         run(
             f"cmake --build {self.build_path} -j",
             add_sycl=True,
@@ -91,6 +92,14 @@ class LlamaBench(Benchmark):
 
     def name(self):
         return f"llama.cpp"
+
+    def description(self) -> str:
+        return (
+            "Performance testing tool for llama.cpp that measures LLM inference speed in tokens per second. "
+            "Runs both prompt processing (initial context processing) and text generation benchmarks with "
+            "different batch sizes. Higher values indicate better performance. Uses the Phi-3-mini-4k-instruct "
+            "quantized model and leverages SYCL with oneDNN for acceleration."
+        )
 
     def lower_is_better(self):
         return False
@@ -130,6 +139,7 @@ class LlamaBench(Benchmark):
                     env=env_vars,
                     stdout=result,
                     unit="token/s",
+                    description=self.description()
                 )
             )
         return results

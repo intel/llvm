@@ -21,6 +21,7 @@ class Options:
     ur_adapter: str = None
     umf: str = None
     rebuild: bool = True
+    redownload: bool = False
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3

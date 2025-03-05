@@ -12,6 +12,7 @@ import tarfile
 import urllib  # nosec B404
 from options import options
 from pathlib import Path
+import hashlib
 
 
 def run(
@@ -41,6 +42,12 @@ def run(
             )
 
         env.update(env_vars)
+
+        if options.verbose:
+            command_str = " ".join(command)
+            env_str = " ".join(f"{key}={value}" for key, value in env_vars.items())
+            full_command_str = f"{env_str} {command_str}".strip()
+            print(f"Running: {full_command_str}")
 
         result = subprocess.run(
             command,
@@ -104,7 +111,7 @@ def prepare_workdir(dir, version):
                 shutil.rmtree(dir)
         else:
             raise Exception(
-                f"The directory {dir} exists but is a benchmark work directory."
+                f"The directory {dir} exists but is not a benchmark work directory."
             )
 
     os.makedirs(dir)
@@ -125,11 +132,26 @@ def create_build_path(directory, name):
     return build_path
 
 
-def download(dir, url, file, untar=False, unzip=False):
+def calculate_checksum(file_path):
+    sha_hash = hashlib.sha384()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha_hash.update(byte_block)
+    return sha_hash.hexdigest()
+
+
+def download(dir, url, file, untar=False, unzip=False, checksum=""):
     data_file = os.path.join(dir, file)
     if not Path(data_file).exists():
         print(f"{data_file} does not exist, downloading")
         urllib.request.urlretrieve(url, data_file)
+        calculated_checksum = calculate_checksum(data_file)
+        if calculated_checksum != checksum:
+            print(
+                f"Checksum mismatch: expected {checksum}, got {calculated_checksum}. Refusing to continue."
+            )
+            exit(1)
+
         if untar:
             file = tarfile.open(data_file)
             file.extractall(dir)
