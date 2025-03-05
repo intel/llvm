@@ -62,7 +62,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_queue_properties_t *pProps)
     : hContext(hContext), hDevice(hDevice), flags(pProps ? pProps->flags : 0),
-      commandListManager(ur_command_list_manager(
+      commandListManager(std::make_shared<ur_command_list_manager>(
           hContext, hDevice,
           hContext->getCommandListCache().getImmediateCommandList(
               hDevice->ZeDevice, true, getZeOrdinal(hDevice),
@@ -76,7 +76,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_native_handle_t hNativeHandle, ur_queue_flags_t flags, bool ownZeQueue)
     : hContext(hContext), hDevice(hDevice), flags(flags),
-      commandListManager(ur_command_list_manager(
+      commandListManager(std::make_shared<ur_command_list_manager>(
           hContext, hDevice,
           raii::command_list_unique_handle(
               reinterpret_cast<ze_command_list_handle_t>(hNativeHandle),
@@ -114,7 +114,7 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
   case UR_QUEUE_INFO_EMPTY: {
     auto status = ZE_CALL_NOCHECK(
         zeCommandListHostSynchronize,
-        (commandListManager.get_no_lock().getZeCommandList(), 0));
+        (commandListManager.get_no_lock()->getZeCommandList(), 0));
     if (status == ZE_RESULT_SUCCESS) {
       return ReturnValue(true);
     } else if (status == ZE_RESULT_NOT_READY) {
@@ -142,7 +142,7 @@ ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
     ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
   std::ignore = pDesc;
   *phNativeQueue = reinterpret_cast<ur_native_handle_t>(
-      this->commandListManager.get_no_lock().getZeCommandList());
+      this->commandListManager.get_no_lock()->getZeCommandList());
   return UR_RESULT_SUCCESS;
 }
 
