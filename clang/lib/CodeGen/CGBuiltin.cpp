@@ -714,12 +714,10 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
     unsigned ConstrainedIntrinsicID,
     unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
-  std::string Name;
-  Function *Func;
   FuncNamePair Res =
     EmitMaybeIntrinsic(CGF, E, FPAccuracyIntrinsicID, IntrinsicID, Src0);
-  Func = Res.first;
-  Name = Res.second;
+  Function *Func = Res.first;
+  StringRef Name = Res.second;
   if (Func)
     return CGF.CreateBuiltinCallWithAttr(Name, Func, {Src0},
                                          FPAccuracyIntrinsicID);
@@ -742,12 +740,10 @@ static Value *emitBinaryMaybeConstrainedFPBuiltin(
     unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
   llvm::Value *Src1 = CGF.EmitScalarExpr(E->getArg(1));
-  std::string Name;
-  Function *Func;
   FuncNamePair Res =
       EmitMaybeIntrinsic(CGF, E, FPAccuracyIntrinsicID, IntrinsicID, Src0);
-  Func = Res.first;
-  Name = Res.second;
+  Function *Func = Res.first;
+  StringRef Name = Res.second;
   if (Func)
     return CGF.CreateBuiltinCallWithAttr(Name, Func, {Src0, Src1},
                                          FPAccuracyIntrinsicID);
