@@ -9,7 +9,6 @@ entry:
 
 define spir_kernel void @foo() {
 entry:
-  ; %r = tail call float @llvm.fpbuiltin.fdiv.f32(float 1.000000e+00, float 2.000000e+00)
   %r = tail call float @test()
   ret void
 }
