@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 341
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 313
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -360,38 +360,10 @@
 // CHECK-NEXT: Tracing/usm/queue_single_task_released_pointer.cpp
 // CHECK-NEXT: USM/badmalloc.cpp
 // CHECK-NEXT: USM/free_during_kernel_execution.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_device_to_device.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_device_to_dhost.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_device_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_device_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_dhost_to_device.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_dhost_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_dhost_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_dhost_to_shared.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_host_to_device.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_host_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_host_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_host_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_device.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_host.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_device_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_device_to_dhost.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_device_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_device_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_shared.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_host_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_host_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_host_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_host_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_device.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_host.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_shared.cpp
 // CHECK-NEXT: USM/pointer_query_descendent_device.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_arith.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_bitwise.cpp
