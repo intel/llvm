@@ -244,7 +244,7 @@ jobs:
       sycl_cts_artifact: sycl_cts_bin
 
   aggregate_benchmark_results:
-    if: always() && !cancelled()
+    if: github.repository == 'intel/llvm' && !cancelled()
     name: Aggregate benchmark results and produce historical averages
     uses: ./.github/workflows/sycl-benchmark-aggregate.yml
     secrets:
