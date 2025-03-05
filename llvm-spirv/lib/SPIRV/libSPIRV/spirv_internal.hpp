@@ -78,8 +78,6 @@ enum InternalOp {
   IOpCooperativeMatrixStoreOffsetINTEL = 6240,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
   IOpTypeTaskSequenceINTEL = 6199,
-  IOpComplexFMulINTEL = 6415,
-  IOpComplexFDivINTEL = 6416,
   IOpRoundFToTF32INTEL = 6426,
   IOpMaskedGatherINTEL = 6428,
   IOpMaskedScatterINTEL = 6429,
@@ -113,7 +111,6 @@ enum InternalCapability {
   ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
   ICapabilityCooperativeMatrixOffsetInstructionsINTEL = 6238,
   ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
-  ICapabilityComplexFloatMulDivINTEL = 6414,
   ICapabilityTensorFloat32RoundingINTEL = 6425,
   ICapabilityMaskedGatherScatterINTEL = 6427,
   ICapabilityJointMatrixWIInstructionsINTEL = 6435,
@@ -195,10 +192,6 @@ _SPIRV_OP(Op, CooperativeMatrixApplyFunctionINTEL)
 _SPIRV_OP(Capability, HWThreadQueryINTEL)
 _SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
 _SPIRV_OP(BuiltIn, GlobalHWThreadIDINTEL)
-
-_SPIRV_OP(Capability, ComplexFloatMulDivINTEL)
-_SPIRV_OP(Op, ComplexFMulINTEL)
-_SPIRV_OP(Op, ComplexFDivINTEL)
 
 _SPIRV_OP(Capability, MaskedGatherScatterINTEL)
 _SPIRV_OP(Op, MaskedGatherINTEL)
