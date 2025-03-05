@@ -27,7 +27,13 @@ auto constexpr IncludePathsSource = R"===(
 #include <sycl/sycl.hpp>
 
 #ifdef USE_ABSOLUTE_INCLUDE
+
+#ifndef _WIN32
 #include "/tmp/sycl-rtc-end-to-end-test/header1.hpp"
+#else
+#include "c:/tmp/sycl-rtc-end-to-end-test/header1.hpp"
+#endif
+
 #else
 #include "header1.hpp"
 #include "B/header2.hpp"
@@ -147,7 +153,11 @@ int test_include_paths(const std::string &baseDir) {
 
   // A bit silly, but including with an absolute path also works
   syclex::include_files absoluteVirtualIncludes{
+#ifndef _WIN32
       "/tmp/sycl-rtc-end-to-end-test/header1.hpp",
+#else
+      "c:/tmp/sycl-rtc-end-to-end-test/header1.hpp",
+#endif
       "#define DEFINE_1 abs1\n#define DEFINE_2 abs2"};
   syclex::build_options setDefine{"-DUSE_ABSOLUTE_INCLUDE"};
   test_compilation(ctx, syclex::properties{absoluteVirtualIncludes},
@@ -162,7 +172,11 @@ int test_include_paths(const std::string &baseDir) {
   // situation in which the *same name* is used for the `#include` and the
   // `include_files` property, which is not the case here.
   syclex::build_options mixedIncludes;
+#ifndef _WIN32
   mixedIncludes.add("-I/tmp/sycl-rtc-end-to-end-test");
+#else
+  mixedIncludes.add("-Ic:/tmp/sycl-rtc-end-to-end-test");
+#endif
   mixedIncludes.add("-I" + baseDir + "/include");
   test_compilation(ctx, syclex::properties{absoluteVirtualIncludes},
                    syclex::properties{mixedIncludes});
