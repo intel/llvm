@@ -7,10 +7,10 @@ import re
 import shutil
 from utils.utils import git_clone
 from .base import Benchmark, Suite
-from .result import Result
+from utils.result import Result
 from utils.utils import run, create_build_path
 from options import options
-from .oneapi import get_oneapi
+from utils.oneapi import get_oneapi
 import shutil
 
 import os
@@ -115,6 +115,9 @@ class VelocityBase(Benchmark):
     def parse_output(self, stdout: str) -> float:
         raise NotImplementedError()
 
+    def description(self) -> str:
+        return ""
+
     def run(self, env_vars) -> list[Result]:
         env_vars.update(self.extra_env_vars())
 
@@ -133,6 +136,7 @@ class VelocityBase(Benchmark):
                 env=env_vars,
                 stdout=result,
                 unit=self.unit,
+                description=self.description()
             )
         ]
 
@@ -146,6 +150,12 @@ class Hashtable(VelocityBase):
 
     def name(self):
         return "Velocity-Bench Hashtable"
+
+    def description(self) -> str:
+        return (
+            "Measures hash table search performance using an efficient lock-free algorithm with linear probing. "
+            "Reports throughput in millions of keys processed per second. Higher values indicate better performance."
+        )
 
     def bin_args(self) -> list[str]:
         return ["--no-verify"]
@@ -169,6 +179,13 @@ class Bitcracker(VelocityBase):
 
     def name(self):
         return "Velocity-Bench Bitcracker"
+
+    def description(self) -> str:
+        return (
+            "Password-cracking application for BitLocker-encrypted memory units. "
+            "Uses dictionary attack to find user or recovery passwords. "
+            "Measures total time required to process 60000 passwords."
+        )
 
     def bin_args(self) -> list[str]:
         self.data_path = os.path.join(self.vb.repo_path, "bitcracker", "hash_pass")
@@ -204,10 +221,18 @@ class SobelFilter(VelocityBase):
             "https://github.com/oneapi-src/Velocity-Bench/raw/main/sobel_filter/res/sobel_filter_data.tgz?download=",
             "sobel_filter_data.tgz",
             untar=True,
+            checksum="7fc62aa729792ede80ed8ae70fb56fa443d479139c5888ed4d4047b98caec106687a0f05886a9ced77922ccba7f65e66",
         )
 
     def name(self):
         return "Velocity-Bench Sobel Filter"
+
+    def description(self) -> str:
+        return (
+            "Popular RGB-to-grayscale image conversion technique that applies a gaussian filter "
+            "to reduce edge artifacts. Processes a large 32K x 32K image and measures "
+            "the time required to apply the filter."
+        )
 
     def bin_args(self) -> list[str]:
         return [
@@ -249,6 +274,13 @@ class QuickSilver(VelocityBase):
     def name(self):
         return "Velocity-Bench QuickSilver"
 
+    def description(self) -> str:
+        return (
+            "Solves a simplified dynamic Monte Carlo particle-transport problem used in HPC. "
+            "Replicates memory access patterns, communication patterns, and branching of Mercury workloads. "
+            "Reports a figure of merit in MMS/CTT where higher values indicate better performance."
+        )
+
     def lower_is_better(self):
         return False
 
@@ -279,13 +311,21 @@ class Easywave(VelocityBase):
     def download_deps(self):
         self.download(
             "easywave",
-            "https://git.gfz-potsdam.de/id2/geoperil/easyWave/-/raw/master/data/examples.tar.gz",
+            "https://gitlab.oca.eu/AstroGeoGPM/eazyWave/-/raw/master/data/examples.tar.gz",
             "examples.tar.gz",
             untar=True,
+            checksum="3b0cd0efde10122934ba6db8451b8c41f4f95a3370fc967fc5244039ef42aae7e931009af1586fa5ed2143ade8ed47b1",
         )
 
     def name(self):
         return "Velocity-Bench Easywave"
+
+    def description(self) -> str:
+        return (
+            "A tsunami wave simulator used for researching tsunami generation and wave propagation. "
+            "Measures the elapsed time in milliseconds to simulate a specified tsunami event "
+            "based on real-world data."
+        )
 
     def bin_args(self) -> list[str]:
         return [
@@ -341,6 +381,13 @@ class CudaSift(VelocityBase):
     def name(self):
         return "Velocity-Bench CudaSift"
 
+    def description(self) -> str:
+        return (
+            "Implementation of the SIFT (Scale Invariant Feature Transform) algorithm "
+            "for detecting, describing, and matching local features in images. "
+            "Measures average processing time in milliseconds."
+        )
+
     def parse_output(self, stdout: str) -> float:
         match = re.search(r"Avg workload time = (\d+\.\d+) ms", stdout)
         if match:
@@ -364,6 +411,7 @@ class DLCifar(VelocityBase):
             "cifar-10-binary.tar.gz",
             untar=True,
             skip_data_dir=True,
+            checksum="974b1bd62da0cb3b7a42506d42b1e030c9a0cb4a0f2c359063f9c0e65267c48f0329e4493c183a348f44ddc462eaf814",
         )
         return
 
@@ -381,6 +429,13 @@ class DLCifar(VelocityBase):
 
     def name(self):
         return "Velocity-Bench dl-cifar"
+
+    def description(self) -> str:
+        return (
+            "Deep learning image classification workload based on the CIFAR-10 dataset "
+            "of 60,000 32x32 color images in 10 classes. Uses neural networks to "
+            "classify input images and measures total calculation time."
+        )
 
     def parse_output(self, stdout: str) -> float:
         match = re.search(
@@ -407,6 +462,7 @@ class DLMnist(VelocityBase):
             "train-images.idx3-ubyte.gz",
             unzip=True,
             skip_data_dir=True,
+            checksum="f40eb179f7c3d2637e789663bde56d444a23e4a0a14477a9e6ed88bc39c8ad6eaff68056c0cd9bb60daf0062b70dc8ee",
         )
         self.download(
             "datasets",
@@ -414,6 +470,7 @@ class DLMnist(VelocityBase):
             "train-labels.idx1-ubyte.gz",
             unzip=True,
             skip_data_dir=True,
+            checksum="ba9c11bf9a7f7c2c04127b8b3e568cf70dd3429d9029ca59b7650977a4ac32f8ff5041fe42bc872097487b06a6794e00",
         )
         self.download(
             "datasets",
@@ -421,6 +478,7 @@ class DLMnist(VelocityBase):
             "t10k-images.idx3-ubyte.gz",
             unzip=True,
             skip_data_dir=True,
+            checksum="1bf45877962fd391f7abb20534a30fd2203d0865309fec5f87d576dbdbefdcb16adb49220afc22a0f3478359d229449c",
         )
         self.download(
             "datasets",
@@ -428,6 +486,7 @@ class DLMnist(VelocityBase):
             "t10k-labels.idx1-ubyte.gz",
             unzip=True,
             skip_data_dir=True,
+            checksum="ccc1ee70f798a04e6bfeca56a4d0f0de8d8eeeca9f74641c1e1bfb00cf7cc4aa4d023f6ea1b40e79bb4707107845479d",
         )
 
     def extra_cmake_args(self):
@@ -444,6 +503,13 @@ class DLMnist(VelocityBase):
 
     def name(self):
         return "Velocity-Bench dl-mnist"
+
+    def description(self) -> str:
+        return (
+            "Digit recognition based on the MNIST database, one of the oldest and most popular "
+            "databases of handwritten digits. Uses neural networks to identify digits "
+            "and measures total calculation time."
+        )
 
     def bin_args(self):
         return ["-conv_algo", "ONEDNN_AUTO"]
@@ -487,6 +553,13 @@ class SVM(VelocityBase):
 
     def name(self):
         return "Velocity-Bench svm"
+
+    def description(self) -> str:
+        return (
+            "Implementation of Support Vector Machine, a popular classical machine learning technique. "
+            "Uses supervised learning models with associated algorithms to analyze data "
+            "for classification and regression analysis. Measures total elapsed time."
+        )
 
     def bin_args(self):
         return [

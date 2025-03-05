@@ -8,9 +8,10 @@ import csv
 import io
 from utils.utils import run, git_clone, create_build_path
 from .base import Benchmark, Suite
-from .result import Result
+from utils.result import Result
 from options import options
 from enum import Enum
+
 
 class ComputeBench(Suite):
     def __init__(self, directory):
@@ -47,9 +48,8 @@ class ComputeBench(Suite):
                 f"-Dunified-runtime_DIR={options.ur}/lib/cmake/unified-runtime",
             ]
 
-        print(f"{self.__class__.__name__}: Run {configure_command}")
         run(configure_command, add_sycl=True)
-        print(f"{self.__class__.__name__}: Run cmake --build {build_path} -j")
+
         run(f"cmake --build {build_path} -j", add_sycl=True)
 
         self.built = True
@@ -73,16 +73,6 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 0, 1, "Device", "Device", 1024),
             ExecImmediateCopyQueue(self, 1, 1, "Device", "Host", 1024),
             VectorSum(self),
-            MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 1, 1, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1, 1),
-            MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 0, 1, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1, 1),
-            MemcpyExecute(self, 4096, 1, 1024, 10, 0, 1, 0),
-            MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
             GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 0, 5),
             GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 1, 5),
             GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 0, 100),
@@ -98,6 +88,16 @@ class ComputeBench(Suite):
                 SubmitKernelUR(self, 0, 0),
                 SubmitKernelUR(self, 1, 0),
                 SubmitKernelUR(self, 1, 1),
+                MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
+                MemcpyExecute(self, 100, 8, 102400, 10, 1, 1, 1),
+                MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1, 1),
+                MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1, 1),
+                MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
+                MemcpyExecute(self, 100, 8, 102400, 10, 0, 1, 1),
+                MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1, 1),
+                MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1, 1),
+                MemcpyExecute(self, 4096, 1, 1024, 10, 0, 1, 0),
+                MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
                 GraphApiSinKernelGraph(self, RUNTIMES.UR, 0, 5),
                 GraphApiSinKernelGraph(self, RUNTIMES.UR, 1, 5),
                 GraphApiSinKernelGraph(self, RUNTIMES.UR, 0, 100),
@@ -136,6 +136,9 @@ class ComputeBenchmark(Benchmark):
     def explicit_group(self):
         return ""
 
+    def description(self) -> str:
+        return ""
+
     def run(self, env_vars) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
@@ -167,6 +170,7 @@ class ComputeBenchmark(Benchmark):
                     env=env_vars,
                     stdout=result,
                     unit=parse_unit_type(unit),
+                    description=self.description()
                 )
             )
         return ret
@@ -221,6 +225,13 @@ class SubmitKernelSYCL(ComputeBenchmark):
             "--KernelExecTime=1",
         ]
 
+    def description(self) -> str:
+        order = "in-order" if self.ioq else "out-of-order"
+        return (
+            f"Measures CPU time overhead of submitting {order} kernels through SYCL API."
+            "Uses 10 simple kernels with minimal execution time to isolate API overhead from kernel execution time."
+        )
+
 
 class SubmitKernelUR(ComputeBenchmark):
     def __init__(self, bench, ioq, measureCompletion):
@@ -236,6 +247,15 @@ class SubmitKernelUR(ComputeBenchmark):
 
     def explicit_group(self):
         return "SubmitKernel"
+
+    def description(self) -> str:
+        order = "in-order" if self.ioq else "out-of-order"
+        completion = "including" if self.measureCompletion else "excluding"
+        return (
+            f"Measures CPU time overhead of submitting {order} kernels through Unified Runtime API, "
+            f"{completion} kernel completion time. Uses 10 simple kernels with minimal execution time "
+            f"to isolate API overhead."
+        )
 
     def bin_args(self) -> list[str]:
         return [
@@ -260,6 +280,14 @@ class SubmitKernelL0(ComputeBenchmark):
 
     def explicit_group(self):
         return "SubmitKernel"
+
+    def description(self) -> str:
+        order = "in-order" if self.ioq else "out-of-order"
+        return (
+            f"Measures CPU time overhead of submitting {order} kernels through Level Zero API. "
+            f"Uses immediate command lists with 10 minimal kernels to isolate submission overhead "
+            f"from execution time."
+        )
 
     def bin_args(self) -> list[str]:
         return [
@@ -286,6 +314,14 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
         order = "in order" if self.ioq else "out of order"
         return f"api_overhead_benchmark_sycl ExecImmediateCopyQueue {order} from {self.source} to {self.destination}, size {self.size}"
 
+    def description(self) -> str:
+        order = "in-order" if self.ioq else "out-of-order"
+        operation = "copy-only" if self.isCopyOnly else "copy and command submission"
+        return (
+            f"Measures SYCL {order} queue overhead for {operation} from {self.source} to "
+            f"{self.destination} memory with {self.size} bytes. Tests immediate execution overheads."
+        )
+
     def bin_args(self) -> list[str]:
         return [
             "--iterations=100000",
@@ -309,6 +345,13 @@ class QueueInOrderMemcpy(ComputeBenchmark):
     def name(self):
         return f"memory_benchmark_sycl QueueInOrderMemcpy from {self.source} to {self.destination}, size {self.size}"
 
+    def description(self) -> str:
+        operation = "copy-only" if self.isCopyOnly else "copy and command submission"
+        return (
+            f"Measures SYCL in-order queue memory copy performance for {operation} from "
+            f"{self.source} to {self.destination} with {self.size} bytes, executed 100 times per iteration."
+        )
+
     def bin_args(self) -> list[str]:
         return [
             "--iterations=10000",
@@ -330,6 +373,12 @@ class QueueMemcpy(ComputeBenchmark):
     def name(self):
         return f"memory_benchmark_sycl QueueMemcpy from {self.source} to {self.destination}, size {self.size}"
 
+    def description(self) -> str:
+        return (
+            f"Measures general SYCL queue memory copy performance from {self.source} to "
+            f"{self.destination} with {self.size} bytes per operation."
+        )
+
     def bin_args(self) -> list[str]:
         return [
             "--iterations=10000",
@@ -349,6 +398,12 @@ class StreamMemory(ComputeBenchmark):
     def name(self):
         return f"memory_benchmark_sycl StreamMemory, placement {self.placement}, type {self.type}, size {self.size}"
 
+    def description(self) -> str:
+        return (
+            f"Measures {self.placement} memory bandwidth using {self.type} pattern with "
+            f"{self.size} bytes. Higher values (GB/s) indicate better performance."
+        )
+
     # measurement is in GB/s
     def lower_is_better(self):
         return False
@@ -362,6 +417,7 @@ class StreamMemory(ComputeBenchmark):
             "--useEvents=0",
             "--contents=Zeros",
             "--multiplier=1",
+            "--vectorSize=1",
         ]
 
 
@@ -371,6 +427,12 @@ class VectorSum(ComputeBenchmark):
 
     def name(self):
         return f"miscellaneous_benchmark_sycl VectorSum"
+
+    def description(self) -> str:
+        return (
+            "Measures performance of vector addition across 3D grid (512x256x256 elements) "
+            "using SYCL."
+        )
 
     def bin_args(self) -> list[str]:
         return [
@@ -408,6 +470,16 @@ class MemcpyExecute(ComputeBenchmark):
             + (" without events" if not self.useEvents else "")
         )
 
+    def description(self) -> str:
+        src_type = "device" if self.srcUSM == 1 else "host"
+        dst_type = "device" if self.dstUSM == 1 else "host"
+        events = "with" if self.useEvents else "without"
+        return (
+            f"Measures multithreaded memory copy performance with {self.numThreads} threads "
+            f"each performing {self.numOpsPerThread} operations on {self.allocSize} bytes "
+            f"from {src_type} to {dst_type} memory {events} events."
+        )
+
     def bin_args(self) -> list[str]:
         return [
             "--Ioq=1",
@@ -441,6 +513,13 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
     def explicit_group(self):
         return f"SinKernelGraph {self.numKernels}"
 
+    def description(self) -> str:
+        execution = "using graphs" if self.withGraphs else "without graphs"
+        return (
+            f"Measures {self.runtime.value.upper()} performance when executing {self.numKernels} "
+            f"sin kernels {execution}. Tests overhead and benefits of graph-based execution."
+        )
+
     def name(self):
         return f"graph_api_benchmark_{self.runtime.value} SinKernelGraph graphs:{self.withGraphs}, numKernels:{self.numKernels}"
 
@@ -451,29 +530,4 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
             f"--withGraphs={self.withGraphs}",
             "--withCopyOffload=1",
             "--immediateAppendCmdList=0",
-        ]
-
-
-class GraphApiSubmitExecGraph(ComputeBenchmark):
-    def __init__(self, bench, ioq, submit, numKernels):
-        self.ioq = ioq
-        self.submit = submit
-        self.numKernels = numKernels
-        super().__init__(bench, "graph_api_benchmark_sycl", "SubmitExecGraph")
-
-    def name(self):
-        return f"graph_api_benchmark_sycl SubmitExecGraph ioq:{self.ioq}, submit:{self.submit}, numKernels:{self.numKernels}"
-
-    def explicit_group(self):
-        if self.submit:
-            return "SubmitGraph"
-        else:
-            return "ExecGraph"
-
-    def bin_args(self) -> list[str]:
-        return [
-            "--iterations=100",
-            f"--measureSubmit={self.submit}",
-            f"--ioq={self.ioq}",
-            f"--numKernels={self.numKernels}",
         ]

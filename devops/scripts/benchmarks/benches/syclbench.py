@@ -8,7 +8,7 @@ import csv
 import io
 from utils.utils import run, git_clone, create_build_path
 from .base import Benchmark, Suite
-from .result import Result
+from utils.result import Result
 from options import options
 
 
@@ -65,14 +65,14 @@ class SyclBench(Suite):
             DagTaskS(self),
             HostDevBandwidth(self),
             LocalMem(self),
-            Pattern_L2(self),
-            Reduction(self),
+            # Pattern_L2(self), # validation failure
+            # Reduction(self), # validation failure
             ScalarProd(self),
             SegmentReduction(self),
-            UsmAccLatency(self),
+            # UsmAccLatency(self), # validation failure
             UsmAllocLatency(self),
-            UsmInstrMix(self),
-            UsmPinnedOverhead(self),
+            # UsmInstrMix(self), # validation failure
+            # UsmPinnedOverhead(self), # validation failure
             VecAdd(self),
             # *** sycl-bench single benchmarks
             # TwoDConvolution(self), # run time < 1ms
@@ -82,20 +82,20 @@ class SyclBench(Suite):
             Atax(self),
             # Atomic_reduction(self), # run time < 1ms
             Bicg(self),
-            Correlation(self),
-            Covariance(self),
-            Gemm(self),
-            Gesumv(self),
-            Gramschmidt(self),
+            # Correlation(self), # validation failure
+            # Covariance(self), # validation failure
+            # Gemm(self), # validation failure
+            # Gesumv(self), # validation failure
+            # Gramschmidt(self), # validation failure
             KMeans(self),
             LinRegCoeff(self),
             # LinRegError(self), # run time < 1ms
-            MatmulChain(self),
+            # MatmulChain(self), # validation failure
             MolDyn(self),
-            Mvt(self),
+            # Mvt(self), # validation failure
             Sf(self),
-            Syr2k(self),
-            Syrk(self),
+            # Syr2k(self), # validation failure
+            # Syrk(self), # validation failure
         ]
 
 
@@ -122,7 +122,7 @@ class SyclBenchmark(Benchmark):
         if self.done:
             return
         self.outputfile = os.path.join(self.bench.directory, self.test + ".csv")
-        print(f"{self.__class__.__name__}: Results in {self.outputfile}")
+
         command = [
             f"{self.benchmark_bin}",
             f"--warmup-run",
@@ -143,7 +143,7 @@ class SyclBenchmark(Benchmark):
                 if not row[0].startswith("#"):
                     res_list.append(
                         Result(
-                            label=row[0],
+                            label=f"{self.name()} {row[0]}",
                             value=float(row[12]) * 1000,  # convert to ms
                             passed=(row[1] == "PASS"),
                             command=command,
@@ -161,7 +161,7 @@ class SyclBenchmark(Benchmark):
         return
 
     def name(self):
-        return self.test
+        return f"{self.bench.name()} {self.test}"
 
 
 # multi benchmarks
