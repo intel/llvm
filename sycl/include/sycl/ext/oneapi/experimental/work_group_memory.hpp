@@ -7,9 +7,9 @@
 
 #pragma once
 
-#include "sycl/ext/oneapi/experimental/graph.hpp"
 #include <sycl/access/access.hpp>
 #include <sycl/detail/defines.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/multi_ptr.hpp>
 
