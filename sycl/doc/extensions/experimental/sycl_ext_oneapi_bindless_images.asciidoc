@@ -181,6 +181,7 @@ enum class image_type : /* unspecified */ {
   mipmap,
   array,
   cubemap,
+  gather,
 };
 
 struct image_descriptor {
@@ -1329,9 +1330,14 @@ DataT fetch_image(const unsampled_image_handle &ImageHandle,
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image(const sampled_image_handle &ImageHandle,
                   const CoordT &Coords);
+
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT sample_image(const sampled_image_handle &ImageHandle, 
+DataT sample_image(const sampled_image_handle &ImageHandle,
                    const CoordT &Coords);
+
+template <typename DataT>
+DataT gather_image(const sampled_image_handle &ImageHandle,
+                   const sycl::float2 &Coords, const int Component = 0);
 
 template <typename DataT, typename CoordT>
 void write_image(unsampled_image_handle ImageHandle,
@@ -1342,9 +1348,52 @@ void write_image(unsampled_image_handle ImageHandle,
 Inside a kernel, it's possible to retrieve data from an image via `fetch_image` 
 or `sample_image`, passing the appropriate image handle. The `fetch_image` API 
 is applicable to sampled and unsampled images, and the data will be fetched 
-exactly as is in device memory. The `sample_image` API is only applicable to 
-sampled images, the image data will be sampled according to the 
+exactly as is in device memory.
+The `sample_image` and `gather_image` APIs are only applicable to
+sampled images. For both APIs the image data will be sampled according to the
 `bindless_image_sampler` that was passed to the image upon construction.
+
+==== `gather_image`
+
+[NOTE]
+=====
+`gather_image` is only currently supported in the Cuda backend.
+=====
+
+`DataT` is a vector type with four components. DataT can only be `sycl::float4`
+, `sycl::int4`, or `sycl::uint4`. `ImageHandle` must be a two dimensional image
+instantiated using an `image_descriptor` with non-zero `width` and `height`
+members. The `image_descriptor::depth` member must be zero.
+The return values, `DataT`, consist of the four texture, `T`, coordinates that
+would be used for linear filtering of `ImageHandle` at the coordinate specified
+by `Coords`, and for channel component `Component`.
+
+These coordinates are returned as follows:
+
+- `DataT.x = T[i, j + 1]`
+- `DataT.y = T[i + 1, j + 1]`
+- `DataT.z = T[i + 1, j]`
+- `DataT.y = T[i, j]`
+
+where `i` and `j` are calculated depending on the
+`sycl::coordinate_normalization_mode` used to constuct `ImageHandle` via a
+`bindless_image_sampler`.
+For `sycl::coordinate_normalization_mode::unnormalized` (in units of the image
+discretization) they are calculated as:
+
+- `i = floor(Coords.x - 0.5)`
+- `j = floor(Coords.y - 0.5)`
+
+In the Cuda backend there are different restrictions on the sizes of an image
+that can be created for a given device when `gather_image` is being used
+(Consult the latest backend specific documentation for more information).
+As such, for guaranteed correctness in the Cuda backend, it is also necessary
+to construct `ImageHandle` using an `image_descriptor` with member
+`image_type::gather`.
+Using a value `image_descriptor::num_channels < 4` to construct `ImageHandle`
+results in undefined behavior.
+
+====
 
 When fetching from a sampled image handle, data exactly as is in memory, no 
 sampling operations will be performed, and the `bindless_image_sampler` passed 
