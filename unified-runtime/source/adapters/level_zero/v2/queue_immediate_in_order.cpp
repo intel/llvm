@@ -62,7 +62,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_queue_properties_t *pProps)
     : hContext(hContext), hDevice(hDevice), flags(pProps ? pProps->flags : 0),
-      commandListManager(std::make_shared<ur_command_list_manager>(
+      commandListManager(
           hContext, hDevice,
           hContext->getCommandListCache().getImmediateCommandList(
               hDevice->ZeDevice, true, getZeOrdinal(hDevice),
@@ -70,13 +70,13 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
               ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
               getZePriority(pProps ? pProps->flags : ur_queue_flags_t{}),
               getZeIndex(pProps)),
-          eventFlagsFromQueueFlags(flags), this)) {}
+          eventFlagsFromQueueFlags(flags), this) {}
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_native_handle_t hNativeHandle, ur_queue_flags_t flags, bool ownZeQueue)
     : hContext(hContext), hDevice(hDevice), flags(flags),
-      commandListManager(std::make_shared<ur_command_list_manager>(
+      commandListManager(
           hContext, hDevice,
           raii::command_list_unique_handle(
               reinterpret_cast<ze_command_list_handle_t>(hNativeHandle),
@@ -85,7 +85,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
                   ZE_CALL_NOCHECK(zeCommandListDestroy, (hZeCommandList));
                 }
               }),
-          eventFlagsFromQueueFlags(flags))) {}
+          eventFlagsFromQueueFlags(flags)) {}
 
 ze_event_handle_t ur_queue_immediate_in_order_t::getSignalEvent(
     locked<ur_command_list_manager> &commandList, ur_event_handle_t *hUserEvent,

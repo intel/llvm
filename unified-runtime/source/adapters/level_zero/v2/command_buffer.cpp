@@ -33,9 +33,9 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList,
     const ur_exp_command_buffer_desc_t *desc)
-    : commandListManager(std::make_shared<ur_command_list_manager>(
+    : commandListManager(
           context, device,
-          std::forward<v2::raii::command_list_unique_handle>(commandList))),
+          std::forward<v2::raii::command_list_unique_handle>(commandList)),
       isUpdatable(desc ? desc->isUpdatable : false) {}
 
 ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
