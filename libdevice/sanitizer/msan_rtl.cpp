@@ -48,6 +48,10 @@ const __SYCL_CONSTANT__ char __msan_print_func_beg[] =
 const __SYCL_CONSTANT__ char __msan_print_func_end[] =
     "[kernel] ===== %s() end\n";
 
+const __SYCL_CONSTANT__ char __msan_print_private_shadow_out_of_bound[] =
+    "[kernel] Private shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
+    "%p)\n";
+
 } // namespace
 
 #if defined(__SPIR__) || defined(__SPIRV__)
@@ -60,6 +64,13 @@ const __SYCL_CONSTANT__ char __msan_print_func_end[] =
   } while (false)
 
 namespace {
+
+inline size_t workgroup_linear_id() {
+  return __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+             __spirv_BuiltInNumWorkgroups.z +
+         __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+         __spirv_BuiltInWorkgroupId.z;
+}
 
 inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
   auto old = addr;
@@ -181,17 +192,27 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   } else if (as == ADDRESS_SPACE_LOCAL) {
     // The size of SLM is 128KB on PVC
     constexpr unsigned SLM_SIZE = 128 * 1024;
-    // work-group linear id
-    const auto wg_lid =
-        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
-            __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
-        __spirv_BuiltInWorkgroupId.z;
-
+    const auto wg_lid = workgroup_linear_id();
     const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
 
     if (shadow_offset != 0) {
       return shadow_offset + (wg_lid * SLM_SIZE) + (addr & (SLM_SIZE - 1));
+    }
+  } else if (as == ADDRESS_SPACE_PRIVATE) {
+    const auto wg_lid = workgroup_linear_id();
+    const auto shadow_offset = GetMsanLaunchInfo->PrivateShadowOffset;
+
+    if (shadow_offset != 0) {
+      uptr shadow_ptr = shadow_offset + (wg_lid * MSAN_PRIVATE_SIZE) +
+                        (addr & (MSAN_PRIVATE_SIZE - 1));
+      MSAN_DEBUG(
+          const auto shadow_offset_end = GetMsanLaunchInfo->PrivateShadowOffsetEnd;
+          if (shadow_ptr > shadow_offset_end) {
+            __spirv_ocl_printf(__msan_print_private_shadow_out_of_bound, addr,
+                               shadow_ptr, wg_lid, (uptr)shadow_offset);
+            return 0;
+          });
+      return shadow_ptr;
     }
   }
 

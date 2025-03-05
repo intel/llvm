@@ -46,6 +46,10 @@ struct MsanShadowMemory {
   virtual ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                        uptr &Begin, uptr &End) = 0;
 
+  virtual ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue,
+                                         uint32_t NumWG, uptr &Begin,
+                                         uptr &End) = 0;
+
   ur_context_handle_t Context{};
 
   ur_device_handle_t Device{};
@@ -93,6 +97,13 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
     End = ShadowEnd;
     return UR_RESULT_SUCCESS;
   }
+
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
+                                 uptr &End) override {
+    Begin = ShadowBegin;
+    End = ShadowEnd;
+    return UR_RESULT_SUCCESS;
+  }
 };
 
 struct MsanShadowMemoryGPU : public MsanShadowMemory {
@@ -113,6 +124,9 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
 
   ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                uptr &Begin, uptr &End) override final;
+
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint32_t NumWG,
+                                 uptr &Begin, uptr &End) override final;
 
   virtual size_t GetShadowSize() = 0;
 

@@ -524,11 +524,32 @@ ur_result_t MsanInterceptor::prepareLaunch(
     }
   }
 
+  // Write shadow memory offset for private memory
+  if (KernelInfo.IsCheckPrivates) {
+    if (DeviceInfo->Shadow->AllocPrivateShadow(
+            Queue, NumWG, LaunchInfo.Data->PrivateShadowOffset,
+            LaunchInfo.Data->PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+      getContext()->logger.warning(
+          "Failed to allocate shadow memory for private "
+          "memory, maybe the number of workgroup ({}) is too "
+          "large",
+          NumWG);
+      getContext()->logger.warning(
+          "Skip checking private memory of kernel <{}>", GetKernelName(Kernel));
+    } else {
+      getContext()->logger.info(
+          "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,
+          (void *)LaunchInfo.Data->PrivateShadowOffset,
+          (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
+    }
+  }
+
   getContext()->logger.info(
-      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, CleanShadow={}, "
+      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateShadow={}, "
+      "CleanShadow={}, "
       "Device={}, Debug={})",
       (void *)LaunchInfo.Data, (void *)LaunchInfo.Data->GlobalShadowOffset,
-      (void *)LaunchInfo.Data->LocalShadowOffset,
+      (void *)LaunchInfo.Data->LocalShadowOffset, (void *)LaunchInfo.Data->PrivateShadowOffset,
       (void *)LaunchInfo.Data->CleanShadow, ToString(LaunchInfo.Data->DeviceTy),
       LaunchInfo.Data->Debug);
 
