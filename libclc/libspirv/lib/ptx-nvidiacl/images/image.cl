@@ -2628,8 +2628,6 @@ _CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN_ALL_DIMS(half, float, f16, v4f3
 #undef _CLC_DEFINE_BINDLESS_VEC2THUNK_TEXTURE_FETCH_BUILTIN_ALL_DIMS
 #undef _CLC_DEFINE_BINDLESS_THUNK_TEXTURE_FETCH_BUILTIN_ALL_DIMS
 
-// Float
-
 #define _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(                       \
     elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
     ...)                                                                       \
