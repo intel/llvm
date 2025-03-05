@@ -22,6 +22,9 @@ def err_drv_unsupported_option_argument : Error<
   "unsupported argument '%1' to option '%0'">;
 def err_drv_unsupported_option_argument_for_target : Error<
   "unsupported argument '%1' to option '%0' for target '%2'">;
+def err_drv_unsupported_opt_removed : Error<
+  "option '%0' is not supported and has been removed from the compiler. Please "
+  "see the compiler documentation for more details">;
 def err_drv_unknown_stdin_type : Error<
   "-E or -x required when input is from standard input">;
 def err_drv_unknown_stdin_type_clang_cl : Error<
@@ -509,12 +512,13 @@ def warn_drv_clang_unsupported : Warning<
   "the clang compiler does not support '%0'">;
 def warn_drv_deprecated_arg : Warning<
   "argument '%0' is deprecated%select{|, use '%2' instead}1">, InGroup<Deprecated>;
-def warn_drv_deprecated_arg_no_relaxed_template_template_args : Warning<
-  "argument '-fno-relaxed-template-template-args' is deprecated">,
-  InGroup<DeprecatedNoRelaxedTemplateTemplateArgs>;
 def warn_drv_deprecated_arg_ofast : Warning<
   "argument '-Ofast' is deprecated; use '-O3 -ffast-math' for the same behavior,"
   " or '-O3' to enable only conforming optimizations">,
+  InGroup<DeprecatedOFast>;
+def warn_drv_deprecated_arg_ofast_for_flang : Warning<
+  "argument '-Ofast' is deprecated; use '-O3 -ffast-math -fstack-arrays' for the same behavior,"
+  " or '-O3 -fstack-arrays' to enable only conforming optimizations">,
   InGroup<DeprecatedOFast>;
 def warn_drv_deprecated_custom : Warning<
   "argument '%0' is deprecated, %1">, InGroup<Deprecated>;
