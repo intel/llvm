@@ -89,7 +89,7 @@ jobs:
       tests_selector: ${{ matrix.tests_selector }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      ref: sycl-rel-6_0_0
+      repo_ref: sycl-rel-6_0_0
       devops_ref: sycl
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
@@ -141,7 +141,7 @@ jobs:
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
-      ref: sycl-rel-6_0_0
+      repo_ref: sycl-rel-6_0_0
       devops_ref: sycl
 
       sycl_toolchain_artifact: sycl_linux_default
@@ -167,7 +167,7 @@ jobs:
       cts_testing_mode: 'build-only'
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       tests_selector: cts
-      ref: sycl-rel-6_0_0
+      repo_ref: sycl-rel-6_0_0
       devops_ref: sycl
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
@@ -197,7 +197,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
-      ref: ${{ github.sha }}
+      repo_ref: ${{ github.sha }}
       devops_ref: sycl
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
