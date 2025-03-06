@@ -154,7 +154,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             SyclBench(directory),
             LlamaCppBench(directory),
             UMFSuite(directory),
-            TestSuite()
+            TestSuite(),
         ]
         if not options.dry_run
         else []
@@ -442,7 +442,7 @@ if __name__ == "__main__":
         type=str,
         choices=[p.name for p in Presets],
         help="Benchmark preset to run.",
-        default='FULL',
+        default="FULL",
     )
 
     args = parser.parse_args()

@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from presets import Preset
 
+
 class Compare(Enum):
     LATEST = "latest"
     AVERAGE = "average"
