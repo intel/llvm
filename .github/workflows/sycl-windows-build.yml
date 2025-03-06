@@ -29,6 +29,9 @@ on:
         type: string
         required: false
         default: "cl"
+      e2e_binaries_artifact:
+        type: string
+        required: false
 
     outputs:
       build_conclusion:
@@ -216,19 +219,18 @@ jobs:
         exit $exitCode
     #############################################################################
     - name: Setup SYCL toolchain
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-    - run: |
-        sycl-ls
-    - run: |
-        sycl-ls --verbose
     - name: Configure E2E
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: cmd
       run: |
         mkdir build-e2e
-        cmake -GNinja -B build-e2e -S.\src\sycl\test-e2e -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLEVEL_ZERO_INCLUDE="D:\github\level-zero_win-sdk\include" -DLLVM_LIT=..\src\llvm\utils\lit\lit.py
+        cmake -GNinja -B build-e2e -S.\src\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLEVEL_ZERO_INCLUDE="D:\github\level-zero_win-sdk\include" -DLLVM_LIT=..\src\llvm\utils\lit\lit.py
 
     - name: Run End-to-End tests
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
         # Run E2E tests.
@@ -244,15 +246,15 @@ jobs:
         Remove-Item -Path "windows_detect_hung_tests.ps1"
         exit $exitCode
     - name: Pack E2E test binaries
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       run: |
         tar -czf e2e_bin -C build-e2e .
     - name: Upload E2E test binaries
-      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v4
       with:
-        name: sycl_windows_e2ebin
+        name: ${{ inputs.e2e_binaries_artifact }}
         path: e2e_bin
         retention-days: 3
     - name: Cleanup

@@ -48,6 +48,10 @@ on:
         required: false
         default: "cl"
 
+      e2e_binaries_artifact:
+        type: string
+        required: false
+
 permissions: read-all
 
 jobs:
@@ -107,11 +111,27 @@ jobs:
         sycl-ls
     - run: |
         sycl-ls --verbose
+
+    # FULL TESTING
     - name: Configure E2E with Level Zero target
+      if: ${{ inputs.e2e_binaries_artifact == '' && always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: cmd
       run: |
         mkdir build-e2e
         cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py"
+    # RUN ONLY
+    - name: Download E2E Binaries
+      if: ${{ inputs.e2e_binaries_artifact }}
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.e2e_binaries_artifact }}
+    - name: Extract E2E Binaries
+      if: ${{ inputs.e2e_binaries_artifact }}
+      shell: bash
+      run: |
+        mkdir build-e2e
+        tar -xf ${{ inputs.e2e_binaries_artifact }} -C build-e2e
+
     - name: Run End-to-End tests
       shell: bash
       run: |
