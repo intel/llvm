@@ -84,8 +84,8 @@ jobs:
 
     runs-on: ${{inputs.runner_name}}
     container:
-      image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
-      options: ${{ inputs.image_options }}
+      image: ${{ matrix.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+      options: ${{ matrix.image_options }}
     steps:
     # TODO:
     # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
