@@ -20,7 +20,6 @@
 
 #include "adapters/level_zero/platform.hpp"
 #include "common.hpp"
-#include <level_zero/include/ze_intel_gpu.h>
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>

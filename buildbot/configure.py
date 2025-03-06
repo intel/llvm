@@ -65,6 +65,7 @@ def do_configure(args):
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
     llvm_enable_zstd = "ON"
+    spirv_enable_dis = "OFF"
 
     if sys.platform != "darwin":
         # For more info on the enablement of level_zero_v2 refer to this document:
@@ -156,6 +157,7 @@ def do_configure(args):
             if libclc_nvidia_target_names not in libclc_targets_to_build:
                 libclc_targets_to_build += libclc_nvidia_target_names
             libclc_gen_remangled_variants = "ON"
+            spirv_enable_dis = "ON"
 
     if args.enable_backends:
         sycl_enabled_backends += args.enable_backends
@@ -193,6 +195,7 @@ def do_configure(args):
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
+        "-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS={}".format(spirv_enable_dis),
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
         "-DSYCL_ENABLE_BACKENDS={}".format(";".join(set(sycl_enabled_backends))),
