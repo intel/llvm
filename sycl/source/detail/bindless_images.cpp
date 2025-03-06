@@ -31,12 +31,11 @@ void populate_ur_structs(const image_descriptor &desc, ur_image_desc_t &urDesc,
 
   if (desc.array_size > 1) {
     // Image array or cubemap
-    urDesc.type = desc.type == image_type::cubemap
-                      ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-                  : desc.type == image_type::gather
-                  ? UR_MEM_TYPE_IMAGE_GATHER_EXP
-                  : desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                    : UR_MEM_TYPE_IMAGE1D_ARRAY;
+    urDesc.type =
+        desc.type == image_type::cubemap  ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+        : desc.type == image_type::gather ? UR_MEM_TYPE_IMAGE_GATHER_EXP
+        : desc.height > 0                 ? UR_MEM_TYPE_IMAGE2D_ARRAY
+                                          : UR_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
     urDesc.type = desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
                                  : (desc.height > 0 ? UR_MEM_TYPE_IMAGE2D

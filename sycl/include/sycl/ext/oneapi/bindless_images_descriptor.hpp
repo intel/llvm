@@ -205,7 +205,7 @@ struct image_descriptor {
                               "or array_size must be 1.");
       }
       return;
-      case image_type::gather:
+    case image_type::gather:
       if (this->width == 0 || this->height == 0 || this->depth != 0) {
         throw sycl::exception(sycl::errc::invalid, "Gather images must be 2D.");
       }

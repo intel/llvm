@@ -197,7 +197,8 @@ extern __DPCPP_SYCL_EXTERNAL RetT __spirv_SampledImageArrayFetch(ImageT,
                                                                  TempArgT, int);
 
 template <class RetT, typename ImageT, typename TempArgT>
-extern __DPCPP_SYCL_EXTERNAL RetT __spirv_SampledImageGather(ImageT, TempArgT, int);
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_SampledImageGather(ImageT, TempArgT,
+                                                             int);
 
 template <class RetT, typename ImageT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageArrayRead(ImageT, TempArgT, int);
