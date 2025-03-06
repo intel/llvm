@@ -101,7 +101,7 @@ jobs:
 
     runs-on: ${{inputs.runner_name}}
     container:
-      image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+      image: ${{ inputs.image || 'ubuntu'}}
       options: ${{ inputs.image_options }}
     steps:
     # TODO:
