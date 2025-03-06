@@ -306,3 +306,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urEventHostSignal(ur_event_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
