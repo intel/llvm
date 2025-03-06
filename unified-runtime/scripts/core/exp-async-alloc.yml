@@ -317,33 +317,6 @@ returns:
 
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Set a new release threshold for a USM memory pool."
-class: $xUSM
-name: PoolSetThresholdExp
-ordinal: "0"
-details:
-  - "Set a new release threshold for a USM memory pool."
-params:
-    - type: $x_context_handle_t
-      name: hContext
-      desc: "[in] handle of the context object"
-    - type: $x_device_handle_t
-      name: hDevice
-      desc: "[in] handle of the device object"
-    - type: $x_usm_pool_handle_t
-      name: hPool
-      desc: "[in] handle to USM memory pool for the threshold to be set"
-    - type: size_t
-      name: newThreshold
-      desc: "[in] release threshold to be set"
-returns:
-    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
-    - $X_RESULT_ERROR_INVALID_VALUE
-    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
-        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
-
---- #--------------------------------------------------------------------------
-type: function
 desc: "Get the default pool for a device."
 class: $xUSM
 name: PoolGetDefaultDevicePoolExp
@@ -392,6 +365,37 @@ returns:
         - "If `propName` is not supported by the adapter."
     - $X_RESULT_ERROR_INVALID_NULL_POINTER:
         - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Set a property for a USM memory pool."
+class: $xUSM
+name: PoolSetInfoExp
+ordinal: "0"
+details:
+  - "Set a property for a USM memory pool."
+params:
+    - type: $x_usm_pool_handle_t
+      name: hPool
+      desc: "[in] handle to USM memory pool for the property to be set"
+    - type: $x_usm_pool_info_t
+      name: propName
+      desc: "[in] setting property name"
+    - type: void*
+      name: pPropValue
+      desc: "[in] pointer to value to assign"
+    - type: size_t
+      name: propSize
+      desc: "[in] size of value to assign"
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`pPropValue == NULL`"
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
     - $X_RESULT_ERROR_INVALID_DEVICE
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
