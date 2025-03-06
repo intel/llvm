@@ -259,7 +259,7 @@ int test_build_and_run() {
 
   // Compilation with props and devices
   std::string log;
-  std::vector<std::string> flags{"-g", "-fno-fast-math",
+  std::vector<std::string> flags{"-fno-fast-math",
                                  "-fsycl-instrument-device-code"};
   std::vector<sycl::device> devs = kbSrc.get_devices();
   exe_kb kbExe2 = syclex::build(
