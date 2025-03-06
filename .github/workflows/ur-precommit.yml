@@ -53,8 +53,9 @@ jobs:
     strategy:
       matrix:
        include:
-         - name: GEN 12 Integrated
-           runner: '["Linux", "gen12"]'
+         - name: L0
+           adapter_name: L0
+           runner: '["Linux", "PVC_PERF"]'
            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
            reset_intel_gpu: true
@@ -80,6 +81,11 @@ jobs:
       static_adapter: ${{ matrix.static || 'OFF' }}
       platform: ${{ matrix.platform || '' }}
       other_adapter_name: ${{ matrix.other_adapter || '' }}
+      image: ${{ matrix.image }}
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
 
   macos:
     name: MacOS build only
