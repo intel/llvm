@@ -3,6 +3,12 @@ name: UR - Build adapters, test on HW.
 on:
   workflow_call:
     inputs:
+      image:
+        type: string
+        required: False
+      image_options:
+        type: string
+        required: True
       adapter_name:
         required: true
         type: string
@@ -83,9 +89,9 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
 
     runs-on: ${{inputs.runner_name}}
-    # container:
-    #   image: ${{ matrix.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
-    #   options: ${{ matrix.image_options }}
+    container:
+      image: ${{ inputs.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+      options: ${{ inputs.image_options }}
     steps:
     # TODO:
     # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
