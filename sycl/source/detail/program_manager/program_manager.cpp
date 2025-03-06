@@ -1869,7 +1869,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     sycl_offload_entry EntriesIt = EntriesB;
     // Assuming that there isn't a mix of new and old offload entry types in the
     // image.
-    bool isNewOffloadEntryType = EntriesIt->IsNewOffloadEntryType();
+    const bool isNewOffloadEntryType = EntriesIt->IsNewOffloadEntryType();
     auto IncrementEntriesIt = [&]() {
       if (isNewOffloadEntryType)
         return reinterpret_cast<sycl_offload_entry>(
@@ -2033,7 +2033,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     sycl_offload_entry EntriesIt = EntriesB;
     // Assuming that there isn't a mix of new and old offload entry types in the
     // image.
-    bool isNewOffloadEntryType = EntriesIt->IsNewOffloadEntryType();
+    const bool isNewOffloadEntryType = EntriesIt->IsNewOffloadEntryType();
     auto IncrementEntriesIt = [&]() {
       if (isNewOffloadEntryType)
         return reinterpret_cast<sycl_offload_entry>(
