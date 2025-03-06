@@ -751,9 +751,39 @@ void SetArgBasedOnType(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex);
 
-void applyFuncOnFilteredArgs(
-    const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
-    std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func);
+template <typename FuncT>
+void applyFuncOnFilteredArgs(const KernelArgMask *EliminatedArgMask,
+                             std::vector<ArgDesc> &Args, FuncT Func) {
+  if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
+    for (ArgDesc &Arg : Args) {
+      Func(Arg, Arg.MIndex);
+    }
+  } else {
+    // TODO this is not necessary as long as we can guarantee that the
+    // arguments are already sorted (e. g. handle the sorting in handler
+    // if necessary due to set_arg(...) usage).
+    std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
+      return A.MIndex < B.MIndex;
+    });
+    int LastIndex = -1;
+    size_t NextTrueIndex = 0;
+
+    for (ArgDesc &Arg : Args) {
+      // Handle potential gaps in set arguments (e. g. if some of them are
+      // set on the user side).
+      for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
+        if (!(*EliminatedArgMask)[Idx])
+          ++NextTrueIndex;
+      LastIndex = Arg.MIndex;
+
+      if ((*EliminatedArgMask)[Arg.MIndex])
+        continue;
+
+      Func(Arg, NextTrueIndex);
+      ++NextTrueIndex;
+    }
+  }
+}
 
 void ReverseRangeDimensionsForKernel(NDRDescT &NDR);
 

@@ -32,7 +32,7 @@ TEST_P(CommandEventSyncTest, USMMemcpyExp) {
       nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read ptr 1 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -62,7 +62,7 @@ TEST_P(CommandEventSyncTest, USMFillExp) {
       &external_events[1], nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read ptr 0 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -98,7 +98,7 @@ TEST_P(CommandEventSyncTest, USMFillLargePatternExp) {
       &external_events[1], nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read ptr 0 based on event returned from command-buffer command
   std::array<uint64_t, modifiedElementSize> host_enqueue_ptr{};
@@ -135,7 +135,7 @@ TEST_P(CommandEventSyncTest, MemBufferCopyExp) {
       nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read buffer 1 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -181,7 +181,7 @@ TEST_P(CommandEventSyncTest, MemBufferCopyRectExp) {
       nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read buffer 1 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -211,7 +211,7 @@ TEST_P(CommandEventSyncTest, MemBufferReadExp) {
       nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Overwrite buffer 0 based on event returned from command-buffer command,
   // then read back to verify ordering
@@ -256,7 +256,7 @@ TEST_P(CommandEventSyncTest, MemBufferReadRectExp) {
       &external_events[1], nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Overwrite buffer 0 based on event returned from command-buffer command,
   // then read back to verify ordering
@@ -294,7 +294,7 @@ TEST_P(CommandEventSyncTest, MemBufferWriteExp) {
       nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Read back buffer 0 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -336,7 +336,7 @@ TEST_P(CommandEventSyncTest, MemBufferWriteRectExp) {
       &external_events[1], nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Read back buffer 0 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -366,7 +366,7 @@ TEST_P(CommandEventSyncTest, MemBufferFillExp) {
       &external_events[1], nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read buffer 0 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -402,7 +402,7 @@ TEST_P(CommandEventSyncTest, MemBufferFillLargePatternExp) {
       &external_events[1], nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read buffer 0 based on event returned from command-buffer command
   std::array<uint64_t, modifiedElementSize> host_enqueue_ptr{};
@@ -431,7 +431,7 @@ TEST_P(CommandEventSyncTest, USMPrefetchExp) {
       nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read ptr 0 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -459,7 +459,7 @@ TEST_P(CommandEventSyncTest, USMAdviseExp) {
       nullptr, 1, &external_events[0], nullptr, &external_events[1], nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read ptr 0 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptr{};
@@ -498,7 +498,7 @@ TEST_P(CommandEventSyncTest, MultipleEventCommands) {
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
 
   // Queue read ptr 1 based on event returned from command-buffer command
   std::array<uint32_t, elements> host_enqueue_ptrA, host_enqueue_ptrB,
@@ -568,8 +568,8 @@ TEST_P(CommandEventSyncTest, MultipleEventCommandsBetweenCommandBuffers) {
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(second_cmd_buf_handle));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(second_cmd_buf_handle, queue, 0,
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, second_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Verify

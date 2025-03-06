@@ -54,6 +54,10 @@ bool isModuleUsingMsan(const Module &M) {
   return M.getNamedGlobal("__MsanKernelMetadata");
 }
 
+bool isModuleUsingTsan(const Module &M) {
+  return M.getNamedGlobal("__TsanKernelMetadata");
+}
+
 // This function traverses over reversed call graph by BFS algorithm.
 // It means that an edge links some function @func with functions
 // which contain call of function @func. It starts from
@@ -406,6 +410,8 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
     else if (isModuleUsingMsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "msan");
+    else if (isModuleUsingTsan(M))
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "tsan");
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {
@@ -468,6 +474,21 @@ PropSetRegTy computeModuleProperties(const Module &M,
 
       PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
                    "uses-virtual-functions-set", AllSets);
+    }
+  }
+
+  if (const NamedMDNode *MD = M.getNamedMetadata("sycl_registered_kernels")) {
+    if (MD->getNumOperands() == 1) {
+      const MDNode *RegisteredKernels = MD->getOperand(0);
+      for (const MDOperand &Op : RegisteredKernels->operands()) {
+        const auto *RegisteredKernel = cast<MDNode>(Op);
+        if (RegisteredKernel->getNumOperands() != 2)
+          continue;
+        PropSet.add(
+            PropSetRegTy::SYCL_REGISTERED_KERNELS,
+            cast<MDString>(RegisteredKernel->getOperand(0))->getString(),
+            cast<MDString>(RegisteredKernel->getOperand(1))->getString());
+      }
     }
   }
 

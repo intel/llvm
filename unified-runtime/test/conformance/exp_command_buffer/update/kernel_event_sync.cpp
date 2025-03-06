@@ -97,7 +97,7 @@ TEST_P(KernelCommandEventSyncUpdateTest, Basic) {
       nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue command that reads output to host
@@ -132,7 +132,7 @@ TEST_P(KernelCommandEventSyncUpdateTest, Basic) {
   ASSERT_SUCCESS(
       urCommandBufferUpdateSignalEventExp(command_handle, &external_events[3]));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Read data back with a queue operation waiting on updated kernel command
@@ -179,7 +179,7 @@ TEST_P(KernelCommandEventSyncUpdateTest, TwoWaitEvents) {
       nullptr));
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Queue command that reads output to host
@@ -220,7 +220,7 @@ TEST_P(KernelCommandEventSyncUpdateTest, TwoWaitEvents) {
   ASSERT_SUCCESS(
       urCommandBufferUpdateSignalEventExp(command_handle, &external_events[5]));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   // Read data back with a queue operation waiting on updated kernel command
