@@ -3,6 +3,14 @@ name: UR - Build adapters, test on HW.
 on:
   workflow_call:
     inputs:
+      reset_intel_gpu:
+        type: string
+        required: False
+      extra_lit_opts:
+        description: |
+          Extra options to be added to LIT_OPTS.
+        type: string
+        default: ''
       target_devices:
         type: string
         required: False
