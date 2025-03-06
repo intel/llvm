@@ -768,6 +768,7 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
   ZE2UR_CALL(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice, &zeSrcImageDesc, &zeSrcImgHandle));
   ZE2UR_CALL(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice, &zeDstImageDesc, &zeDstImgHandle));
 
+  //ATTN: ze_tracer shows a lot of events (eg. ~60) created here
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
@@ -779,6 +780,8 @@ if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
     if (pDstImageDesc->rowPitch == 0) {
       // Copy to Non-USM memory
       std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
+      std::cerr << "[L0_v2]" << __FUNCTION__ << ":Copy to non-USM memory" << std::endl;
+
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
@@ -794,12 +797,12 @@ if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
 
     ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
                  (ZeCommandList, zeDstImg, SrcPtr, &DstRegion,
-                  SrcRowPitch, SrcSlicePitch, /* zeSignalEvent, waitListView.num,
-                  waitListView.handles */nullptr, 0,
-                  nullptr));
+                  SrcRowPitch, SrcSlicePitch, zeSignalEvent, waitListView.num,
+                  waitListView.handles));
     } else {
       // Copy to pitched USM memory
       std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
+      std::cerr << "[L0_v2]" << __FUNCTION__ << ":Copy to pitched USM memory" << std::endl;
       uint32_t DstRowPitch = pDstImageDesc->rowPitch;
       ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
                                       (uint32_t)pCopyRegion->dstOffset.y,
@@ -816,9 +819,8 @@ if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
                                       (uint32_t)pCopyRegion->copyExtent.depth};
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
                  (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, /* zeSignalEvent,
-                  waitListView.num, waitListView.handles */
-                nullptr, 0, nullptr));
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
+                  waitListView.num, waitListView.handles));
     }
   } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
     uint32_t DstRowPitch =
@@ -827,6 +829,7 @@ if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
     if (pSrcImageDesc->rowPitch == 0) {
       // Copy from Non-USM memory to host
       std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
+      std::cerr << "[L0_v2]" << __FUNCTION__ << ":Copy from Non-USM memory to host" << std::endl;
       ze_image_region_t SrcRegion;
       UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
                                    &pCopyRegion->copyExtent, SrcRegion));
@@ -839,11 +842,12 @@ if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
           pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
       ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
                  (ZeCommandList, DstPtr, zeSrcImg, &SrcRegion,
-                  DstRowPitch, DstSlicePitch, /* zeSignalEvent, waitListView.num,
-                  waitListView.handles */nullptr, 0, nullptr));
+                  DstRowPitch, DstSlicePitch, zeSignalEvent, waitListView.num,
+                  waitListView.handles));
     } else {
       // Copy from pitched USM memory to host
       std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
+      std::cerr << "[L0_v2]" << __FUNCTION__ << ":Copy from pitched USM memory to host" << std::endl;
       ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
                                       (uint32_t)pCopyRegion->dstOffset.y,
                                       (uint32_t)pCopyRegion->dstOffset.z,
@@ -860,11 +864,12 @@ if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
       uint32_t SrcSlicePitch = 0;
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
                  (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, /* zeSignalEvent, waitListView.num,
-                  waitListView.handles */nullptr, 0, nullptr));
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent, waitListView.num,
+                  waitListView.handles));
     }
   } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) {
     std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << std::endl;
+    std::cerr << "[L0_v2]" << __FUNCTION__ << ":Copy D2D" << std::endl;
     ze_image_region_t DstRegion;
     UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
                                  &pCopyRegion->copyExtent, DstRegion));
@@ -877,8 +882,8 @@ if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
     ze_image_handle_t zeDstImg = reinterpret_cast<ze_image_handle_t>(pDst);
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
                (ZeCommandList, zeDstImg, zeSrcImg,
-                &DstRegion, &SrcRegion, /* zeSignalEvent, waitListView.num,
-                waitListView.handles */nullptr, 0, nullptr));
+                &DstRegion, &SrcRegion, zeSignalEvent, waitListView.num,
+                waitListView.handles));
   } else {
     logger::error("ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp: unexpected imageCopyFlags");
     std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__ << " failed" << std::endl;
