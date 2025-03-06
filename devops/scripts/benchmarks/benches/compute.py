@@ -170,7 +170,7 @@ class ComputeBenchmark(Benchmark):
                     env=env_vars,
                     stdout=result,
                     unit=parse_unit_type(unit),
-                    description=self.description()
+                    description=self.description(),
                 )
             )
         return ret

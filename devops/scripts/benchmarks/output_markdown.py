@@ -79,7 +79,7 @@ def get_improved_regressed_summary(is_improved: bool, rows_count: int):
         "\n<details>\n"
         "<summary>\n"
         f"{title} {rows_count} "
-        f"(threshold {options.epsilon*100:.2f}%)\n"
+        f"(threshold {options.stddev_threshold*100:.2f}%)\n"
         "</summary>\n\n"
     )
 
@@ -265,7 +265,7 @@ def generate_summary_table(
                 delta = oln.diff - 1
                 oln.row += f" {delta*100:.2f}%"
 
-                if abs(delta) > options.epsilon:
+                if abs(delta) > options.stddev_threshold:
                     if delta > 0:
                         improved_rows.append(oln.row + " | \n")
                     else:

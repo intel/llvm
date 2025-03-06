@@ -1,5 +1,2 @@
-const config = {
-    remoteDataUrl: ''
-};
-// defaultCompareNames = [];
-// suiteNames = [];
+//remoteDataUrl = 'https://example.com/data.json';
+//defaultCompareNames = ['baseline'];
