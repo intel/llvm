@@ -647,14 +647,17 @@ _Throws:_
 
 === Including files when the language is `sycl`
 
-When the source language is `source_language::sycl`, the compiler searches for
-files referenced by `#include` statements in the source string in the following
-locations, in the given order:
+When the source language is `source_language::sycl`, the compiler searches
+multiple locations to find files referenced by `#include` statements.
+Any include files defined via the `include_files` property are searched first,
+followed by the directories below, in order:
 
-1. `include_files` property
-2. Current working directory
-3. Any path added explicitly to the search list via the `build_options` property
-4. Set of implicitly available header files
+1. The current working directory.
+2. Any directory added explicitly to the search list via the `build_options`
+   property.
+
+Finally, the compiler searches a set of implicitly available header files,
+as defined in the section "Implicitly available headers".
 
 ==== Adding paths to the search list
 
