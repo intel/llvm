@@ -162,7 +162,7 @@ specific graph command-buffer execution is required this ordering must be
 enforced by the user to ensure there is only a single command-buffer execution
 in flight when using these command signal events.
 
-When a user calls ${x}CommandBufferEnqueueExp all the signal events returned
+When a user calls ${x}EnqueueCommandBufferExp all the signal events returned
 from the individual commands in the command-buffer are synchronously reset to
 a non-complete state prior to the asynchronous commands beginning.
 
@@ -199,8 +199,8 @@ enqueued or executed simultaneously, and submissions may be serialized.
 .. parsed-literal::
     ${x}_event_handle_t executionEvent;
 
-    ${x}CommandBufferEnqueueExp(hCommandBuffer, hQueue, 0, nullptr,
-                              &executionEvent);
+    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr,
+                                &executionEvent);
 
 
 Updating Command-Buffer Commands
@@ -363,7 +363,7 @@ ${x}CommandBufferUpdateSignalEventExp there must also have been a non-null
     ${x}CommandBufferFinalizeExp(hCommandBuffer);
 
     // Enqueue command-buffer
-    ${x}CommandBufferEnqueueExp(hCommandBuffer, hQueue, 0, nullptr, nullptr);
+    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr, nullptr);
 
     // Wait for command-buffer to finish
     ${x}QueueFinish(hQueue);
@@ -405,14 +405,13 @@ Enums
     * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC
     * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC
 * ${x}_command_t
-    * ${X}_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP
+    * ${X}_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP
 * ${x}_function_t
     * ${X}_FUNCTION_COMMAND_BUFFER_CREATE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_RETAIN_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_RELEASE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP
@@ -425,6 +424,7 @@ Enums
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP
+    * ${X}_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP
 * ${x}_exp_command_buffer_info_t
     * ${X}_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT
     * ${X}_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR
@@ -460,11 +460,11 @@ Functions
 * ${x}CommandBufferAppendMemBufferFillExp
 * ${x}CommandBufferAppendUSMPrefetchExp
 * ${x}CommandBufferAppendUSMAdviseExp
-* ${x}CommandBufferEnqueueExp
 * ${x}CommandBufferUpdateKernelLaunchExp
 * ${x}CommandBufferUpdateSignalEventExp
 * ${x}CommandBufferUpdateWaitEventsExp
 * ${x}CommandBufferGetInfoExp
+* ${x}EnqueueCommandBufferExp
 
 Changelog
 --------------------------------------------------------------------------------
@@ -491,7 +491,9 @@ Changelog
 +-----------+-------------------------------------------------------+
 | 1.8       | Change Kernel command update API to take a list       |
 +-----------+-------------------------------------------------------+
-| 1.9       | Remove extension string macro, make device info enum  |
+| 1.9       | Rename enqueue API to urEnqueueCommandBufferExp       |
++-----------+-------------------------------------------------------+
+| 1.10      | Remove extension string macro, make device info enum  |
 |           | primary mechanism for reporting support.              |
 +-----------+-------------------------------------------------------+
 
