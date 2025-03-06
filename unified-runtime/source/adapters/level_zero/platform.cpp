@@ -354,52 +354,67 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // Check if mutable command list extension is supported and initialize
   // function pointers.
   if (MutableCommandListSpecExtensionSupported) {
+#ifdef UR_STATIC_LEVEL_ZERO
+    ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp =
+        zeCommandListGetNextCommandIdExp;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp =
+        zeCommandListUpdateMutableCommandsExp;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp =
+        zeCommandListUpdateMutableCommandSignalEventExp;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp =
+        zeCommandListUpdateMutableCommandWaitEventsExp;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp =
+        zeCommandListUpdateMutableCommandKernelsExp;
+    ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp =
+        zeCommandListGetNextCommandIdWithKernelsExp;
+#else
     ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp =
         (ze_pfnCommandListGetNextCommandIdExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListGetNextCommandIdExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp != nullptr;
     ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp =
         (ze_pfnCommandListUpdateMutableCommandsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListUpdateMutableCommandsExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp != nullptr;
     ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp =
         (ze_pfnCommandListUpdateMutableCommandSignalEventExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListUpdateMutableCommandSignalEventExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp !=
-        nullptr;
     ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp =
         (ze_pfnCommandListUpdateMutableCommandWaitEventsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListUpdateMutableCommandWaitEventsExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp !=
-        nullptr;
     ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp =
         (ze_pfnCommandListUpdateMutableCommandKernelsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListUpdateMutableCommandKernelsExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp !=
-        nullptr;
     ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp =
         (ze_pfnCommandListGetNextCommandIdWithKernelsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListGetNextCommandIdWithKernelsExp");
+#endif
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp != nullptr;
     ZeMutableCmdListExt.Supported |=
         ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp !=
         nullptr;
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp !=
+        nullptr;
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp !=
+        nullptr;
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp !=
+        nullptr;
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp != nullptr;
     ZeMutableCmdListExt.LoaderExtension = true;
   } else {
     ZeMutableCmdListExt.Supported |=
@@ -455,12 +470,18 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // Check if ImmediateAppendCommandList is supported and initialize the
   // function pointer.
   if (ZeImmediateCommandListAppendExtensionFound) {
+#ifdef UR_STATIC_LEVEL_ZERO
+    ZeCommandListImmediateAppendExt
+        .zeCommandListImmediateAppendCommandListsExp =
+        zeCommandListImmediateAppendCommandListsExp;
+#else
     ZeCommandListImmediateAppendExt
         .zeCommandListImmediateAppendCommandListsExp =
         (ze_pfnCommandListImmediateAppendCommandListsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListImmediateAppendCommandListsExp");
+#endif
     ZeCommandListImmediateAppendExt.Supported =
         ZeCommandListImmediateAppendExt
             .zeCommandListImmediateAppendCommandListsExp != nullptr;

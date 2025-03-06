@@ -283,9 +283,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if "cuda:gpu" in sycl_devices:
                 extra_env.append("UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
 
-            if "hip:gpu" in sycl_devices:
-                extra_env.append("UR_HIP_ENABLE_IMAGE_SUPPORT=1")
-
             return extra_env
 
         extra_env = get_extra_env(devices_for_test)
@@ -309,13 +306,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 for i in ["%{run}", "%{run-unfiltered-devices}", "%{run-aux}"]
             )
 
-            ignore_line_filtering = (
-                "build-and-run-mode" in test.requires
-                and test.config.fallback_build_run_only
-            )
-            if not ignore_line_filtering and (
-                (is_run_line and test.config.test_mode == "build-only")
-                or (not is_run_line and test.config.test_mode == "run-only")
+            if (is_run_line and test.config.test_mode == "build-only") or (
+                not is_run_line and test.config.test_mode == "run-only"
             ):
                 continue
 

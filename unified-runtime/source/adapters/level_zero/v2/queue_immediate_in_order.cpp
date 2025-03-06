@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "queue_immediate_in_order.hpp"
+#include "command_buffer.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "ur.hpp"
@@ -878,22 +879,30 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp(
 
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
-
+  // zeCommandListImmediateAppendCommandListsExp is not working with in-order
+  // immediate lists what causes problems with synchronization
+  // TODO: remove synchronization when it is not needed
+  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                  (commandListManager.getZeCommandList(), UINT64_MAX));
   ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
              (commandListManager.getZeCommandList(), numCommandLists,
               phCommandLists, zeSignalEvent, numWaitEvents, pWaitEvents));
-
+  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                  (commandListManager.getZeCommandList(), UINT64_MAX));
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBuffer(
-    ze_command_list_handle_t commandBufferCommandList,
-    ur_event_handle_t *phEvent, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList) {
+ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  ze_command_list_handle_t commandBufferCommandList =
+      hCommandBuffer->commandListManager.getZeCommandList();
   return enqueueGenericCommandListsExp(1, &commandBufferCommandList, phEvent,
                                        numEventsInWaitList, phEventWaitList,
-                                       UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP);
+                                       UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP);
 }
+
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
     ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,

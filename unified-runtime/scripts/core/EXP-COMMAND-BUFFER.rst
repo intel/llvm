@@ -40,36 +40,14 @@ Querying Command-Buffer Support
 --------------------------------------------------------------------------------
 
 Support for command-buffers can be queried for a given device/adapter by using
-the device info query with ${X}_DEVICE_INFO_EXTENSIONS. Adapters supporting this
-experimental feature will report the string "ur_exp_command_buffer" in the
-returned list of supported extensions.
-
-.. hint::
-    The macro ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP is defined for the string
-    returned from extension queries for this feature. Since the actual string
-    may be subject to change it is safer to use this macro when querying for
-    support for this experimental feature.
+the device info query with ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP. Adapters
+supporting this experimental feature will report ``true``.
 
 .. parsed-literal::
 
-    // Retrieve length of extension string
-    size_t returnedSize;
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-                    &returnedSize);
-
-    // Retrieve extension string
-    std::unique_ptr<char[]> returnedExtensions(new char[returnedSize]);
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_EXTENSIONS, returnedSize,
-                      returnedExtensions.get(), nullptr);
-
-    std::string_view ExtensionsString(returnedExtensions.get());
-    bool CmdBufferSupport =
-        ExtensionsString.find(${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP)
-            != std::string::npos;
-
-.. note::
-    The ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP device info query exists to
-    serve the same purpose as ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP.
+    ur_bool_t CmdBufferSupport = false;
+    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+                      sizeof(CmdBufferSupport), &CmdBufferSupport, nullptr);
 
 Command-Buffer Creation
 --------------------------------------------------------------------------------
@@ -184,7 +162,7 @@ specific graph command-buffer execution is required this ordering must be
 enforced by the user to ensure there is only a single command-buffer execution
 in flight when using these command signal events.
 
-When a user calls ${x}CommandBufferEnqueueExp all the signal events returned
+When a user calls ${x}EnqueueCommandBufferExp all the signal events returned
 from the individual commands in the command-buffer are synchronously reset to
 a non-complete state prior to the asynchronous commands beginning.
 
@@ -221,8 +199,8 @@ enqueued or executed simultaneously, and submissions may be serialized.
 .. parsed-literal::
     ${x}_event_handle_t executionEvent;
 
-    ${x}CommandBufferEnqueueExp(hCommandBuffer, hQueue, 0, nullptr,
-                              &executionEvent);
+    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr,
+                                &executionEvent);
 
 
 Updating Command-Buffer Commands
@@ -309,7 +287,8 @@ ${x}CommandBufferUpdateKernelLaunchExp.
     ${x}_exp_command_buffer_update_kernel_launch_desc_t update {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr, // pNext
-        hNewKernel  // hNewKernel
+        hCommand, // hCommand
+        hNewKernel,  // hNewKernel
         2, // numNewMemobjArgs
         0, // numNewPointerArgs
         0, // numNewValueArgs
@@ -325,7 +304,7 @@ ${x}CommandBufferUpdateKernelLaunchExp.
     };
 
     // Perform the update
-    ${x}CommandBufferUpdateKernelLaunchExp(hCommand, &update);
+    ${x}CommandBufferUpdateKernelLaunchExp(hCommandBuffer, 1, &update);
 
 Command Event Update
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -384,7 +363,7 @@ ${x}CommandBufferUpdateSignalEventExp there must also have been a non-null
     ${x}CommandBufferFinalizeExp(hCommandBuffer);
 
     // Enqueue command-buffer
-    ${x}CommandBufferEnqueueExp(hCommandBuffer, hQueue, 0, nullptr, nullptr);
+    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr, nullptr);
 
     // Wait for command-buffer to finish
     ${x}QueueFinish(hQueue);
@@ -400,10 +379,6 @@ ${x}CommandBufferUpdateSignalEventExp there must also have been a non-null
 
 API
 --------------------------------------------------------------------------------
-
-Macros
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP
 
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -430,14 +405,13 @@ Enums
     * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC
     * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC
 * ${x}_command_t
-    * ${X}_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP
+    * ${X}_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP
 * ${x}_function_t
     * ${X}_FUNCTION_COMMAND_BUFFER_CREATE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_RETAIN_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_RELEASE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP
@@ -450,6 +424,7 @@ Enums
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP
+    * ${X}_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP
 * ${x}_exp_command_buffer_info_t
     * ${X}_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT
     * ${X}_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR
@@ -485,11 +460,11 @@ Functions
 * ${x}CommandBufferAppendMemBufferFillExp
 * ${x}CommandBufferAppendUSMPrefetchExp
 * ${x}CommandBufferAppendUSMAdviseExp
-* ${x}CommandBufferEnqueueExp
 * ${x}CommandBufferUpdateKernelLaunchExp
 * ${x}CommandBufferUpdateSignalEventExp
 * ${x}CommandBufferUpdateWaitEventsExp
 * ${x}CommandBufferGetInfoExp
+* ${x}EnqueueCommandBufferExp
 
 Changelog
 --------------------------------------------------------------------------------
@@ -513,6 +488,13 @@ Changelog
 | 1.6       | Command level synchronization with event objects      |
 +-----------+-------------------------------------------------------+
 | 1.7       | Remove command handle reference counting and querying |
++-----------+-------------------------------------------------------+
+| 1.8       | Change Kernel command update API to take a list       |
++-----------+-------------------------------------------------------+
+| 1.9       | Rename enqueue API to urEnqueueCommandBufferExp       |
++-----------+-------------------------------------------------------+
+| 1.10      | Remove extension string macro, make device info enum  |
+|           | primary mechanism for reporting support.              |
 +-----------+-------------------------------------------------------+
 
 Contributors
