@@ -48,6 +48,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_compile_options(${LIB_NAME} PUBLIC
       $<$<CONFIG:Debug,RelWithDebInfo>:-fno-omit-frame-pointer>
       )
+    target_compile_options(${LIB_OBJ_NAME} PUBLIC
+      $<$<CONFIG:Debug,RelWithDebInfo>:-fno-omit-frame-pointer>
+      )
   endif()
 
   if (SYCL_ENABLE_COVERAGE)
