@@ -83,7 +83,7 @@ jobs:
   adapter_build_hw:
     name: Build & CTS
     # run only on upstream; forks won't have the HW
-    if: github.repository == 'intel/llvm'
+    #if: github.repository == 'intel/llvm'
     strategy:
       fail-fast: false
       matrix:
