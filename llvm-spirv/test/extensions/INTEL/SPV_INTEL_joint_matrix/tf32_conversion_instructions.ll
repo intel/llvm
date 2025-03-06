@@ -1,12 +1,12 @@
 ; RUN: llvm-as < %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_INTEL_joint_matrix,+SPV_INTEL_tensor_float32_conversion -o %t.spv
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_INTEL_joint_matrix,+SPV_INTEL_tensor_float32_rounding -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; RUN: not llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_INTEL_tensor_float32_conversion 2>&1 \
+; RUN: not llvm-spirv %t.bc --spirv-ext=+SPV_KHR_cooperative_matrix,+SPV_INTEL_tensor_float32_rounding 2>&1 \
 ; RUN: | FileCheck %s --check-prefix=CHECK-ERROR
 
 ; CHECK-ERROR: InvalidInstruction: Can't translate llvm instruction:
@@ -16,7 +16,7 @@
 ; CHECK-SPIRV-DAG: Capability CooperativeMatrixKHR
 ; CHECK-SPIRV-DAG: Capability TensorFloat32RoundingINTEL
 ; CHECK-SPIRV-DAG: Capability JointMatrixTF32ComponentTypeINTEL
-; CHECK-SPIRV-DAG: Extension "SPV_INTEL_tensor_float32_conversion"
+; CHECK-SPIRV-DAG: Extension "SPV_INTEL_tensor_float32_rounding"
 ; CHECK-SPIRV-DAG: Extension "SPV_KHR_cooperative_matrix"
 ; CHECK-SPIRV-DAG: Extension "SPV_INTEL_joint_matrix"
 ; CHECK-SPIRV-DAG: TypeFloat [[#FP32Ty:]] 32
