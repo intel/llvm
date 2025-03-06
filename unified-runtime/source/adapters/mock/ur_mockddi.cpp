@@ -10401,12 +10401,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferEnqueueExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    /// [in] Handle of the command-buffer object.
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+/// @brief Intercept function for urEnqueueCommandBufferExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -10421,12 +10421,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_event_handle_t *phEvent) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_command_buffer_enqueue_exp_params_t params = {&hCommandBuffer, &hQueue,
+  ur_enqueue_command_buffer_exp_params_t params = {&hQueue, &hCommandBuffer,
                                                    &numEventsInWaitList,
                                                    &phEventWaitList, &phEvent};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urCommandBufferEnqueueExp"));
+      mock::getCallbacks().get_before_callback("urEnqueueCommandBufferExp"));
   if (beforeCallback) {
     result = beforeCallback(&params);
     if (result != UR_RESULT_SUCCESS) {
@@ -10435,7 +10435,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   }
 
   auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urCommandBufferEnqueueExp"));
+      mock::getCallbacks().get_replace_callback("urEnqueueCommandBufferExp"));
   if (replaceCallback) {
     result = replaceCallback(&params);
   } else {
@@ -10452,7 +10452,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   }
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urCommandBufferEnqueueExp"));
+      mock::getCallbacks().get_after_callback("urEnqueueCommandBufferExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -11704,8 +11704,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
   pDdiTable->pfnAppendUSMAdviseExp = driver::urCommandBufferAppendUSMAdviseExp;
 
-  pDdiTable->pfnEnqueueExp = driver::urCommandBufferEnqueueExp;
-
   pDdiTable->pfnUpdateKernelLaunchExp =
       driver::urCommandBufferUpdateKernelLaunchExp;
 
@@ -11874,6 +11872,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnUSMHostAllocExp = driver::urEnqueueUSMHostAllocExp;
 
   pDdiTable->pfnUSMFreeExp = driver::urEnqueueUSMFreeExp;
+
+  pDdiTable->pfnCommandBufferExp = driver::urEnqueueCommandBufferExp;
 
   pDdiTable->pfnCooperativeKernelLaunchExp =
       driver::urEnqueueCooperativeKernelLaunchExp;
