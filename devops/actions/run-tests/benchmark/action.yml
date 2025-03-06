@@ -90,7 +90,7 @@ runs:
       echo "-----"
       sycl-ls
       echo "-----"
-      mkdir -v ./llvm_test_workdir
+      pip install -r ./devops/scripts/benchmarks/requirements.txt
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$(realpath ./llvm_test_workdir)" --sycl ./toolchain --save baseline
       echo "-----"
       ls
