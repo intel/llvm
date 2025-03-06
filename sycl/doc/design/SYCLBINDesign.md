@@ -42,7 +42,8 @@ containing information about the [abstract modules](#abstract-module),
 
 The headers and each byte table are all aligned to 8 bytes. The fields in the
 headers use C/C++ type notation, including the fixed-size integer types defined
-in the `<cstdint>` header, and will have the same size and alignment.
+in the `<cstdint>` header, and will have the same size and alignment. For
+consistency, all these types use little endian layout.
 
 ### File header
 
