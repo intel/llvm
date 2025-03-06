@@ -363,12 +363,10 @@ whose _Name_ is `foo/bar.h`.
 If such an entry is found, the compiler uses the associated _Content_ as the
 content of the include file.
 
-Note that not every file referenced in an `#include` statement must be added
-manually to this property: The compiler automatically considers headers from the
-currrent working directory and any explicitly added include path. A set of
-standard headers (e.g., `sycl/sycl.hpp`) are implicitly available as well.
-Include file handling is described in more detail below in the section
-"Including files when the language is ``sycl``".
+_Note_: This property is only required if an `#include` statement references a
+file that is not already implicitly available.
+For more information about implicitly available headers, see the section
+"Including files when the language is ``sycl``".{endnote}
 
 _Effects (1):_ Creates a new `include_files` property with no (_Name_,
 _Content_) pairs.
