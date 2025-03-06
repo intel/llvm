@@ -4,10 +4,10 @@
 
 // REQUIRES: opencl-aot, ocloc, target-spir
 
-// RUN: %{build} -DJIT %s -o %t1.out
+// RUN: %{build} -DJIT -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %{build} -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t2.out
+// RUN: %{build} -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -o %t2.out
 // RUN: %{run} %t2.out
 
 #include <sycl/detail/core.hpp>
