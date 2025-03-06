@@ -1518,7 +1518,8 @@ ur_device_handle_t_::useImmediateCommandLists() {
 #ifdef _WIN32
     isLinux = false;
 #endif
-    if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC()) {
+    if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
+        isNewerThanIntelDG2()) {
       return PerQueue;
     } else {
       return NotUsed;
