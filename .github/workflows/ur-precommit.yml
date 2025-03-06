@@ -74,12 +74,12 @@ jobs:
         # ]
     uses: ./.github/workflows/ur-build-hw.yml
     with:
-      adapter_name: ${{ matrix.adapter.name }}
-      runner_name: ${{ matrix.adapter.runner }}
-      static_loader: ${{ matrix.adapter.static || 'OFF' }}
-      static_adapter: ${{ matrix.adapter.static || 'OFF' }}
-      platform: ${{ matrix.adapter.platform || '' }}
-      other_adapter_name: ${{ matrix.adapter.other_adapter || '' }}
+      adapter_name: ${{ matrix.adapter_name }}
+      runner_name: ${{ matrix.runner }}
+      static_loader: ${{ matrix.static || 'OFF' }}
+      static_adapter: ${{ matrix.static || 'OFF' }}
+      platform: ${{ matrix.platform || '' }}
+      other_adapter_name: ${{ matrix.other_adapter || '' }}
 
   macos:
     name: MacOS build only
