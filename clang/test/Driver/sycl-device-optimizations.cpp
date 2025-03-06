@@ -7,10 +7,6 @@
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-device-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
-// RUN:   %clang -### -fintelfpga -fsycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
-// RUN:   %clang_cl -### -fintelfpga -fsycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // CHECK-DEFAULT-NOT: "-fno-sycl-early-optimizations"
 // CHECK-DEFAULT-NOT: "-disable-llvm-passes"
 // CHECK-DEFAULT: "-fsycl-is-device"
@@ -24,10 +20,6 @@
 // RUN:   %clang -### -fsycl --offload-new-driver -fsycl-device-only -fno-sycl-early-optimizations %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
 // RUN:   %clang_cl -### -fsycl --offload-new-driver -fsycl-device-only -fno-sycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
-// RUN:   %clang -### -fintelfpga %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
-// RUN:   %clang_cl -### -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-NO-SYCL-EARLY-OPTS %s
 // CHECK-NO-SYCL-EARLY-OPTS: "-fno-sycl-early-optimizations"
 
@@ -75,37 +67,3 @@
 // CHECK-G-O3: clang{{.*}} "-fsycl-is-device{{.*}}" "-O3"
 // CHECK-G-O3: sycl-post-link{{.*}} "-O3"
 // CHECK-G-O3-NOT: "-O0"
-
-/// Check that -O2 is passed for FPGA
-// RUN:   %clang -### -fintelfpga -fsycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-FPGA %s
-// RUN:   %clang_cl -### -fintelfpga -fsycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-FPGA %s
-// CHECK-FPGA: clang{{.*}} "-fsycl-is-device{{.*}}" "-O2"
-// CHECK-FPGA: sycl-post-link{{.*}} "-O2"
-// CHECK-FPGA-NOT: "-O0"
-
-/// Check that -O2 preserves for FPGA when it's explicitly passed
-// RUN:   %clang -### -O2 -fintelfpga -fsycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-FPGA-O2 %s
-// For clang_cl, -O2 maps to -O3
-// RUN:   %clang_cl -### -O2 -fintelfpga -fsycl-early-optimizations %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-FPGA-O3 %s
-// CHECK-FPGA-O2: clang{{.*}} "-fsycl-is-device{{.*}}" "-O2"
-// CHECK-FPGA-O2: sycl-post-link{{.*}} "-O2"
-// CHECK-FPGA-O2-NOT: "-O0"
-// CHECK-FPGA-O3: clang{{.*}} "-fsycl-is-device{{.*}}" "-O3"
-// CHECK-FPGA-O3: sycl-post-link{{.*}} "-O3"
-// CHECK-FPGA-O3-NOT: "-O0"
-
-/// Check that -O0 is passed for FPGA when -g is explicitly passed
-// RUN:   %clang -### -fintelfpga -g %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-FPGA-O0 %s
-// RUN:   %clang_cl -### -fintelfpga -g %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHECK-FPGA-O0 %s
-// CHECK-FPGA-O0: clang{{.*}} "-fsycl-is-device{{.*}}" "-O0"
-// CHECK-FPGA-O0: sycl-post-link{{.*}} "-O0"
-// CHECK-FPGA-O0-NOT: "-O2"
-
-
-

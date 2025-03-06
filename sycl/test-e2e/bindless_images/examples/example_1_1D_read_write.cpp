@@ -5,7 +5,7 @@
 // UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -48,14 +48,17 @@ int main() {
   q.submit([&](sycl::handler &cgh) {
     // No need to request access, handles captured by value
 
-    cgh.parallel_for(width, [=](sycl::id<1> id) {
-      // Extension: read image data from handle
-      float pixel = sycl::ext::oneapi::experimental::fetch_image<float>(
-          imgIn, int(id[0]));
+    cgh.parallel_for(
+        sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
+          size_t dim0 = it.get_local_id(0);
+          // Extension: read image data from handle
+          float pixel = sycl::ext::oneapi::experimental::fetch_image<float>(
+              imgIn, int(dim0));
 
-      // Extension: write to image data using handle
-      sycl::ext::oneapi::experimental::write_image(imgOut, int(id[0]), pixel);
-    });
+          // Extension: write to image data using handle
+          sycl::ext::oneapi::experimental::write_image(imgOut, int(dim0),
+                                                       pixel);
+        });
   });
 
   // Using image handles requires manual synchronization

@@ -444,26 +444,28 @@ public:
 
     NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
   }
-
+  /// Update this node with the command-group from another node.
+  /// @param Other The other node to update, must be of the same node type.
   void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
-    auto ExecCG =
-        static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-    auto OtherExecCG =
-        static_cast<sycl::detail::CGExecKernel *>(Other->MCommandGroup.get());
-
-    ExecCG->MArgs = OtherExecCG->MArgs;
-    ExecCG->MNDRDesc = OtherExecCG->MNDRDesc;
-    ExecCG->MKernelName = OtherExecCG->MKernelName;
-    ExecCG->getAccStorage() = OtherExecCG->getAccStorage();
-    ExecCG->getRequirements() = OtherExecCG->getRequirements();
-
-    auto &OldArgStorage = OtherExecCG->getArgsStorage();
-    auto &NewArgStorage = ExecCG->getArgsStorage();
-    // Rebuild the arg storage and update the args
-    rebuildArgStorage(ExecCG->MArgs, OldArgStorage, NewArgStorage);
+    assert(MNodeType == Other->MNodeType);
+    MCommandGroup = Other->getCGCopy();
   }
 
   id_type getID() const { return MID; }
+
+  /// Returns true if this node can be updated
+  bool isUpdatable() const {
+    switch (MNodeType) {
+    case node_type::kernel:
+    case node_type::host_task:
+    case node_type::ext_oneapi_barrier:
+    case node_type::empty:
+      return true;
+
+    default:
+      return false;
+    }
+  }
 
 private:
   void rebuildArgStorage(std::vector<sycl::detail::ArgDesc> &Args,
@@ -1299,9 +1301,32 @@ public:
 
   void update(std::shared_ptr<graph_impl> GraphImpl);
   void update(std::shared_ptr<node_impl> Node);
-  void update(const std::vector<std::shared_ptr<node_impl>> Nodes);
+  void update(const std::vector<std::shared_ptr<node_impl>> &Nodes);
 
-  void updateImpl(std::shared_ptr<node_impl> NodeImpl);
+  /// Calls UR entry-point to update nodes in command-buffer.
+  /// @param CommandBuffer The UR command-buffer to update commands in.
+  /// @param Nodes List of nodes to update. Only nodes which can be updated
+  /// through UR should be included in this list, currently this is only
+  /// nodes of kernel type.
+  void updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
+                    const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+
+  /// Update host-task nodes
+  /// @param Nodes List of nodes to update, any node that is not a host-task
+  /// will be ignored.
+  void updateHostTasksImpl(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+
+  /// Splits a list of nodes into separate lists of nodes for each
+  /// command-buffer partition.
+  ///
+  /// Only nodes that can be updated through the UR interface are included
+  /// in the list. Currently this is only kernel node types.
+  ///
+  /// @param Nodes List of nodes to split
+  /// @return Map of partition indexes to nodes
+  std::map<int, std::vector<std::shared_ptr<node_impl>>> getURUpdatableNodes(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
 
   unsigned long long getID() const { return MID; }
 
@@ -1371,6 +1396,34 @@ private:
     Stream.close();
   }
 
+  /// Determines if scheduler needs to be used for node update.
+  /// @param[in] Nodes List of nodes to be updated
+  /// @param[out] UpdateRequirements Accessor requirements found in /p Nodes.
+  /// return True if update should be done through the scheduler.
+  bool needsScheduledUpdate(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes,
+      std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements);
+
+  /// Sets the UR struct values required to update a graph node.
+  /// @param[in] Node The node to be updated.
+  /// @param[out] BundleObjs UR objects created from kernel bundle.
+  /// Responsibility of the caller to release.
+  /// @param[out] MemobjDescs Memory object arguments to update.
+  /// @param[out] MemobjProps Properties used in /p MemobjDescs structs.
+  /// @param[out] PtrDescs Pointer arguments to update.
+  /// @param[out] ValueDescs Value arguments to update.
+  /// @param[out] NDRDesc ND-Range to update.
+  /// @param[out] UpdateDesc Base struct in the pointer chain.
+  void populateURKernelUpdateStructs(
+      const std::shared_ptr<node_impl> &Node,
+      std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
+      std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
+      std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
+      std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
+      std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
+      sycl::detail::NDRDescT &NDRDesc,
+      ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const;
+
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
@@ -1420,6 +1473,10 @@ private:
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
+
+  // True if this graph contains any host-tasks, indicates we need special
+  // handling for them during update().
+  bool MContainsHostTask = false;
 };
 
 class dynamic_parameter_impl {
@@ -1533,7 +1590,7 @@ public:
   size_t getActiveIndex() const { return MActiveCGF; }
 
   /// Returns the number of CGs in the dynamic command-group.
-  size_t getNumCGs() const { return MKernels.size(); }
+  size_t getNumCGs() const { return MCommandGroups.size(); }
 
   /// Set the index of the active command-group.
   /// @param Index The new index.
@@ -1546,8 +1603,8 @@ public:
 
   /// Retrieve CG at the currently active index
   /// @param Shared pointer to the active CG object.
-  std::shared_ptr<sycl::detail::CG> getActiveKernel() const {
-    return MKernels[MActiveCGF];
+  std::shared_ptr<sycl::detail::CG> getActiveCG() const {
+    return MCommandGroups[MActiveCGF];
   }
 
   /// Graph this dynamic command-group is associated with.
@@ -1556,13 +1613,16 @@ public:
   /// Index of active command-group
   std::atomic<size_t> MActiveCGF;
 
-  /// List of kernel command-groups for dynamic command-group nodes
-  std::vector<std::shared_ptr<sycl::detail::CGExecKernel>> MKernels;
+  /// List of command-groups for dynamic command-group nodes
+  std::vector<std::shared_ptr<sycl::detail::CG>> MCommandGroups;
 
   /// List of nodes using this dynamic command-group.
   std::vector<std::weak_ptr<node_impl>> MNodes;
 
   unsigned long long getID() const { return MID; }
+
+  /// Type of the CGs in this dynamic command-group
+  sycl::detail::CGType MCGType = sycl::detail::CGType::None;
 
 private:
   unsigned long long MID;

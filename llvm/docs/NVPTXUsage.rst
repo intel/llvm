@@ -939,6 +939,29 @@ including that ``wgmma.mma_async`` instruction is undefined behavior.
 For more information, refer PTX ISA
 `<https://docs.nvidia.com/cuda/parallel-thread-execution/#asynchronous-warpgroup-level-matrix-instructions-wgmma-wait-group>`_.
 
+'``llvm.nvvm.griddepcontrol.*``'
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+.. code-block:: llvm
+
+  declare void @llvm.nvvm.griddepcontrol.launch_dependents()
+  declare void @llvm.nvvm.griddepcontrol.wait()
+
+Overview:
+"""""""""
+
+The ``griddepcontrol`` intrinsics allows the dependent grids and prerequisite grids as defined by the runtime, to control execution in the following way:
+
+``griddepcontrol.launch_dependents`` intrinsic signals that the dependents can be scheduled, before the current grid completes. The intrinsic can be invoked by multiple threads in the current CTA and repeated invocations of the intrinsic will have no additional side effects past that of the first invocation.
+
+``griddepcontrol.wait`` intrinsic causes the executing thread to wait until all prerequisite grids in flight have completed and all the memory operations from the prerequisite grids are performed and made visible to the current grid.
+
+For more information, refer 
+`PTX ISA <https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-griddepcontrol>`__.
+
 Other Intrinsics
 ----------------
 
@@ -1049,8 +1072,9 @@ The following sets the ftz flag to 1, and the precise sqrt flag to 1.
 
 .. code-block:: llvm
 
-    !llvm.module.flags = !{!0}
+    !llvm.module.flags = !{!0, !1}
     !0 = !{i32 4, !"nvvm-reflect-ftz", i32 1}
+    !1 = !{i32 4, !"nvvm-reflect-prec-sqrt", i32 1}
 
 (``i32 4`` indicates that the value set here overrides the value in another
 module we link with.  See the `LangRef <LangRef.html#module-flags-metadata>`

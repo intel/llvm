@@ -235,6 +235,11 @@ public:
     return ext_oneapi_get_kernel(detail::string_view{name});
   }
 
+  std::string ext_oneapi_get_raw_kernel_name(const std::string &name) {
+    return std::string{
+        ext_oneapi_get_raw_kernel_name(detail::string_view{name}).c_str()};
+  }
+
 protected:
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
@@ -263,6 +268,7 @@ protected:
 private:
   bool ext_oneapi_has_kernel(detail::string_view name);
   kernel ext_oneapi_get_kernel(detail::string_view name);
+  detail::string ext_oneapi_get_raw_kernel_name(detail::string_view name);
 };
 
 } // namespace detail
@@ -481,6 +487,16 @@ public:
             typename = std::enable_if_t<_State == bundle_state::executable>>
   kernel ext_oneapi_get_kernel(const std::string &name) {
     return detail::kernel_bundle_plain::ext_oneapi_get_kernel(name);
+  }
+
+  /////////////////////////
+  // ext_oneapi_get_raw_kernel_name
+  //  kernel_bundle must be created from source, throws if not present
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  std::string ext_oneapi_get_raw_kernel_name(const std::string &name) {
+    return detail::kernel_bundle_plain::ext_oneapi_get_raw_kernel_name(name);
   }
 
 private:
@@ -985,22 +1001,21 @@ struct is_property_key_of<save_log_key, detail::build_source_bundle_props>
     : std::true_type {};
 
 /////////////////////////
-// PropertyT syclex::registered_kernel_names
+// PropertyT syclex::registered_names
 /////////////////////////
-struct registered_kernel_names
-    : detail::run_time_property_key<registered_kernel_names,
-                                    detail::PropKind::RegisteredKernelNames> {
-  std::vector<std::string> kernel_names;
-  registered_kernel_names() {}
-  registered_kernel_names(const std::string &knArg) : kernel_names{knArg} {}
-  registered_kernel_names(const std::vector<std::string> &knsArg)
-      : kernel_names(knsArg) {}
-  void add(const std::string &name) { kernel_names.push_back(name); }
+struct registered_names
+    : detail::run_time_property_key<registered_names,
+                                    detail::PropKind::RegisteredNames> {
+  std::vector<std::string> names;
+  registered_names() {}
+  registered_names(const std::string &name) : names{name} {}
+  registered_names(const std::vector<std::string> &names) : names{names} {}
+  void add(const std::string &name) { names.push_back(name); }
 };
-using registered_kernel_names_key = registered_kernel_names;
+using registered_names_key = registered_names;
 
 template <>
-struct is_property_key_of<registered_kernel_names_key,
+struct is_property_key_of<registered_names_key,
                           detail::build_source_bundle_props> : std::true_type {
 };
 
@@ -1145,9 +1160,9 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
   if constexpr (props.template has_property<save_log>()) {
     LogPtr = props.template get_property<save_log>().log;
   }
-  if constexpr (props.template has_property<registered_kernel_names>()) {
+  if constexpr (props.template has_property<registered_names>()) {
     RegisteredKernelNamesVec =
-        props.template get_property<registered_kernel_names>().kernel_names;
+        props.template get_property<registered_names>().names;
   }
   return detail::build_from_source(SourceKB, Devices, BuildOptionsVec, LogPtr,
                                    RegisteredKernelNamesVec);

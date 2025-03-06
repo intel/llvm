@@ -166,7 +166,7 @@ void test_build_and_run() {
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs,
       syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
-                         syclex::registered_kernel_names{"ff_templated<int>"}});
+                         syclex::registered_names{"ff_templated<int>"}});
 
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
@@ -175,6 +175,11 @@ void test_build_and_run() {
 
   // extern "C" was used, so the name "ff_cp" is not mangled and can be used directly.
   sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
+
+  // Get compiler generated name and use it to query the kernel.
+  std::string cgn = kbExe2.ext_oneapi_get_raw_kernel_name("ff_cp");
+  assert(cgn == "__sycl_kernel_ff_cp");
+  assert(kbExe2.ext_oneapi_has_kernel(cgn));
 
   // The templated function name will have been mangled. Mapping from original
   // name to mangled is not yet supported. So we cannot yet do this:
