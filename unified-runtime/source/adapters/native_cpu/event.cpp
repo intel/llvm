@@ -52,6 +52,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   case UR_PROFILING_INFO_COMMAND_QUEUED:
   case UR_PROFILING_INFO_COMMAND_SUBMIT:
   case UR_PROFILING_INFO_COMMAND_COMPLETE:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }
@@ -146,7 +147,7 @@ void ur_event_handle_t_::wait() {
   // The callback may need to acquire the lock, so we unlock it here
   lock.unlock();
 
-  if (callback)
+  if (callback.valid())
     callback();
 }
 

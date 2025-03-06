@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "queue_immediate_in_order.hpp"
+#include "command_buffer.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "ur.hpp"
@@ -372,16 +373,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferFill(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueMemBufferFill");
 
-  auto hBuffer = hMem->getBuffer();
+  UR_CALL(commandListManager.appendMemBufferFill(
+      hMem, pPattern, patternSize, offset, size, numEventsInWaitList,
+      phEventWaitList, phEvent));
 
-  UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
-
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->getMutex());
-
-  return enqueueGenericFillUnlocked(hBuffer, offset, patternSize, pPattern,
-                                    size, numEventsInWaitList, phEventWaitList,
-                                    phEvent, UR_COMMAND_MEM_BUFFER_FILL);
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemImageRead(
@@ -550,63 +546,16 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemUnmap(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_immediate_in_order_t::enqueueGenericFillUnlocked(
-    ur_mem_buffer_t *hBuffer, size_t offset, size_t patternSize,
-    const void *pPattern, size_t size, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
-    ur_command_t commandType) {
-  auto zeSignalEvent = getSignalEvent(phEvent, commandType);
-
-  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
-
-  auto pDst = ur_cast<char *>(hBuffer->getDevicePtr(
-      hDevice, ur_mem_buffer_t::device_access_mode_t::read_only, offset, size,
-      [&](void *src, void *dst, size_t size) {
-        ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                          (commandListManager.getZeCommandList(), dst, src,
-                           size, nullptr, waitListView.num,
-                           waitListView.handles));
-        waitListView.clear();
-      }));
-
-  // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
-  // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
-  if (isPowerOf2(patternSize)) {
-    ZE2UR_CALL(zeCommandListAppendMemoryFill,
-               (commandListManager.getZeCommandList(), pDst, pPattern,
-                patternSize, size, zeSignalEvent, waitListView.num,
-                waitListView.handles));
-  } else {
-    // Copy pattern into every entry in memory array pointed by Ptr.
-    uint32_t numOfCopySteps = size / patternSize;
-    const void *src = pPattern;
-
-    for (uint32_t step = 0; step < numOfCopySteps; ++step) {
-      void *dst = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(pDst) +
-                                           step * patternSize);
-      ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-                 (commandListManager.getZeCommandList(), dst, src, patternSize,
-                  step == numOfCopySteps - 1 ? zeSignalEvent : nullptr,
-                  waitListView.num, waitListView.handles));
-      waitListView.clear();
-    }
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFill(
     void *pMem, size_t patternSize, const void *pPattern, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMFill");
 
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
-
-  ur_usm_handle_t dstHandle(hContext, size, pMem);
-  return enqueueGenericFillUnlocked(&dstHandle, 0, patternSize, pPattern, size,
-                                    numEventsInWaitList, phEventWaitList,
-                                    phEvent, UR_COMMAND_USM_FILL);
+  UR_CALL(commandListManager.appendUSMFill(pMem, patternSize, pPattern, size,
+                                           numEventsInWaitList, phEventWaitList,
+                                           phEvent));
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy(
@@ -628,29 +577,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMPrefetch(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMPrefetch");
-
-  std::ignore = flags;
-
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
-
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_PREFETCH);
-
-  auto [pWaitEvents, numWaitEvents] =
-      getWaitListView(phEventWaitList, numEventsInWaitList);
-
-  if (pWaitEvents) {
-    ZE2UR_CALL(
-        zeCommandListAppendWaitOnEvents,
-        (commandListManager.getZeCommandList(), numWaitEvents, pWaitEvents));
-  }
-  // TODO: figure out how to translate "flags"
-  ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
-             (commandListManager.getZeCommandList(), pMem, size));
-  if (zeSignalEvent) {
-    ZE2UR_CALL(zeCommandListAppendSignalEvent,
-               (commandListManager.getZeCommandList(), zeSignalEvent));
-  }
-
+  UR_CALL(commandListManager.appendUSMPrefetch(
+      pMem, size, flags, numEventsInWaitList, phEventWaitList, phEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -660,31 +588,7 @@ ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
                                                 ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMAdvise");
 
-  std::ignore = flags;
-
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
-
-  auto zeAdvice = ur_cast<ze_memory_advice_t>(advice);
-
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_ADVISE);
-
-  auto [pWaitEvents, numWaitEvents] = getWaitListView(nullptr, 0);
-
-  if (pWaitEvents) {
-    ZE2UR_CALL(
-        zeCommandListAppendWaitOnEvents,
-        (commandListManager.getZeCommandList(), numWaitEvents, pWaitEvents));
-  }
-
-  // TODO: figure out how to translate "flags"
-  ZE2UR_CALL(zeCommandListAppendMemAdvise,
-             (commandListManager.getZeCommandList(), this->hDevice->ZeDevice,
-              pMem, size, zeAdvice));
-
-  if (zeSignalEvent) {
-    ZE2UR_CALL(zeCommandListAppendSignalEvent,
-               (commandListManager.getZeCommandList(), zeSignalEvent));
-  }
+  UR_CALL(commandListManager.appendUSMAdvise(pMem, size, advice, phEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -799,6 +703,33 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueWriteHostPipe(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t ur_queue_immediate_in_order_t::enqueueUSMDeviceAllocExp(
+    ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t ur_queue_immediate_in_order_t::enqueueUSMSharedAllocExp(
+    ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t ur_queue_immediate_in_order_t::enqueueUSMHostAllocExp(
+    ur_usm_pool_handle_t, const size_t,
+    const ur_exp_async_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFreeExp(
+    ur_usm_pool_handle_t, void *, uint32_t, const ur_event_handle_t *,
+    ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -948,22 +879,30 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp(
 
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList);
-
+  // zeCommandListImmediateAppendCommandListsExp is not working with in-order
+  // immediate lists what causes problems with synchronization
+  // TODO: remove synchronization when it is not needed
+  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                  (commandListManager.getZeCommandList(), UINT64_MAX));
   ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
              (commandListManager.getZeCommandList(), numCommandLists,
               phCommandLists, zeSignalEvent, numWaitEvents, pWaitEvents));
-
+  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                  (commandListManager.getZeCommandList(), UINT64_MAX));
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBuffer(
-    ze_command_list_handle_t commandBufferCommandList,
-    ur_event_handle_t *phEvent, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList) {
+ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+
+  ze_command_list_handle_t commandBufferCommandList =
+      hCommandBuffer->commandListManager.getZeCommandList();
   return enqueueGenericCommandListsExp(1, &commandBufferCommandList, phEvent,
                                        numEventsInWaitList, phEventWaitList,
-                                       UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP);
+                                       UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP);
 }
+
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
     ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,

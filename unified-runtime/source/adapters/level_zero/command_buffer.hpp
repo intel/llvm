@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <optional>
 #include <ur/ur.hpp>
 #include <ur_api.h>
 #include <ze_api.h>
@@ -110,6 +111,8 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // This flag must be set to false if at least one copy command has been
   // added to `ZeCopyCommandList`
   bool MCopyCommandListEmpty = true;
+  // This flag tracks if the previous node submission was of a copy type.
+  std::optional<bool> MWasPrevCopyCommandList;
   // [WaitEvent Path only] Level Zero fences for each queue the command-buffer
   // has been enqueued to. These should be destroyed when the command-buffer is
   // released.
@@ -172,8 +175,19 @@ struct kernel_command_handle : public ur_exp_command_buffer_command_handle_t_ {
 
   ~kernel_command_handle();
 
+  void setGlobalWorkSize(const size_t *GlobalWorkSizePtr) {
+    const size_t CopySize = sizeof(size_t) * WorkDim;
+    std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
+    if (WorkDim < 3) {
+      const size_t ZeroSize = sizeof(size_t) * (3 - WorkDim);
+      std::memset(GlobalWorkSize + WorkDim, 0, ZeroSize);
+    }
+  }
+
   // Work-dimension the command was originally created with.
   uint32_t WorkDim;
+  // Global work size of the kernel
+  size_t GlobalWorkSize[3];
   // Set to true if the user set the local work size on command creation.
   bool UserDefinedLocalSize;
   // Currently active kernel handle

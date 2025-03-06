@@ -609,6 +609,10 @@ ur_result_t urEventGetProfilingInfo(
 
       return ReturnValue(ContextEndTime);
     }
+    case UR_PROFILING_INFO_COMMAND_COMPLETE:
+      logger::error("urEventGetProfilingInfo: "
+                    "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
       logger::error("urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -623,7 +627,7 @@ ur_result_t urEventGetProfilingInfo(
   // The timestamps of these events are saved in a memory region attached to
   // event usning CommandData field. The timings must therefore be recovered
   // from this memory.
-  if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP) {
+  if (Event->CommandType == UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP) {
     if (Event->CommandData) {
       command_buffer_profiling_t *ProfilingsPtr;
       switch (PropName) {
@@ -672,6 +676,10 @@ ur_result_t urEventGetProfilingInfo(
         ContextEndTime *= ZeTimerResolution;
         return ReturnValue(ContextEndTime);
       }
+      case UR_PROFILING_INFO_COMMAND_COMPLETE:
+        logger::error("urEventGetProfilingInfo: "
+                      "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
       default:
         logger::error("urEventGetProfilingInfo: not supported ParamName");
         return UR_RESULT_ERROR_INVALID_VALUE;
@@ -715,6 +723,10 @@ ur_result_t urEventGetProfilingInfo(
     // enqueue.
     //
     return ReturnValue(uint64_t{0});
+  case UR_PROFILING_INFO_COMMAND_COMPLETE:
+    logger::error("urEventGetProfilingInfo: UR_PROFILING_INFO_COMMAND_COMPLETE "
+                  "not supported");
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     logger::error("urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -1093,7 +1105,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
       return Res;
     Event->CommandData = nullptr;
   }
-  if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP &&
+  if (Event->CommandType == UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP &&
       Event->CommandData) {
     // Free the memory extra event allocated for profiling purposed.
     command_buffer_profiling_t *ProfilingPtr =

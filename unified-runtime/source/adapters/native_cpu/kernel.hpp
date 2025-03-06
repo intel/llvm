@@ -35,18 +35,9 @@ struct ur_kernel_handle_t_ : RefCounted {
   ur_kernel_handle_t_(const ur_kernel_handle_t_ &other)
       : Args(other.Args), hProgram(other.hProgram), _name(other._name),
         _subhandler(other._subhandler), _localArgInfo(other._localArgInfo),
-        _localMemPool(other._localMemPool),
-        _localMemPoolSize(other._localMemPoolSize),
-        ReqdWGSize(other.ReqdWGSize) {
-    incrementReferenceCount();
-  }
+        ReqdWGSize(other.ReqdWGSize) {}
 
-  ~ur_kernel_handle_t_() {
-    if (decrementReferenceCount() == 0) {
-      free(_localMemPool);
-      Args.deallocate();
-    }
-  }
+  ~ur_kernel_handle_t_() { free(_localMemPool); }
 
   ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
                       nativecpu_task_t subhandler,
@@ -64,26 +55,61 @@ struct ur_kernel_handle_t_ : RefCounted {
     std::vector<bool> OwnsMem;
     static constexpr size_t MaxAlign = 16 * sizeof(double);
 
+    arguments() = default;
+
+    arguments(const arguments &Other)
+        : Indices(Other.Indices), ParamSizes(Other.ParamSizes),
+          OwnsMem(Other.OwnsMem.size(), false) {
+      for (size_t Index = 0; Index < Indices.size(); Index++) {
+        if (!Other.OwnsMem[Index]) {
+          continue;
+        }
+        addArg(Index, ParamSizes[Index], Indices[Index]);
+      }
+    }
+
+    arguments(arguments &&Other) : arguments() {
+      std::swap(Indices, Other.Indices);
+      std::swap(ParamSizes, Other.ParamSizes);
+      std::swap(OwnsMem, Other.OwnsMem);
+    }
+
+    ~arguments() {
+      assert(OwnsMem.size() == Indices.size() && "Size mismatch");
+      for (size_t Index = 0; Index < Indices.size(); Index++) {
+        if (!OwnsMem[Index]) {
+          continue;
+        }
+        native_cpu::aligned_free(Indices[Index]);
+      }
+    }
+
     /// Add an argument to the kernel.
     /// If the argument existed before, it is replaced.
     /// Otherwise, it is added.
     /// Gaps are filled with empty arguments.
     /// Implicit offset argument is kept at the back of the indices collection.
     void addArg(size_t Index, size_t Size, const void *Arg) {
+      bool NeedAlloc = true;
       if (Index + 1 > Indices.size()) {
         Indices.resize(Index + 1);
         OwnsMem.resize(Index + 1);
         ParamSizes.resize(Index + 1);
-
-        // Update the stored value for the argument
-        Indices[Index] = native_cpu::aligned_malloc(MaxAlign, Size);
-        OwnsMem[Index] = true;
-        ParamSizes[Index] = Size;
-      } else {
-        if (ParamSizes[Index] != Size) {
-          Indices[Index] = realloc(Indices[Index], Size);
-          ParamSizes[Index] = Size;
+      } else if (OwnsMem[Index]) {
+        if (ParamSizes[Index] == Size) {
+          NeedAlloc = false;
+        } else {
+          native_cpu::aligned_free(Indices[Index]);
         }
+      }
+      if (NeedAlloc) {
+        size_t Align = MaxAlign;
+        while (Align > Size) {
+          Align >>= 1;
+        }
+        Indices[Index] = native_cpu::aligned_malloc(Align, Size);
+        ParamSizes[Index] = Size;
+        OwnsMem[Index] = true;
       }
       std::memcpy(Indices[Index], Arg, Size);
     }
@@ -98,17 +124,6 @@ struct ur_kernel_handle_t_ : RefCounted {
         ParamSizes[Index] = sizeof(uint8_t *);
       }
       Indices[Index] = Arg;
-    }
-
-    // This is called by the destructor of ur_kernel_handle_t_, since
-    // ur_kernel_handle_t_ implements reference counting and we want
-    // to deallocate only when the reference count is 0.
-    void deallocate() {
-      assert(OwnsMem.size() == Indices.size() && "Size mismatch");
-      for (size_t Index = 0; Index < Indices.size(); Index++) {
-        if (OwnsMem[Index])
-          native_cpu::aligned_free(Indices[Index]);
-      }
     }
 
     const args_index_t &getIndices() const noexcept { return Indices; }
@@ -144,19 +159,26 @@ struct ur_kernel_handle_t_ : RefCounted {
 
   bool hasLocalArgs() const { return !_localArgInfo.empty(); }
 
-  // To be called before executing a work group if local args are present
-  void handleLocalArgs(size_t numParallelThread, size_t threadId) {
+  const std::vector<void *> &getArgs() const {
+    assert(!hasLocalArgs() && "For kernels with local arguments, thread "
+                              "information must be supplied.");
+    return Args.getIndices();
+  }
+
+  std::vector<void *> getArgs(size_t numThreads, size_t threadId) const {
+    auto Result = Args.getIndices();
+
     // For each local argument we have size*numthreads
     size_t offset = 0;
     for (auto &entry : _localArgInfo) {
-      Args.Indices[entry.argIndex] =
+      Result[entry.argIndex] =
           _localMemPool + offset + (entry.argSize * threadId);
       // update offset in the memory pool
-      offset += entry.argSize * numParallelThread;
+      offset += entry.argSize * numThreads;
     }
-  }
 
-  const std::vector<void *> &getArgs() const { return Args.getIndices(); }
+    return Result;
+  }
 
   void addArg(const void *Ptr, size_t Index, size_t Size) {
     Args.addArg(Index, Size, Ptr);

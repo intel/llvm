@@ -1,5 +1,7 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: hip
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: Legacy images aren't supported on AMD, but also fail
+// to compile. Bindless images should be used instead.
 
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
@@ -8,6 +10,16 @@
 // Native images are created with host pointers only with host unified memory
 // support, enforce it for this test.
 // RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
+
+// 1. There is a SPIR-V spec issue that blocks generation of valid SPIR-V code
+// for the OpenCL environments support of the "Unknown" image format:
+// https://github.com/KhronosGroup/SPIRV-Headers/issues/487
+// 2. The PR https://github.com/llvm/llvm-project/pull/127242 in upstream needs
+// to be merged with intel/llvm to address an issue of mapping from SPIR-V
+// friendly builtins to Image Read/Write instructions After the 1 issue is
+// resolved and 2 is merged we will re-enable Image support.
+// UNSUPPORTED: spirv-backend && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/KhronosGroup/SPIRV-Headers/issues/487
 
 #include <iostream>
 

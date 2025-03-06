@@ -5,3 +5,4 @@ add_sycl_unittest(MiscTests SHARED
   OsUtils.cpp
   PropertyUtils.cpp
 )
+add_subdirectory(LinkGraph)
