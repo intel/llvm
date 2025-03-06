@@ -299,6 +299,14 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     sycl-compiler)
+
+  set(tsan_obj_deps
+    device.h atomic.hpp spirv_vars.h
+    ${UR_SANITIZER_INCLUDE_DIR}/tsan/tsan_libdevice.hpp
+    include/tsan_rtl.hpp
+    include/sanitizer_defs.hpp
+    include/spir_global_var.hpp
+    sycl-compiler)
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -389,6 +397,14 @@ else()
     add_devicelibs(libsycl-msan
       SRC sanitizer/msan_rtl.cpp
       DEPENDENCIES ${msan_obj_deps}
+      EXTRA_OPTS -fno-sycl-instrument-device-code
+                 -I${UR_SANITIZER_INCLUDE_DIR}
+                 -I${CMAKE_CURRENT_SOURCE_DIR})
+
+    # tsan jit
+    add_devicelibs(libsycl-tsan
+      SRC sanitizer/tsan_rtl.cpp
+      DEPENDENCIES ${tsan_obj_deps}
       EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
