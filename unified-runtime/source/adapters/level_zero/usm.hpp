@@ -106,7 +106,6 @@ public:
   virtual umf_result_t close_ipc_handle(void *, size_t) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   }
-  virtual const char *get_name() { return ""; };
   virtual ~USMMemoryProviderBase() = default;
 };
 
@@ -124,8 +123,6 @@ public:
   umf_result_t alloc(size_t Size, size_t Align, void **Ptr) override;
   umf_result_t free(void *Ptr, size_t Size) override;
   umf_result_t get_min_page_size(void *, size_t *) override;
-  // TODO: Different name for each provider (Host/Shared/SharedRO/Device)
-  const char *get_name() override { return "L0"; };
   umf_result_t get_ipc_handle_size(size_t *) override;
   umf_result_t get_ipc_handle(const void *, size_t, void *) override;
   umf_result_t put_ipc_handle(void *) override;
