@@ -3,6 +3,9 @@ name: UR - Build adapters, test on HW.
 on:
   workflow_call:
     inputs:
+      target_devices:
+        type: string
+        required: False
       image:
         type: string
         required: False
