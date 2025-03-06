@@ -40,6 +40,8 @@ class UMFSuite(Suite):
         benches = [
             GBench(self),
             GBenchUmfProxy(self),
+            GBenchJemalloc(self),
+            GBenchTbbProxy(self),
         ]
 
         return benches
@@ -220,10 +222,31 @@ class GBenchPreloaded(GBench):
         return results
 
 
-class GBenchUmfProxy(GBenchPreloaded):
+class GBenchGlibc(GBenchPreloaded):
+    def __init__(self, bench, replacing_lib):
+        super().__init__(bench, lib_to_be_replaced="glibc", replacing_lib=replacing_lib)
+
+
+class GBenchUmfProxy(GBenchGlibc):
     def __init__(self, bench):
-        super().__init__(bench, lib_to_be_replaced="glibc", replacing_lib="umfProxy")
+        super().__init__(bench, replacing_lib="umfProxy")
 
     def extra_env_vars(self) -> dict:
         umf_proxy_path = os.path.join(options.umf, "lib", "libumf_proxy.so")
         return {"LD_PRELOAD": umf_proxy_path}
+
+
+class GBenchJemalloc(GBenchGlibc):
+    def __init__(self, bench):
+        super().__init__(bench, replacing_lib="jemalloc")
+
+    def extra_env_vars(self) -> dict:
+        return {"LD_PRELOAD": "libjemalloc.so"}
+
+
+class GBenchTbbProxy(GBenchGlibc):
+    def __init__(self, bench):
+        super().__init__(bench, replacing_lib="tbbProxy")
+
+    def extra_env_vars(self) -> dict:
+        return {"LD_PRELOAD": "libtbbmalloc_proxy.so"}
