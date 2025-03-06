@@ -404,16 +404,6 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   if (T->isFloatingPointTy())
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
 
-  if (T->isTokenTy()) {
-    BM->getErrorLog().checkError(
-        BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_token_type),
-        SPIRVEC_RequiresExtension,
-        "SPV_INTEL_token_type\n"
-        "NOTE: LLVM module contains token type, which doesn't have analogs in "
-        "SPIR-V without extensions");
-    return mapType(T, BM->addTokenTypeINTEL());
-  }
-
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
   // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
@@ -622,6 +612,14 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         return mapType(T, BM->addOpaqueGenericType(Opcode));
       }
     }
+  }
+
+  if (T->isTokenTy()) {
+    BM->getErrorLog().checkError(
+        false, SPIRVEC_InvalidModule,
+        "LLVM module contains token type, which doesn't have a counterpart in "
+        "SPIR-V");
+    return nullptr;
   }
 
   llvm_unreachable("Not implemented!");
