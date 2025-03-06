@@ -363,10 +363,11 @@ whose _Name_ is `foo/bar.h`.
 If such an entry is found, the compiler uses the associated _Content_ as the
 content of the include file.
 
-_Note_: This property is only required if an `#include` statement references a
+[_Note_: This property is only required if an `#include` statement references a
 file that is not already implicitly available.
 For more information about implicitly available headers, see the section
-"Including files when the language is ``sycl``".{endnote}
+"Including files when the language is ``sycl``".
+_{endnote}_]
 
 _Effects (1):_ Creates a new `include_files` property with no (_Name_,
 _Content_) pairs.
@@ -656,8 +657,8 @@ followed by the directories below, in order:
 2. Any directory added explicitly to the search list via the `build_options`
    property.
 
-Finally, the compiler searches a set of implicitly available header files,
-as defined in the section "Implicitly available headers".
+Finally, the compiler searches a set of implicitly available header files, as
+defined in the section "Implicitly available headers".
 
 ==== Adding paths to the search list
 
@@ -679,8 +680,8 @@ build_options{{
 
 ==== Implicitly available headers
 
-The following header files are implicitly available, and do not need to
-be specified via the `include_files` property.
+The following header files are implicitly available, and do not need to be
+specified via the `include_files` property.
 
 * `<sycl/sycl.hpp>`;
 * The {cpp} standard library headers;
