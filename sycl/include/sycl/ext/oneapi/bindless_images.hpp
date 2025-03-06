@@ -922,9 +922,7 @@ gather_image(const sampled_image_handle &imageHandle [[maybe_unused]],
       CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, float2::size()),
       coords, i);
 #else
-  throw exception(
-      make_error_code(errc::runtime),
-      "gather_image is only currently supported on the cuda backend");
+  assert(false); // Gather_image is only currently supported on the cuda backend
 #endif
 }
 
