@@ -14,6 +14,7 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -758,7 +759,7 @@ public:
   }
 
   std::shared_ptr<kernel_impl>
-  tryGetKernel(const std::string &Name,
+  tryGetKernel(detail::KernelNameStrRefT Name,
                const std::shared_ptr<kernel_bundle_impl> &Self) const {
     // TODO: For source-based kernels, it may be faster to keep a map between
     //       {kernel_name, device} and their corresponding image.

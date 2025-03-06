@@ -136,13 +136,15 @@ struct DemangleHandle {
 
   ~DemangleHandle() { std::free(p); }
 };
-static std::string demangleKernelName(std::string Name) {
+static std::string demangleKernelName(std::string_view Name) {
   int Status = -1; // some arbitrary value to eliminate the compiler warning
-  DemangleHandle result(abi::__cxa_demangle(Name.c_str(), NULL, NULL, &Status));
-  return (Status == 0) ? result.p : Name;
+  DemangleHandle result(abi::__cxa_demangle(Name.data(), NULL, NULL, &Status));
+  return (Status == 0) ? result.p : std::string(Name);
 }
 #else
-static std::string demangleKernelName(std::string Name) { return Name; }
+static std::string demangleKernelName(std::string_view Name) {
+  return std::string(Name);
+}
 #endif
 
 static std::string accessModeToString(access::mode Mode) {
@@ -1961,7 +1963,7 @@ ExecCGCommand::ExecCGCommand(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::string instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const std::string &FunctionName, const std::string &SyclKernelName,
+    const std::string &FunctionName, std::string_view SyclKernelName,
     void *&Address, std::optional<bool> &FromSource) {
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
@@ -1979,7 +1981,7 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::string &KernelName,
+    KernelNameStrRefT KernelName,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const QueueImplPtr &Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
@@ -2049,17 +2051,17 @@ void instrumentationFillCommonData(const std::string &KernelName,
   xpti::payload_t Payload;
   if (!FileName.empty()) {
     // File name has a valid string
-    Payload = xpti::payload_t(FuncName.empty() ? KernelName.c_str()
-                                               : FuncName.c_str(),
-                              FileName.c_str(), Line, Column, Address);
+    Payload =
+        xpti::payload_t(FuncName.empty() ? KernelName.data() : FuncName.c_str(),
+                        FileName.c_str(), Line, Column, Address);
     HasSourceInfo = true;
   } else if (Address) {
     // We have a valid function name and an address
-    Payload = xpti::payload_t(KernelName.c_str(), Address);
+    Payload = xpti::payload_t(KernelName.data(), Address);
   } else {
     // In any case, we will have a valid function name and we'll use that to
     // create the hash
-    Payload = xpti::payload_t(KernelName.c_str());
+    Payload = xpti::payload_t(KernelName.data());
   }
 
   uint64_t CGKernelInstanceNo;
@@ -2390,7 +2392,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    const std::string &KernelName) {
+    KernelNameStrRefT KernelName) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
@@ -2659,7 +2661,7 @@ void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, std::vector<ur_event_handle_t> &RawEvents,
+    KernelNameStrRefT KernelName, std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
@@ -3237,7 +3239,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
         ExecKernel->MSyclKernel;
-    const std::string &KernelName = ExecKernel->MKernelName;
+    KernelNameStrRefT KernelName = ExecKernel->MKernelName;
 
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
@@ -3252,7 +3254,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const RTDeviceBinaryImage *BinImage = nullptr;
     if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
       std::tie(BinImage, std::ignore) =
-          retrieveKernelBinary(MQueue, KernelName.c_str());
+          retrieveKernelBinary(MQueue, KernelName.data());
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),

@@ -795,7 +795,7 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
                                       CGExec->MLine, CGExec->MColumn);
   auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
       StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-      CGExec->MKernelName.c_str(), nullptr, CGExec->MNDRDesc,
+      CGExec->MKernelName.data(), nullptr, CGExec->MNDRDesc,
       CGExec->MKernelBundle, CGExec->MArgs);
   if (CmdTraceEvent)
     sycl::detail::emitInstrumentationGeneral(
@@ -1352,12 +1352,12 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
       sycl::detail::CGExecKernel *TargetCGExec =
           static_cast<sycl::detail::CGExecKernel *>(
               MNodeStorage[i]->MCommandGroup.get());
-      const std::string &TargetKernelName = TargetCGExec->getKernelName();
+      KernelNameStrT TargetKernelName = TargetCGExec->getKernelName();
 
       sycl::detail::CGExecKernel *SourceCGExec =
           static_cast<sycl::detail::CGExecKernel *>(
               GraphImpl->MNodeStorage[i]->MCommandGroup.get());
-      const std::string &SourceKernelName = SourceCGExec->getKernelName();
+      KernelNameStrT SourceKernelName = SourceCGExec->getKernelName();
 
       if (TargetKernelName.compare(SourceKernelName) != 0) {
         std::stringstream ErrorStream(

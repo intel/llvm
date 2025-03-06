@@ -878,7 +878,7 @@ protected:
       KernelUsesAssert =
           (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
           ProgramManager::getInstance().kernelUsesAssert(
-              Handler.MKernelName.c_str());
+              Handler.MKernelName.data());
 
     auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
                             : finalizeHandlerOutOfOrder(Handler);
