@@ -7184,26 +7184,6 @@ def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
   Flags<[NoXarchOption]>,
   HelpText<"Dump device code into the user provided directory.">;
 
-def fsycl_allow_func_ptr_EQ : Joined<["-"], "fsycl-allow-func-ptr=">,
-  Visibility<[ClangOption, CLOption, CC1Option]>,
-  Values<"off,labeled,defined">,
-  NormalizedValuesScope<"LangOptions::SYCLFuncPtrPreference">,
-  NormalizedValues<["Off", "LabeledOnly", "DefinedOnly"]>,
-  MarshallingInfoEnum<LangOpts<"SYCLAllowFuncPtr">, "Off">,
-  HelpText<"Options for allowing function pointers in SYCL device code: "
-           "off (no function pointers allowed) "
-           "labeled (only with functions with the intel::device_indirectly_callable attribute) "
-           "defined (only with labeled or defined functions)."
-           "Default is 'off'">;
-def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
-  Alias<fsycl_allow_func_ptr_EQ>, AliasArgs<["labeled"]>,
-  Visibility<[ClangOption, CLOption, CC1Option]>,
-  HelpText<"Same as -fsycl-allow-func-ptr=labeled.">;
-def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">,
-  Alias<fsycl_allow_func_ptr_EQ>, AliasArgs<["off"]>,
-  Visibility<[ClangOption, CLOption, CC1Option]>,
-  HelpText<"Same as -fsycl-allow-func-ptr=off.">;
-
 } // let Group = sycl_Group
 
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.
@@ -8759,6 +8739,25 @@ def fsycl_unique_prefix_EQ
 def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params">,
   HelpText<"Enable standard layout requirement for SYCL kernel parameters.">,
   MarshallingInfoFlag<LangOpts<"SYCLStdLayoutKernelParams">>;
+def fsycl_allow_func_ptr_EQ : Joined<["-"], "fsycl-allow-func-ptr=">,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  Values<"off,labeled,defined">,
+  NormalizedValuesScope<"LangOptions::SYCLFuncPtrPreference">,
+  NormalizedValues<["Off", "LabeledOnly", "DefinedOnly"]>,
+  MarshallingInfoEnum<LangOpts<"SYCLAllowFuncPtr">, "Off">,
+  HelpText<"Options for allowing function pointers in SYCL device code: "
+           "off (no function pointers allowed) "
+           "labeled (only with functions with the intel::device_indirectly_callable attribute) "
+           "defined (only with labeled or defined functions)."
+           "Default is 'off'">;
+def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
+  Alias<fsycl_allow_func_ptr_EQ>, AliasArgs<["labeled"]>,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  HelpText<"Same as -fsycl-allow-func-ptr=labeled.">;
+def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">,
+  Alias<fsycl_allow_func_ptr_EQ>, AliasArgs<["off"]>,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  HelpText<"Same as -fsycl-allow-func-ptr=off.">;
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
   MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
