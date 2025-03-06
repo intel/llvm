@@ -343,6 +343,7 @@ and not recommended to use in production environment.
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
     emitted.
     Enabled by default.
+    This option is replaced with -fsycl-device-obj=<arg>.
 
 **`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
 
