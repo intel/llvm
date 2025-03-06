@@ -52,19 +52,26 @@ jobs:
     if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
+       include:
+         - name: GEN 12 Integrated
+           runner: '["Linux", "gen12"]'
+           image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+           target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+           reset_intel_gpu: true
+           extra_lit_opts: --param gpu-intel-gen12=True
         # Extra native CPU jobs are here to force the loader to be used.
         # UR will not use the loader if there is only one target.
-        adapter: [
-          {name: L0, runner: UR_L0},
-          {name: L0_V2, runner: UR_L0},
-          {name: L0, runner: UR_L0, static: ON},
-          {name: OPENCL, runner: UR_OPENCL, platform: "Intel(R) OpenCL"},
-          {name: CUDA, runner: UR_CUDA},
-          {name: HIP, runner: UR_HIP},
-          {name: NATIVE_CPU, runner: UR_NATIVE_CPU},
-          {name: OPENCL, runner: UR_OPENCL, other_adapter: NATIVE_CPU, platform: "OPENCL:Intel(R) OpenCL"},
-          {name: L0, runner: UR_L0, other_adapter: NATIVE_CPU},
-        ]
+        # adapter: [
+        #   {name: L0, runner: UR_L0},
+        #   {name: L0_V2, runner: UR_L0},
+        #   {name: L0, runner: UR_L0, static: ON},
+        #   {name: OPENCL, runner: UR_OPENCL, platform: "Intel(R) OpenCL"},
+        #   {name: CUDA, runner: UR_CUDA},
+        #   {name: HIP, runner: UR_HIP},
+        #   {name: NATIVE_CPU, runner: UR_NATIVE_CPU},
+        #   {name: OPENCL, runner: UR_OPENCL, other_adapter: NATIVE_CPU, platform: "OPENCL:Intel(R) OpenCL"},
+        #   {name: L0, runner: UR_L0, other_adapter: NATIVE_CPU},
+        # ]
     uses: ./.github/workflows/ur-build-hw.yml
     with:
       adapter_name: ${{ matrix.adapter.name }}
