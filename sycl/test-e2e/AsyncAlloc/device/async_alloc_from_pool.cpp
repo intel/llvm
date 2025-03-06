@@ -1,7 +1,5 @@
-// REQUIRES: aspect-ext_oneapi_async_memory_alloc
-
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -22,89 +20,89 @@ class second_kernel;
 
 int main() {
 
-  sycl::device dev;
-  sycl::property_list q_prop{sycl::property::queue::in_order()};
-  sycl::queue q(q_prop);
-  sycl::context ctx = q.get_context();
-  size_t width = 8;
-  std::vector<char> out(width);
+  sycl::device Dev;
+  sycl::property_list QProp{sycl::property::queue::in_order()};
+  sycl::queue Q(QProp);
+  sycl::context Ctx = Q.get_context();
+  size_t Width = 8;
+  std::vector<char> Out(Width);
 
 #ifdef MEM_REUSE_CHECK
   // Expected is the sum of two sets of tids
   // Since freeing doesn't reset the memory
-  std::vector<char> expected(width);
-  for (int i = 0; i < width; i++) {
-    expected[i] = 2 * i;
+  std::vector<char> Expected(Width);
+  for (int i = 0; i < Width; i++) {
+    Expected[i] = 2 * i;
   }
 #endif
 
   try {
 
     // Create pool
-    syclexp::memory_pool memPool(ctx, dev, sycl::usm::alloc::device);
+    syclexp::memory_pool MemPool(Ctx, Dev, sycl::usm::alloc::device);
 
     // <--- First allocation, use, and free --->
 
     // Allocate in pool
-    void *firstAlloc = syclexp::async_malloc_from_pool(q, width, memPool);
+    void *FirstAlloc = syclexp::async_malloc_from_pool(Q, Width, MemPool);
 
     // Use allocation in kernel
-    q.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<first_kernel>(
-          sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
-            size_t dim0 = it.get_local_id(0);
-            *((char *)firstAlloc + dim0) = static_cast<char>(dim0);
+    Q.submit([&](sycl::handler &CGH) {
+      CGH.parallel_for<first_kernel>(
+          sycl::nd_range<1>{{Width}, {Width}}, [=](sycl::nd_item<1> It) {
+            size_t Dim0 = It.get_local_id(0);
+            *((char *)FirstAlloc + Dim0) = static_cast<char>(Dim0);
           });
     });
 
     // Free memory back to pool
-    syclexp::async_free(q, firstAlloc);
+    syclexp::async_free(Q, FirstAlloc);
 
     // <--- Second allocation, use, and free --->
 
     // Re-use allocation in pool
-    void *secondAlloc = syclexp::async_malloc_from_pool(q, width, memPool);
+    void *SecondAlloc = syclexp::async_malloc_from_pool(Q, Width, MemPool);
 
     // Re-use allocation in kernel
-    q.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<second_kernel>(
-          sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
-            size_t dim0 = it.get_local_id(0);
-            *((char *)secondAlloc + dim0) =
-                *((char *)secondAlloc + dim0) + static_cast<char>(dim0);
+    Q.submit([&](sycl::handler &CGH) {
+      CGH.parallel_for<second_kernel>(
+          sycl::nd_range<1>{{Width}, {Width}}, [=](sycl::nd_item<1> It) {
+            size_t Dim0 = It.get_local_id(0);
+            *((char *)SecondAlloc + Dim0) =
+                *((char *)SecondAlloc + Dim0) + static_cast<char>(Dim0);
           });
     });
 
-    q.memcpy(out.data(), secondAlloc, width);
+    Q.memcpy(Out.data(), SecondAlloc, Width);
 
     // Free memory back to pool
-    syclexp::async_free(q, secondAlloc);
+    syclexp::async_free(Q, SecondAlloc);
 
     // Wait and thus release memory back to OS
-    q.wait_and_throw();
+    Q.wait_and_throw();
 
-  } catch (sycl::exception e) {
-    std::cerr << "SYCL exception caught! : " << e.what() << "\n";
+  } catch (sycl::exception &E) {
+    std::cerr << "SYCL exception caught! : " << E.what() << "\n";
     return 2;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
     return 3;
   }
 
-  bool validated = true;
+  bool Validated = true;
 #ifdef MEM_REUSE_CHECK
-  for (int i = 0; i < width; i++) {
-    bool mismatch = false;
-    if (out[i] != expected[i]) {
-      mismatch = true;
-      validated = false;
+  for (int i = 0; i < Width; i++) {
+    bool Mismatch = false;
+    if (Out[i] != Expected[i]) {
+      Mismatch = true;
+      Validated = false;
     }
 
-    if (mismatch) {
+    if (Mismatch) {
 #ifdef VERBOSE_PRINT
       std::cerr << "Result mismatch! Expected: "
-                << static_cast<int>(expected[i])
-                << ", Actual: " << static_cast<int>(out[i]) << std::endl;
+                << static_cast<int>(Expected[i])
+                << ", Actual: " << static_cast<int>(Out[i]) << std::endl;
 #else
       break;
 #endif
@@ -112,7 +110,7 @@ int main() {
   }
 #endif
 
-  if (validated) {
+  if (Validated) {
     std::cout << "Test passed!" << std::endl;
     return 0;
   }

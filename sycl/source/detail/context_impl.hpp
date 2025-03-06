@@ -246,8 +246,8 @@ public:
   const property_list &getPropList() const { return MPropList; }
 
   std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
-  get_default_memory_pool(const context &ctx, const device &dev,
-                          const usm::alloc &kind);
+  get_default_memory_pool(const context &Context, const device &Device,
+                          const usm::alloc &Kind);
 
 private:
   bool MOwnedByRuntime;

@@ -1,7 +1,5 @@
-// REQUIRES: aspect-ext_oneapi_async_memory_alloc
-
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -23,106 +21,106 @@ class second_kernel;
 
 int main() {
 
-  sycl::queue q;
-  size_t width = 8;
-  std::vector<char> out(width);
+  sycl::queue Q;
+  size_t Width = 8;
+  std::vector<char> Out(Width);
 
 #ifdef MEM_REUSE_CHECK
-  std::vector<char> expected(width);
+  std::vector<char> Expected(Width);
   // Expected is the sum of two sets of tids
   // Since freeing doesn't reset the memory
-  for (int i = 0; i < width; i++) {
-    expected[i] = 2 * i;
+  for (int i = 0; i < Width; i++) {
+    Expected[i] = 2 * i;
   }
 #endif
 
   try {
 
     // Create pool
-    syclexp::memory_pool memPool(q.get_context(), q.get_device(),
+    syclexp::memory_pool MemPool(Q.get_context(), Q.get_device(),
                                  sycl::usm::alloc::device);
 
     // <--- First allocation, use, and free --->
 
     // Allocate in pool
-    void *firstAlloc = nullptr;
+    void *FirstAlloc = nullptr;
 
-    sycl::event e1 = syclexp::submit_with_event(q, [&](sycl::handler &cgh) {
-      firstAlloc = syclexp::async_malloc_from_pool(cgh, width, memPool);
+    sycl::event E1 = syclexp::submit_with_event(Q, [&](sycl::handler &CGH) {
+      FirstAlloc = syclexp::async_malloc_from_pool(CGH, Width, MemPool);
     });
 
     // Use allocation in kernel
-    sycl::event e2 = syclexp::submit_with_event(q, [&](sycl::handler &cgh) {
-      cgh.parallel_for<first_kernel>(
-          sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
-            size_t dim0 = it.get_local_id(0);
-            *((char *)firstAlloc + dim0) = static_cast<char>(dim0);
+    sycl::event E2 = syclexp::submit_with_event(Q, [&](sycl::handler &CGH) {
+      CGH.parallel_for<first_kernel>(
+          sycl::nd_range<1>{{Width}, {Width}}, [=](sycl::nd_item<1> It) {
+            size_t Dim0 = It.get_local_id(0);
+            *((char *)FirstAlloc + Dim0) = static_cast<char>(Dim0);
           });
-      cgh.depends_on(e1);
+      CGH.depends_on(E1);
     });
 
     // Free memory back to pool
-    sycl::event e3 = syclexp::submit_with_event(q, [&](sycl::handler &cgh) {
-      syclexp::async_free(cgh, firstAlloc);
-      cgh.depends_on(e2);
+    sycl::event E3 = syclexp::submit_with_event(Q, [&](sycl::handler &CGH) {
+      syclexp::async_free(CGH, FirstAlloc);
+      CGH.depends_on(E2);
     });
 
     // <--- Second allocation, use, and free --->
 
     // Re-use allocation in pool
-    void *secondAlloc = nullptr;
-    sycl::event e4 = syclexp::submit_with_event(q, [&](sycl::handler &cgh) {
-      cgh.depends_on(e3);
-      secondAlloc = syclexp::async_malloc_from_pool(cgh, width, memPool);
+    void *SecondAlloc = nullptr;
+    sycl::event E4 = syclexp::submit_with_event(Q, [&](sycl::handler &CGH) {
+      CGH.depends_on(E3);
+      SecondAlloc = syclexp::async_malloc_from_pool(CGH, Width, MemPool);
     });
 
     // Re-use allocation in kernel
-    sycl::event e5 = syclexp::submit_with_event(q, [&](sycl::handler &cgh) {
-      cgh.parallel_for<second_kernel>(
-          sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
-            size_t dim0 = it.get_local_id(0);
-            *((char *)secondAlloc + dim0) =
-                *((char *)secondAlloc + dim0) + static_cast<char>(dim0);
+    sycl::event E5 = syclexp::submit_with_event(Q, [&](sycl::handler &CGH) {
+      CGH.parallel_for<second_kernel>(
+          sycl::nd_range<1>{{Width}, {Width}}, [=](sycl::nd_item<1> It) {
+            size_t Dim0 = It.get_local_id(0);
+            *((char *)SecondAlloc + Dim0) =
+                *((char *)SecondAlloc + Dim0) + static_cast<char>(Dim0);
           });
-      cgh.depends_on(e4);
+      CGH.depends_on(E4);
     });
 
-    sycl::event e6 = syclexp::submit_with_event(q, [&](sycl::handler &cgh) {
-      syclexp::memcpy(cgh, out.data(), secondAlloc, width);
-      cgh.depends_on(e5);
+    sycl::event E6 = syclexp::submit_with_event(Q, [&](sycl::handler &CGH) {
+      syclexp::memcpy(CGH, Out.data(), SecondAlloc, Width);
+      CGH.depends_on(E5);
     });
 
     // Free memory back to pool
-    sycl::event e7 = syclexp::submit_with_event(q, [&](sycl::handler &cgh) {
-      syclexp::async_free(cgh, secondAlloc);
-      cgh.depends_on(e6);
+    sycl::event E7 = syclexp::submit_with_event(Q, [&](sycl::handler &CGH) {
+      syclexp::async_free(CGH, SecondAlloc);
+      CGH.depends_on(E6);
     });
 
     // Wait and thus release memory back to OS
-    q.wait_and_throw();
+    Q.wait_and_throw();
 
-  } catch (sycl::exception e) {
-    std::cerr << "SYCL exception caught! : " << e.what() << "\n";
+  } catch (sycl::exception &E) {
+    std::cerr << "SYCL exception caught! : " << E.what() << "\n";
     return 2;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
     return 3;
   }
 
-  bool validated = true;
+  bool Validated = true;
 #ifdef MEM_REUSE_CHECK
-  for (int i = 0; i < width; i++) {
-    bool mismatch = false;
-    if (out[i] != expected[i]) {
-      mismatch = true;
-      validated = false;
+  for (int i = 0; i < Width; i++) {
+    bool Mismatch = false;
+    if (Out[i] != Expected[i]) {
+      Mismatch = true;
+      Validated = false;
     }
 
-    if (mismatch) {
+    if (Mismatch) {
 #ifdef VERBOSE_PRINT
       std::cerr << "Result mismatch! Expected: "
-                << static_cast<int>(expected[i])
-                << ", Actual: " << static_cast<int>(out[i]) << std::endl;
+                << static_cast<int>(Expected[i])
+                << ", Actual: " << static_cast<int>(Out[i]) << std::endl;
 #else
       break;
 #endif
@@ -130,7 +128,7 @@ int main() {
   }
 #endif
 
-  if (validated) {
+  if (Validated) {
     std::cout << "Test passed!" << std::endl;
     return 0;
   }

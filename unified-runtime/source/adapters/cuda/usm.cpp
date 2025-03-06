@@ -456,17 +456,17 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
   }
 
   MemPoolProps.allocType = CU_MEM_ALLOCATION_TYPE_PINNED;
-  MemPoolProps.location.id =
-      Device
-          ->getIndex(); // Clarification of what id means here:
-                        // https://forums.developer.nvidia.com/t/incomplete-description-in-cumemlocation-v1-struct-reference/318701
+  // Clarification of what id means here:
+  // https://forums.developer.nvidia.com/t/incomplete-description-in-cumemlocation-v1-struct-reference/318701
+  MemPoolProps.location.id = Device->getIndex();
   MemPoolProps.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
   UR_CHECK_ERROR(cuMemPoolCreate(&CUmemPool, &MemPoolProps));
 
   // Release threshold is not a property when creating a pool.
   // It must be set separately.
-  UR_CHECK_ERROR(urUSMPoolSetInfoExp(
-      this, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &threshold, 8));
+  UR_CHECK_ERROR(urUSMPoolSetInfoExp(this,
+                                     UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP,
+                                     &threshold, 8 /*uint64_t*/));
 }
 
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,

@@ -3621,7 +3621,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
   }
   case CGType::AsyncAlloc: {
-    // NO-OP.
+    // NO-OP. Async alloc calls adapter immediately in order to return a valid
+    // ptr directly. Any explicit/implicit dependencies are handled at that
+    // point, including in order queue deps.
 
     // Set event carried from async alloc execution.
     CGAsyncAlloc *AsyncAlloc = (CGAsyncAlloc *)MCommandGroup.get();

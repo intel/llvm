@@ -996,31 +996,31 @@ TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
 
 // ext_oneapi_async_alloc isn't currently supported with SYCL graphs
 TEST_F(CommandGraphTest, AsyncAllocExceptionCheck) {
-  auto ctx = Queue.get_context();
-  auto dev = Queue.get_device();
+  auto Context = Queue.get_context();
+  auto Device = Queue.get_device();
 
   // Create pool
-  sycl::ext::oneapi::experimental::memory_pool memPool(
-      ctx, dev, sycl::usm::alloc::device);
+  sycl::ext::oneapi::experimental::memory_pool MemPool(
+      Context, Device, sycl::usm::alloc::device);
 
-  void *ptr1 = nullptr;
-  void *ptr2 = nullptr;
+  void *Ptr1 = nullptr;
+  void *Ptr2 = nullptr;
 
   Graph.begin_recording(Queue);
 
-  addAsyncAlloc<OperationPath::RecordReplay>(Graph, Queue, 1024, memPool, ptr1);
-  addAsyncAlloc<OperationPath::Shortcut>(Graph, Queue, 1024, ptr2);
+  addAsyncAlloc<OperationPath::RecordReplay>(Graph, Queue, 1024, MemPool, Ptr1);
+  addAsyncAlloc<OperationPath::Shortcut>(Graph, Queue, 1024, Ptr2);
 
-  addAsyncFree<OperationPath::RecordReplay>(Graph, Queue, ptr1);
-  addAsyncFree<OperationPath::Shortcut>(Graph, Queue, ptr2);
+  addAsyncFree<OperationPath::RecordReplay>(Graph, Queue, Ptr1);
+  addAsyncFree<OperationPath::Shortcut>(Graph, Queue, Ptr2);
 
   Graph.end_recording();
 
-  void *ptr3 = nullptr;
-  void *ptr4 = nullptr;
-  addAsyncAlloc<OperationPath::Explicit>(Graph, Queue, 1024, memPool, ptr3);
-  addAsyncAlloc<OperationPath::Explicit>(Graph, Queue, 1024, ptr4);
+  void *Ptr3 = nullptr;
+  void *Ptr4 = nullptr;
+  addAsyncAlloc<OperationPath::Explicit>(Graph, Queue, 1024, MemPool, Ptr3);
+  addAsyncAlloc<OperationPath::Explicit>(Graph, Queue, 1024, Ptr4);
 
-  addAsyncFree<OperationPath::Explicit>(Graph, Queue, ptr3);
-  addAsyncFree<OperationPath::Explicit>(Graph, Queue, ptr4);
+  addAsyncFree<OperationPath::Explicit>(Graph, Queue, Ptr3);
+  addAsyncFree<OperationPath::Explicit>(Graph, Queue, Ptr4);
 }
