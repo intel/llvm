@@ -62,7 +62,7 @@ jobs:
            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
            reset_intel_gpu: true
            extra_lit_opts: --param gpu-intel-gen12=True
-           image: 'ubuntu'
+           image: 'ubuntu:latest'
     
         # Extra native CPU jobs are here to force the loader to be used.
         # UR will not use the loader if there is only one target.
