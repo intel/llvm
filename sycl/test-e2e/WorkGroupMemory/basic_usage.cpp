@@ -1,3 +1,5 @@
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 #include <cassert>
