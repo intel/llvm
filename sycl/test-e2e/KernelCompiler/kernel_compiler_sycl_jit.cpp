@@ -105,6 +105,35 @@ void vec_add(T* in1, T* in2, T* out){
 }
 )===";
 
+auto constexpr DeviceLibrariesSource = R"===(
+#include <sycl/sycl.hpp>
+#include <cmath>
+#include <complex>
+#include <sycl/ext/intel/math.hpp>
+
+extern "C" SYCL_EXTERNAL 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::single_task_kernel)
+void device_libs_kernel(float *ptr) {
+  // Extension list: llvm/lib/SYCLLowerIR/SYCLDeviceLibReqMask.cpp
+
+  // cl_intel_devicelib_assert is not available for opencl:gpu; skip testing it.
+  // Only test the fp32 variants of complex, math and imf to keep this test
+  // device-agnostic.
+  
+  // cl_intel_devicelib_math
+  ptr[0] = erff(ptr[0]);
+
+  // cl_intel_devicelib_complex
+  ptr[1] = std::abs(std::complex<float>{1.0f, ptr[1]});
+
+  // cl_intel_devicelib_cstring
+  ptr[2] = memcmp(ptr + 2, ptr + 2, sizeof(float));
+
+  // cl_intel_devicelib_imf
+  ptr[3] = sycl::ext::intel::math::sqrt(ptr[3] * 2);
+}
+)===";
+
 auto constexpr BadSource = R"===(
 #include <sycl/sycl.hpp>
 
@@ -380,6 +409,53 @@ int test_device_code_split() {
   return 0;
 }
 
+int test_device_libraries() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    return -1;
+  }
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, DeviceLibrariesSource);
+  exe_kb kbExe = syclex::build(kbSrc);
+
+  sycl::kernel k = kbExe.ext_oneapi_get_kernel("device_libs_kernel");
+  constexpr size_t nElem = 4;
+  float *ptr = sycl::malloc_shared<float>(nElem, q);
+  for (int i = 0; i < nElem; ++i)
+    ptr[i] = 1.0f;
+
+  q.submit([&](sycl::handler &cgh) {
+    cgh.set_arg(0, ptr);
+    cgh.single_task(k);
+  });
+  q.wait_and_throw();
+
+  // Check that the kernel was executed. Given the {1.0, 1.0, 1.0, 1.0} input,
+  // the expected result is approximately {0.84, 1.41, 0.0, 1.41}.
+  for (unsigned i = 0; i < nElem; ++i) {
+    std::cout << ptr[i] << ' ';
+    assert(ptr[i] != 1.0f);
+  }
+  std::cout << std::endl;
+
+  sycl::free(ptr, q);
+
+  return 0;
+}
+
 int test_esimd() {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
@@ -540,8 +616,8 @@ int main(int argc, char **) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   int optional_tests = (argc > 1) ? test_warning() : 0;
   return test_build_and_run() || test_lifetimes() || test_device_code_split() ||
-         test_esimd() || test_unsupported_options() || test_error() ||
-         optional_tests;
+         test_device_libraries() || test_esimd() ||
+         test_unsupported_options() || test_error() || optional_tests;
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
