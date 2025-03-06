@@ -679,7 +679,8 @@ build_options{{
 
 ==== Implicitly available headers
 
-The following header files are implicitly available from the local filesystem.
+The following header files are implicitly available, and do not need to
+be specified via the `include_files` property.
 
 * `<sycl/sycl.hpp>`;
 * The {cpp} standard library headers;
