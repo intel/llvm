@@ -136,7 +136,7 @@ class VelocityBase(Benchmark):
                 env=env_vars,
                 stdout=result,
                 unit=self.unit,
-                description=self.description()
+                description=self.description(),
             )
         ]
 

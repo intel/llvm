@@ -139,7 +139,7 @@ class LlamaBench(Benchmark):
                     env=env_vars,
                     stdout=result,
                     unit="token/s",
-                    description=self.description()
+                    description=self.description(),
                 )
             )
         return results

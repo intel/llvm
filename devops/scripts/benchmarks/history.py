@@ -61,11 +61,12 @@ class BenchmarkHistory:
 
     def create_run(self, name: str, results: list[Result]) -> BenchmarkRun:
         try:
-            result = run("git rev-parse --short HEAD")
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            result = run("git rev-parse --short HEAD", cwd=script_dir)
             git_hash = result.stdout.decode().strip()
 
             # Get the GitHub repo URL from git remote
-            remote_result = run("git remote get-url origin")
+            remote_result = run("git remote get-url origin", cwd=script_dir)
             remote_url = remote_result.stdout.decode().strip()
 
             # Convert SSH or HTTPS URL to owner/repo format

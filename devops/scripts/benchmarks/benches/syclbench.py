@@ -105,7 +105,6 @@ class SyclBenchmark(Benchmark):
         self.bench = bench
         self.bench_name = name
         self.test = test
-        self.done = False
 
     def bin_args(self) -> list[str]:
         return []
@@ -119,8 +118,6 @@ class SyclBenchmark(Benchmark):
         )
 
     def run(self, env_vars) -> list[Result]:
-        if self.done:
-            return
         self.outputfile = os.path.join(self.bench.directory, self.test + ".csv")
 
         command = [
@@ -152,16 +149,16 @@ class SyclBenchmark(Benchmark):
                             unit="ms",
                         )
                     )
-        self.done = True
-        return res_list
 
-    def teardown(self):
-        print(f"Removing {self.outputfile}...")
         os.remove(self.outputfile)
-        return
+
+        return res_list
 
     def name(self):
         return f"{self.bench.name()} {self.test}"
+
+    def teardown(self):
+        return
 
 
 # multi benchmarks

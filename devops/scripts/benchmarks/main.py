@@ -17,6 +17,7 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
+from presets import Presets
 
 import argparse
 import re
@@ -153,7 +154,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             SyclBench(directory),
             LlamaCppBench(directory),
             UMFSuite(directory),
-            # TestSuite()
+            TestSuite()
         ]
         if not options.dry_run
         else []
@@ -163,6 +164,9 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     failures = {}
 
     for s in suites:
+        if s.name() not in options.preset.suites():
+            continue
+
         suite_benchmarks = s.benchmarks()
         if filter:
             suite_benchmarks = [
@@ -182,14 +186,13 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                 print(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks
 
-    for b in benchmarks:
-        print(b.name())
-
     for benchmark in benchmarks:
         try:
-            print(f"Setting up {benchmark.name()}... ")
+            if options.verbose:
+                print(f"Setting up {benchmark.name()}... ")
             benchmark.setup()
-            print(f"{benchmark.name()} setup complete.")
+            if options.verbose:
+                print(f"{benchmark.name()} setup complete.")
 
         except Exception as e:
             if options.exit_on_failure:
@@ -279,8 +282,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     if options.output_html:
         generate_html(history.runs, compare_names)
 
-        print(f"See {os.getcwd()}/html/index.html for the results.")
-
 
 def validate_and_parse_env_args(env_args):
     env_vars = {}
@@ -363,12 +364,6 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
-        "--epsilon",
-        type=float,
-        help="Threshold to consider change of performance significant",
-        default=options.epsilon,
-    )
-    parser.add_argument(
         "--verbose", help="Print output of all the commands.", action="store_true"
     )
     parser.add_argument(
@@ -394,7 +389,11 @@ if __name__ == "__main__":
         help="Specify whether markdown output should fit the content size limit for request validation",
     )
     parser.add_argument(
-        "--output-html", help="Create HTML output", action="store_true", default=False
+        "--output-html",
+        help="Create HTML output. Local output is for direct local viewing of the html file, remote is for server deployment.",
+        nargs="?",
+        const=options.output_html,
+        choices=["local", "remote"],
     )
     parser.add_argument(
         "--dry-run",
@@ -438,6 +437,13 @@ if __name__ == "__main__":
         help="Directory for cublas library",
         default=None,
     )
+    parser.add_argument(
+        "--preset",
+        type=str,
+        choices=[p.name for p in Presets],
+        help="Benchmark preset to run.",
+        default='FULL',
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -449,7 +455,6 @@ if __name__ == "__main__":
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
-    options.epsilon = args.epsilon
     options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
@@ -464,6 +469,7 @@ if __name__ == "__main__":
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
+    options.preset = Presets[args.preset].value()
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
