@@ -678,11 +678,13 @@ static Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
              : CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
 }
 
-static Function *emitMaybeIntrinsic(CodeGenFunction &CGF, const CallExpr *E,
-                                    unsigned FPAccuracyIntrinsicID,
-                                    unsigned IntrinsicID, llvm::Value *Src0,
-                                    StringRef &Name) {
+using FuncNamePair = std::pair<Function *, std::string>;
+static FuncNamePair EmitMaybeIntrinsic(CodeGenFunction &CGF, const CallExpr *E,
+                                       unsigned FPAccuracyIntrinsicID,
+                                       unsigned IntrinsicID,
+                                       llvm::Value *Src0) {
   Function *Func = nullptr;
+  std::string Name;
   if (FPAccuracyIntrinsicID != Intrinsic::not_intrinsic) {
     if (!CGF.getLangOpts().FPAccuracyVal.empty() ||
         !CGF.getLangOpts().FPAccuracyFuncMap.empty()) {
@@ -692,16 +694,16 @@ static Function *emitMaybeIntrinsic(CodeGenFunction &CGF, const CallExpr *E,
             << "-ffp-accuracy"
             << "-fmath-errno";
       } else {
-        std::string Name =
+        Name =
             CGF.CGM.getContext().BuiltinInfo.getName(CGF.getCurrentBuiltinID());
         // Use fpbuiltin intrinsic only when needed.
-        StringRef BuiltinName = Name;
         Func = getIntrinsic(CGF, Src0, FPAccuracyIntrinsicID, IntrinsicID,
-                            CGF.hasAccuracyRequirement(BuiltinName));
+                            CGF.hasAccuracyRequirement(Name));
       }
     }
   }
-  return Func;
+  FuncNamePair Res = std::pair<Function *, std::string>(Func, Name);
+  return Res;
 }
 
 // Emit a simple mangled intrinsic that has 1 argument and a return type
@@ -712,9 +714,10 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
     unsigned ConstrainedIntrinsicID,
     unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
-  StringRef Name;
-  Function *Func = emitMaybeIntrinsic(CGF, E, FPAccuracyIntrinsicID,
-                                      IntrinsicID, Src0, Name);
+  FuncNamePair Res =
+    EmitMaybeIntrinsic(CGF, E, FPAccuracyIntrinsicID, IntrinsicID, Src0);
+  Function *Func = Res.first;
+  StringRef Name = Res.second;
   if (Func)
     return CGF.CreateBuiltinCallWithAttr(Name, Func, {Src0},
                                          FPAccuracyIntrinsicID);
@@ -737,9 +740,10 @@ static Value *emitBinaryMaybeConstrainedFPBuiltin(
     unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
   llvm::Value *Src1 = CGF.EmitScalarExpr(E->getArg(1));
-  StringRef Name;
-  Function *Func = emitMaybeIntrinsic(CGF, E, FPAccuracyIntrinsicID,
-                                      IntrinsicID, Src0, Name);
+  FuncNamePair Res =
+      EmitMaybeIntrinsic(CGF, E, FPAccuracyIntrinsicID, IntrinsicID, Src0);
+  Function *Func = Res.first;
+  StringRef Name = Res.second;
   if (Func)
     return CGF.CreateBuiltinCallWithAttr(Name, Func, {Src0, Src1},
                                          FPAccuracyIntrinsicID);
@@ -747,10 +751,10 @@ static Value *emitBinaryMaybeConstrainedFPBuiltin(
   CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
   if (CGF.Builder.getIsFPConstrained()) {
     Function *F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Src0->getType());
-    return CGF.Builder.CreateConstrainedFPCall(F, { Src0, Src1 });
+    return CGF.Builder.CreateConstrainedFPCall(F, {Src0, Src1});
   } else {
     Function *F = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
-    return CGF.Builder.CreateCall(F, { Src0, Src1 });
+    return CGF.Builder.CreateCall(F, {Src0, Src1});
   }
 }
 
