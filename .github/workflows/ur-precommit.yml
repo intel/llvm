@@ -50,7 +50,7 @@ jobs:
 
   adapters:
     name: Adapters
-    needs: [detect_changes, source_checks]
+    #needs: [detect_changes, source_checks]
     if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
