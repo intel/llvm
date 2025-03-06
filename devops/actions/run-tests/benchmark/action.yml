@@ -90,6 +90,8 @@ runs:
       echo "-----"
       sycl-ls
       echo "-----"
+      python3 -m venv .venv
+      . .venv/bin/activate
       pip install -r ./devops/scripts/benchmarks/requirements.txt
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$(realpath ./llvm_test_workdir)" --sycl ./toolchain --save baseline
       echo "-----"
