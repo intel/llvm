@@ -40,11 +40,9 @@ std::string userArgsAsString(const std::vector<std::string> &UserArguments);
 //
 // Returns a pointer to the image (owned by the `jit_compiler` class), and the
 // bundle-specific prefix used for loading the kernels.
-std::pair<sycl_device_binaries, std::string>
-SYCL_JIT_to_SPIRV(const std::string &Source,
-                  const include_pairs_t &IncludePairs,
-                  const std::vector<std::string> &UserArgs, std::string *LogPtr,
-                  const std::vector<std::string> &RegisteredKernelNames);
+std::pair<sycl_device_binaries, std::string> SYCL_JIT_to_SPIRV(
+    const std::string &Source, const include_pairs_t &IncludePairs,
+    const std::vector<std::string> &UserArgs, std::string *LogPtr);
 
 void SYCL_JIT_destroy(sycl_device_binaries Binaries);
 

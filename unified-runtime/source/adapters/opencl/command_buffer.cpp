@@ -470,14 +470,14 @@ namespace {
 void updateKernelPointerArgs(
     std::vector<cl_mutable_dispatch_arg_khr> &CLUSMArgs,
     const ur_exp_command_buffer_update_kernel_launch_desc_t
-        *pUpdateKernelLaunch) {
+        &pUpdateKernelLaunch) {
 
   // WARNING - This relies on USM and SVM using the same implementation,
   // which is not guaranteed.
   // See https://github.com/KhronosGroup/OpenCL-Docs/issues/843
-  const uint32_t NumPointerArgs = pUpdateKernelLaunch->numNewPointerArgs;
+  const uint32_t NumPointerArgs = pUpdateKernelLaunch.numNewPointerArgs;
   const ur_exp_command_buffer_update_pointer_arg_desc_t *ArgPointerList =
-      pUpdateKernelLaunch->pNewPointerArgList;
+      pUpdateKernelLaunch.pNewPointerArgList;
 
   CLUSMArgs.resize(NumPointerArgs);
   for (uint32_t i = 0; i < NumPointerArgs; i++) {
@@ -491,13 +491,13 @@ void updateKernelPointerArgs(
 
 void updateKernelArgs(std::vector<cl_mutable_dispatch_arg_khr> &CLArgs,
                       const ur_exp_command_buffer_update_kernel_launch_desc_t
-                          *pUpdateKernelLaunch) {
-  const uint32_t NumMemobjArgs = pUpdateKernelLaunch->numNewMemObjArgs;
+                          &pUpdateKernelLaunch) {
+  const uint32_t NumMemobjArgs = pUpdateKernelLaunch.numNewMemObjArgs;
   const ur_exp_command_buffer_update_memobj_arg_desc_t *ArgMemobjList =
-      pUpdateKernelLaunch->pNewMemObjArgList;
-  const uint32_t NumValueArgs = pUpdateKernelLaunch->numNewValueArgs;
+      pUpdateKernelLaunch.pNewMemObjArgList;
+  const uint32_t NumValueArgs = pUpdateKernelLaunch.numNewValueArgs;
   const ur_exp_command_buffer_update_value_arg_desc_t *ArgValueList =
-      pUpdateKernelLaunch->pNewValueArgList;
+      pUpdateKernelLaunch.pNewValueArgList;
 
   for (uint32_t i = 0; i < NumMemobjArgs; i++) {
     const ur_exp_command_buffer_update_memobj_arg_desc_t &URMemObjArg =
@@ -525,43 +525,52 @@ void updateKernelArgs(std::vector<cl_mutable_dispatch_arg_khr> &CLArgs,
 }
 
 ur_result_t validateCommandDesc(
-    ur_exp_command_buffer_command_handle_t Command,
-    const ur_exp_command_buffer_update_kernel_launch_desc_t *UpdateDesc) {
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) {
+  if (!CommandBuffer->IsFinalized || !CommandBuffer->IsUpdatable) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  auto Command = UpdateDesc.hCommand;
+  if (CommandBuffer != Command->hCommandBuffer) {
+    return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP;
+  }
+
   // Kernel handle updates are not yet supported.
-  if (UpdateDesc->hNewKernel && UpdateDesc->hNewKernel != Command->Kernel) {
+  if (UpdateDesc.hNewKernel && UpdateDesc.hNewKernel != Command->Kernel) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   // Error if work-dim has changed but a new global size/offset hasn't been set
-  if (UpdateDesc->newWorkDim != Command->WorkDim &&
-      (!UpdateDesc->pNewGlobalWorkOffset || !UpdateDesc->pNewGlobalWorkSize)) {
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (UpdateDesc.newWorkDim != Command->WorkDim &&
+      (!UpdateDesc.pNewGlobalWorkOffset || !UpdateDesc.pNewGlobalWorkSize)) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   // Verify that the device supports updating the aspects of the kernel that
   // the user is requesting.
-  ur_device_handle_t URDevice = Command->hCommandBuffer->hDevice;
+  ur_device_handle_t URDevice = CommandBuffer->hDevice;
   cl_device_id CLDevice = cl_adapter::cast<cl_device_id>(URDevice);
 
   ur_device_command_buffer_update_capability_flags_t UpdateCapabilities = 0;
   CL_RETURN_ON_FAILURE(
       getDeviceCommandBufferUpdateCapabilities(CLDevice, UpdateCapabilities));
 
-  size_t *NewGlobalWorkOffset = UpdateDesc->pNewGlobalWorkOffset;
+  size_t *NewGlobalWorkOffset = UpdateDesc.pNewGlobalWorkOffset;
   UR_ASSERT(
       !NewGlobalWorkOffset ||
           (UpdateCapabilities &
            UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET),
       UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 
-  size_t *NewLocalWorkSize = UpdateDesc->pNewLocalWorkSize;
+  size_t *NewLocalWorkSize = UpdateDesc.pNewLocalWorkSize;
   UR_ASSERT(
       !NewLocalWorkSize ||
           (UpdateCapabilities &
            UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE),
       UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 
-  size_t *NewGlobalWorkSize = UpdateDesc->pNewGlobalWorkSize;
+  size_t *NewGlobalWorkSize = UpdateDesc.pNewGlobalWorkSize;
   UR_ASSERT(
       !NewGlobalWorkSize ||
           (UpdateCapabilities &
@@ -574,8 +583,8 @@ ur_result_t validateCommandDesc(
       UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 
   UR_ASSERT(
-      (!UpdateDesc->numNewMemObjArgs && !UpdateDesc->numNewPointerArgs &&
-       !UpdateDesc->numNewValueArgs) ||
+      (!UpdateDesc.numNewMemObjArgs && !UpdateDesc.numNewPointerArgs &&
+       !UpdateDesc.numNewValueArgs) ||
           (UpdateCapabilities &
            UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS),
       UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
@@ -585,78 +594,97 @@ ur_result_t validateCommandDesc(
 } // end anonymous namespace
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
+    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
+  for (uint32_t i = 0; i < numKernelUpdates; i++) {
+    UR_RETURN_ON_FAILURE(
+        validateCommandDesc(hCommandBuffer, pUpdateKernelLaunch[i]));
+  }
 
-  UR_RETURN_ON_FAILURE(validateCommandDesc(hCommand, pUpdateKernelLaunch));
-
-  ur_exp_command_buffer_handle_t hCommandBuffer = hCommand->hCommandBuffer;
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
-
   cl_ext::clUpdateMutableCommandsKHR_fn clUpdateMutableCommandsKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clUpdateMutableCommandsKHR)>(
           CLContext, cl_ext::ExtFuncPtrCache->clUpdateMutableCommandsKHRCache,
           cl_ext::UpdateMutableCommandsName, &clUpdateMutableCommandsKHR));
 
-  if (!hCommandBuffer->IsFinalized || !hCommandBuffer->IsUpdatable)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  std::vector<cl_mutable_dispatch_config_khr> ConfigList(numKernelUpdates);
+  std::vector<std::vector<cl_mutable_dispatch_arg_khr>> CLUSMArgsList(
+      numKernelUpdates);
+  std::vector<std::vector<cl_mutable_dispatch_arg_khr>> CLArgsList(
+      numKernelUpdates);
 
-  // Find the CL USM pointer arguments to the kernel to update
-  std::vector<cl_mutable_dispatch_arg_khr> CLUSMArgs;
-  updateKernelPointerArgs(CLUSMArgs, pUpdateKernelLaunch);
-
-  // Find the memory object and scalar arguments to the kernel to update
-  std::vector<cl_mutable_dispatch_arg_khr> CLArgs;
-
-  updateKernelArgs(CLArgs, pUpdateKernelLaunch);
-
-  // Find the updated ND-Range configuration of the kernel.
-  std::vector<size_t> CLGlobalWorkOffset, CLGlobalWorkSize, CLLocalWorkSize;
-  cl_uint &CommandWorkDim = hCommand->WorkDim;
+  std::vector<std::vector<size_t>> CLGlobalWorkOffsetList(numKernelUpdates);
+  std::vector<std::vector<size_t>> CLGlobalWorkSizeList(numKernelUpdates);
+  std::vector<std::vector<size_t>> CLLocalWorkSizeList(numKernelUpdates);
 
   // Lambda for N-Dimensional update
-  auto updateNDRange = [CommandWorkDim](std::vector<size_t> &NDRange,
-                                        size_t *UpdatePtr) {
-    NDRange.resize(CommandWorkDim, 0);
-    const size_t CopySize = sizeof(size_t) * CommandWorkDim;
+  auto updateNDRange = [](std::vector<size_t> &NDRange, cl_uint WorkDim,
+                          size_t *UpdatePtr) {
+    NDRange.resize(WorkDim, 0);
+    const size_t CopySize = sizeof(size_t) * WorkDim;
     std::memcpy(NDRange.data(), UpdatePtr, CopySize);
   };
 
-  if (auto GlobalWorkOffsetPtr = pUpdateKernelLaunch->pNewGlobalWorkOffset) {
-    updateNDRange(CLGlobalWorkOffset, GlobalWorkOffsetPtr);
+  for (uint32_t i = 0; i < numKernelUpdates; i++) {
+    cl_mutable_dispatch_config_khr &Config = ConfigList[i];
+    std::vector<cl_mutable_dispatch_arg_khr> &CLUSMArgs = CLUSMArgsList[i];
+    std::vector<cl_mutable_dispatch_arg_khr> &CLArgs = CLArgsList[i];
+    std::vector<size_t> &CLGlobalWorkOffset = CLGlobalWorkOffsetList[i];
+    std::vector<size_t> &CLGlobalWorkSize = CLGlobalWorkSizeList[i];
+    std::vector<size_t> &CLLocalWorkSize = CLLocalWorkSizeList[i];
+
+    const auto &UpdateDesc = pUpdateKernelLaunch[i];
+    // Find the CL USM pointer arguments to the kernel to update
+    updateKernelPointerArgs(CLUSMArgs, UpdateDesc);
+
+    // Find the memory object and scalar arguments to the kernel to update
+    updateKernelArgs(CLArgs, UpdateDesc);
+
+    // Find the updated ND-Range configuration of the kernel.
+    auto Command = UpdateDesc.hCommand;
+    cl_uint &CommandWorkDim = Command->WorkDim;
+
+    if (auto GlobalWorkOffsetPtr = UpdateDesc.pNewGlobalWorkOffset) {
+      updateNDRange(CLGlobalWorkOffset, CommandWorkDim, GlobalWorkOffsetPtr);
+    }
+
+    if (auto GlobalWorkSizePtr = UpdateDesc.pNewGlobalWorkSize) {
+      updateNDRange(CLGlobalWorkSize, CommandWorkDim, GlobalWorkSizePtr);
+    }
+
+    if (auto LocalWorkSizePtr = UpdateDesc.pNewLocalWorkSize) {
+      updateNDRange(CLLocalWorkSize, CommandWorkDim, LocalWorkSizePtr);
+    }
+
+    cl_mutable_command_khr CLCommand =
+        cl_adapter::cast<cl_mutable_command_khr>(Command->CLMutableCommand);
+    Config = cl_mutable_dispatch_config_khr{
+        CLCommand,
+        static_cast<cl_uint>(CLArgs.size()),    // num_args
+        static_cast<cl_uint>(CLUSMArgs.size()), // num_svm_args
+        0,                                      // num_exec_infos
+        CommandWorkDim,                         // work_dim
+        CLArgs.data(),                          // arg_list
+        CLUSMArgs.data(),                       // arg_svm_list
+        nullptr,                                // exec_info_list
+        CLGlobalWorkOffset.data(),              // global_work_offset
+        CLGlobalWorkSize.data(),                // global_work_size
+        CLLocalWorkSize.data(),                 // local_work_size
+    };
   }
 
-  if (auto GlobalWorkSizePtr = pUpdateKernelLaunch->pNewGlobalWorkSize) {
-    updateNDRange(CLGlobalWorkSize, GlobalWorkSizePtr);
+  cl_uint NumConfigs = ConfigList.size();
+  std::vector<cl_command_buffer_update_type_khr> ConfigTypes(
+      NumConfigs, CL_STRUCTURE_TYPE_MUTABLE_DISPATCH_CONFIG_KHR);
+  std::vector<const void *> ConfigPtrs(NumConfigs);
+  for (cl_uint i = 0; i < NumConfigs; i++) {
+    ConfigPtrs[i] = &ConfigList[i];
   }
-
-  if (auto LocalWorkSizePtr = pUpdateKernelLaunch->pNewLocalWorkSize) {
-    updateNDRange(CLLocalWorkSize, LocalWorkSizePtr);
-  }
-
-  cl_mutable_command_khr command =
-      cl_adapter::cast<cl_mutable_command_khr>(hCommand->CLMutableCommand);
-  cl_mutable_dispatch_config_khr dispatch_config = {
-      command,
-      static_cast<cl_uint>(CLArgs.size()),    // num_args
-      static_cast<cl_uint>(CLUSMArgs.size()), // num_svm_args
-      0,                                      // num_exec_infos
-      CommandWorkDim,                         // work_dim
-      CLArgs.data(),                          // arg_list
-      CLUSMArgs.data(),                       // arg_svm_list
-      nullptr,                                // exec_info_list
-      CLGlobalWorkOffset.data(),              // global_work_offset
-      CLGlobalWorkSize.data(),                // global_work_size
-      CLLocalWorkSize.data(),                 // local_work_size
-  };
-  cl_uint num_configs = 1;
-  cl_command_buffer_update_type_khr config_types[1] = {
-      CL_STRUCTURE_TYPE_MUTABLE_DISPATCH_CONFIG_KHR};
-  const void *configs[1] = {&dispatch_config};
   CL_RETURN_ON_FAILURE(clUpdateMutableCommandsKHR(
-      hCommandBuffer->CLCommandBuffer, num_configs, config_types, configs));
+      hCommandBuffer->CLCommandBuffer, NumConfigs, ConfigTypes.data(),
+      (const void **)ConfigPtrs.data()));
 
   return UR_RESULT_SUCCESS;
 }
@@ -695,7 +723,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     return ReturnValue(Descriptor);
   }
   default:
-    assert(!"Command-buffer info request not implemented");
+    assert(false && "Command-buffer info request not implemented");
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;

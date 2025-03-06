@@ -309,8 +309,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
-      "intel_gpu_acm_g12", "intel_gpu_dg2_10",  "intel_gpu_dg2_11",
-      "intel_dg2_g12",     "intel_gpu_bmg_g21"};
+      "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
+      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -351,7 +351,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
-             Device.starts_with("dg2") || Device.starts_with("bmg");
+             Device.starts_with("dg2") || Device.starts_with("bmg") ||
+             Device.starts_with("lnl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {
@@ -618,6 +619,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       // For DG2, we just use libsycl-msan as placeholder.
       {"libsycl-msan", "internal"},
       {"libsycl-msan-pvc", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceTsanLibs = {{"libsycl-tsan", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
@@ -758,8 +760,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    SyclFEEQArgVals.end());
     ArgVals.insert(ArgVals.end(), ArchDeviceVals.begin(), ArchDeviceVals.end());
 
-    // Driver will report error if address sanitizer and memory sanitizer are
-    // both enabled, so we only need to check first one here.
+    // Driver will report error if more than one of address sanitizer, memory
+    // sanitizer or thread sanitizer is enabled, so we only need to check first
+    // one here.
     for (const std::string &Arg : ArgVals) {
       if (Arg.find("-fsanitize=address") != std::string::npos) {
         SanitizeVal = "address";
@@ -769,6 +772,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
         SanitizeVal = "memory";
         break;
       }
+      if (Arg.find("-fsanitize=thread") != std::string::npos) {
+        SanitizeVal = "thread";
+        break;
+      }
     }
   }
 
@@ -776,6 +783,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   else if (SanitizeVal == "memory")
     addSingleLibrary(SYCLDeviceMsanLibs[sanitizer_lib_idx]);
+  else if (SanitizeVal == "thread")
+    addLibraries(SYCLDeviceTsanLibs);
 #endif
 
   if (isNativeCPU)
@@ -898,6 +907,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "msan",
     "msan-pvc",
     "msan-cpu",
+    "tsan",
 #endif
     "imf",
     "imf-fp64",
@@ -1739,11 +1749,12 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
       if (SupportedByNativeCPU(*this, Opt))
         continue;
       // All sanitizer options are not currently supported, except
-      // AddressSanitizer and MemorySanitizer
+      // AddressSanitizer and MemorySanitizer and ThreadSanitizer
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
           A->getValues().size() == 1) {
         std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address" || SanitizeVal == "memory")
+        if (SanitizeVal == "address" || SanitizeVal == "memory" ||
+            SanitizeVal == "thread")
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
@@ -1784,7 +1795,8 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();
-          if (SanitizeVal == "address" || SanitizeVal == "memory") {
+          if (SanitizeVal == "address" || SanitizeVal == "memory" ||
+              SanitizeVal == "thread") {
             if (IsNewDAL)
               DAL->append(A);
             continue;
@@ -2202,5 +2214,5 @@ void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 }
 
 SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
-  return SanitizerKind::Address | SanitizerKind::Memory;
+  return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }
