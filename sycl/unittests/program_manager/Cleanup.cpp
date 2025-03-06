@@ -17,7 +17,8 @@ public:
     return m_KernelIDs2BinImage;
   }
 
-  std::unordered_map<std::string, sycl::kernel_id> &getKernelName2KernelID() {
+  std::unordered_map<std::string_view, sycl::kernel_id> &
+  getKernelName2KernelID() {
     return m_KernelName2KernelIDs;
   }
 
@@ -27,12 +28,14 @@ public:
     return m_BinImg2KernelIDs;
   }
 
-  std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *> &
+  std::unordered_multimap<std::string_view,
+                          sycl::detail::RTDeviceBinaryImage *> &
   getServiceKernels() {
     return m_ServiceKernels;
   }
 
-  std::unordered_multimap<std::string, sycl::detail::RTDeviceBinaryImage *> &
+  std::unordered_multimap<std::string_view,
+                          sycl::detail::RTDeviceBinaryImage *> &
   getExportedSymbolImages() {
     return m_ExportedSymbolImages;
   }
@@ -43,7 +46,7 @@ public:
     return m_DeviceImages;
   }
 
-  std::unordered_map<std::string,
+  std::unordered_map<std::string_view,
                      std::set<sycl::detail::RTDeviceBinaryImage *>> &
   getVFSet2BinImage() {
     return m_VFSet2BinImage;
@@ -59,14 +62,16 @@ public:
 
   std::unordered_map<
       const sycl::detail::RTDeviceBinaryImage *,
-      std::unordered_map<std::string, sycl::detail::KernelArgMask>> &
+      std::unordered_map<std::string_view, sycl::detail::KernelArgMask>> &
   getEliminatedKernelArgMask() {
     return m_EliminatedKernelArgMasks;
   }
 
-  std::set<std::string> &getKernelUsesAssert() { return m_KernelUsesAssert; }
+  std::set<std::string_view> &getKernelUsesAssert() {
+    return m_KernelUsesAssert;
+  }
 
-  std::unordered_map<std::string, int> &getKernelImplicitLocalArgPos() {
+  std::unordered_map<std::string_view, int> &getKernelImplicitLocalArgPos() {
     return m_KernelImplicitLocalArgPos;
   }
 

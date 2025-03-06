@@ -660,7 +660,7 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
 
 ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
-    const std::string &KernelName,
+    std::string_view KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
 #ifndef _WIN32
   if (!BinImage) {
@@ -710,7 +710,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
       ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
 
   auto MaterializerResult =
-      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
+      MaterializeSpecConstHandle(KernelName.data(), BinInfo, SpecConstBlob);
   if (MaterializerResult.failed()) {
     std::string Message{"Compilation for kernel failed with message:\n"};
     Message.append(MaterializerResult.getErrorMessage());
