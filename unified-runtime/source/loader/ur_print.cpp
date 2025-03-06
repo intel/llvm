@@ -1888,6 +1888,15 @@ ur_result_t urPrintEventGetNativeHandleParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintEventHostSignalParams(const struct ur_event_host_signal_params_t *params,
+                             char *buffer, const size_t buff_size,
+                             size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintEventCreateWithNativeHandleParams(
     const struct ur_event_create_with_native_handle_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {

@@ -5378,6 +5378,48 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventHostSignal
+__urdlllocal ur_result_t UR_APICALL urEventHostSignal(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_event_host_signal_params_t params = {&hEvent};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urEventHostSignal"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urEventHostSignal"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urEventHostSignal"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     /// [in][nocheck] the native handle of the event.
@@ -11919,6 +11961,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   pDdiTable->pfnRelease = driver::urEventRelease;
 
   pDdiTable->pfnGetNativeHandle = driver::urEventGetNativeHandle;
+
+  pDdiTable->pfnHostSignal = driver::urEventHostSignal;
 
   pDdiTable->pfnCreateWithNativeHandle = driver::urEventCreateWithNativeHandle;
 

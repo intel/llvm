@@ -453,6 +453,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_POOL_TRIM_TO_EXP = 261,
   /// Enumerator for ::urUSMPoolGetInfoExp
   UR_FUNCTION_USM_POOL_GET_INFO_EXP = 262,
+  /// Enumerator for ::urEventHostSignal
+  UR_FUNCTION_EVENT_HOST_SIGNAL = 263,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -7370,6 +7372,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_native_handle_t *phNativeEvent);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Signals an event from host
+///
+/// @remarks
+///   _Analogues_
+///     - **clSetUserEventStatus**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hEvent`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urEventHostSignal(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Properties for for ::urEventCreateWithNativeHandle.
 typedef struct ur_event_native_properties_t {
   /// [in] type of this structure, must be
@@ -12827,6 +12850,14 @@ typedef struct ur_event_get_native_handle_params_t {
   ur_event_handle_t *phEvent;
   ur_native_handle_t **pphNativeEvent;
 } ur_event_get_native_handle_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEventHostSignal
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_event_host_signal_params_t {
+  ur_event_handle_t *phEvent;
+} ur_event_host_signal_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEventCreateWithNativeHandle

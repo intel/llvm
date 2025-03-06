@@ -4895,6 +4895,35 @@ ur_result_t UR_APICALL urEventGetNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Signals an event from host
+///
+/// @remarks
+///   _Analogues_
+///     - **clSetUserEventStatus**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hEvent`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urEventHostSignal(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent) try {
+  auto pfnHostSignal = ur_lib::getContext()->urDdiTable.Event.pfnHostSignal;
+  if (nullptr == pfnHostSignal)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnHostSignal(hEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Create runtime event object from native event handle.
 ///
 /// @details

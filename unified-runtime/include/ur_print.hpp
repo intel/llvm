@@ -1222,6 +1222,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_USM_POOL_GET_INFO_EXP:
     os << "UR_FUNCTION_USM_POOL_GET_INFO_EXP";
     break;
+  case UR_FUNCTION_EVENT_HOST_SIGNAL:
+    os << "UR_FUNCTION_EVENT_HOST_SIGNAL";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -12617,6 +12620,21 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_event_host_signal_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_event_host_signal_params_t *params) {
+
+  os << ".hEvent = ";
+
+  ur::details::printPtr(os, *(params->phEvent));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_event_create_with_native_handle_params_t
 /// type
 /// @returns
@@ -20353,6 +20371,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_EVENT_GET_NATIVE_HANDLE: {
     os << (const struct ur_event_get_native_handle_params_t *)params;
+  } break;
+  case UR_FUNCTION_EVENT_HOST_SIGNAL: {
+    os << (const struct ur_event_host_signal_params_t *)params;
   } break;
   case UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE: {
     os << (const struct ur_event_create_with_native_handle_params_t *)params;

@@ -4382,6 +4382,39 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventHostSignal
+__urdlllocal ur_result_t UR_APICALL urEventHostSignal(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent) {
+  auto pfnHostSignal = getContext()->urDdiTable.Event.pfnHostSignal;
+
+  if (nullptr == pfnHostSignal)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_event_host_signal_params_t params = {&hEvent};
+  uint64_t instance = getContext()->notify_begin(UR_FUNCTION_EVENT_HOST_SIGNAL,
+                                                 "urEventHostSignal", &params);
+
+  auto &logger = getContext()->logger;
+  logger.info("   ---> urEventHostSignal\n");
+
+  ur_result_t result = pfnHostSignal(hEvent);
+
+  getContext()->notify_end(UR_FUNCTION_EVENT_HOST_SIGNAL, "urEventHostSignal",
+                           &params, &result, instance);
+
+  if (logger.getLevel() <= logger::Level::INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_HOST_SIGNAL,
+                                    &params);
+    logger.info("   <--- urEventHostSignal({}) -> {};\n", args_str.str(),
+                result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     /// [in][nocheck] the native handle of the event.
@@ -10165,6 +10198,9 @@ __urdlllocal ur_result_t UR_APICALL urGetEventProcAddrTable(
 
   dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
   pDdiTable->pfnGetNativeHandle = ur_tracing_layer::urEventGetNativeHandle;
+
+  dditable.pfnHostSignal = pDdiTable->pfnHostSignal;
+  pDdiTable->pfnHostSignal = ur_tracing_layer::urEventHostSignal;
 
   dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =
