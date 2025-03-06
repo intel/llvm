@@ -10,25 +10,25 @@ on:
   # "Require approval for all outside collaborators" at
   # https://github.com/intel/llvm/settings/actions for security.
   pull_request:
-    branches:
-    - sycl
-    - sycl-rel-**
-    - ur-sycl-binary
-    # Do not run builds if changes are only in the following locations
-    paths-ignore:
-    - '.github/ISSUE_TEMPLATE/**'
-    - '.github/CODEOWNERS'
-    - 'sycl/doc/**'
-    - 'sycl/gdb/**'
-    - 'clang/docs/**'
-    - '**.md'
-    - '**.rst'
-    - '.github/workflows/sycl-windows-*.yml'
-    - '.github/workflows/sycl-macos-*.yml'
-    - '.github/workflows/sycl-nightly.yml'
-    - '.github/workflows/sycl-rel-nightly.yml'
-    - 'devops/containers/**'
-    - 'devops/actions/build_container/**'
+    # branches:
+    # - sycl
+    # - sycl-rel-**
+    # - ur-sycl-binary
+    # # Do not run builds if changes are only in the following locations
+    # paths-ignore:
+    # - '.github/ISSUE_TEMPLATE/**'
+    # - '.github/CODEOWNERS'
+    # - 'sycl/doc/**'
+    # - 'sycl/gdb/**'
+    # - 'clang/docs/**'
+    # - '**.md'
+    # - '**.rst'
+    # - '.github/workflows/sycl-windows-*.yml'
+    # - '.github/workflows/sycl-macos-*.yml'
+    # - '.github/workflows/sycl-nightly.yml'
+    # - '.github/workflows/sycl-rel-nightly.yml'
+    # - 'devops/containers/**'
+    # - 'devops/actions/build_container/**'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
