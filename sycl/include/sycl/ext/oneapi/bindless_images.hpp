@@ -917,13 +917,14 @@ std::enable_if_t<std::is_same_v<DataT, float4> || std::is_same_v<DataT, int4> ||
 gather_image(const sampled_image_handle &imageHandle [[maybe_unused]],
              const float2 &coords [[maybe_unused]],
              const int i [[maybe_unused]] = 0) {
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return __invoke__SampledImageGather<DataT>(
       CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, float2::size()),
       coords, i);
 #else
-  throw exception(make_error_code(errc::runtime),
-                  "Bindless images not yet implemented on host.");
+  throw exception(
+      make_error_code(errc::runtime),
+      "gather_image is only currently supported on the cuda backend");
 #endif
 }
 
