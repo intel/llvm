@@ -1306,8 +1306,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     for (auto &Binary : Binaries) {
       auto BinTriple = Binary.getBinary()->getTriple();
       if (BinTriple == Triple.getTriple()) {
-        auto FileNameOrErr = writeOffloadFile(Binary,
-                                              true /* HasSYCLOffloadKind */);
+        auto FileNameOrErr =
+            writeOffloadFile(Binary, true /* HasSYCLOffloadKind */);
         if (!FileNameOrErr)
           return FileNameOrErr.takeError();
         ExtractedDeviceLibFiles.emplace_back(*FileNameOrErr);
