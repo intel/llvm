@@ -2087,8 +2087,9 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_VERSION = 70,
   /// [char[]] null-terminated version of backend runtime
   UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,
-  /// [char[]] Return a null-terminated space separated list of extension
-  /// names
+  /// [char[]] Return a null-terminated string representing any backend
+  /// extensions supported by the adapter. Format and content is entirely
+  /// adapter defined.
   UR_DEVICE_INFO_EXTENSIONS = 72,
   /// [size_t] Maximum size in bytes of internal printf buffer
   UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,
@@ -2320,6 +2321,17 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP = 0x2050,
+  /// [::ur_bool_t] Returns true if the device supports the use of kernel
+  /// launch properties.
+  UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP = 0x3000,
+  /// [::ur_bool_t] Returns true if the device supports the USM P2P
+  /// experimental feature.
+  UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
+  /// [::ur_bool_t] Returns true if the device supports cooperative kernels.
+  UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP = 0x5000,
+  /// [::ur_bool_t] Returns true if the device supports the multi device
+  /// compile experimental feature.
+  UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP = 0x6000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2345,7 +2357,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP < propName`
+///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -10422,13 +10434,6 @@ typedef enum ur_exp_command_buffer_command_info_t {
 } ur_exp_command_buffer_command_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for command-buffers which
-///        is returned when querying device extensions.
-#define UR_COMMAND_BUFFER_EXTENSION_STRING_EXP "ur_exp_command_buffer"
-#endif // UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-Buffer Descriptor Type
 typedef struct ur_exp_command_buffer_desc_t {
   /// [in] type of this structure, must be
@@ -11723,13 +11728,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 #pragma region cooperative_kernels_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for cooperative-kernels
-///        which is returned when querying device extensions.
-#define UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP "ur_exp_cooperative_kernels"
-#endif // UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to execute a cooperative kernel
 ///
 /// @returns
@@ -11879,13 +11877,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 #pragma region launch_properties_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
-/// @brief The extension string that defines support for the Launch Properties
-///        extension, which is returned when querying device extensions.
-#define UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP "ur_exp_launch_properties"
-#endif // UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Specifies a launch property id
 ///
 /// @remarks
@@ -12031,14 +12022,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 #if !defined(__GNUC__)
 #pragma region multi_device_compile_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for test
-///        which is returned when querying device extensions.
-#define UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP                           \
-  "ur_exp_multi_device_compile"
-#endif // UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Produces an executable program from one program, negates need for the
 ///        linking step.
@@ -12226,13 +12209,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(
 #if !defined(__GNUC__)
 #pragma region usm_p2p_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_USM_P2P_EXTENSION_STRING_EXP
-/// @brief The extension string that defines support for USM P2P which is
-///        returned when querying device extensions.
-#define UR_USM_P2P_EXTENSION_STRING_EXP "ur_exp_usm_p2p"
-#endif // UR_USM_P2P_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported peer info
 typedef enum ur_exp_peer_info_t {

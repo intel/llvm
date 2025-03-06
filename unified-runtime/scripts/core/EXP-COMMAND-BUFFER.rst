@@ -40,36 +40,14 @@ Querying Command-Buffer Support
 --------------------------------------------------------------------------------
 
 Support for command-buffers can be queried for a given device/adapter by using
-the device info query with ${X}_DEVICE_INFO_EXTENSIONS. Adapters supporting this
-experimental feature will report the string "ur_exp_command_buffer" in the
-returned list of supported extensions.
-
-.. hint::
-    The macro ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP is defined for the string
-    returned from extension queries for this feature. Since the actual string
-    may be subject to change it is safer to use this macro when querying for
-    support for this experimental feature.
+the device info query with ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP. Adapters
+supporting this experimental feature will report ``true``.
 
 .. parsed-literal::
 
-    // Retrieve length of extension string
-    size_t returnedSize;
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-                    &returnedSize);
-
-    // Retrieve extension string
-    std::unique_ptr<char[]> returnedExtensions(new char[returnedSize]);
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_EXTENSIONS, returnedSize,
-                      returnedExtensions.get(), nullptr);
-
-    std::string_view ExtensionsString(returnedExtensions.get());
-    bool CmdBufferSupport =
-        ExtensionsString.find(${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP)
-            != std::string::npos;
-
-.. note::
-    The ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP device info query exists to
-    serve the same purpose as ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP.
+    ur_bool_t CmdBufferSupport = false;
+    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+                      sizeof(CmdBufferSupport), &CmdBufferSupport, nullptr);
 
 Command-Buffer Creation
 --------------------------------------------------------------------------------
@@ -402,10 +380,6 @@ ${x}CommandBufferUpdateSignalEventExp there must also have been a non-null
 API
 --------------------------------------------------------------------------------
 
-Macros
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP
-
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_device_info_t
@@ -518,6 +492,9 @@ Changelog
 | 1.8       | Change Kernel command update API to take a list       |
 +-----------+-------------------------------------------------------+
 | 1.9       | Rename enqueue API to urEnqueueCommandBufferExp       |
++-----------+-------------------------------------------------------+
+| 1.10      | Remove extension string macro, make device info enum  |
+|           | primary mechanism for reporting support.              |
 +-----------+-------------------------------------------------------+
 
 Contributors
