@@ -17,7 +17,7 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
-from presets import Presets
+from presets import preset_get_by_name, presets
 
 import argparse
 import re
@@ -440,9 +440,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--preset",
         type=str,
-        choices=[p.name for p in Presets],
+        choices=[p.name() for p in presets],
         help="Benchmark preset to run.",
-        default="FULL",
+        default=options.preset.name(),
     )
 
     args = parser.parse_args()
@@ -469,7 +469,7 @@ if __name__ == "__main__":
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
-    options.preset = Presets[args.preset].value()
+    options.preset = preset_get_by_name(args.preset)
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
