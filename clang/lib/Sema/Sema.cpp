@@ -2094,11 +2094,11 @@ Sema::targetDiag(SourceLocation Loc, unsigned DiagID, const FunctionDecl *FD) {
                ? OpenMP().diagIfOpenMPDeviceCode(Loc, DiagID, FD)
                : OpenMP().diagIfOpenMPHostCode(Loc, DiagID, FD);
 
-  // if SYCLCUDACompat is active, use the SYCL logic instead of CUDA when
+  // If SYCLCUDACompat is active, use the SYCL logic instead of CUDA when
   // compiling the device side but the CUDA logic when compiling the host side.
   // When compiling the device side, we need this as CUDA looks for the presence
-  // of __device__ and co to emit or defer diagnostics. These aren't always
-  // there as SYCL doesn't use such attribute.
+  // of __device__, __host__ etc. attributes to emit or defer diagnostics. These
+  // aren't always there as SYCL doesn't use such attribute.
   if (getLangOpts().CUDA && !getLangOpts().SYCLCUDACompat)
     return getLangOpts().CUDAIsDevice ? CUDA().DiagIfDeviceCode(Loc, DiagID)
                                       : CUDA().DiagIfHostCode(Loc, DiagID);
