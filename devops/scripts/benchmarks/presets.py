@@ -3,22 +3,23 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from enum import Enum
-
+from typing import List, Type
 
 class Preset:
-    def description(self):
-        pass
+    def description(self) -> str:
+        raise NotImplementedError
 
-    def suites(self) -> list[str]:
-        return []
+    def name(self) -> str:
+        return self.__class__.__name__
 
+    def suites(self) -> List[str]:
+        raise NotImplementedError
 
 class Full(Preset):
-    def description(self):
+    def description(self) -> str:
         return "All available benchmarks."
 
-    def suites(self) -> list[str]:
+    def suites(self) -> List[str]:
         return [
             "Compute Benchmarks",
             "llama.cpp bench",
@@ -27,42 +28,38 @@ class Full(Preset):
             "UMF",
         ]
 
-
 class SYCL(Preset):
-    def description(self):
+    def description(self) -> str:
         return "All available benchmarks related to SYCL."
 
-    def suites(self) -> list[str]:
+    def suites(self) -> List[str]:
         return ["Compute Benchmarks", "llama.cpp bench", "SYCL-Bench", "Velocity Bench"]
 
-
 class Minimal(Preset):
-    def description(self):
+    def description(self) -> str:
         return "Short microbenchmarks."
 
-    def suites(self) -> list[str]:
+    def suites(self) -> List[str]:
         return ["Compute Benchmarks"]
-
 
 class Normal(Preset):
-    def description(self):
+    def description(self) -> str:
         return "Comprehensive mix of microbenchmarks and real applications."
 
-    def suites(self) -> list[str]:
-        return ["Compute Benchmarks"]
-
+    def suites(self) -> List[str]:
+        return ["Compute Benchmarks", "llama.cpp bench", "Velocity Bench"]
 
 class Test(Preset):
-    def description(self):
+    def description(self) -> str:
         return "Noop benchmarks for framework testing."
 
-    def suites(self) -> list[str]:
+    def suites(self) -> List[str]:
         return ["Test Suite"]
 
+presets = [Full(), SYCL(), Minimal(), Normal(), Test()]
 
-class Presets(Enum):
-    FULL = Full
-    SYCL = SYCL  # Nightly
-    NORMAL = Normal  # PR
-    MINIMAL = Minimal  # Quick smoke tests
-    TEST = Test
+def preset_get_by_name(name: str) -> Preset:
+    for p in presets:
+        if p.name().upper() == name.upper():
+            return p
+    raise ValueError(f"Preset '{name}' not found.")
