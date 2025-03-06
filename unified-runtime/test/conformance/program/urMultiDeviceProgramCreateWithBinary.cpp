@@ -326,7 +326,7 @@ TEST_P(urMultiDeviceCommandBufferExpTest, Enqueue) {
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
     // Verify execution succeeds
-    ASSERT_SUCCESS(urCommandBufferEnqueueExp(cmd_buf_handle, queues[i], 0,
+    ASSERT_SUCCESS(urEnqueueCommandBufferExp(queues[i], cmd_buf_handle, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }
@@ -358,7 +358,7 @@ TEST_P(urMultiDeviceCommandBufferExpTest, Update) {
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
     // Verify execution succeeds
-    ASSERT_SUCCESS(urCommandBufferEnqueueExp(cmd_buf_handle, queues[i], 0,
+    ASSERT_SUCCESS(urEnqueueCommandBufferExp(queues[i], cmd_buf_handle, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
 
@@ -381,7 +381,7 @@ TEST_P(urMultiDeviceCommandBufferExpTest, Update) {
     };
     ASSERT_SUCCESS(
         urCommandBufferUpdateKernelLaunchExp(cmd_buf_handle, 1, &update_desc));
-    ASSERT_SUCCESS(urCommandBufferEnqueueExp(cmd_buf_handle, queues[i], 0,
+    ASSERT_SUCCESS(urEnqueueCommandBufferExp(queues[i], cmd_buf_handle, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queues[i]));
   }

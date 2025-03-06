@@ -12,12 +12,15 @@ type: header
 desc: "Intel $OneApi Unified Runtime Experimental APIs for Cooperative Kernels"
 ordinal: "99"
 --- #--------------------------------------------------------------------------
-type: macro
-desc: |
-      The extension string which defines support for cooperative-kernels
-      which is returned when querying device extensions.
-name: $X_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
-value: "\"$x_exp_cooperative_kernels\""
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums for $x_device_info_t to support cooperative kernels."
+name: $x_device_info_t
+etors:
+    - name: COOPERATIVE_KERNEL_SUPPORT_EXP
+      value: "0x5000"
+      desc: "[$x_bool_t] Returns true if the device supports cooperative kernels."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to execute a cooperative kernel"

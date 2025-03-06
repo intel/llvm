@@ -100,7 +100,10 @@ static bool replaceWithLLVMIR(FPBuiltinIntrinsic &BuiltinCall) {
     break;
   }
   BuiltinCall.replaceAllUsesWith(Replacement);
-  cast<Instruction>(Replacement)->copyFastMathFlags(&BuiltinCall);
+  // ConstantFolder may fold original arguments to a constant, meaning we might
+  // have no instruction anymore.
+  if (auto *ReplacementI = dyn_cast<Instruction>(Replacement))
+    ReplacementI->copyFastMathFlags(&BuiltinCall);
   LLVM_DEBUG(dbgs() << DEBUG_TYPE << ": Replaced call to `"
                     << BuiltinCall.getCalledFunction()->getName()
                     << "` with equivalent IR. \n `");

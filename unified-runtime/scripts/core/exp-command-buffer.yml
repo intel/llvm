@@ -96,8 +96,8 @@ extend: true
 desc: "Extend command type enumeration for Command-Buffer experimental feature."
 name: $x_command_t
 etors:
-    - name: COMMAND_BUFFER_ENQUEUE_EXP
-      desc: Event created by $xCommandBufferEnqueueExp
+    - name: ENQUEUE_COMMAND_BUFFER_EXP
+      desc: Event created by $xEnqueueCommandBufferExp
       value: "0x1000"
 --- #--------------------------------------------------------------------------
 type: enum
@@ -129,11 +129,6 @@ etors:
             [uint32_t] Reference count of the command-buffer object.
             The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
---- #--------------------------------------------------------------------------
-type: macro
-desc: "The extension string which defines support for command-buffers which is returned when querying device extensions."
-name: $X_COMMAND_BUFFER_EXTENSION_STRING_EXP
-value: "\"$x_exp_command_buffer\""
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Command-Buffer Descriptor Type"
@@ -1135,15 +1130,15 @@ returns:
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Submit a command-buffer for execution on a queue."
-class: $xCommandBuffer
-name: EnqueueExp
+class: $xEnqueue
+name: CommandBufferExp
 params:
-    - type: $x_exp_command_buffer_handle_t
-      name: hCommandBuffer
-      desc: "[in] Handle of the command-buffer object."
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] The queue to submit this command-buffer for execution."
+    - type: $x_exp_command_buffer_handle_t
+      name: hCommandBuffer
+      desc: "[in] Handle of the command-buffer object."
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] Size of the event wait list."

@@ -275,21 +275,10 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
   auto waitOnEvent = std::get<0>(getParam()).value;
   auto runBackgroundCheck = std::get<1>(getParam()).value;
 
-  size_t returned_size;
-  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_EXTENSIONS, 0,
-                                 nullptr, &returned_size));
-
-  std::unique_ptr<char[]> returned_extensions(new char[returned_size]);
-
-  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_EXTENSIONS,
-                                 returned_size, returned_extensions.get(),
+  ur_bool_t usm_p2p_support = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP,
+                                 sizeof(usm_p2p_support), &usm_p2p_support,
                                  nullptr));
-
-  std::string_view extensions_string(returned_extensions.get());
-  const bool usm_p2p_support =
-      extensions_string.find(UR_USM_P2P_EXTENSION_STRING_EXP) !=
-      std::string::npos;
-
   if (!usm_p2p_support) {
     GTEST_SKIP() << "EXP usm p2p feature is not supported.";
   }
