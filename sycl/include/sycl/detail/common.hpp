@@ -10,6 +10,8 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/string.hpp>             // for detail::string
+#include <sycl/detail/string_view.hpp>        // for detail::string_view
 
 #include <array>       // for array
 #include <cassert>     // for assert
@@ -379,6 +381,15 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
 // classes.
 struct AllowCTADTag;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+using KernelNameStrT = std::string_view;
+using KernelNameStrRefT = std::string_view;
+using ABINeutralKernelNameStrT = detail::string_view;
+#else
+using KernelNameStrT = std::string;
+using KernelNameStrRefT = const std::string &;
+using ABINeutralKernelNameStrT = detail::string;
+#endif
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
