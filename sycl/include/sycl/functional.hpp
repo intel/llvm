@@ -23,31 +23,34 @@ template <typename T = void> using bit_xor = std::bit_xor<T>;
 
 // std:logical_and/std::logical_or with a non-void type returns bool,
 // sycl requires returning T.
-template <typename T = void> struct logical_and {
+template <typename T = void>
+struct logical_and
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  bool
-#else
-  T
+    : std::logical_and<T>
 #endif
-  operator()(const T &lhs, const T &rhs) const {
-    return lhs && rhs;
-  }
-};
+{
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  T operator()(const T &lhs, const T &rhs) const { return lhs && rhs; }
+#endif
+}; // namespace _V1
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct logical_and<void> : std::logical_and<void> {};
-
-template <typename T = void> struct logical_or {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  bool
-#else
-  T
 #endif
-  operator()(const T &lhs, const T &rhs) const {
-    return lhs || rhs;
-  }
-};
 
+template <typename T = void>
+struct logical_or
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    : std::logical_or<T>
+#endif
+{
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  T operator()(const T &lhs, const T &rhs) const { return lhs || rhs; }
+#endif
+}; // namespace sycl
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <> struct logical_or<void> : std::logical_or<void> {};
+#endif
 
 // sycl::minimum definition should be consistent with std::min
 template <typename T = void> struct minimum {
