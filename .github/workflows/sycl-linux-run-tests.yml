@@ -126,6 +126,8 @@ on:
           - '["cts-cpu"]'
           - '["Linux", "build"]'
           - '["cuda"]'
+          - '["Linux", "bmg"]'
+          - '["PVC_PERF"]'
       image:
         type: choice
         options:
