@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <cstddef>
+#include "sycl/ext/oneapi/properties/properties.hpp"
 #include <sycl/accessor.hpp>               // for detail::AccessorBaseHost
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
@@ -536,29 +536,18 @@ private:
 };
 } // namespace detail
 
-template <typename DataT,
-          typename = std::enable_if_t<detail::is_unbounded_array_v<DataT>>>
+template <typename DataT, typename PropertyListT = empty_properties_t>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory
 #ifndef __SYCL_DEVICE_ONLY__
     : public detail::dynamic_work_group_memory_base
 #endif
 {
-private:
-  work_group_memory<DataT> WorkGroupMem;
-
-#ifdef __SYCL_DEVICE_ONLY__
-  [[maybe_unused]] unsigned char
-      Padding[sizeof(detail::dynamic_work_group_memory_base)];
-
-  using value_type = std::remove_all_extents_t<DataT>;
-  using decoratedPtr = typename sycl::detail::DecoratedType<
-      value_type, access::address_space::local_space>::type *;
-
-  void __init(decoratedPtr Ptr) { this->WorkGroupMem.__init(Ptr); }
-#endif
-
 public:
+  // Check that DataT is an unbounded array type.
+  static_assert(std::is_array_v<DataT> && std::extent_v<DataT, 0> == 0);
+  static_assert(std::is_same_v<PropertyListT, empty_properties_t>);
+
   // Frontend requires special types to have a default constructor in order to
   // have a uniform way of initializing an object of special type to then call
   // the __init method on it. This is purely an implementation detail and not
@@ -579,7 +568,7 @@ public:
   {
   }
 
-  work_group_memory<DataT> get() const { return WorkGroupMem; }
+  work_group_memory<DataT, PropertyListT> get() const { return WorkGroupMem; }
 
   /// Updates on the host this dynamic_work_group_memory and all registered
   /// nodes with a new buffer size.
@@ -590,6 +579,20 @@ public:
         Num * sizeof(std::remove_extent_t<DataT>));
 #endif
   }
+
+private:
+  work_group_memory<DataT, PropertyListT> WorkGroupMem;
+
+#ifdef __SYCL_DEVICE_ONLY__
+  [[maybe_unused]] unsigned char
+      Padding[sizeof(detail::dynamic_work_group_memory_base)];
+
+  using value_type = std::remove_all_extents_t<DataT>;
+  using decoratedPtr = typename sycl::detail::DecoratedType<
+      value_type, access::address_space::local_space>::type *;
+
+  void __init(decoratedPtr Ptr) { this->WorkGroupMem.__init(Ptr); }
+#endif
 };
 
 template <typename ValueT>
