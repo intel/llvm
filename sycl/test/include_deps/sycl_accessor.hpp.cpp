@@ -31,6 +31,7 @@
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/common.hpp
+// CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: detail/is_device_copyable.hpp
@@ -83,7 +84,6 @@
 // CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
 // CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: platform.hpp
-// CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: usm/usm_enums.hpp

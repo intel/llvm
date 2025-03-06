@@ -32,6 +32,7 @@
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/common.hpp
+// CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: detail/is_device_copyable.hpp
@@ -84,7 +85,6 @@
 // CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
 // CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: platform.hpp
-// CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
 // CHECK-NEXT: usm/usm_enums.hpp
@@ -126,6 +126,7 @@
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/id_queries_fit_in_int.hpp
+// CHECK-NEXT: detail/kernel_name_str_t.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ur_api_funcs.def
