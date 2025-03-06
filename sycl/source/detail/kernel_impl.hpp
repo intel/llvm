@@ -207,6 +207,9 @@ public:
   /// \return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
+  bool isInteropOrSourceBased() const noexcept;
+  bool hasSYCLMetadata() const noexcept;
+
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {

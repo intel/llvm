@@ -215,6 +215,9 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr Context);
 
+  void addImage(sycl_device_binary RawImg,
+                RTDeviceBinaryImage **OutImage = nullptr,
+                std::vector<kernel_id> *OutKernelIDs = nullptr);
   void addImages(sycl_device_binaries DeviceImages);
   void removeImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
@@ -232,7 +235,11 @@ public:
                              const std::string &KernelName);
 
   // The function returns the unique SYCL kernel identifier associated with a
-  // kernel name.
+  // kernel name or nullopt if there is no such ID.
+  std::optional<kernel_id> tryGetSYCLKernelID(const std::string &KernelName);
+
+  // The function returns the unique SYCL kernel identifier associated with a
+  // kernel name or throws a sycl exception if there is no such ID.
   kernel_id getSYCLKernelID(const std::string &KernelName);
 
   // The function returns a vector containing all unique SYCL kernel identifiers
@@ -282,7 +289,11 @@ public:
       const context &Ctx, const std::vector<device> &Devs,
       bundle_state TargetState, const std::vector<kernel_id> &KernelIDs = {});
 
-  // Brind images in the passed vector to the required state. Does it inplace
+  // Bring image to the required state. Does it inplace
+  void bringSYCLDeviceImageToState(DevImgPlainWithDeps &DeviceImage,
+                                   bundle_state TargetState);
+
+  // Bring images in the passed vector to the required state. Does it inplace
   void
   bringSYCLDeviceImagesToState(std::vector<DevImgPlainWithDeps> &DeviceImages,
                                bundle_state TargetState);

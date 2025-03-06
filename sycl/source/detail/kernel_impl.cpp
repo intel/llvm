@@ -50,11 +50,11 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
                          const KernelArgMask *ArgMask,
                          ur_program_handle_t Program, std::mutex *CacheMutex)
     : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(Program),
-      MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
+      MCreatedFromSource(DeviceImageImpl->isNonSYCLJITSourceBased()),
+      MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
-      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
-  MIsInterop = MKernelBundleImpl->isInterop();
-}
+      MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
+      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {}
 
 kernel_impl::~kernel_impl() {
   try {
@@ -81,6 +81,19 @@ bool kernel_impl::isCreatedFromSource() const {
   return MCreatedFromSource;
 }
 
+bool kernel_impl::isInteropOrSourceBased() const noexcept {
+  return isInterop() ||
+         (MDeviceImageImpl &&
+          (MDeviceImageImpl->getOriginMask() & ImageOriginKernelCompiler));
+}
+
+bool kernel_impl::hasSYCLMetadata() const noexcept {
+  return !isInteropOrSourceBased() ||
+         (MDeviceImageImpl &&
+          MDeviceImageImpl->isFromSourceLanguage(
+              sycl::ext::oneapi::experimental::source_language::sycl_jit));
+}
+
 bool kernel_impl::isBuiltInKernel(const device &Device) const {
   auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
   if (BuiltInKernels.empty())
@@ -92,7 +105,7 @@ bool kernel_impl::isBuiltInKernel(const device &Device) const {
 }
 
 void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
-  if (MKernelBundleImpl->isInterop())
+  if (isInteropOrSourceBased())
     return;
   auto Devices = MKernelBundleImpl->get_devices();
   if (std::any_of(Devices.begin(), Devices.end(),
