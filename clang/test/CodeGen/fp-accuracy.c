@@ -288,7 +288,7 @@ double rsqrt(double);
 // CHECK-F5: call double @llvm.pow.f64(double {{.*}}, double {{.*}})
 // CHECK-F5: call i32 (double, ...) @rsqrt(double {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_F5_HIGH:[0-9]+]]
-// CHECK-F5: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
+// CHECK-F5: call {{.*}} @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
 // CHECK-F5: call double @llvm.sinh.f64(double {{.*}})
 // CHECK-F5: call double @llvm.sqrt.f64(double {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F5_HIGH]]
@@ -461,7 +461,7 @@ void f1(float a, float b) {
 // CHECK-F5: call float @llvm.sin.f32(float {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F5_HIGH]]
 // CHECK-F5: call double @llvm.log10.f64(double {{.*}})
-// CHECK-F5: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
+// CHECK-F5: call {{.*}} @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
 // CHECK-F5: call float @llvm.tan.f32(float {{.*}})
 // CHECK-F5: call float @hypotf(float {{.*}}, float {{.*}})
 // CHECK-F5: call float @ldexpf(float {{.*}}, i32 {{.*}})
@@ -590,7 +590,7 @@ void f1(float a, float b) {
 // CHECK-DEFAULT: call double @llvm.pow.f64(double {{.*}}, double {{.*}})
 // CHECK-DEFAULT: call i32 (double, ...) @rsqrt(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.sin.f64(double {{.*}})
-// CHECK-DEFAULT: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
+// CHECK-DEFAULT: call {{.*}} @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
 // CHECK-DEFAULT: call double @llvm.sinh.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.sqrt.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.tan.f64(double {{.*}})
@@ -601,7 +601,7 @@ void f1(float a, float b) {
 // CHECK-DEFAULT: call float @llvm.sin.f32(float {{.*}})
 // CHECK-DEFAULT: call double @llvm.tan.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.log10.f64(double {{.*}})
-// CHECK-DEFAULT: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
+// CHECK-DEFAULT: call {{.*}} @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
 // CHECK-DEFAULT: call float @llvm.tan.f32(float {{.*}})
 // CHECK-DEFAULT: call float @hypotf(float {{.*}}, float {{.*}})
 //

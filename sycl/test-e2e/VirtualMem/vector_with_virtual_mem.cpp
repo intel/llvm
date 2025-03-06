@@ -1,8 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
 
-// UNSUPPORTED: linux && gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15812
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

@@ -159,8 +159,10 @@ void SPIRVToLLVMDbgTran::transDbgInfo(const SPIRVValue *SV, Value *V) {
     return;
 
   if (Instruction *I = dyn_cast<Instruction>(V)) {
-    const SPIRVInstruction *SI = static_cast<const SPIRVInstruction *>(SV);
-    I->setDebugLoc(transDebugScope(SI));
+    if (SV->isInst()) {
+      const SPIRVInstruction *SI = static_cast<const SPIRVInstruction *>(SV);
+      I->setDebugLoc(transDebugScope(SI));
+    }
   }
 }
 
@@ -330,7 +332,7 @@ DIType *SPIRVToLLVMDbgTran::transTypePointer(const SPIRVExtInst *DebugInst) {
         PointeeTy, BM->getAddressingModel() * 32, 0, AS);
 
   if (Flags & SPIRVDebug::FlagIsObjectPointer)
-    Ty = getDIBuilder(DebugInst).createObjectPointerType(Ty);
+    Ty = getDIBuilder(DebugInst).createObjectPointerType(Ty, /*Implicit=*/true);
   else if (Flags & SPIRVDebug::FlagIsArtificial)
     Ty = getDIBuilder(DebugInst).createArtificialType(Ty);
 
@@ -421,7 +423,7 @@ SPIRVToLLVMDbgTran::transTypeArrayNonSemantic(const SPIRVExtInst *DebugInst) {
   if (DebugInst->getExtOp() == SPIRVDebug::TypeArray) {
     for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
       auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
-      if (auto *Count = SR->getCount().get<ConstantInt *>())
+      if (auto *Count = cast<ConstantInt *>(SR->getCount()))
         TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
       Subscripts.push_back(SR);
     }
@@ -444,7 +446,7 @@ SPIRVToLLVMDbgTran::transTypeArrayDynamic(const SPIRVExtInst *DebugInst) {
   SmallVector<llvm::Metadata *, 8> Subscripts;
   for (size_t I = SubrangesIdx; I < Ops.size(); ++I) {
     auto *SR = transDebugInst<DISubrange>(BM->get<SPIRVExtInst>(Ops[I]));
-    if (auto *Count = SR->getCount().get<ConstantInt *>())
+    if (auto *Count = cast<ConstantInt *>(SR->getCount()))
       TotalCount *= Count->getSExtValue() > 0 ? Count->getSExtValue() : 0;
     Subscripts.push_back(SR);
   }
@@ -1581,7 +1583,9 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
       // DIBuilder::insertDeclare doesn't allow to pass nullptr for the Storage
       // parameter. To work around this limitation we create a dummy temp
       // alloca, use it to create llvm.dbg.declare, and then remove the alloca.
-      auto *AI = new AllocaInst(Type::getInt8Ty(M->getContext()), 0, "tmp", BB);
+      auto *AI =
+          new AllocaInst(Type::getInt8Ty(M->getContext()),
+                         M->getDataLayout().getAllocaAddrSpace(), "tmp", BB);
       DbgInstPtr DbgDeclare = DIB.insertDeclare(
           AI, LocalVar.first, GetExpression(Ops[ExpressionIdx]),
           LocalVar.second, BB);
@@ -1607,10 +1611,10 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     if (!MDs.empty()) {
       DIArgList *AL = DIArgList::get(M->getContext(), MDs);
       if (M->IsNewDbgInfoFormat) {
-        cast<DbgVariableRecord>(DbgValIntr.get<DbgRecord *>())
+        cast<DbgVariableRecord>(cast<DbgRecord *>(DbgValIntr))
             ->setRawLocation(AL);
       } else {
-        cast<DbgVariableIntrinsic>(DbgValIntr.get<Instruction *>())
+        cast<DbgVariableIntrinsic>(cast<Instruction *>(DbgValIntr))
             ->setRawLocation(AL);
       }
     }

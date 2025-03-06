@@ -118,8 +118,19 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
       : std::true_type {                                                       \
     using return_type = Namespace::info::DescType::Desc::return_type;          \
   };
+
+#define __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC(Namespace, Desctype, Desc,   \
+                                                  ReturnT, UrCode)             \
+  template <int Dimensions>                                                    \
+  struct is_##Desctype##_info_desc<                                            \
+      Namespace::info::Desctype::Desc<Dimensions>> : std::true_type {          \
+    using return_type =                                                        \
+        typename Namespace::info::Desctype::Desc<Dimensions>::return_type;     \
+  };
+
 #include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+#undef __SYCL_PARAM_TRAITS_TEMPLATE_PARTIAL_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <>                                                                  \
@@ -129,6 +140,7 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
 #include <sycl/info/sycl_backend_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename SyclObject, typename Param>
 constexpr int emit_get_backend_info_error() {
   // Implementation of get_backend_info doesn't seem to be aligned with the
@@ -140,6 +152,7 @@ constexpr int emit_get_backend_info_error() {
                 "This interface is incompatible with _GLIBCXX_USE_CXX11_ABI=0");
   return 0;
 }
+#endif
 
 } // namespace detail
 } // namespace _V1

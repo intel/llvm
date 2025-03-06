@@ -106,6 +106,7 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "interoperability function or to query a device built-in kernel");
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::platform::version::return_type
 kernel_impl::get_backend_info<info::platform::version>() const {
@@ -117,10 +118,12 @@ kernel_impl::get_backend_info<info::platform::version>() const {
   auto Devices = MKernelBundleImpl->get_devices();
   return Devices[0].get_platform().get_info<info::platform::version>();
 }
+#endif
 
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &Devices);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::version::return_type
 kernel_impl::get_backend_info<info::device::version>() const {
@@ -137,7 +140,9 @@ kernel_impl::get_backend_info<info::device::version>() const {
   return select_device(default_selector_v, Devices)
       .get_info<info::device::version>();
 }
+#endif
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 typename info::device::backend_version::return_type
 kernel_impl::get_backend_info<info::device::backend_version>() const {
@@ -151,6 +156,7 @@ kernel_impl::get_backend_info<info::device::backend_version>() const {
   // information descriptor and implementations are encouraged to return the
   // empty string as per specification.
 }
+#endif
 
 } // namespace detail
 } // namespace _V1

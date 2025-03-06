@@ -1239,7 +1239,7 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
   if (OITy != NITy) {
     auto CastOpcode = CastInst::getCastOpcode(NewI, false, OITy, false);
     NewI = CastInst::Create(CastOpcode, NewI, OITy,
-                            NewI->getName() + ".cast.ty", OldI);
+                            NewI->getName() + ".cast.ty", OldI->getIterator());
     NewI->setDebugLoc(OldI->getDebugLoc());
   }
   return NewI;
@@ -1565,14 +1565,15 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   CallInst *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
       NewFDecl->getReturnType()->isVoidTy() ? "" : CI.getName() + ".esimd",
-      &CI);
+      CI.getIterator());
   NewCI->setDebugLoc(CI.getDebugLoc());
   if (DoesFunctionReturnStructure) {
     IRBuilder<> Builder(&CI);
 
     NewInst = Builder.CreateStore(
-        NewCI, Builder.CreateBitCast(CastInstruction->getPointerOperand(),
-                                     NewCI->getType()->getPointerTo()));
+        NewCI, Builder.CreateBitCast(
+                   CastInstruction->getPointerOperand(),
+                   llvm::PointerType::getUnqual(NewCI->getContext())));
   } else {
     NewInst = addCastInstIfNeeded(&CI, NewCI);
   }

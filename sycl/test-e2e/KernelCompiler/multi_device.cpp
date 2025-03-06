@@ -1,5 +1,6 @@
 // REQUIRES: (opencl || level_zero) && ocloc
 // UNSUPPORTED: accelerator
+// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 %{run} %t.out
@@ -22,7 +23,7 @@ __kernel void Kernel2(short in, __global short *out) {
 
 int main() {
   sycl::platform Platform;
-  auto Context = Platform.ext_oneapi_get_default_context();
+  auto Context = Platform.khr_get_default_context();
 
   {
     auto devices = Context.get_devices();

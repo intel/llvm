@@ -1511,7 +1511,9 @@ Value *getScalarOrArrayConstantInt(BasicBlock::iterator Pos, Type *T,
     auto *AT = ArrayType::get(ET, Len);
     std::vector<Constant *> EV(Len, ConstantInt::get(ET, V, IsSigned));
     auto *CA = ConstantArray::get(AT, EV);
-    auto *Alloca = new AllocaInst(AT, 0, "", Pos);
+    auto *Alloca = new AllocaInst(
+        AT, Pos->getParent()->getParent()->getDataLayout().getAllocaAddrSpace(),
+        "", Pos);
     new StoreInst(CA, Alloca, Pos);
     auto *Zero = ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
     Value *Index[] = {Zero, Zero};
@@ -1963,7 +1965,7 @@ bool isSPIRVBuiltinVariable(GlobalVariable *GV,
 // %d = extractelement <3 x i64> %b, i32 idx
 // With:
 // %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
-// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
+// %1 = insertelement <3 x i64> poison, i64 %0, i32 0
 // %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
 // %3 = insertelement <3 x i64> %1, i64 %2, i32 1
 // %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
@@ -1978,7 +1980,7 @@ bool isSPIRVBuiltinVariable(GlobalVariable *GV,
 // %2 = load i64, i64 addrspace(4)* %1, align 32
 // With:
 // %0 = call spir_func i64 @_Z13get_global_idj(i32 0) #1
-// %1 = insertelement <3 x i64> undef, i64 %0, i32 0
+// %1 = insertelement <3 x i64> poison, i64 %0, i32 0
 // %2 = call spir_func i64 @_Z13get_global_idj(i32 1) #1
 // %3 = insertelement <3 x i64> %1, i64 %2, i32 1
 // %4 = call spir_func i64 @_Z13get_global_idj(i32 2) #1
@@ -2034,7 +2036,7 @@ static void replaceUsesOfBuiltinVar(Value *V, const APInt &AccumulatedOffset,
           if (!Index.isZero() || DL.getTypeSizeInBits(VecTy) !=
                                      DL.getTypeSizeInBits(Load->getType()))
             llvm_unreachable("Illegal use of a SPIR-V builtin variable");
-          Replacement = UndefValue::get(VecTy);
+          Replacement = PoisonValue::get(VecTy);
           for (unsigned I = 0; I < VecTy->getNumElements(); I++) {
             Replacement = Builder.CreateInsertElement(
                 Replacement,
@@ -2184,16 +2186,11 @@ bool lowerBuiltinCallsToVariables(Module *M) {
     for (auto *U : F.users()) {
       auto *CI = dyn_cast<CallInst>(U);
       assert(CI && "invalid instruction");
-      const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI->getIterator());
-      if (DLoc)
-        NewValue->setDebugLoc(DLoc);
+      IRBuilder<> Builder(CI);
+      Value *NewValue = Builder.CreateLoad(GVType, BV);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
-        NewValue = ExtractElementInst::Create(NewValue, CI->getArgOperand(0),
-                                              "", CI->getIterator());
-        if (DLoc)
-          NewValue->setDebugLoc(DLoc);
+        NewValue = Builder.CreateExtractElement(NewValue, CI->getArgOperand(0));
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
       }
       NewValue->takeName(CI);
@@ -2294,7 +2291,9 @@ bool postProcessBuiltinWithArrayArguments(Function *F,
           auto *T = I->getType();
           if (!T->isArrayTy())
             continue;
-          auto *Alloca = new AllocaInst(T, 0, "", FBegin);
+          auto *Alloca = new AllocaInst(
+              T, F->getParent()->getDataLayout().getAllocaAddrSpace(), "",
+              FBegin);
           new StoreInst(I, Alloca, false, CI->getIterator());
           auto *Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));

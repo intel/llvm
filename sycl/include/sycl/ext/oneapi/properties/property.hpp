@@ -210,7 +210,7 @@ enum PropKind : uint32_t {
   InputDataPlacement = 65,
   OutputDataPlacement = 66,
   IncludeFiles = 67,
-  RegisteredKernelNames = 68,
+  RegisteredNames = 68,
   ClusterLaunch = 69,
   FPGACluster = 70,
   Balanced = 71,
@@ -222,10 +222,11 @@ enum PropKind : uint32_t {
   Deterministic = 77,
   InitializeToIdentity = 78,
   WorkGroupScratchSize = 79,
-  Restrict = 80,
+  Unaliased = 80,
   EventMode = 81,
+  NativeLocalBlockIO = 82,
   // PropKindSize must always be the last value.
-  PropKindSize = 82,
+  PropKindSize = 83,
 };
 
 template <typename PropertyT> struct PropertyToKind {

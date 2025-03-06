@@ -961,7 +961,7 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
           if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy()) {
             return Builder.CreateIntCast(NewCI, OldRetTy, false);
           }
-          return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
+          return Builder.CreateAddrSpaceCast(NewCI, OldRetTy);
         });
   }
 }
@@ -1065,7 +1065,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
           } else if (Desc.Dim == Dim2D && Desc.Arrayed) {
             Constant *Index[] = {getInt32(M, 0), getInt32(M, 1)};
             Constant *Mask = ConstantVector::get(Index);
-            return new ShuffleVectorInst(NCI, UndefValue::get(NCI->getType()),
+            return new ShuffleVectorInst(NCI, PoisonValue::get(NCI->getType()),
                                          Mask, NCI->getName(),
                                          CI->getIterator());
           }
@@ -1410,9 +1410,9 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
   for (auto I : ScalarPos)
     Mutator.mapArg(I, [&](Value *V) {
       Instruction *Inst = InsertElementInst::Create(
-          UndefValue::get(VecTy), V, getInt32(M, 0), "", CI->getIterator());
+          PoisonValue::get(VecTy), V, getInt32(M, 0), "", CI->getIterator());
       return new ShuffleVectorInst(
-          Inst, UndefValue::get(VecTy),
+          Inst, PoisonValue::get(VecTy),
           ConstantVector::getSplat(VecElemCount, getInt32(M, 0)), "",
           CI->getIterator());
     });
@@ -1893,7 +1893,7 @@ void OCLToSPIRVBase::visitCallConvertBFloat16AsUshort(CallInst *CI,
     }
   }
 
-  mutateCallInst(CI, internal::OpConvertFToBF16INTEL);
+  mutateCallInst(CI, OpConvertFToBF16INTEL);
 }
 
 void OCLToSPIRVBase::visitCallConvertAsBFloat16Float(CallInst *CI,
@@ -1936,7 +1936,7 @@ void OCLToSPIRVBase::visitCallConvertAsBFloat16Float(CallInst *CI,
     }
   }
 
-  mutateCallInst(CI, internal::OpConvertBF16ToFINTEL);
+  mutateCallInst(CI, OpConvertBF16ToFINTEL);
 }
 } // namespace SPIRV
 

@@ -26,12 +26,12 @@ public:
   template <typename U>
   constexpr optional(const optional<U> &Other)
       : ContainsValue{Other.ContainsValue} {
-    new (Storage) T(Other.Value);
+    new (Storage) T(Other.value());
   }
   template <typename U>
-  constexpr optional(optional<U> &&Other)
-      : ContainsValue{std::move(Other.ContainsValue)} {
-    new (Storage) T(std::move(Other.Value));
+  constexpr optional(optional<U> &&Other) : ContainsValue{Other.ContainsValue} {
+    new (Storage) T(std::move(Other.value()));
+    Other.ContainsValue = false;
   }
 
   constexpr optional(T &&Value) : ContainsValue{true} {
@@ -136,6 +136,11 @@ public:
   constexpr const T &operator*() const & { return value(); }
   constexpr T &&operator*() && { return value(); }
   constexpr const T &&operator*() const && { return value(); }
+
+  constexpr operator std::optional<T>() {
+    return has_value() ? std::optional<T>{value()}
+                       : std::optional<T>{std::nullopt};
+  }
 
 private:
   alignas(alignof(T)) char Storage[sizeof(T)] = {0};

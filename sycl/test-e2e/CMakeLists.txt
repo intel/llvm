@@ -14,6 +14,12 @@ if(SYCL_TEST_E2E_STANDALONE)
   if( NOT OpenCL_LIBRARY )
     find_package(OpenCL)
   endif()
+else()
+  if( NOT OpenCL_LIBRARY )
+    set(OpenCL_LIBRARY "${LLVM_BINARY_DIR}/lib")
+  endif()
+  set(LEVEL_ZERO_INCLUDE "${LLVM_BINARY_DIR}/_deps/level-zero-loader-src/include")
+  set(LEVEL_ZERO_LIBS_DIR "${LLVM_BINARY_DIR}/lib")
 endif() # Standalone.
 
 if(SYCL_TEST_E2E_STANDALONE)
@@ -62,6 +68,15 @@ else()
 endif()
 
 set(SYCL_E2E_CLANG_CXX_FLAGS "${SYCL_E2E_CLANG_CXX_FLAGS} -Werror")
+
+if(NOT DEFINED CUDA_LIBS_DIR AND NOT DEFINED CUDA_INCLUDE)
+  find_package(CUDAToolkit)
+
+  if(CUDAToolkit_FOUND)
+    set(CUDA_LIBS_DIR "${CUDAToolkit_LIBRARY_DIR}")
+    set(CUDA_INCLUDE "${CUDAToolkit_INCLUDE_DIRS}")
+  endif()
+endif()
 
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"

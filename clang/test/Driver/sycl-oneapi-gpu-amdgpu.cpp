@@ -163,7 +163,7 @@
 // RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=AMD_FATO
 // AMD_FATO: clang-offload-bundler{{.*}} "-type=o"
-// AMD_FATO: "-targets=host-x86_64-unknown-linux,hipv4-amdgcn-amd-amdhsa--gfx700"
+// AMD_FATO: "-targets=host-x86_64-unknown-linux-gnu,hipv4-amdgcn-amd-amdhsa--gfx700"
 
 /// Test for proper consumption of fat object
 // RUN: touch %t.o

@@ -52,7 +52,7 @@ target triple = "spir64"
 ; CHECK-LLVM: call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr{{.*}}, i32 5, i32 3)
 ; CHECK-LLVM: call spir_func i32 @_Z20atomic_load_explicitPU3AS4VU7_Atomici12memory_order12memory_scope(ptr{{.*}}, i32 5, i32 4)
 
-define dso_local void @fi1(ptr addrspace(4) nocapture noundef readonly %i) local_unnamed_addr #0 {
+define dso_local void @fi1(ptr addrspace(4) captures(none) noundef readonly %i) local_unnamed_addr #0 {
 entry:
   %0 = load atomic i32, ptr addrspace(4) %i syncscope("workgroup") seq_cst, align 4
   %1 = load atomic i32, ptr addrspace(4) %i syncscope("device") seq_cst, align 4
@@ -67,7 +67,7 @@ entry:
 ; CHECK-LLVM: call spir_func void @_Z21atomic_store_explicitPU3AS4VU7_Atomicii12memory_order12memory_scope(ptr{{.*}}, i32 5, i32 4)
 ; CHECK-LLVM: call spir_func void @_Z21atomic_store_explicitPU3AS4VU7_Atomicii12memory_order12memory_scope(ptr{{.*}}, i32 5, i32 1)
 
-define dso_local void @test_addr(ptr addrspace(1) nocapture noundef writeonly %ig, ptr addrspace(3) nocapture noundef writeonly %il) local_unnamed_addr #0 {
+define dso_local void @test_addr(ptr addrspace(1) captures(none) noundef writeonly %ig, ptr addrspace(3) captures(none) noundef writeonly %il) local_unnamed_addr #0 {
 entry:
   store atomic i32 1, ptr addrspace(1) %ig syncscope("subgroup") seq_cst, align 4
   store atomic i32 1, ptr addrspace(3) %il syncscope("workgroup") seq_cst, align 4
@@ -87,7 +87,7 @@ entry:
 ; CHECK-LLVM: call spir_func i32 @_Z25atomic_fetch_min_explicitPU3AS4VU7_Atomicjj12memory_order12memory_scope(ptr{{.*}}, i32 1, i32 5, i32 1)
 ; CHECK-LLVM: call spir_func i32 @_Z25atomic_fetch_max_explicitPU3AS4VU7_Atomicjj12memory_order12memory_scope(ptr{{.*}}, i32 1, i32 5, i32 1)
 
-define dso_local void @fi3(ptr nocapture noundef %i, ptr nocapture noundef %ui) local_unnamed_addr #0 {
+define dso_local void @fi3(ptr captures(none) noundef %i, ptr captures(none) noundef %ui) local_unnamed_addr #0 {
 entry:
   %0 = atomicrmw and ptr %i, i32 1 syncscope("work_item") seq_cst, align 4
   %1 = atomicrmw min ptr %i, i32 1 syncscope("all_svm_devices") seq_cst, align 4
@@ -101,7 +101,7 @@ entry:
 ; CHECK-SPIRV: AtomicCompareExchange [[#]] [[#]] [[#]] [[#ConstInt2]] [[#ConstInt2]] [[#ConstInt2]] [[#ConstInt1]] [[#ConstInt0]]
 ; CHECK-LLVM: call spir_func i1 @_Z39atomic_compare_exchange_strong_explicitPU3AS4VU7_AtomiciPU3AS4ii12memory_orderS4_12memory_scope(ptr{{.*}}, ptr{{.*}}, i32 1, i32 2, i32 2, i32 1)
 
-define dso_local zeroext i1 @fi4(ptr nocapture noundef %i) local_unnamed_addr #0 {
+define dso_local zeroext i1 @fi4(ptr captures(none) noundef %i) local_unnamed_addr #0 {
 entry:
   %0 = cmpxchg ptr %i, i32 0, i32 1 syncscope("workgroup") acquire acquire, align 4
   %1 = extractvalue { i32, i1 } %0, 1
@@ -112,7 +112,7 @@ entry:
 ; CHECK-SPIRV: AtomicExchange [[#]] [[#]] [[#]] [[#ConstInt2]] [[#SequentiallyConsistent]] [[#Const2Power30]]
 ; CHECK-LLVM: call spir_func i32 @_Z24atomic_exchange_explicitPU3AS4VU7_Atomicii12memory_order12memory_scope(ptr{{.*}}, i32 1073741824, i32 5, i32 1)
 
-define dso_local float @ff3(ptr nocapture noundef %d) local_unnamed_addr #0 {
+define dso_local float @ff3(ptr captures(none) noundef %d) local_unnamed_addr #0 {
 entry:
   %0 = atomicrmw xchg ptr %d, i32 1073741824 syncscope("workgroup") seq_cst, align 4
   %1 = bitcast i32 %0 to float
@@ -123,7 +123,7 @@ entry:
 ; CHECK-SPIRV: AtomicFAddEXT [[#]] [[#]] [[#]] [[#ConstInt2]] [[#ConstInt0]] [[#]]
 ; CHECK-LLVM: call spir_func float @_Z25atomic_fetch_add_explicitPU3AS4VU7_Atomicff12memory_order12memory_scope(ptr{{.*}}, i32 0, i32 1)
 
-define dso_local float @ff4(ptr addrspace(1) nocapture noundef %d, float noundef %a) local_unnamed_addr #0 {
+define dso_local float @ff4(ptr addrspace(1) captures(none) noundef %d, float noundef %a) local_unnamed_addr #0 {
 entry:
   %0 = atomicrmw fadd ptr addrspace(1) %d, float %a syncscope("workgroup") monotonic, align 4
   ret float %0

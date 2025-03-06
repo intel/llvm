@@ -216,6 +216,7 @@ public:
                                                const ContextImplPtr Context);
 
   void addImages(sycl_device_binaries DeviceImages);
+  void removeImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         const ContextImplPtr &Context);
@@ -375,6 +376,7 @@ private:
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, const device &Dev);
 
+protected:
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
@@ -424,7 +426,8 @@ private:
 
   /// Keeps all device images we are refering to during program lifetime. Used
   /// for proper cleanup.
-  std::unordered_set<RTDeviceBinaryImageUPtr> m_DeviceImages;
+  std::unordered_map<sycl_device_binary, RTDeviceBinaryImageUPtr>
+      m_DeviceImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
@@ -451,7 +454,9 @@ private:
   // the underlying program disposed of), so the map can't be used in any way
   // other than binary image lookup with known live UrProgram as the key.
   // NOTE: access is synchronized via the MNativeProgramsMutex
-  std::unordered_multimap<ur_program_handle_t, const RTDeviceBinaryImage *>
+  std::unordered_multimap<
+      ur_program_handle_t,
+      std::pair<std::weak_ptr<context_impl>, const RTDeviceBinaryImage *>>
       NativePrograms;
 
   /// Protects NativePrograms that can be changed by class' methods.

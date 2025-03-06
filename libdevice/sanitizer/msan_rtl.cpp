@@ -13,39 +13,48 @@
 #include "spirv_vars.h"
 
 DeviceGlobal<void *> __MsanLaunchInfo;
+#define GetMsanLaunchInfo                                                      \
+  ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+
+namespace {
 
 constexpr int MSAN_REPORT_NONE = 0;
 constexpr int MSAN_REPORT_START = 1;
 constexpr int MSAN_REPORT_FINISH = 2;
 
-static const __SYCL_CONSTANT__ char __msan_print_warning_return[] =
-    "[kernel] !!! msan warning return\n";
+constexpr uptr PVC_DEVICE_USM_MASK = 0xff00'0000'0000'0000ULL;
+constexpr uptr PVC_DEVICE_USM_BEGIN = 0xff00'0000'0000'0000ULL;
+constexpr uptr PVC_DEVICE_USM_END = 0xff00'ffff'ffff'ffffULL;
 
-static const __SYCL_CONSTANT__ char __msan_print_shadow[] =
+constexpr uptr DG2_DEVICE_USM_MASK = 0xffff'0000'0000'0000ULL;
+constexpr uptr DG2_DEVICE_USM_BEGIN = 0xffff'8000'0000'0000ULL;
+constexpr uptr DG2_DEVICE_USM_END = 0xffff'ffff'ffff'ffffULL;
+
+const __SYCL_CONSTANT__ char __msan_print_shadow[] =
     "[kernel] __msan_get_shadow(addr=%p, as=%d) = %p: %02X\n";
 
-static const __SYCL_CONSTANT__ char __msan_print_warning_nolaunchinfo[] =
-    "[kernel] !!! __mem_warning_nolaunchinfo\n";
-
-static const __SYCL_CONSTANT__ char __msan_print_launchinfo[] =
+const __SYCL_CONSTANT__ char __msan_print_launchinfo[] =
     "[kernel] !!! launchinfo %p (GlobalShadow=%p)\n";
 
-static const __SYCL_CONSTANT__ char __msan_print_report[] =
-    "[kernel] %d bytes uninitialized at kernel %s\n";
-
-static const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
+const __SYCL_CONSTANT__ char __msan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
 
-static const __SYCL_CONSTANT__ char __msan_print_generic_to[] =
+const __SYCL_CONSTANT__ char __msan_print_generic_to[] =
     "[kernel] %p(4) - %p(%d)\n";
+
+const __SYCL_CONSTANT__ char __msan_print_func_beg[] =
+    "[kernel] ===== %s() begin\n";
+
+const __SYCL_CONSTANT__ char __msan_print_func_end[] =
+    "[kernel] ===== %s() end\n";
+
+} // namespace
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
 #define MSAN_DEBUG(X)                                                          \
   do {                                                                         \
-    auto launch_info =                                                         \
-        (__SYCL_GLOBAL__ const MsanLaunchInfo *)__MsanLaunchInfo.get();        \
-    if (launch_info->Debug) {                                                  \
+    if (GetMsanLaunchInfo->Debug) {                                            \
       X;                                                                       \
     }                                                                          \
   } while (false)
@@ -74,8 +83,7 @@ void __msan_internal_report_save(const uint32_t size,
   const int Expected = MSAN_REPORT_NONE;
   int Desired = MSAN_REPORT_START;
 
-  auto &SanitizerReport =
-      ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())->Report;
+  auto &SanitizerReport = GetMsanLaunchInfo->Report;
 
   if (atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
       Expected) {
@@ -126,8 +134,7 @@ void __msan_report_error(const uint32_t size,
                          const char __SYCL_CONSTANT__ *func) {
   __msan_internal_report_save(size, file, line, func);
 
-  auto launch = (__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get();
-  if (!launch->IsRecover) {
+  if (!GetMsanLaunchInfo->IsRecover) {
     __devicelib_exit();
   }
 }
@@ -136,12 +143,12 @@ inline uptr __msan_get_shadow_cpu(uptr addr) {
   return addr ^ 0x500000000000ULL;
 }
 
-inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
+inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
     ConvertGenericPointer(addr, as);
   }
 
-  if (as != ADDRESS_SPACE_GLOBAL || !(addr & 0xFF00000000000000))
+  if (as != ADDRESS_SPACE_GLOBAL || !(addr & DG2_DEVICE_USM_MASK))
     return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
         ->CleanShadow;
 
@@ -151,10 +158,44 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
                         ->GlobalShadowOffsetEnd;
   if (addr < shadow_begin) {
-    return addr + (shadow_begin - 0xff00'0000'0000'0000ULL);
+    return addr + (shadow_begin - DG2_DEVICE_USM_BEGIN);
   } else {
-    return addr - (0xff00'ffff'ffff'ffffULL - shadow_end);
+    return addr - (DG2_DEVICE_USM_END - shadow_end);
   }
+}
+
+inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
+  if (as == ADDRESS_SPACE_GENERIC) {
+    ConvertGenericPointer(addr, as);
+  }
+
+  // Device USM only
+  if (as == ADDRESS_SPACE_GLOBAL && (addr & PVC_DEVICE_USM_MASK)) {
+    auto shadow_begin = GetMsanLaunchInfo->GlobalShadowOffset;
+    auto shadow_end = GetMsanLaunchInfo->GlobalShadowOffsetEnd;
+    if (addr < shadow_begin) {
+      return addr + (shadow_begin - PVC_DEVICE_USM_BEGIN);
+    } else {
+      return addr - (PVC_DEVICE_USM_END - shadow_end);
+    }
+  } else if (as == ADDRESS_SPACE_LOCAL) {
+    // The size of SLM is 128KB on PVC
+    constexpr unsigned SLM_SIZE = 128 * 1024;
+    // work-group linear id
+    const auto wg_lid =
+        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+            __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.z;
+
+    const auto shadow_offset = GetMsanLaunchInfo->LocalShadowOffset;
+
+    if (shadow_offset != 0) {
+      return shadow_offset + (wg_lid * SLM_SIZE) + (addr & (SLM_SIZE - 1));
+    }
+  }
+
+  return GetMsanLaunchInfo->CleanShadow;
 }
 
 } // namespace
@@ -163,7 +204,7 @@ inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
   DEVICE_EXTERN_C_NOINLINE void __msan_maybe_warning_##size(                   \
       type s, u32 o, const char __SYCL_CONSTANT__ *file, uint32_t line,        \
       const char __SYCL_CONSTANT__ *func) {                                    \
-    if (!__MsanLaunchInfo.get())                                               \
+    if (!GetMsanLaunchInfo)                                                    \
       return;                                                                  \
     if (UNLIKELY(s)) {                                                         \
       __msan_report_error(size, file, line, func);                             \
@@ -188,27 +229,34 @@ __msan_warning_noreturn(const char __SYCL_CONSTANT__ *file, uint32_t line,
   __devicelib_exit();
 }
 
+// For mapping detail, ref to
+// "unified-runtime/source/loader/layers/sanitizer/msan/msan_shadow.hpp"
 DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
   // Return clean shadow (0s) by default
-  uptr shadow_ptr =
-      (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-          ->CleanShadow;
+  uptr shadow_ptr = GetMsanLaunchInfo->CleanShadow;
 
-  if (!__MsanLaunchInfo.get())
+  if (!GetMsanLaunchInfo)
     return shadow_ptr;
 
-  auto launch_info = (__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get();
-  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_launchinfo, (void *)launch_info,
-                                launch_info->GlobalShadowOffset));
+  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_launchinfo, GetMsanLaunchInfo,
+                                GetMsanLaunchInfo->GlobalShadowOffset));
 
-  if (LIKELY(launch_info->DeviceTy == DeviceType::CPU)) {
+#if defined(__LIBDEVICE_PVC__)
+  shadow_ptr = __msan_get_shadow_pvc(addr, as);
+#elif defined(__LIBDEVICE_CPU__)
+  shadow_ptr = __msan_get_shadow_cpu(addr);
+#else
+  if (LIKELY(GetMsanLaunchInfo->DeviceTy == DeviceType::CPU)) {
     shadow_ptr = __msan_get_shadow_cpu(addr);
-  } else if (launch_info->DeviceTy == DeviceType::GPU_PVC) {
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
     shadow_ptr = __msan_get_shadow_pvc(addr, as);
+  } else if (GetMsanLaunchInfo->DeviceTy == DeviceType::GPU_DG2) {
+    shadow_ptr = __msan_get_shadow_dg2(addr, as);
   } else {
     MSAN_DEBUG(__spirv_ocl_printf(__msan_print_unsupport_device_type,
-                                  launch_info->DeviceTy));
+                                  GetMsanLaunchInfo->DeviceTy));
   }
+#endif
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_shadow, (void *)addr, as,
                                 (void *)shadow_ptr, *(u8 *)shadow_ptr));
@@ -216,15 +264,22 @@ DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
   return shadow_ptr;
 }
 
+static __SYCL_CONSTANT__ const char __mem_memset[] =
+    "[kernel] memset(beg=%p, shadow_beg=%p, shadow_end=%p)\n";
+
 #define MSAN_MEMSET(as)                                                        \
   DEVICE_EXTERN_C_NOINLINE                                                     \
   __attribute__((address_space(as))) void *__msan_memset_p##as(                \
       __attribute__((address_space(as))) char *dest, int val, size_t size) {   \
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_memset"));    \
     uptr shadow = __msan_get_shadow((uptr)dest, as);                           \
     for (size_t i = 0; i < size; i++) {                                        \
       dest[i] = val;                                                           \
       ((__SYCL_GLOBAL__ char *)shadow)[i] = 0;                                 \
     }                                                                          \
+    MSAN_DEBUG(                                                                \
+        __spirv_ocl_printf(__mem_memset, dest, shadow, shadow + size - 1));    \
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_memset"));    \
     return dest;                                                               \
   }
 
@@ -294,5 +349,72 @@ MSAN_MEMCPY(0)
 MSAN_MEMCPY(1)
 MSAN_MEMCPY(3)
 MSAN_MEMCPY(4)
+
+///
+/// Initialize shdadow memory of local memory
+///
+
+static __SYCL_CONSTANT__ const char __mem_set_shadow_local[] =
+    "[kernel] set_shadow_local(beg=%p, end=%p, val:%02X)\n";
+
+DEVICE_EXTERN_C_NOINLINE void __msan_poison_shadow_static_local(uptr ptr,
+                                                                size_t size) {
+  // Update shadow memory of local memory only on first work-item
+  if (__spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
+          __spirv_LocalInvocationId_z() ==
+      0) {
+    if (!GetMsanLaunchInfo)
+      return;
+
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
+                                  "__msan_poison_shadow_static_local"));
+
+    auto shadow_address = __msan_get_shadow(ptr, ADDRESS_SPACE_LOCAL);
+    if (shadow_address == GetMsanLaunchInfo->CleanShadow)
+      return;
+
+    for (size_t i = 0; i < size; ++i) {
+      ((__SYCL_GLOBAL__ u8 *)shadow_address)[i] = 0xff;
+    }
+
+    MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
+                                  shadow_address + size, 0xff));
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
+                                  "__msan_poison_shadow_static_local"));
+  }
+}
+
+DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_shadow_static_local(uptr ptr,
+                                                                  size_t size) {
+  // Update shadow memory of local memory only on first work-item
+  if (__spirv_LocalInvocationId_x() + __spirv_LocalInvocationId_y() +
+          __spirv_LocalInvocationId_z() ==
+      0) {
+    if (!GetMsanLaunchInfo)
+      return;
+
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg,
+                                  "__msan_unpoison_shadow_static_local"));
+
+    auto shadow_address = __msan_get_shadow(ptr, ADDRESS_SPACE_LOCAL);
+    if (shadow_address == GetMsanLaunchInfo->CleanShadow)
+      return;
+
+    for (size_t i = 0; i < size; ++i) {
+      ((__SYCL_GLOBAL__ u8 *)shadow_address)[i] = 0;
+    }
+
+    MSAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_local, shadow_address,
+                                  shadow_address + size, 0));
+    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end,
+                                  "__msan_unpoison_shadow_static_local"));
+  }
+}
+
+DEVICE_EXTERN_C_INLINE void __msan_barrier() {
+  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
+}
 
 #endif // __SPIR__ || __SPIRV__

@@ -3,6 +3,7 @@ atomic/loadstore_helpers_release.ll
 atomic/loadstore_helpers_acquire.ll
 atomic/loadstore_helpers_seq_cst.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
+conversion/GenericCastToPtrExplicit.cl
 integer/mul24.cl
 integer/mul_hi.cl
 math/acos.cl

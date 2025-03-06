@@ -34,16 +34,16 @@ endif()
 
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
-    set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit d983db7aa87fc1a6f7cdb46e3ced63f6f145749e
-    # Merge: 1d3a925c 2c510ca2
-    # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Tue Oct 15 15:50:57 2024 +0100
+    set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
+    # commit 652f9943b0bfcf61123a0f82b2bdd499738c5391
+    # Merge: c24c971bcb e0f02ae739
+    # Author: Colin Davidson <colin.davidson@codeplay.com>
+    # Date:   Fri Feb 28 15:59:50 2025 +0000
     # 
-    #     Merge pull request #566 from hvdijk/fix-clang-format
+    #     Merge pull request #677 from coldav/colin/build_installed_llvm
     #     
-    #     clang-format: fix output.
-    set(OCK_GIT_INTERNAL_TAG d983db7aa87fc1a6f7cdb46e3ced63f6f145749e)
+    #     Change llvm over to a choice of install or cache, default PRs to install
+    set(OCK_GIT_INTERNAL_TAG 652f9943b0bfcf61123a0f82b2bdd499738c5391)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

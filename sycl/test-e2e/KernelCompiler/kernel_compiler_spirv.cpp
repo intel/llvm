@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: ocloc
+// REQUIRES: ocloc, target-spir
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %S/Kernels/kernels.spv %S/Kernels/kernels_fp16.spv %S/Kernels/kernels_fp64.spv
@@ -176,6 +176,11 @@ void testKernelsFromSpvFile(std::string kernels_file,
 
   sycl::queue q;
   auto bundle = loadKernelsFromFile(q, kernels_file);
+
+  // Test queries.
+  assert(bundle.ext_oneapi_has_kernel("my_kernel"));
+  assert(!bundle.ext_oneapi_has_kernel("not_exist"));
+  assert(bundle.ext_oneapi_get_raw_kernel_name("my_kernel") == "my_kernel");
 
   // Test simple kernel.
   testSimpleKernel(q, getKernel(bundle, "my_kernel"), 2, 100);

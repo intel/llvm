@@ -2,6 +2,10 @@
 // RUN: %{build} -D_FORTIFY_SOURCE=2 -o %t.out
 // RUN: %{run} %t.out
 
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && cpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 // Checks that group_load runs even when the source code is fortified. This
 // failed at one point due to the use of std::memcpy in the implementation,
 // which would hold an assert in device code when fortified, which would fail

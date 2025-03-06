@@ -3441,7 +3441,7 @@ void CXXNameMangler::mangleType(const BuiltinType *T) {
     type_name = MangledName;                                                   \
     Out << (type_name == Name ? "u" : "") << type_name.size() << type_name;    \
     break;
-#define AARCH64_VECTOR_TYPE(Name, MangledName, Id, SingletonId)                \
+#define SVE_SCALAR_TYPE(Name, MangledName, Id, SingletonId, Bits)              \
   case BuiltinType::Id:                                                        \
     type_name = MangledName;                                                   \
     Out << (type_name == Name ? "u" : "") << type_name.size() << type_name;    \
@@ -3593,13 +3593,15 @@ void CXXNameMangler::mangleSMEAttrs(unsigned SMEAttrs) {
   else if (SMEAttrs & FunctionType::SME_PStateSMCompatibleMask)
     Bitmask |= AAPCSBitmaskSME::ArmStreamingCompatibleBit;
 
-  // TODO: Must represent __arm_agnostic("sme_za_state")
+  if (SMEAttrs & FunctionType::SME_AgnosticZAStateMask)
+    Bitmask |= AAPCSBitmaskSME::ArmAgnosticSMEZAStateBit;
+  else {
+    Bitmask |= encodeAAPCSZAState(FunctionType::getArmZAState(SMEAttrs))
+               << AAPCSBitmaskSME::ZA_Shift;
 
-  Bitmask |= encodeAAPCSZAState(FunctionType::getArmZAState(SMEAttrs))
-             << AAPCSBitmaskSME::ZA_Shift;
-
-  Bitmask |= encodeAAPCSZAState(FunctionType::getArmZT0State(SMEAttrs))
-             << AAPCSBitmaskSME::ZT0_Shift;
+    Bitmask |= encodeAAPCSZAState(FunctionType::getArmZT0State(SMEAttrs))
+               << AAPCSBitmaskSME::ZT0_Shift;
+  }
 
   Out << "Lj" << static_cast<unsigned>(Bitmask) << "EE";
 }
@@ -3925,6 +3927,9 @@ void CXXNameMangler::mangleNeonVectorType(const VectorType *T) {
     case BuiltinType::Float:     EltName = "float32_t"; break;
     case BuiltinType::Half:      EltName = "float16_t"; break;
     case BuiltinType::BFloat16:  EltName = "bfloat16_t"; break;
+    case BuiltinType::MFloat8:
+      EltName = "mfloat8_t";
+      break;
     default:
       llvm_unreachable("unexpected Neon vector element type");
     }
@@ -3978,6 +3983,8 @@ static StringRef mangleAArch64VectorBase(const BuiltinType *EltType) {
     return "Float64";
   case BuiltinType::BFloat16:
     return "Bfloat16";
+  case BuiltinType::MFloat8:
+    return "Mfloat8";
   default:
     llvm_unreachable("Unexpected vector element base type");
   }
@@ -4938,7 +4945,7 @@ recurse:
   case Expr::SYCLBuiltinFieldTypeExprClass:
   case Expr::SYCLBuiltinNumBasesExprClass:
   case Expr::SYCLBuiltinBaseTypeExprClass:
-  {
+  case Expr::ResolvedUnexpandedPackExprClass: {
     NotPrimaryExpr();
     if (!NullOut) {
       // As bad as this diagnostic is, it's better than crashing.

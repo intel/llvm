@@ -23,41 +23,42 @@ void check_props(sycl::queue &q) {}
 
 // Full specializations for each progress guarantee
 
+template <typename T> struct KernelFunctor {
+  T props;
+  KernelFunctor(const T &props_) : props(props_) {}
+  void operator()() const {}
+  auto get(properties_tag) const { return props; }
+};
+
 template <>
 void check_props<forward_progress_guarantee::parallel>(sycl::queue &q) {
   constexpr auto guarantee = forward_progress_guarantee::parallel;
   // Check properties at execution_scope::root_group coordination level
-  q.single_task(
-      properties{work_group_progress<guarantee, execution_scope::root_group>},
-      [=]() {});
-  q.single_task(
-      properties{sub_group_progress<guarantee, execution_scope::root_group>},
-      [=]() {});
+  q.single_task(KernelFunctor(
+      properties{work_group_progress<guarantee, execution_scope::root_group>}));
+  q.single_task(KernelFunctor(
+      properties{sub_group_progress<guarantee, execution_scope::root_group>}));
   try {
-    q.single_task(
-        properties{work_item_progress<guarantee, execution_scope::root_group>},
-        [=]() {});
+    q.single_task(KernelFunctor(properties{
+        work_item_progress<guarantee, execution_scope::root_group>}));
     assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }
 
   // Check properties at execution_scope::work_group coordination level
-  q.single_task(
-      properties{sub_group_progress<guarantee, execution_scope::work_group>},
-      [=]() {});
+  q.single_task(KernelFunctor(
+      properties{sub_group_progress<guarantee, execution_scope::work_group>}));
   try {
-    q.single_task(
-        properties{work_item_progress<guarantee, execution_scope::work_group>},
-        [=]() {});
+    q.single_task(KernelFunctor(properties{
+        work_item_progress<guarantee, execution_scope::work_group>}));
     assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }
 
   // Check properties at execution_scope::sub_group coordination level
   try {
-    q.single_task(
-        properties{work_item_progress<guarantee, execution_scope::sub_group>},
-        [=]() {});
+    q.single_task(KernelFunctor(
+        properties{work_item_progress<guarantee, execution_scope::sub_group>}));
   } catch (sycl::exception &ex) {
   }
 }
@@ -66,66 +67,54 @@ template <>
 void check_props<forward_progress_guarantee::weakly_parallel>(sycl::queue &q) {
   constexpr auto guarantee = forward_progress_guarantee::weakly_parallel;
   // Check properties at execution_scope::root_group coordination level
-  q.single_task(
-      properties{work_group_progress<guarantee, execution_scope::root_group>},
-      [=]() {});
-  q.single_task(
-      properties{sub_group_progress<guarantee, execution_scope::root_group>},
-      [=]() {});
+  q.single_task(KernelFunctor(
+      properties{work_group_progress<guarantee, execution_scope::root_group>}));
+  q.single_task(KernelFunctor(
+      properties{sub_group_progress<guarantee, execution_scope::root_group>}));
 
-  q.single_task(
-      properties{work_item_progress<guarantee, execution_scope::root_group>},
-      [=]() {});
+  q.single_task(KernelFunctor(
+      properties{work_item_progress<guarantee, execution_scope::root_group>}));
 
   // Check properties at execution_scope::work_group coordination level
-  q.single_task(
-      properties{sub_group_progress<guarantee, execution_scope::work_group>},
-      [=]() {});
-  q.single_task(
-      properties{work_item_progress<guarantee, execution_scope::work_group>},
-      [=]() {});
+  q.single_task(KernelFunctor(
+      properties{sub_group_progress<guarantee, execution_scope::work_group>}));
+  q.single_task(KernelFunctor(
+      properties{work_item_progress<guarantee, execution_scope::work_group>}));
 
   // Check properties at execution_scope::sub_group coordination level
-  q.single_task(
-      properties{work_item_progress<guarantee, execution_scope::sub_group>},
-      [=]() {});
+  q.single_task(KernelFunctor(
+      properties{work_item_progress<guarantee, execution_scope::sub_group>}));
 }
 
 template <>
 void check_props<forward_progress_guarantee::concurrent>(sycl::queue &q) {
   constexpr auto guarantee = forward_progress_guarantee::concurrent;
   // Check properties at execution_scope::root_group coordination level
-  q.single_task(
-      properties{work_group_progress<guarantee, execution_scope::root_group>},
-      [=]() {});
-  q.single_task(
-      properties{sub_group_progress<guarantee, execution_scope::root_group>},
-      [=]() {});
+  q.single_task(KernelFunctor(
+      properties{work_group_progress<guarantee, execution_scope::root_group>}));
+  q.single_task(KernelFunctor(
+      properties{sub_group_progress<guarantee, execution_scope::root_group>}));
   try {
-    q.single_task(
-        properties{work_item_progress<guarantee, execution_scope::root_group>},
-        [=]() {});
+    q.single_task(KernelFunctor(properties{
+        work_item_progress<guarantee, execution_scope::root_group>}));
     assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }
 
   // Check properties at execution_scope::work_group coordination level
-  q.single_task(
-      properties{sub_group_progress<guarantee, execution_scope::work_group>},
-      [=]() {});
+  q.single_task(KernelFunctor(
+      properties{sub_group_progress<guarantee, execution_scope::work_group>}));
   try {
-    q.single_task(
-        properties{work_item_progress<guarantee, execution_scope::work_group>},
-        [=]() {});
+    q.single_task(KernelFunctor(properties{
+        work_item_progress<guarantee, execution_scope::work_group>}));
     assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }
 
   // Check properties at execution_scope::sub_group coordination level
   try {
-    q.single_task(
-        properties{work_item_progress<guarantee, execution_scope::sub_group>},
-        [=]() {});
+    q.single_task(KernelFunctor(
+        properties{work_item_progress<guarantee, execution_scope::sub_group>}));
     assert(false && "Expected exception not seen!");
   } catch (sycl::exception &ex) {
   }

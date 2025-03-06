@@ -313,9 +313,17 @@ int main() {
       dev, "Is compiler available");
   print_info<info::device::is_linker_available, bool>(dev,
                                                       "Is linker available");
-  print_info<info::device::execution_capabilities,
-             std::vector<info::execution_capability>>(dev,
-                                                      "Execution capabilities");
+  try {
+    print_info<info::device::execution_capabilities,
+               std::vector<info::execution_capability>>(
+        dev, "Execution capabilities");
+    assert(backend == sycl::backend::opencl &&
+           "An exception is expected for non OpenCL backend");
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid &&
+           backend != sycl::backend::opencl && "Unexpected exception");
+  }
+
   print_info<info::device::queue_profiling, bool>(dev, "Queue profiling");
   print_info<info::device::built_in_kernels, std::vector<std::string>>(
       dev, "Built in kernels");

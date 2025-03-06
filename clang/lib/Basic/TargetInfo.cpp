@@ -425,6 +425,7 @@ void TargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
   // HLSL explicitly defines the sizes and formats of some data types, and we
   // need to conform to those regardless of what architecture you are targeting.
   if (Opts.HLSL) {
+    BoolWidth = BoolAlign = 32;
     LongWidth = LongAlign = 64;
     if (!Opts.NativeHalfType) {
       HalfFormat = &llvm::APFloat::IEEEsingle();
@@ -572,6 +573,7 @@ void TargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
         0,  // ptr32_uptr
         0,  // ptr64
         0,  // hlsl_groupshared
+        0,  // hlsl_constant
         20, // wasm_funcref
     };
 

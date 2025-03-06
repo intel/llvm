@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
+// REQUIRES: aspect-usm_device_allocations
+
 // UNSUPPORTED: accelerator
+// UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 1
@@ -58,6 +61,17 @@ void ff_templated(T *ptr, T *unused) {
 }
 )===";
 
+auto constexpr SYCLSource2 = R"""(
+#include <sycl/sycl.hpp>
+
+extern "C" SYCL_EXTERNAL 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
+void vec_add(float* in1, float* in2, float* out){
+  size_t id = sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_linear_id();
+  out[id] = in1[id] + in2[id];
+}
+)""";
+
 auto constexpr ESIMDSource = R"===(
 #include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
@@ -77,6 +91,47 @@ void vector_add_esimd(float *A, float *B, float *C) {
     simd<float, VL> vc = va + vb;
     vc.copy_to(C + offset);
     }
+)===";
+
+auto constexpr DeviceCodeSplitSource = R"===(
+#include <sycl/sycl.hpp>
+
+template<typename T, unsigned WG = 16> SYCL_EXTERNAL 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::nd_range_kernel<1>)
+[[sycl::reqd_work_group_size(WG)]]
+void vec_add(T* in1, T* in2, T* out){
+  size_t id = sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_linear_id();
+  out[id] = in1[id] + in2[id];
+}
+)===";
+
+auto constexpr DeviceLibrariesSource = R"===(
+#include <sycl/sycl.hpp>
+#include <cmath>
+#include <complex>
+#include <sycl/ext/intel/math.hpp>
+
+extern "C" SYCL_EXTERNAL 
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(sycl::ext::oneapi::experimental::single_task_kernel)
+void device_libs_kernel(float *ptr) {
+  // Extension list: llvm/lib/SYCLLowerIR/SYCLDeviceLibReqMask.cpp
+
+  // cl_intel_devicelib_assert is not available for opencl:gpu; skip testing it.
+  // Only test the fp32 variants of complex, math and imf to keep this test
+  // device-agnostic.
+  
+  // cl_intel_devicelib_math
+  ptr[0] = erff(ptr[0]);
+
+  // cl_intel_devicelib_complex
+  ptr[1] = std::abs(std::complex<float>{1.0f, ptr[1]});
+
+  // cl_intel_devicelib_cstring
+  ptr[2] = memcmp(ptr + 2, ptr + 2, sizeof(float));
+
+  // cl_intel_devicelib_imf
+  ptr[3] = sycl::ext::intel::math::sqrt(ptr[3] * 2);
+}
 )===";
 
 auto constexpr BadSource = R"===(
@@ -107,7 +162,7 @@ void ff_cp(int *ptr) {
 }
 )===";
 
-void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
+void run_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   constexpr int Range = 10;
   int *usmPtr = sycl::malloc_shared<int>(Range, Queue);
   int start = 3;
@@ -131,6 +186,41 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   std::cout << std::endl;
 
   sycl::free(usmPtr, Queue);
+}
+
+void run_2(sycl::queue &Queue, sycl::kernel &Kernel, bool ESIMD, float seed) {
+  constexpr int VL = 16; // this constant also in ESIMDSource string.
+  constexpr int size = VL * 16;
+
+  float *A = sycl::malloc_shared<float>(size, Queue);
+  float *B = sycl::malloc_shared<float>(size, Queue);
+  float *C = sycl::malloc_shared<float>(size, Queue);
+  for (size_t i = 0; i < size; i++) {
+    A[i] = seed;
+    B[i] = seed * 2.0f;
+    C[i] = 0.0f;
+  }
+  sycl::range<1> GlobalRange(size / (ESIMD ? VL : 1));
+  sycl::range<1> LocalRange(ESIMD ? 1 : VL);
+  sycl::nd_range<1> NDRange{GlobalRange, LocalRange};
+
+  Queue
+      .submit([&](sycl::handler &Handler) {
+        Handler.set_arg(0, A);
+        Handler.set_arg(1, B);
+        Handler.set_arg(2, C);
+        Handler.parallel_for(NDRange, Kernel);
+      })
+      .wait();
+
+  // Check.
+  for (size_t i = 0; i < size; i++) {
+    assert(C[i] == seed * 3.0f);
+  }
+
+  sycl::free(A, Queue);
+  sycl::free(B, Queue);
+  sycl::free(C, Queue);
 }
 
 int test_build_and_run() {
@@ -175,24 +265,27 @@ int test_build_and_run() {
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs,
       syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
-                         syclex::registered_kernel_names{"ff_templated<int>"}});
+                         syclex::registered_names{"ff_templated<int>"}});
 
-  // extern "C" was used, so the name "ff_cp" is not mangled and can be used
-  // directly.
+  // extern "C" was used, so the name "ff_cp" is implicitly known.
   sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
 
-  // The templated function name will have been mangled. Mapping from original
-  // name to mangled is not yet supported. So we cannot yet do this:
-  // sycl::kernel k2 = kbExe2.ext_oneapi_get_kernel("ff_templated<int>");
+  // The templated function name was registered.
+  sycl::kernel k2 = kbExe2.ext_oneapi_get_kernel("ff_templated<int>");
 
-  // Instead, we can TEMPORARILY use the mangled name. Once demangling is
-  // supported this might no longer work.
-  sycl::kernel k2 =
-      kbExe2.ext_oneapi_get_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_S1_");
+  // Get compiler-generated names.
+  std::string cgn = kbExe2.ext_oneapi_get_raw_kernel_name("ff_cp");
+  std::string cgn2 = kbExe2.ext_oneapi_get_raw_kernel_name("ff_templated<int>");
+  assert(cgn == "__sycl_kernel_ff_cp");
+  assert(cgn2 == "_Z26__sycl_kernel_ff_templatedIiEvPT_S1_");
+
+  // We can also use the compiler-generated names directly.
+  assert(kbExe2.ext_oneapi_has_kernel(cgn));
+  assert(kbExe2.ext_oneapi_has_kernel(cgn2));
 
   // Test the kernels.
-  test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
-  test_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
+  run_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
+  run_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
 
   // Create and compile new bundle with different header.
   std::string AddEmHModified = AddEmH;
@@ -203,18 +296,162 @@ int test_build_and_run() {
       ctx, syclex::source_language::sycl_jit, SYCLSource,
       syclex::properties{incFiles2});
 
-  exe_kb kbExe3 = syclex::build(
-      kbSrc2, syclex::properties{
-                  syclex::build_options{"-fsycl-device-code-split=per_kernel"},
-                  syclex::registered_kernel_names{"ff_templated<int>"}});
-  assert(std::distance(kbExe3.begin(), kbExe3.end()) == 2 &&
-         "Expected 2 device images");
+  exe_kb kbExe3 = syclex::build(kbSrc2);
   sycl::kernel k3 = kbExe3.ext_oneapi_get_kernel("ff_cp");
-  test_1(q, k3, 37 + 7);
+  run_1(q, k3, 37 + 7);
 
   // Can we still run the original compilation?
   sycl::kernel k4 = kbExe1.ext_oneapi_get_kernel("ff_cp");
-  test_1(q, k4, 37 + 5);
+  run_1(q, k4, 37 + 5);
+
+  return 0;
+}
+
+int test_lifetimes() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    return -1;
+  }
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, SYCLSource2);
+
+  exe_kb kbExe1 = syclex::build(kbSrc);
+  assert(sycl::get_kernel_ids().size() == 1);
+
+  {
+    exe_kb kbExe2 = syclex::build(kbSrc);
+    assert(sycl::get_kernel_ids().size() == 2);
+    // kbExe2 goes out of scope; its kernels are removed from program mananager.
+  }
+  assert(sycl::get_kernel_ids().size() == 1);
+
+  {
+    std::unique_ptr<sycl::kernel> kPtr;
+    {
+      exe_kb kbExe3 = syclex::build(kbSrc);
+      assert(sycl::get_kernel_ids().size() == 2);
+
+      sycl::kernel k = kbExe3.ext_oneapi_get_kernel("vec_add");
+      kPtr = std::make_unique<sycl::kernel>(k);
+      // kbExe3 goes out of scope, but the kernel keeps the underlying
+      // impl-object alive
+    }
+    assert(sycl::get_kernel_ids().size() == 2);
+    // kPtr goes out of scope, freeing the kernel and its bundle
+  }
+  assert(sycl::get_kernel_ids().size() == 1);
+
+  return 0;
+}
+
+int test_device_code_split() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    return -1;
+  }
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, DeviceCodeSplitSource);
+
+  // Test explicit device code split
+  std::vector<std::string> names{"vec_add<float>", "vec_add<int>",
+                                 "vec_add<short>"};
+  auto build = [&](const std::string &mode) -> size_t {
+    exe_kb kbExe = syclex::build(
+        kbSrc, syclex::properties{
+                   syclex::registered_names{names},
+                   syclex::build_options{"-fsycl-device-code-split=" + mode}});
+    return std::distance(kbExe.begin(), kbExe.end());
+  };
+
+  size_t perKernelNImg = build("per_kernel");
+  size_t perSourceNImg = build("per_source");
+  size_t offNImg = build("off");
+  size_t autoNImg = build("auto");
+
+  assert(perKernelNImg == 3);
+  assert(perSourceNImg == 1);
+  assert(offNImg == 1);
+  assert(autoNImg >= offNImg && autoNImg <= perKernelNImg);
+
+  // Test implicit device code split
+  names = {"vec_add<float, 8>", "vec_add<float, 16>"};
+  exe_kb kbDiffWorkGroupSizes =
+      syclex::build(kbSrc, syclex::properties{syclex::registered_names{names}});
+  assert(std::distance(kbDiffWorkGroupSizes.begin(),
+                       kbDiffWorkGroupSizes.end()) == 2);
+
+  return 0;
+}
+
+int test_device_libraries() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    return -1;
+  }
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, DeviceLibrariesSource);
+  exe_kb kbExe = syclex::build(kbSrc);
+
+  sycl::kernel k = kbExe.ext_oneapi_get_kernel("device_libs_kernel");
+  constexpr size_t nElem = 4;
+  float *ptr = sycl::malloc_shared<float>(nElem, q);
+  for (int i = 0; i < nElem; ++i)
+    ptr[i] = 1.0f;
+
+  q.submit([&](sycl::handler &cgh) {
+    cgh.set_arg(0, ptr);
+    cgh.single_task(k);
+  });
+  q.wait_and_throw();
+
+  // Check that the kernel was executed. Given the {1.0, 1.0, 1.0, 1.0} input,
+  // the expected result is approximately {0.84, 1.41, 0.0, 1.41}.
+  for (unsigned i = 0; i < nElem; ++i) {
+    std::cout << ptr[i] << ' ';
+    assert(ptr[i] != 1.0f);
+  }
+  std::cout << std::endl;
+
+  sycl::free(ptr, q);
 
   return 0;
 }
@@ -256,36 +493,24 @@ int test_esimd() {
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("vector_add_esimd");
 
   // Now test it.
-  constexpr int VL = 16; // this constant also in ESIMDSource string.
-  constexpr int size = VL * 16;
+  run_2(q, k, true, 3.14f);
 
-  float *A = sycl::malloc_shared<float>(size, q);
-  float *B = sycl::malloc_shared<float>(size, q);
-  float *C = sycl::malloc_shared<float>(size, q);
-  for (size_t i = 0; i < size; i++) {
-    A[i] = float(1);
-    B[i] = float(2);
-    C[i] = 0.0f;
-  }
-  sycl::range<1> GlobalRange{size / VL};
-  sycl::range<1> LocalRange{1};
-  sycl::nd_range<1> NDRange{GlobalRange, LocalRange};
+  // Mix ESIMD and normal kernel.
+  std::string mixedSource = std::string{ESIMDSource} + SYCLSource2;
+  source_kb kbSrcMixed = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, mixedSource);
+  exe_kb kbExeMixed = syclex::build(kbSrcMixed);
 
-  q.submit([&](sycl::handler &h) {
-     h.set_arg(0, A);
-     h.set_arg(1, B);
-     h.set_arg(2, C);
-     h.parallel_for(NDRange, k);
-   }).wait();
+  // Both kernels should be available.
+  sycl::kernel kESIMD = kbExeMixed.ext_oneapi_get_kernel("vector_add_esimd");
+  sycl::kernel kSYCL = kbExeMixed.ext_oneapi_get_kernel("vec_add");
 
-  // Check.
-  for (size_t i = 0; i < size; i++) {
-    assert(C[i] == 3.0f);
-  }
+  // Device code split is mandatory.
+  assert(std::distance(kbExeMixed.begin(), kbExeMixed.end()) == 2);
 
-  sycl::free(A, q);
-  sycl::free(B, q);
-  sycl::free(C, q);
+  // Test execution.
+  run_2(q, kESIMD, true, 2.38f);
+  run_2(q, kSYCL, false, 1.41f);
 
   return 0;
 }
@@ -390,8 +615,9 @@ int test_warning() {
 int main(int argc, char **) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   int optional_tests = (argc > 1) ? test_warning() : 0;
-  return test_build_and_run() || test_esimd() || test_unsupported_options() ||
-         test_error() || optional_tests;
+  return test_build_and_run() || test_lifetimes() || test_device_code_split() ||
+         test_device_libraries() || test_esimd() ||
+         test_unsupported_options() || test_error() || optional_tests;
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
