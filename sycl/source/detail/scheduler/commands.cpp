@@ -482,9 +482,11 @@ public:
     AsyncCodeLocationPtr.reset();
 #endif
 
-    // ktikhomi: zeEventHostSignal - not implemented in UR: todo
-    // also to consider usage of urEventSetCallback for some scheduling improvements
     try {
+      if (auto NativeEvent = MThisCmd->MEvent->getHandle())
+      {
+        HostTask.MQueue->getAdapter()->call<UrApiKind::urEventHostSignal>(NativeEvent);
+      }
       // If we enqueue blocked users - ur level could throw exception that
       // should be treated as async now.
       Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
