@@ -81,11 +81,11 @@ jobs:
       static_adapter: ${{ matrix.static || 'OFF' }}
       platform: ${{ matrix.platform || '' }}
       other_adapter_name: ${{ matrix.other_adapter || '' }}
-      image: ${{ matrix.image }}
-      image_options: ${{ matrix.image_options }}
-      target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
+      image: ${{ matrix.image || '' }}
+      image_options: ${{ matrix.image_options || '' }}
+      target_devices: ${{ matrix.target_devices || '' }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts || '' }}
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu || '' }}
 
   macos:
     name: MacOS build only
