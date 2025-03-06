@@ -24,7 +24,7 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
-#endif // defined(__NVPTX__)
+#endif                                                     // defined(__NVPTX__)
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for use, layout
 #include <sycl/ext/oneapi/matrix/matrix-unified.hpp>       // for joint_matrix
 
