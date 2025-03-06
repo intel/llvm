@@ -916,7 +916,7 @@ std::enable_if_t<std::is_same_v<DataT, float4> || std::is_same_v<DataT, int4> ||
                  DataT>
 gather_image(const sampled_image_handle &imageHandle [[maybe_unused]],
              const float2 &coords [[maybe_unused]],
-             const int i = 0 [[maybe_unused]]) {
+             const int i [[maybe_unused]] = 0) {
 #ifdef __SYCL_DEVICE_ONLY__
   return __invoke__SampledImageGather<DataT>(
       CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, float2::size()),
