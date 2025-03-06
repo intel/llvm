@@ -83,9 +83,9 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
 
     runs-on: ${{inputs.runner_name}}
-    container:
-      image: ${{ matrix.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
-      options: ${{ matrix.image_options }}
+    # container:
+    #   image: ${{ matrix.image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+    #   options: ${{ matrix.image_options }}
     steps:
     # TODO:
     # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
