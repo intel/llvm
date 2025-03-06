@@ -319,6 +319,11 @@ struct ModuleSplitterSettings {
 /// Parses the output table file from sycl-post-link tool.
 Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);
 
+/// PreSplitProcessingPipeline maintains correctnes.
+/// Note: After migration from sycl-post-link to NewOffload Model this
+/// functionality should move to clang-sycl-linker or clang-linker-wrapper.
+bool runPreSplitProcessingPipeline(Module &M);
+
 /// Splits the given module \p M according to the given \p Settings.
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);

@@ -1400,6 +1400,36 @@ Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
   return Modules;
 }
 
+bool runPreSplitProcessingPipeline(Module &M) {
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+
+  // After linking device bitcode "llvm.used" holds references to the kernels
+  // that are defined in the device image. But after splitting device image into
+  // separate kernels we may end up with having references to kernel declaration
+  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
+  // and these declarations cause an assertion in llvm-spirv. To workaround this
+  // issue remove "llvm.used" from the input module before performing any other
+  // actions.
+  MPM.addPass(CleanupSYCLMetadataFromUsed());
+  MPM.addPass(SYCLFixupESIMDKernelWrapperMDPass());
+
+  // There may be device_global variables kept alive in "llvm.compiler.used"
+  // to keep the optimizer from wrongfully removing them. llvm.compiler.used
+  // symbols are usually removed at backend lowering, but this is handled here
+  // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
+  if (M.getTargetTriple().find("spir") != std::string::npos)
+    MPM.addPass(RemoveDeviceGlobalFromCompilerUsed());
+
+  if (isModuleUsingAsan(M) || isModuleUsingMsan(M) || isModuleUsingTsan(M))
+    MPM.addPass(SanitizerKernelMetadataPass());
+
+  MPM.addPass(SYCLJointMatrixTransformPass());
+  MPM.addPass(SYCLLowerInvokeSimdPass());
+  return !MPM.run(M, MAM).areAllPreserved();
+}
+
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   ModuleDesc MD = std::move(M); // makeModuleDesc() ?
