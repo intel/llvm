@@ -81,10 +81,13 @@
 // RUN:   %clang_cl -### -fsycl-force-inline-kernel-lambda  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-fsycl-force-inline-kernel-lambda %s
 
+// Warning should be emitted when using -foffload-fp32-prec-sqrt without -fsycl
 // RUN:   %clang -### -foffload-fp32-prec-sqrt %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-sqrt %s
 // RUN:   %clang_cl -### -foffload-fp32-prec-sqrt %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-sqrt %s
+
+// Warning should be emitted when using -foffload-fp32-prec-div without -fsycl
 // RUN:   %clang -### -foffload-fp32-prec-div %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=WARNING-UNUSED-ARG -DOPT=-foffload-fp32-prec-div %s
 // RUN:   %clang_cl -### -foffload-fp32-prec-div %s 2>&1 \
