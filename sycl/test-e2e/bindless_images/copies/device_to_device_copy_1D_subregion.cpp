@@ -1,5 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-// REQUIRES: cuda
+// UNSUPPORTED: target-amd
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
