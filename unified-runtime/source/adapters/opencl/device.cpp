@@ -1097,7 +1097,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS: {
-
     CL_RETURN_ON_FAILURE(
         clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
                         CL_DEVICE_MAX_READ_WRITE_IMAGE_ARGS, propSize,
@@ -1487,22 +1486,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
                                                      SubGroupSizes.size());
   }
-  case UR_DEVICE_INFO_EXTENSIONS: {
-    cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
-    size_t ExtSize = 0;
-    CL_RETURN_ON_FAILURE(
-        clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize));
-
-    std::string ExtStr(ExtSize, '\0');
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, ExtSize,
-                                         ExtStr.data(), nullptr));
-
-    std::string SupportedExtensions(ExtStr.c_str());
-    if (ExtStr.find("cl_khr_command_buffer") != std::string::npos) {
-      SupportedExtensions += " ur_exp_command_buffer";
-    }
-    return ReturnValue(SupportedExtensions.c_str());
-  }
 
   case UR_DEVICE_INFO_UUID: {
     // Use the cl_khr_device_uuid extension, if available.
@@ -1558,6 +1541,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         ur::cl::getAdapter()->clSetProgramSpecializationConstant != nullptr);
   }
+  case UR_DEVICE_INFO_EXTENSIONS: {
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
+        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_EXTENSIONS, propSize,
+        pPropValue, pPropSizeRet));
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(false);
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:

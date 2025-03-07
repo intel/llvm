@@ -1,6 +1,7 @@
 #include <clc/clc.h>
-#include <core/clc_core.h>
-#include <libspirv/spirv.h>
+#include <clc/integer/clc_mul24.h>
 
-#define __CLC_BODY <mul24.inc>
-#include <clc/integer/integer-gentype.inc>
+#define FUNCTION mul24
+#define __CLC_BODY <clc/shared/binary_def.inc>
+
+#include <clc/integer/gentype24.inc>

@@ -1696,9 +1696,7 @@ static void insertDbgValueOrDbgVariableRecord(DIBuilder &Builder, Value *DV,
                                               const DebugLoc &NewLoc,
                                               BasicBlock::iterator Instr) {
   if (!UseNewDbgInfoFormat) {
-    auto DbgVal = Builder.insertDbgValueIntrinsic(DV, DIVar, DIExpr, NewLoc,
-                                                  (Instruction *)nullptr);
-    cast<Instruction *>(DbgVal)->insertBefore(Instr);
+    Builder.insertDbgValueIntrinsic(DV, DIVar, DIExpr, NewLoc, Instr);
   } else {
     // RemoveDIs: if we're using the new debug-info format, allocate a
     // DbgVariableRecord directly instead of a dbg.value intrinsic.
@@ -1711,19 +1709,10 @@ static void insertDbgValueOrDbgVariableRecord(DIBuilder &Builder, Value *DV,
 
 static void insertDbgValueOrDbgVariableRecordAfter(
     DIBuilder &Builder, Value *DV, DILocalVariable *DIVar, DIExpression *DIExpr,
-    const DebugLoc &NewLoc, BasicBlock::iterator Instr) {
-  if (!UseNewDbgInfoFormat) {
-    auto DbgVal = Builder.insertDbgValueIntrinsic(DV, DIVar, DIExpr, NewLoc,
-                                                  (Instruction *)nullptr);
-    cast<Instruction *>(DbgVal)->insertAfter(&*Instr);
-  } else {
-    // RemoveDIs: if we're using the new debug-info format, allocate a
-    // DbgVariableRecord directly instead of a dbg.value intrinsic.
-    ValueAsMetadata *DVAM = ValueAsMetadata::get(DV);
-    DbgVariableRecord *DV =
-        new DbgVariableRecord(DVAM, DIVar, DIExpr, NewLoc.get());
-    Instr->getParent()->insertDbgRecordAfter(DV, &*Instr);
-  }
+    const DebugLoc &NewLoc, Instruction *Instr) {
+  BasicBlock::iterator NextIt = std::next(Instr->getIterator());
+  NextIt.setHeadBit(true);
+  insertDbgValueOrDbgVariableRecord(Builder, DV, DIVar, DIExpr, NewLoc, NextIt);
 }
 
 /// Inserts a llvm.dbg.value intrinsic before a store to an alloca'd value
@@ -1815,7 +1804,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
   // preferable to keep tracking both the loaded value and the original
   // address in case the alloca can not be elided.
   insertDbgValueOrDbgVariableRecordAfter(Builder, LI, DIVar, DIExpr, NewLoc,
-                                         LI->getIterator());
+                                         LI);
 }
 
 void llvm::ConvertDebugDeclareToDebugValue(DbgVariableRecord *DVR,
@@ -2108,7 +2097,7 @@ insertDbgVariableRecordsForPHIs(BasicBlock *BB,
   for (auto PHI : InsertedPHIs) {
     BasicBlock *Parent = PHI->getParent();
     // Avoid inserting a debug-info record into an EH block.
-    if (Parent->getFirstNonPHI()->isEHPad())
+    if (Parent->getFirstNonPHIIt()->isEHPad())
       continue;
     for (auto VI : PHI->operand_values()) {
       auto V = DbgValueMap.find(VI);
@@ -2174,7 +2163,7 @@ void llvm::insertDebugValuesForPHIs(BasicBlock *BB,
   for (auto *PHI : InsertedPHIs) {
     BasicBlock *Parent = PHI->getParent();
     // Avoid inserting an intrinsic into an EH block.
-    if (Parent->getFirstNonPHI()->isEHPad())
+    if (Parent->getFirstNonPHIIt()->isEHPad())
       continue;
     for (auto *VI : PHI->operand_values()) {
       auto V = DbgValueMap.find(VI);
@@ -2197,7 +2186,7 @@ void llvm::insertDebugValuesForPHIs(BasicBlock *BB,
     auto *NewDbgII = DI.second;
     auto InsertionPt = Parent->getFirstInsertionPt();
     assert(InsertionPt != Parent->end() && "Ill-formed basic block");
-    NewDbgII->insertBefore(&*InsertionPt);
+    NewDbgII->insertBefore(InsertionPt);
   }
 }
 
@@ -2975,7 +2964,7 @@ CallInst *llvm::createCallMatchingInvoke(InvokeInst *II) {
 CallInst *llvm::changeToCall(InvokeInst *II, DomTreeUpdater *DTU) {
   CallInst *NewCall = createCallMatchingInvoke(II);
   NewCall->takeName(II);
-  NewCall->insertBefore(II);
+  NewCall->insertBefore(II->getIterator());
   II->replaceAllUsesWith(NewCall);
 
   // Follow the call by a branch to the normal destination.
@@ -3206,7 +3195,7 @@ static bool markAliveBlocks(Function &F,
         BasicBlock *HandlerBB = *I;
         if (DTU)
           ++NumPerSuccessorCases[HandlerBB];
-        auto *CatchPad = cast<CatchPadInst>(HandlerBB->getFirstNonPHI());
+        auto *CatchPad = cast<CatchPadInst>(HandlerBB->getFirstNonPHIIt());
         if (!HandlerSet.insert({CatchPad, Empty}).second) {
           if (DTU)
             --NumPerSuccessorCases[HandlerBB];
@@ -4315,9 +4304,9 @@ Value *llvm::invertCondition(Value *Condition) {
   auto *Inverted =
       BinaryOperator::CreateNot(Condition, Condition->getName() + ".inv");
   if (Inst && !isa<PHINode>(Inst))
-    Inverted->insertAfter(Inst);
+    Inverted->insertAfter(Inst->getIterator());
   else
-    Inverted->insertBefore(&*Parent->getFirstInsertionPt());
+    Inverted->insertBefore(Parent->getFirstInsertionPt());
   return Inverted;
 }
 

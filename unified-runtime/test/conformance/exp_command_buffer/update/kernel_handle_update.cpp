@@ -77,6 +77,7 @@ struct TestSaxpyKernel : public uur::command_buffer::TestKernel {
     UpdateDesc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr,                                                        // pNext
+        nullptr,                  // hCommand
         Kernel,                   // hNewKernel
         0,                        // numNewMemObjArgs
         3,                        // numNewPointerArgs
@@ -171,6 +172,7 @@ struct TestFill2DKernel : public uur::command_buffer::TestKernel {
     UpdateDesc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr,                                                        // pNext
+        nullptr,             // hCommand
         Kernel,              // hNewKernel
         0,                   // numNewMemObjArgs
         1,                   // numNewPointerArgs
@@ -273,11 +275,12 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, Success) {
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
+  FillUSM2DKernel->UpdateDesc.hCommand = CommandHandle;
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
-      CommandHandle, &FillUSM2DKernel->UpdateDesc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+      updatable_cmd_buf_handle, 1, &FillUSM2DKernel->UpdateDesc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -302,11 +305,12 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, UpdateAgain) {
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
+  FillUSM2DKernel->UpdateDesc.hCommand = CommandHandle;
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
-      CommandHandle, &FillUSM2DKernel->UpdateDesc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+      updatable_cmd_buf_handle, 1, &FillUSM2DKernel->UpdateDesc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -317,8 +321,8 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, UpdateAgain) {
   // potentially fail since it would try to use the Saxpy kernel
   FillUSM2DKernel->Val = 78;
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
-      CommandHandle, &FillUSM2DKernel->UpdateDesc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+      updatable_cmd_buf_handle, 1, &FillUSM2DKernel->UpdateDesc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ASSERT_NO_FATAL_FAILURE(FillUSM2DKernel->validate());
@@ -341,11 +345,12 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, RestoreOriginalKernel) {
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
+  FillUSM2DKernel->UpdateDesc.hCommand = CommandHandle;
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
-      CommandHandle, &FillUSM2DKernel->UpdateDesc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+      updatable_cmd_buf_handle, 1, &FillUSM2DKernel->UpdateDesc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -355,9 +360,10 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, RestoreOriginalKernel) {
   // Updating A, so that the second launch of the saxpy kernel actually has a
   // different output.
   SaxpyKernel->A = 20;
+  SaxpyKernel->UpdateDesc.hCommand = CommandHandle;
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
-      CommandHandle, &SaxpyKernel->UpdateDesc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+      updatable_cmd_buf_handle, 1, &SaxpyKernel->UpdateDesc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   ASSERT_NO_FATAL_FAILURE(SaxpyKernel->validate());
@@ -374,12 +380,14 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, KernelAlternativeNotRegistered) {
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_VALUE,
-                   urCommandBufferUpdateKernelLaunchExp(
-                       CommandHandle, &FillUSM2DKernel->UpdateDesc));
+  FillUSM2DKernel->UpdateDesc.hCommand = CommandHandle;
+  ASSERT_EQ_RESULT(
+      UR_RESULT_ERROR_INVALID_VALUE,
+      urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle, 1,
+                                           &FillUSM2DKernel->UpdateDesc));
 }
 
 TEST_P(urCommandBufferKernelHandleUpdateTest,
@@ -415,7 +423,7 @@ TEST_P(urCommandBufferValidUpdateParametersTest,
   ASSERT_NE(CommandHandle, nullptr);
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -430,9 +438,10 @@ TEST_P(urCommandBufferValidUpdateParametersTest,
   FillUSM2DKernel->UpdateDesc.newWorkDim = 1;
   FillUSM2DKernel->UpdateDesc.pNewGlobalWorkSize = &newGlobalWorkSize;
   FillUSM2DKernel->UpdateDesc.pNewGlobalWorkOffset = &newGlobalWorkOffset;
+  FillUSM2DKernel->UpdateDesc.hCommand = CommandHandle;
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
-      CommandHandle, &FillUSM2DKernel->UpdateDesc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+      updatable_cmd_buf_handle, 1, &FillUSM2DKernel->UpdateDesc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -456,16 +465,17 @@ TEST_P(urCommandBufferValidUpdateParametersTest, UpdateOnlyLocalWorkSize) {
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
   SaxpyKernel->UpdateDesc.pNewGlobalWorkOffset = nullptr;
   SaxpyKernel->UpdateDesc.pNewGlobalWorkSize = nullptr;
   size_t newLocalSize = SaxpyKernel->LocalSize * 4;
   SaxpyKernel->UpdateDesc.pNewLocalWorkSize = &newLocalSize;
+  SaxpyKernel->UpdateDesc.hCommand = CommandHandle;
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
-      CommandHandle, &SaxpyKernel->UpdateDesc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+      updatable_cmd_buf_handle, 1, &SaxpyKernel->UpdateDesc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -490,9 +500,10 @@ TEST_P(urCommandBufferValidUpdateParametersTest, SuccessNullptrHandle) {
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
   SaxpyKernel->UpdateDesc.hNewKernel = nullptr;
+  SaxpyKernel->UpdateDesc.hCommand = CommandHandle;
   ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
-      CommandHandle, &SaxpyKernel->UpdateDesc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+      updatable_cmd_buf_handle, 1, &SaxpyKernel->UpdateDesc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 

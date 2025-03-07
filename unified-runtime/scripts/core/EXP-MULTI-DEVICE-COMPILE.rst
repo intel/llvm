@@ -32,6 +32,11 @@ future.
 API
 --------------------------------------------------------------------------------
 
+Enums
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* ${x}_device_info_t
+    * ${X}_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP
+
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -42,23 +47,26 @@ Functions
 Changelog
 --------------------------------------------------------------------------------
 
-+-----------+------------------------+
-| Revision  | Changes                |
-+===========+========================+
-| 1.0       | Initial Draft           |
-+-----------+------------------------+
++-----------+---------------------------------------------+
+| Revision  | Changes                                     |
++===========+=============================================+
+| 1.0       | Initial Draft                               |
++-----------+---------------------------------------------+
+| 1.1       | Switch from extension string macro to       |
+|           | device info enum for reporting support.     |
++-----------+---------------------------------------------+
 
 Support
 --------------------------------------------------------------------------------
 
-Adapters which support this experimental feature *must* return the valid string 
-defined in ``${X}_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP`` 
-as one of the options from ${x}DeviceGetInfo when querying for 
-${X}_DEVICE_INFO_EXTENSIONS. Conversely, before using any of the 
-functionality defined in this experimental feature the user *must* use the 
-device query to determine if the adapter supports this feature.
+Adapters which support this experimental feature *must* return ``true`` when
+queried for ${X}_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP via
+${x}DeviceGetInfo. Conversely, before using any of the functionality defined
+in this experimental feature the user *must* use the device query to determine
+if the adapter supports this feature.
 
 Contributors
 --------------------------------------------------------------------------------
 
 * Kenneth Benzie (Benie) `k.benzie@codeplay.com <k.benzie@codeplay.com>`_
+* Aaron Greig `aaron.greig@codeplay.com <aaron.greig@codeplay.com>`_
