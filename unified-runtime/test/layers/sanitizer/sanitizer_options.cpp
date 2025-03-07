@@ -11,6 +11,9 @@
  *
  */
 
+// RUN: UR_LOG_SANITIZER="level:debug;flush:debug;output:stdout" sanitizer_options-test
+// REQUIRES: sanitizer
+
 #include "sanitizer_options.hpp"
 #include "sanitizer_options_impl.hpp"
 

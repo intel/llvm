@@ -11,6 +11,9 @@
  *
  */
 
+// RUN: UR_LOG_SANITIZER="level:debug;flush:debug;output:stdout" asan-test
+// REQUIRES: sanitizer
+
 #include <gtest/gtest.h>
 #include <ur_api.h>
 
