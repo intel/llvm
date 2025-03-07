@@ -69,6 +69,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     target_compile_options(ze_loader PRIVATE
         $<$<IN_LIST:$<CXX_COMPILER_ID>,GNU;Clang;Intel;IntelLLVM>:-Wno-error>
         $<$<CXX_COMPILER_ID:MSVC>:/WX- /UUNICODE>
+        $<$<CXX_COMPILER_ID:MSVC>:/MD$<$<CONFIG:Debug>:d>>
     )
 
     set(LEVEL_ZERO_LIBRARY ze_loader)
