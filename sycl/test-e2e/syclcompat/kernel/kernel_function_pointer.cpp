@@ -39,9 +39,9 @@
 
 #include <syclcompat/defs.hpp>
 #include <syclcompat/device.hpp>
+#include <syclcompat/kernel.hpp>
 #include <syclcompat/memory.hpp>
 #include <syclcompat/util.hpp>
-#include <syclcompat/kernel.hpp>
 
 void vectorAdd(const int *A, int *B, int *C, int N,
                const sycl::nd_item<3> &item_ct1) {
