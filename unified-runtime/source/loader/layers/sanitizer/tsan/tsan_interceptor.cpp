@@ -161,9 +161,15 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
   auto CI = getContextInfo(GetContext(Queue));
   auto DI = getDeviceInfo(GetDevice(Queue));
 
-  UR_CALL(prepareLaunch(CI, DI, Queue, Kernel, LaunchInfo));
+  ManagedQueue InternalQueue(CI->Handle, DI->Handle);
+  if (!InternalQueue) {
+    getContext()->logger.error("Failed to create internal queue");
+    return UR_RESULT_ERROR_INVALID_QUEUE;
+  }
 
-  UR_CALL(updateShadowMemory(CI, DI, Queue));
+  UR_CALL(prepareLaunch(CI, DI, InternalQueue, Kernel, LaunchInfo));
+
+  UR_CALL(updateShadowMemory(CI, DI, InternalQueue));
 
   return UR_RESULT_SUCCESS;
 }
