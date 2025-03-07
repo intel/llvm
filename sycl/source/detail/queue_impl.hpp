@@ -753,11 +753,11 @@ public:
     return ResEvent;
   }
 
-  bool nativeHostTaskHandling()
-  {
-    return std::getenv("SYCL_ENABLE_USER_EVENTS_PATH") && (MDevice->getBackend() == backend::ext_oneapi_level_zero);
+  bool nativeHostTaskHandling() {
+    return std::getenv("SYCL_ENABLE_USER_EVENTS_PATH") &&
+           (MDevice->getBackend() == backend::ext_oneapi_level_zero);
   }
-  
+
 protected:
   event discard_or_return(const event &Event);
 

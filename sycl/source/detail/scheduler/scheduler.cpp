@@ -115,8 +115,10 @@ EventImplPtr Scheduler::addCG(
           MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
       break;
     case CGType::CodeplayHostTask: {
-      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), Queue->nativeHostTaskHandling() ? Queue : nullptr,
-                                   AuxiliaryCmds, EventNeeded);
+      NewCmd =
+          MGraphBuilder.addCG(std::move(CommandGroup),
+                              Queue->nativeHostTaskHandling() ? Queue : nullptr,
+                              AuxiliaryCmds, EventNeeded);
       break;
     }
     default:
@@ -460,12 +462,9 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       Cmd->MMarkedForCleanup = true;
     }
 
-    if (auto NativeEvent = CmdEvent->getHandle())
-    {
+    if (auto NativeEvent = CmdEvent->getHandle()) {
       QueueImpl->getAdapter()->call<UrApiKind::urEventHostSignal>(NativeEvent);
-    }
-    else
-    {
+    } else {
       {
         std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
         // update self-event status

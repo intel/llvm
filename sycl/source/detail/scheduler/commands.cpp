@@ -233,8 +233,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
     if (CommandQueue && EventImpl->getWorkerQueue() == CommandQueue &&
-        CommandQueue->isInOrder() &&
-        (!IsHostTaskCommand))
+        CommandQueue->isInOrder() && (!IsHostTaskCommand))
       continue;
 
     RetUrEvents.push_back(Handle);
@@ -3654,7 +3653,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
 bool ExecCGCommand::producesPiEvent() const {
   return !MCommandBuffer &&
-         !(MCommandGroup->getType() == CGType::CodeplayHostTask && !MQueue /* MQueue is set only when we have native sync with host task */);
+         !(
+             MCommandGroup->getType() == CGType::CodeplayHostTask && !MQueue /* MQueue is set only when we have native sync with host task */);
 }
 
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
