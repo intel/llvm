@@ -1054,8 +1054,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         ur_result_t Res =
             Queue->getAdapter()
                 ->call_nocheck<
-                    sycl::detail::UrApiKind::urCommandBufferEnqueueExp>(
-                    CommandBuffer, Queue->getHandleRef(), 0, nullptr, &UREvent);
+                    sycl::detail::UrApiKind::urEnqueueCommandBufferExp>(
+                    Queue->getHandleRef(), CommandBuffer, 0, nullptr, &UREvent);
         NewEvent->setHandle(UREvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
           throw sycl::exception(
@@ -1381,18 +1381,82 @@ void exec_graph_impl::update(std::shared_ptr<node_impl> Node) {
 
 void exec_graph_impl::update(
     const std::vector<std::shared_ptr<node_impl>> &Nodes) {
-
   if (!MIsUpdatable) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "update() cannot be called on a executable graph "
                           "which was not created with property::updatable");
   }
 
+  // If the graph contains host tasks we need special handling here because
+  // their state lives in the graph object itself, so we must do the update
+  // immediately here. Whereas all other command state lives in the backend so
+  // it can be scheduled along with other commands.
+  if (MContainsHostTask) {
+    updateHostTasksImpl(Nodes);
+  }
+
+  // If there are any accessor requirements, we have to update through the
+  // scheduler to ensure that any allocations have taken place before trying
+  // to update.
+  std::vector<sycl::detail::AccessorImplHost *> UpdateRequirements;
+  bool NeedScheduledUpdate = needsScheduledUpdate(Nodes, UpdateRequirements);
+  if (NeedScheduledUpdate) {
+    // Clean up any execution events which have finished so we don't pass them
+    // to the scheduler.
+    for (auto It = MExecutionEvents.begin(); It != MExecutionEvents.end();) {
+      if ((*It)->isCompleted()) {
+        It = MExecutionEvents.erase(It);
+        continue;
+      }
+      ++It;
+    }
+
+    auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
+        sycl::detail::getSyclObjImpl(MGraphImpl->getDevice()),
+        sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
+        sycl::async_handler{}, sycl::property_list{});
+
+    // Track the event for the update command since execution may be blocked by
+    // other scheduler commands
+    auto UpdateEvent =
+        sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
+            this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
+
+    MExecutionEvents.push_back(UpdateEvent);
+  } else {
+    // For each partition in the executable graph, call UR update on the
+    // command-buffer with the nodes to update.
+    auto PartitionedNodes = getURUpdatableNodes(Nodes);
+    for (auto &[PartitionIndex, NodeImpl] : PartitionedNodes) {
+      auto &Partition = MPartitions[PartitionIndex];
+      auto CommandBuffer = Partition->MCommandBuffers[MDevice];
+      updateURImpl(CommandBuffer, NodeImpl);
+    }
+  }
+
+  // Rebuild cached requirements and accessor storage for this graph with
+  // updated nodes
+  MRequirements.clear();
+  MAccessors.clear();
+  for (auto &Node : MNodeStorage) {
+    if (!Node->MCommandGroup)
+      continue;
+    MRequirements.insert(MRequirements.end(),
+                         Node->MCommandGroup->getRequirements().begin(),
+                         Node->MCommandGroup->getRequirements().end());
+    MAccessors.insert(MAccessors.end(),
+                      Node->MCommandGroup->getAccStorage().begin(),
+                      Node->MCommandGroup->getAccStorage().end());
+  }
+}
+
+bool exec_graph_impl::needsScheduledUpdate(
+    const std::vector<std::shared_ptr<node_impl>> &Nodes,
+    std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements) {
   // If there are any accessor requirements, we have to update through the
   // scheduler to ensure that any allocations have taken place before trying to
   // update.
   bool NeedScheduledUpdate = false;
-  std::vector<sycl::detail::AccessorImplHost *> UpdateRequirements;
   // At worst we may have as many requirements as there are for the entire graph
   // for updating.
   UpdateRequirements.reserve(MRequirements.size());
@@ -1421,108 +1485,22 @@ void exec_graph_impl::update(
     }
   }
 
-  // Clean up any execution events which have finished so we don't pass them to
-  // the scheduler.
-  for (auto It = MExecutionEvents.begin(); It != MExecutionEvents.end();) {
-    if ((*It)->isCompleted()) {
-      It = MExecutionEvents.erase(It);
-      continue;
-    }
-    ++It;
-  }
-
   // If we have previous execution events do the update through the scheduler to
   // ensure it is ordered correctly.
   NeedScheduledUpdate |= MExecutionEvents.size() > 0;
 
-  if (NeedScheduledUpdate) {
-    // Copy the list of nodes as we may need to modify it
-    auto NodesCopy = Nodes;
-
-    // If the graph contains host tasks we need special handling here because
-    // their state lives in the graph object itself, so we must do the update
-    // immediately here. Whereas all other command state lives in the backend so
-    // it can be scheduled along with other commands.
-    if (MContainsHostTask) {
-      std::vector<std::shared_ptr<node_impl>> HostTasks;
-      // Remove any nodes that are host tasks and put them in HostTasks
-      auto RemovedIter = std::remove_if(
-          NodesCopy.begin(), NodesCopy.end(),
-          [&HostTasks](const std::shared_ptr<node_impl> &Node) -> bool {
-            if (Node->MNodeType == node_type::host_task) {
-              HostTasks.push_back(Node);
-              return true;
-            }
-            return false;
-          });
-      // Clean up extra elements in NodesCopy after the remove
-      NodesCopy.erase(RemovedIter, NodesCopy.end());
-
-      // Update host-tasks synchronously
-      for (auto &HostTaskNode : HostTasks) {
-        updateImpl(HostTaskNode);
-      }
-    }
-
-    auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
-        sycl::detail::getSyclObjImpl(MGraphImpl->getDevice()),
-        sycl::detail::getSyclObjImpl(MGraphImpl->getContext()),
-        sycl::async_handler{}, sycl::property_list{});
-
-    // Track the event for the update command since execution may be blocked by
-    // other scheduler commands
-    auto UpdateEvent =
-        sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
-            this, std::move(NodesCopy), AllocaQueue, UpdateRequirements,
-            MExecutionEvents);
-
-    MExecutionEvents.push_back(UpdateEvent);
-  } else {
-    for (auto &Node : Nodes) {
-      updateImpl(Node);
-    }
-  }
-
-  // Rebuild cached requirements and accessor storage for this graph with
-  // updated nodes
-  MRequirements.clear();
-  MAccessors.clear();
-  for (auto &Node : MNodeStorage) {
-    if (!Node->MCommandGroup)
-      continue;
-    MRequirements.insert(MRequirements.end(),
-                         Node->MCommandGroup->getRequirements().begin(),
-                         Node->MCommandGroup->getRequirements().end());
-    MAccessors.insert(MAccessors.end(),
-                      Node->MCommandGroup->getAccStorage().begin(),
-                      Node->MCommandGroup->getAccStorage().end());
-  }
+  return NeedScheduledUpdate;
 }
 
-void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
-  // Updating empty or barrier nodes is a no-op
-  if (Node->isEmpty() || Node->MNodeType == node_type::ext_oneapi_barrier) {
-    return;
-  }
-
-  // Query the ID cache to find the equivalent exec node for the node passed to
-  // this function.
-  // TODO: Handle subgraphs or any other cases where multiple nodes may be
-  // associated with a single key, once those node types are supported for
-  // update.
-  auto ExecNode = MIDCache.find(Node->MID);
-  assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
-
-  // Update ExecNode with new values from Node, in case we ever need to
-  // rebuild the command buffers
-  ExecNode->second->updateFromOtherNode(Node);
-
-  // Host task update only requires updating the node itself, so can return
-  // early
-  if (Node->MNodeType == node_type::host_task) {
-    return;
-  }
-
+void exec_graph_impl::populateURKernelUpdateStructs(
+    const std::shared_ptr<node_impl> &Node,
+    std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
+    std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
+    std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
+    std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
+    std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
+    sycl::detail::NDRDescT &NDRDesc,
+    ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const {
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
@@ -1533,9 +1511,8 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   // Copy args because we may modify them
   std::vector<sycl::detail::ArgDesc> NodeArgs = ExecCG.getArguments();
   // Copy NDR desc since we need to modify it
-  auto NDRDesc = ExecCG.MNDRDesc;
+  NDRDesc = ExecCG.MNDRDesc;
 
-  ur_program_handle_t UrProgram = nullptr;
   ur_kernel_handle_t UrKernel = nullptr;
   auto Kernel = ExecCG.MSyclKernel;
   auto KernelBundleImplPtr = ExecCG.MKernelBundle;
@@ -1560,9 +1537,11 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     UrKernel = Kernel->getHandleRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
+    ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, ExecCG.MKernelName);
+    BundleObjs = std::make_pair(UrProgram, UrKernel);
   }
 
   // Remove eliminated args
@@ -1596,17 +1575,13 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-  // Create update descriptor
 
   // Storage for individual arg descriptors
-  std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> MemobjDescs;
-  std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> PtrDescs;
-  std::vector<ur_exp_command_buffer_update_value_arg_desc_t> ValueDescs;
   MemobjDescs.reserve(MaskedArgs.size());
   PtrDescs.reserve(MaskedArgs.size());
   ValueDescs.reserve(MaskedArgs.size());
+  MemobjProps.resize(MaskedArgs.size()); // resize since we access by reference
 
-  ur_exp_command_buffer_update_kernel_launch_desc_t UpdateDesc{};
   UpdateDesc.stype =
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC;
   UpdateDesc.pNext = nullptr;
@@ -1632,27 +1607,27 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
       sycl::detail::Requirement *Req =
           static_cast<sycl::detail::Requirement *>(NodeArg.MPtr);
 
-      ur_kernel_arg_mem_obj_properties_t MemObjProps;
-      MemObjProps.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
-      MemObjProps.pNext = nullptr;
+      ur_kernel_arg_mem_obj_properties_t &MemObjProp = MemobjProps[i];
+      MemObjProp.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
+      MemObjProp.pNext = nullptr;
       switch (Req->MAccessMode) {
       case access::mode::read: {
-        MemObjProps.memoryAccess = UR_MEM_FLAG_READ_ONLY;
+        MemObjProp.memoryAccess = UR_MEM_FLAG_READ_ONLY;
         break;
       }
       case access::mode::write:
       case access::mode::discard_write: {
-        MemObjProps.memoryAccess = UR_MEM_FLAG_WRITE_ONLY;
+        MemObjProp.memoryAccess = UR_MEM_FLAG_WRITE_ONLY;
         break;
       }
       default: {
-        MemObjProps.memoryAccess = UR_MEM_FLAG_READ_WRITE;
+        MemObjProp.memoryAccess = UR_MEM_FLAG_READ_WRITE;
         break;
       }
       }
       MemobjDescs.push_back(
           {UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC, nullptr,
-           static_cast<uint32_t>(NodeArg.MIndex), &MemObjProps,
+           static_cast<uint32_t>(NodeArg.MIndex), &MemObjProp,
            static_cast<ur_mem_handle_t>(Req->MData)});
 
     } break;
@@ -1675,20 +1650,128 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   UpdateDesc.pNewLocalWorkSize = LocalSize;
   UpdateDesc.newWorkDim = NDRDesc.Dims;
 
-  ur_exp_command_buffer_command_handle_t Command =
-      MCommandMap[ExecNode->second];
-  ur_result_t Res = Adapter->call_nocheck<
-      sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
-      Command, &UpdateDesc);
+  // Query the ID cache to find the equivalent exec node for the node passed to
+  // this function.
+  // TODO: Handle subgraphs or any other cases where multiple nodes may be
+  // associated with a single key, once those node types are supported for
+  // update.
+  auto ExecNode = MIDCache.find(Node->MID);
+  assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
 
-  if (UrProgram) {
-    // We retained these objects by calling getOrCreateKernel()
-    Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(UrKernel);
-    Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(UrProgram);
+  auto Command = MCommandMap.find(ExecNode->second);
+  assert(Command != MCommandMap.end());
+  UpdateDesc.hCommand = Command->second;
+
+  // Update ExecNode with new values from Node, in case we ever need to
+  // rebuild the command buffers
+  ExecNode->second->updateFromOtherNode(Node);
+}
+
+std::map<int, std::vector<std::shared_ptr<node_impl>>>
+exec_graph_impl::getURUpdatableNodes(
+    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
+  // Iterate over the list of nodes, and for every node that can
+  // be updated through UR, add it to the list of nodes for
+  // that can be updated for the UR command-buffer partition.
+  std::map<int, std::vector<std::shared_ptr<node_impl>>> PartitionedNodes;
+
+  // Initialize vector for each partition
+  for (size_t i = 0; i < MPartitions.size(); i++) {
+    PartitionedNodes[i] = {};
   }
 
-  if (Res != UR_RESULT_SUCCESS) {
-    throw sycl::exception(errc::invalid, "Error updating command_graph");
+  for (auto &Node : Nodes) {
+    // Kernel node update is the only command type supported in UR for update.
+    if (Node->MCGType != sycl::detail::CGType::Kernel) {
+      continue;
+    }
+
+    auto ExecNode = MIDCache.find(Node->MID);
+    assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
+    auto PartitionIndex = MPartitionNodes.find(ExecNode->second);
+    assert(PartitionIndex != MPartitionNodes.end());
+    PartitionedNodes[PartitionIndex->second].push_back(Node);
+  }
+
+  return PartitionedNodes;
+}
+
+void exec_graph_impl::updateHostTasksImpl(
+    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
+  for (auto &Node : Nodes) {
+    if (Node->MNodeType != node_type::host_task) {
+      continue;
+    }
+    // Query the ID cache to find the equivalent exec node for the node passed
+    // to this function.
+    auto ExecNode = MIDCache.find(Node->MID);
+    assert(ExecNode != MIDCache.end() && "Node ID was not found in ID cache");
+
+    ExecNode->second->updateFromOtherNode(Node);
+  }
+}
+
+void exec_graph_impl::updateURImpl(
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<std::shared_ptr<node_impl>> &Nodes) const {
+  const size_t NumUpdatableNodes = Nodes.size();
+  if (NumUpdatableNodes == 0) {
+    return;
+  }
+
+  // The urCommandBufferUpdateKernelLaunchExp API takes structs which contain
+  // members that are pointers to other structs. The lifetime of all the
+  // pointers (including nested pointers) needs to be valid at the time of the
+  // urCommandBufferUpdateKernelLaunchExp call. Define the objects here which
+  // will be populated and used in the urCommandBufferUpdateKernelLaunchExp
+  // call.
+  std::vector<std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t>>
+      MemobjDescsList(NumUpdatableNodes);
+  std::vector<std::vector<ur_kernel_arg_mem_obj_properties_t>> MemobjPropsList(
+      NumUpdatableNodes);
+  std::vector<std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t>>
+      PtrDescsList(NumUpdatableNodes);
+  std::vector<std::vector<ur_exp_command_buffer_update_value_arg_desc_t>>
+      ValueDescsList(NumUpdatableNodes);
+  std::vector<sycl::detail::NDRDescT> NDRDescList(NumUpdatableNodes);
+  std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> UpdateDescList(
+      NumUpdatableNodes);
+  std::vector<std::pair<ur_program_handle_t, ur_kernel_handle_t>>
+      KernelBundleObjList(NumUpdatableNodes);
+
+  size_t StructListIndex = 0;
+  for (auto &Node : Nodes) {
+    // This should be the case when getURUpdatableNodes() is used to
+    // create the list of nodes.
+    assert(Node->MCGType == sycl::detail::CGType::Kernel);
+
+    auto &MemobjDescs = MemobjDescsList[StructListIndex];
+    auto &MemobjProps = MemobjPropsList[StructListIndex];
+    auto &KernelBundleObjs = KernelBundleObjList[StructListIndex];
+    auto &PtrDescs = PtrDescsList[StructListIndex];
+    auto &ValueDescs = ValueDescsList[StructListIndex];
+    auto &NDRDesc = NDRDescList[StructListIndex];
+    auto &UpdateDesc = UpdateDescList[StructListIndex];
+    populateURKernelUpdateStructs(Node, KernelBundleObjs, MemobjDescs,
+                                  MemobjProps, PtrDescs, ValueDescs, NDRDesc,
+                                  UpdateDesc);
+    StructListIndex++;
+  }
+
+  auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  Adapter->call<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
+      CommandBuffer, UpdateDescList.size(), UpdateDescList.data());
+
+  for (auto &BundleObjs : KernelBundleObjList) {
+    // We retained these objects by inside populateUpdateStruct() by calling
+    // getOrCreateKernel()
+    if (auto &UrKernel = BundleObjs.second; nullptr != UrKernel) {
+      Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(UrKernel);
+    }
+    if (auto &UrProgram = BundleObjs.first; nullptr != UrProgram) {
+      Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(UrProgram);
+    }
   }
 }
 

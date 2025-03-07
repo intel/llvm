@@ -12,7 +12,6 @@
 #include "adapter.hpp"
 #include "context.hpp"
 #include "event.hpp"
-#include "logger/ur_logger.hpp"
 
 #include <hip/hip_runtime.h>
 #include <sstream>
@@ -226,19 +225,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(uint64_t{MaxAlloc});
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
-    bool Enabled = false;
-
-    if (std::getenv("UR_HIP_ENABLE_IMAGE_SUPPORT") != nullptr) {
-      Enabled = true;
-    } else {
-      logger::always(
-          "Images are not fully supported by the HIP BE, their support is "
-          "disabled by default. Their partial support can be activated by "
-          "setting UR_HIP_ENABLE_IMAGE_SUPPORT environment variable at "
-          "runtime.");
-    }
-
-    return ReturnValue(Enabled);
+    // Legacy images are not supported, bindless images should be used instead.
+    return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to HIP as it doesn't have images, but instead
@@ -579,22 +567,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // native asserts are in progress
     std::string SupportedExtensions = "";
     SupportedExtensions += "cl_intel_devicelib_assert ";
-    SupportedExtensions += "ur_exp_usm_p2p ";
-
-    int RuntimeVersion = 0;
-    UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
-
-    // Return supported for the UR command-buffer experimental feature on
-    // ROCM 5.5.1 and later. This is to workaround HIP driver bug
-    // https://github.com/ROCm/HIP/issues/2450 in older versions.
-    //
-    // The version is returned as (10000000 major + 1000000 minor + patch).
-    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
-    if (RuntimeVersion >= CmdBufDriverMinVersion) {
-      SupportedExtensions += "ur_exp_command_buffer ";
-    }
-
-    SupportedExtensions += " ";
 
     return ReturnValue(SupportedExtensions.c_str());
   }
@@ -828,17 +800,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
     // Default values due to non-existent hipamd queries for linear sizes.
-    constexpr uint32_t MaxLinearWidth{1};
+    constexpr size_t MaxLinearWidth{1};
     return ReturnValue(MaxLinearWidth);
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
     // Default values due to non-existent hipamd queries for linear sizes.
-    constexpr uint32_t MaxLinearHeight{1};
+    constexpr size_t MaxLinearHeight{1};
     return ReturnValue(MaxLinearHeight);
   }
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
     // Default values due to non-existent hipamd queries for linear sizes.
-    constexpr uint32_t MaxLinearPitch{1};
+    constexpr size_t MaxLinearPitch{1};
     return ReturnValue(MaxLinearPitch);
   }
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
@@ -1075,27 +1047,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
-    int DriverVersion = 0;
-    UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
+    int RuntimeVersion = 0;
+    UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
 
     // Return supported for the UR command-buffer experimental feature on
     // ROCM 5.5.1 and later. This is to workaround HIP driver bug
     // https://github.com/ROCm/HIP/issues/2450 in older versions.
     //
     // The version is returned as (10000000 major + 1000000 minor + patch).
-    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
-    return ReturnValue(DriverVersion >= CmdBufDriverMinVersion);
+    const int CmdBufRuntimeMinVersion = 50530202; // ROCM 5.5.1
+    return ReturnValue(RuntimeVersion >= CmdBufRuntimeMinVersion);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
-    int DriverVersion = 0;
-    UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
-    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
-    if (DriverVersion < CmdBufDriverMinVersion) {
+    int RuntimeVersion = 0;
+    UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
+    const int CmdBufRuntimeMinVersion = 50530202; // ROCM 5.5.1
+    if (RuntimeVersion < CmdBufRuntimeMinVersion) {
       return ReturnValue(
           static_cast<ur_device_command_buffer_update_capability_flags_t>(0));
     }
@@ -1112,6 +1085,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP: {
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(false);
   default:
     break;
   }
