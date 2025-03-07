@@ -42,7 +42,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   libspirv/lib/amdgcn/SOURCES;
   libspirv/lib/ptx-nvidiacl/SOURCES;
   libspirv/lib/r600/SOURCES;
-  libspirv/lib/native_cpu-unknown-linux/SOURCES;
+  libspirv/lib/native_cpu/SOURCES;
 )
 
 set( LIBCLC_MIN_LLVM 3.9.0 )
@@ -51,9 +51,6 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
     CACHE STRING "Semicolon-separated list of libclc targets to build, or 'all'." )
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
-
-set( LIBCLC_NATIVECPU_FLAGS_X86_64 ""
-  CACHE STRING "Semicolon-separated list of compiler flags for x86_64 libclc target.")
 
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Out-of-tree configuration
@@ -192,10 +189,10 @@ else()
   endforeach()
 endif()
 
-option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU using the host triple." Off)
+option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU." Off)
 
 if( LIBCLC_NATIVECPU_HOST_TARGET )
-  list(APPEND LIBCLC_TARGETS_TO_BUILD ${LLVM_TARGET_TRIPLE})
+  list(APPEND LIBCLC_TARGETS_TO_BUILD native_cpu)
 endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
@@ -227,9 +224,7 @@ set( nvptx--nvidiacl_devices none )
 set( nvptx64--nvidiacl_devices none )
 set( spirv-mesa3d-_devices none )
 set( spirv64-mesa3d-_devices none )
-# TODO: Does this need to be set for each possible triple?
-set( x86_64-unknown-linux-gnu_devices none )
-set( aarch64-unknown-linux-gnu_devices none )
+set( native_cpu_devices none )
 
 # Setup aliases
 set( cedar_aliases palm sumo sumo2 redwood juniper )
@@ -312,11 +307,9 @@ else(LIBCLC_STANDALONE_BUILD)
 endif(LIBCLC_STANDALONE_BUILD)
 file( TO_CMAKE_PATH ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/clc LIBCLC_LIBRARY_OUTPUT_INTDIR )
 
-set(NATIVECPU_SUPPORTED_ARCH "x86_64;aarch64")
-
 foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   message( STATUS "libclc target '${t}' is enabled" )
-  string( REPLACE "-" ";" TRIPLE  ${t} )
+  string( REPLACE "-" ";" TRIPLE  ${t}-- )
   list( GET TRIPLE 0 ARCH )
   list( GET TRIPLE 1 VENDOR )
   list( GET TRIPLE 2 OS )
@@ -345,16 +338,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( DARCH ${ARCH} )
   endif()
 
-  set(IS_NATIVE_CPU_ARCH FALSE)
-  if( ARCH IN_LIST NATIVECPU_SUPPORTED_ARCH )
-    set(IS_NATIVE_CPU_ARCH TRUE)
-  endif()
-
-  if( IS_NATIVE_CPU_ARCH AND OS STREQUAL linux)
-    LIST( APPEND dirs native_cpu-unknown-linux )
-  elseif( IS_NATIVE_CPU_ARCH AND NOT OS STREQUAL linux )
-    message(WARNING "libclc is being built for an unsupported ARCH/OS"
-      " configuration, some SYCL programs may fail to build.")
+  if( ARCH STREQUAL native_cpu )
+    LIST( APPEND dirs native_cpu )
   endif()
 
   set( clc_lib_files )
@@ -421,11 +406,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         # AMDGCN needs libclc to be compiled to high bc version since all atomic
         # clang builtins need to be accessible
         list( APPEND build_flags -mcpu=gfx940 -mllvm --amdgpu-oclc-reflect-enable=false )
-      elseif( IS_NATIVE_CPU_ARCH )
+      elseif( ARCH STREQUAL native_cpu )
         list( APPEND build_flags -Xclang -fsycl-is-native-cpu )
-        if( ARCH  STREQUAL x86_64 )
-          list( APPEND build_flags ${LIBCLC_NATIVECPU_FLAGS_X86_64})
-        endif()
       endif()
     endif()
 
@@ -464,7 +446,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       set( has_distinct_generic_addrspace FALSE )
     elseif( ARCH STREQUAL amdgcn )
       set( opt_flags -O3 --amdgpu-oclc-reflect-enable=false )
-    elseif( IS_NATIVE_CPU_ARCH )
+    elseif( ARCH STREQUAL native_cpu )
       set( opt_flags -O3 )
       set( has_distinct_generic_addrspace FALSE )
     else()

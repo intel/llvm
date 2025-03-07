@@ -626,11 +626,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
       {"libsycl-nativecpu_utils", "internal"}};
 
-  const bool isNativeCPU =
-      (driver::isSYCLNativeCPU(Args) &&
-       driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
-                               TargetTriple));
-
   bool IsWindowsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
@@ -788,7 +783,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     addLibraries(SYCLDeviceTsanLibs);
 #endif
 
-  if (isNativeCPU)
+  if (isSYCLNativeCPU(TargetTriple))
     addLibraries(SYCLNativeCpuDeviceLibs);
 
   return LibraryList;
@@ -950,7 +945,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(this->getToolChain());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
@@ -964,6 +958,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
+      const bool IsSYCLNativeCPU =
+          isSYCLNativeCPU(this->getToolChain().getTriple());
       const bool IsFPGA = this->getToolChain().getTriple().isSPIR() &&
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
@@ -1115,7 +1111,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   assert((getToolChain().getTriple().isSPIROrSPIRV() ||
           getToolChain().getTriple().isNVPTX() ||
-          getToolChain().getTriple().isAMDGCN() || isSYCLNativeCPU(Args)) &&
+          getToolChain().getTriple().isAMDGCN() ||
+          isSYCLNativeCPU(getToolChain().getTriple())) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -1718,9 +1715,9 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
 }
 
 // Currently supported options by SYCL NativeCPU device compilation
-static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
+static inline bool SupportedByNativeCPU(const llvm::Triple &Triple,
                                         const OptSpecifier &Opt) {
-  if (!TC.IsSYCLNativeCPU)
+  if (!isSYCLNativeCPU(Triple))
     return false;
 
   switch (Opt.getID()) {
@@ -1737,7 +1734,6 @@ static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
-      IsSYCLNativeCPU(Triple == HostTC.getTriple()),
       SYCLInstallation(D, Triple, Args) {
   // Lookup binaries into the driver directory, this is used to discover any
   // dependent SYCL offload compilation tools.
@@ -1747,7 +1743,7 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   for (OptSpecifier Opt : getUnsupportedOpts()) {
     if (const Arg *A = Args.getLastArg(Opt)) {
       // Native CPU can support options unsupported by other targets.
-      if (SupportedByNativeCPU(*this, Opt))
+      if (SupportedByNativeCPU(getTriple(), Opt))
         continue;
       // All sanitizer options are not currently supported, except
       // AddressSanitizer and MemorySanitizer and ThreadSanitizer
@@ -1791,7 +1787,7 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
         // NativeCPU should allow most normal cpu options.
-        if (SupportedByNativeCPU(*this, Opt.getID()))
+        if (SupportedByNativeCPU(getTriple(), Opt.getID()))
           continue;
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
@@ -2186,7 +2182,7 @@ Tool *SYCLToolChain::buildBackendCompiler() const {
 }
 
 Tool *SYCLToolChain::buildLinker() const {
-  assert(getTriple().isSPIROrSPIRV() || IsSYCLNativeCPU);
+  assert(getTriple().isSPIROrSPIRV() || isSYCLNativeCPU(getTriple()));
   return new tools::SYCL::Linker(*this);
 }
 

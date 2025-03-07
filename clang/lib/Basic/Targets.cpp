@@ -28,6 +28,7 @@
 #include "Targets/MSP430.h"
 #include "Targets/Mips.h"
 #include "Targets/NVPTX.h"
+#include "Targets/NativeCPU.h"
 #include "Targets/OSTargets.h"
 #include "Targets/PNaCl.h"
 #include "Targets/PPC.h"
@@ -115,6 +116,13 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
 
   switch (Triple.getArch()) {
   default:
+    return nullptr;
+
+  case llvm::Triple::UnknownArch:
+    /* native_cpu is only known to Clang, not to LLVM. */
+    if (Triple.str() == "native_cpu")
+      return std::make_unique<NativeCPUTargetInfo>(Triple, Opts);
+
     return nullptr;
 
   case llvm::Triple::arc:
