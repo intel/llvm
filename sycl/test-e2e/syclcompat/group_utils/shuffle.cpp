@@ -136,7 +136,8 @@ int expect4[513] = {
     511, 510, 0};
 
 void BlockShuffleKernel1(int *input, int *output,
-                         const sycl::nd_item<3> &item_ct1, uint8_t *temp_storage) {
+                         const sycl::nd_item<3> &item_ct1,
+                         uint8_t *temp_storage) {
 
   typedef syclcompat::group::group_shuffle<int, 128> BS;
 
@@ -146,7 +147,8 @@ void BlockShuffleKernel1(int *input, int *output,
 }
 
 void BlockShuffleKernel2(int *input, int *output,
-                         const sycl::nd_item<3> &item_ct1, uint8_t *temp_storage) {
+                         const sycl::nd_item<3> &item_ct1,
+                         uint8_t *temp_storage) {
   typedef syclcompat::group::group_shuffle<int, 128> BS;
 
   BS(temp_storage)
@@ -155,7 +157,8 @@ void BlockShuffleKernel2(int *input, int *output,
 }
 
 void BlockShuffleKernel3(int *input, int *output, int *extra,
-                         const sycl::nd_item<3> &item_ct1, uint8_t *temp_storage) {
+                         const sycl::nd_item<3> &item_ct1,
+                         uint8_t *temp_storage) {
   typedef syclcompat::group::group_shuffle<int, 128> BS;
 
   BS(temp_storage)
@@ -167,7 +170,8 @@ void BlockShuffleKernel3(int *input, int *output, int *extra,
 }
 
 void BlockShuffleKernel4(int *input, int *output, int *extra,
-                         const sycl::nd_item<3> &item_ct1, uint8_t *temp_storage) {
+                         const sycl::nd_item<3> &item_ct1,
+                         uint8_t *temp_storage) {
   typedef syclcompat::group::group_shuffle<int, 128> BS;
 
   BS(temp_storage)
@@ -187,7 +191,7 @@ int main() {
   int host_input1[128];
   int host_output1[128];
   int host_input4[128 * 4];
-  int host_output4[128*4];
+  int host_output4[128 * 4];
   int host_extra = 0;
   input1 = sycl::malloc_device<int>(128, q_ct1);
   output1 = sycl::malloc_device<int>(128, q_ct1);
@@ -195,12 +199,12 @@ int main() {
   output4 = (int *)sycl::malloc_device(sizeof(int) * 128 * 4, q_ct1);
   extra = sycl::malloc_device<int>(1, q_ct1);
 
-  for(int i = 0; i < 128; i++) {
+  for (int i = 0; i < 128; i++) {
     host_input1[i] = i;
     host_output1[i] = 0;
   }
 
-  for(int i = 0; i < 128 * 4; i++) {
+  for (int i = 0; i < 128 * 4; i++) {
     host_input4[i] = i;
     host_output4[i] = 0;
   }
@@ -226,8 +230,8 @@ int main() {
 
   q_ct1.memcpy(host_output1, output1, sizeof(int) * 128).wait();
   dev_ct1.queues_wait_and_throw();
-  for(int i = 0; i < 128; i++){
-    if(host_output1[i] != expect1[i]) {
+  for (int i = 0; i < 128; i++) {
+    if (host_output1[i] != expect1[i]) {
       std::cout << "test 1 failed" << std::endl;
       exit(-1);
     }
@@ -248,8 +252,8 @@ int main() {
 
   q_ct1.memcpy(host_output1, output1, sizeof(int) * 128).wait();
   dev_ct1.queues_wait_and_throw();
-  for(int i = 0; i < 128; i++){
-    if(host_output1[i] != expect2[i]) {
+  for (int i = 0; i < 128; i++) {
+    if (host_output1[i] != expect2[i]) {
       std::cout << "test 2 failed" << std::endl;
       exit(-1);
     }
@@ -273,13 +277,13 @@ int main() {
   q_ct1.memcpy(&host_extra, extra, sizeof(int)).wait();
   dev_ct1.queues_wait_and_throw();
 
-  for(int i = 0; i < 128 * 4; i++){
-    if(host_output4[i] != expect3[i]) {
+  for (int i = 0; i < 128 * 4; i++) {
+    if (host_output4[i] != expect3[i]) {
       std::cout << "test 3 failed" << std::endl;
       exit(-1);
     }
   }
-  if(host_extra != expect3[512]) {
+  if (host_extra != expect3[512]) {
     std::cout << "test 3 failed" << std::endl;
     exit(-1);
   }
@@ -301,13 +305,13 @@ int main() {
   q_ct1.memcpy(host_output4, output4, sizeof(int) * 128 * 4);
   q_ct1.memcpy(&host_extra, extra, sizeof(int)).wait();
   dev_ct1.queues_wait_and_throw();
-  for(int i = 0; i < 128 * 4; i++){
-    if(host_output4[i] != expect4[i]) {
+  for (int i = 0; i < 128 * 4; i++) {
+    if (host_output4[i] != expect4[i]) {
       std::cout << "test 4 failed" << std::endl;
       exit(-1);
     }
   }
-  if(host_extra != expect4[512]) {
+  if (host_extra != expect4[512]) {
     std::cout << "test 4 failed" << std::endl;
     exit(-1);
   }

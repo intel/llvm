@@ -37,8 +37,8 @@
 #include <sycl/sycl.hpp>
 
 #include <syclcompat/device.hpp>
-#include <syclcompat/memory.hpp>
 #include <syclcompat/group_utils.hpp>
+#include <syclcompat/memory.hpp>
 
 void Sort(int *data, const sycl::nd_item<3> &item_ct1, uint8_t *temp_storage) {
 
@@ -78,12 +78,10 @@ void SortDescendingBlockedToStriped(int *data, const sycl::nd_item<3> &item_ct1,
                                     uint8_t *load_temp_storage,
                                     uint8_t *store_temp_storage,
                                     uint8_t *temp_storage) {
-  using BlockLoadT =
-      syclcompat::group::group_load<int, 4,
-                              syclcompat::group::group_load_algorithm::blocked>;
-  using BlockStoreT =
-      syclcompat::group::group_store<int, 4,
-                               syclcompat::group::group_store_algorithm::blocked>;
+  using BlockLoadT = syclcompat::group::group_load<
+      int, 4, syclcompat::group::group_load_algorithm::blocked>;
+  using BlockStoreT = syclcompat::group::group_store<
+      int, 4, syclcompat::group::group_store_algorithm::blocked>;
   using BlockRadixSort = syclcompat::group::group_radix_sort<int, 4>;
 
   int thread_keys[4];
@@ -93,7 +91,8 @@ void SortDescendingBlockedToStriped(int *data, const sycl::nd_item<3> &item_ct1,
   BlockStoreT(store_temp_storage).store(item_ct1, data, thread_keys);
 }
 
-void SortBit(int *data, const sycl::nd_item<3> &item_ct1, uint8_t *temp_storage) {
+void SortBit(int *data, const sycl::nd_item<3> &item_ct1,
+             uint8_t *temp_storage) {
 
   using BlockRadixSort = syclcompat::group::group_radix_sort<int, 4>;
 

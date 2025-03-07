@@ -41,13 +41,12 @@
 
 void StripedToBlockedKernel(int *d_data, const sycl::nd_item<3> &item_ct1,
                             uint8_t *load_temp_storage,
-                            uint8_t *store_temp_storage, uint8_t *temp_storage) {
-  using BlockLoadT =
-      syclcompat::group::group_load<int, 4,
-                              syclcompat::group::group_load_algorithm::striped>;
-  using BlockStoreT =
-      syclcompat::group::group_store<int, 4,
-                               syclcompat::group::group_store_algorithm::striped>;
+                            uint8_t *store_temp_storage,
+                            uint8_t *temp_storage) {
+  using BlockLoadT = syclcompat::group::group_load<
+      int, 4, syclcompat::group::group_load_algorithm::striped>;
+  using BlockStoreT = syclcompat::group::group_store<
+      int, 4, syclcompat::group::group_store_algorithm::striped>;
   typedef syclcompat::group::exchange<int, 4> BlockExchange;
 
   int thread_data[4];
