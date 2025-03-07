@@ -43,3 +43,6 @@ params:
 returns:
     - $X_RESULT_SUCCESS
     - $X_RESULT_ERROR_ADAPTER_SPECIFIC
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pSrc` or `pDst`"

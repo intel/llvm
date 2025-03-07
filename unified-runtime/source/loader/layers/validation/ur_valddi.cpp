@@ -10059,6 +10059,9 @@ __urdlllocal ur_result_t UR_APICALL urUSMContextMemcpyExp(
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (size == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
   }
 
   if (getContext()->enableLifetimeValidation &&

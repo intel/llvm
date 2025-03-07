@@ -9893,7 +9893,8 @@ ur_result_t UR_APICALL urProgramLinkExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enable access to peer device memory
+/// @brief Perform a synchronous, blocking memcpy operation between USM
+///        allocations.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -9907,6 +9908,9 @@ ur_result_t UR_APICALL urProgramLinkExp(
 ///         + `NULL == pSrc`
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
 ur_result_t UR_APICALL urUSMContextMemcpyExp(
     /// [in] Context associated with the device(s) that own the allocations
     /// `pSrc` and `pDst`.

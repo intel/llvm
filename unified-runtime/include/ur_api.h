@@ -2322,7 +2322,8 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP = 0x2050,
-  /// [::ur_bool_t] returns true if the device supports ::urUSMContextMemcpy
+  /// [::ur_bool_t] returns true if the device supports
+  /// ::urUSMContextMemcpyExp
   UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP = 0x7000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
@@ -12165,7 +12166,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
 #pragma region usm_context_memcpy_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Enable access to peer device memory
+/// @brief Perform a synchronous, blocking memcpy operation between USM
+///        allocations.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -12179,6 +12181,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
 ///         + `NULL == pSrc`
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `size == 0`
+///         + If `size` is higher than the allocation size of `pSrc` or `pDst`
 UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
     /// [in] Context associated with the device(s) that own the allocations
     /// `pSrc` and `pDst`.
