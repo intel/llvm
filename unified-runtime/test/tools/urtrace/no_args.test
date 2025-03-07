@@ -1,0 +1,17 @@
+RUN: %trace --no-args hello_world | FileCheck %s
+
+REQUIRES: tracing
+
+CHECK: Platform initialized.
+CHECK-NEXT: urAdapterGet(...) -> UR_RESULT_SUCCESS;
+CHECK-NEXT: urAdapterGet(...) -> UR_RESULT_SUCCESS;
+CHECK-NEXT: urPlatformGet(...) -> UR_RESULT_SUCCESS;
+CHECK-NEXT: urPlatformGet(...) -> UR_RESULT_SUCCESS;
+CHECK-NEXT: urPlatformGetApiVersion(...) -> UR_RESULT_SUCCESS;
+CHECK-NEXT: API version: {{.*}}
+CHECK-NEXT: urDeviceGet(...) -> UR_RESULT_SUCCESS;
+CHECK-NEXT: urDeviceGet(...) -> UR_RESULT_SUCCESS;
+CHECK-NEXT: urDeviceGetInfo(...) -> UR_RESULT_SUCCESS;
+CHECK-NEXT: urDeviceGetInfo(...) -> UR_RESULT_SUCCESS;
+CHECK-NEXT: Found a Mock Device gpu.
+CHECK-NEXT: urAdapterRelease(...) -> UR_RESULT_SUCCESS;
