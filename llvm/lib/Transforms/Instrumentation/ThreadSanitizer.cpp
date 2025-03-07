@@ -118,7 +118,7 @@ struct ThreadSanitizerOnSpirv {
 
   void initialize();
 
-  void extendSpirKernelArgs();
+  void instrumentKernelsMetadata();
 
   void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
 
@@ -243,7 +243,7 @@ PreservedAnalyses ModuleThreadSanitizerPass::run(Module &M,
     return PreservedAnalyses::all();
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     ThreadSanitizerOnSpirv Spirv(M);
-    Spirv.extendSpirKernelArgs();
+    Spirv.instrumentKernelsMetadata();
   } else
     insertModuleCtor(M);
   return PreservedAnalyses::none();
@@ -327,9 +327,7 @@ bool ThreadSanitizerOnSpirv::isSupportedSPIRKernel(Function &F) {
   return true;
 }
 
-void ThreadSanitizerOnSpirv::extendSpirKernelArgs() {
-  SmallVector<Function *> SpirFixupKernels;
-  SmallVector<Function *> SpirSkipedKernels;
+void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
@@ -337,6 +335,20 @@ void ThreadSanitizerOnSpirv::extendSpirKernelArgs() {
   //  uptr unmangled_kernel_name
   //  uptr unmangled_kernel_name_size
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+  for (Function &F : M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    if (isSupportedSPIRKernel(F)) {
+      auto KernelName = F.getName();
+      auto *KernelNameGV = GetOrCreateGlobalString("__tsan_kernel", KernelName,
+                                                   kSpirOffloadConstantAS);
+      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+          ConstantInt::get(IntptrTy, KernelName.size())));
+    }
+  }
 
   // Create global variable to record spirv kernels' information
   ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
