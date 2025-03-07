@@ -298,16 +298,20 @@ void collectFunctionsAndGlobalVariablesToExtract(
   }
 }
 
+static bool isIntrinsicOrBuiltin(const Function &F) {
+  return F.isIntrinsic() || F.getName().starts_with("__") ||
+         isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName());
+}
+
 // Checks for use of undefined user functions and emits a warning message.
-void checkForCallsToUndefinedFunctions(const Module &M) {
+static void checkForCallsToUndefinedFunctions(const Module &M) {
   if (AllowDeviceImageDependencies)
     return;
   for (const Function &F : M) {
-    if (!F.isIntrinsic() && !F.getName().starts_with("__") &&
-        !isSpirvSyclBuiltin(F.getName()) && !isESIMDBuiltin(F.getName()) &&
-        F.isDeclaration() && !F.use_empty())
+    if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
       WithColor::warning() << "Undefined function " << F.getName()
-                           << " found in " << M.getName() << "\n";
+                           << " found in " << M.getName()
+                           << ". This may result in runtime errors.\n";
   }
 }
 
@@ -1460,8 +1464,7 @@ bool canBeImportedFunction(const Function &F) {
   // in a header file.  Thus SYCL IR that is a declaration
   // will be considered as SYCL_EXTERNAL for the purposes of
   // this function.
-  if (F.isIntrinsic() || F.getName().starts_with("__") ||
-      isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName()) ||
+  if (isIntrinsicOrBuiltin(F) ||
       (!F.isDeclaration() && !llvm::sycl::utils::isSYCLExternalFunction(&F)))
     return false;
 
