@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// RUN: %{build} %device_asan_flags -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t1
-// RUN: %{run} %t1 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -g -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t1
+// RUN: %{run} not %t1 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
@@ -23,27 +23,29 @@ int main() {
         sycl::nd_range<1>(N, group_size), [=](sycl::nd_item<1> item) {
           auto gid = item.get_global_id(0);
           auto lid = item.get_local_id(0);
-          array[gid] = buf_acc[gid] + loc_acc[lid];
+          array[gid + 1] = buf_acc[gid] + loc_acc[lid];
         });
   });
   Q.wait();
   // CHECK-NOT: ERROR: DeviceSanitizer: out-of-bounds-access
+  // CHECK-NOT: kernel {{<.*::NoSanitized>}}
+  // CHECK-NOT: {{.*}}kernel-filter.cpp:[[@LINE-6]]
 
   Q.submit([&](sycl::handler &h) {
     auto buf_acc = buf.get_access<sycl::access::mode::read_write>(h);
     auto loc_acc = sycl::local_accessor<int>(group_size, h);
-    h.parallel_for<class Sanitized>(sycl::nd_range<1>(N, group_size),
-                                    [=](sycl::nd_item<1> item) {
-                                      auto gid = item.get_global_id(0);
-                                      auto lid = item.get_local_id(0);
-                                      array[gid] = buf_acc[gid] + loc_acc[lid];
-                                    });
+    h.parallel_for<class Sanitized>(
+        sycl::nd_range<1>(N, group_size), [=](sycl::nd_item<1> item) {
+          auto gid = item.get_global_id(0);
+          auto lid = item.get_local_id(0);
+          array[gid + 1] = buf_acc[gid] + loc_acc[lid];
+        });
   });
   Q.wait();
+  // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access
+  // CHECK: kernel {{<.*::Sanitized>}}
+  // CHECK: {{.*}}kernel-filter.cpp:[[@LINE-6]]
 
   sycl::free(array, Q);
-  std::cout << "PASS" << std::endl;
-  // CHECK: PASS
-
   return 0;
 }
