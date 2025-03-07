@@ -36,13 +36,13 @@ struct DeviceInfo {
   std::shared_ptr<ShadowMemory> Shadow;
 
   explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {}
-  
+
   ur_result_t allocShadowMemory();
 };
 
 struct ContextInfo {
   ur_context_handle_t Handle;
-  
+
   std::atomic<uint32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;

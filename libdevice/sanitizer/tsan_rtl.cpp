@@ -10,7 +10,6 @@
 #include "atomic.hpp"
 #include "device.h"
 #include "spirv_vars.h"
-#include "tsan/tsan_libdevice.hpp"
 
 DeviceGlobal<void *> __TsanLaunchInfo;
 
