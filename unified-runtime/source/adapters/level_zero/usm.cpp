@@ -852,8 +852,9 @@ ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMContextMemcpyExp(
-    ur_context_handle_t Context, void *pDst, const void *pSrc, size_t Size) {
+ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t Context,
+                                             void *pDst, const void *pSrc,
+                                             size_t Size) {
   // zeCommandListAppendMemoryCopy must not be called from simultaneous
   // threads with the same command list handle, so we need exclusive lock.
   std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
