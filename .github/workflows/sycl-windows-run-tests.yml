@@ -130,7 +130,7 @@ jobs:
       shell: bash
       run: |
         mkdir build-e2e
-        tar -xf ${{ inputs.e2e_binaries_artifact }} -C build-e2e
+        tar -xf e2e_bin.tar.gz -C build-e2e
 
     - name: Run End-to-End tests
       shell: bash
