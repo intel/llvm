@@ -42,6 +42,51 @@ namespace syclcompat {
 namespace group {
 namespace detail {
 
+template <typename... _Args>
+constexpr auto __reduce_over_group(_Args... __args) {
+  return sycl::reduce_over_group(__args...);
+}
+
+template <typename... _Args> constexpr auto __group_broadcast(_Args... __args) {
+  return sycl::group_broadcast(__args...);
+}
+
+template <typename... _Args>
+constexpr auto __exclusive_scan_over_group(_Args... __args) {
+  return sycl::exclusive_scan_over_group(__args...);
+}
+
+template <typename... _Args>
+constexpr auto __inclusive_scan_over_group(_Args... __args) {
+  return sycl::inclusive_scan_over_group(__args...);
+}
+
+template <typename Item, typename T, class BinaryOperation,
+          class GroupPrefixCallbackOperation>
+__syclcompat_inline__ T
+exclusive_scan(const Item &item, T input, BinaryOperation binary_op,
+               GroupPrefixCallbackOperation &prefix_callback_op) {
+  T group_aggregate;
+
+  T output =
+      detail::__exclusive_scan_over_group(item.get_group(), input, binary_op);
+  if (item.get_local_linear_id() == item.get_local_range().size() - 1) {
+    group_aggregate = binary_op(output, input);
+  }
+
+  group_aggregate = detail::__group_broadcast(
+      item.get_group(), group_aggregate, item.get_local_range().size() - 1);
+
+  T group_prefix = prefix_callback_op(group_aggregate);
+  if (item.get_local_linear_id() == 0) {
+    output = group_prefix;
+  } else {
+    output = binary_op(group_prefix, output);
+  }
+
+  return output;
+}
+
 typedef uint16_t digit_counter_type;
 typedef uint32_t packed_counter_type;
 
