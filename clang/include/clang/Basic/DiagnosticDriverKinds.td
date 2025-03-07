@@ -566,7 +566,7 @@ def warn_drv_object_size_disabled_O0 : Warning<
 def warn_drv_deprecated_option : Warning<
   "option '%0' is deprecated, use '%1' directly instead">, InGroup<Deprecated>;
 def warn_drv_deprecated_option_release : Warning<
-  "option '%0' is deprecated and will be removed in a future release">,
+  "option '%0' is deprecated and will be removed in a future release%select{|, use '%2' instead}1">,
   InGroup<Deprecated>;
 def warn_drv_deprecated_argument_option_release : Warning<
   "argument '%0' for option '%1' is deprecated and will be removed in a "
