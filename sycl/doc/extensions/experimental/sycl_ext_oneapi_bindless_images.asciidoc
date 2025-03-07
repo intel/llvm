@@ -1417,7 +1417,7 @@ defined sampling function will result in undefined behaviour.
 
 [NOTE]
 =====
-`gather_image` is only currently supported in the Cuda backend.
+`gather_image` is only currently supported in the CUDA backend.
 =====
 
 `DataT` is a vector type with four components. DataT can only be `sycl::float4`
