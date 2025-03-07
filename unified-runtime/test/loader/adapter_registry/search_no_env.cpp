@@ -1,8 +1,10 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2025 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+// RUN: UR_ADAPTERS_SEARCH_PATH="" TEST_ADAPTER_SEARCH_PATH="" TEST_CUR_SEARCH_PATH="%cwd" search-no-env-test
 
 #include "fixtures.hpp"
 
