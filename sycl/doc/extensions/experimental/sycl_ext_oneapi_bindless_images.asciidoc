@@ -1433,7 +1433,7 @@ These coordinates are returned as follows:
 - `DataT.x = T[i, j + 1]`
 - `DataT.y = T[i + 1, j + 1]`
 - `DataT.z = T[i + 1, j]`
-- `DataT.y = T[i, j]`
+- `DataT.w = T[i, j]`
 
 where `i` and `j` are calculated depending on the
 `sycl::coordinate_normalization_mode` used to constuct `ImageHandle` via a
