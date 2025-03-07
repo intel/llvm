@@ -57,6 +57,11 @@ This file describes macros that have effect on SYCL compiler and run-time.
 
 ## Version macros
 
+- `__LIBSYCL_TIMESTAMP` is set to an integer literal which corresponds to a date
+  when the latest commit into `sycl/` subproject was done. It could be used
+  to distinguish between different library builds (which includes SYCL headers)
+  to workaround any bugs, or API/ABI-breaking changes. The format is `YYYYMMDD`.
+
 - `__LIBSYCL_MAJOR_VERSION` is set to SYCL runtime library major version.
 - `__LIBSYCL_MINOR_VERSION` is set to SYCL runtime library minor version.
 - `__LIBSYCL_PATCH_VERSION` is set to SYCL runtime library patch version.
