@@ -791,7 +791,7 @@ CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 // its ref count incremented.
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
-    const std::string &KernelName, const NDRDescT &NDRDesc) {
+    std::string_view KernelName, const NDRDescT &NDRDesc) {
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
   DeviceImplPtr RootDevImpl = DeviceImpl;
@@ -1048,7 +1048,7 @@ std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
            ur_program_handle_t>
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
-                                  const std::string &KernelName,
+                                  const std::string_view KernelName,
                                   const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
@@ -1084,7 +1084,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
     Adapter->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
-        Program, KernelName.c_str(), &Kernel);
+        Program, KernelName.data(), &Kernel);
 
     // Only set UR_USM_INDIRECT_ACCESS if the platform can handle it.
     if (ContextImpl->getPlatformImpl()->supports_usm()) {
@@ -1468,9 +1468,9 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   return DeviceFilteredImgs[ImgInd];
 }
 
-RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(const std::string &KernelName,
-                               const context &Context, const device &Device) {
+RTDeviceBinaryImage &ProgramManager::getDeviceImage(std::string_view KernelName,
+                                                    const context &Context,
+                                                    const device &Device) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
               << getSyclObjImpl(Context).get() << ", "
@@ -1512,7 +1512,7 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
   }
 
   throw exception(make_error_code(errc::runtime),
-                  "No kernel named " + KernelName + " was found");
+                  "No kernel named " + std::string(KernelName) + " was found");
 }
 
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(
@@ -1776,7 +1776,7 @@ void ProgramManager::cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img) {
       m_KernelUsesAssert.insert(Prop->Name);
 }
 
-bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
+bool ProgramManager::kernelUsesAssert(std::string_view KernelName) const {
   return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
 }
 
@@ -1791,7 +1791,7 @@ void ProgramManager::cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img) {
 }
 
 std::optional<int>
-ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
+ProgramManager::kernelImplicitLocalArgPos(std::string_view KernelName) const {
   auto it = m_KernelImplicitLocalArgPos.find(KernelName);
   if (it != m_KernelImplicitLocalArgPos.end())
     return it->second;
@@ -2166,7 +2166,7 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
 
 const KernelArgMask *
 ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
-                                           const std::string &KernelName) {
+                                           std::string_view KernelName) {
   // Bail out if there are no eliminated kernel arg masks in our images
   if (m_EliminatedKernelArgMasks.empty())
     return nullptr;
@@ -2218,7 +2218,7 @@ static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
                                                 : sycl::bundle_state::object;
 }
 
-kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
+kernel_id ProgramManager::getSYCLKernelID(std::string_view KernelName) {
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
   auto KernelID = m_KernelName2KernelIDs.find(KernelName);
@@ -2244,13 +2244,14 @@ std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
 
   std::vector<sycl::kernel_id> AllKernelIDs;
   AllKernelIDs.reserve(m_KernelName2KernelIDs.size());
-  for (std::pair<std::string, kernel_id> KernelID : m_KernelName2KernelIDs) {
+  for (std::pair<std::string_view, kernel_id> KernelID :
+       m_KernelName2KernelIDs) {
     AllKernelIDs.push_back(KernelID.second);
   }
   return AllKernelIDs;
 }
 
-kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
+kernel_id ProgramManager::getBuiltInKernelID(std::string_view KernelName) {
   std::lock_guard<std::mutex> BuiltInKernelIDsGuard(m_BuiltInKernelIDsMutex);
 
   auto KernelID = m_BuiltInKernelIDs.find(KernelName);
@@ -2940,7 +2941,7 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
 // its ref count incremented.
 std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *>
 ProgramManager::getOrCreateKernel(const context &Context,
-                                  const std::string &KernelName,
+                                  std::string_view KernelName,
                                   const property_list &PropList,
                                   ur_program_handle_t Program) {
 
@@ -2958,7 +2959,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
     ur_kernel_handle_t Kernel = nullptr;
 
     const AdapterPtr &Adapter = Ctx->getAdapter();
-    Adapter->call<UrApiKind::urKernelCreate>(Program, KernelName.c_str(),
+    Adapter->call<UrApiKind::urKernelCreate>(Program, KernelName.data(),
                                              &Kernel);
 
     // Only set UR_USM_INDIRECT_ACCESS if the platform can handle it.
@@ -3003,7 +3004,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
 }
 
 ur_kernel_handle_t ProgramManager::getCachedMaterializedKernel(
-    const std::string &KernelName,
+    std::string_view KernelName,
     const std::vector<unsigned char> &SpecializationConsts) {
   if constexpr (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::getCachedMaterializedKernel\n"
@@ -3034,7 +3035,7 @@ ur_kernel_handle_t ProgramManager::getCachedMaterializedKernel(
 
 ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
     const RTDeviceBinaryImage &Img, const context &Context,
-    const device &Device, const std::string &KernelName,
+    const device &Device, std::string_view KernelName,
     const std::vector<unsigned char> &SpecializationConsts) {
   // Check if we already have the kernel in the cache.
   if constexpr (DbgProgMgr > 0)
@@ -3068,7 +3069,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
             ExtraProgramsToLink);
   ur_kernel_handle_t UrKernel{nullptr};
   Adapter->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
-      BuildProgram.get(), KernelName.c_str(), &UrKernel);
+      BuildProgram.get(), KernelName.data(), &UrKernel);
   {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     m_MaterializedKernels[KernelName][SpecializationConsts] = UrKernel;

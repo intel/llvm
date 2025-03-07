@@ -58,6 +58,7 @@ public:
   }
 
   const char *c_str() const noexcept { return str ? str : ""; }
+  const char *data() const noexcept { return c_str(); }
 
   friend bool operator==(const string &lhs, std::string_view rhs) noexcept {
     return rhs == lhs.c_str();
