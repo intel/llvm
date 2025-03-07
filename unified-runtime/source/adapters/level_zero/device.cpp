@@ -291,12 +291,6 @@ ur_result_t urDeviceGetInfo(
         (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
-    // Return supported for the UR command-buffer experimental feature
-    SupportedExtensions += ("ur_exp_command_buffer ");
-    // Return supported for the UR multi-device compile experimental feature
-    SupportedExtensions += ("ur_exp_multi_device_compile ");
-    SupportedExtensions += ("ur_exp_usm_p2p ");
-
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:
@@ -1209,6 +1203,14 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(true);
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,
@@ -1510,12 +1512,23 @@ ur_device_handle_t_::useImmediateCommandLists() {
     bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
-    if ((isDG2SupportedDriver && isDG2OrNewer) || isPVC()) {
+    // Disable immediate command lists for DG2 devices on Windows due to driver
+    // limitations.
+    bool isLinux = true;
+#ifdef _WIN32
+    isLinux = false;
+#endif
+    if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
+        isNewerThanIntelDG2()) {
       return PerQueue;
     } else {
       return NotUsed;
     }
   }
+
+  logger::info("NOTE: L0 Immediate CommandList Setting: {}",
+               ImmediateCommandlistsSetting);
+
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;

@@ -36,7 +36,6 @@
 		urCommandBufferAppendUSMMemcpyExp;
 		urCommandBufferAppendUSMPrefetchExp;
 		urCommandBufferCreateExp;
-		urCommandBufferEnqueueExp;
 		urCommandBufferFinalizeExp;
 		urCommandBufferGetInfoExp;
 		urCommandBufferReleaseExp;
@@ -61,6 +60,7 @@
 		urDeviceRelease;
 		urDeviceRetain;
 		urDeviceSelectBinary;
+		urEnqueueCommandBufferExp;
 		urEnqueueCooperativeKernelLaunchExp;
 		urEnqueueDeviceGlobalVariableRead;
 		urEnqueueDeviceGlobalVariableWrite;
@@ -218,7 +218,6 @@
 		urPrintCommandBufferAppendUsmMemcpyExpParams;
 		urPrintCommandBufferAppendUsmPrefetchExpParams;
 		urPrintCommandBufferCreateExpParams;
-		urPrintCommandBufferEnqueueExpParams;
 		urPrintCommandBufferFinalizeExpParams;
 		urPrintCommandBufferGetInfoExpParams;
 		urPrintCommandBufferReleaseExpParams;
@@ -262,6 +261,7 @@
 		urPrintDeviceSelectBinaryParams;
 		urPrintDeviceType;
 		urPrintDeviceUsmAccessCapabilityFlags;
+		urPrintEnqueueCommandBufferExpParams;
 		urPrintEnqueueCooperativeKernelLaunchExpParams;
 		urPrintEnqueueDeviceGlobalVariableReadParams;
 		urPrintEnqueueDeviceGlobalVariableWriteParams;
