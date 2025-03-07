@@ -1,4 +1,5 @@
 name: Unified Runtime Pre Commit
+
 # Note: this is the very first version of UR workflow.
 # It was pretty much copy-pasted from UR repository.
 # Over time it will be most likely integrated more into existing workflows.
@@ -9,24 +10,25 @@ on:
   # "Require approval for all outside collaborators" at
   # https://github.com/intel/llvm/settings/actions for security.
   pull_request:
-    branches:
-    - sycl
-    - sycl-rel-**
-    # Do not run builds if changes are only in the following locations
-    paths-ignore:
-    - '.github/ISSUE_TEMPLATE/**'
-    - '.github/CODEOWNERS'
-    - 'sycl/doc/**'
-    - 'sycl/gdb/**'
-    - 'clang/docs/**'
-    - '**.md'
-    - '**.rst'
-    - '.github/workflows/sycl-windows-*.yml'
-    - '.github/workflows/sycl-macos-*.yml'
-    - '.github/workflows/sycl-nightly.yml'
-    - '.github/workflows/sycl-rel-nightly.yml'
-    - 'devops/containers/**'
-    - 'devops/actions/build_container/**'
+    # branches:
+    # - sycl
+    # - sycl-rel-**
+    # - ur-sycl-binary
+    # # Do not run builds if changes are only in the following locations
+    # paths-ignore:
+    # - '.github/ISSUE_TEMPLATE/**'
+    # - '.github/CODEOWNERS'
+    # - 'sycl/doc/**'
+    # - 'sycl/gdb/**'
+    # - 'clang/docs/**'
+    # - '**.md'
+    # - '**.rst'
+    # - '.github/workflows/sycl-windows-*.yml'
+    # - '.github/workflows/sycl-macos-*.yml'
+    # - '.github/workflows/sycl-nightly.yml'
+    # - '.github/workflows/sycl-rel-nightly.yml'
+    # - 'devops/containers/**'
+    # - 'devops/actions/build_container/**'
 
 concurrency:
   #  Cancel a currently running workflow from the same PR, branch or tag.
@@ -49,31 +51,45 @@ jobs:
   adapters:
     name: Adapters
     needs: [detect_changes, source_checks]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    #if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
+       include:
+         - name: L0
+           adapter_name: L0
+           runner: '["Linux"]'
+           image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+           target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+           reset_intel_gpu: true
+           extra_lit_opts: --param gpu-intel-gen12=True
+           image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+    
         # Extra native CPU jobs are here to force the loader to be used.
         # UR will not use the loader if there is only one target.
-        adapter: [
-          {name: L0, runner: UR_L0},
-          {name: L0_V2, runner: UR_L0},
-          {name: L0, runner: UR_L0, static: ON},
-          {name: OPENCL, runner: UR_OPENCL, platform: "Intel(R) OpenCL"},
-          {name: CUDA, runner: UR_CUDA},
-          {name: HIP, runner: UR_HIP},
-          {name: NATIVE_CPU, runner: UR_NATIVE_CPU},
-          {name: OPENCL, runner: UR_OPENCL, other_adapter: NATIVE_CPU, platform: "OPENCL:Intel(R) OpenCL"},
-          {name: L0, runner: UR_L0, other_adapter: NATIVE_CPU},
-        ]
+        # adapter: [
+        #   {name: L0, runner: UR_L0},
+        #   {name: L0_V2, runner: UR_L0},
+        #   {name: L0, runner: UR_L0, static: ON},
+        #   {name: OPENCL, runner: UR_OPENCL, platform: "Intel(R) OpenCL"},
+        #   {name: CUDA, runner: UR_CUDA},
+        #   {name: HIP, runner: UR_HIP},
+        #   {name: NATIVE_CPU, runner: UR_NATIVE_CPU},
+        #   {name: OPENCL, runner: UR_OPENCL, other_adapter: NATIVE_CPU, platform: "OPENCL:Intel(R) OpenCL"},
+        #   {name: L0, runner: UR_L0, other_adapter: NATIVE_CPU},
+        # ]
     uses: ./.github/workflows/ur-build-hw.yml
     with:
-      adapter_name: ${{ matrix.adapter.name }}
-      runner_name: ${{ matrix.adapter.runner }}
-      static_loader: ${{ matrix.adapter.static || 'OFF' }}
-      static_adapter: ${{ matrix.adapter.static || 'OFF' }}
-      platform: ${{ matrix.adapter.platform || '' }}
-      other_adapter_name: ${{ matrix.adapter.other_adapter || '' }}
-
+      adapter_name: ${{ matrix.adapter_name }}
+      runner_name: ${{ matrix.runner }}
+      static_loader: ${{ matrix.static || 'OFF' }}
+      static_adapter: ${{ matrix.static || 'OFF' }}
+      platform: ${{ matrix.platform || '' }}
+      other_adapter_name: ${{ matrix.other_adapter || '' }}
+      image: ${{ matrix.image }}
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
   macos:
     name: MacOS build only
     needs: [detect_changes, source_checks]
@@ -87,7 +103,7 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - uses: actions/setup-python@6ca8e8598faa206f7140a65ba31b899bebe16f58 # v5.0.0
+    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
       with:
         python-version: 3.9
 
