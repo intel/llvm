@@ -36,8 +36,6 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
                                      ur_exp_image_native_handle_t *phImage) {
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
 
-  std::cerr << "[L0_v2]" << __FUNCTION__ << std::endl;
-
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
 
@@ -114,91 +112,12 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
 
   hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
 
-  std::cerr << "[L0_v2]" << __FUNCTION__ << " success" << std::endl;
   return UR_RESULT_SUCCESS;
 }
 
 } // namespace
 
 namespace ur::level_zero {
-
-ur_result_t urUSMPitchedAllocExp([[maybe_unused]] ur_context_handle_t hContext,
-                                 [[maybe_unused]] ur_device_handle_t hDevice,
-                                 [[maybe_unused]] const ur_usm_desc_t *pUSMDesc,
-                                 [[maybe_unused]] ur_usm_pool_handle_t pool,
-                                 [[maybe_unused]] size_t widthInBytes,
-                                 [[maybe_unused]] size_t height,
-                                 [[maybe_unused]] size_t elementSizeBytes,
-                                 [[maybe_unused]] void **ppMem,
-                                 [[maybe_unused]] size_t *pResultPitch) {
-  std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << std::endl;
-  std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
-
-  UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(widthInBytes != 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
-  UR_ASSERT(ppMem && pResultPitch, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
-  static std::once_flag InitFlag;
-  std::call_once(InitFlag, [&]() {
-    ze_driver_handle_t DriverHandle = hContext->getPlatform()->ZeDriver;
-    auto Result = zeDriverGetExtensionFunctionAddress(
-        DriverHandle, "zeMemGetPitchFor2dImage",
-        (void **)&zeMemGetPitchFor2dImageFunctionPtr);
-    if (Result != ZE_RESULT_SUCCESS)
-      logger::error(
-          "zeDriverGetExtensionFunctionAddress zeMemGetPitchFor2dImage "
-          "failed, err = {}",
-          Result);
-  });
-  if (!zeMemGetPitchFor2dImageFunctionPtr)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
-
-  size_t Width = widthInBytes / elementSizeBytes;
-  size_t RowPitch;
-  ze_device_handle_t ZeDeviceTranslated;
-  ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DEVICE, hDevice->ZeDevice,
-                                        (void **)&ZeDeviceTranslated));
-  ZE2UR_CALL(zeMemGetPitchFor2dImageFunctionPtr,
-             (hContext->ZeContext, ZeDeviceTranslated, Width, height,
-              elementSizeBytes, &RowPitch));
-  *pResultPitch = RowPitch;
-
-  size_t Size = height * RowPitch;
-  UR_CALL(ur::level_zero::urUSMDeviceAlloc(hContext, hDevice, pUSMDesc, pool,
-                                           Size, ppMem));
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_image_native_handle_t hImage) {
-
-  std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << std::endl;
-
-  UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
-  auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
-
-  if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
-    ZE2UR_CALL(zeImageDestroy, (item->second));
-    hDevice->ZeOffsetToImageHandleMap.erase(item);
-  } else {
-    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urBindlessImagesSampledImageHandleDestroyExp(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_image_native_handle_t hImage) {
-
-  return ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp(
-      hContext, hDevice, hImage);
-}
 
 ur_result_t urBindlessImagesImageAllocateExp(
     [[maybe_unused]] ur_context_handle_t hContext,
@@ -207,7 +126,6 @@ ur_result_t urBindlessImagesImageAllocateExp(
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] ur_exp_image_mem_native_handle_t *phImageMem) {
 
-  std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << std::endl;
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
 
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -228,6 +146,8 @@ ur_result_t urBindlessImagesImageAllocateExp(
              (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
   ZE2UR_CALL(zeContextMakeImageResident,
              (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
+  //   UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/
+  //                                   true, ZeImageDesc, phImageMem));
   *phImageMem = reinterpret_cast<ur_exp_image_mem_native_handle_t>(ZeImage);
   return UR_RESULT_SUCCESS;
 }
@@ -237,8 +157,6 @@ ur_result_t urBindlessImagesImageFreeExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem) {
 
-  std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << " hImageMem=0x" << std::hex
-            << hImageMem << std::dec << std::endl;
   //   UR_CALL(ur::level_zero::urMemRelease(reinterpret_cast<ur_mem_handle_t>(hImageMem)));
   ZE2UR_CALL(zeImageDestroy, (reinterpret_cast<ze_image_handle_t>(hImageMem)));
   return UR_RESULT_SUCCESS;
@@ -252,7 +170,6 @@ ur_result_t urBindlessImagesUnsampledImageCreateExp(
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] ur_exp_image_native_handle_t *phImage) {
 
-  std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << std::endl;
   UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
                                    pImageDesc, nullptr, phImage));
   return UR_RESULT_SUCCESS;
@@ -267,7 +184,6 @@ ur_result_t urBindlessImagesSampledImageCreateExp(
     [[maybe_unused]] ur_sampler_handle_t hSampler,
     [[maybe_unused]] ur_exp_image_native_handle_t *phImage) {
 
-  std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << std::endl;
   UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
                                    pImageDesc, hSampler, phImage));
   return UR_RESULT_SUCCESS;
@@ -284,29 +200,10 @@ ur_result_t urBindlessImagesImageGetInfoExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urBindlessImagesMipmapGetLevelExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_image_mem_native_handle_t hImageMem, uint32_t mipmapLevel,
-    ur_exp_image_mem_native_handle_t *phImageMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = hImageMem;
-  std::ignore = mipmapLevel;
-  std::ignore = phImageMem;
-
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
-      "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urBindlessImagesMipmapFreeExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] ur_exp_image_mem_native_handle_t hMem) {
-
-  std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << " not implemented!"
-            << std::endl;
 
   logger::error(
       logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
@@ -320,9 +217,6 @@ ur_result_t urBindlessImagesImportExternalMemoryExp(
     [[maybe_unused]] ur_exp_external_mem_type_t memHandleType,
     [[maybe_unused]] ur_exp_external_mem_desc_t *pExternalMemDesc,
     [[maybe_unused]] ur_exp_external_mem_handle_t *phExternalMem) {
-
-  std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << " not implemented!"
-            << std::endl;
 
   logger::error(
       logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
@@ -393,10 +287,6 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
       "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
-
-// ur_result_t urBindlessImagesWaitExternalSemaphoreExp() { return
-// UR_RESULT_SUCCESS; } ur_result_t urBindlessImagesSignalExternalSemaphoreExp()
-// { return UR_RESULT_SUCCESS; }
 
 } // namespace ur::level_zero
 //===--------- memory.cpp - Level Zero Adapter ----------------------------===//
