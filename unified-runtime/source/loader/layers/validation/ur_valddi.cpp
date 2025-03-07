@@ -4311,6 +4311,32 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventHostSignal
+__urdlllocal ur_result_t UR_APICALL urEventHostSignal(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent) {
+  auto pfnHostSignal = getContext()->urDdiTable.Event.pfnHostSignal;
+
+  if (nullptr == pfnHostSignal) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hEvent)) {
+    getContext()->refCountContext->logInvalidReference(hEvent);
+  }
+
+  ur_result_t result = pfnHostSignal(hEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     /// [in][nocheck] the native handle of the event.
@@ -10906,6 +10932,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
 
   dditable.pfnGetNativeHandle = pDdiTable->pfnGetNativeHandle;
   pDdiTable->pfnGetNativeHandle = ur_validation_layer::urEventGetNativeHandle;
+
+  dditable.pfnHostSignal = pDdiTable->pfnHostSignal;
+  pDdiTable->pfnHostSignal = ur_validation_layer::urEventHostSignal;
 
   dditable.pfnCreateWithNativeHandle = pDdiTable->pfnCreateWithNativeHandle;
   pDdiTable->pfnCreateWithNativeHandle =

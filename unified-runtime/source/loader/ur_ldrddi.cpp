@@ -4309,6 +4309,30 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEventHostSignal
+__urdlllocal ur_result_t UR_APICALL urEventHostSignal(
+    /// [in] handle of the event object
+    ur_event_handle_t hEvent) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_event_object_t *>(hEvent)->dditable;
+  auto pfnHostSignal = dditable->ur.Event.pfnHostSignal;
+  if (nullptr == pfnHostSignal)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hEvent = reinterpret_cast<ur_event_object_t *>(hEvent)->handle;
+
+  // forward to device-platform
+  result = pfnHostSignal(hEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     /// [in][nocheck] the native handle of the event.
@@ -10342,6 +10366,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
       pDdiTable->pfnRetain = ur_loader::urEventRetain;
       pDdiTable->pfnRelease = ur_loader::urEventRelease;
       pDdiTable->pfnGetNativeHandle = ur_loader::urEventGetNativeHandle;
+      pDdiTable->pfnHostSignal = ur_loader::urEventHostSignal;
       pDdiTable->pfnCreateWithNativeHandle =
           ur_loader::urEventCreateWithNativeHandle;
       pDdiTable->pfnSetCallback = ur_loader::urEventSetCallback;
