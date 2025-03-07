@@ -59,6 +59,8 @@ namespace syclcompat {
 typedef void (*kernel_functor)(sycl::queue &, const sycl::nd_range<3> &,
                                unsigned int, void **, void **);
 
+typedef void (*host_func)(void *);
+
 struct kernel_function_info {
   int max_work_group_size = 0;
 };
