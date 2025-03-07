@@ -291,12 +291,6 @@ ur_result_t urDeviceGetInfo(
         (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
-    // Return supported for the UR command-buffer experimental feature
-    SupportedExtensions += ("ur_exp_command_buffer ");
-    // Return supported for the UR multi-device compile experimental feature
-    SupportedExtensions += ("ur_exp_multi_device_compile ");
-    SupportedExtensions += ("ur_exp_usm_p2p ");
-
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:
@@ -1105,7 +1099,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // L0 does not support mipmaps.
     return ReturnValue(false);
@@ -1117,7 +1111,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
     // L0 does not support creation of images from individual mipmap levels.
     return ReturnValue(false);
@@ -1127,8 +1121,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
-    // L0 does not support importing external semaphores.
-    return ReturnValue(false);
+    return ReturnValue(Device->Platform->ZeExternalSemaphoreExt.Supported);
   }
   case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP: {
     // L0 does not support cubemaps.
@@ -1139,28 +1132,28 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
-    // L0 does not support fetching 1D USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 1D USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
-    // L0 does not not support fetching 1D non-USM sampled image data.
+    // L0 does not support fetching 1D non-USM sampled image data.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
-    // L0 does not support fetching 2D USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 2D USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
-    // L0 does not support fetching 2D non-USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 2D non-USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
-    // L0 does not support fetching 3D non-USM sampled image data.
-    return ReturnValue(false);
+    // L0 does support fetching 3D non-USM sampled image data.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP: {
-    // L0 does not support image arrays
-    return ReturnValue(false);
+    // L0 does support image arrays
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
     // L0 does not support unique addressing per dimension
@@ -1171,7 +1164,7 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
-    // L0 does not support sampling 1D USM sampled image data.
+    // L0 does not support sampling 2D USM sampled image data.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
@@ -1210,6 +1203,14 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(true);
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,
