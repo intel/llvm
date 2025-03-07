@@ -68,7 +68,7 @@ int main() {
   // Create a source kernel bundle with a context that contains only one device.
   sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
       syclexp::create_kernel_bundle_from_source(
-          single_device_context, syclexp::source_language::sycl_jit, source);
+          single_device_context, syclexp::source_language::sycl, source);
 
   // Compile the kernel.  There is no need to use the "registered_names"
   // property because the kernel is declared extern "C".
