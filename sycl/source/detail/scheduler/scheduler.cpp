@@ -115,7 +115,7 @@ EventImplPtr Scheduler::addCG(
           MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
       break;
     case CGType::CodeplayHostTask: {
-      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), nullptr,
+      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), Queue->nativeHostTaskHandling() ? Queue : nullptr,
                                    AuxiliaryCmds, EventNeeded);
       break;
     }

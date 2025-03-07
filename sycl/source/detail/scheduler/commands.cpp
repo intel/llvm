@@ -221,8 +221,7 @@ static std::string commandToName(Command::CommandType Type) {
 
 std::vector<ur_event_handle_t>
 Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
-                     const QueueImplPtr &CommandQueue, bool IsHostTaskCommand,
-                     bool producesNativeEvent) {
+                     const QueueImplPtr &CommandQueue, bool IsHostTaskCommand) {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     auto Handle = EventImpl->getHandle();
@@ -235,7 +234,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
     // to different sync mechanisms for different task types on in-order queue.
     if (CommandQueue && EventImpl->getWorkerQueue() == CommandQueue &&
         CommandQueue->isInOrder() &&
-        (!IsHostTaskCommand || producesNativeEvent))
+        (!IsHostTaskCommand))
       continue;
 
     RetUrEvents.push_back(Handle);
@@ -246,7 +245,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
 
 std::vector<ur_event_handle_t>
 Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
-  return getUrEvents(EventImpls, MWorkerQueue, isHostTask(), producesPiEvent());
+  return getUrEvents(EventImpls, MWorkerQueue, isHostTask());
 }
 
 // This function is implemented (duplicating getUrEvents a lot) as short term
@@ -287,7 +286,7 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
     // kept.
     if (!HasEventMode && MWorkerQueue &&
         EventImpl->getWorkerQueue() == MWorkerQueue &&
-        MWorkerQueue->isInOrder() && (!isHostTask() || producesPiEvent()))
+        MWorkerQueue->isInOrder() && (!isHostTask()))
       continue;
 
     RetUrEvents.push_back(EventImpl->getHandle());
@@ -3659,10 +3658,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
 bool ExecCGCommand::producesPiEvent() const {
   return !MCommandBuffer &&
-         !(MCommandGroup->getType() == CGType::CodeplayHostTask &&
-         (!std::getenv("SYCL_ENABLE_USER_EVENTS_PATH") ||
-           (getQueue()->getDeviceImplPtr()->getBackend() !=
-             backend::ext_oneapi_level_zero)));
+         !(MCommandGroup->getType() == CGType::CodeplayHostTask && !MQueue /* MQueue is set only when we have native sync with host task */);
 }
 
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
