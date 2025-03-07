@@ -953,8 +953,6 @@ ur_result_t urExtEventCreate(
                       false /*ForceDisableProfiling*/, false));
 
   (*Event)->RefCountExternal++;
-  if (!(*Event)->CounterBasedEventsEnabled)
-    ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -975,8 +973,6 @@ ur_result_t urEventCreateWithNativeHandle(
                         false /*ForceDisableProfiling*/, false));
 
     (*Event)->RefCountExternal++;
-    if (!(*Event)->CounterBasedEventsEnabled)
-      ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
     return UR_RESULT_SUCCESS;
   }
 

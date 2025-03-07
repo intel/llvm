@@ -3660,9 +3660,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 bool ExecCGCommand::producesPiEvent() const {
   return !MCommandBuffer &&
          !(MCommandGroup->getType() == CGType::CodeplayHostTask &&
-           ((MQueue->getDeviceImplPtr()->getBackend() !=
-             backend::ext_oneapi_level_zero) ||
-            std::getenv("SYCL_DISABLE_USER_EVENTS_PATH")));
+         (!std::getenv("SYCL_ENABLE_USER_EVENTS_PATH") ||
+           (getQueue()->getDeviceImplPtr()->getBackend() !=
+             backend::ext_oneapi_level_zero)));
 }
 
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
