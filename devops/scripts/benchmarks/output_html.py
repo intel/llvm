@@ -11,6 +11,7 @@ from options import options
 def generate_html(benchmark_runs: list, compare_names: list[str]):
     # create path to data.js in html folder
     html_path = os.path.join(os.path.dirname(__file__), "html")
+    benchmark_runs.sort(key=lambda run: run.date, reverse=True)
 
     if options.output_html == "local":
         data_path = os.path.join(html_path, "data.js")
