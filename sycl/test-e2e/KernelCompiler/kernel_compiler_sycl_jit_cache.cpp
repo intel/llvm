@@ -76,15 +76,10 @@ int test_persistent_cache() {
   // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY1:.*]]
   // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY1]]
   exe_kb kbExe1a = syclex::build(kbSrc1);
-  dumpKernelIDs();
-  // CHECK: rtc_0$__sycl_kernel_vec_add
 
   // Cache hit! We get independent bundles with their own version of the kernel.
   // CHECK: [kernel_compiler Persistent Cache]: using cached device code IR: {{.*}}/[[KEY1]]
   exe_kb kbExe1b = syclex::build(kbSrc1);
-  dumpKernelIDs();
-  // CHECK-DAG: rtc_0$__sycl_kernel_vec_add
-  // CHECK-DAG: rtc_1$__sycl_kernel_vec_add
 
   source_kb kbSrc2 = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, SYCLSource);
@@ -117,8 +112,6 @@ int test_persistent_cache() {
   // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY3:.*]]
   // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY3]]
   exe_kb kbExe3a = syclex::build(kbSrc3);
-  dumpKernelIDs();
-  // CHECK: rtc_5$__sycl_kernel_foo
 
   source_kb kbSrc4 = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, SYCLSourceWithInclude,
@@ -129,8 +122,6 @@ int test_persistent_cache() {
   // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY4:.*]]
   // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY4]]
   exe_kb kbExe4a = syclex::build(kbSrc4);
-  dumpKernelIDs();
-  // CHECK: rtc_6$__sycl_kernel_bar
 
   return 0;
 }

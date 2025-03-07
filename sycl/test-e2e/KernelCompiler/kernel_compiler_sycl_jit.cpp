@@ -307,56 +307,6 @@ int test_build_and_run() {
   return 0;
 }
 
-int test_lifetimes() {
-  namespace syclex = sycl::ext::oneapi::experimental;
-  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
-  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
-
-  sycl::queue q;
-  sycl::context ctx = q.get_context();
-
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
-  if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
-              << q.get_device().get_info<sycl::info::device::name>()
-              << std::endl;
-    return -1;
-  }
-
-  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSource2);
-
-  exe_kb kbExe1 = syclex::build(kbSrc);
-  assert(sycl::get_kernel_ids().size() == 1);
-
-  {
-    exe_kb kbExe2 = syclex::build(kbSrc);
-    assert(sycl::get_kernel_ids().size() == 2);
-    // kbExe2 goes out of scope; its kernels are removed from program mananager.
-  }
-  assert(sycl::get_kernel_ids().size() == 1);
-
-  {
-    std::unique_ptr<sycl::kernel> kPtr;
-    {
-      exe_kb kbExe3 = syclex::build(kbSrc);
-      assert(sycl::get_kernel_ids().size() == 2);
-
-      sycl::kernel k = kbExe3.ext_oneapi_get_kernel("vec_add");
-      kPtr = std::make_unique<sycl::kernel>(k);
-      // kbExe3 goes out of scope, but the kernel keeps the underlying
-      // impl-object alive
-    }
-    assert(sycl::get_kernel_ids().size() == 2);
-    // kPtr goes out of scope, freeing the kernel and its bundle
-  }
-  assert(sycl::get_kernel_ids().size() == 1);
-
-  return 0;
-}
-
 int test_device_code_split() {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
@@ -612,12 +562,36 @@ int test_warning() {
   return 0;
 }
 
+int test_no_visible_ids() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    return 0;
+  }
+  std::string build_log;
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, SYCLSource2);
+  exe_kb kbExe =
+      syclex::build(kbSrc, syclex::properties{syclex::save_log{&build_log}});
+  assert(kbExe.get_kernel_ids().size() == 0 && "Visible RTC kernel ids");
+  assert(sycl::get_kernel_ids().size() == 0 && "Visible RTC kernel ids");
+  return 0;
+}
+
 int main(int argc, char **) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   int optional_tests = (argc > 1) ? test_warning() : 0;
-  return test_build_and_run() || test_lifetimes() || test_device_code_split() ||
+  return test_build_and_run() || test_device_code_split() ||
          test_device_libraries() || test_esimd() ||
-         test_unsupported_options() || test_error() || optional_tests;
+         test_unsupported_options() || test_error() || optional_tests ||
+         test_no_visible_ids();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
