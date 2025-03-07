@@ -31,7 +31,7 @@ __attribute__((sycl_kernel)) void launch(const Func &kernelFunc) {
   kernelFunc();
 }
 
-//There should be no definition with that name
+// There should be no definition with that name
 //CHECK-O2-NOT: define {{.*}} @.SYCLNCPU(
 
 void test() {
