@@ -459,12 +459,20 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       ToCleanUp.push_back(Cmd);
       Cmd->MMarkedForCleanup = true;
     }
+
+    if (auto NativeEvent = CmdEvent->getHandle())
     {
-      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
-      // update self-event status
-      CmdEvent->setComplete();
+      QueueImpl->getAdapter()->call<UrApiKind::urEventHostSignal>(NativeEvent);
     }
-    Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
+    else
+    {
+      {
+        std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
+        // update self-event status
+        CmdEvent->setComplete();
+      }
+      Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
+    }
   }
   QueueImpl->revisitUnenqueuedCommandsState(CmdEvent);
 
