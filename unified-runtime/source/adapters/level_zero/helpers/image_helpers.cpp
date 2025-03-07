@@ -269,25 +269,8 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   // TODO: populate the layout mapping
   ze_image_format_layout_t ZeImageFormatLayout;
   switch (ImageFormat->channelOrder) {
-  case UR_IMAGE_CHANNEL_ORDER_RGBA: {
-    switch (ZeImageFormatTypeSize) {
-    case 8:
-      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8;
-      break;
-    case 16:
-      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16;
-      break;
-    case 32:
-      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
-      break;
-    default:
-      logger::error("ur2zeImageDesc: unexpected data type Size\n");
-      std::cerr << "ur2zeImageDesc: unexpected data type Size\n";
-      return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
-    }
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_R: {
+  case UR_IMAGE_CHANNEL_ORDER_R:
+  case UR_IMAGE_CHANNEL_ORDER_A: {
     switch (ZeImageFormatTypeSize) {
     case 8:
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8;
@@ -300,12 +283,13 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       break;
     default:
       logger::error("ur2zeImageDesc: unexpected data type Size\n");
-      std::cerr << "ur2zeImageDesc: unexpected data type Size\n";
       return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     }
     break;
   }
-  case UR_IMAGE_CHANNEL_ORDER_RG: {
+  case UR_IMAGE_CHANNEL_ORDER_RG:
+  case UR_IMAGE_CHANNEL_ORDER_RA:
+  case UR_IMAGE_CHANNEL_ORDER_RX: {
     switch (ZeImageFormatTypeSize) {
     case 8:
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8;
@@ -318,25 +302,121 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       break;
     default:
       logger::error("ur2zeImageDesc: unexpected data type Size\n");
-      std::cerr << "ur2zeImageDesc: unexpected data type Size\n";
       return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     }
     break;
-
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RGB:
+  case UR_IMAGE_CHANNEL_ORDER_RGX: {
+    switch (ZeImageFormatTypeSize) {
+    case 8:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8;
+      break;
+    case 16:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_16_16_16;
+      break;
+    case 32:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32;
+      break;
+    default:
+      logger::error("ur2zeImageDesc: unexpected data type size");
+      return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+    }
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RGBA:
+  case UR_IMAGE_CHANNEL_ORDER_RGBX:
+  case UR_IMAGE_CHANNEL_ORDER_BGRA:
+  case UR_IMAGE_CHANNEL_ORDER_ARGB:
+  case UR_IMAGE_CHANNEL_ORDER_ABGR: {
+    switch (ZeImageFormatTypeSize) {
+    case 8:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8;
+      break;
+    case 16:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16;
+      break;
+    case 32:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
+      break;
+    default:
+      logger::error("ur2zeImageDesc: unexpected data type Size\n");
+      return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+    }
+    break;
   }
   default:
-    std::cerr << "format layout = " << ImageFormat->channelOrder  << std::endl;
     logger::error("format layout = {}", ImageFormat->channelOrder);
     return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
     break;
   }
 
-  ze_image_format_t ZeFormatDesc = {
-      ZeImageFormatLayout, ZeImageFormatType,
-      // TODO: are swizzles deducted from image_format->image_channel_order?
-      ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
-      ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_A};
-
+  ze_image_format_t ZeFormatDesc;
+  switch (ImageFormat->channelOrder) {
+  case UR_IMAGE_CHANNEL_ORDER_R:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_0,
+                    ZE_IMAGE_FORMAT_SWIZZLE_0, ZE_IMAGE_FORMAT_SWIZZLE_1};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_A:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_A, ZE_IMAGE_FORMAT_SWIZZLE_0,
+                    ZE_IMAGE_FORMAT_SWIZZLE_0, ZE_IMAGE_FORMAT_SWIZZLE_1};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RG:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
+                    ZE_IMAGE_FORMAT_SWIZZLE_0, ZE_IMAGE_FORMAT_SWIZZLE_1};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RA:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_A,
+                    ZE_IMAGE_FORMAT_SWIZZLE_0, ZE_IMAGE_FORMAT_SWIZZLE_1};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RX:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_X,
+                    ZE_IMAGE_FORMAT_SWIZZLE_0, ZE_IMAGE_FORMAT_SWIZZLE_1};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RGB:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
+                    ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_1};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RGX:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
+                    ZE_IMAGE_FORMAT_SWIZZLE_X, ZE_IMAGE_FORMAT_SWIZZLE_1};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RGBA:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
+                    ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_A};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RGBX:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
+                    ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_X};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_BGRA:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_G,
+                    ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_A};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_ARGB:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_A, ZE_IMAGE_FORMAT_SWIZZLE_R,
+                    ZE_IMAGE_FORMAT_SWIZZLE_G, ZE_IMAGE_FORMAT_SWIZZLE_B};
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_ABGR:
+    ZeFormatDesc = {ZeImageFormatLayout,       ZeImageFormatType,
+                    ZE_IMAGE_FORMAT_SWIZZLE_A, ZE_IMAGE_FORMAT_SWIZZLE_B,
+                    ZE_IMAGE_FORMAT_SWIZZLE_G, ZE_IMAGE_FORMAT_SWIZZLE_R};
+    break;
+  default:
+    logger::error("ur2zeImageDesc: unsupported image channel order");
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+  }
   ze_image_type_t ZeImageType;
   switch (ImageDesc->type) {
   case UR_MEM_TYPE_IMAGE1D:
@@ -355,20 +435,22 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
     ZeImageType = ZE_IMAGE_TYPE_2DARRAY;
     break;
   default:
-    std::cerr << "ur2zeImageDesc: unsupported image type" << std::endl;
     logger::error("ur2zeImageDesc: unsupported image type");
     return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
   }
-
-  ZeImageDesc.arraylevels = ZeImageDesc.flags = 0;
+  ZeImageDesc.stype = ZE_STRUCTURE_TYPE_IMAGE_DESC;
+  ZeImageDesc.pNext = ImageDesc->pNext;
+  ZeImageDesc.flags = 0;
   ZeImageDesc.type = ZeImageType;
   ZeImageDesc.format = ZeFormatDesc;
   ZeImageDesc.width = ur_cast<uint64_t>(ImageDesc->width);
-  ZeImageDesc.height = ur_cast<uint64_t>(ImageDesc->height);
-  ZeImageDesc.depth = ur_cast<uint64_t>(ImageDesc->depth);
+  ZeImageDesc.height =
+      std::max(ur_cast<uint64_t>(ImageDesc->height), (uint64_t)1);
+  ZeImageDesc.depth =
+      std::max(ur_cast<uint64_t>(ImageDesc->depth), (uint64_t)1);
+
   ZeImageDesc.arraylevels = ur_cast<uint32_t>(ImageDesc->arraySize);
   ZeImageDesc.miplevels = ImageDesc->numMipLevel;
-
   return UR_RESULT_SUCCESS;
 }
 
