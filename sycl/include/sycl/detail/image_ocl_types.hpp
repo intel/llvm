@@ -108,7 +108,7 @@ static std::enable_if_t<std::is_same_v<RetType, sycl::vec<float, 4>> ||
                             std::is_same_v<RetType, sycl::vec<int, 4>> ||
                             std::is_same_v<RetType, sycl::vec<unsigned int, 4>>,
                         RetType>
-__invoke__SampledImageGather(ImageT Img, CoordT Coords, int Component) {
+__invoke__SampledImageGather(ImageT Img, CoordT Coords, unsigned Component) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;

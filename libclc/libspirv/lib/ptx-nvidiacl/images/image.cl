@@ -2762,7 +2762,7 @@ uint4 __nvvm_tld4_a_2d_v4u32_f32(long, float, float) __asm(
     elem_t, elem_t_mangled, vec_size, type)                                    \
   _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
       26, __spirv_SampledImageGather, I##elem_t_mangled,                       \
-      Dv2_f##ET_T0_T1_i)(ulong imageHandle, float2 coord, int i) {             \
+      Dv2_f##ET_T0_T1_j)(ulong imageHandle, float2 coord, unsigned i) {        \
     elem_t result;                                                             \
     switch (i) {                                                               \
     case 0:                                                                    \
