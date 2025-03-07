@@ -363,7 +363,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         Function *OrigF = M.getFunction(Name);
         if (OrigF != nullptr) {
           OldF->takeName(OrigF);
-          OrigF->setComdat(nullptr);
           if (OrigF->use_empty()) {
             RemovableFuncs.insert(OrigF);
           }
