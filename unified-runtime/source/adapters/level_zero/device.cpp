@@ -291,12 +291,6 @@ ur_result_t urDeviceGetInfo(
         (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
-    // Return supported for the UR command-buffer experimental feature
-    SupportedExtensions += ("ur_exp_command_buffer ");
-    // Return supported for the UR multi-device compile experimental feature
-    SupportedExtensions += ("ur_exp_multi_device_compile ");
-    SupportedExtensions += ("ur_exp_usm_p2p ");
-
     return ReturnValue(SupportedExtensions.c_str());
   }
   case UR_DEVICE_INFO_NAME:
@@ -1209,6 +1203,14 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(true);
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,
