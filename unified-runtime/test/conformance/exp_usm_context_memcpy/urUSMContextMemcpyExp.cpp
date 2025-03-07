@@ -113,7 +113,7 @@ struct urUSMContextMemcpyExpTestHost : urUSMContextMemcpyExpTest {
     ur_device_usm_access_capability_flags_t host_usm = 0;
     ASSERT_SUCCESS(uur::GetDeviceUSMHostSupport(device, host_usm));
     if (!host_usm) {
-      GTEST_SKIP() << "Device USM is not supported";
+      GTEST_SKIP() << "Host USM is not supported";
     }
 
     ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, allocation_size,
