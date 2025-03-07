@@ -1643,7 +1643,7 @@ TEST_P(urDeviceGetInfoTest, SuccessIntelMaxMemoryBandwidth) {
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
 
-  uint32_t property_value = 0;
+  uint64_t property_value = 0;
   ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
                                              property_size, &property_value,
                                              nullptr),

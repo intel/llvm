@@ -615,13 +615,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("");
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
-
-    std::string SupportedExtensions = "cl_khr_fp64 cl_khr_subgroups ";
-    // Return supported for the UR command-buffer experimental feature
-    SupportedExtensions += "ur_exp_command_buffer ";
-    SupportedExtensions += "ur_exp_usm_p2p ";
-    SupportedExtensions += "ur_exp_launch_properties ";
-    SupportedExtensions += " ";
+    std::string SupportedExtensions = "cl_khr_fp64 ";
 
     int Major = 0;
     int Minor = 0;
@@ -1008,7 +1002,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           hDevice->get()));
     }
 
-    uint32_t MemoryBandwidth = MemoryClockKHz * MemoryBusWidth * 250;
+    // This is a collection of all constants mentioned in this computation:
+    // https://github.com/jeffhammond/HPCInfo/blob/aae05c733016cc8fbb91ee71fc8076f17fa7b912/cuda/gpu-detect.cu#L241
+    constexpr uint64_t MemoryBandwidthConstant = 250;
+    uint64_t MemoryBandwidth =
+        MemoryBandwidthConstant * MemoryClockKHz * MemoryBusWidth;
 
     return ReturnValue(MemoryBandwidth);
   }
@@ -1115,6 +1113,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(false);
 
   default:
     break;
