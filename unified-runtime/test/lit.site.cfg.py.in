@@ -1,0 +1,30 @@
+"""
+Copyright (C) 2025 Intel Corporation
+
+Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+See LICENSE.TXT
+SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+"""
+
+import lit.formats
+
+config.main_src_root = r"@CMAKE_SOURCE_DIR@"
+config.main_obj_root = r"@CMAKE_BINARY_DIR@"
+config.main_lib_dir = r"@CMAKE_LIBRARY_OUTPUT_DIRECTORY@"
+
+config.ur_src_root = r"@PROJECT_SOURCE_DIR@"
+config.ur_obj_root = r"@PROJECT_BINARY_DIR@"
+
+config.filecheck_path = r"@URLIT_FILECHECK_BINARY@"
+
+config.ur_version = r"@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@"
+config.fuzztesting_enabled = r"@UR_FUZZTESTING_ENABLED@" == "ON"
+config.tracing_enabled = r"@UR_ENABLE_TRACING@" == "ON"
+config.sanitizer_enabled = r"@UR_ENABLE_SANITIZER@" == "ON"
+
+config.adapters_built = []
+if r"@UR_ADAPTERS_LIST@":
+    config.adapters_built = r"@UR_ADAPTERS_LIST@".split(";")
+
+lit_config.load_config(config, os.path.join(config.ur_src_root, "test/lit.cfg.py"))
