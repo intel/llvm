@@ -23,12 +23,11 @@
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
 #include <clc/math/clc_mad.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
+#include <clc/math/tables.h>
 #include <clc/relational/clc_isnan.h>
-#include <libspirv/math/tables.h>
 #include <libspirv/spirv.h>
-
-#include <config.h>
-#include <math/math.h>
 
 //    Algorithm:
 //
@@ -165,6 +164,6 @@ _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_exp10, double)
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __clc_exp10, __builtin_exp10, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __clc_exp10, __builtin_exp10f16, half)
 
 #endif

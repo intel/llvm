@@ -1,4 +1,4 @@
-// UNSUPPORTED: hip
+// UNSUPPORTED: target-amd
 // REQUIRES: aspect-ext_intel_legacy_image
 //
 // RUN: %{build} -o %t.out
@@ -10,6 +10,16 @@
 // the tests, please check if they pass without the discard_events property, if
 // they don't pass then it's most likely a general issue unrelated to
 // discard_events.
+
+// 1. There is a SPIR-V spec issue that blocks generation of valid SPIR-V code
+// for the OpenCL environments support of the "Unknown" image format:
+// https://github.com/KhronosGroup/SPIRV-Headers/issues/487
+// 2. The PR https://github.com/llvm/llvm-project/pull/127242 in upstream needs
+// to be merged with intel/llvm to address an issue of mapping from SPIR-V
+// friendly builtins to Image Read/Write instructions After the 1 issue is
+// resolved and 2 is merged we will re-enable Image support.
+// UNSUPPORTED: spirv-backend && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/KhronosGroup/SPIRV-Headers/issues/487
 
 #include "../helpers.hpp" // for printableVec
 #include <cassert>

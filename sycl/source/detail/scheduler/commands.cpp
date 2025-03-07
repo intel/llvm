@@ -145,40 +145,6 @@ static std::string demangleKernelName(std::string Name) {
 static std::string demangleKernelName(std::string Name) { return Name; }
 #endif
 
-void applyFuncOnFilteredArgs(
-    const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
-    std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func) {
-  if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
-    for (ArgDesc &Arg : Args) {
-      Func(Arg, Arg.MIndex);
-    }
-  } else {
-    // TODO this is not necessary as long as we can guarantee that the
-    // arguments are already sorted (e. g. handle the sorting in handler
-    // if necessary due to set_arg(...) usage).
-    std::sort(Args.begin(), Args.end(), [](const ArgDesc &A, const ArgDesc &B) {
-      return A.MIndex < B.MIndex;
-    });
-    int LastIndex = -1;
-    size_t NextTrueIndex = 0;
-
-    for (ArgDesc &Arg : Args) {
-      // Handle potential gaps in set arguments (e. g. if some of them are
-      // set on the user side).
-      for (int Idx = LastIndex + 1; Idx < Arg.MIndex; ++Idx)
-        if (!(*EliminatedArgMask)[Idx])
-          ++NextTrueIndex;
-      LastIndex = Arg.MIndex;
-
-      if ((*EliminatedArgMask)[Arg.MIndex])
-        continue;
-
-      Func(Arg, NextTrueIndex);
-      ++NextTrueIndex;
-    }
-  }
-}
-
 static std::string accessModeToString(access::mode Mode) {
   switch (Mode) {
   case access::mode::read:
@@ -3601,8 +3567,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     if (auto Result =
             MQueue->getAdapter()
-                ->call_nocheck<UrApiKind::urCommandBufferEnqueueExp>(
-                    CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
+                ->call_nocheck<UrApiKind::urEnqueueCommandBufferExp>(
+                    MQueue->getHandleRef(), CmdBufferCG->MCommandBuffer,
                     RawEvents.size(),
                     RawEvents.empty() ? nullptr : &RawEvents[0], Event);
         Result != UR_RESULT_SUCCESS)
@@ -3709,27 +3675,49 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   Command::waitForEvents(MQueue, EventImpls, UREvent);
   MEvent->setHandle(UREvent);
 
-  for (auto &Node : MNodes) {
-    auto CG = static_cast<CGExecKernel *>(Node->MCommandGroup.get());
-    for (auto &Arg : CG->MArgs) {
-      if (Arg.MType != kernel_param_kind_t::kind_accessor) {
-        continue;
-      }
-      // Search through deps to get actual allocation for accessor args.
-      for (const DepDesc &Dep : MDeps) {
-        Requirement *Req = static_cast<AccessorImplHost *>(Arg.MPtr);
-        if (Dep.MDepRequirement == Req) {
-          if (Dep.MAllocaCmd) {
-            Req->MData = Dep.MAllocaCmd->getMemAllocation();
-          } else {
-            throw sycl::exception(make_error_code(errc::invalid),
-                                  "No allocation available for accessor when "
-                                  "updating command buffer!");
-          }
-        }
+  auto CheckAndFindAlloca = [](Requirement *Req, const DepDesc &Dep) {
+    if (Dep.MDepRequirement == Req) {
+      if (Dep.MAllocaCmd) {
+        Req->MData = Dep.MAllocaCmd->getMemAllocation();
+      } else {
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "No allocation available for accessor when "
+                              "updating command buffer!");
       }
     }
-    MGraph->updateImpl(Node);
+  };
+
+  for (auto &Node : MNodes) {
+    CG *CG = Node->MCommandGroup.get();
+    switch (Node->MNodeType) {
+    case ext::oneapi::experimental::node_type::kernel: {
+      auto CGExec = static_cast<CGExecKernel *>(CG);
+      for (auto &Arg : CGExec->MArgs) {
+        if (Arg.MType != kernel_param_kind_t::kind_accessor) {
+          continue;
+        }
+        // Search through deps to get actual allocation for accessor args.
+        for (const DepDesc &Dep : MDeps) {
+          Requirement *Req = static_cast<AccessorImplHost *>(Arg.MPtr);
+          CheckAndFindAlloca(Req, Dep);
+        }
+      }
+      break;
+    }
+    default:
+      break;
+    }
+  }
+
+  // Split list of nodes into nodes per UR command-buffer partition, then
+  // call UR update on each command-buffer partition with those updatable
+  // nodes.
+  auto PartitionedNodes = MGraph->getURUpdatableNodes(MNodes);
+  auto Device = MQueue->get_device();
+  auto &Partitions = MGraph->getPartitions();
+  for (auto &[PartitionIndex, NodeImpl] : PartitionedNodes) {
+    auto CommandBuffer = Partitions[PartitionIndex]->MCommandBuffers[Device];
+    MGraph->updateURImpl(CommandBuffer, NodeImpl);
   }
 
   return UR_RESULT_SUCCESS;

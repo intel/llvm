@@ -2,8 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda || hip
-// CUDA does not support info::device::image3d_max_width query.
+// UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: CUDA does not support info::device::image3d_max_width
+// query. Bindless images should be used instead.
 
 // The test checks that 'image' with max allowed sizes is handled correctly.
 
