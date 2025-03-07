@@ -96,7 +96,9 @@ jobs:
 
     - name: Install UR python dependencies
       working-directory: ${{github.workspace}}/unified-runtime
-      run: pip install -r third_party/requirements.txt
+      run: |
+        pip install pip==25.0.1
+        pip install -r third_party/requirements.txt
 
     - name: Download DPC++
       run: |
