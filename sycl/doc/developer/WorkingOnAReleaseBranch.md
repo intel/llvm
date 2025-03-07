@@ -37,5 +37,5 @@ Features are generally more complicated than bug fixes and may require further
 bug fixes as well. Considering that release branches are intended to be stable,
 no new features are allowed to be added there.
 
-[contributing]: ../../../CONTRIBUTING.md
+[contributing]: https://github.com/intel/llvm/blob/sycl/CONTRIBUTING.md
 [contributing-to-dpcpp]: ./ContributeToDPCPP.md

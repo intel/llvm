@@ -18,7 +18,6 @@ Using oneAPI DPC++ for Application Development
    EnvironmentVariables
    MultiTileCardWithLevelZero
    syclgraph/SYCLGraphUsageGuide
-   ../ReleaseNotes
 
 Design Documents for the oneAPI DPC++ Compiler
 ----------------------------------------------
@@ -64,7 +63,6 @@ Developer Documentation
 .. toctree::
    :maxdepth: 1
 
-   ../../CONTRIBUTING.md
    developer/DockerBKMs
    developer/ABIPolicyGuide
    developer/ContributeToDPCPP
