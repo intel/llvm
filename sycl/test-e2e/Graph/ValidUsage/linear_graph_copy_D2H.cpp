@@ -11,6 +11,8 @@
 //
 // Tests that the optimization to use the L0 Copy Engine for memory commands
 // does not interfere with the linear graph optimization
+//
+// REQUIRES: aspect-usm_host_allocations
 
 #include "../graph_common.hpp"
 
@@ -47,6 +49,11 @@ int main() {
   T *PtrB = malloc_device<T>(Size, Queue);
   T *PtrC = malloc_device<T>(Size, Queue);
 
+  // L0 copy engine is disabled for D2D copies so we need to create additional
+  // D2H copy events in between to invoke it.
+  T *PtrBHost = malloc_host<T>(Size, Queue);
+  T *PtrCHost = malloc_host<T>(Size, Queue);
+
   Queue.copy(DataA.data(), PtrA, Size);
   Queue.copy(DataB.data(), PtrB, Size);
   Queue.copy(DataC.data(), PtrC, Size);
@@ -59,7 +66,10 @@ int main() {
     });
   });
 
-  Queue.submit([&](handler &CGH) { CGH.memcpy(PtrB, PtrA, Size * sizeof(T)); });
+  Queue.submit(
+      [&](handler &CGH) { CGH.memcpy(PtrBHost, PtrA, Size * sizeof(T)); });
+  Queue.submit(
+      [&](handler &CGH) { CGH.memcpy(PtrB, PtrBHost, Size * sizeof(T)); });
 
   Queue.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>(Size), [=](item<1> id) {
@@ -68,7 +78,10 @@ int main() {
     });
   });
 
-  Queue.submit([&](handler &CGH) { CGH.memcpy(PtrC, PtrB, Size * sizeof(T)); });
+  Queue.submit(
+      [&](handler &CGH) { CGH.memcpy(PtrCHost, PtrB, Size * sizeof(T)); });
+  Queue.submit(
+      [&](handler &CGH) { CGH.memcpy(PtrC, PtrCHost, Size * sizeof(T)); });
 
   Queue.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>(Size), [=](item<1> id) {
