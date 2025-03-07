@@ -1,0 +1,4 @@
+RUN: %use-mock %xptienable XPTI_SUBSCRIBERS=%{shlibpre}test_collector%{shlibext} tracing-test-codeloc 2>&1 | FileCheck %s
+
+CHECK: begin urAdapterGet 178 fname sfile 2 1
+CHECK: end urAdapterGet 178 fname sfile 2 1
