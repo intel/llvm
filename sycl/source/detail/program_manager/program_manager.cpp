@@ -1847,30 +1847,35 @@ static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
   sycl_device_binary_property_set ImgPS;
   static bool IsNativeBF16DeviceLibHandled = false;
   static bool IsFallbackBF16DeviceLibHandled = false;
-  RTDeviceBinaryImage::PropertyRange DevLibMD(
-      RawImg, __SYCL_PROPERTY_SET_DEVICELIB_METADATA);
-  auto ImgPIt = std::find_if(
-        DevLibMD.begin(), DevLibMD.end(),
-        [](const sycl_device_binary_property Prop) {
-            return Prop->Name && !strcmp("bfloat16", Prop->Name) &&
-                   (Prop->Type == SYCL_PROPERTY_TYPE_UINT32);
-        });
-  if (ImgPIt == DevLibMD.end())
-    return true;
+  for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
+       ++ImgPS) {
+    if (ImgPS->Name &&
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
+      sycl_device_binary_property ImgP;
+      for (ImgP = ImgPS->PropertiesBegin; ImgP != ImgPS->PropertiesEnd;
+           ++ImgP) {
+        if (ImgP->Name && !strcmp("bfloat16", ImgP->Name) &&
+            (ImgP->Type == SYCL_PROPERTY_TYPE_UINT32))
+          break;
+      }
+      if (ImgP == ImgPS->PropertiesEnd)
+        return true;
 
-  // A valid bfloat16 device library image is found here, need to check
-  // wheter it has been handled already.
-  uint32_t BF16NativeVal = DeviceBinaryProperty(*ImgPIt).asUint32();
-  if (((BF16NativeVal == 0) && IsFallbackBF16DeviceLibHandled) ||
-      ((BF16NativeVal == 1) && IsNativeBF16DeviceLibHandled))
-    return true;
+      // A valid bfloat16 device library image is found here, need to check
+      // wheter it has been handled already.
+      uint32_t BF16NativeVal = DeviceBinaryProperty(ImgP).asUint32();
+      if (((BF16NativeVal == 0) && IsFallbackBF16DeviceLibHandled) ||
+          ((BF16NativeVal == 1) && IsNativeBF16DeviceLibHandled))
+        return true;
 
-  if (BF16NativeVal == 0)
-    IsFallbackBF16DeviceLibHandled = true;
-  else
-    IsNativeBF16DeviceLibHandled = true;
+      if (BF16NativeVal == 0)
+        IsFallbackBF16DeviceLibHandled = true;
+      else
+        IsNativeBF16DeviceLibHandled = true;
 
-  return false;
+      return false;
+    }
+  }
   return true;
 }
 
