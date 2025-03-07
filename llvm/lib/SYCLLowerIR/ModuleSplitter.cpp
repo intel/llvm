@@ -31,6 +31,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/LineIterator.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/Internalize.h"
@@ -297,6 +298,19 @@ void collectFunctionsAndGlobalVariablesToExtract(
   }
 }
 
+// Checks for use of undefined user functions and emits a warning message.
+void checkForCallsToUndefinedFunctions(const Module &M) {
+  if (AllowDeviceImageDependencies)
+    return;
+  for (const Function &F : M) {
+    if (!F.isIntrinsic() && !F.getName().starts_with("__") &&
+        !isSpirvSyclBuiltin(F.getName()) && !isESIMDBuiltin(F.getName()) &&
+        F.isDeclaration() && !F.use_empty())
+      WithColor::warning() << "Undefined function " << F.getName()
+                           << " found in " << M.getName() << "\n";
+  }
+}
+
 // Check "spirv.ExecutionMode" named metadata in the module and remove nodes
 // that reference kernels that have dead prototypes or don't reference any
 // kernel at all (nullptr). Dead prototypes are removed as well.
@@ -381,6 +395,7 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call
   // can be removed once that pass no longer depends on this cleanup.
   SplitM.cleanup();
+  checkForCallsToUndefinedFunctions(SplitM.getModule());
 
   return SplitM;
 }
