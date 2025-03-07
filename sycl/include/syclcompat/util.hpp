@@ -38,9 +38,9 @@
 #include <sycl/group_barrier.hpp>
 #include <sycl/kernel_bundle.hpp>
 
+#include <syclcompat/dims.hpp>
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
-#include <syclcompat/dims.hpp>
 
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
