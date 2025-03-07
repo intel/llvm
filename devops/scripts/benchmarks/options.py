@@ -41,6 +41,7 @@ class Options:
     build_igc: bool = False
     current_run_name: str = "This PR"
     preset: Preset = presets[0]
+    custom_results_dir = None
 
 
 options = Options()

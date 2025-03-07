@@ -60,6 +60,6 @@ presets = [Full(), SYCL(), Minimal(), Normal(), Test()]
 
 def preset_get_by_name(name: str) -> Preset:
     for p in presets:
-        if p.name().upper() == name.upper():
+        if p.name() == name:
             return p
     raise ValueError(f"Preset '{name}' not found.")

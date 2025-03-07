@@ -242,7 +242,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     if not options.dry_run:
         chart_data = {this_name: results}
 
-    history = BenchmarkHistory(directory)
+    results_dir = directory
+    if options.custom_results_dir:
+        results_dir = Path(options.custom_results_dir)
+    history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
     history.load(1000)
@@ -444,6 +447,12 @@ if __name__ == "__main__":
         help="Benchmark preset to run.",
         default=options.preset.name(),
     )
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom results directory",
+        default=options.custom_results_dir,
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -470,6 +479,7 @@ if __name__ == "__main__":
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
     options.preset = preset_get_by_name(args.preset)
+    options.custom_results_dir = args.results_dir
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")

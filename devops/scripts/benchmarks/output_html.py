@@ -40,7 +40,7 @@ def generate_html(benchmark_runs: list, compare_names: list[str]):
                 if i > 0:
                     f.write(",\n")
                 f.write(run.to_json())
-            f.write("\n];\n")
+            f.write("\n]\n")
 
         print(
             f"Upload {data_path} to a location set in config.js remoteDataUrl argument."
