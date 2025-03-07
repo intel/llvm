@@ -10,11 +10,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: (gpu-intel-dg2 || hip) && linux
+// UNSUPPORTED: hip && linux
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15648
-
-// Temporarily disabled until the failure is addressed.
-// UNSUPPORTED: (level_zero && windows)
 
 #include "memcpy2d_common.hpp"
 

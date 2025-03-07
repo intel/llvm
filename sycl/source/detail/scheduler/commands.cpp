@@ -3567,8 +3567,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     if (auto Result =
             MQueue->getAdapter()
-                ->call_nocheck<UrApiKind::urCommandBufferEnqueueExp>(
-                    CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
+                ->call_nocheck<UrApiKind::urEnqueueCommandBufferExp>(
+                    MQueue->getHandleRef(), CmdBufferCG->MCommandBuffer,
                     RawEvents.size(),
                     RawEvents.empty() ? nullptr : &RawEvents[0], Event);
         Result != UR_RESULT_SUCCESS)
@@ -3707,7 +3707,17 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
     default:
       break;
     }
-    MGraph->updateImpl(Node);
+  }
+
+  // Split list of nodes into nodes per UR command-buffer partition, then
+  // call UR update on each command-buffer partition with those updatable
+  // nodes.
+  auto PartitionedNodes = MGraph->getURUpdatableNodes(MNodes);
+  auto Device = MQueue->get_device();
+  auto &Partitions = MGraph->getPartitions();
+  for (auto &[PartitionIndex, NodeImpl] : PartitionedNodes) {
+    auto CommandBuffer = Partitions[PartitionIndex]->MCommandBuffers[Device];
+    MGraph->updateURImpl(CommandBuffer, NodeImpl);
   }
 
   return UR_RESULT_SUCCESS;
