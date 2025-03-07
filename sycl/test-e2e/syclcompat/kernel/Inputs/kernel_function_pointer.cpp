@@ -28,10 +28,15 @@
 //
 //
 // ===---------------------------------------------------------------------===//
+#include <iostream>
+
 #include <sycl/sycl.hpp>
 
+#include <syclcompat/defs.hpp>
+#include <syclcompat/device.hpp>
 #include <syclcompat/kernel.hpp>
-#include <iostream>
+#include <syclcompat/memory.hpp>
+
 
 void vectorAdd(const int *A, int *B, int *C, int N,
                const sycl::nd_item<3> &item_ct1) {
@@ -73,6 +78,11 @@ void vectorTemplateAdd_wrapper(const T *A, T *B, T *C, int N) {
     queue.parallel_for(nr, [=](sycl::nd_item<3> item_ct1) {
         vectorTemplateAdd<T>(A, B, C, N, item_ct1);
     });
+}
+
+void hostCallback(void *userData) {
+  const char *msg = static_cast<const char*>(userData);
+  std::cout << "Host callback executed. Message: " << msg << std::endl;
 }
 
 template <typename T>
@@ -216,9 +226,21 @@ void test_wrapper_register() {
              .get());
 }
 
+void test_host_callback() {
+  syclcompat::host_func fn = hostCallback;
+  syclcompat::device_ext &dev_ct1 = syclcompat::get_current_device();
+  sycl::queue &q_ct1 = dev_ct1.in_order_queue();
+  const char *message = "Execution finished.";
+  q_ct1.submit([&](sycl::handler &cgh) {
+    cgh.host_task([=](){
+      fn((void*)message);
+  });
+}
+
 int main() {
   test_kernel_launch();
   test_wrapper_register<int>();
+  test_host_callback();
   std::cout << "test success" << std::endl;
   return 0;
 }
