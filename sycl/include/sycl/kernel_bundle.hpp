@@ -26,7 +26,7 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
-#include <algorithm>  // for copy
+#include <algorithm> // for copy
 #include <array>      // for array
 #include <cstddef>    // for std::byte
 #include <cstring>    // for size_t, memcpy
