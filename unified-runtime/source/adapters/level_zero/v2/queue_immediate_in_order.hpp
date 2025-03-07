@@ -264,6 +264,11 @@ public:
   enqueueTimestampRecordingExp(bool blocking, uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t *phEvent) override;
+  ur_result_t
+  enqueueCommandBufferExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+                          uint32_t numEventsInWaitList,
+                          const ur_event_handle_t *phEventWaitList,
+                          ur_event_handle_t *phEvent) override;
   ur_result_t enqueueKernelLaunchCustomExp(
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -271,10 +276,6 @@ public:
       const ur_exp_launch_property_t *launchPropList,
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
-  ur_result_t
-  enqueueCommandBuffer(ze_command_list_handle_t commandBufferCommandList,
-                       ur_event_handle_t *phEvent, uint32_t numEventsInWaitList,
-                       const ur_event_handle_t *phEventWaitList) override;
   ur_result_t
   enqueueNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
                           uint32_t, const ur_mem_handle_t *,
