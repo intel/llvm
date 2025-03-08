@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   validate_email:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.repository == 'intel/llvm'
     steps:
       - name: Fetch LLVM sources
