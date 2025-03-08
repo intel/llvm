@@ -797,7 +797,7 @@ processInputModule(std::unique_ptr<Module> M) {
   // to keep the optimizer from wrongfully removing them. llvm.compiler.used
   // symbols are usually removed at backend lowering, but this is handled here
   // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
-  if (M->getTargetTriple().find("spir") != std::string::npos)
+  if (M->getTargetTriple().str().find("spir") != std::string::npos)
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
   // Sanitizer specific passes

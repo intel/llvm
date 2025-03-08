@@ -1325,7 +1325,7 @@ public:
       MySymPropReader =
           std::make_unique<SymPropReader>(SymPropBCFiles, ToolName);
 
-    M.setTargetTriple(Target);
+    M.setTargetTriple(Triple(Target));
     // Look for llvm-objcopy in the same directory, from which
     // clang-offload-wrapper is invoked. This helps OpenMP offload
     // LIT tests.

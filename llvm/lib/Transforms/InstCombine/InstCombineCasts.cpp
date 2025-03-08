@@ -916,7 +916,7 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
   //   //   extractelement <8 x i32> (bitcast <4 x i64> %X to <8 x i32>), i32 0
   // ```
   // can't be lowered by SPIR-V translator to "standard" format.
-  if (StringRef(Trunc.getModule()->getTargetTriple()).starts_with("spir"))
+  if (StringRef(Trunc.getModule()->getTargetTriple().str()).starts_with("spir"))
     return nullptr;
 
   if (Instruction *I = foldVecExtTruncToExtElt(Trunc, *this))

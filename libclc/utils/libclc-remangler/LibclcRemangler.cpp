@@ -905,10 +905,10 @@ private:
     // This module is built explicitly for linking with any .bc compiled with
     // the "nvptx64-nvidia-cuda" (CUDA) or "amdgcn-amd-amdhsa" (HIP AMD)
     // triples. Therefore we update the module triple.
-    if (M->getTargetTriple() == "nvptx64-unknown-nvidiacl") {
-      M->setTargetTriple("nvptx64-nvidia-cuda");
-    } else if (M->getTargetTriple() == "amdgcn-unknown-amdhsa") {
-      M->setTargetTriple("amdgcn-amd-amdhsa");
+    if (M->getTargetTriple().str() == "nvptx64-unknown-nvidiacl") {
+      M->setTargetTriple(Triple("nvptx64-nvidia-cuda"));
+    } else if (M->getTargetTriple().str() == "amdgcn-unknown-amdhsa") {
+      M->setTargetTriple(Triple("amdgcn-amd-amdhsa"));
     }
 
     std::vector<Function *> FuncList;
