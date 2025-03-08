@@ -121,16 +121,8 @@ void RTDeviceBinaryImage::print() const {
             << (Bin->LinkOptions ? Bin->LinkOptions : "NULL") << "\n";
   std::cerr << "    Entries  : ";
 
-  sycl_offload_entry EntriesIt;
-  auto IncrementEntriesIt = [&]() {
-    if (EntriesIt->IsNewOffloadEntryType())
-      return reinterpret_cast<sycl_offload_entry>(
-          reinterpret_cast<sycl_offload_entry_new>(EntriesIt) + 1);
-    else
-      return EntriesIt + 1;
-  };
-  for (EntriesIt = Bin->EntriesBegin; EntriesIt != Bin->EntriesEnd;
-       EntriesIt = IncrementEntriesIt())
+  for (sycl_offload_entry EntriesIt = Bin->EntriesBegin;
+       EntriesIt != Bin->EntriesEnd; EntriesIt = EntriesIt->Increment())
     std::cerr << EntriesIt->GetName() << " ";
   std::cerr << "\n";
   std::cerr << "    Properties [" << Bin->PropertySetsBegin << "-"

@@ -1866,19 +1866,8 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 
     m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
-    sycl_offload_entry EntriesIt = EntriesB;
-    // Assuming that there isn't a mix of new and old offload entry types in the
-    // image.
-    const bool isNewOffloadEntryType = EntriesIt->IsNewOffloadEntryType();
-    auto IncrementEntriesIt = [&]() {
-      if (isNewOffloadEntryType)
-        return reinterpret_cast<sycl_offload_entry>(
-            reinterpret_cast<sycl_offload_entry_new>(EntriesIt) + 1);
-      else
-        return EntriesIt + 1;
-    };
-
-    for (; EntriesIt != EntriesE; EntriesIt = IncrementEntriesIt()) {
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+         EntriesIt = EntriesIt->Increment()) {
 
       auto name = EntriesIt->GetName();
 
@@ -2030,20 +2019,9 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     // Acquire lock to modify maps for kernel bundles
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
-    sycl_offload_entry EntriesIt = EntriesB;
-    // Assuming that there isn't a mix of new and old offload entry types in the
-    // image.
-    const bool isNewOffloadEntryType = EntriesIt->IsNewOffloadEntryType();
-    auto IncrementEntriesIt = [&]() {
-      if (isNewOffloadEntryType)
-        return reinterpret_cast<sycl_offload_entry>(
-            reinterpret_cast<sycl_offload_entry_new>(EntriesIt) + 1);
-      else
-        return EntriesIt + 1;
-    };
-
     // Unmap the unique kernel IDs for the offload entries
-    for (; EntriesIt != EntriesE; EntriesIt = IncrementEntriesIt()) {
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+         EntriesIt = EntriesIt->Increment()) {
 
       // Drop entry for service kernel
       if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {

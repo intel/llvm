@@ -80,6 +80,8 @@
 
 // New entry type after
 // https://github.com/llvm/llvm-project/pull/124018
+// This is a replica of the EntryTy data structure in
+// llvm/include/llvm/Frontend/Offloading/Utility.h.
 struct _sycl_offload_entry_struct_new {
   /// Reserved bytes used to detect an older version of the struct, always zero.
   uint64_t Reserved;
@@ -110,12 +112,12 @@ struct _sycl_offload_entry_struct {
   int32_t flags;
   int32_t reserved;
 
-  bool IsNewOffloadEntryType() {
+  inline bool IsNewOffloadEntryType() {
     // Assume this is the new version of the struct.
     auto newStruct = reinterpret_cast<sycl_offload_entry_new>(this);
 
-    // Chek if first 64 bits is 0, next 16 bits is equal to 1, next 16 bits
-    // is equal to 4 (OK_SYCL), and Flags should be zero. If all these
+    // Check if first 64 bits is equal to 0, next 16 bits is equal to 1, next 16
+    // bits is equal to 4 (OK_SYCL), and check if Flags are zero. If all these
     // conditions are met, then this is a newer version of the struct.
     // We can not just rely on checking the first 64 bits, because even for the
     // older version of the struct, the first 64 bits (void* addr) are zero.
@@ -129,6 +131,16 @@ struct _sycl_offload_entry_struct {
       return reinterpret_cast<sycl_offload_entry_new>(this)->SymbolName;
 
     return name;
+  }
+
+  // Increment the pointer to the next entry. A mix of old and new offload entry
+  // types is not supported.
+  inline _sycl_offload_entry_struct *Increment() {
+    if (IsNewOffloadEntryType())
+      return reinterpret_cast<_sycl_offload_entry_struct *>(
+          reinterpret_cast<sycl_offload_entry_new>(this) + 1);
+
+    return this + 1;
   }
 };
 using sycl_offload_entry = _sycl_offload_entry_struct *;
