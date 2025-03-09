@@ -301,8 +301,11 @@ Expected<StringRef> writeOffloadFile(const OffloadFile &File) {
       sys::path::stem(Binary.getMemoryBufferRef().getBufferIdentifier());
   StringRef Suffix = getImageKindName(Binary.getImageKind());
 
-  auto TempFileOrErr = createOutputFile(
-      Prefix + "-" + Binary.getTriple() + "-" + Binary.getArch(), Suffix);
+  SmallString<128> Filename;
+  (Prefix + "-" + Binary.getTriple() + "-" + Binary.getArch())
+      .toVector(Filename);
+  llvm::replace(Filename, ':', '-');
+  auto TempFileOrErr = createOutputFile(Filename, Suffix);
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
 
