@@ -495,7 +495,21 @@ public:
     std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
     for (const auto &SyclDev : Devices) {
-      ur_device_handle_t Dev = getSyclObjImpl(SyclDev)->getHandleRef();
+      DeviceImplPtr DevImpl = getSyclObjImpl(SyclDev);
+      if (!ContextImpl->hasDevice(DevImpl)) {
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "device not part of kernel_bundle context");
+      }
+      if (!DevImpl->extOneapiCanCompile(MLanguage)) {
+        // This error cannot not be exercised in the current implementation, as
+        // compatibility with a source language depends on the backend's
+        // capabilities and all devices in one context share the same backend in
+        // the current implementation, so this would lead to an error already
+        // during construction of the source bundle.
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "device does not support source language");
+      }
+      ur_device_handle_t Dev = DevImpl->getHandleRef();
       DeviceVec.push_back(Dev);
     }
 
