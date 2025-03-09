@@ -1695,6 +1695,7 @@ std::vector<std::string> getTargetFeatures(ArrayRef<OffloadFile> InputFiles) {
       Features.emplace_back(Arg);
   }
 
+<<<<<<< HEAD
   // Only add a feature if it hasn't been seen before starting from the end.
   std::vector<std::string> UnifiedFeatures;
   DenseSet<StringRef> UsedFeatures;
@@ -1705,6 +1706,17 @@ std::vector<std::string> getTargetFeatures(ArrayRef<OffloadFile> InputFiles) {
 
   return UnifiedFeatures;
 }
+=======
+  StringRef Prefix =
+      sys::path::stem(Binary.getMemoryBufferRef().getBufferIdentifier());
+  SmallString<128> Filename;
+  (Prefix + "-" + Binary.getTriple() + "-" + Binary.getArch())
+      .toVector(Filename);
+  llvm::replace(Filename, ':', '-');
+  auto TempFileOrErr = createOutputFile(Filename, "o");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
+>>>>>>> 5c9d0a26d9462487e7db5e58f2307371154d6117
 
 template <typename ModuleHook = function_ref<bool(size_t, const Module &)>>
 std::unique_ptr<lto::LTO> createLTO(
