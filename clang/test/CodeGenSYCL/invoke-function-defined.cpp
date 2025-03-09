@@ -1,5 +1,4 @@
-// RUN: %clang_cc1 -sycl-std=2020 -fsycl-is-device -fsycl-allow-func-ptr -internal-isystem %S/Inputs -disable-llvm-passes -triple spir64-unknown-unknown -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -sycl-std=2020 -fsycl-is-device -fsycl-allow-func-ptr=labeled -internal-isystem %S/Inputs -disable-llvm-passes -triple spir64-unknown-unknown -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -sycl-std=2020 -fsycl-is-device -fsycl-allow-func-ptr=defined -internal-isystem %S/Inputs -disable-llvm-passes -triple spir64-unknown-unknown -emit-llvm -o - %s | FileCheck %s
 
 // Test that the type of function object invoked from the kernel has
 // the right address space.
@@ -9,8 +8,7 @@
 using namespace sycl;
 queue q;
 
-// CHECK: define dso_local spir_func noundef i32 @{{.*}}bar10{{.*}}()
-[[intel::device_indirectly_callable]] int bar10() { return 10; }
+int bar10() { return 10; }
 
 // CHECK: define linkonce_odr spir_func noundef i32 @{{.*}}invoke_function{{.*}}(ptr noundef nonnull %f)
 template <typename Callable>
@@ -22,6 +20,8 @@ auto invoke_function(Callable &&f) {
   // CHECK: %call = call spir_func noundef i32 %0()
   return f();
 }
+
+// CHECK: define linkonce_odr spir_func noundef i32 @{{.*}}bar10{{.*}}()
 
 int main() {
   kernel_single_task<class KernelName>(
