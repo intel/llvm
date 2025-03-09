@@ -1,6 +1,6 @@
 // REQUIRES: cpu,windows
 //
-// XFAIL: *
+// XFAIL: run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/16507
 //
 // RUN: %{build} -o %t.out
