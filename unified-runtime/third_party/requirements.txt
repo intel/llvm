@@ -39,3 +39,7 @@ sphinxcontrib-websupport==1.2.4
 sphinx-rtd-theme==1.0.0
 urllib3==2.2.2
 dataclasses-json==0.6.7
+
+# For lit testing
+filecheck==1.0.1
+lit==18.1.8
