@@ -8,6 +8,7 @@
 
 #pragma once
 
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/accessor_image.hpp>
