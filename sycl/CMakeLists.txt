@@ -378,6 +378,7 @@ add_custom_target(sycl-compiler
           clang-offload-extract
           clang-offload-packager
           clang-linker-wrapper
+          clang-sycl-linker
           file-table-tform
           llc
           llvm-ar
@@ -461,6 +462,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      clang-offload-extract
      clang-offload-packager
      clang-linker-wrapper
+     clang-sycl-linker
      file-table-tform
      llc
      llvm-ar

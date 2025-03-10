@@ -50,3 +50,9 @@ def llvm_spirv_path_EQ : Joined<["--"], "llvm-spirv-path=">,
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[LinkerOnlyOption]>,
   HelpText<"Options that will control llvm-spirv step">;
+
+// TODO: Option will be removed when llvm-spirv translator is removed
+def use_spirv_backend : Flag<["--", "-"], "use-spirv-backend">,
+                        Flags<[LinkerOnlyOption]>,
+                        HelpText<"Use the SPIR-V backend for LLVM to SPIR-V "
+                                 "translation. Off by default">;

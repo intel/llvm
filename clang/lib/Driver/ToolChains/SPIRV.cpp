@@ -137,6 +137,8 @@ void SPIRV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());
+  if (Args.hasArg(options::OPT_sycl_use_spirv_backend))
+    CmdArgs.push_back("-use-spirv-backend");
 
   // Use of --sycl-link will call the clang-sycl-linker instead of
   // the default linker (spirv-link).

@@ -6919,6 +6919,10 @@ def fsycl_host_only : Flag<["-"], "fsycl-host-only">,
 def sycl_link : Flag<["--"], "sycl-link">, Flags<[HelpHidden]>,
   HelpText<"Perform link through clang-sycl-linker via the target "
   "offloading toolchain.">;
+def sycl_use_spirv_backend
+    : Flag<["--"], "sycl-use-spirv-backend">,
+      Flags<[HelpHidden]>,
+      HelpText<"Use SPIR-V backend for LLVM to SPIR-V translation.">;
 defm sycl_early_optimizations :
   OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard "
                  "optimization pipeline for SYCL device compiler",

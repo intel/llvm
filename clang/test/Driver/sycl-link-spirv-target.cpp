@@ -7,3 +7,8 @@
 // RUN:   -Xlinker --library-path=/tmp -Xlinker --device-libs=lib1.bc,lib2.bc %t.bc 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=XLINKEROPTS
 // XLINKEROPTS: "{{.*}}clang-sycl-linker{{.*}}" "--llvm-spirv-path=/tmp" "--library-path=/tmp" "--device-libs=lib1.bc,lib2.bc" "{{.*}}.bc" "-o" "a.out"
+
+// Test that -use-spirv-backend option is being passed to clang-sycl-linker, when -sycl-use-spirv-backend is specified.
+// RUN: %clangxx -### --target=spirv64 --sycl-link --sycl-use-spirv-backend %t.bc 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SPIRV_BACKEND
+// SPIRV_BACKEND: "{{.*}}clang-sycl-linker{{.*}}" "{{.*}}.bc" "-o" "a.out" "-use-spirv-backend"

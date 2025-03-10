@@ -46,3 +46,8 @@
 // RUN: clang-sycl-linker --dry-run -triple spirv64  %t_1.bc %t_2.bc -o a.spv 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=LLVMOPTSLIN
 // LLVMOPTSLIN: -spirv-debug-info-version=nonsemantic-shader-200 -spirv-allow-unknown-intrinsics=llvm.genx. -spirv-ext=
+
+// Test if SPIR-V backend is called when -use-spirv-backend is specified.
+// RUN: clang-sycl-linker --dry-run -use-spirv-backend %t_1.bc -o a.spv 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=SPV-BACKEND
+// SPV-BACKEND: LLVM-SPIRV-Backend: input: {{.*}}, output: {{.*}}

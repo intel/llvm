@@ -16,6 +16,7 @@
 
 #include "clang/Basic/Version.h"
 
+#include "../../llvm/lib/Target/SPIRV/SPIRVAPI.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -423,6 +424,63 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   return OutputFile;
 }
 
+/// Run LLVM to SPIR-V translation.
+/// Converts 'File' from LLVM bitcode to SPIR-V format using SPIR-V backend,
+/// 'Args' encompasses all arguments required for linking device code and will
+/// be parsed to generate options required to be passed into the backend.
+static Expected<StringRef> runLLVMSPIRVBackend(StringRef File,
+                                               const ArgList &Args) {
+  llvm::TimeTraceScope TimeScope("LLVMToSPIRVTranslationViaSPIRVBackend");
+  std::vector<std::string> ExtNames, Opts;
+  if (Verbose || DryRun) {
+    errs() << formatv("LLVM-SPIRV-Backend: input: {0}, output: {1}\n", File,
+                      OutputFile);
+    if (DryRun)
+      return OutputFile;
+  }
+  SMDiagnostic Err;
+  LLVMContext C;
+  std::unique_ptr<Module> M = parseIRFile(File, Err, C);
+  if (!M)
+    return createStringError(inconvertibleErrorCode(), Err.getMessage());
+
+  static const std::string DefaultTriple = "spirv64v1.6-unknown-unknown";
+
+  // Correct the Triple value if needed
+  // TODO: Remove this correction once we start using spirv64/spirv32 triples
+  // everywhere.
+  Triple TargetTriple(M->getTargetTriple());
+  if (TargetTriple.isSPIR()) {
+    TargetTriple.setArch(TargetTriple.getArch() == Triple::spir64
+                             ? Triple::spirv64
+                             : Triple::spirv32,
+                         TargetTriple.getSubArch());
+    M->setTargetTriple(TargetTriple.str());
+    // We need to reset Data Layout to conform with the TargetMachine
+    M->setDataLayout("");
+  }
+  if (TargetTriple.getTriple().empty())
+    TargetTriple.setTriple(DefaultTriple);
+  TargetTriple.setArch(TargetTriple.getArch(), Triple::SPIRVSubArch_v16);
+  M->setTargetTriple(TargetTriple.str());
+
+  int FD = -1;
+  if (std::error_code EC = sys::fs::openFileForWrite(OutputFile, FD))
+    return errorCodeToError(EC);
+  auto OS = std::make_unique<llvm::raw_fd_ostream>(FD, true);
+
+  std::string Result, ErrMsg;
+  // List of allowed extensions. Currently, all extensions are allowed.
+  // TODO: Update list of allowed extensions for SYCL compilation flow.
+  static const std::vector<std::string> AllowExtNames{"all"};
+  // Translate the Module into SPIR-V
+  if (!SPIRVTranslateModule(M.release(), Result, ErrMsg, AllowExtNames, {}))
+    return createStringError(
+        "SPIRVTranslation: SPIRV translation failed with " + ErrMsg);
+  *OS << Result;
+  return OutputFile;
+}
+
 Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("SYCLDeviceLink");
   // First llvm-link step
@@ -436,7 +494,9 @@ Error runSYCLLink(ArrayRef<std::string> Files, const ArgList &Args) {
     reportError(DeviceLinkedFile.takeError());
 
   // LLVM to SPIR-V translation step
-  auto SPVFile = runLLVMToSPIRVTranslation(*DeviceLinkedFile, Args);
+  auto SPVFile = Args.hasArg(OPT_use_spirv_backend)
+                     ? runLLVMSPIRVBackend(*DeviceLinkedFile, Args)
+                     : runLLVMToSPIRVTranslation(*DeviceLinkedFile, Args);
   if (!SPVFile)
     return SPVFile.takeError();
   return Error::success();
