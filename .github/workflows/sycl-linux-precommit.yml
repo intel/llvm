@@ -79,6 +79,12 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
             extra_lit_opts: --param matrix-xmx8=True
+          - name: Intel Arc A-Series Graphics for L0 V2 adapter
+            runner: '["Linux", "arc"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero_v2:gpu
+            reset_intel_gpu: true
+            extra_lit_opts: --param matrix-xmx8=True
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
