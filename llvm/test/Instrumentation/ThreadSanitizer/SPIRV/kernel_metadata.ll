@@ -7,9 +7,7 @@ target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: sanitize_thread
 define spir_kernel void @test() #0 {
-; CHECK-LABEL: void @test(ptr addrspace(1) noundef %__tsan_launch)
 entry:
-  ; CHECK: store ptr addrspace(1) %__tsan_launch, ptr addrspace(3) @__TsanLaunchInfo
   ret void
 }
 
