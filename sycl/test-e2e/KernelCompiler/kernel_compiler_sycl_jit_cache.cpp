@@ -46,11 +46,6 @@ auto constexpr SYCLSourceWithInclude = R"""(
   }
   )""";
 
-static void dumpKernelIDs() {
-  for (auto &kernelID : sycl::get_kernel_ids())
-    std::cout << kernelID.get_name() << std::endl;
-}
-
 int test_persistent_cache() {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;

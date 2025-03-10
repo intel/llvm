@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <set>
+#include <string_view>
 #include <vector>
 
 namespace sycl {
@@ -328,7 +329,8 @@ std::vector<kernel_id> get_kernel_ids() {
   // for '$' should be enough.
   ids.erase(std::remove_if(ids.begin(), ids.end(),
                            [](kernel_id id) {
-                             return strchr(id.get_name(), '$') != nullptr;
+                             std::string_view sv(id.get_name());
+                             return sv.find('$') != std::string_view::npos;
                            }),
             ids.end());
   return ids;
