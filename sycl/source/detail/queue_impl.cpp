@@ -363,8 +363,9 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  auto HandlerImpl = detail::getSyclObjImpl(Handler);
+  detail::handler_impl HandlerImpl(
+      std::move(PrimaryQueue), std::move(SecondaryQueue), CallerNeedsEvent);
+  handler Handler(&HandlerImpl, Self);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
@@ -375,14 +376,14 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CGType Type = HandlerImpl->MCGType;
+  const CGType Type = HandlerImpl.MCGType;
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+  HandlerImpl.MEventMode = SubmitInfo.EventMode();
 
   if (SubmitInfo.PostProcessorFunc()) {
     auto &PostProcess = *SubmitInfo.PostProcessorFunc();
