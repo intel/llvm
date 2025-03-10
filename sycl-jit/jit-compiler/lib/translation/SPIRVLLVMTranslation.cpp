@@ -94,8 +94,7 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
         SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200);
     TransOpt.setPreserveAuxData(true);
     const llvm::SmallVector<llvm::StringRef, 4> AllowedIntrinsics = {
-      "llvm.genx."
-    };
+        "llvm.genx."};
     TransOpt.setSPIRVAllowUnknownIntrinsics(AllowedIntrinsics);
     // TODO: We need to take care of specialization constants, either by
     // instantiating them by the user-supplied value from the SYCL runtime or by
