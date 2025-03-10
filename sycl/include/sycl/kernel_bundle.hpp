@@ -961,8 +961,8 @@ struct include_files
     record.emplace(name, content);
   }
   void add(const std::string &name, const std::string &content) {
-    [[maybe_unused]] auto [it, ins] = record.try_emplace(name, content);
-    if (!ins) {
+    bool inserted = record.try_emplace(name, content).second;
+    if (!inserted) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Include file '" + name +
                                 "' is already registered");
