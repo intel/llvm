@@ -657,31 +657,8 @@ followed by the directories below, in order:
 2. Any directory added explicitly to the search list via the `build_options`
    property.
 
-Finally, the compiler searches a set of implicitly available header files, as
-defined in the section "Implicitly available headers".
-
-==== Adding paths to the search list
-
-Directories on the local filesystem can be appended to the search path by adding
-one or more occurences of the `-I` option to the `build_options` property. This
-is useful, for example, to compile kernels using external libraries. The
-following spellings are supported (note that the path is a separate element in
-the `build_options` list for the second and fourth form):
-
-[source,c++]
-----
-build_options{{
-  {"-Ipath"},
-  {"-I"}, {"path"},
-  {"--include-directory=path"},
-  {"--include-directory"}, {"path"}
-}}
-----
-
-==== Implicitly available headers
-
-The following header files are implicitly available, and do not need to be
-specified via the `include_files` property.
+Finally, the compiler searches a set of implicitly available header files, which
+do not need to be specified via the `include_files` property:
 
 * `<sycl/sycl.hpp>`;
 * The {cpp} standard library headers;
@@ -973,3 +950,25 @@ There is no inherent reason why this functionality needs to be built into
 However, we don't yet have a utility library where this would go, and it may be
 hard for customers to discover this functionality if it is defined outside of
 this extension.
+
+== Non-normative implementation notes for {dpcpp}
+
+=== Supported `build_options` when the language is `sycl`
+
+The SYCL runtime compiler supports the following {dpcpp} options to be passed in
+the `build_options` property.
+
+[cols="1,2"]
+|===
+|*Option*
+|*Notes*
+
+|`-I<dir>` +
+`-I <dir>` +
+`--include-directory=<dir>` +
+`--include-directory <dir>`
+| Add `<dir>` to to the search list for include files (see section "Including
+files when the language is ``sycl``"). This is useful, for example, to compile
+kernels using external libraries. Note that for the second and fourth form,
+`dir` is a separate element in the `build_options` list.
+|===
