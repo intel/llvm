@@ -358,7 +358,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(MemBaseAddrAlign);
   }
   case UR_DEVICE_INFO_HALF_FP_CONFIG: {
-    return ReturnValue(0u);
+    ur_device_fp_capability_flags_t Config =
+        UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+        UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
+        UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+    return ReturnValue(Config);
   }
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
     ur_device_fp_capability_flags_t Config =
@@ -372,14 +379,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Config);
   }
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
-    ur_device_fp_capability_flags_t Config =
-        UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
-        UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
-        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
-        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
-        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
-        UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
-    return ReturnValue(Config);
+    hipDeviceProp_t Props;
+    detail::ur::assertion(hipGetDeviceProperties(&Props, hDevice->get()) ==
+                          hipSuccess);
+
+    if (Props.arch.hasDoubles) {
+      ur_device_fp_capability_flags_t Config =
+          UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+          UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+          UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
+          UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
+          UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
+          UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+      return ReturnValue(Config);
+    } else {
+      return ReturnValue(0u);
+    }
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
     return ReturnValue(UR_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
@@ -550,20 +565,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // DEVICELIB_ASSERT extension is set so fallback assert
     // postprocessing is NOP. HIP 4.3 docs indicate support for
     // native asserts are in progress
-    std::string SupportedExtensions = "";
-    SupportedExtensions += "cl_intel_devicelib_assert ";
-
-    hipDeviceProp_t Props;
-    detail::ur::assertion(hipGetDeviceProperties(&Props, hDevice->get()) ==
-                          hipSuccess);
-
-    if (Props.arch.hasDoubles) {
-      SupportedExtensions += "cl_khr_fp64 ";
-    }
-
-    SupportedExtensions += "cl_khr_fp16 ";
-
-    return ReturnValue(SupportedExtensions.c_str());
+    return ReturnValue("cl_intel_devicelib_assert");
   }
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
