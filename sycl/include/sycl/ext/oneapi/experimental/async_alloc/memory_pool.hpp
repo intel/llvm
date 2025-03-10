@@ -71,11 +71,13 @@ public:
   memory_pool_impl(const memory_pool_impl &) = delete;
   memory_pool_impl &operator=(const memory_pool_impl &) = delete;
 
-  ur_usm_pool_handle_t get_handle() const { return poolHandle; }
-  sycl::device get_device() const { return syclDevice; }
-  sycl::context get_context() const { return syclContext; }
-  sycl::usm::alloc get_alloc_kind() const { return kind; }
-  const property_list &getPropList() const { return propList; }
+  ur_usm_pool_handle_t get_handle() const { return MPoolHandle; }
+  sycl::device get_device() const { return MDevice; }
+  sycl::context get_context() const {
+    return sycl::detail::createSyclObjFromImpl<sycl::context>(MContextImplPtr);
+  }
+  sycl::usm::alloc get_alloc_kind() const { return MKind; }
+  const property_list &getPropList() const { return MPropList; }
 
   // Returns backend specific values.
   size_t get_threshold() const;
@@ -90,12 +92,12 @@ public:
   void trim_to(size_t minBytesToKeep);
 
 private:
-  sycl::context syclContext;
-  sycl::device syclDevice;
-  sycl::usm::alloc kind;
-  ur_usm_pool_handle_t poolHandle{0};
-  bool isDefaultPool = false;
-  property_list propList;
+  std::shared_ptr<sycl::detail::context_impl> MContextImplPtr;
+  sycl::device MDevice;
+  sycl::usm::alloc MKind;
+  ur_usm_pool_handle_t MPoolHandle{0};
+  bool MIsDefaultPool = false;
+  property_list MPropList;
 };
 } // namespace detail
 

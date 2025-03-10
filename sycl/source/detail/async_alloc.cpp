@@ -17,20 +17,17 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-namespace detail {
-
+namespace {
 std::vector<ur_event_handle_t>
-getUrEvents(const std::vector<std::shared_ptr<event_impl>> &DepEvents) {
+getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
   std::vector<ur_event_handle_t> RetUrEvents;
-  for (const std::shared_ptr<event_impl> &EventImpl : DepEvents) {
+  for (const std::shared_ptr<detail::event_impl> &EventImpl : DepEvents) {
     ur_event_handle_t Handle = EventImpl->getHandle();
     if (Handle != nullptr)
       RetUrEvents.push_back(Handle);
   }
   return RetUrEvents;
 }
-
-} // namespace detail
 
 ur_usm_pool_handle_t
 create_memory_pool_device(const sycl::context &ctx, const sycl::device &dev,
@@ -81,14 +78,15 @@ void destroy_memory_pool(const sycl::context &ctx, const sycl::device &dev,
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolDestroyExp>(
           C, Device, poolHandle);
 }
+} // namespace
 
 // <--- Memory pool impl --->
 detail::memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
                                            const sycl::device &dev,
                                            const sycl::usm::alloc kind,
                                            const property_list &props)
-    : syclContext(ctx), syclDevice(dev), kind(kind), propList(props) {
-
+    : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
+      MKind(kind), MPropList(props) {
   size_t maxSize = 0;
   size_t threshold = 0;
   bool readOnly = false;
@@ -110,8 +108,8 @@ detail::memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
   }
 
   if (kind == sycl::usm::alloc::device)
-    poolHandle = create_memory_pool_device(ctx, dev, threshold, maxSize,
-                                           readOnly, zeroInit);
+    MPoolHandle = create_memory_pool_device(ctx, dev, threshold, maxSize,
+                                            readOnly, zeroInit);
   else
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -124,13 +122,14 @@ detail::memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
                                            ur_usm_pool_handle_t poolHandle,
                                            const bool isDefaultPool,
                                            const property_list &props)
-    : syclContext(ctx), syclDevice(dev), kind(kind), poolHandle(poolHandle),
-      isDefaultPool(isDefaultPool), propList(props) {}
+    : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
+      MKind(kind), MPoolHandle(poolHandle), MIsDefaultPool(isDefaultPool),
+      MPropList(props) {}
 
 detail::memory_pool_impl::~memory_pool_impl() {
 
   // Default memory pools cannot be destroyed.
-  if (isDefaultPool) {
+  if (MIsDefaultPool) {
     return;
   }
   ur_usm_pool_handle_t handle = this->get_handle();
@@ -140,125 +139,103 @@ detail::memory_pool_impl::~memory_pool_impl() {
 }
 
 size_t detail::memory_pool_impl::get_threshold() const {
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
 
   size_t threshold = 0;
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          poolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &threshold,
+          MPoolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &threshold,
           nullptr);
 
   return threshold;
 }
 
 size_t detail::memory_pool_impl::get_reserved_size_current() const {
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
 
   size_t resSizeCurrent = 0;
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          poolHandle, UR_USM_POOL_INFO_RESERVED_CURRENT_EXP, &resSizeCurrent,
+          MPoolHandle, UR_USM_POOL_INFO_RESERVED_CURRENT_EXP, &resSizeCurrent,
           nullptr);
 
   return resSizeCurrent;
 }
 
 size_t detail::memory_pool_impl::get_reserved_size_high() const {
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
 
   size_t resSizeHigh = 0;
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          poolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP, &resSizeHigh,
+          MPoolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP, &resSizeHigh,
           nullptr);
 
   return resSizeHigh;
 }
 
 size_t detail::memory_pool_impl::get_used_size_current() const {
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
 
   size_t usedSizeCurrent = 0;
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          poolHandle, UR_USM_POOL_INFO_USED_CURRENT_EXP, &usedSizeCurrent,
+          MPoolHandle, UR_USM_POOL_INFO_USED_CURRENT_EXP, &usedSizeCurrent,
           nullptr);
 
   return usedSizeCurrent;
 }
 
 size_t detail::memory_pool_impl::get_used_size_high() const {
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
 
   size_t usedSizeHigh = 0;
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          poolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP, &usedSizeHigh, nullptr);
+          MPoolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP, &usedSizeHigh, nullptr);
 
   return usedSizeHigh;
 }
 
 void detail::memory_pool_impl::set_new_threshold(size_t newThreshold) {
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
 
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
-          poolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &newThreshold,
+          MPoolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &newThreshold,
           8 /*uint64_t*/);
 }
 
 void detail::memory_pool_impl::reset_reserved_size_high() {
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
 
   uint64_t resetVal = 0; // Reset to zero
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
-          poolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP,
+          MPoolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP,
           static_cast<void *>(&resetVal), 8 /*uint64_t*/);
 }
 
 void detail::memory_pool_impl::reset_used_size_high() {
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
 
   uint64_t resetVal = 0; // Reset to zero
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
-          poolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP,
+          MPoolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP,
           static_cast<void *>(&resetVal), 8 /*uint64_t*/);
 }
 
 void detail::memory_pool_impl::trim_to(size_t minBytesToKeep) {
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  ur_context_handle_t C = CtxImpl->getHandleRef();
+  ur_context_handle_t C = MContextImplPtr->getHandleRef();
   std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
+      sycl::detail::getSyclObjImpl(MDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
 
   Adapter
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolTrimToExp>(
-          C, Device, poolHandle, minBytesToKeep);
+          C, Device, MPoolHandle, minBytesToKeep);
 }
 
 // <--- Memory pool --->
@@ -357,7 +334,7 @@ __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
   if (kind != sycl::usm::alloc::device) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Host allocated pools are unsupported!");
+        "Only device backed asynchronous allocations are supported!");
   }
 
   h.throwIfGraphAssociated<
@@ -368,7 +345,7 @@ __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
   auto &Q = h.MQueue->getHandleRef();
 
   // Get events to wait on.
-  auto depEvents = detail::getUrEvents(h.impl->CGData.MEvents);
+  auto depEvents = getUrEvents(h.impl->CGData.MEvents);
   uint32_t numEvents = h.impl->CGData.MEvents.size();
 
   void *alloc = nullptr;
@@ -415,7 +392,7 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
   auto &memPoolImpl = sycl::detail::getSyclObjImpl(pool);
 
   // Get events to wait on.
-  auto depEvents = detail::getUrEvents(h.impl->CGData.MEvents);
+  auto depEvents = getUrEvents(h.impl->CGData.MEvents);
   uint32_t numEvents = h.impl->CGData.MEvents.size();
 
   void *alloc = nullptr;

@@ -8,7 +8,6 @@
 
 #pragma once
 #include <sycl/detail/common.hpp> // for code_location
-#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp> // for memory_pool
 #include <sycl/handler.hpp>       // for handler
 #include <sycl/queue.hpp>         // for queue
 #include <sycl/usm/usm_enums.hpp> // for usm::alloc
@@ -16,6 +15,9 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
+
+// Forward declare memory_pool.
+class memory_pool;
 
 /**
  * @brief  Asynchronousy allocate memory from a default pool.
