@@ -958,10 +958,10 @@ this extension.
 The SYCL runtime compiler supports the following {dpcpp} options to be passed in
 the `build_options` property.
 
-[cols="1,2"]
+[%header,cols="1,3"]
 |===
-|*Option*
-|*Notes*
+|Option
+|Notes
 
 |`-I<dir>` +
 `-I <dir>` +
