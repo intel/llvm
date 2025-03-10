@@ -361,11 +361,9 @@ ur_result_t urBindlessImagesImageAllocateExp(
 }
 
 ur_result_t
-urBindlessImagesImageFreeExp(ur_context_handle_t hContext,
-                             ur_device_handle_t hDevice,
+urBindlessImagesImageFreeExp(ur_context_handle_t /*hContext*/,
+                             ur_device_handle_t /*hDevice*/,
                              ur_exp_image_mem_native_handle_t hImageMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
   UR_CALL(ur::level_zero::urMemRelease(
       reinterpret_cast<ur_mem_handle_t>(hImageMem)));
   return UR_RESULT_SUCCESS;
@@ -611,14 +609,9 @@ ur_result_t urBindlessImagesImageGetInfoExp(
 }
 
 ur_result_t urBindlessImagesMipmapGetLevelExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_image_mem_native_handle_t hImageMem, uint32_t mipmapLevel,
-    ur_exp_image_mem_native_handle_t *phImageMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = hImageMem;
-  std::ignore = mipmapLevel;
-  std::ignore = phImageMem;
+    ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
+    ur_exp_image_mem_native_handle_t /*hImageMem*/, uint32_t /*mipmapLevel*/,
+    ur_exp_image_mem_native_handle_t * /*phImageMem*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -727,14 +720,9 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
 }
 
 ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
-    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = size;
-  std::ignore = offset;
-  std::ignore = hExternalMem;
-  std::ignore = phRetMem;
+    ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
+    uint64_t /*offset*/, uint64_t /*size*/,
+    ur_exp_external_mem_handle_t /*hExternalMem*/, void ** /*phRetMem*/) {
   logger::error("[UR][L0] {} function not implemented!",
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -830,9 +818,8 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
 }
 
 ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_context_handle_t hContext, ur_device_handle_t /*hDevice*/,
     ur_exp_external_semaphore_handle_t hExternalSemaphore) {
-  std::ignore = hDevice;
   auto UrPlatform = hContext->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
     logger::error(logger::LegacyMessage("[UR][L0] "),
@@ -905,13 +892,6 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
     bool hasValue, uint64_t signalValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hSemaphore;
-  std::ignore = hasValue;
-  std::ignore = signalValue;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
     logger::error(logger::LegacyMessage("[UR][L0] "),
