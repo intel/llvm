@@ -23,9 +23,14 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassManagerImpl.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
+#include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
+#include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
+#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SanitizerKernelMetadata.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -1422,7 +1427,8 @@ bool runPreSplitProcessingPipeline(Module &M) {
   if (M.getTargetTriple().find("spir") != std::string::npos)
     MPM.addPass(RemoveDeviceGlobalFromCompilerUsed());
 
-  if (isModuleUsingAsan(M) || isModuleUsingMsan(M) || isModuleUsingTsan(M))
+  if (sycl::isModuleUsingAsan(M) || sycl::isModuleUsingMsan(M) ||
+      sycl::isModuleUsingTsan(M))
     MPM.addPass(SanitizerKernelMetadataPass());
 
   MPM.addPass(SYCLJointMatrixTransformPass());

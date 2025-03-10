@@ -674,7 +674,7 @@ processInputModule(std::unique_ptr<Module> M) {
 
   // Keeps track of any changes made to the input module and report to the user
   // if none were made.
-  bool Modified = runPreSplitProcessingPipeline(*M);
+  bool Modified = llvm::module_split::runPreSplitProcessingPipeline(*M);
 
   DUMP_ENTRY_POINTS(*M, EmitOnlyKernelsAsEntryPoints, "Input");
 
