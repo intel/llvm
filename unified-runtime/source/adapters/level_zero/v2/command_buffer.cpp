@@ -40,7 +40,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
 
 ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   // It is not allowed to append to command list from multiple threads.
-  std::scoped_lock<ur_shared_mutex> guard(this->Mutex);
   auto commandListLocked = commandListManager.lock();
   UR_ASSERT(!isFinalized, UR_RESULT_ERROR_INVALID_OPERATION);
   // Close the command lists and have them ready for dispatch.

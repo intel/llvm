@@ -135,7 +135,7 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
 }
 
 void ur_queue_immediate_in_order_t::deferEventFree(ur_event_handle_t hEvent) {
-  std::unique_lock<ur_shared_mutex> lock(this->Mutex);
+  auto commandListLocked = commandListManager.lock();
   deferredEvents.push_back(hEvent);
 }
 
@@ -150,7 +150,6 @@ ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
 ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::queueFinish");
 
-  std::unique_lock<ur_shared_mutex> lock(this->Mutex);
   auto commandListLocked = commandListManager.lock();
   // TODO: use zeEventHostSynchronize instead?
   TRACK_SCOPE_LATENCY(
