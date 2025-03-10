@@ -543,7 +543,6 @@ event handler::finalize() {
         NewEvent->setSubmissionTime();
 
         EnqueueKernel();
-        // ktikhomi: check looks incorrect
         if (NewEvent->isHost() || NewEvent->getHandle() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();

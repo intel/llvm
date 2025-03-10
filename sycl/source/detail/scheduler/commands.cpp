@@ -3028,7 +3028,6 @@ ur_result_t ExecCGCommand::enqueueImp() {
 
 ur_result_t ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CGType::CodeplayHostTask)
-    // ktikhomi: to filter host events here
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getUrEvents(EventImpls);
