@@ -1520,8 +1520,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     bool Supported = false;
     UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
         cl_adapter::cast<cl_device_id>(hDevice),
-        {"cl_intel_bfloat16_conversions"},
-        Supported));
+        {"cl_intel_bfloat16_conversions"}, Supported));
     return ReturnValue(Supported);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
