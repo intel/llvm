@@ -320,6 +320,7 @@ ur_result_t urEventRetain(ur_event_handle_t hEvent);
 ur_result_t urEventRelease(ur_event_handle_t hEvent);
 ur_result_t urEventGetNativeHandle(ur_event_handle_t hEvent,
                                    ur_native_handle_t *phNativeEvent);
+ur_result_t urEventHostSignal(ur_event_handle_t hEvent);
 ur_result_t
 urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
                               ur_context_handle_t hContext,

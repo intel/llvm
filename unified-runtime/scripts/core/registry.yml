@@ -637,6 +637,9 @@ etors:
 - name: USM_POOL_GET_INFO_EXP
   desc: Enumerator for $xUSMPoolGetInfoExp
   value: '262'
+- name: EVENT_HOST_SIGNAL
+  desc: Enumerator for $xEventHostSignal
+  value: '263'
 ---
 type: enum
 desc: Defines structure types
