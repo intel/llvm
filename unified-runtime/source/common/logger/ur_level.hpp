@@ -8,22 +8,21 @@
 
 #include <stdexcept>
 #include <string>
+#include <ur_api.h>
 
 namespace logger {
 
-enum class Level { DEBUG, INFO, WARN, ERR, QUIET };
-
-inline constexpr auto level_to_str(Level level) {
+inline constexpr auto level_to_str(ur_logger_level_t level) {
   switch (level) {
-  case Level::DEBUG:
+  case UR_LOGGER_LEVEL_DEBUG:
     return "DEBUG";
-  case Level::INFO:
+  case UR_LOGGER_LEVEL_INFO:
     return "INFO";
-  case Level::WARN:
+  case UR_LOGGER_LEVEL_WARN:
     return "WARNING";
-  case Level::ERR:
+  case UR_LOGGER_LEVEL_ERROR:
     return "ERROR";
-  case Level::QUIET:
+  case UR_LOGGER_LEVEL_QUIET:
     return "QUIET";
   default:
     return "";
@@ -31,20 +30,20 @@ inline constexpr auto level_to_str(Level level) {
 }
 
 inline auto str_to_level(std::string name) {
-  struct lvl_name {
+  struct level_name {
     std::string name;
-    Level lvl;
+    ur_logger_level_t level;
   };
 
-  const lvl_name lvl_names[] = {{"debug", Level::DEBUG},
-                                {"info", Level::INFO},
-                                {"warning", Level::WARN},
-                                {"error", Level::ERR},
-                                {"quiet", Level::QUIET}};
+  const level_name level_names[] = {{"debug", UR_LOGGER_LEVEL_DEBUG},
+                                    {"info", UR_LOGGER_LEVEL_INFO},
+                                    {"warning", UR_LOGGER_LEVEL_WARN},
+                                    {"error", UR_LOGGER_LEVEL_ERROR},
+                                    {"quiet", UR_LOGGER_LEVEL_QUIET}};
 
-  for (auto const &item : lvl_names) {
+  for (auto const &item : level_names) {
     if (item.name.compare(name) == 0) {
-      return item.lvl;
+      return item.level;
     }
   }
   throw std::invalid_argument(

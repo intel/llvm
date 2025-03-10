@@ -291,6 +291,7 @@ operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_adapter_backend_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_logger_level_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_platform_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value);
@@ -1114,8 +1115,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP:
     os << "UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP";
     break;
-  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP:
-    os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP";
+  case UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED:
+    os << "UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED";
     break;
   case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE:
     os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE";
@@ -1123,17 +1124,53 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP:
     os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP";
     break;
-  case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP:
-    os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP";
+  case UR_FUNCTION_PHYSICAL_MEM_GET_INFO:
+    os << "UR_FUNCTION_PHYSICAL_MEM_GET_INFO";
     break;
-  case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP:
-    os << "UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP";
+  case UR_FUNCTION_ENQUEUE_USM_SHARED_ALLOC_EXP:
+    os << "UR_FUNCTION_ENQUEUE_USM_SHARED_ALLOC_EXP";
     break;
-  case UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED:
-    os << "UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED";
+  case UR_FUNCTION_ENQUEUE_USM_HOST_ALLOC_EXP:
+    os << "UR_FUNCTION_ENQUEUE_USM_HOST_ALLOC_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_USM_FREE_EXP:
+    os << "UR_FUNCTION_ENQUEUE_USM_FREE_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_CREATE_EXP:
+    os << "UR_FUNCTION_USM_POOL_CREATE_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_DESTROY_EXP:
+    os << "UR_FUNCTION_USM_POOL_DESTROY_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP:
+    os << "UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP:
+    os << "UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_GET_INFO_EXP:
+    os << "UR_FUNCTION_USM_POOL_GET_INFO_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_SET_DEVICE_POOL_EXP:
+    os << "UR_FUNCTION_USM_POOL_SET_DEVICE_POOL_EXP";
+    break;
+  case UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP:
+    os << "UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_GET_DEVICE_POOL_EXP:
+    os << "UR_FUNCTION_USM_POOL_GET_DEVICE_POOL_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_TRIM_TO_EXP:
+    os << "UR_FUNCTION_USM_POOL_TRIM_TO_EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP";
     break;
   case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP:
     os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP";
+    break;
+  case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP:
+    os << "UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP";
     break;
   case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP:
     os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP";
@@ -1177,50 +1214,20 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP:
     os << "UR_FUNCTION_COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP";
     break;
-  case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP:
-    os << "UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP";
+  case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP:
+    os << "UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP";
     break;
   case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT:
     os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT";
     break;
-  case UR_FUNCTION_PHYSICAL_MEM_GET_INFO:
-    os << "UR_FUNCTION_PHYSICAL_MEM_GET_INFO";
+  case UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP:
+    os << "UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP";
     break;
-  case UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP:
-    os << "UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP";
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK:
+    os << "UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK";
     break;
-  case UR_FUNCTION_ENQUEUE_USM_SHARED_ALLOC_EXP:
-    os << "UR_FUNCTION_ENQUEUE_USM_SHARED_ALLOC_EXP";
-    break;
-  case UR_FUNCTION_ENQUEUE_USM_HOST_ALLOC_EXP:
-    os << "UR_FUNCTION_ENQUEUE_USM_HOST_ALLOC_EXP";
-    break;
-  case UR_FUNCTION_ENQUEUE_USM_FREE_EXP:
-    os << "UR_FUNCTION_ENQUEUE_USM_FREE_EXP";
-    break;
-  case UR_FUNCTION_USM_POOL_CREATE_EXP:
-    os << "UR_FUNCTION_USM_POOL_CREATE_EXP";
-    break;
-  case UR_FUNCTION_USM_POOL_DESTROY_EXP:
-    os << "UR_FUNCTION_USM_POOL_DESTROY_EXP";
-    break;
-  case UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP:
-    os << "UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP";
-    break;
-  case UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP:
-    os << "UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP";
-    break;
-  case UR_FUNCTION_USM_POOL_SET_DEVICE_POOL_EXP:
-    os << "UR_FUNCTION_USM_POOL_SET_DEVICE_POOL_EXP";
-    break;
-  case UR_FUNCTION_USM_POOL_GET_DEVICE_POOL_EXP:
-    os << "UR_FUNCTION_USM_POOL_GET_DEVICE_POOL_EXP";
-    break;
-  case UR_FUNCTION_USM_POOL_TRIM_TO_EXP:
-    os << "UR_FUNCTION_USM_POOL_TRIM_TO_EXP";
-    break;
-  case UR_FUNCTION_USM_POOL_GET_INFO_EXP:
-    os << "UR_FUNCTION_USM_POOL_GET_INFO_EXP";
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL:
+    os << "UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL";
     break;
   default:
     os << "unknown enumerator";
@@ -2324,6 +2331,34 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_ADAPTER_BACKEND_NATIVE_CPU:
     os << "UR_ADAPTER_BACKEND_NATIVE_CPU";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_logger_level_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_logger_level_t value) {
+  switch (value) {
+  case UR_LOGGER_LEVEL_DEBUG:
+    os << "UR_LOGGER_LEVEL_DEBUG";
+    break;
+  case UR_LOGGER_LEVEL_INFO:
+    os << "UR_LOGGER_LEVEL_INFO";
+    break;
+  case UR_LOGGER_LEVEL_WARN:
+    os << "UR_LOGGER_LEVEL_WARN";
+    break;
+  case UR_LOGGER_LEVEL_ERROR:
+    os << "UR_LOGGER_LEVEL_ERROR";
+    break;
+  case UR_LOGGER_LEVEL_QUIET:
+    os << "UR_LOGGER_LEVEL_QUIET";
     break;
   default:
     os << "unknown enumerator";
@@ -12057,6 +12092,59 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_set_logger_callback_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_set_logger_callback_params_t
+               *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".pfnLoggerCallback = ";
+
+  os << reinterpret_cast<void *>(*(params->ppfnLoggerCallback));
+
+  os << ", ";
+  os << ".pUserData = ";
+
+  ur::details::printPtr(os, *(params->ppUserData));
+
+  os << ", ";
+  os << ".level = ";
+
+  os << *(params->plevel);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_set_logger_callback_level_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_adapter_set_logger_callback_level_params_t
+        *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".level = ";
+
+  os << *(params->plevel);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_platform_get_params_t type
 /// @returns
 ///     std::ostream &
@@ -20288,6 +20376,12 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED: {
     os << (const struct ur_loader_config_set_mocking_enabled_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK: {
+    os << (const struct ur_adapter_set_logger_callback_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL: {
+    os << (const struct ur_adapter_set_logger_callback_level_params_t *)params;
   } break;
   case UR_FUNCTION_PLATFORM_GET: {
     os << (const struct ur_platform_get_params_t *)params;

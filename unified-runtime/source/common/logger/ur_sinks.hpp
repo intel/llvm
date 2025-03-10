@@ -8,10 +8,12 @@
 #define UR_SINKS_HPP 1
 
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <mutex>
 #include <sstream>
 
+#include "ur_api.h"
 #include "ur_filesystem_resolved.hpp"
 #include "ur_level.hpp"
 #include "ur_print.hpp"
@@ -25,9 +27,9 @@ inline bool isTearDowned = false;
 class Sink {
 public:
   template <typename... Args>
-  void log(logger::Level level, const char *fmt, Args &&...args) {
+  void log(ur_logger_level_t level, const char *fmt, Args &&...args) {
     std::ostringstream buffer;
-    if (!skip_prefix && level != logger::Level::QUIET) {
+    if (!skip_prefix && level != UR_LOGGER_LEVEL_QUIET) {
       buffer << "<" << logger_name << ">"
              << "[" << level_to_str(level) << "]: ";
     }
@@ -50,23 +52,23 @@ public:
 #endif
   }
 
-  void setFlushLevel(logger::Level level) { this->flush_level = level; }
+  void setFlushLevel(ur_logger_level_t level) { this->flush_level = level; }
 
   virtual ~Sink() = default;
 
 protected:
   std::ostream *ostream;
-  logger::Level flush_level;
+  ur_logger_level_t flush_level;
 
   Sink(std::string logger_name, bool skip_prefix = false,
        bool skip_linebreak = false)
       : logger_name(std::move(logger_name)), skip_prefix(skip_prefix),
         skip_linebreak(skip_linebreak) {
     ostream = nullptr;
-    flush_level = logger::Level::ERR;
+    flush_level = UR_LOGGER_LEVEL_ERROR;
   }
 
-  virtual void print(logger::Level level, const std::string &msg) {
+  virtual void print(ur_logger_level_t level, const std::string &msg) {
     std::scoped_lock<std::mutex> lock(output_mutex);
     *ostream << msg;
     if (level >= flush_level) {
@@ -157,8 +159,8 @@ public:
     this->ostream = &std::cout;
   }
 
-  StdoutSink(std::string logger_name, Level flush_lvl, bool skip_prefix = false,
-             bool skip_linebreak = false)
+  StdoutSink(std::string logger_name, ur_logger_level_t flush_lvl,
+             bool skip_prefix = false, bool skip_linebreak = false)
       : StdoutSink(std::move(logger_name), skip_prefix, skip_linebreak) {
     this->flush_level = flush_lvl;
   }
@@ -174,8 +176,8 @@ public:
     this->ostream = &std::cerr;
   }
 
-  StderrSink(std::string logger_name, Level flush_lvl, bool skip_prefix,
-             bool skip_linebreak)
+  StderrSink(std::string logger_name, ur_logger_level_t flush_lvl,
+             bool skip_prefix, bool skip_linebreak)
       : StderrSink(std::move(logger_name), skip_prefix, skip_linebreak) {
     this->flush_level = flush_lvl;
   }
@@ -198,8 +200,9 @@ public:
     this->ostream = &ofstream;
   }
 
-  FileSink(std::string logger_name, filesystem::path file_path, Level flush_lvl,
-           bool skip_prefix = false, bool skip_linebreak = false)
+  FileSink(std::string logger_name, filesystem::path file_path,
+           ur_logger_level_t flush_lvl, bool skip_prefix = false,
+           bool skip_linebreak = false)
       : FileSink(std::move(logger_name), std::move(file_path), skip_prefix,
                  skip_linebreak) {
     this->flush_level = flush_lvl;
@@ -209,6 +212,34 @@ public:
 
 private:
   std::ofstream ofstream;
+};
+
+class CallbackSink : public Sink {
+public:
+  CallbackSink(std::string logger_name, bool skip_prefix = false,
+               bool skip_linebreak = false)
+      : Sink(std::move(logger_name), skip_prefix, skip_linebreak) {}
+
+  CallbackSink(std::string logger_name, ur_logger_level_t flush_lvl,
+               bool skip_prefix, bool skip_linebreak)
+      : CallbackSink(std::move(logger_name), skip_prefix, skip_linebreak) {
+    this->flush_level = flush_lvl;
+  }
+
+  ~CallbackSink() = default;
+
+  void setCallback(ur_logger_callback_t cb, void *pUserData) {
+    callback = cb;
+    userData = pUserData;
+  }
+
+private:
+  ur_logger_callback_t callback;
+  void *userData;
+
+  virtual void print(ur_logger_level_t level, const std::string &msg) override {
+    callback(level, msg.c_str(), userData);
+  }
 };
 
 inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
