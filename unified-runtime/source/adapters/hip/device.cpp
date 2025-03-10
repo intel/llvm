@@ -1026,6 +1026,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 #endif
   case UR_DEVICE_INFO_BFLOAT16:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IL_VERSION:

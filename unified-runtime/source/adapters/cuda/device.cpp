@@ -261,6 +261,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     bool BFloat16 = (Major >= 8) ? true : false;
     return ReturnValue(BFloat16);
   }
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
     int WarpSize = 0;

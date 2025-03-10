@@ -629,6 +629,12 @@ ur_result_t GetDeviceBFloat16Support(ur_device_handle_t device, bool &support) {
   return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_BFLOAT16, support);
 }
 
+ur_result_t GetDeviceBFloat16ConversionsIntelSupport(ur_device_handle_t device,
+                                                     bool &support) {
+  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL,
+                             support);
+}
+
 ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
                                             uint32_t &max_indices) {
   return GetDeviceInfo<uint32_t>(

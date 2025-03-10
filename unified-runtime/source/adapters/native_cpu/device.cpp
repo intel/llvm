@@ -346,6 +346,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(bool{1});
   case UR_DEVICE_INFO_BFLOAT16:
     return ReturnValue(bool{0});
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL:
+    return ReturnValue(bool{0});
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
     return ReturnValue(bool{0});
   case UR_DEVICE_INFO_IMAGE_SRGB:
