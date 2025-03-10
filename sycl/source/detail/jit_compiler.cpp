@@ -786,7 +786,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<std::vector<char>> &ArgsStorage = CGData.MArgsStorage;
   std::vector<detail::AccessorImplPtr> &AccStorage = CGData.MAccStorage;
   std::vector<Requirement *> &Requirements = CGData.MRequirements;
-  std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
+  std::pmr::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
   ur_kernel_cache_config_t KernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
   unsigned KernelIndex = 0;

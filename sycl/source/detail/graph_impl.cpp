@@ -983,14 +983,14 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
   sycl::detail::EventImplPtr NewEvent;
   std::vector<sycl::detail::EventImplPtr> BackupCGDataMEvents;
   if (MPartitions.size() > 1) {
-    BackupCGDataMEvents = CGData.MEvents;
+    BackupCGDataMEvents.assign(CGData.MEvents.begin(), CGData.MEvents.end());
   }
   for (uint32_t currentPartitionsNum = 0;
        currentPartitionsNum < MPartitions.size(); currentPartitionsNum++) {
     auto CurrentPartition = MPartitions[currentPartitionsNum];
     // restore initial MEvents to add only needed additional depenencies
     if (currentPartitionsNum > 0) {
-      CGData.MEvents = BackupCGDataMEvents;
+      CGData.MEvents.assign(BackupCGDataMEvents.begin(), BackupCGDataMEvents.end());
     }
 
     for (auto const &DepPartition : CurrentPartition->MPredecessors) {

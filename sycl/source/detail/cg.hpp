@@ -21,6 +21,7 @@
 
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
+#include <memory_resource> // for std::pmr
 #include <stddef.h> // for size_t
 #include <stdint.h> // for int32_t
 #include <string>   // for string
@@ -166,14 +167,24 @@ public:
                       std::vector<detail::AccessorImplPtr> AccStorage,
                       std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                       std::vector<AccessorImplHost *> Requirements,
-                      std::vector<detail::EventImplPtr> Events)
+                      std::pmr::vector<detail::EventImplPtr> Events)
         : MArgsStorage(std::move(ArgsStorage)),
           MAccStorage(std::move(AccStorage)),
           MSharedPtrStorage(std::move(SharedPtrStorage)),
           MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
-    StorageInitHelper(StorageInitHelper &&) = default;
-    StorageInitHelper(const StorageInitHelper &) = default;
-    // The following storages are needed to ensure that arguments won't die
+    StorageInitHelper(StorageInitHelper &&SIH)
+        : MArgsStorage(std::move(SIH.MArgsStorage)),
+          MAccStorage(std::move(SIH.MAccStorage)),
+          MSharedPtrStorage(std::move(SIH.MSharedPtrStorage)),
+          MRequirements(std::move(SIH.MRequirements)),
+          MEvents(SIH.MEvents.begin(), SIH.MEvents.end()) {}
+    StorageInitHelper(const StorageInitHelper &SIH)
+        : MArgsStorage(SIH.MArgsStorage),
+          MAccStorage(SIH.MAccStorage),
+          MSharedPtrStorage(SIH.MSharedPtrStorage),
+          MRequirements(SIH.MRequirements),
+          MEvents(SIH.MEvents.begin(), SIH.MEvents.end()) {}
+// The following storages are needed to ensure that arguments won't die
     // while we are using them.
     /// Storage for standard layout arguments.
     std::vector<std::vector<char>> MArgsStorage;
@@ -185,8 +196,13 @@ public:
     /// List of requirements that specify which memory is needed for the command
     /// group to be executed.
     std::vector<AccessorImplHost *> MRequirements;
+
+    std::array<std::byte, 4 * 1024> MEventsBuf;
+    std::pmr::monotonic_buffer_resource MEventsBufRes{
+      MEventsBuf.data(), MEventsBuf.size()};
+
     /// List of events that order the execution of this CG
-    std::vector<detail::EventImplPtr> MEvents;
+    std::pmr::vector<detail::EventImplPtr> MEvents{&MEventsBufRes};
   };
 
   CG(CGType Type, StorageInitHelper D, detail::code_location loc = {},
@@ -222,7 +238,7 @@ public:
   std::vector<AccessorImplHost *> &getRequirements() {
     return MData.MRequirements;
   }
-  std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
+  std::pmr::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
 
   virtual std::vector<std::shared_ptr<const void>>
   getAuxiliaryResources() const {
