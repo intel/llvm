@@ -284,11 +284,11 @@ ur_result_t urDeviceGetInfo(
       // Supports reading and writing of images.
       SupportedExtensions += ("cl_khr_3d_image_writes ");
 
-    // L0 does not tell us if bfloat16 is supported.
-    // For now, assume ATS and PVC support it.
-    // TODO: change the way we detect bfloat16 support.
-    if ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
-        (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
+    if (Device->Platform->zeDriverExtensionMap.count(
+            ZE_BFLOAT16_CONVERSIONS_EXT_NAME))
+      SupportedExtensions += ("cl_intel_bfloat16_conversions ");
+    else if ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
+             (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
     return ReturnValue(SupportedExtensions.c_str());
