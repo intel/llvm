@@ -27,8 +27,8 @@ public:
 /// "llvm.used" is a global constant array containing references to kernels
 /// available in the module and callable from a host code. The elements of
 /// the array are ConstantExpr bitcast to i8*.
-/// The variable must be removed as it is a) has done the job to the moment
-/// of this function call and b) the references to the kernels callable from
+/// The variable must be removed because it has done the job to the moment
+/// of a compilation stage and the references to the kernels callable from
 /// host must not have users.
 class CleanupSYCLMetadataFromUsed
     : public PassInfoMixin<CleanupSYCLMetadataFromUsed> {

@@ -100,7 +100,6 @@ RemoveDeviceGlobalFromCompilerUsed::run(Module &M, ModuleAnalysisManager &) {
   // there are other values in it (other than device_global).
   assert(GV->user_empty() && "Unexpected llvm.compiler.used users");
   Constant *Initializer = GV->getInitializer();
-  const auto *VAT = cast<ArrayType>(GV->getValueType());
   GV->setInitializer(nullptr);
   GV->eraseFromParent();
 
@@ -139,6 +138,7 @@ RemoveDeviceGlobalFromCompilerUsed::run(Module &M, ModuleAnalysisManager &) {
   // If we have any operands left from the original llvm.compiler.used we create
   // a new one with the new size.
   if (!NewOperands.empty()) {
+    const auto *VAT = cast<ArrayType>(GV->getValueType());
     ArrayType *ATy = ArrayType::get(VAT->getElementType(), NewOperands.size());
     GlobalVariable *NGV =
         new GlobalVariable(M, ATy, false, GlobalValue::AppendingLinkage,
