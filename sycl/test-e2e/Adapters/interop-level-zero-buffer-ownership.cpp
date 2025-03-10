@@ -18,8 +18,16 @@
 // Keep ownership
 // CHECK: zeMemFree
 
-// Account for zeMemFree used to query page sizes by the UMF
-// CHECK-COUNT-8: zeMemFree
+// Account for zeMemFree used to query page sizes by the UMF (only affects v2 L0
+// adapter)
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
 
 // Transfer ownership
 // CHECK: zeMemFree

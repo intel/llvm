@@ -1145,6 +1145,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMFreeExp_t)(
     const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueCommandBufferExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCommandBufferExp_t)(
+    ur_queue_handle_t, ur_exp_command_buffer_handle_t, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueCooperativeKernelLaunchExp
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCooperativeKernelLaunchExp_t)(
     ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
@@ -1173,6 +1179,7 @@ typedef struct ur_enqueue_exp_dditable_t {
   ur_pfnEnqueueUSMSharedAllocExp_t pfnUSMSharedAllocExp;
   ur_pfnEnqueueUSMHostAllocExp_t pfnUSMHostAllocExp;
   ur_pfnEnqueueUSMFreeExp_t pfnUSMFreeExp;
+  ur_pfnEnqueueCommandBufferExp_t pfnCommandBufferExp;
   ur_pfnEnqueueCooperativeKernelLaunchExp_t pfnCooperativeKernelLaunchExp;
   ur_pfnEnqueueTimestampRecordingExp_t pfnTimestampRecordingExp;
   ur_pfnEnqueueNativeCommandExp_t pfnNativeCommandExp;
@@ -1674,12 +1681,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMAdviseExp_t)(
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferEnqueueExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferEnqueueExp_t)(
-    ur_exp_command_buffer_handle_t, ur_queue_handle_t, uint32_t,
-    const ur_event_handle_t *, ur_event_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferUpdateKernelLaunchExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateKernelLaunchExp_t)(
     ur_exp_command_buffer_handle_t, uint32_t,
@@ -1722,7 +1723,6 @@ typedef struct ur_command_buffer_exp_dditable_t {
   ur_pfnCommandBufferAppendMemBufferFillExp_t pfnAppendMemBufferFillExp;
   ur_pfnCommandBufferAppendUSMPrefetchExp_t pfnAppendUSMPrefetchExp;
   ur_pfnCommandBufferAppendUSMAdviseExp_t pfnAppendUSMAdviseExp;
-  ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
   ur_pfnCommandBufferUpdateKernelLaunchExp_t pfnUpdateKernelLaunchExp;
   ur_pfnCommandBufferUpdateSignalEventExp_t pfnUpdateSignalEventExp;
   ur_pfnCommandBufferUpdateWaitEventsExp_t pfnUpdateWaitEventsExp;

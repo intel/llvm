@@ -283,9 +283,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if "cuda:gpu" in sycl_devices:
                 extra_env.append("UR_CUDA_ENABLE_IMAGE_SUPPORT=1")
 
-            if "hip:gpu" in sycl_devices:
-                extra_env.append("UR_HIP_ENABLE_IMAGE_SUPPORT=1")
-
             return extra_env
 
         extra_env = get_extra_env(devices_for_test)
