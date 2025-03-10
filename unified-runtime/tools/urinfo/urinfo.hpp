@@ -298,6 +298,9 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS);
   std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL);
+  std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MEMORY_BUS_WIDTH);
   std::cout << prefix;
   printDeviceInfo<size_t[3]>(hDevice, UR_DEVICE_INFO_MAX_WORK_GROUPS_3D);
@@ -331,9 +334,6 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS);
-  std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
