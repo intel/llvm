@@ -573,76 +573,76 @@ etors:
   value: '238'
 - name: USM_POOL_GET_DEVICE_POOL_EXP
   desc: Enumerator for $xUSMPoolGetDevicePoolExp
-  value: '238'
+  value: '239'
 - name: USM_POOL_TRIM_TO_EXP
   desc: Enumerator for $xUSMPoolTrimToExp
-  value: '239'
+  value: '240'
 - name: BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP
   desc: Enumerator for $xBindlessImagesMapExternalLinearMemoryExp
-  value: '240'
+  value: '241'
 - name: BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP
   desc: Enumerator for $xBindlessImagesReleaseExternalMemoryExp
-  value: '241'
+  value: '242'
 - name: BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP
   desc: Enumerator for $xBindlessImagesImportExternalSemaphoreExp
-  value: '242'
+  value: '243'
 - name: COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
   desc: Enumerator for $xCommandBufferAppendUSMMemcpyExp
-  value: '243'
+  value: '244'
 - name: COMMAND_BUFFER_APPEND_USM_FILL_EXP
   desc: Enumerator for $xCommandBufferAppendUSMFillExp
-  value: '244'
+  value: '245'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferCopyExp
-  value: '245'
+  value: '246'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferWriteExp
-  value: '246'
+  value: '247'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferReadExp
-  value: '247'
+  value: '248'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferCopyRectExp
-  value: '248'
+  value: '249'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferWriteRectExp
-  value: '249'
+  value: '250'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferReadRectExp
-  value: '250'
+  value: '251'
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferFillExp
-  value: '251'
+  value: '252'
 - name: COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
   desc: Enumerator for $xCommandBufferAppendUSMPrefetchExp
-  value: '252'
+  value: '253'
 - name: COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
   desc: Enumerator for $xCommandBufferAppendUSMAdviseExp
-  value: '253'
+  value: '254'
 - name: ENQUEUE_COMMAND_BUFFER_EXP
   desc: Enumerator for $xEnqueueCommandBufferExp
-  value: '254'
+  value: '255'
 - name: COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP
   desc: Enumerator for $xCommandBufferUpdateSignalEventExp
-  value: '255'
+  value: '256'
 - name: COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP
   desc: Enumerator for $xCommandBufferUpdateWaitEventsExp
-  value: '256'
+  value: '257'
 - name: ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP
   desc: Enumerator for $xEnqueueKernelLaunchCustomExp
-  value: '257'
+  value: '258'
 - name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT
   desc: Enumerator for $xEnqueueEventsWaitWithBarrierExt
-  value: '258'
+  value: '259'
 - name: ENQUEUE_NATIVE_COMMAND_EXP
   desc: Enumerator for $xEnqueueNativeCommandExp
-  value: '259'
+  value: '260'
 - name: ADAPTER_SET_LOGGER_CALLBACK
   desc: Enumerator for $xAdapterSetLoggerCallback
-  value: '260'
+  value: '261'
 - name: ADAPTER_SET_LOGGER_CALLBACK_LEVEL
   desc: Enumerator for $xAdapterSetLoggerCallbackLevel
-  value: '261'
+  value: '262'
 ---
 type: enum
 desc: Defines structure types

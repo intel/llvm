@@ -49,7 +49,7 @@ inline auto str_to_level(std::string name) {
   throw std::invalid_argument(
       std::string("Parsing error: no valid log level for string '") + name +
       std::string("'.") +
-      std::string("\nValid log level names are: debug, info, warning, error "
+      std::string("\nValid log level names are: debug, info, warning, error, "
                   "and quiet"));
 }
 

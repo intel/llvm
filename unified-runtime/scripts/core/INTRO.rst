@@ -202,7 +202,7 @@ By default, no messages are printed.
 
 By default, there is a guarantee that *error* messages are flushed immediately. One can change this behavior to flush on lower-level messages.
 
-Loggers redirect messages to *stdout*, *stderr*, a file or a user configurable callback function (default: *stderr*).
+Loggers redirect messages to *stdout*, *stderr*, a file, or a user configurable callback function (default: *stderr*).
 
 All of these logging options (except the callback) can be set with **UR_LOG_LOADER** and **UR_LOG_NULL** environment variables described in the **Environment Variables** section below.
 Both of these environment variables have the same syntax for setting logger options:
