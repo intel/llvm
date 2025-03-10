@@ -490,17 +490,18 @@ static bool getDeviceLibraries(const ArgList &Args,
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
-      {"libsycl-crt", "libc"},
-      {"libsycl-complex", "libm-fp32"},
-      {"libsycl-complex-fp64", "libm-fp64"},
-      {"libsycl-cmath", "libm-fp32"},
-      {"libsycl-cmath-fp64", "libm-fp64"},
+    {"libsycl-crt", "libc"},
+    {"libsycl-complex", "libm-fp32"},
+    {"libsycl-complex-fp64", "libm-fp64"},
+    {"libsycl-cmath", "libm-fp32"},
+    {"libsycl-cmath-fp64", "libm-fp64"},
 #if defined(_WIN32)
-      {"libsycl-msvc-math", "libm-fp32"},
+    {"libsycl-msvc-math", "libm-fp32"},
 #endif
-      {"libsycl-imf", "libimf-fp32"},
-      {"libsycl-imf-fp64", "libimf-fp64"},
-      {"libsycl-imf-bf16", "libimf-bf16"}};
+    {"libsycl-imf", "libimf-fp32"},
+    {"libsycl-imf-fp64", "libimf-fp64"},
+    {"libsycl-imf-bf16", "libimf-bf16"}
+  };
   // ITT annotation libraries are linked in separately whenever the device
   // code instrumentation is enabled.
   const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
@@ -659,7 +660,7 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
   // TODO: Call `verifyNoCrossModuleDeviceGlobalUsage` if device globals shall
   //       be processed.
 
-  SmallVector<RTCDevImgInfo> DevImgInfos;
+  SmallVector<RTCDevImgInfo> DevImgInfoVec;
   SmallVector<std::unique_ptr<llvm::Module>> Modules;
 
   // TODO: The following logic is missing the ability to link ESIMD and SYCL
@@ -688,7 +689,7 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
 
       MDesc.saveSplitInformationAsMetadata();
 
-      RTCDevImgInfo &DevImgInfo = DevImgInfos.emplace_back();
+      RTCDevImgInfo &DevImgInfo = DevImgInfoVec.emplace_back();
       DevImgInfo.SymbolTable = FrozenSymbolTable{MDesc.entries().size()};
       transform(MDesc.entries(), DevImgInfo.SymbolTable.begin(),
                 [](Function *F) { return F->getName(); });
@@ -729,9 +730,11 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
     }
   }
 
-  assert(DevImgInfos.size() == Modules.size());
-  RTCBundleInfo BundleInfo{DevImgInfos.size()};
-  std::move(DevImgInfos.begin(), DevImgInfos.end(), BundleInfo.begin());
+  assert(DevImgInfoVec.size() == Modules.size());
+  RTCBundleInfo BundleInfo;
+  BundleInfo.DevImgInfos = DynArray<RTCDevImgInfo>{DevImgInfoVec.size()};
+  std::move(DevImgInfoVec.begin(), DevImgInfoVec.end(),
+            BundleInfo.DevImgInfos.begin());
 
   return PostLinkResult{std::move(BundleInfo), std::move(Modules)};
 }
@@ -796,6 +799,32 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   }
 
   return std::move(AL);
+}
+
+void jit_compiler::encodeBuildOptions(RTCBundleInfo &BundleInfo,
+                                      const InputArgList &UserArgList) {
+  std::string CompileOptions;
+  raw_string_ostream COSOS{CompileOptions};
+
+  for (Arg *A : UserArgList.getArgs()) {
+    if (!(A->getOption().matches(OPT_Xs) ||
+          A->getOption().matches(OPT_Xs_separate))) {
+      continue;
+    }
+
+    // Trim first and last quote if they exist, but no others.
+    StringRef AV{A->getValue()};
+    AV = AV.trim();
+    if (AV.front() == AV.back() && (AV.front() == '\'' || AV.front() == '"')) {
+      AV = AV.drop_front().drop_back();
+    }
+
+    COSOS << (CompileOptions.empty() ? "" : " ") << AV;
+  }
+
+  if (!CompileOptions.empty()) {
+    BundleInfo.CompileOptions = CompileOptions;
+  }
 }
 
 void jit_compiler::configureDiagnostics(LLVMContext &Context,

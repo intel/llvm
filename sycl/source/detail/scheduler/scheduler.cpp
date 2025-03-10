@@ -52,6 +52,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #endif
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
+    if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     EnqueueResultT Res;
     bool Enqueued =
         GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
@@ -65,6 +68,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
+    if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     EnqueueResultT Res;
     bool Enqueued =
         GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
@@ -156,12 +162,14 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
         }
         delete NewCmd;
       }
+      cleanupCommands(ToCleanUp);
     };
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd,
-                                                Blocking);
       try {
+        Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp,
+                                                  Cmd, Blocking);
+
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw exception(make_error_code(errc::runtime),
                           "Auxiliary enqueue process failed.");
