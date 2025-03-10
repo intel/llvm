@@ -2759,6 +2759,10 @@ void OpenACCClauseProfiler::VisitReductionClause(
     const OpenACCReductionClause &Clause) {
   VisitClauseWithVarList(Clause);
 }
+
+void OpenACCClauseProfiler::VisitBindClause(const OpenACCBindClause &Clause) {
+  assert(false && "not implemented... what can we do about our expr?");
+}
 } // namespace
 
 void StmtProfiler::VisitOpenACCComputeConstruct(
