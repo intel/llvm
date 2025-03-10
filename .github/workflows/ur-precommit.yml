@@ -5,6 +5,9 @@ name: Unified Runtime Pre Commit
 
 # Note: the trigger is copy-pasted from sycl-linux-precommit.yml - probably to be fine-tuned.
 on:
+  push:
+    branches-ignore:
+      - 'dependabot/**'
   # We rely on "Fork pull request workflows from outside collaborators" -
   # "Require approval for all outside collaborators" at
   # https://github.com/intel/llvm/settings/actions for security.
@@ -42,28 +45,28 @@ jobs:
 
   source_checks:
     name: Source Checks
-    needs: [detect_changes]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    # needs: [detect_changes]
+    # if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     uses: ./.github/workflows/ur-source-checks.yml
 
   adapters:
     name: Adapters
-    needs: [detect_changes, source_checks]
-    if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
+    # needs: [detect_changes, source_checks]
+    # if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
     strategy:
       matrix:
         # Extra native CPU jobs are here to force the loader to be used.
         # UR will not use the loader if there is only one target.
         adapter: [
-          {name: L0, runner: UR_L0},
-          {name: L0_V2, runner: UR_L0},
-          {name: L0, runner: UR_L0, static: ON},
-          {name: OPENCL, runner: UR_OPENCL, platform: "Intel(R) OpenCL"},
-          {name: CUDA, runner: UR_CUDA},
-          {name: HIP, runner: UR_HIP},
-          {name: NATIVE_CPU, runner: UR_NATIVE_CPU},
-          {name: OPENCL, runner: UR_OPENCL, other_adapter: NATIVE_CPU, platform: "OPENCL:Intel(R) OpenCL"},
-          {name: L0, runner: UR_L0, other_adapter: NATIVE_CPU},
+          {name: L0, runner: UR_L0, docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"},
+          {name: L0_V2, runner: UR_L0, docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"},
+          {name: L0, runner: UR_L0, docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest", static: ON},
+          {name: OPENCL, runner: UR_OPENCL, docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest", platform: "Intel(R) OpenCL"},
+          {name: CUDA, runner: UR_CUDA, docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"},
+          {name: HIP, runner: UR_HIP, docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"},
+          {name: NATIVE_CPU, runner: UR_NATIVE_CPU, docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"},
+          {name: OPENCL, runner: UR_OPENCL, docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest", other_adapter: NATIVE_CPU, platform: "OPENCL:Intel(R) OpenCL"},
+          {name: L0, runner: UR_L0, docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest", other_adapter: NATIVE_CPU},
         ]
     uses: ./.github/workflows/ur-build-hw.yml
     with:
@@ -73,6 +76,8 @@ jobs:
       static_adapter: ${{ matrix.adapter.static || 'OFF' }}
       platform: ${{ matrix.adapter.platform || '' }}
       other_adapter_name: ${{ matrix.adapter.other_adapter || '' }}
+      docker_image: ${{ matrix.adapter.docker_image }}
+      # image_options: ${{ matrix.image_options }}
 
   macos:
     name: MacOS build only
