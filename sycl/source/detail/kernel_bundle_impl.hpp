@@ -377,7 +377,7 @@ public:
   }
 
   // oneapi_ext_kernel_compiler
-  // program manager integration, only for sycl_jit language
+  // program manager integration, only for sycl language
   kernel_bundle_impl(
       context Ctx, std::vector<device> Devs,
       const std::vector<kernel_id> &KernelIDs,
@@ -387,7 +387,7 @@ public:
       syclex::source_language Lang)
       : kernel_bundle_impl(std::move(Ctx), std::move(Devs), KernelIDs,
                            bundle_state::executable) {
-    assert(Lang == syclex::source_language::sycl_jit);
+    assert(Lang == syclex::source_language::sycl);
     // Mark this bundle explicitly as "interop" to ensure that its kernels are
     // enqueued with the info from the kernel object passed by the application,
     // cf. `enqueueImpKernel` in `commands.cpp`. While runtime-compiled kernels
@@ -499,7 +499,7 @@ public:
       DeviceVec.push_back(Dev);
     }
 
-    if (MLanguage == syclex::source_language::sycl_jit) {
+    if (MLanguage == syclex::source_language::sycl) {
       // Build device images via the program manager.
       const std::string &SourceStr = std::get<std::string>(MSource);
       std::ostringstream SourceExt;
@@ -522,7 +522,7 @@ public:
         SourceExt << ")]];\n";
       }
 
-      auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_to_SPIRV(
+      auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_Compile(
           RegisteredKernelNames.empty() ? SourceStr : SourceExt.str(),
           MIncludePairs, BuildOptions, LogPtr);
 
@@ -602,11 +602,6 @@ public:
                          [](std::byte B) { return static_cast<uint8_t>(B); });
           return Result;
         }
-        if (MLanguage == syclex::source_language::sycl) {
-          return syclex::detail::SYCL_to_SPIRV(*SourceStrPtr, MIncludePairs,
-                                               BuildOptions, LogPtr,
-                                               RegisteredKernelNames);
-        }
         throw sycl::exception(
             make_error_code(errc::invalid),
             "SYCL C++, OpenCL C and SPIR-V are the only supported "
@@ -672,14 +667,9 @@ public:
   }
 
   std::string adjust_kernel_name(const std::string &Name) {
-    if (MLanguage == syclex::source_language::sycl_jit) {
+    if (MLanguage == syclex::source_language::sycl) {
       auto It = MMangledKernelNames.find(Name);
       return It == MMangledKernelNames.end() ? Name : It->second;
-    }
-
-    if (MLanguage == syclex::source_language::sycl) {
-      bool isMangled = Name.find("__sycl_kernel_") != std::string::npos;
-      return isMangled ? Name : "__sycl_kernel_" + Name;
     }
 
     return Name;
@@ -708,7 +698,7 @@ public:
       throw sycl::exception(make_error_code(errc::invalid),
                             "kernel '" + Name + "' not found in kernel_bundle");
 
-    if (MLanguage == syclex::source_language::sycl_jit) {
+    if (MLanguage == syclex::source_language::sycl) {
       auto &PM = ProgramManager::getInstance();
       auto KID = PM.getSYCLKernelID(MPrefix + AdjustedName);
 
@@ -996,7 +986,7 @@ public:
     try {
       if (MDeviceBinaries) {
         ProgramManager::getInstance().removeImages(MDeviceBinaries);
-        syclex::detail::SYCL_JIT_destroy(MDeviceBinaries);
+        syclex::detail::SYCL_JIT_Destroy(MDeviceBinaries);
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_bundle_impl", e);
