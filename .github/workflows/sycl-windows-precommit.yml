@@ -42,6 +42,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
+      e2e_binaries_artifact: sycl_windows_e2ebin
 
   e2e:
     needs: build
@@ -63,3 +64,5 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      e2e_binaries_artifact: sycl_windows_e2ebin
+      extra_lit_opts: --param test-mode=run-only
