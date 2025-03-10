@@ -1,7 +1,7 @@
-# commit d03f19a88e42cb98be9604ff24b61190d1e48727
-# Merge: 3ce6fcc9 84454b0e
-# Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-# Date:   Thu Feb 13 11:43:34 2025 +0000
-#     Merge pull request #2680 from ldorau/Set_UMF_CUDA_INCLUDE_DIR_to_not_fetch_cudart_from_gitlab
-#     Do not fetch cudart from gitlab for UMF
-set(UNIFIED_RUNTIME_TAG d03f19a88e42cb98be9604ff24b61190d1e48727)
+# commit 5e33542d592b63fc4d35fc4ffd02efb5c33395ec
+# Merge: 1b0f730f 3ce6fcc9
+# Author: Li, Ian <ian.li@intel.com>
+# Date:   Wed Feb 12 14:47:55 2025 -0800
+# 
+#     Merge branch 'main' of https://github.com/oneapi-src/unified-runtime into ianayl/2way-prefetch
+set(UNIFIED_RUNTIME_TAG 5e33542d592b63fc4d35fc4ffd02efb5c33395ec)
