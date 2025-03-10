@@ -90,7 +90,7 @@ runs:
       echo "-----"
       sycl-ls
       echo "-----"
-      apt install -y python3-venv
+      sudo apt install -y python3-venv
       python3 -m venv .venv
       . .venv/bin/activate
       pip install -r ./devops/scripts/benchmarks/requirements.txt
