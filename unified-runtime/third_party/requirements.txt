@@ -42,3 +42,8 @@ dataclasses-json==0.6.7
 
 # Unified-runtime is formatted using black
 black==25.1.0
+
+# For lit testing
+# Filecheck 1.0.1 is available, but can't be used because it requires Python >=3.10
+filecheck==0.0.24
+lit==18.1.8
