@@ -91,7 +91,12 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 };
 
 namespace detail {
@@ -127,7 +132,12 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   backend ext_oneapi_get_backend_impl() const noexcept;
 
@@ -190,7 +200,12 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 };
 
 namespace detail {
@@ -510,7 +525,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend Backend, bundle_state StateB>
   friend auto get_native(const kernel_bundle<StateB> &Obj)
@@ -852,7 +871,7 @@ compile(const kernel_bundle<bundle_state::input> &InputBundle,
   detail::KernelBundleImplPtr Impl =
       detail::compile_impl(InputBundle, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::object>>(Impl);
+      kernel_bundle<sycl::bundle_state::object>>(std::move(Impl));
 }
 
 inline kernel_bundle<bundle_state::object>
@@ -887,7 +906,7 @@ link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
   detail::KernelBundleImplPtr Impl =
       detail::link_impl(ObjectBundles, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+      kernel_bundle<sycl::bundle_state::executable>>(std::move(Impl));
 }
 
 inline kernel_bundle<bundle_state::executable>
@@ -934,7 +953,7 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   detail::KernelBundleImplPtr Impl =
       detail::build_impl(InputBundle, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+      kernel_bundle<sycl::bundle_state::executable>>(std::move(Impl));
 }
 
 inline kernel_bundle<bundle_state::executable>
@@ -1204,7 +1223,7 @@ void handler::set_specialization_constant(
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
   detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-      KernelBundleImplPtr)
+      std::move(KernelBundleImplPtr))
       .set_specialization_constant<SpecName>(Value);
 }
 
@@ -1221,7 +1240,7 @@ handler::get_specialization_constant() const {
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-             KernelBundleImplPtr)
+             std::move(KernelBundleImplPtr))
       .get_specialization_constant<SpecName>();
 }
 

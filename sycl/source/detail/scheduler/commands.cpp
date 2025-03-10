@@ -2684,8 +2684,8 @@ void enqueueImpKernel(
     const RTDeviceBinaryImage *BinImage) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
-  auto ContextImpl = Queue->getContextImplPtr();
-  auto DeviceImpl = Queue->getDeviceImplPtr();
+  auto &ContextImpl = Queue->getContextImplPtr();
+  auto &DeviceImpl = Queue->getDeviceImplPtr();
   ur_kernel_handle_t Kernel = nullptr;
   std::mutex *KernelMutex = nullptr;
   ur_program_handle_t Program = nullptr;
@@ -2785,8 +2785,7 @@ void enqueueImpKernel(
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
     // exception explaining what was wrong
-    const device_impl &DeviceImpl = *(Queue->getDeviceImplPtr());
-    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, *DeviceImpl,
                                                         Kernel, NDRDesc);
   }
 }

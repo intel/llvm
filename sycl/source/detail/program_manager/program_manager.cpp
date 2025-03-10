@@ -1973,9 +1973,10 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
         std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
             std::make_shared<detail::kernel_id_impl>(name);
         sycl::kernel_id KernelID =
-            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+            detail::createSyclObjFromImpl<sycl::kernel_id>(
+                std::move(KernelIDImpl));
 
-        It = m_KernelName2KernelIDs.emplace_hint(It, name, KernelID);
+        It = m_KernelName2KernelIDs.emplace_hint(It, name, std::move(KernelID));
       }
       m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
       m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
@@ -2338,7 +2339,7 @@ kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
   auto KernelID = m_BuiltInKernelIDs.find(KernelName);
   if (KernelID == m_BuiltInKernelIDs.end()) {
     auto Impl = std::make_shared<kernel_id_impl>(KernelName);
-    auto CachedID = createSyclObjFromImpl<kernel_id>(Impl);
+    auto CachedID = createSyclObjFromImpl<kernel_id>(std::move(Impl));
     KernelID = m_BuiltInKernelIDs.insert({KernelName, CachedID}).first;
   }
 
@@ -2450,7 +2451,7 @@ device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
       BinImage, Ctx, std::vector<device>{Dev}, ImgState, KernelIDs,
       /*PIProgram=*/nullptr);
 
-  return createSyclObjFromImpl<device_image_plain>(Impl);
+  return createSyclObjFromImpl<device_image_plain>(std::move(Impl));
 }
 
 std::vector<DevImgPlainWithDeps>

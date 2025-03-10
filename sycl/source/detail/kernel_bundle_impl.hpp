@@ -739,7 +739,7 @@ public:
         auto KernelImpl = std::make_shared<kernel_impl>(
             UrKernel, getSyclObjImpl(MContext), DevImgImpl, Self, ArgMask,
             UrProgram, CacheMutex);
-        return createSyclObjFromImpl<kernel>(KernelImpl);
+        return createSyclObjFromImpl<kernel>(std::move(KernelImpl));
       }
 
       assert(false && "Malformed RTC kernel bundle");
@@ -759,7 +759,7 @@ public:
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
         UrKernel, detail::getSyclObjImpl(MContext), Self);
 
-    return detail::createSyclObjFromImpl<kernel>(KernelImpl);
+    return detail::createSyclObjFromImpl<kernel>(std::move(KernelImpl));
   }
 
   std::string ext_oneapi_get_raw_kernel_name(const std::string &Name) {
@@ -873,7 +873,7 @@ public:
         Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
         SelectedImage->get_ur_program_ref(), CacheMutex);
 
-    return detail::createSyclObjFromImpl<kernel>(KernelImpl);
+    return detail::createSyclObjFromImpl<kernel>(std::move(KernelImpl));
   }
 
   bool has_kernel(const kernel_id &KernelID) const noexcept {

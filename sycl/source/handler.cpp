@@ -534,7 +534,7 @@ event handler::finalize() {
         EnqueueKernel();
         auto EventImpl = std::make_shared<detail::event_impl>(
             detail::event_impl::HES_Discarded);
-        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
+        MLastEvent = detail::createSyclObjFromImpl<event>(std::move(EventImpl));
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setWorkerQueue(MQueue);
@@ -545,7 +545,7 @@ event handler::finalize() {
         EnqueueKernel();
         NewEvent->setEnqueued();
 
-        MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+        MLastEvent = detail::createSyclObjFromImpl<event>(std::move(NewEvent));
       }
       return MLastEvent;
     }
