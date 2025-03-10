@@ -91,7 +91,7 @@ runs:
       sycl-ls
       echo "-----"
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
-      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$(realpath ./llvm_test_workdir)" --sycl "$(realpath ./toolchain)" --save baseline
+      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$(realpath ./llvm_test_workdir)" --sycl "$(realpath ./toolchain)" --save baseline --preset Minimal
       echo "-----"
       ls
 #  - name: Push compute-benchmarks results
