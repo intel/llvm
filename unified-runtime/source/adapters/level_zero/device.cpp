@@ -1038,6 +1038,13 @@ ur_result_t urDeviceGetInfo(
       return ze2urResult(errc);
     return ReturnValue(UrRootDev);
   }
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL: {
+    if ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
+        (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
+      return ReturnValue(true);
+    else
+      return ReturnValue(false);
+  }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
