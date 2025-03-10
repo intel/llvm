@@ -72,10 +72,10 @@ declare dso_local spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI5
 ; CHECK: %[[#SCV30:]] = {{.*}}@{{.*}}SpecConstant{{.*}}(i32 21, i8 0)
 ; CHECK: %[[#SCV31:]] = {{.*}}@{{.*}}SpecConstant{{.*}}(i32 22, i8 0)
 ; CHECK: %[[#SCV32:]] = {{.*}}@{{.*}}SpecConstantComposite{{.*}}(i8 %[[#SCV27]], i8 %[[#SCV28]], i8 %[[#SCV29]], i8 %[[#SCV30]], i8 %[[#SCV31]])
-; CHECK: %[[#SCV33:]] = {{.*}}@{{.*}}SpecConstantComposite{{.*}}(i32 %[[#SCV9]], [4 x i8] undef, [5 x i64] %[[#SCV15]], [5 x %struct.anon.0] %[[#SCV26]], [5 x i8] %[[#SCV32]])
-; CHECK: %[[#SCV34:]] = {{.*}}@{{.*}}SpecConstantComposite{{.*}}(%struct.layer2 %[[#SCV8]], [4 x i8] undef, %struct.foo.base %[[#SCV33]])
+; CHECK: %[[#SCV33:]] = {{.*}}@{{.*}}SpecConstantComposite{{.*}}(i32 %[[#SCV9]], [4 x i8] zeroinitializer, [5 x i64] %[[#SCV15]], [5 x %struct.anon.0] %[[#SCV26]], [5 x i8] %[[#SCV32]])
+; CHECK: %[[#SCV34:]] = {{.*}}@{{.*}}SpecConstantComposite{{.*}}(%struct.layer2 %[[#SCV8]], [4 x i8] zeroinitializer, %struct.foo.base %[[#SCV33]])
 ; CHECK: %[[#SCV35:]] = {{.*}}@{{.*}}SpecConstantComposite{{.*}}(%struct.layer3.base %[[#SCV34]])
-; CHECK: %[[#SCV36:]] = {{.*}}@{{.*}}SpecConstantComposite{{.*}}(%struct.layer4.base %[[#SCV35]], [15 x i8] undef)
+; CHECK: %[[#SCV36:]] = {{.*}}@{{.*}}SpecConstantComposite{{.*}}(%struct.layer4.base %[[#SCV35]], [15 x i8] zeroinitializer)
 
 ; Function Attrs: nocallback nofree nounwind willreturn memory(argmem: readwrite)
 declare void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) noalias nocapture writeonly, ptr noalias nocapture readonly, i64, i1 immarg)
