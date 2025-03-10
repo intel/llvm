@@ -576,8 +576,7 @@ int test_no_visible_ids() {
   }
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, SYCLSource2);
-  exe_kb kbExe =
-      syclex::build(kbSrc);
+  exe_kb kbExe = syclex::build(kbSrc);
   assert(kbExe.get_kernel_ids().size() == 0 && "Visible RTC kernel ids");
   assert(sycl::get_kernel_ids().size() == 0 && "Visible RTC kernel ids");
   return 0;
