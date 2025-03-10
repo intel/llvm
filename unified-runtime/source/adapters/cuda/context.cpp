@@ -74,34 +74,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
                        hContext->getDevices().size());
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(hContext->getReferenceCount());
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    uint32_t Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
-    return ReturnValue(Capabilities);
-  }
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    int Major = 0;
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-        hContext->getDevices()[0]->get()));
-    uint32_t Capabilities =
-        (Major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM
-                     : UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
-    return ReturnValue(Capabilities);
-  }
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
     return ReturnValue(true);

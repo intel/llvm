@@ -130,11 +130,6 @@ etors:
             The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
 --- #--------------------------------------------------------------------------
-type: macro
-desc: "The extension string which defines support for command-buffers which is returned when querying device extensions."
-name: $X_COMMAND_BUFFER_EXTENSION_STRING_EXP
-value: "\"$x_exp_command_buffer\""
---- #--------------------------------------------------------------------------
 type: struct
 desc: "Command-Buffer Descriptor Type"
 name: $x_exp_command_buffer_desc_t
