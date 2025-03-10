@@ -11,15 +11,90 @@
 #ifndef UR_ADAPTER_REGISTRY_HPP
 #define UR_ADAPTER_REGISTRY_HPP 1
 
-#include <array>
+#include <algorithm>
+#include <cctype>
+#include <set>
 
 #include "logger/ur_logger.hpp"
 #include "ur_adapter_search.hpp"
+#include "ur_manifests.hpp"
 #include "ur_util.hpp"
 
 namespace fs = filesystem;
 
 namespace ur_loader {
+
+// Helper struct representing a ONEAPI_DEVICE_SELECTOR filter term.
+struct FilterTerm {
+  std::string backend;
+  std::vector<std::string> devices;
+
+  const std::map<std::string, ur_adapter_backend_t> backendNameMap = {
+      {"opencl", UR_ADAPTER_BACKEND_OPENCL},
+      {"level_zero", UR_ADAPTER_BACKEND_LEVEL_ZERO},
+      {"cuda", UR_ADAPTER_BACKEND_CUDA},
+      {"hip", UR_ADAPTER_BACKEND_HIP},
+      {"native_cpu", UR_ADAPTER_BACKEND_NATIVE_CPU},
+  };
+
+  bool matchesBackend(const ur_adapter_manifest &manifest) const {
+    if (backend.front() == '*') {
+      return true;
+    }
+
+    auto backendIter = backendNameMap.find(backend);
+    if (backendIter == backendNameMap.end()) {
+      logger::debug(
+          "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal backend '{}' ",
+          backend);
+      return false;
+    }
+    if (backendIter->second == manifest.backend) {
+      return true;
+    }
+    return false;
+  }
+
+  const std::map<std::string, ur_device_type_t> deviceTypeMap = {
+      {"cpu", UR_DEVICE_TYPE_CPU},
+      {"gpu", UR_DEVICE_TYPE_GPU},
+      {"fpga", UR_DEVICE_TYPE_FPGA}};
+
+  bool matchesDevices(const ur_adapter_manifest &manifest) const {
+    // If the adapter can report all device types then it matches.
+    if (std::find(manifest.device_types.begin(), manifest.device_types.end(),
+                  UR_DEVICE_TYPE_ALL) != manifest.device_types.end()) {
+      return true;
+    }
+    for (auto deviceString : devices) {
+      // We don't have a way to determine anything about device indices or
+      // sub-devices at this stage so just match any numeric value we get.
+      if (deviceString.front() == '*' || std::isdigit(deviceString.front())) {
+        return true;
+      }
+      auto deviceIter = deviceTypeMap.find(deviceString);
+      if (deviceIter == deviceTypeMap.end()) {
+        logger::debug(
+            "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal device '{}' ",
+            deviceString);
+        continue;
+      }
+      if (std::find(manifest.device_types.begin(), manifest.device_types.end(),
+                    deviceIter->second) != manifest.device_types.end()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool matches(const ur_adapter_manifest &manifest) const {
+    if (!matchesBackend(manifest)) {
+      return false;
+    }
+
+    return matchesDevices(manifest);
+  }
+};
 
 class AdapterRegistry {
 public:
@@ -121,15 +196,6 @@ private:
   // to load the adapter.
   std::vector<std::vector<fs::path>> adaptersLoadPaths;
 
-  static constexpr std::array<const char *, 6> knownAdapterNames{
-      MAKE_LIBRARY_NAME("ur_adapter_level_zero", "0"),
-      MAKE_LIBRARY_NAME("ur_adapter_level_zero_v2", "0"),
-      MAKE_LIBRARY_NAME("ur_adapter_opencl", "0"),
-      MAKE_LIBRARY_NAME("ur_adapter_cuda", "0"),
-      MAKE_LIBRARY_NAME("ur_adapter_hip", "0"),
-      MAKE_LIBRARY_NAME("ur_adapter_native_cpu", "0"),
-  };
-
   static constexpr const char *mockAdapterName =
       MAKE_LIBRARY_NAME("ur_adapter_mock", "0");
 
@@ -159,13 +225,10 @@ private:
     return paths.empty() ? std::nullopt : std::optional(paths);
   }
 
-  ur_result_t readPreFilterODS(std::string platformBackendName) {
-    // TODO: Refactor this to the common code such that both the prefilter and
-    // urDeviceGetSelected use the same functionality.
-    bool acceptLibrary = true;
+  ur_result_t getFilteredAdapterNames(std::set<std::string> &adapterNames) {
     std::optional<EnvVarMap> odsEnvMap;
     try {
-      odsEnvMap = getenv_to_map("ONEAPI_DEVICE_SELECTOR", false);
+      odsEnvMap = getenv_to_map("ONEAPI_DEVICE_SELECTOR", false, true);
 
     } catch (...) {
       // If the selector is malformed, then we ignore selector and return
@@ -182,6 +245,10 @@ private:
     using EnvVarMap = std::map<std::string, std::vector<std::string>>;
     EnvVarMap mapODS =
         odsEnvMap.has_value() ? odsEnvMap.value() : EnvVarMap{{"*", {"*"}}};
+
+    std::vector<FilterTerm> positiveFilters;
+    std::vector<FilterTerm> negativeFilters;
+
     for (auto &termPair : mapODS) {
       std::string backend = termPair.first;
       // TODO: Figure out how to process all ODS errors rather than returning
@@ -193,67 +260,46 @@ private:
                       "'[!]backend:filterStrings'");
         continue;
       }
-      logger::debug("ONEAPI_DEVICE_SELECTOR Pre-Filter with backend '{}' "
-                    "and platform library name '{}'",
-                    backend, platformBackendName);
-      enum FilterType {
-        AcceptFilter,
-        DiscardFilter,
-      } termType = (backend.front() != '!') ? AcceptFilter : DiscardFilter;
-      logger::debug(
-          "termType is {}",
-          (termType != AcceptFilter ? "DiscardFilter" : "AcceptFilter"));
-      if (termType != AcceptFilter) {
+      logger::debug("ONEAPI_DEVICE_SELECTOR Pre-Filter with backend '{}' ",
+                    backend);
+
+      bool PositiveFilter = backend.front() != '!';
+      logger::debug("term is a {} filter",
+                    (PositiveFilter ? "positive" : "negative"));
+      if (!PositiveFilter) {
         logger::debug("DEBUG: backend was '{}'", backend);
+        // Trim off the "!" from the backend
         backend.erase(backend.cbegin());
         logger::debug("DEBUG: backend now '{}'", backend);
       }
 
-      // Verify that the backend string is valid, otherwise ignore the backend.
-      if ((strcmp(backend.c_str(), "*") != 0) &&
-          (strcmp(backend.c_str(), "level_zero") != 0) &&
-          (strcmp(backend.c_str(), "opencl") != 0) &&
-          (strcmp(backend.c_str(), "cuda") != 0) &&
-          (strcmp(backend.c_str(), "hip") != 0)) {
-        logger::debug("ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal "
-                      "backend '{}' ",
-                      backend);
-        continue;
-      }
-
-      // case-insensitive comparison by converting both tolower
-      std::transform(platformBackendName.begin(), platformBackendName.end(),
-                     platformBackendName.begin(),
-                     [](unsigned char c) { return std::tolower(c); });
+      // Make sure the backend is lower case
       std::transform(backend.begin(), backend.end(), backend.begin(),
                      [](unsigned char c) { return std::tolower(c); });
-      std::size_t nameFound = platformBackendName.find(backend);
 
-      bool backendFound = nameFound != std::string::npos;
-      if (termType == AcceptFilter) {
-        if (backend.front() != '*' && !backendFound) {
-          logger::debug("The ONEAPI_DEVICE_SELECTOR backend name '{}' was not "
-                        "found in the platform library name '{}'",
-                        backend, platformBackendName);
-          acceptLibrary = false;
-          continue;
-        } else if (backend.front() == '*' || backendFound) {
-          return UR_RESULT_SUCCESS;
-        }
+      if (PositiveFilter) {
+        positiveFilters.push_back({backend, termPair.second});
       } else {
-        if (backendFound || backend.front() == '*') {
-          acceptLibrary = false;
-          logger::debug("The ONEAPI_DEVICE_SELECTOR backend name for discard "
-                        "'{}' was found in the platform library name '{}'",
-                        backend, platformBackendName);
-          continue;
-        }
+        // To preserve the behaviour of the original pre-filter implementation,
+        // we interpret all negative filters as backend only. This isn't
+        // correct, see https://github.com/intel/llvm/issues/17086
+        negativeFilters.push_back({backend, {"*"}});
       }
     }
-    if (acceptLibrary) {
-      return UR_RESULT_SUCCESS;
+
+    for (const auto &manifest : ur_adapter_manifests) {
+      auto matchesFilter = [manifest](const FilterTerm &f) -> bool {
+        return f.matches(manifest);
+      };
+      if (std::any_of(positiveFilters.begin(), positiveFilters.end(),
+                      matchesFilter) &&
+          std::none_of(negativeFilters.begin(), negativeFilters.end(),
+                       matchesFilter)) {
+        adapterNames.insert(manifest.library);
+      }
     }
-    return UR_RESULT_ERROR_INVALID_VALUE;
+
+    return UR_RESULT_SUCCESS;
   }
 
   void discoverKnownAdapters() {
@@ -264,16 +310,17 @@ private:
 #else
     bool loaderPreFilter = getenv_tobool("UR_LOADER_PRELOAD_FILTER", true);
 #endif
-    for (const auto &adapterName : knownAdapterNames) {
 
-      if (loaderPreFilter) {
-        if (readPreFilterODS(adapterName) != UR_RESULT_SUCCESS) {
-          logger::debug("The adapter '{}' was removed based on the "
-                        "pre-filter from ONEAPI_DEVICE_SELECTOR.",
-                        adapterName);
-          continue;
-        }
+    std::set<std::string> adapterNames;
+    if (loaderPreFilter) {
+      getFilteredAdapterNames(adapterNames);
+    } else {
+      for (const auto &manifest : ur_adapter_manifests) {
+        adapterNames.insert(manifest.library);
       }
+    }
+
+    for (const auto &adapterName : adapterNames) {
       std::vector<fs::path> loadPaths;
 
       // Adapter search order:
