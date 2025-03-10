@@ -80,9 +80,13 @@ jobs:
         git checkout origin/pr/${{ inputs.pr_no }}/merge
         git rev-parse origin/pr/${{ inputs.pr_no }}/merge
 
-    - name: Install pip packages
+    - name: Create virtual environment
+      run: python -m venv .venv
+
+    - name: Activate virtual environment and install pip packages
       run: |
-        pip install --force-reinstall -r ${{github.workspace}}/sycl-repo/devops/scripts/benchmarks/requirements.txt
+        source .venv/bin/activate
+        pip install -r ${{github.workspace}}/sycl-repo/devops/scripts/benchmarks/requirements.txt
 
     - name: Configure SYCL
       run: >
@@ -139,6 +143,7 @@ jobs:
       working-directory: ${{ github.workspace }}
       id: benchmarks
       run: >
+        source .venv/bin/activate &&
         taskset -c "${{ env.CORES }}" ${{ github.workspace }}/sycl-repo/devops/scripts/benchmarks/main.py
         ~/llvm_bench_workdir
         --sycl ${{ github.workspace }}/sycl_build
