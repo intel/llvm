@@ -443,7 +443,7 @@ private:
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
   handler(detail::handler_impl *HandlerImpl,
-    std::shared_ptr<detail::queue_impl> Queue);
+          std::shared_ptr<detail::queue_impl> Queue);
 
   /// Constructs SYCL handler from Graph.
   ///
