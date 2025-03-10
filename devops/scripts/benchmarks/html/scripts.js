@@ -6,6 +6,7 @@
 // Core state
 let activeRuns = new Set(defaultCompareNames);
 let chartInstances = new Map();
+let suiteNames = new Set();
 let timeseriesData, barChartsData, allRunNames;
 
 // DOM Elements
@@ -114,14 +115,12 @@ function createChart(data, containerId, type) {
 
     const chartConfig = {
         type: type === 'time' ? 'line' : 'bar',
-        data: type === 'time' ?
-            {
-                datasets: createTimeseriesDatasets(data)
-            } :
-            {
-                labels: data.labels,
-                datasets: data.datasets
-            },
+        data: type === 'time' ? {
+            datasets: createTimeseriesDatasets(data)
+        } : {
+            labels: data.labels,
+            datasets: data.datasets
+        },
         options: options
     };
 
@@ -221,10 +220,12 @@ function createChartContainer(data, canvasId) {
     summary.appendChild(downloadButton);
     details.appendChild(summary);
 
+    latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
+
     // Create and append extra info
     const extraInfo = document.createElement('div');
     extraInfo.className = 'extra-info';
-    extraInfo.innerHTML = generateExtraInfo(data);
+    extraInfo.innerHTML = generateExtraInfo(latestRunsLookup, data);
     details.appendChild(extraInfo);
 
     container.appendChild(details);
@@ -252,9 +253,8 @@ function createLatestRunsLookup(benchmarkRuns) {
 
     return latestRunsMap;
 }
-const latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
 
-function generateExtraInfo(data) {
+function generateExtraInfo(latestRunsLookup, data) {
     const labels = data.datasets ? data.datasets.map(dataset => dataset.label) : [data.label];
 
     return labels.map(label => {
@@ -283,7 +283,7 @@ function downloadChart(canvasId, label) {
     const chart = chartInstances.get(canvasId);
     if (chart) {
         const link = document.createElement('a');
-        link.href = chart.toBase64Image('image/jpeg', 1)
+        link.href = chart.toBase64Image('image/png', 1)
         link.download = `${label}.png`;
         link.click();
     }
@@ -307,7 +307,7 @@ function updateURL() {
         url.searchParams.delete('regex');
     }
 
-    if (activeSuites.length > 0) {
+    if (activeSuites.length > 0 && activeSuites.length != suiteNames.size) {
         url.searchParams.set('suites', activeSuites.join(','));
     } else {
         url.searchParams.delete('suites');
@@ -445,6 +445,12 @@ function setupRunSelector() {
 function setupSuiteFilters() {
     suiteFiltersContainer = document.getElementById('suite-filters');
 
+    benchmarkRuns.forEach(run => {
+        run.results.forEach(result => {
+            suiteNames.add(result.suite);
+        });
+    });
+
     suiteNames.forEach(suite => {
         const label = document.createElement('label');
         const checkbox = document.createElement('input');
@@ -530,16 +536,18 @@ function loadData() {
     const loadingIndicator = document.getElementById('loading-indicator');
     loadingIndicator.style.display = 'block'; // Show loading indicator
 
-    if (config.remoteDataUrl && config.remoteDataUrl !== '') {
+    if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
         // Fetch data from remote URL
-        fetch(config.remoteDataUrl)
-            .then(response => response.text())
-            .then(scriptContent => {
-                // Evaluate the script content
-                eval(scriptContent);
+        fetch(remoteDataUrl)
+            .then(response => response.json())
+            .then(data => {
+                benchmarkRuns = data;
                 initializeCharts();
             })
-            .catch(error => console.error('Error fetching remote data:', error))
+            .catch(error => {
+                console.error('Error fetching remote data:', error);
+                loadingIndicator.textContent = 'Fetching remote data failed.';
+            })
             .finally(() => {
                 loadingIndicator.style.display = 'none'; // Hide loading indicator
             });

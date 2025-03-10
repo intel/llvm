@@ -17,7 +17,7 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
-from presets import preset_get_by_name, presets
+from presets import enabled_suites, presets
 
 import argparse
 import re
@@ -164,6 +164,9 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     failures = {}
 
     for s in suites:
+        if s.name() not in enabled_suites(options.preset):
+            continue
+
         suite_benchmarks = s.benchmarks()
         if filter:
             suite_benchmarks = [
@@ -183,14 +186,13 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                 print(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks
 
-    for b in benchmarks:
-        print(b.name())
-
     for benchmark in benchmarks:
         try:
-            print(f"Setting up {benchmark.name()}... ")
+            if options.verbose:
+                print(f"Setting up {benchmark.name()}... ")
             benchmark.setup()
-            print(f"{benchmark.name()} setup complete.")
+            if options.verbose:
+                print(f"{benchmark.name()} setup complete.")
 
         except Exception as e:
             if options.exit_on_failure:
@@ -240,7 +242,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     if not options.dry_run:
         chart_data = {this_name: results}
 
-    history = BenchmarkHistory(directory)
+    results_dir = directory
+    if options.custom_results_dir:
+        results_dir = Path(options.custom_results_dir)
+    history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
     history.load(1000)
@@ -279,8 +284,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
     if options.output_html:
         generate_html(history.runs, compare_names)
-
-        print(f"See {os.getcwd()}/html/index.html for the results.")
 
 
 def validate_and_parse_env_args(env_args):
@@ -364,12 +367,6 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
-        "--epsilon",
-        type=float,
-        help="Threshold to consider change of performance significant",
-        default=options.epsilon,
-    )
-    parser.add_argument(
         "--verbose", help="Print output of all the commands.", action="store_true"
     )
     parser.add_argument(
@@ -395,7 +392,11 @@ if __name__ == "__main__":
         help="Specify whether markdown output should fit the content size limit for request validation",
     )
     parser.add_argument(
-        "--output-html", help="Create HTML output", action="store_true", default=False
+        "--output-html",
+        help="Create HTML output. Local output is for direct local viewing of the html file, remote is for server deployment.",
+        nargs="?",
+        const=options.output_html,
+        choices=["local", "remote"],
     )
     parser.add_argument(
         "--dry-run",
@@ -442,9 +443,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--preset",
         type=str,
-        choices=[p.name() for p in presets],
+        choices=[p for p in presets.keys()],
         help="Benchmark preset to run.",
-        default=options.preset.name(),
+        default=options.preset,
+    )
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom results directory",
+        default=options.custom_results_dir,
     )
 
     args = parser.parse_args()
@@ -457,7 +464,6 @@ if __name__ == "__main__":
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
-    options.epsilon = args.epsilon
     options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
@@ -472,7 +478,8 @@ if __name__ == "__main__":
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
-    options.preset = preset_get_by_name(args.preset)
+    options.preset = args.preset
+    options.custom_results_dir = args.results_dir
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
