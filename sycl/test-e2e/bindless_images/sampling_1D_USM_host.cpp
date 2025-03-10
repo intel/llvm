@@ -20,7 +20,7 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
-class image_addition;
+class sample_host_usm_image_kernel;
 
 int main() {
 
@@ -48,7 +48,7 @@ int main() {
         {width}, 1, sycl::image_channel_type::fp32);
 
     // Host USM allocation
-    auto imgMem = sycl::malloc_host<float>(width, ctxt);
+    float *imgMem = sycl::malloc_host<float>(width, ctxt);
 
     if (imgMem == nullptr) {
       std::cerr << "Error allocating host USM!" << std::endl;
@@ -70,7 +70,7 @@ int main() {
       auto outAcc =
           buf.get_access<sycl::access_mode::write>(cgh, sycl::range<1>{width});
 
-      cgh.parallel_for<image_addition>(
+      cgh.parallel_for<sample_host_usm_image_kernel>(
           sycl::nd_range<1>{{width}, {width}}, [=](sycl::nd_item<1> it) {
             size_t dim0 = it.get_local_id(0);
 

@@ -42,7 +42,7 @@ int main() {
         sycl::filtering_mode::linear);
 
     // Allocate Host USM and initialize with expected data
-    auto imgMem = sycl::malloc_host<float>(width, q);
+    float *imgMem = sycl::malloc_host<float>(width, q);
     memcpy(imgMem, expected.data(), widthInBytes);
 
     // Extension: create the image backed by Host USM and return the handle
