@@ -50,7 +50,7 @@ jobs:
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
 
     - name: Build with coverity
-      run: $GITHUB_WORKSPACE/cov-analysis-linux64-*/bin/cov-build --dir cov-int cmake --build $GITHUB_WORKSPACE/build
+      run: $GITHUB_WORKSPACE/cov-analysis-linux64-*/bin/cov-build --dir cov-int cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
 
     - name: Compress results
       run: tar -I pigz -cf intel_llvm.tgz cov-int
