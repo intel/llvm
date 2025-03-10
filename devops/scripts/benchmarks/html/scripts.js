@@ -6,6 +6,7 @@
 // Core state
 let activeRuns = new Set(defaultCompareNames);
 let chartInstances = new Map();
+let suiteNames = new Set();
 let timeseriesData, barChartsData, allRunNames;
 
 // DOM Elements
@@ -306,7 +307,7 @@ function updateURL() {
         url.searchParams.delete('regex');
     }
 
-    if (activeSuites.length > 0) {
+    if (activeSuites.length > 0 && activeSuites.length != suiteNames.size) {
         url.searchParams.set('suites', activeSuites.join(','));
     } else {
         url.searchParams.delete('suites');
@@ -444,7 +445,6 @@ function setupRunSelector() {
 function setupSuiteFilters() {
     suiteFiltersContainer = document.getElementById('suite-filters');
 
-    const suiteNames = new Set();
     benchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             suiteNames.add(result.suite);

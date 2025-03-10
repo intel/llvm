@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from presets import Preset, presets
 
+from presets import presets
 
 class Compare(Enum):
     LATEST = "latest"
@@ -40,7 +40,8 @@ class Options:
     compute_runtime_tag: str = "25.05.32567.18"
     build_igc: bool = False
     current_run_name: str = "This PR"
-    preset: Preset = presets[0]
+    preset: str = "Full"
+    custom_results_dir = None
 
 
 options = Options()
