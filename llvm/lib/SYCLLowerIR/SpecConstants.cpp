@@ -633,7 +633,7 @@ Instruction *emitSpecConstantRecursiveImpl(
     // not generate a bunch of __spirv_SpecConstant for its elements but
     // pass it into __spirv_SpecConstantComposite as is.
     if (It == DefinedElements.end() || It->first != ElOffset)
-      HandleUndef(UndefValue::get(ElTy));
+      HandleUndef(Constant::getNullValue(ElTy));
     else
       Elements.push_back(emitSpecConstantRecursiveImpl(
           ElTy, InsertBefore, IDs, Index, ElOffset, DefinedElements));
