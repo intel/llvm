@@ -7,6 +7,10 @@
 // RUN:  -std=c++17 %s
 // RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -DALLOW_FP=1                 \
+// RUN:  -fsycl-allow-func-ptr=labeled -Wno-return-type -verify            \
+// RUN:  -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
+// RUN:  -aux-triple x86_64-unknown-linux-gnu -DALLOW_FP=1                 \
 // RUN:  -fsycl-allow-func-ptr -Wno-return-type -verify                    \
 // RUN:  -fsyntax-only -std=c++17 %s
 
