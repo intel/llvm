@@ -1541,6 +1541,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         ur::cl::getAdapter()->clSetProgramSpecializationConstant != nullptr);
   }
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice), {"cl_intel_devicelib_assert"},
+        Supported));
+    return ReturnValue(Supported);
+  }
   case UR_DEVICE_INFO_EXTENSIONS: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(
         cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_EXTENSIONS, propSize,

@@ -615,9 +615,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("");
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
-
     std::string SupportedExtensions = "cl_khr_fp64 ";
-    SupportedExtensions += "cl_intel_devicelib_assert ";
 
     int Major = 0;
     int Minor = 0;
@@ -1113,6 +1111,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:

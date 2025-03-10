@@ -2222,6 +2222,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] support the ::urProgramSetSpecializationConstants entry
   /// point
   UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 121,
+  /// [::ur_bool_t] return true if the device has a native assert
+  /// implementation.
+  UR_DEVICE_INFO_USE_NATIVE_ASSERT = 122,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
