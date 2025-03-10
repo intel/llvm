@@ -498,10 +498,8 @@ ur_result_t urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t UrQueue,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *Event) try {
-  auto commandListLocked = CommandBuffer->commandListManager.lock();
-  return UrQueue->get().enqueueCommandBuffer(
-      commandListLocked->getZeCommandList(), Event, NumEventsInWaitList,
-      EventWaitList);
+  return UrQueue->get().enqueueCommandBufferExp(
+      CommandBuffer, NumEventsInWaitList, EventWaitList, Event);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

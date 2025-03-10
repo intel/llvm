@@ -489,7 +489,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
 
   auto hBuffer = hMem->getBuffer();
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(hBuffer->getMutex());
+  std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
   auto commandListLocked = commandListManager.lock();
   auto zeSignalEvent =
@@ -821,7 +821,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
 
   ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(hKernel->Mutex);
+  std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
 
   auto commandListLocked = commandListManager.lock();
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
@@ -921,8 +921,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
   ze_command_list_handle_t commandBufferCommandList =
-      hCommandBuffer->commandListManager.getZeCommandList();
+      commandListLocked->getZeCommandList();
   return enqueueGenericCommandListsExp(1, &commandBufferCommandList, phEvent,
                                        numEventsInWaitList, phEventWaitList,
                                        UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP);
