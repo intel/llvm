@@ -553,6 +553,42 @@ void context_impl::verifyProps(const property_list &Props) const {
                                                 NoAllowedPropertiesCheck);
 }
 
+// The handle for a device default pool is retrieved once on first request.
+// Subsequent requests are returned immediately without calling the backend.
+std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
+context_impl::get_default_memory_pool(const context &Context,
+                                      const device &Device,
+                                      const usm::alloc &Kind) {
+
+  assert(Kind == usm::alloc::device);
+
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(Device);
+  ur_device_handle_t DeviceHandle = DevImpl->getHandleRef();
+  const sycl::detail::AdapterPtr &Adapter = this->getAdapter();
+
+  // Check dev is already in our list of device pool pairs.
+  if (auto it = std::find_if(MMemPoolImplPtrs.begin(), MMemPoolImplPtrs.end(),
+                             [&](auto &pair) { return Device == pair.first; });
+      it != MMemPoolImplPtrs.end()) {
+    return it->second;
+  }
+
+  // We haven't requested the default pool for this device yet.
+  ur_usm_pool_handle_t PoolHandle;
+  Adapter->call<sycl::errc::runtime,
+                sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
+      this->getHandleRef(), DeviceHandle, &PoolHandle);
+
+  auto MemPoolImplPtr = std::make_shared<
+      sycl::ext::oneapi::experimental::detail::memory_pool_impl>(
+      Context, Device, sycl::usm::alloc::device, PoolHandle,
+      true /*Default pool*/, property_list{});
+  MMemPoolImplPtrs.push_back(std::pair(Device, MemPoolImplPtr));
+
+  return MemPoolImplPtr;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -607,9 +607,8 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t UR_APICALL urUSMPoolSetThresholdExp(ur_context_handle_t,
-                                                ur_device_handle_t,
-                                                ur_usm_pool_handle_t, size_t) {
+ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
+                                           ur_usm_pool_info_t, void *, size_t) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
