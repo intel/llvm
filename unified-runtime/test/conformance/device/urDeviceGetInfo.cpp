@@ -2568,7 +2568,7 @@ TEST_P(urDeviceGetInfoTest, SuccessUseNativeAssert) {
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
-  ASSERT_EQ(property_size, sizeof(uint32_t));
+  ASSERT_EQ(property_size, sizeof(ur_bool_t));
 
   uint32_t property_value = 0;
   ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
