@@ -5672,9 +5672,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         }
       }
 
-      if (Arg *A = Args.getLastArg(options::OPT_fsycl_allow_func_ptr_EQ))
-        A->render(Args, CmdArgs);
-
       Args.AddLastArg(CmdArgs, options::OPT_fsycl_decompose_functor,
                       options::OPT_fno_sycl_decompose_functor);
 

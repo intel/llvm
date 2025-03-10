@@ -7183,7 +7183,6 @@ defm sycl_allow_device_image_dependencies: BoolOptionWithoutMarshalling<"f", "sy
 def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
   Flags<[NoXarchOption]>,
   HelpText<"Dump device code into the user provided directory.">;
-
 } // let Group = sycl_Group
 
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.
@@ -8752,11 +8751,9 @@ def fsycl_allow_func_ptr_EQ : Joined<["-"], "fsycl-allow-func-ptr=">,
            "Default is 'off'">;
 def fsycl_allow_func_ptr : Flag<["-"], "fsycl-allow-func-ptr">,
   Alias<fsycl_allow_func_ptr_EQ>, AliasArgs<["labeled"]>,
-  Visibility<[ClangOption, CLOption, CC1Option]>,
   HelpText<"Same as -fsycl-allow-func-ptr=labeled.">;
 def fno_sycl_allow_func_ptr : Flag<["-"], "fno-sycl-allow-func-ptr">,
   Alias<fsycl_allow_func_ptr_EQ>, AliasArgs<["off"]>,
-  Visibility<[ClangOption, CLOption, CC1Option]>,
   HelpText<"Same as -fsycl-allow-func-ptr=off.">;
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,

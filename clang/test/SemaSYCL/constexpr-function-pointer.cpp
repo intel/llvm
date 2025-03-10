@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -sycl-std=2020 -std=c++17 %s
-// RUN: %clang_cc1 -fsycl-is-device -fsycl-allow-func-ptr=off -fsyntax-only -verify -sycl-std=2020 -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify -sycl-std=2020 %s
+// RUN: %clang_cc1 -fsycl-is-device -fsycl-allow-func-ptr=off -fsyntax-only -verify -sycl-std=2020 %s
 
 // This test checks that the compiler doesn't emit an error when indirect call
 // was made through a function pointer that is constant expression, and makes
