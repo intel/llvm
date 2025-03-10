@@ -192,6 +192,22 @@ ur_result_t urCommandBufferUpdateWaitEventsExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urCommandBufferAppendNativeCommandExp(
+    ur_exp_command_buffer_handle_t,
+    ur_exp_command_buffer_native_command_function_t, void *,
+    ur_exp_command_buffer_handle_t, uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *) {
+  logger::error("{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t,
+                                              ur_native_handle_t *) {
+  logger::error("{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t hContext,
                                           ur_device_handle_t hDevice,
                                           ur_usm_pool_desc_t *PoolDesc,
@@ -199,7 +215,6 @@ ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t hContext,
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
-
 ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t hContext,
                                            ur_device_handle_t hDevice,
                                            ur_usm_pool_handle_t hPool) {
