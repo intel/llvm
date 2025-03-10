@@ -26,6 +26,14 @@ on:
         required: false
         type: string
         default: OFF
+      docker_image:
+        required: true
+        type: string
+        default: ""
+      # image_options:
+      #   required: true
+      #   type: string
+      #   default: ""
   workflow_dispatch:
     inputs:
       adapter_name:
@@ -51,6 +59,14 @@ on:
         required: false
         type: string
         default: OFF
+      docker_image:
+        required: true
+        type: string
+        default: ""
+      # image_options:
+      #   required: true
+      #   type: string
+      #   default: ""
 
 permissions:
   contents: read
@@ -66,7 +82,7 @@ jobs:
   adapter_build_hw:
     name: Build & CTS
     # run only on upstream; forks won't have the HW
-    if: github.repository == 'intel/llvm'
+    # if: github.repository == 'intel/llvm'
     strategy:
       fail-fast: false
       matrix:
@@ -82,7 +98,11 @@ jobs:
         build_type: [Release]
         compiler: [{c: gcc, cxx: g++}]
 
-    runs-on: ${{inputs.runner_name}}
+    # runs-on: ${{inputs.runner_name}}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ inputs.docker_image || 'ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps'}}
+      options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
 
     steps:
     # TODO:
@@ -95,7 +115,7 @@ jobs:
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
     - name: Install UR python dependencies
-      working-directory: ${{github.workspace}}/unified-runtime
+      working-directory: ${{github.workspace}}/unified-runtime 
       run: pip install -r third_party/requirements.txt
 
     - name: Download DPC++
@@ -150,5 +170,5 @@ jobs:
       run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "conformance" --timeout 600 -VV
 
     - name: Get information about platform
-      if: ${{ always() }}
+      # if: ${{ always() }}
       run: ${{github.workspace}}/unified-runtime/.github/scripts/get_system_info.sh
