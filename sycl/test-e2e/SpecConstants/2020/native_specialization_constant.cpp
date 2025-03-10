@@ -7,10 +7,10 @@
 // RUN: %{build} -DJIT -o %t1.out
 // RUN: %{run} %t1.out
 
-// RUN: %if gpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t2.out %}
+// RUN: %if any-device-is-gpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t2.out %}
 // RUN: %if gpu %{ %{run} %t2.out %}
 
-// RUN: %if cpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t3.out %}
+// RUN: %if any-device-is-cpu %{ %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %s -o %t3.out %}
 // RUN: %if cpu %{ %{run} %t3.out %}
 
 #include <sycl/detail/core.hpp>
