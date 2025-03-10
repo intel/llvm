@@ -17,7 +17,7 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
-from presets import preset_get_by_name, presets
+from presets import enabled_suites, presets
 
 import argparse
 import re
@@ -164,7 +164,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     failures = {}
 
     for s in suites:
-        if s.name() not in options.preset.suites():
+        if s.name() not in enabled_suites(options.preset):
             continue
 
         suite_benchmarks = s.benchmarks()
@@ -443,9 +443,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--preset",
         type=str,
-        choices=[p.name() for p in presets],
+        choices=[p for p in presets.keys()],
         help="Benchmark preset to run.",
-        default=options.preset.name(),
+        default=options.preset,
     )
     parser.add_argument(
         "--results-dir",
@@ -478,7 +478,7 @@ if __name__ == "__main__":
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
-    options.preset = preset_get_by_name(args.preset)
+    options.preset = args.preset
     options.custom_results_dir = args.results_dir
 
     if args.build_igc and args.compute_runtime is None:

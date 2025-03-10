@@ -3,63 +3,36 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import List, Type
+presets: dict[str, list[str]] = {
+    "Full": [
+        "Compute Benchmarks",
+        "llama.cpp bench",
+        "SYCL-Bench",
+        "Velocity Bench",
+        "UMF",
+    ],
+    "SYCL": [
+        "Compute Benchmarks",
+        "llama.cpp bench",
+        "SYCL-Bench",
+        "Velocity Bench",
+    ],
+    "Minimal": [
+        "Compute Benchmarks",
+    ],
+    "Normal": [
+        "Compute Benchmarks",
+        "llama.cpp bench",
+        "Velocity Bench",
+    ],
+    "Test": [
+        "Test Suite",
+    ],
+}
 
-class Preset:
-    def description(self) -> str:
-        raise NotImplementedError
+def enabled_suites(preset: str) -> list[str]:
+    try:
+        return presets[preset]
+    except KeyError:
+        raise ValueError(f"Preset '{preset}' not found.")
 
-    def name(self) -> str:
-        return self.__class__.__name__
-
-    def suites(self) -> List[str]:
-        raise NotImplementedError
-
-class Full(Preset):
-    def description(self) -> str:
-        return "All available benchmarks."
-
-    def suites(self) -> List[str]:
-        return [
-            "Compute Benchmarks",
-            "llama.cpp bench",
-            "SYCL-Bench",
-            "Velocity Bench",
-            "UMF",
-        ]
-
-class SYCL(Preset):
-    def description(self) -> str:
-        return "All available benchmarks related to SYCL."
-
-    def suites(self) -> List[str]:
-        return ["Compute Benchmarks", "llama.cpp bench", "SYCL-Bench", "Velocity Bench"]
-
-class Minimal(Preset):
-    def description(self) -> str:
-        return "Short microbenchmarks."
-
-    def suites(self) -> List[str]:
-        return ["Compute Benchmarks"]
-
-class Normal(Preset):
-    def description(self) -> str:
-        return "Comprehensive mix of microbenchmarks and real applications."
-
-    def suites(self) -> List[str]:
-        return ["Compute Benchmarks", "llama.cpp bench", "Velocity Bench"]
-
-class Test(Preset):
-    def description(self) -> str:
-        return "Noop benchmarks for framework testing."
-
-    def suites(self) -> List[str]:
-        return ["Test Suite"]
-
-presets = [Full(), SYCL(), Minimal(), Normal(), Test()]
-
-def preset_get_by_name(name: str) -> Preset:
-    for p in presets:
-        if p.name() == name:
-            return p
-    raise ValueError(f"Preset '{name}' not found.")
