@@ -577,6 +577,13 @@ for d in config.sycl_devices:
     if be not in available_devices or dev not in available_devices[be]:
         lit_config.error("Unsupported device {}".format(d))
 
+# Set ROCM_PATH to help clang find the HIP installation.
+if "target-amd" in config.sycl_build_targets:
+    llvm_config.with_system_environment("ROCM_PATH")
+    config.substitutions.append(
+        ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
+    )
+
 if "cuda:gpu" in config.sycl_devices:
     if "CUDA_PATH" not in os.environ:
         if platform.system() == "Windows":
@@ -754,8 +761,6 @@ for sycl_device in config.sycl_devices:
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
         env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
-    if sycl_device.startswith("hip:"):
-        env["UR_HIP_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
     # with their test run. It's just us filtering here, so silence them unless
@@ -900,10 +905,6 @@ for sycl_device in config.sycl_devices:
                     "Cannot detect architecture for AMD HIP device, specify it explicitly"
                 )
             config.amd_arch = arch.replace(amd_arch_prefix, "")
-        llvm_config.with_system_environment("ROCM_PATH")
-        config.substitutions.append(
-            ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
-        )
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
