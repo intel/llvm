@@ -565,10 +565,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // DEVICELIB_ASSERT extension is set so fallback assert
     // postprocessing is NOP. HIP 4.3 docs indicate support for
     // native asserts are in progress
-    std::string SupportedExtensions = "";
-    SupportedExtensions += "cl_intel_devicelib_assert ";
-
-    return ReturnValue(SupportedExtensions.c_str());
+    return ReturnValue("cl_intel_devicelib_assert");
   }
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
