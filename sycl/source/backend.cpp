@@ -300,9 +300,9 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
   auto DevImgImpl = std::make_shared<device_image_impl>(
       nullptr, TargetContext, Devices, State, KernelIDs, UrProgram);
-  device_image_plain DevImg{DevImgImpl};
 
-  return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
+  return std::make_shared<kernel_bundle_impl>(TargetContext, Devices,
+                                              device_image_plain{DevImgImpl});
 }
 
 // TODO: Unused. Remove when allowed.
