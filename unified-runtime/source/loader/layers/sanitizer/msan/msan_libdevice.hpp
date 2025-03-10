@@ -41,7 +41,6 @@ struct MsanErrorReport {
 
 struct MsanLocalArgsInfo {
   uint64_t Size = 0;
-  uint64_t SizeWithRedZone = 0;
 };
 
 struct MsanLaunchInfo {
@@ -56,6 +55,9 @@ struct MsanLaunchInfo {
   DeviceType DeviceTy = DeviceType::UNKNOWN;
   uint32_t Debug = 0;
   uint32_t IsRecover = 0;
+
+  MsanLocalArgsInfo *LocalArgs = nullptr; // Ordered by ArgIndex
+  uint32_t NumLocalArgs = 0;
 
   MsanErrorReport Report;
 };

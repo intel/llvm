@@ -12,6 +12,9 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 1
 // RUN: %{l0_leak_check} %{run} %t.out 1
@@ -259,7 +262,7 @@ int test_build_and_run() {
 
   // Compilation with props and devices
   std::string log;
-  std::vector<std::string> flags{"-g", "-fno-fast-math",
+  std::vector<std::string> flags{"-fno-fast-math",
                                  "-fsycl-instrument-device-code"};
   std::vector<sycl::device> devs = kbSrc.get_devices();
   exe_kb kbExe2 = syclex::build(

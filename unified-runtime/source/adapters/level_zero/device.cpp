@@ -1512,12 +1512,23 @@ ur_device_handle_t_::useImmediateCommandLists() {
     bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
-    if ((isDG2SupportedDriver && isDG2OrNewer) || isPVC()) {
+    // Disable immediate command lists for DG2 devices on Windows due to driver
+    // limitations.
+    bool isLinux = true;
+#ifdef _WIN32
+    isLinux = false;
+#endif
+    if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
+        isNewerThanIntelDG2()) {
       return PerQueue;
     } else {
       return NotUsed;
     }
   }
+
+  logger::info("NOTE: L0 Immediate CommandList Setting: {}",
+               ImmediateCommandlistsSetting);
+
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
