@@ -63,7 +63,8 @@ public:
     kind_specialization_constants_buffer,
     kind_stream,
     kind_work_group_memory,
-    kind_last = kind_work_group_memory
+    kind_dynamic_work_group_memory,
+    kind_last = kind_dynamic_work_group_memory
   };
 
 public:
@@ -666,7 +667,7 @@ public:
   // Used to check whether the function represented by FD is a SYCL
   // free function kernel or not.
   bool isFreeFunction(const FunctionDecl *FD);
-  
+
   StmtResult BuildSYCLKernelCallStmt(FunctionDecl *FD, CompoundStmt *Body);
 };
 
