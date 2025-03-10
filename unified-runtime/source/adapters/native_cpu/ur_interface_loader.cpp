@@ -366,6 +366,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     return result;
   }
   pDdiTable->pfnPitchedAllocExp = urUSMPitchedAllocExp;
+  pDdiTable->pfnContextMemcpyExp = urUSMContextMemcpyExp;
   return UR_RESULT_SUCCESS;
 }
 
