@@ -390,7 +390,7 @@ static cl::opt<bool> ClSpirOffloadLocals("msan-spir-locals",
 static cl::opt<bool>
     ClSpirOffloadPrivates("msan-spir-privates",
                           cl::desc("instrument private pointer"), cl::Hidden,
-                          cl::init(false));
+                          cl::init(true));
 
 const char kMsanModuleCtorName[] = "msan.module_ctor";
 const char kMsanInitName[] = "__msan_init";
@@ -1607,7 +1607,7 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
     Addr = XCHG->getPointerOperand();
   else if (const auto *ASC = dyn_cast<AddrSpaceCastInst>(&I))
     Addr = ASC->getPointerOperand();
-  else if (isa<AllocaInst>(&I))
+  else if (isa<AllocaInst>(&I) && !ClSpirOffloadPrivates)
     I.setNoSanitizeMetadata();
   else if (const auto *CI = dyn_cast<CallInst>(&I)) {
     auto *Func = CI->getCalledFunction();
