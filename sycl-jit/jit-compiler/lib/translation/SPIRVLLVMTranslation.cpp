@@ -92,7 +92,6 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
         SPIRV::BIsRepresentation::SPIRVFriendlyIR);
     TransOpt.setDebugInfoEIS(
         SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200);
-    TransOpt.setPreserveAuxData(true);
     const llvm::SmallVector<llvm::StringRef, 4> AllowedIntrinsics = {
         "llvm.genx."};
     TransOpt.setSPIRVAllowUnknownIntrinsics(AllowedIntrinsics);
