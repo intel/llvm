@@ -54,7 +54,7 @@ int main() {
 // CHECK-DAG: @_ZTS6init_aIdE.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, double {{.*}}%2, ptr {{.*}}%3){{.*}}
 
 // CHECK-O3-NOT: @{{.*}}.NativeCPUKernel
-// CHECK-O3-DAG: define void @_ZTS6init_aIiE.SYCLNCPU(ptr {{.*}}%0, ptr addrspace(1) %1) {{.*}} #{{.*}} {
-// CHECK-O3-DAG: define void @_ZTS6init_aIjE.SYCLNCPU(ptr {{.*}}%0, ptr addrspace(1) %1) {{.*}} #{{.*}} {
-// CHECK-O3-DAG: define void @_ZTS6init_aIfE.SYCLNCPU(ptr {{.*}}%0, ptr addrspace(1) %1) {{.*}} #{{.*}} {
-// CHECK-O3-DAG: define void @_ZTS6init_aIdE.SYCLNCPU(ptr {{.*}}%0, ptr addrspace(1) %1) {{.*}} #{{.*}} {
+// CHECK-O3-DAG: define void @_ZTS6init_aIiE.SYCLNCPU(ptr {{.*}}%0, ptr addrspace(1) {{.*}}%1) {{.*}} #{{.*}} {
+// CHECK-O3-DAG: define void @_ZTS6init_aIjE.SYCLNCPU(ptr {{.*}}%0, ptr addrspace(1) {{.*}}%1) {{.*}} #{{.*}} {
+// CHECK-O3-DAG: define void @_ZTS6init_aIfE.SYCLNCPU(ptr {{.*}}%0, ptr addrspace(1) {{.*}}%1) {{.*}} #{{.*}} {
+// CHECK-O3-DAG: define void @_ZTS6init_aIdE.SYCLNCPU(ptr {{.*}}%0, ptr addrspace(1) {{.*}}%1) {{.*}} #{{.*}} {
