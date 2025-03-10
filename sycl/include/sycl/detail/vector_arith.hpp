@@ -59,8 +59,60 @@ struct UnaryPlus {
   }
 };
 
+template <typename Op> struct OpAssign {};
+
 // Tag to map/templatize the mixin for prefix/postfix inc/dec operators.
 struct IncDec {};
+
+template <class T> static constexpr bool not_fp = !is_vgenfloat_v<T>;
+
+// To provide information about operators availability depending on vec/swizzle
+// element type.
+template <typename Op, typename T>
+inline constexpr bool is_op_available_for_type = false;
+
+template <typename Op, typename T>
+inline constexpr bool is_op_available_for_type<OpAssign<Op>, T> =
+    is_op_available_for_type<Op, T>;
+
+#define __SYCL_OP_AVAILABILITY(OP, COND)                                       \
+  template <typename T>                                                        \
+  inline constexpr bool is_op_available_for_type<OP, T> = COND;
+
+// clang-format off
+__SYCL_OP_AVAILABILITY(std::plus<void>          , true)
+__SYCL_OP_AVAILABILITY(std::minus<void>         , true)
+__SYCL_OP_AVAILABILITY(std::multiplies<void>    , true)
+__SYCL_OP_AVAILABILITY(std::divides<void>       , true)
+__SYCL_OP_AVAILABILITY(std::modulus<void>       , not_fp<T>)
+
+__SYCL_OP_AVAILABILITY(std::bit_and<void>       , not_fp<T>)
+__SYCL_OP_AVAILABILITY(std::bit_or<void>        , not_fp<T>)
+__SYCL_OP_AVAILABILITY(std::bit_xor<void>       , not_fp<T>)
+
+__SYCL_OP_AVAILABILITY(std::equal_to<void>      , true)
+__SYCL_OP_AVAILABILITY(std::not_equal_to<void>  , true)
+__SYCL_OP_AVAILABILITY(std::less<void>          , true)
+__SYCL_OP_AVAILABILITY(std::greater<void>       , true)
+__SYCL_OP_AVAILABILITY(std::less_equal<void>    , true)
+__SYCL_OP_AVAILABILITY(std::greater_equal<void> , true)
+
+__SYCL_OP_AVAILABILITY(std::logical_and<void>   , not_fp<T>)
+__SYCL_OP_AVAILABILITY(std::logical_or<void>    , not_fp<T>)
+
+__SYCL_OP_AVAILABILITY(ShiftLeft                , not_fp<T>)
+__SYCL_OP_AVAILABILITY(ShiftRight               , not_fp<T>)
+
+// Unary
+__SYCL_OP_AVAILABILITY(std::negate<void>        , true)
+__SYCL_OP_AVAILABILITY(std::logical_not<void>   , true)
+__SYCL_OP_AVAILABILITY(std::bit_not<void>       , not_fp<T>)
+__SYCL_OP_AVAILABILITY(UnaryPlus                , true)
+
+__SYCL_OP_AVAILABILITY(IncDec                   , true)
+// clang-format on
+
+#undef __SYCL_OP_AVAILABILITY
 
 template <typename SelfOperandTy> struct IncDecImpl {
   using element_type = typename from_incomplete<SelfOperandTy>::element_type;
@@ -87,22 +139,62 @@ public:
   }
 };
 
+// clang-format off
+#define __SYCL_INSTANTIATE_OPERATORS(BINOP, OPASSIGN, UOP)                     \
+BINOP(std::plus<void>          , +)                                            \
+BINOP(std::minus<void>         , -)                                            \
+BINOP(std::multiplies<void>    , *)                                            \
+BINOP(std::divides<void>       , /)                                            \
+BINOP(std::modulus<void>       , %)                                            \
+BINOP(std::bit_and<void>       , &)                                            \
+BINOP(std::bit_or<void>        , |)                                            \
+BINOP(std::bit_xor<void>       , ^)                                            \
+BINOP(std::equal_to<void>      , ==)                                           \
+BINOP(std::not_equal_to<void>  , !=)                                           \
+BINOP(std::less<void>          , < )                                           \
+BINOP(std::greater<void>       , >)                                            \
+BINOP(std::less_equal<void>    , <=)                                           \
+BINOP(std::greater_equal<void> , >=)                                           \
+BINOP(std::logical_and<void>   , &&)                                           \
+BINOP(std::logical_or<void>    , ||)                                           \
+BINOP(ShiftLeft                , <<)                                           \
+BINOP(ShiftRight               , >>)                                           \
+UOP(std::negate<void>          , -)                                            \
+UOP(std::logical_not<void>     , !)                                            \
+UOP(std::bit_not<void>         , ~)                                            \
+UOP(UnaryPlus                  , +)                                            \
+OPASSIGN(std::plus<void>       , +=)                                           \
+OPASSIGN(std::minus<void>      , -=)                                           \
+OPASSIGN(std::multiplies<void> , *=)                                           \
+OPASSIGN(std::divides<void>    , /=)                                           \
+OPASSIGN(std::modulus<void>    , %=)                                           \
+OPASSIGN(std::bit_and<void>    , &=)                                           \
+OPASSIGN(std::bit_or<void>     , |=)                                           \
+OPASSIGN(std::bit_xor<void>    , ^=)                                           \
+OPASSIGN(ShiftLeft             , <<=)                                          \
+OPASSIGN(ShiftRight            , >>=)
+// clang-format on
+
+template <typename Op>
+constexpr bool is_logical =
+    check_type_in_v<Op, std::equal_to<void>, std::not_equal_to<void>,
+                    std::less<void>, std::greater<void>, std::less_equal<void>,
+                    std::greater_equal<void>, std::logical_and<void>,
+                    std::logical_or<void>, std::logical_not<void>>;
+
 template <typename Self> struct VecOperators {
   static_assert(is_vec_v<Self>);
+
+  using element_type = typename from_incomplete<Self>::element_type;
+  static constexpr int N = from_incomplete<Self>::size();
+
+  template <typename Op>
+  using result_t = std::conditional_t<
+      is_logical<Op>, vec<fixed_width_signed<sizeof(element_type)>, N>, Self>;
 
   template <typename OpTy, typename... ArgTys>
   static constexpr auto apply(const ArgTys &...Args) {
     static_assert(((std::is_same_v<Self, ArgTys> && ...)));
-
-    using element_type = typename Self::element_type;
-    constexpr int N = Self::size();
-    constexpr bool is_logical = check_type_in_v<
-        OpTy, std::equal_to<void>, std::not_equal_to<void>, std::less<void>,
-        std::greater<void>, std::less_equal<void>, std::greater_equal<void>,
-        std::logical_and<void>, std::logical_or<void>, std::logical_not<void>>;
-
-    using result_t = std::conditional_t<
-        is_logical, vec<fixed_width_signed<sizeof(element_type)>, N>, Self>;
 
     OpTy Op{};
 #ifdef __has_extension
@@ -152,7 +244,7 @@ template <typename Self> struct VecOperators {
       if constexpr (std::is_same_v<element_type, bool>) {
         // Some operations are known to produce the required bit patterns and
         // the following post-processing isn't necessary for them:
-        if constexpr (!is_logical &&
+        if constexpr (!is_logical<OpTy> &&
                       !check_type_in_v<OpTy, std::multiplies<void>,
                                        std::divides<void>, std::bit_or<void>,
                                        std::bit_and<void>, std::bit_xor<void>,
@@ -179,13 +271,13 @@ template <typename Self> struct VecOperators {
           tmp = reinterpret_cast<decltype(tmp)>((tmp != 0) * -1);
         }
       }
-      return bit_cast<result_t>(tmp);
+      return bit_cast<result_t<OpTy>>(tmp);
     }
 #endif
 #endif
-    result_t res{};
+    result_t<OpTy> res{};
     for (size_t i = 0; i < N; ++i)
-      if constexpr (is_logical)
+      if constexpr (is_logical<OpTy>)
         res[i] = Op(Args[i]...) ? -1 : 0;
       else
         res[i] = Op(Args[i]...);
@@ -200,141 +292,98 @@ template <typename Self> struct VecOperators {
   struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, IncDec>>>
       : public IncDecImpl<Self> {};
 
-#define __SYCL_VEC_UOP_MIXIN(OP, OPERATOR)                                     \
+#define __SYCL_VEC_BINOP_MIXIN(OP, OPERATOR)                                   \
   template <typename Op>                                                       \
   struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, OP>>> {               \
+    template <typename T = element_type>                                       \
+    friend std::enable_if_t<is_op_available_for_type<OP, T>, result_t<OP>>     \
+    operator OPERATOR(const Self & Lhs, const Self & Rhs) {                    \
+      return apply<OP>(Lhs, Rhs);                                              \
+    }                                                                          \
+                                                                               \
+    template <typename T = element_type>                                       \
+    friend std::enable_if_t<is_op_available_for_type<OP, T>, result_t<OP>>     \
+    operator OPERATOR(const Self & Lhs, const element_type & Rhs) {            \
+      return OP{}(Lhs, Self{Rhs});                                             \
+    }                                                                          \
+    template <typename T = element_type>                                       \
+    friend std::enable_if_t<is_op_available_for_type<OP, T>, result_t<OP>>     \
+    operator OPERATOR(const element_type & Lhs, const Self & Rhs) {            \
+      return OP{}(Self{Lhs}, Rhs);                                             \
+    }                                                                          \
+  };
+
+#define __SYCL_VEC_OPASSIGN_MIXIN(OP, OPERATOR)                                \
+  template <typename Op>                                                       \
+  struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, OpAssign<OP>>>> {     \
+    template <typename T = element_type>                                       \
+    friend std::enable_if_t<is_op_available_for_type<OP, T>, Self> &           \
+    operator OPERATOR(Self & Lhs, const Self & Rhs) {                          \
+      Lhs = OP{}(Lhs, Rhs);                                                    \
+      return Lhs;                                                              \
+    }                                                                          \
+    template <int Num = N, typename T = element_type>                          \
+    friend std::enable_if_t<(Num != 1) && (is_op_available_for_type<OP, T>),   \
+                            Self &>                                            \
+    operator OPERATOR(Self & Lhs, const element_type & Rhs) {                  \
+      Lhs = OP{}(Lhs, Self{Rhs});                                              \
+      return Lhs;                                                              \
+    }                                                                          \
+  };
+
+#define __SYCL_VEC_UOP_MIXIN(OP, OPERATOR)                                     \
+  template <typename Op>                                                       \
+  struct OpMixin<                                                              \
+      Op, std::enable_if_t<std::is_same_v<Op, OP> && /* bit_not is handled     \
+                                                        separately below */    \
+                           !std::is_same_v<Op, std::bit_not<void>>>> {         \
     friend auto operator OPERATOR(const Self &v) { return apply<OP>(v); }      \
   };
 
-  __SYCL_VEC_UOP_MIXIN(std::negate<void>, -)
-  __SYCL_VEC_UOP_MIXIN(std::logical_not<void>, !)
-  __SYCL_VEC_UOP_MIXIN(UnaryPlus, +)
+  __SYCL_INSTANTIATE_OPERATORS(__SYCL_VEC_BINOP_MIXIN,
+                               __SYCL_VEC_OPASSIGN_MIXIN, __SYCL_VEC_UOP_MIXIN)
+
+#undef __SYCL_VEC_UOP_MIXIN
+#undef __SYCL_VEC_OPASSIGN_MIXIN
+#undef __SYCL_VEC_BINOP_MIXIN
 
   template <typename Op>
   struct OpMixin<Op, std::enable_if_t<std::is_same_v<Op, std::bit_not<void>>>> {
     template <typename T = typename from_incomplete<Self>::element_type>
-    friend std::enable_if_t<!is_vgenfloat_v<T>, Self> operator~(const Self &v) {
+    friend std::enable_if_t<is_op_available_for_type<Op, T>, Self>
+    operator~(const Self &v) {
       return apply<std::bit_not<void>>(v);
     }
   };
-
-#undef __SYCL_VEC_UOP_MIXIN
 
   template <typename... Op>
   struct __SYCL_EBO CombineImpl : public OpMixin<Op>... {};
 
   struct Combined
-      : public CombineImpl<std::negate<void>, std::logical_not<void>,
-                           std::bit_not<void>, UnaryPlus, IncDec> {};
+      : CombineImpl<std::plus<void>, std::minus<void>, std::multiplies<void>,
+                    std::divides<void>, std::modulus<void>, std::bit_and<void>,
+                    std::bit_or<void>, std::bit_xor<void>, std::equal_to<void>,
+                    std::not_equal_to<void>, std::less<void>,
+                    std::greater<void>, std::less_equal<void>,
+                    std::greater_equal<void>, std::logical_and<void>,
+                    std::logical_or<void>, ShiftLeft, ShiftRight,
+                    std::negate<void>, std::logical_not<void>,
+                    std::bit_not<void>, UnaryPlus, OpAssign<std::plus<void>>,
+                    OpAssign<std::minus<void>>, OpAssign<std::multiplies<void>>,
+                    OpAssign<std::divides<void>>, OpAssign<std::modulus<void>>,
+                    OpAssign<std::bit_and<void>>, OpAssign<std::bit_or<void>>,
+                    OpAssign<std::bit_xor<void>>, OpAssign<ShiftLeft>,
+                    OpAssign<ShiftRight>, IncDec> {};
 };
 
-// Macros to populate binary operation on sycl::vec.
-#if defined(__SYCL_BINOP)
-#error "Undefine __SYCL_BINOP macro"
-#endif
-
-#define __SYCL_BINOP(BINOP, OPASSIGN, COND, FUNCTOR)                           \
-  template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
-                                                        const vec_t & Rhs) {   \
-    return VecOperators<vec_t>::template apply<FUNCTOR>(Lhs, Rhs);             \
-  }                                                                            \
-                                                                               \
-  template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec_t> operator BINOP(const vec_t & Lhs,     \
-                                                        const DataT & Rhs) {   \
-    return Lhs BINOP vec_t(Rhs);                                               \
-  }                                                                            \
-  template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec_t> operator BINOP(const DataT & Lhs,     \
-                                                        const vec_t & Rhs) {   \
-    return vec_t(Lhs) BINOP Rhs;                                               \
-  }                                                                            \
-  template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec_t> &operator OPASSIGN(                   \
-      vec_t & Lhs, const vec_t & Rhs) {                                        \
-    Lhs = Lhs BINOP Rhs;                                                       \
-    return Lhs;                                                                \
-  }                                                                            \
-  template <int Num = NumElements, typename T = DataT>                         \
-  friend std::enable_if_t<(Num != 1) && (COND), vec_t &> operator OPASSIGN(    \
-      vec_t & Lhs, const DataT & Rhs) {                                        \
-    Lhs = Lhs BINOP vec_t(Rhs);                                                \
-    return Lhs;                                                                \
-  }
-
 template <typename DataT, int NumElements>
-class vec_arith : public VecOperators<vec<DataT, NumElements>>::Combined {
-protected:
-  using vec_t = vec<DataT, NumElements>;
-  using ocl_t = detail::fixed_width_signed<sizeof(DataT)>;
-
-  // The logical operations on scalar types results in 0/1, while for vec<>,
-  // logical operations should result in 0 and -1 (similar to OpenCL vectors).
-  // That's why, for vec<DataT, 1>, we need to invert the result of the logical
-  // operations since we store vec<DataT, 1> as scalar type on the device.
-#if defined(__SYCL_RELLOGOP)
-#error "Undefine __SYCL_RELLOGOP macro."
-#endif
-
-#define __SYCL_RELLOGOP(RELLOGOP, COND, FUNCTOR)                               \
-  template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec<ocl_t, NumElements>> operator RELLOGOP(  \
-      const vec_t & Lhs, const vec_t & Rhs) {                                  \
-    return VecOperators<vec_t>::template apply<FUNCTOR>(Lhs, Rhs);             \
-  }                                                                            \
-                                                                               \
-  template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec<ocl_t, NumElements>> operator RELLOGOP(  \
-      const vec_t & Lhs, const DataT & Rhs) {                                  \
-    return Lhs RELLOGOP vec_t(Rhs);                                            \
-  }                                                                            \
-  template <typename T = DataT>                                                \
-  friend std::enable_if_t<(COND), vec<ocl_t, NumElements>> operator RELLOGOP(  \
-      const DataT & Lhs, const vec_t & Rhs) {                                  \
-    return vec_t(Lhs) RELLOGOP Rhs;                                            \
-  }
-
-  // OP is: ==, !=, <, >, <=, >=, &&, ||
-  // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
-  // vec<RET, NumElements> operatorOP(const DataT &Rhs) const;
-  __SYCL_RELLOGOP(==, true, std::equal_to<void>)
-  __SYCL_RELLOGOP(!=, true, std::not_equal_to<void>)
-  __SYCL_RELLOGOP(>, true, std::greater<void>)
-  __SYCL_RELLOGOP(<, true, std::less<void>)
-  __SYCL_RELLOGOP(>=, true, std::greater_equal<void>)
-  __SYCL_RELLOGOP(<=, true, std::less_equal<void>)
-
-  // Only available to integral types.
-  __SYCL_RELLOGOP(&&, (!detail::is_vgenfloat_v<T>), std::logical_and<void>)
-  __SYCL_RELLOGOP(||, (!detail::is_vgenfloat_v<T>), std::logical_or<void>)
-#undef __SYCL_RELLOGOP
-#undef RELLOGOP_BASE
-
-  // Binary operations on sycl::vec<> for all types except std::byte.
-  __SYCL_BINOP(+, +=, true, std::plus<void>)
-  __SYCL_BINOP(-, -=, true, std::minus<void>)
-  __SYCL_BINOP(*, *=, true, std::multiplies<void>)
-  __SYCL_BINOP(/, /=, true, std::divides<void>)
-
-  // The following OPs are available only when: DataT != cl_float &&
-  // DataT != cl_double && DataT != cl_half && DataT != BF16.
-  __SYCL_BINOP(%, %=, (!detail::is_vgenfloat_v<T>), std::modulus<void>)
-  // Bitwise operations are allowed for std::byte.
-  __SYCL_BINOP(|, |=, (!detail::is_vgenfloat_v<DataT>), std::bit_or<void>)
-  __SYCL_BINOP(&, &=, (!detail::is_vgenfloat_v<DataT>), std::bit_and<void>)
-  __SYCL_BINOP(^, ^=, (!detail::is_vgenfloat_v<DataT>), std::bit_xor<void>)
-  __SYCL_BINOP(>>, >>=, (!detail::is_vgenfloat_v<DataT>), ShiftRight)
-  __SYCL_BINOP(<<, <<=, (!detail::is_vgenfloat_v<DataT>), ShiftLeft)
-
-  // friends
-  template <typename T1, int T2> friend class __SYCL_EBO vec;
-}; // class vec_arith<>
+class vec_arith : public VecOperators<vec<DataT, NumElements>>::Combined {};
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <int NumElements>
 class vec_arith<std::byte, NumElements>
-    : public VecOperators<vec<std::byte, NumElements>>::template OpMixin<
+    : public VecOperators<vec<std::byte, NumElements>>::template CombineImpl<
+          std::bit_or<void>, std::bit_and<void>, std::bit_xor<void>,
           std::bit_not<void>> {
 protected:
   // NumElements can never be zero. Still using the redundant check to avoid
@@ -375,17 +424,10 @@ protected:
     Lhs = Lhs >> shift;
     return Lhs;
   }
-
-  __SYCL_BINOP(|, |=, true, std::bit_or<void>)
-  __SYCL_BINOP(&, &=, true, std::bit_and<void>)
-  __SYCL_BINOP(^, ^=, true, std::bit_xor<void>)
-
-  // friends
-  template <typename T1, int T2> friend class __SYCL_EBO vec;
 };
 #endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 
-#undef __SYCL_BINOP
+#undef __SYCL_INSTANTIATE_OPERATORS
 
 } // namespace detail
 } // namespace _V1
