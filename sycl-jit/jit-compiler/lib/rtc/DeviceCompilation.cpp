@@ -661,12 +661,13 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
 
   // TODO: This allocation assumes that there are no further splits required,
   //       i.e. there are no mixed SYCL/ESIMD modules.
-  RTCBundleInfo BundleInfo{Splitter->remainingSplits()};
+  RTCBundleInfo BundleInfo;
+  BundleInfo.DevImgInfos = DynArray<RTCDevImgInfo>{Splitter->remainingSplits()};
   SmallVector<std::unique_ptr<llvm::Module>> Modules;
 
-  auto *DevImgInfoIt = BundleInfo.begin();
+  auto *DevImgInfoIt = BundleInfo.DevImgInfos.begin();
   while (Splitter->hasMoreSplits()) {
-    assert(DevImgInfoIt != BundleInfo.end());
+    assert(DevImgInfoIt != BundleInfo.DevImgInfos.end());
 
     ModuleDesc MDesc = Splitter->nextSplit();
     RTCDevImgInfo &DevImgInfo = *DevImgInfoIt++;
@@ -794,6 +795,32 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   }
 
   return std::move(AL);
+}
+
+void jit_compiler::encodeBuildOptions(RTCBundleInfo &BundleInfo,
+                                      const InputArgList &UserArgList) {
+  std::string CompileOptions;
+  raw_string_ostream COSOS{CompileOptions};
+
+  for (Arg *A : UserArgList.getArgs()) {
+    if (!(A->getOption().matches(OPT_Xs) ||
+          A->getOption().matches(OPT_Xs_separate))) {
+      continue;
+    }
+
+    // Trim first and last quote if they exist, but no others.
+    StringRef AV{A->getValue()};
+    AV = AV.trim();
+    if (AV.front() == AV.back() && (AV.front() == '\'' || AV.front() == '"')) {
+      AV = AV.drop_front().drop_back();
+    }
+
+    COSOS << (CompileOptions.empty() ? "" : " ") << AV;
+  }
+
+  if (!CompileOptions.empty()) {
+    BundleInfo.CompileOptions = CompileOptions;
+  }
 }
 
 void jit_compiler::configureDiagnostics(LLVMContext &Context,
