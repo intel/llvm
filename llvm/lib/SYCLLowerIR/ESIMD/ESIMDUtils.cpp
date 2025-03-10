@@ -82,7 +82,7 @@ bool isKernel(const Function &F) {
 
 bool isESIMDKernel(const Function &F) { return isKernel(F) && isESIMD(F); }
 
-bool isModuleContainsInvokeSimdBuiltin(Module &M) {
+bool moduleContainsInvokeSimdBuiltin(Module &M) {
   return std::any_of(M.begin(), M.end(), [](Function &F) {
     return !F.isDeclaration() && F.getName().starts_with(INVOKE_SIMD_PREF);
   });
