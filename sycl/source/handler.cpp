@@ -304,17 +304,15 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
-      : MImplOwner(std::make_unique<detail::handler_impl>(Queue, nullptr, CallerNeedsEvent)),
-        impl(MImplOwner.get()),
-        MQueue(std::move(Queue)) {}
+    : MImplOwner(std::make_unique<detail::handler_impl>(Queue, nullptr,
+                                                        CallerNeedsEvent)),
+      impl(MImplOwner.get()), MQueue(std::move(Queue)) {}
 
 handler::handler(detail::handler_impl *HandlerImpl,
                  std::shared_ptr<detail::queue_impl> Queue)
-    : impl(HandlerImpl),
-      MQueue(std::move(Queue)) {}
+    : impl(HandlerImpl), MQueue(std::move(Queue)) {}
 
-handler::handler(detail::handler_impl *HandlerImpl)
-    : impl(HandlerImpl) {}
+handler::handler(detail::handler_impl *HandlerImpl) : impl(HandlerImpl) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
