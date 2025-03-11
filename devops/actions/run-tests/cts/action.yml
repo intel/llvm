@@ -25,14 +25,14 @@ runs:
     uses: actions/checkout@v4
     with:
       ref: ${{ inputs.cts_exclude_ref }}
-      path: tmp
+      path: cts_exclude
       sparse-checkout: |
         sycl/cts_exclude_filter
   - name: Move sycl to root
     shell: bash
     run: |
-      mv tmp/sycl .
-      rm -rf tmp
+      mv cts_exclude/sycl .
+      rm -rf cts_exclude
   - name: Checkout SYCL CTS tests
     if: inputs.cts_testing_mode != 'run-only'
     uses: ./devops/actions/cached_checkout
