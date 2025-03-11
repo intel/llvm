@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "sycl/detail/helpers.hpp"
-#include "sycl/ext/oneapi/experimental/graph.hpp"
 #include "ur_api.h"
 #include <algorithm>
 
@@ -34,6 +33,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include "sycl/ext/oneapi/experimental/graph.hpp"
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>

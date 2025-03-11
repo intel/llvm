@@ -6554,6 +6554,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     EmitPragmaDiagnosticPop(O);
   }
 
+
   O << "// names of all kernels defined in the corresponding source\n";
   O << "static constexpr\n";
   O << "const char* const kernel_names[] = {\n";

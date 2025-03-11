@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include "sycl/ext/oneapi/properties/properties.hpp"
 #include <sycl/accessor.hpp>               // for detail::AccessorBaseHost
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
@@ -18,7 +17,8 @@
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
 #endif
-#include <sycl/device.hpp> // for device
+#include "sycl/ext/oneapi/properties/properties.hpp" // for empty_properties_t
+#include <sycl/device.hpp>                           // for device
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp> // for dynamic_work_group_memory
 #include <sycl/nd_range.hpp>                   // for range, nd_range
@@ -49,6 +49,7 @@ enum class graph_state {
 // Forward declare ext::oneapi::experimental classes
 template <graph_state State> class command_graph;
 class raw_kernel_arg;
+template <typename, typename> class work_group_memory;
 
 namespace detail {
 // List of sycl features and extensions which are not supported by graphs. Used
@@ -559,26 +560,30 @@ public:
   /// Constructs a new dynamic_work_group_memory object.
   /// @param Graph The graph associated with this object.
   /// @param Num Number of elements in the unbounded array DataT.
+#ifdef __SYCL_DEVICE_ONLY__
+  dynamic_work_group_memory(
+      experimental::command_graph<graph_state::modifiable> /*Graph*/,
+      size_t /*Num*/) {}
+#else
   dynamic_work_group_memory(
       experimental::command_graph<graph_state::modifiable> Graph, size_t Num)
-#ifndef __SYCL_DEVICE_ONLY__
       : detail::dynamic_work_group_memory_base(
-            Graph, Num * sizeof(std::remove_extent_t<DataT>))
+            Graph, Num * sizeof(std::remove_extent_t<DataT>)) {}
 #endif
-  {
-  }
 
   work_group_memory<DataT, PropertyListT> get() const { return WorkGroupMem; }
 
   /// Updates on the host this dynamic_work_group_memory and all registered
   /// nodes with a new buffer size.
   /// @param Num The new number of elements in the unbounded array.
+#ifdef __SYCL_DEVICE_ONLY__
+  void update(size_t /*Num*/) {}
+#else
   void update(size_t Num) {
-#ifndef __SYCL_DEVICE_ONLY__
     detail::dynamic_parameter_base::updateWorkGroupMem(
         Num * sizeof(std::remove_extent_t<DataT>));
-#endif
   }
+#endif
 
 private:
   work_group_memory<DataT, PropertyListT> WorkGroupMem;
@@ -613,7 +618,8 @@ public:
                     const ValueT &Param)
       : detail::dynamic_parameter_base(Graph, sizeof(ValueT), &Param) {}
 
-  /// Updates this dynamic parameter and all registered nodes with a new value.
+  /// Updates this dynamic parameter and all registered nodes with a new
+  /// value.
   /// @param NewValue The new value for the parameter.
   void update(const ValueT &NewValue) {
     if constexpr (IsAccessor) {

@@ -10,29 +10,10 @@
 
 // Tests updating dynamic_work_group_memory with a new size.
 
-#include <sycl/group_barrier.hpp>
-#include <sycl/sycl.hpp>
-
-using namespace sycl;
-namespace exp_ext = sycl::ext::oneapi::experimental;
-
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((exp_ext::nd_range_kernel<1>))
-void ff_1(exp_ext::dynamic_work_group_memory<int[]> DynLocalMem, int *PtrA) {
-  const auto Item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
-  size_t GlobalID = Item.get_global_id();
-  auto LocalRange = Item.get_local_range(0);
-  auto LocalMem = DynLocalMem.get();
-
-  LocalMem[Item.get_local_id()] = LocalRange;
-  group_barrier(Item.get_group());
-
-  for (size_t i{0}; i < LocalRange; ++i) {
-    PtrA[GlobalID] += LocalMem[i];
-  }
-}
+#include "../../graph_common.hpp"
+#include "free_function_kernels.hpp"
 
 int main() {
-  constexpr int Size{1024};
   constexpr int LocalSize{32};
   nd_range<1> NDRange{Size, LocalSize};
 
@@ -49,7 +30,7 @@ int main() {
 
 #ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
-  kernel_id Kernel_id = exp_ext::get_kernel_id<ff_1>();
+  kernel_id Kernel_id = exp_ext::get_kernel_id<ff_7>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.set_arg(0, DynLocalMem);
@@ -64,10 +45,10 @@ int main() {
   for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == LocalSize * LocalSize);
   }
-  constexpr int NewLocalSize{64};
 
   Queue.memset(PtrA, 0, Size * sizeof(int)).wait();
 
+  constexpr int NewLocalSize{64};
   DynLocalMem.update(NewLocalSize);
   KernelNode.update_nd_range(nd_range<1>{range{Size}, range{NewLocalSize}});
   ExecGraph.update(KernelNode);
