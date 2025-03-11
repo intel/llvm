@@ -515,6 +515,18 @@ int test_esimd() {
   run_2(q, kESIMD, true, 2.38f);
   run_2(q, kSYCL, false, 1.41f);
 
+  // Deactivate implicit module splitting to exercise the downstream
+  // ESIMD-specific splitting.
+  source_kb kbSrcMixed2 = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, mixedSource);
+  exe_kb kbExeMixed2 =
+      syclex::build(kbSrcMixed2, syclex::properties{syclex::build_options{
+                                     "-fsycl-device-code-split=off"}});
+
+  assert(kbExeMixed2.ext_oneapi_has_kernel("vector_add_esimd"));
+  assert(kbExeMixed2.ext_oneapi_has_kernel("vec_add"));
+  assert(std::distance(kbExeMixed2.begin(), kbExeMixed2.end()) == 2);
+
   return 0;
 }
 
