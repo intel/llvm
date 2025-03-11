@@ -1,4 +1,4 @@
-name: 'Run SYCL CTS tests on Linux'
+name: 'Run SYCL CTS tests on Windows'
 
 inputs:
   ref:
@@ -26,7 +26,7 @@ runs:
       path: khronos_sycl_cts
       repository: 'KhronosGroup/SYCL-CTS'
       ref: ${{ inputs.ref }}
-      cache_path: "/__w/repo_cache/"
+      cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
   - name: SYCL CTS GIT submodules init
     if: inputs.cts_testing_mode != 'run-only'
     shell: bash
@@ -57,11 +57,13 @@ runs:
         echo "::endgroup::"
       fi
 
-      cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
+      cmake -GNinja -B./build-cts -S./khronos_sycl_cts \
       -DSYCL_IMPLEMENTATION=DPCPP \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
       -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
+      -DCMAKE_CXX_COMPILER=cl \
+      -DCMAKE_BUILD_TYPE=Release \
       $CMAKE_EXTRA_ARGS
       # Ignore errors so that if one category build fails others still have a
       # chance to finish and be executed at the run stage. Note that
