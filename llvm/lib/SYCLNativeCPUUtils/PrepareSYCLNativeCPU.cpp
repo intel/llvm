@@ -301,18 +301,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   llvm::Constant *CurrentStatePointerTLS = nullptr;
 
-  // check if any of the kernels is called by some other function.
-  // This can happen e.g. with OCK, where wrapper functions are
-  // created around the original kernel.
-  bool KernelIsCalled = false;
-  for (auto &K : OldKernels) {
-    for (auto &U : K->uses()) {
-      if (isa<CallBase>(U.getUser())) {
-        KernelIsCalled = true;
-      }
-    }
-  }
-
   // Then we iterate over all the supported builtins, find the used ones
   llvm::SmallVector<std::pair<llvm::Function *, StringRef>> UsedBuiltins;
   for (const auto &Entry : BuiltinNamesMap) {
@@ -322,8 +310,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (CurrentStatePointerTLS == nullptr) {
       for (const auto &Use : Glob->uses()) {
         auto *I = cast<CallBase>(Use.getUser());
-        if (KernelIsCalled ||
-            IsNonKernelCalledByNativeCPUKernel(I->getFunction())) {
+        if (IsNonKernelCalledByNativeCPUKernel(I->getFunction())) {
           // only use the threadlocal if we have kernels calling builtins
           // indirectly, or if the kernel is called by some other func.
           CurrentStatePointerTLS = M.getOrInsertGlobal(
@@ -405,6 +392,10 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     OldF->replaceAllUsesWith(NewF);
     OldF->eraseFromParent();
     NewKernels.push_back(NewF);
+    if (!CurrentStatePointerTLS && NewF->getNumUses() > 0)
+      // If a thread_local is not used we process called kernels along
+      // with the other builtins.
+      UsedBuiltins.push_back({NewF, ""});
     ModuleChanged = true;
   }
 
@@ -424,6 +415,16 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     Function *ReplaceFunc = nullptr;
     for (const auto &Use : Glob->uses()) {
       auto I = cast<CallBase>(Use.getUser());
+      if (Entry.second == "") {
+        if (const Function *CF = I->getCalledFunction()) {
+          unsigned numParams = CF->getFunctionType()->getNumParams();
+          auto numArgs = std::distance(I->arg_begin(), I->arg_end());
+          if (numArgs == numParams)
+            continue;
+          assert(numArgs + 1 == numParams);
+        }
+        ReplaceFunc = Entry.first;
+      }
       Function *const C = I->getFunction();
       if (IsUnusedBuiltinOrPrivateDef(*C)) {
         ToRemove2.push_back(C);
@@ -461,6 +462,10 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     }
     for (auto Temp : ToRemove2)
       Temp->eraseFromParent();
+
+    // Don't erase if it's not a builtin
+    if (Entry.second == "")
+      continue;
 
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
