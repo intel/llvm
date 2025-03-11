@@ -1295,7 +1295,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
           options::OPT_fsycl_device_obj_EQ)) {
     StringRef ArgValue(DeviceObj->getValue());
-    SmallVector<StringRef, 2> DeviceObjValues = {"spirv", "llvmir", "asm"};
+    SmallVector<StringRef, 3> DeviceObjValues = {"spirv", "llvmir", "asm"};
     if (llvm::find(DeviceObjValues, ArgValue) == DeviceObjValues.end())
       Diag(clang::diag::warn_ignoring_value_using_default)
           << DeviceObj->getSpelling().split('=').first << ArgValue << "llvmir";
