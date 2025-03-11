@@ -1203,6 +1203,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
