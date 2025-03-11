@@ -85,8 +85,7 @@ void EnqueuedPool::insert(void *Ptr, size_t Size, ur_event_handle_t Event,
   Freelist.emplace(Allocation{Ptr, Size, Event, Queue, Alignment});
 }
 
-bool
-EnqueuedPool::cleanup() {
+bool EnqueuedPool::cleanup() {
   auto Lock = std::lock_guard(Mutex);
   auto FreedAllocations = !Freelist.empty();
   for (auto It : Freelist) {
@@ -95,6 +94,7 @@ EnqueuedPool::cleanup() {
 
     auto umfRet = umfPoolFree(hPool, It.Ptr);
     assert(umfRet == UMF_RESULT_SUCCESS);
+    std::ignore = umfRet;
 
     urEventReleaseInternal(It.Event);
   }
@@ -103,8 +103,7 @@ EnqueuedPool::cleanup() {
   return FreedAllocations;
 }
 
-bool
-EnqueuedPool::cleanupForQueue(ur_queue_handle_t Queue) {
+bool EnqueuedPool::cleanupForQueue(ur_queue_handle_t Queue) {
   auto Lock = std::lock_guard(Mutex);
 
   Allocation Alloc = {nullptr, 0, nullptr, Queue, 0};
@@ -119,6 +118,7 @@ EnqueuedPool::cleanupForQueue(ur_queue_handle_t Queue) {
 
     auto umfRet = umfPoolFree(hPool, It->Ptr);
     assert(umfRet == UMF_RESULT_SUCCESS);
+    std::ignore = umfRet;
 
     urEventReleaseInternal(It->Event);
 
@@ -1206,7 +1206,8 @@ ur_usm_pool_handle_t_::allocateEnqueued(ur_queue_handle_t Queue,
   }
 
   auto *Event = Allocation->Event;
-  if (Event->Completed || (Allocation->Queue == Queue && Queue->isInOrderQueue())) {
+  if (Event->Completed ||
+      (Allocation->Queue == Queue && Queue->isInOrderQueue())) {
     urEventReleaseInternal(Event);
     Event = nullptr;
   }
@@ -1279,11 +1280,11 @@ ur_result_t ur_usm_pool_handle_t_::allocate(ur_context_handle_t Context,
       *RetMem = umfPoolAlignedMalloc(umfPool, Size, Alignment);
     }
     if (*RetMem == nullptr) {
-        auto umfRet = umfPoolGetLastAllocationError(umfPool);
-        logger::error(
-            "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
-            umfPool);
-        return umf::umf2urResult(umfRet);
+      auto umfRet = umfPoolGetLastAllocationError(umfPool);
+      logger::error(
+          "enqueueUSMAllocHelper: allocation from the UMF pool {} failed",
+          umfPool);
+      return umf::umf2urResult(umfRet);
     }
   }
 
@@ -1311,17 +1312,12 @@ ur_usm_pool_handle_t_::getPoolByHandle(const umf_memory_pool_handle_t UmfPool) {
 }
 
 void ur_usm_pool_handle_t_::cleanupPools() {
-  PoolManager.forEachPool([&](UsmPool *p) {
-    p->AsyncPool.cleanup();
-    return true;
-  });
+  PoolManager.forEachPool([&](UsmPool *p) { return p->AsyncPool.cleanup(); });
 }
 
 void ur_usm_pool_handle_t_::cleanupPoolsForQueue(ur_queue_handle_t Queue) {
-  PoolManager.forEachPool([&](UsmPool *p) {
-    p->AsyncPool.cleanupForQueue(Queue);
-    return true;
-  });
+  PoolManager.forEachPool(
+      [&](UsmPool *p) { return p->AsyncPool.cleanupForQueue(Queue); });
 }
 
 bool ur_usm_pool_handle_t_::hasPool(const umf_memory_pool_handle_t Pool) {
