@@ -265,11 +265,15 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             this_name, chart_data, failures, options.output_markdown
         )
 
-        with open("benchmark_results.md", "w") as file:
+        md_path = options.output_directory
+        if options.output_directory is None:
+            md_path = os.getcwd()
+
+        with open(os.path.join(md_path, "benchmark_results.md"), "w") as file:
             file.write(markdown_content)
 
         print(
-            f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md"
+            f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
         )
 
     saved_name = save_name if save_name is not None else this_name
@@ -283,7 +287,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             compare_names.append(saved_name)
 
     if options.output_html:
-        generate_html(history.runs, compare_names)
+        html_path = options.output_directory
+        if options.output_directory is None:
+            html_path = os.path.join(os.path.dirname(__file__), "html")
+        generate_html(history.runs, compare_names, html_path)
 
 
 def validate_and_parse_env_args(env_args):
@@ -399,6 +406,12 @@ if __name__ == "__main__":
         choices=["local", "remote"],
     )
     parser.add_argument(
+        "--output-dir",
+        type=str,
+        help="Location for output files, if --output-html or --output_markdown was specified.",
+        default=None
+    )
+    parser.add_argument(
         "--dry-run",
         help="Do not run any actual benchmarks",
         action="store_true",
@@ -486,6 +499,10 @@ if __name__ == "__main__":
     if args.compute_runtime is not None:
         options.build_compute_runtime = True
         options.compute_runtime_tag = args.compute_runtime
+    if args.output_dir is not None:
+        if not os.path.isdir(args.output_dir):
+            parser.error("Specified --output-dir is not a valid path")
+        options.output_directory = os.path.abspath(args.output_dir)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

@@ -31,6 +31,7 @@ class Options:
     compare_max: int = 10  # average/median over how many results
     output_markdown: MarkdownSize = MarkdownSize.SHORT
     output_html: str = "local"
+    output_directory: str = None
     dry_run: bool = False
     stddev_threshold: float = 0.02
     iterations_stddev: int = 5
