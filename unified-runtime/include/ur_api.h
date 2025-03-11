@@ -417,8 +417,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 240,
   /// Enumerator for ::urCommandBufferAppendUSMAdviseExp
   UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 241,
-  /// Enumerator for ::urCommandBufferEnqueueExp
-  UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 242,
+  /// Enumerator for ::urEnqueueCommandBufferExp
+  UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP = 242,
   /// Enumerator for ::urCommandBufferUpdateSignalEventExp
   UR_FUNCTION_COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP = 243,
   /// Enumerator for ::urCommandBufferUpdateWaitEventsExp
@@ -2087,8 +2087,9 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_VERSION = 70,
   /// [char[]] null-terminated version of backend runtime
   UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,
-  /// [char[]] Return a null-terminated space separated list of extension
-  /// names
+  /// [char[]] Return a null-terminated string representing any backend
+  /// extensions supported by the adapter. Format and content is entirely
+  /// adapter defined.
   UR_DEVICE_INFO_EXTENSIONS = 72,
   /// [size_t] Maximum size in bytes of internal printf buffer
   UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,
@@ -2320,6 +2321,17 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP = 0x2050,
+  /// [::ur_bool_t] Returns true if the device supports the use of kernel
+  /// launch properties.
+  UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP = 0x3000,
+  /// [::ur_bool_t] Returns true if the device supports the USM P2P
+  /// experimental feature.
+  UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
+  /// [::ur_bool_t] Returns true if the device supports cooperative kernels.
+  UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP = 0x5000,
+  /// [::ur_bool_t] Returns true if the device supports the multi device
+  /// compile experimental feature.
+  UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP = 0x6000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2345,7 +2357,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP < propName`
+///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2972,20 +2984,6 @@ typedef enum ur_context_info_t {
   /// [::ur_bool_t] to indicate if the ::urEnqueueUSMFill2D entrypoint is
   /// supported.
   UR_CONTEXT_INFO_USM_FILL2D_SUPPORT = 4,
-  /// [::ur_memory_order_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory order capabilities.
-  UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 5,
-  /// [::ur_memory_scope_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory scope capabilities.
-  UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 6,
-  /// [::ur_memory_order_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory fence order capabilities.
-  /// Zero is returned if the backend does not support context-level fences.
-  UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 7,
-  /// [::ur_memory_scope_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory fence scope capabilities.
-  /// Zero is returned if the backend does not support context-level fences.
-  UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 8,
   /// @cond
   UR_CONTEXT_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -3034,7 +3032,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName`
+///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -7095,8 +7093,8 @@ typedef enum ur_command_t {
   UR_COMMAND_READ_HOST_PIPE = 25,
   /// Event created by ::urEnqueueWriteHostPipe
   UR_COMMAND_WRITE_HOST_PIPE = 26,
-  /// Event created by ::urCommandBufferEnqueueExp
-  UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 0x1000,
+  /// Event created by ::urEnqueueCommandBufferExp
+  UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP = 0x1000,
   /// Event created by ::urBindlessImagesWaitExternalSemaphoreExp
   UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP = 0x2000,
   /// Event created by ::urBindlessImagesSignalExternalSemaphoreExp
@@ -10422,13 +10420,6 @@ typedef enum ur_exp_command_buffer_command_info_t {
 } ur_exp_command_buffer_command_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for command-buffers which
-///        is returned when querying device extensions.
-#define UR_COMMAND_BUFFER_EXTENSION_STRING_EXP "ur_exp_command_buffer"
-#endif // UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-Buffer Descriptor Type
 typedef struct ur_exp_command_buffer_desc_t {
   /// [in] type of this structure, must be
@@ -10445,6 +10436,21 @@ typedef struct ur_exp_command_buffer_desc_t {
   ur_bool_t enableProfiling;
 
 } ur_exp_command_buffer_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief A value that identifies a command inside of a command-buffer, used
+/// for
+///        defining dependencies between commands in the same command-buffer.
+typedef uint32_t ur_exp_command_buffer_sync_point_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of Command-Buffer object
+typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of a Command-Buffer command
+typedef struct ur_exp_command_buffer_command_handle_t_
+    *ur_exp_command_buffer_command_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for updating a kernel command memobj argument.
@@ -10509,6 +10515,8 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
   ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
+  /// [in] Handle of the command-buffer kernel command to update.
+  ur_exp_command_buffer_command_handle_t hCommand;
   /// [in][optional] The new kernel handle. If this parameter is nullptr,
   /// the current kernel handle in `hCommand`
   /// will be used. If a kernel handle is passed, it must be a valid kernel
@@ -10557,21 +10565,6 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
   size_t *pNewLocalWorkSize;
 
 } ur_exp_command_buffer_update_kernel_launch_desc_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief A value that identifies a command inside of a command-buffer, used
-/// for
-///        defining dependencies between commands in the same command-buffer.
-typedef uint32_t ur_exp_command_buffer_sync_point_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of Command-Buffer object
-typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of a Command-Buffer command
-typedef struct ur_exp_command_buffer_command_handle_t_
-    *ur_exp_command_buffer_command_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a Command-Buffer object
@@ -11486,8 +11479,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
 ///         + `NULL == hQueue`
+///         + `NULL == hCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -11497,11 +11490,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    /// [in] Handle of the command-buffer object.
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -11520,7 +11513,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///
 /// @details
 /// This entry-point is synchronous and may block if the command-buffer is
-/// executing when the entry-point is called.
+/// executing when the entry-point is called. On error, the state of the
+/// command-buffer commands being updated is undefined.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -11528,66 +11522,75 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommand`
+///         + `NULL == hCommandBuffer`
+///         + `NULL == pUpdateKernelLaunch->hCommand`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUpdateKernelLaunch`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `numKernelUpdates == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS
-///         is not supported by the device, but any of
-///         `pUpdateKernelLaunch->numNewMemObjArgs`,
-///         `pUpdateKernelLaunch->numNewPointerArgs`, or
-///         `pUpdateKernelLaunch->numNewValueArgs` are not zero.
+///         is not supported by the device, and for any of any element of
+///         `pUpdateKernelLaunch` the `numNewMemObjArgs`, `numNewPointerArgs`,
+///         or `numNewValueArgs` members are not zero.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is nullptr and
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is nullptr and
+///         `pNewGlobalWorkSize` is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkSize` member is not nullptr
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkOffset` member is not
+///         nullptr.
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE
-///         is not supported by the device but `pUpdateKernelLaunch->hNewKernel`
-///         is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `hNewKernel` member is not nullptr.
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true
-///         on creation of the command-buffer `hCommand` belongs to.
-///         + If the command-buffer `hCommand` belongs to has not been
-///         finalized.
+///         on creation of the `hCommandBuffer`.
+///         + If `hCommandBuffer`  has not been finalized.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
-///         + If `hCommand` is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         was not created from `hCommandBuffer`.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pUpdateKernelLaunch->newWorkDim < 1 ||
-///         pUpdateKernelLaunch->newWorkDim > 3`
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is less than 1 or greater than 3.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + If `pUpdateKernelLaunch->hNewKernel` was not passed to the
-///         `hKernel` or `phKernelAlternatives` parameters of
-///         ::urCommandBufferAppendKernelLaunchExp when this command was
-///         created.
-///         + If `pUpdateKernelLaunch->newWorkDim` is different from the current
-///         workDim in `hCommand` and,
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize`, or
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` are nullptr.
+///         + If for any element of `pUpdateKernelLaunch` the `hNewKernel`
+///         member was not passed to the `hKernel` or `phKernelAlternatives`
+///         parameters of ::urCommandBufferAppendKernelLaunchExp when the
+///         command was created.
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is different from the current workDim in the `hCommand`
+///         member, and `pNewGlobalWorkSize` or `pNewGlobalWorkOffset` are
+///         nullptr.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    /// [in] Handle of the command-buffer kernel command to update.
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] Struct defining how the kernel command is to be updated.
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Length of pUpdateKernelLaunch.
+    uint32_t numKernelUpdates,
+    /// [in][range(0, numKernelUpdates)]  List of structs defining how a
+    /// kernel commands are to be updated.
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch);
 
@@ -11710,13 +11713,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 #if !defined(__GNUC__)
 #pragma region cooperative_kernels_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for cooperative-kernels
-///        which is returned when querying device extensions.
-#define UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP "ur_exp_cooperative_kernels"
-#endif // UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to execute a cooperative kernel
 ///
@@ -11867,13 +11863,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 #pragma region launch_properties_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
-/// @brief The extension string that defines support for the Launch Properties
-///        extension, which is returned when querying device extensions.
-#define UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP "ur_exp_launch_properties"
-#endif // UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Specifies a launch property id
 ///
 /// @remarks
@@ -12019,14 +12008,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 #if !defined(__GNUC__)
 #pragma region multi_device_compile_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for test
-///        which is returned when querying device extensions.
-#define UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP                           \
-  "ur_exp_multi_device_compile"
-#endif // UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Produces an executable program from one program, negates need for the
 ///        linking step.
@@ -12214,13 +12195,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(
 #if !defined(__GNUC__)
 #pragma region usm_p2p_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_USM_P2P_EXTENSION_STRING_EXP
-/// @brief The extension string that defines support for USM P2P which is
-///        returned when querying device extensions.
-#define UR_USM_P2P_EXTENSION_STRING_EXP "ur_exp_usm_p2p"
-#endif // UR_USM_P2P_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported peer info
 typedef enum ur_exp_peer_info_t {
@@ -14041,6 +14015,18 @@ typedef struct ur_enqueue_usm_free_exp_params_t {
 } ur_enqueue_usm_free_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueCommandBufferExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_command_buffer_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_command_buffer_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueCooperativeKernelLaunchExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14804,23 +14790,12 @@ typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
 } ur_command_buffer_append_usm_advise_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferEnqueueExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_enqueue_exp_params_t {
-  ur_exp_command_buffer_handle_t *phCommandBuffer;
-  ur_queue_handle_t *phQueue;
-  uint32_t *pnumEventsInWaitList;
-  const ur_event_handle_t **pphEventWaitList;
-  ur_event_handle_t **pphEvent;
-} ur_command_buffer_enqueue_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferUpdateKernelLaunchExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_command_buffer_update_kernel_launch_exp_params_t {
-  ur_exp_command_buffer_command_handle_t *phCommand;
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  uint32_t *pnumKernelUpdates;
   const ur_exp_command_buffer_update_kernel_launch_desc_t *
       *ppUpdateKernelLaunch;
 } ur_command_buffer_update_kernel_launch_exp_params_t;

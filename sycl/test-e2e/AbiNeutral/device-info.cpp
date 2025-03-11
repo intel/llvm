@@ -67,7 +67,7 @@ static void initGlobalDevicePoolState() {
   }
   gDevPool.contexts.resize(1);
   gDevPool.contexts[0] = std::make_unique<sycl::context>(
-      gDevPool.devices[0]->get_platform().ext_oneapi_get_default_context());
+      gDevPool.devices[0]->get_platform().khr_get_default_context());
 }
 
 static void initDevicePoolCallOnce() {

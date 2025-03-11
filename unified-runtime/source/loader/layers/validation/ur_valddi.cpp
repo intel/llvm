@@ -496,7 +496,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP < propName)
+    if (UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -883,7 +883,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName)
+    if (UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -9407,12 +9407,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferEnqueueExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    /// [in] Handle of the command-buffer object.
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+/// @brief Intercept function for urEnqueueCommandBufferExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -9425,17 +9425,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// phEvent are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) {
-  auto pfnEnqueueExp = getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
+  auto pfnCommandBufferExp =
+      getContext()->urDdiTable.EnqueueExp.pfnCommandBufferExp;
 
-  if (nullptr == pfnEnqueueExp) {
+  if (nullptr == pfnCommandBufferExp) {
     return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
+    if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (NULL == hQueue)
+    if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
@@ -9458,8 +9459,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     getContext()->refCountContext->logInvalidReference(hQueue);
   }
 
-  ur_result_t result = pfnEnqueueExp(
-      hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+  ur_result_t result = pfnCommandBufferExp(
+      hQueue, hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
 
   return result;
 }
@@ -9467,9 +9468,12 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    /// [in] Handle of the command-buffer kernel command to update.
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] Struct defining how the kernel command is to be updated.
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Length of pUpdateKernelLaunch.
+    uint32_t numKernelUpdates,
+    /// [in][range(0, numKernelUpdates)]  List of structs defining how a
+    /// kernel commands are to be updated.
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
   auto pfnUpdateKernelLaunchExp =
@@ -9480,18 +9484,21 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommand)
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pUpdateKernelLaunch->hCommand)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == pUpdateKernelLaunch)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (pUpdateKernelLaunch->newWorkDim < 1 ||
-        pUpdateKernelLaunch->newWorkDim > 3)
-      return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
+    if (numKernelUpdates == 0)
+      return UR_RESULT_ERROR_INVALID_SIZE;
   }
 
-  ur_result_t result = pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+  ur_result_t result = pfnUpdateKernelLaunchExp(
+      hCommandBuffer, numKernelUpdates, pUpdateKernelLaunch);
 
   return result;
 }
@@ -10607,9 +10614,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnAppendUSMAdviseExp =
       ur_validation_layer::urCommandBufferAppendUSMAdviseExp;
 
-  dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
-  pDdiTable->pfnEnqueueExp = ur_validation_layer::urCommandBufferEnqueueExp;
-
   dditable.pfnUpdateKernelLaunchExp = pDdiTable->pfnUpdateKernelLaunchExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
       ur_validation_layer::urCommandBufferUpdateKernelLaunchExp;
@@ -10838,6 +10842,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   dditable.pfnUSMFreeExp = pDdiTable->pfnUSMFreeExp;
   pDdiTable->pfnUSMFreeExp = ur_validation_layer::urEnqueueUSMFreeExp;
+
+  dditable.pfnCommandBufferExp = pDdiTable->pfnCommandBufferExp;
+  pDdiTable->pfnCommandBufferExp =
+      ur_validation_layer::urEnqueueCommandBufferExp;
 
   dditable.pfnCooperativeKernelLaunchExp =
       pDdiTable->pfnCooperativeKernelLaunchExp;
