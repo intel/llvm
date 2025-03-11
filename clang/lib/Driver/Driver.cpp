@@ -1288,14 +1288,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
   checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
 
-  // Evaluation of -fsycl-device-obj is slightly different, we will emit
-  // a warning and inform the user of the default behavior used.
+  // Evaluation of -fsycl-device-obj is slightly different, we will emit a
+  // warning and inform the user of the default behavior used.
   // TODO: General usage of this option is to check for 'spirv' and fallthrough
   // to using llvmir.  This can be improved to be more obvious in usage.
   if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
           options::OPT_fsycl_device_obj_EQ)) {
     StringRef ArgValue(DeviceObj->getValue());
-    SmallVector<StringRef, 2> DeviceObjValues = {"spirv", "llvmir"};
+    SmallVector<StringRef, 2> DeviceObjValues = {"spirv", "llvmir", "asm"};
     if (llvm::find(DeviceObjValues, ArgValue) == DeviceObjValues.end())
       Diag(clang::diag::warn_ignoring_value_using_default)
           << DeviceObj->getSpelling().split('=').first << ArgValue << "llvmir";
@@ -1533,6 +1533,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
     }
   }
+
   // -fno-sycl-libspirv flag is reserved for very unusual cases where the
   // libspirv library is not linked when using CUDA/HIP: so output appropriate
   // warnings.
@@ -5313,7 +5314,7 @@ class OffloadingActionBuilder final {
               continue;
           } else if ((SYCLDeviceOnly || FinalPhase != phases::Link) &&
                      Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
-                         .equals_insensitive("ptx")) {
+                         .equals_insensitive("asm")) {
             auto *CompileAction =
                 C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
             A = C.MakeAction<BackendJobAction>(CompileAction, types::TY_PP_Asm);
