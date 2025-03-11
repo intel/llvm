@@ -89,6 +89,18 @@ void DeviceBinaryContainer::addProperty(PropertySetContainer &&Cont) {
   PropertySets.push_back(std::move(Cont));
 }
 
+void DeviceBinaryContainer::setCompileOptions(std::string_view CompileOpts) {
+  // Forbid calls to this method after the first PI struct has been created.
+  assert(Fused && "Reallocating string would invalidate existing UR structs");
+  if (CompileOpts.empty()) {
+    CompileOptions.reset();
+    return;
+  }
+  CompileOptions.reset(new char[CompileOpts.length() + 1]);
+  std::memcpy(CompileOptions.get(), CompileOpts.data(),
+              CompileOpts.length() + 1);
+}
+
 sycl_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
     const unsigned char *BinaryStart, size_t BinarySize, const char *TargetSpec,
     sycl_device_binary_type Format) {
@@ -96,7 +108,7 @@ sycl_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
   DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
   DeviceBinary.Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   DeviceBinary.Format = Format;
-  DeviceBinary.CompileOptions = "";
+  DeviceBinary.CompileOptions = CompileOptions ? CompileOptions.get() : "";
   DeviceBinary.LinkOptions = "";
   DeviceBinary.ManifestStart = nullptr;
   DeviceBinary.ManifestEnd = nullptr;
