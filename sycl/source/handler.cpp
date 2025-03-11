@@ -418,6 +418,7 @@ event handler::finalize() {
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!impl->isStateExplicitKernelBundle() &&
+          !(MKernel && MKernel->isInterop()) &&
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
           !KernelBundleImpPtr->tryGetKernel(MKernelName.c_str(),
