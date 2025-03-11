@@ -567,7 +567,7 @@ public:
     assert(!std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage));
     assert(MRTCBinInfo);
     assert(MOrigins & ImageOriginKernelCompiler);
-    
+
     std::shared_ptr<sycl::detail::context_impl> ContextImpl =
         getSyclObjImpl(MContext);
 
