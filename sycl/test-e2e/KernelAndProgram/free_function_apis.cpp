@@ -9,6 +9,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/experiemental/free_function_traits.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;

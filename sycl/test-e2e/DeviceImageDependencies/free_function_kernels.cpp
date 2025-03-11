@@ -14,6 +14,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 

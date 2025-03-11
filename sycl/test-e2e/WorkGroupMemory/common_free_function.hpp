@@ -7,6 +7,7 @@
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 
