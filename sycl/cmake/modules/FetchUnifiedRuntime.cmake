@@ -258,7 +258,7 @@ if(TARGET UnifiedRuntimeLoader)
 endif()
 
 add_custom_target(UnifiedRuntimeAdapters)
-add_dependencies(UnifiedRuntimeLoader UnifiedRuntimeAdapters)
+add_dependencies(ur_loader UnifiedRuntimeAdapters)
 
 function(add_sycl_ur_adapter NAME)
   add_dependencies(UnifiedRuntimeAdapters ur_adapter_${NAME})
