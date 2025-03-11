@@ -14,7 +14,7 @@
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=2 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -53,33 +53,43 @@ int test_lifetimes() {
       ctx, syclex::source_language::sycl_jit, SYCLSource);
 
   exe_kb kbExe1 = syclex::build(kbSrc);
+  // CHECK: urProgramCreateWithIL{{.*}}phProgram{{.*}}([[PROG1:.*]]))
 
   {
+    std::cout << "Scope1\n";
+    // CHECK: Scope1
     exe_kb kbExe2 = syclex::build(kbSrc);
     // kbExe2 goes out of scope; its kernels are removed from program mananager.
-    std::clog << "Scope1\n";
-    // CHECK: Scope1
-    // CHECK-NEXT: Deleting: rtc_1$__sycl_kernel_vec_add
+    // CHECK: urProgramCreateWithIL{{.*}}phProgram{{.*}}([[PROG2:.*]]))
+    // CHECK: urProgramRelease{{.*}}[[PROG2]]
   }
+  std::cout << "End Scope1\n";
+  // CHECK: End Scope1
 
   {
+    std::cout << "Scope2\n";
+    // CHECK: Scope2
     std::unique_ptr<sycl::kernel> kPtr;
     {
+      std::cout << "Scope3\n";
+      // CHECK: Scope3
       exe_kb kbExe3 = syclex::build(kbSrc);
 
       sycl::kernel k = kbExe3.ext_oneapi_get_kernel("vec_add");
+      // CHECK: urKernelCreate{{.*}}phKernel{{.*}}([[KERNEL1:.*]]))
       kPtr = std::make_unique<sycl::kernel>(k);
       // kbExe3 goes out of scope, but the kernel keeps the underlying
       // impl-object alive
-      std::clog << "Scope2\n";
+      // CHECK-NOT: urKernelRelease
     }
+    std::cout << "End Scope3\n";
+    // CHECK: End Scope3
     // kPtr goes out of scope, freeing the kernel and its bundle
-    std::clog << "Scope3\n";
-    // CHECK: Scope2
-    // CHECK-NEXT: Scope3
-    // CHECK-NEXT: Deleting: rtc_2$__sycl_kernel_vec_add
+    // CHECK: urKernelRelease{{.*}}[[KERNEL1]]
   }
-  // CHECK: Deleting: rtc_0$__sycl_kernel_vec_add
+  std::cout << "End Scope2\n";
+  // CHECK: End Scope2
+  // CHECK: urProgramRelease{{.*}}[[PROG1]]
 
   return 0;
 }
