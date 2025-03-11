@@ -777,7 +777,8 @@ public:
   std::vector<kernel_id> get_kernel_ids() const {
     // RTC kernel bundles shouldn't have user-facing kernel ids, return an
     // empty vector when the bundle contains RTC kernels.
-    if (MLanguage == syclex::source_language::sycl_jit) {
+    if (MLanguage == syclex::source_language::sycl_jit &&
+        detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() < 2) {
       return {};
     }
     // Collect kernel ids from all device images, then remove duplicates
@@ -1005,6 +1006,14 @@ public:
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_bundle_impl", e);
+    }
+
+    if (MLanguage == syclex::source_language::sycl_jit &&
+        detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
+      auto kernelIDs = get_kernel_ids();
+      for (auto &id : kernelIDs) {
+        std::clog << "Deleting: " << id.get_name() << std::endl;
+      }
     }
   }
 
