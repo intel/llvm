@@ -156,7 +156,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
         ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
     add_dependencies(${LIB_NAME} sycl-jit)
     add_dependencies(${LIB_OBJ_NAME} sycl-jit)
-    target_include_directories(${LIB_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
        sycl-jit)
@@ -179,12 +178,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       UnifiedRuntimeCommon
   )
 
-  target_include_directories(${LIB_OBJ_NAME}
-    PRIVATE
-      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
-      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
-  )
-
   add_dependencies(${LIB_OBJ_NAME} UnifiedRuntimeAdapters ur_umf)
 
   target_link_libraries(${LIB_NAME}
@@ -201,12 +194,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   else()
     add_dependencies(${LIB_NAME} UnifiedRuntimeLoader)
   endif()
-
-  target_include_directories(${LIB_NAME}
-    PRIVATE
-      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
-      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
-  )
 
   add_dependencies(${LIB_NAME} UnifiedRuntimeAdapters ur_umf)
 
