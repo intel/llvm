@@ -180,7 +180,7 @@ public:
       std::shared_ptr<std::vector<kernel_id>> &&KernelIDs,
       syclex::source_language Lang, std::set<std::string> &&KernelNames,
       std::unordered_map<std::string, std::string> &&MangledKernelNames,
-      sycl_device_binary Binary, std::string &&Prefix)
+      std::string &&Prefix)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(nullptr),
         MKernelIDs(std::move(KernelIDs)),
@@ -646,7 +646,7 @@ public:
         auto DevImgImpl = std::make_shared<device_image_impl>(
             NewImage, MContext, Devices, bundle_state::input,
             std::move(KernelIDs), MRTCBinInfo->MLanguage,
-            std::move(KernelNames), std::move(MangledKernelNames), Binary,
+            std::move(KernelNames), std::move(MangledKernelNames),
             std::string{Prefix});
 
         DevImgPlainWithDeps ImgWithDeps{DevImgImpl};
