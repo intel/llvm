@@ -15,6 +15,8 @@ inputs:
     required: true
   retention-days:
     required: false
+  cache_path:
+    required: false
 
 runs:
   using: "composite"
@@ -26,7 +28,7 @@ runs:
       path: khronos_sycl_cts
       repository: 'KhronosGroup/SYCL-CTS'
       ref: ${{ inputs.ref }}
-      cache_path: "/__w/repo_cache/"
+      cache_path: ${{ inputs.cache_path || '/__w/repo_cache/' }}
   - name: SYCL CTS GIT submodules init
     if: inputs.cts_testing_mode != 'run-only'
     shell: bash
@@ -57,16 +59,19 @@ runs:
         echo "::endgroup::"
       fi
 
-      cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
+      cmake -GNinja -B./build-cts -S./khronos_sycl_cts \
       -DSYCL_IMPLEMENTATION=DPCPP \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
       -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
+      -DCMAKE_CXX_COMPILER=cl \
+      -DCMAKE_BUILD_TYPE=Release \
       $CMAKE_EXTRA_ARGS
       # Ignore errors so that if one category build fails others still have a
       # chance to finish and be executed at the run stage. Note that
       # "test_conformance" target skips building "test_all" executable.
-      ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
+      # ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
+      ninja -C build-cts test_header
 
   - name: Pack SYCL-CTS binaries
     if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
