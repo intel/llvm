@@ -5,6 +5,7 @@ implementation produces sets of properties. The intention of this design
 document is to describe the structure of the property sets and define the
 representation and meaning of pre-defined property set names.
 
+
 ## Property sets structure
 
 A property set consists of a reserved name, enclosed in square brackets,
@@ -24,11 +25,17 @@ corresponding value:
 | "1"        | The value is a 32 bit integer.            |
 | "2"        | The value is a base64 encoded byte array. |
 
-### Property sets
+__Note:__ Whitespaces are __not__ ignored and are treated like any other
+characters. As such, `some_key=1|1` is not the same as `some_key = 1 | 1` and
+`[some property set]` is not the same as `[ some property set ]`.
+
+
+## Property sets
 
 This section describes the known property sets.
 
-#### [SYCL/specialization constants]
+
+### [SYCL/specialization constants]
 
 __Key:__ Specialization constant name.
 
@@ -52,7 +59,7 @@ unsigned Size;
 ```
 
 
-#### [SYCL/specialization constants default values]
+### [SYCL/specialization constants default values]
 
 __Key:__ Specialization constant name.
 
@@ -62,7 +69,7 @@ __Value:__ Byte representation of the default value for the specialization
 constant.
 
 
-#### [SYCL/devicelib req mask]
+### [SYCL/devicelib req mask]
 
 __Key:__ At most one entry with "DeviceLibReqMask".
 
@@ -75,7 +82,7 @@ __Notes:__
 1. If this property set is missing, no device libraries are used by the binary.
 
 
-#### [SYCL/kernel param opt]
+### [SYCL/kernel param opt]
 
 __Key:__ Kernel name.
 
@@ -92,7 +99,7 @@ been eliminated.
 arguments.
 
 
-#### [SYCL/program metadata]
+### [SYCL/program metadata]
 
 Program metadata properties:
 
@@ -105,7 +112,7 @@ Program metadata properties:
 | `variable` + "@global_id_mapping"        | Byte array. ("2")     | Specifies the mapping between the global variable with unique identifier `variable` and its name in the binary.  |
 
 
-#### [SYCL/misc properties]
+### [SYCL/misc properties]
 
 Miscellaneous properties:
 
@@ -119,7 +126,7 @@ Miscellaneous properties:
 | "specConstsReplacedWithDefault" | 32 bit integer. ("1") | 1 if the specialization constants have been replaced by their default values and 0 or missing otherwise.         |
 
 
-#### [SYCL/assert used]
+### [SYCL/assert used]
 
 __Key:__ Kernel name.
 
@@ -128,7 +135,7 @@ __Value type:__ 32 bit integer. ("1")
 __Value:__ 1 if the kernel uses assertions and 0 or missing otherwise.
 
 
-#### [SYCL/exported symbols]
+### [SYCL/exported symbols]
 
 __Key:__ Symbol name.
 
@@ -137,7 +144,7 @@ __Value type:__ 32 bit integer. ("1")
 __Value:__ 1 if the symbol is exported by the binary and 0 or missing otherwise.
 
 
-#### [SYCL/imported symbols]
+### [SYCL/imported symbols]
 
 __Key:__ Symbol name.
 
@@ -146,7 +153,7 @@ __Value type:__ 32 bit integer. ("1")
 __Value:__ 1 if the symbol is imported by the binary and 0 or missing otherwise.
 
 
-#### [SYCL/device globals]
+### [SYCL/device globals]
 
 __Key:__ Device global variable name.
 
@@ -172,7 +179,7 @@ __Notes:__
 global variables.
 
 
-#### [SYCL/device requirements]
+### [SYCL/device requirements]
 
 Set of device requirements for the entire module:
 
@@ -190,7 +197,7 @@ Set of device requirements for the entire module:
 See also [OptionalDeviceFeatures.md](OptionalDeviceFeatures.md).
 
 
-#### [SYCL/host pipes]
+### [SYCL/host pipes]
 
 __Key:__ Host pipe variable name.
 
@@ -210,7 +217,7 @@ __Notes:__
 variables.
 
 
-#### [SYCL/virtual functions]
+### [SYCL/virtual functions]
 
 Set of information about virtual function usage in the module.
 
@@ -220,7 +227,7 @@ Set of information about virtual function usage in the module.
 | "uses-virtual-functions-set" | Byte array. ("2") | A string containing a comma-separated list of sets of virtual functions used by the module. If this is missing, the module does not use any virtual function sets. |
 
 
-#### [SYCL/implicit local arg]
+### [SYCL/implicit local arg]
 
 __Key:__ Kernel name.
 
@@ -236,7 +243,7 @@ have an implicit local memory argument.
 local memory argument.
 
 
-#### [SYCL/registered kernels]
+### [SYCL/registered kernels]
 
 __Key:__ "Registered" kernel name.
 
@@ -250,7 +257,7 @@ __Notes:__
 kernel names.
 
 
-#### [SYCLBIN/global metadata]
+### [SYCLBIN/global metadata]
 
 Set of global information about a SYCLBIN file.
 
@@ -259,7 +266,7 @@ Set of global information about a SYCLBIN file.
 | "state" | 32 bit integer. ("1") | Integer representation of one of the possible states of the file, corresponding to the `sycl::bundle_state` enum. It must be one of the following:<ol start="0"><li>`sycl::bundle_state::input`</li><li>`sycl::bundle_state::object`</li><li>`sycl::bundle_state::executable`</li></ol> |
 
 
-#### [SYCLBIN/ir module metadata]
+### [SYCLBIN/ir module metadata]
 
 Set of information about an IR module in a SYCLBIN file.
 
@@ -268,13 +275,11 @@ Set of information about an IR module in a SYCLBIN file.
 | "type" | 32 bit integer. ("1") | Integer representation of one of the pre-defined IR types. It must be one of the following:<ol start="0"><li>SPIR-V</li><li>PTX</li><li>AMDGCN</li></ol> |
 
 
-#### [SYCLBIN/native device code image metadata]
+### [SYCLBIN/native device code image metadata]
 
 Set of information about an native device code image in a SYCLBIN file.
 
 | Key    | Value type        | Value                                                 |
 | ------ | ----------------- | ----------------------------------------------------- |
 | "arch" | Byte array. ("2") | A string representing the architecture of the binary. |
-
-
 
