@@ -142,7 +142,9 @@ static std::string demangleKernelName(std::string_view Name) {
   return (Status == 0) ? result.p : std::string(Name);
 }
 #else
-static std::string demangleKernelName(std::string_view Name) { return std::string(Name); }
+static std::string demangleKernelName(std::string_view Name) {
+  return std::string(Name);
+}
 #endif
 
 void applyFuncOnFilteredArgs(
@@ -2095,9 +2097,9 @@ void instrumentationFillCommonData(const std::string &KernelName,
   xpti::payload_t Payload;
   if (!FileName.empty()) {
     // File name has a valid string
-    Payload = xpti::payload_t(FuncName.empty() ? KernelName.data()
-                                               : FuncName.c_str(),
-                              FileName.c_str(), Line, Column, Address);
+    Payload =
+        xpti::payload_t(FuncName.empty() ? KernelName.data() : FuncName.c_str(),
+                        FileName.c_str(), Line, Column, Address);
     HasSourceInfo = true;
   } else if (Address) {
     // We have a valid function name and an address
