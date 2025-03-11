@@ -864,6 +864,9 @@ params:
       desc: |
             [out][optional] pointer to the Host's global timestamp that
             correlates with the Device's global timestamp value
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no means to support the operation."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Memory order capabilities"

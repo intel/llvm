@@ -1723,7 +1723,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
   RetErr = cl_adapter::getPlatformVersion(Platform, PlatVer);
 
   if (PlatVer < oclv::V2_1 || DevVer < oclv::V2_1) {
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   if (pDeviceTimestamp) {
