@@ -492,7 +492,7 @@ Then the memory bus width can be obtained using the standard get\_info() interfa
 
 # Throttle reason #
 
-A new device descriptor is added which provides the current GPU clock throttle reasons.
+A new device descriptor is added which provides the current clock throttle reasons.
 A new enum is added with the list of possible throttle reasons.
 
 ## Version ##
@@ -503,13 +503,13 @@ The extension supports this query in version 7 and later.
 
 | Reason             | Description |
 | ------------------ | ----------- |
-| `power_cap` | The GPU clock frequency is throttled due to hitting the power limit. |
-| `current_limit` | The GPU clock frequency is throttled due to hitting the current limit. |
-| `thermal_limit` | The GPU clock frequency is throttled due to hitting the thermal limit. |
-| `psu_alert` | The GPU clock frequency is throttled due to power supply assertion. |
-| `sw_range` | The GPU clock frequency is throttled due to software supplied frequency range. |
-| `hw_range` | The GPU clock frequency is throttled because there is a sub block that has a lower frequency when it receives clocks. |
-| `other` | The GPU clock frequency is throttled due to other reason. |
+| `power_cap` | The clock frequency is throttled due to hitting the power limit. |
+| `current_limit` | The clock frequency is throttled due to hitting the current limit. |
+| `thermal_limit` | The clock frequency is throttled due to hitting the thermal limit. |
+| `psu_alert` | The clock frequency is throttled due to power supply assertion. |
+| `sw_range` | The clock frequency is throttled due to software supplied frequency range. |
+| `hw_range` | The clock frequency is throttled because there is a sub block that has a lower frequency when it receives clocks. |
+| `other` | The clock frequency is throttled due to other reason. |
 
 
 ```
