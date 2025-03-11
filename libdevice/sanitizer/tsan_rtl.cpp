@@ -13,6 +13,9 @@
 
 DeviceGlobal<void *> __TsanLaunchInfo;
 
+#define TsanLaunchInfo                                                         \
+  ((__SYCL_GLOBAL__ TsanRuntimeData *)__TsanLaunchInfo.get())
+
 #if defined(__SPIR__) || defined(__SPIRV__)
 
 static const __SYCL_CONSTANT__ char __tsan_print_generic_to[] =
@@ -30,9 +33,6 @@ static const __SYCL_CONSTANT__ char __tsan_print_unsupport_device_type[] =
 
 static const __SYCL_CONSTANT__ char __tsan_report_race[] =
     "[kernel] data race (%s:%d) in %s\n";
-
-#define TsanLaunchInfo                                                         \
-  ((__SYCL_GLOBAL__ TsanRuntimeData *)__TsanLaunchInfo.get())
 
 #define TSAN_DEBUG(X)                                                          \
   do {                                                                         \

@@ -401,14 +401,7 @@ else()
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
 
-    # tsan jit
-    add_devicelibs(libsycl-tsan
-      SRC sanitizer/tsan_rtl.cpp
-      DEPENDENCIES ${tsan_obj_deps}
-      EXTRA_OPTS -fno-sycl-instrument-device-code
-                 -I${UR_SANITIZER_INCLUDE_DIR}
-                 -I${CMAKE_CURRENT_SOURCE_DIR})
-
+    # msan aot
     set(msan_devicetypes pvc cpu)
 
     foreach(msan_ft IN LISTS sanitizer_filetypes)
@@ -421,6 +414,13 @@ else()
       endforeach()
     endforeach()
 
+    # tsan jit
+    add_devicelibs(libsycl-tsan
+      SRC sanitizer/tsan_rtl.cpp
+      DEPENDENCIES ${tsan_obj_deps}
+      EXTRA_OPTS -fno-sycl-instrument-device-code
+                 -I${UR_SANITIZER_INCLUDE_DIR}
+                 -I${CMAKE_CURRENT_SOURCE_DIR})
   endif()
 endif()
 
