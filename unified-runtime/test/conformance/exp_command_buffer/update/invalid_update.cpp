@@ -86,6 +86,7 @@ TEST_P(InvalidUpdateTest, NotFinalizedCommandBuffer) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,  // hCommand
       kernel,          // hNewKernel
       0,               // numNewMemObjArgs
       0,               // numNewPointerArgs
@@ -100,8 +101,8 @@ TEST_P(InvalidUpdateTest, NotFinalizedCommandBuffer) {
   };
 
   // Update command to command-buffer that has not been finalized
-  ur_result_t result =
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+  ur_result_t result = urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, 1, &update_desc);
   ASSERT_EQ(UR_RESULT_ERROR_INVALID_OPERATION, result);
 }
 
@@ -145,23 +146,24 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
-      kernel,          // hNewKernel
-      0,               // numNewMemObjArgs
-      0,               // numNewPointerArgs
-      1,               // numNewValueArgs
-      n_dimensions,    // newWorkDim
-      nullptr,         // pNewMemObjArgList
-      nullptr,         // pNewPointerArgList
-      &new_input_desc, // pNewValueArgList
-      nullptr,         // pNewGlobalWorkOffset
-      nullptr,         // pNewGlobalWorkSize
-      nullptr,         // pNewLocalWorkSize
+      test_command_handle, // hCommand
+      kernel,              // hNewKernel
+      0,                   // numNewMemObjArgs
+      0,                   // numNewPointerArgs
+      1,                   // numNewValueArgs
+      n_dimensions,        // newWorkDim
+      nullptr,             // pNewMemObjArgList
+      nullptr,             // pNewPointerArgList
+      &new_input_desc,     // pNewValueArgList
+      nullptr,             // pNewGlobalWorkOffset
+      nullptr,             // pNewGlobalWorkSize
+      nullptr,             // pNewLocalWorkSize
   };
 
   // Since no command handle was returned Update command to command-buffer
   // should also be an error.
-  ur_result_t result =
-      urCommandBufferUpdateKernelLaunchExp(test_command_handle, &update_desc);
+  ur_result_t result = urCommandBufferUpdateKernelLaunchExp(test_cmd_buf_handle,
+                                                            1, &update_desc);
   EXPECT_EQ(UR_RESULT_ERROR_INVALID_NULL_HANDLE, result);
 
   if (test_cmd_buf_handle) {
@@ -182,6 +184,7 @@ TEST_P(InvalidUpdateTest, InvalidDimensions) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,         // hCommand
       kernel,                 // hNewKernel
       0,                      // numNewMemObjArgs
       0,                      // numNewPointerArgs
@@ -196,11 +199,13 @@ TEST_P(InvalidUpdateTest, InvalidDimensions) {
   };
 
   ASSERT_EQ(UR_RESULT_ERROR_INVALID_VALUE,
-            urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
+            urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle, 1,
+                                                 &update_desc));
 
   update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,           // hCommand
       kernel,                   // hNewKernel
       0,                        // numNewMemObjArgs
       0,                        // numNewPointerArgs
@@ -215,7 +220,89 @@ TEST_P(InvalidUpdateTest, InvalidDimensions) {
   };
 
   ASSERT_EQ(UR_RESULT_ERROR_INVALID_VALUE,
-            urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
+            urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle, 1,
+                                                 &update_desc));
+}
+
+// If the command-handle isn't valid an error should be returned
+TEST_P(InvalidUpdateTest, InvalidCommandHandle) {
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+  finalized = true;
+
+  ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+      nullptr,                                                        // pNext
+      nullptr,      // hCommand
+      kernel,       // hNewKernel
+      0,            // numNewMemObjArgs
+      0,            // numNewPointerArgs
+      0,            // numNewValueArgs
+      n_dimensions, // newWorkDim
+      nullptr,      // pNewMemObjArgList
+      nullptr,      // pNewPointerArgList
+      nullptr,      // pNewValueArgList
+      nullptr,      // pNewGlobalWorkOffset
+      nullptr,      // pNewGlobalWorkSize
+      nullptr,      // pNewLocalWorkSize
+  };
+
+  ASSERT_EQ(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+            urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle, 1,
+                                                 &update_desc));
+}
+
+// Test error code is returned if command handle and command-buffer is
+// mismatched
+TEST_P(InvalidUpdateTest, CommandBufferMismatch) {
+  // Create a command-buffer with update enabled.
+  ur_exp_command_buffer_handle_t test_cmd_buf_handle = nullptr;
+  ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+                                    nullptr, true, false, false};
+  ASSERT_SUCCESS(
+      urCommandBufferCreateExp(context, device, &desc, &test_cmd_buf_handle));
+  EXPECT_NE(test_cmd_buf_handle, nullptr);
+
+  EXPECT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
+  EXPECT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+  finalized = true;
+
+  // Set new value to use for fill at kernel index 1
+  uint32_t new_val = 33;
+  ur_exp_command_buffer_update_value_arg_desc_t new_input_desc = {
+      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
+      nullptr,                                                    // pNext
+      1,                                                          // argIndex
+      sizeof(new_val),                                            // argSize
+      nullptr,                                                    // pProperties
+      &new_val,                                                   // hArgValue
+  };
+
+  ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+      nullptr,                                                        // pNext
+      command_handle,  // hCommand
+      kernel,          // hNewKernel
+      0,               // numNewMemObjArgs
+      0,               // numNewPointerArgs
+      1,               // numNewValueArgs
+      n_dimensions,    // newWorkDim
+      nullptr,         // pNewMemObjArgList
+      nullptr,         // pNewPointerArgList
+      &new_input_desc, // pNewValueArgList
+      nullptr,         // pNewGlobalWorkOffset
+      nullptr,         // pNewGlobalWorkSize
+      nullptr,         // pNewLocalWorkSize
+  };
+
+  // Since no command handle was returned Update command to command-buffer
+  // should also be an error.
+  ur_result_t result = urCommandBufferUpdateKernelLaunchExp(test_cmd_buf_handle,
+                                                            1, &update_desc);
+  EXPECT_EQ(UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP, result);
+
+  if (test_cmd_buf_handle) {
+    EXPECT_SUCCESS(urCommandBufferReleaseExp(test_cmd_buf_handle));
+  }
 }
 
 // Tests that an error is thrown when trying to update a kernel capability
@@ -327,6 +414,7 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, KernelArg) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,  // hCommand
       nullptr,         // hNewKernel
       0,               // numNewMemObjArgs
       0,               // numNewPointerArgs
@@ -340,8 +428,8 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, KernelArg) {
       nullptr,         // pNewLocalWorkSize
   };
 
-  ur_result_t result =
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+  ur_result_t result = urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, 1, &update_desc);
   ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
 }
 
@@ -356,6 +444,7 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, GlobalSize) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,   // hCommand
       nullptr,          // hNewKernel
       0,                // numNewMemObjArgs
       0,                // numNewPointerArgs
@@ -369,8 +458,8 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, GlobalSize) {
       nullptr,          // pNewLocalWorkSize
   };
 
-  ur_result_t result =
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+  ur_result_t result = urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, 1, &update_desc);
   ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
 }
 
@@ -385,6 +474,7 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, GlobalOffset) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,     // hCommand
       nullptr,            // hNewKernel
       0,                  // numNewMemObjArgs
       0,                  // numNewPointerArgs
@@ -398,8 +488,8 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, GlobalOffset) {
       nullptr,            // pNewLocalWorkSize
   };
 
-  ur_result_t result =
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+  ur_result_t result = urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, 1, &update_desc);
   ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
 }
 
@@ -414,6 +504,7 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, LocalSize) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,  // hCommand
       nullptr,         // hNewKernel
       0,               // numNewMemObjArgs
       0,               // numNewPointerArgs
@@ -427,8 +518,8 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, LocalSize) {
       &new_local_size, // pNewLocalWorkSize
   };
 
-  ur_result_t result =
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+  ur_result_t result = urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, 1, &update_desc);
   ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
 }
 
@@ -449,6 +540,7 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, ImplChosenLocalSize) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,   // hCommand
       nullptr,          // hNewKernel
       0,                // numNewMemObjArgs
       0,                // numNewPointerArgs
@@ -462,8 +554,8 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, ImplChosenLocalSize) {
       nullptr,          // pNewLocalWorkSize
   };
 
-  ur_result_t result =
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+  ur_result_t result = urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, 1, &update_desc);
   ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
 }
 
@@ -477,20 +569,21 @@ TEST_P(InvalidUpdateCommandBufferExpExecutionTest, Kernel) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
-      kernel_2,     // hNewKernel
-      0,            // numNewMemObjArgs
-      0,            // numNewPointerArgs
-      0,            // numNewValueArgs
-      n_dimensions, // newWorkDim
-      nullptr,      // pNewMemObjArgList
-      nullptr,      // pNewPointerArgList
-      nullptr,      // pNewValueArgList
-      nullptr,      // pNewGlobalWorkOffset
-      nullptr,      // pNewGlobalWorkSize
-      nullptr,      // pNewLocalWorkSize
+      command_handle, // hCommand
+      kernel_2,       // hNewKernel
+      0,              // numNewMemObjArgs
+      0,              // numNewPointerArgs
+      0,              // numNewValueArgs
+      n_dimensions,   // newWorkDim
+      nullptr,        // pNewMemObjArgList
+      nullptr,        // pNewPointerArgList
+      nullptr,        // pNewValueArgList
+      nullptr,        // pNewGlobalWorkOffset
+      nullptr,        // pNewGlobalWorkSize
+      nullptr,        // pNewLocalWorkSize
   };
 
-  ur_result_t result =
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc);
+  ur_result_t result = urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, 1, &update_desc);
   ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
 }

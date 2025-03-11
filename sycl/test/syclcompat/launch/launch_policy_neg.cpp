@@ -19,7 +19,8 @@
  *  Description:
  *     Negative tests for new launch_policy.
  **************************************************************************/
-
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17116
 // RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK1 2>&1 | FileCheck -vv %s --check-prefixes=CHECK1
 // RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK2 2>&1 | FileCheck -vv %s --check-prefixes=CHECK2
 // RUN: not %clangxx -fsycl -fsyntax-only %s -DCHECK3 2>&1 | FileCheck -vv %s --check-prefixes=CHECK3

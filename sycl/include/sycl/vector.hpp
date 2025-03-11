@@ -274,9 +274,9 @@ class __SYCL_EBO vec
       bool, /*->*/ std::uint8_t,                            //
       sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
       sycl::ext::oneapi::bfloat16,
-      /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, //
-      char, /*->*/ detail::ConvertToOpenCLType_t<char>,   //
-      DataT, /*->*/ DataT                                 //
+      /*->*/ sycl::ext::oneapi::bfloat16::Bfloat16StorageT, //
+      char, /*->*/ detail::ConvertToOpenCLType_t<char>,     //
+      DataT, /*->*/ DataT                                   //
       >::type;
 
 public:

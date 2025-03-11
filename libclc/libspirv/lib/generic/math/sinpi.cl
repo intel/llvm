@@ -10,7 +10,7 @@
 
 #include "sincospiF_piby4.h"
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 #ifdef cl_khr_fp64
 #include "sincosD_piby4.h"
 #endif

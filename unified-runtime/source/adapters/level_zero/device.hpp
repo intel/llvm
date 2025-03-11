@@ -20,7 +20,6 @@
 
 #include "adapters/level_zero/platform.hpp"
 #include "common.hpp"
-#include <level_zero/include/ze_intel_gpu.h>
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
@@ -194,6 +193,11 @@ struct ur_device_handle_t_ : _ur_object {
   bool isIntelDG2OrNewer() {
     return (ZeDeviceProperties->vendorId == 0x8086 &&
             ZeDeviceIpVersionExt->ipVersion >= 0x030dc000);
+  }
+
+  bool isNewerThanIntelDG2() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x030f0000);
   }
 
   bool isIntegrated() {

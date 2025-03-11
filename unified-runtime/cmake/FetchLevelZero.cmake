@@ -37,12 +37,13 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-extra-semi")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
     endif()
+    set(BUILD_STATIC ON)
 
     if (UR_LEVEL_ZERO_LOADER_REPO STREQUAL "")
         set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
     endif()
     if (UR_LEVEL_ZERO_LOADER_TAG STREQUAL "")
-        set(UR_LEVEL_ZERO_LOADER_TAG v1.19.2)
+        set(UR_LEVEL_ZERO_LOADER_TAG v1.21.1)
     endif()
 
     # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
@@ -101,7 +102,7 @@ if (UR_COMPUTE_RUNTIME_REPO STREQUAL "")
 set(UR_COMPUTE_RUNTIME_REPO "https://github.com/intel/compute-runtime.git")
 endif()
 if (UR_COMPUTE_RUNTIME_TAG STREQUAL "")
-set(UR_COMPUTE_RUNTIME_TAG 24.39.31294.12)
+set(UR_COMPUTE_RUNTIME_TAG 25.05.32567.17)
 endif()
 include(FetchContent)
 # Sparse fetch only the dir with level zero headers for experimental features to avoid pulling in the entire compute-runtime.

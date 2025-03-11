@@ -23,7 +23,7 @@ __kernel void Kernel2(short in, __global short *out) {
 
 int main() {
   sycl::platform Platform;
-  auto Context = Platform.ext_oneapi_get_default_context();
+  auto Context = Platform.khr_get_default_context();
 
   {
     auto devices = Context.get_devices();
