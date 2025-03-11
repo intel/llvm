@@ -5,11 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
 
 #include <cstring>
 #include <string>
 
-#pragma once
 
 namespace sycl {
 inline namespace _V1 {
