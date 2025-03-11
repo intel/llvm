@@ -59,7 +59,7 @@ template <typename KernelName> kernel_id get_kernel_id();
 
 namespace ext::oneapi::experimental {
 template <auto *Func>
-std::enable_if_t<is_kernel_v<Func>, kernel_id> get_kernel_id();
+kernel_id get_kernel_id();
 } // namespace ext::oneapi::experimental
 
 /// Objects of the class identify kernel is some kernel_bundle related APIs
