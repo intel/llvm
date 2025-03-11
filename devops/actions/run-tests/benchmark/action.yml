@@ -96,7 +96,7 @@ runs:
         --sycl "$(realpath ./toolchain)" \
         --save baseline \
         --output-html remote \
-        --results-dir "./llvm-ci-perf-results/$RUNNER_NAME"
+        --results-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
         --output-dir ./llvm_test_workdir \
         --preset Minimal
       echo "-----"
