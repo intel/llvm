@@ -19,6 +19,7 @@ The Feature Test Macro SYCL\_EXT\_INTEL\_DEVICE\_INFO will be defined as one of 
 | 4     | Free device memory query is supported |
 | 5     | Device ID is supported |
 | 6     | Memory clock rate and bus width queries are supported |
+| 7     | Throttle reasons, fan speed and power limits queries are supported |
 
 
 
@@ -488,6 +489,144 @@ Then the memory bus width can be obtained using the standard get\_info() interfa
     if (dev.has(aspect::ext_intel_memory_bus_width)) {
       auto MemoryBusWidth = dev.get_info<ext::intel::info::device::memory_bus_width>();
     }
+
+# Throttle reason #
+
+A new device descriptor is added which provides the current GPU clock throttle reasons.
+A new enum is added with the list of possible throttle reasons.
+
+## Version ##
+
+The extension supports this query in version 7 and later.
+
+## Throttle reasons ##
+
+| Reason             | Description |
+| ------------------ | ----------- |
+| `power_cap` | The GPU clock frequency is throttled due to hitting the power limit. |
+| `current_limit` | The GPU clock frequency is throttled due to hitting the current limit. |
+| `thermal_limit` | The GPU clock frequency is throttled due to hitting the thermal limit. |
+| `psu_alert` | The GPU clock frequency is throttled due to power supply assertion. |
+| `sw_range` | The GPU clock frequency is throttled due to software supplied frequency range. |
+| `hw_range` | The GPU clock frequency is throttled because there is a sub block that has a lower frequency when it receives clocks. |
+| `other` | The GPU clock frequency is throttled due to other reason. |
+
+
+```
+namespace sycl::ext::intel {
+
+  enum class throttle_reason {
+    power_cap,
+    current_limit,
+    thermal_limit,
+    psu_alert,
+    sw_range,
+    hw_range,
+    other
+  }
+
+}
+```
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| `ext::intel::info::device::current_clock_throttle_reasons` | `std::vector<ext::intel::throttle_reason>` | Returns the set of throttle reasons describing why the frequency is being limited by the hardware. Returns empty set if frequency is not throttled. |
+
+
+## Aspects ##
+
+A new aspect, `ext_intel_current_clock_throttle_reasons`, is added.
+
+
+## Error Condition ##
+
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_current_clock_throttle_reasons`.
+
+## Example Usage ##
+
+Then the current clock throttle reasons can be obtained using the standard `get_info()` interface.
+
+```
+if (dev.has(aspect::ext_intel_current_clock_throttle_reasons)) {
+  std::vector<ext::inte::info::throttle_reason> Reasons = dev.get_info<ext::intel::info::device::current_clock_throttle_reasons<>();
+}
+```
+
+
+# Fan speed #
+
+A new device descriptor is added which provides the fan speed for the device.
+
+## Version ##
+
+The extension supports this query in version 7 and later.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+| `ext::intel::info::device::fan_speed` | `int32_t` | Returns the current speed of device's fan (as a percentage of the maximum speed of the fan). If device doesn't have a fan then returns 0. If fan speed can't be measured then returns -1. If there are multiple fans, then returns maximum value. |
+
+
+## Aspects ##
+
+A new aspect, `ext_intel_fan_speed`, is added.
+
+
+## Error Condition ##
+
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_fan_speed`.
+
+## Example Usage ##
+
+Then the fan speed can be obtained using the standard `get_info()` interface.
+
+```
+    if (dev.has(aspect::ext_intel_fan_speed)) {
+      auto FanSpeed = dev.get_info<ext::intel::info::device::fan_speed>();
+    }
+```
+
+# Power limits #
+
+New device descriptors are added which provide the maximum and minimum power limits for the device.
+
+## Version ##
+
+The extension supports this query in version 7 and later.
+
+## Device Information Descriptors ##
+
+| Device Descriptors | Return Type | Description |
+| ------------------ | ----------- | ----------- |
+|`ext::intel::info::device::min_power_limit` |`int32_t` | Returns the minimum power limit of the device in  milliwatts. |
+|`ext::intel::info::device::max_power_limit` |`int32_t` | Returns the maximum power limit of the device in  milliwatts. |
+
+
+## Aspects ##
+
+A new aspect, `ext_intel_power_limits`, is added.
+
+
+## Error Condition ##
+
+Throws a synchronous `exception` with the `errc::feature_not_supported` error code if the device does not have `aspect::ext_intel_power_limits`.
+
+## Example Usage ##
+
+Then the power limits can be obtained using the standard `get_info()` interface.
+
+```
+    if (dev.has(aspect::ext_intel_power_limits)) {
+      auto Min = dev.get_info<ext::intel::info::device::min_power_limit>();
+      auto Max = dev.get_info<ext::intel::info::device::max_power_limit>();
+    }
+```
+
+
+
 
 # Deprecated queries #
 
