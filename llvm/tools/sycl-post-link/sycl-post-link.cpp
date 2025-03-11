@@ -794,7 +794,7 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 }
 
 std::vector<std::unique_ptr<util::SimpleTable>>
-processInputModule(std::unique_ptr<Module> M, LLVMContext &Context) {
+processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
       StringRef(COL_CODE)};
@@ -1100,7 +1100,7 @@ int main(int argc, char **argv) {
   }
 
   std::vector<std::unique_ptr<util::SimpleTable>> Tables =
-      processInputModule(std::move(M), Context);
+      processInputModule(std::move(M));
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)

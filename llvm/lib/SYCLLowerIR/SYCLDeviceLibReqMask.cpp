@@ -753,7 +753,7 @@ uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
   return ReqMask;
 }
 
-static llvm::SmallVector<const char *, 14> BF16DeviceLibFuncs = {
+static llvm::SmallVector<StringRef, 14> BF16DeviceLibFuncs = {
     "__devicelib_ConvertFToBF16INTEL",
     "__devicelib_ConvertBF16ToFINTEL",
     "__devicelib_ConvertFToBF16INTELVec1",
