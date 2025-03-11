@@ -476,20 +476,9 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
     return ReturnValue(Descriptor);
   }
   default:
-    assert(!"Command-buffer info request not implemented");
+    assert(false && "Command-buffer info request not implemented");
   }
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-ur_result_t urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t UrQueue,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *Event) try {
-  return UrQueue->get().enqueueCommandBuffer(
-      CommandBuffer->commandListManager.getZeCommandList(), Event,
-      NumEventsInWaitList, EventWaitList);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

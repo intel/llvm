@@ -40,9 +40,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
 
   switch (enabledType) {
   case SanitizerType::AddressSanitizer:
+    getContext()->Options.Init("UR_LAYER_ASAN_OPTIONS", getContext()->logger);
     initAsanInterceptor();
     return initAsanDDITable(dditable);
   case SanitizerType::MemorySanitizer:
+    getContext()->Options.Init("UR_LAYER_MSAN_OPTIONS", getContext()->logger);
     initMsanInterceptor();
     return initMsanDDITable(dditable);
   default:

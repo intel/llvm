@@ -27,10 +27,10 @@ class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
 struct RTCDevImgInfo;
+struct RTCBundleInfo;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
 using JITEnvVar = DynArray<char>;
-using RTCBundleInfo = DynArray<RTCDevImgInfo>;
 } // namespace jit_compiler
 
 namespace sycl {
@@ -52,8 +52,7 @@ public:
   std::pair<sycl_device_binaries, std::string> compileSYCL(
       const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
-      const std::vector<std::string> &UserArgs, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames);
+      const std::vector<std::string> &UserArgs, std::string *LogPtr);
 
   void destroyDeviceBinaries(sycl_device_binaries Binaries);
 

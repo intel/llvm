@@ -495,6 +495,9 @@ static bool getDeviceLibraries(const ArgList &Args,
       {"libsycl-complex-fp64", "libm-fp64"},
       {"libsycl-cmath", "libm-fp32"},
       {"libsycl-cmath-fp64", "libm-fp64"},
+#if defined(_WIN32)
+      {"libsycl-msvc-math", "libm-fp32"},
+#endif
       {"libsycl-imf", "libimf-fp32"},
       {"libsycl-imf-fp64", "libimf-fp64"},
       {"libsycl-imf-bf16", "libimf-bf16"}};
@@ -656,77 +659,81 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
   // TODO: Call `verifyNoCrossModuleDeviceGlobalUsage` if device globals shall
   //       be processed.
 
-  // TODO: This allocation assumes that there are no further splits required,
-  //       i.e. there are no mixed SYCL/ESIMD modules.
-  RTCBundleInfo BundleInfo{Splitter->remainingSplits()};
+  SmallVector<RTCDevImgInfo> DevImgInfoVec;
   SmallVector<std::unique_ptr<llvm::Module>> Modules;
 
-  auto *DevImgInfoIt = BundleInfo.begin();
-  while (Splitter->hasMoreSplits()) {
-    assert(DevImgInfoIt != BundleInfo.end());
+  // TODO: The following logic is missing the ability to link ESIMD and SYCL
+  //       modules back together, which would be requested via
+  //       `-fno-sycl-device-code-split-esimd` as a prerequisite for compiling
+  //       `invoke_simd` code.
 
+  while (Splitter->hasMoreSplits()) {
     ModuleDesc MDesc = Splitter->nextSplit();
-    RTCDevImgInfo &DevImgInfo = *DevImgInfoIt++;
 
     // TODO: Call `MDesc.fixupLinkageOfDirectInvokeSimdTargets()` when
     //       `invoke_simd` is supported.
 
     SmallVector<ModuleDesc, 2> ESIMDSplits =
         splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
-    assert(!ESIMDSplits.empty());
-    if (ESIMDSplits.size() > 1) {
-      return createStringError("Mixing SYCL and ESIMD code is unsupported");
-    }
-    MDesc = std::move(ESIMDSplits.front());
+    for (auto &ES : ESIMDSplits) {
+      MDesc = std::move(ES);
 
-    if (MDesc.isESIMD()) {
-      // `sycl-post-link` has a `-lower-esimd` option, but there's no clang
-      // driver option to influence it. Rather, the driver sets it
-      // unconditionally in the multi-file output mode, which we are mimicking
-      // here.
-      lowerEsimdConstructs(MDesc, PerformOpts);
-    }
-
-    MDesc.saveSplitInformationAsMetadata();
-
-    DevImgInfo.SymbolTable = FrozenSymbolTable{MDesc.entries().size()};
-    transform(MDesc.entries(), DevImgInfo.SymbolTable.begin(),
-              [](Function *F) { return F->getName(); });
-
-    // TODO: Determine what is requested.
-    GlobalBinImageProps PropReq{
-        /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
-        /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
-        /*DeviceGlobals=*/false};
-    PropertySetRegistry Properties =
-        computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
-    // TODO: Manually add `compile_target` property as in
-    //       `saveModuleProperties`?
-    const auto &PropertySets = Properties.getPropSets();
-
-    DevImgInfo.Properties = FrozenPropertyRegistry{PropertySets.size()};
-    for (auto [KV, FrozenPropSet] :
-         zip_equal(PropertySets, DevImgInfo.Properties)) {
-      const auto &PropertySetName = KV.first;
-      const auto &PropertySet = KV.second;
-      FrozenPropSet =
-          FrozenPropertySet{PropertySetName.str(), PropertySet.size()};
-      for (auto [KV2, FrozenProp] :
-           zip_equal(PropertySet, FrozenPropSet.Values)) {
-        const auto &PropertyName = KV2.first;
-        const auto &PropertyValue = KV2.second;
-        FrozenProp =
-            PropertyValue.getType() == PropertyValue::Type::UINT32
-                ? FrozenPropertyValue{PropertyName.str(),
-                                      PropertyValue.asUint32()}
-                : FrozenPropertyValue{PropertyName.str(),
-                                      PropertyValue.asRawByteArray(),
-                                      PropertyValue.getRawByteArraySize()};
+      if (MDesc.isESIMD()) {
+        // `sycl-post-link` has a `-lower-esimd` option, but there's no clang
+        // driver option to influence it. Rather, the driver sets it
+        // unconditionally in the multi-file output mode, which we are mimicking
+        // here.
+        lowerEsimdConstructs(MDesc, PerformOpts);
       }
-    };
 
-    Modules.push_back(MDesc.releaseModulePtr());
+      MDesc.saveSplitInformationAsMetadata();
+
+      RTCDevImgInfo &DevImgInfo = DevImgInfoVec.emplace_back();
+      DevImgInfo.SymbolTable = FrozenSymbolTable{MDesc.entries().size()};
+      transform(MDesc.entries(), DevImgInfo.SymbolTable.begin(),
+                [](Function *F) { return F->getName(); });
+
+      // TODO: Determine what is requested.
+      GlobalBinImageProps PropReq{
+          /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
+          /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
+          /*DeviceGlobals=*/false};
+      PropertySetRegistry Properties =
+          computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
+      // TODO: Manually add `compile_target` property as in
+      //       `saveModuleProperties`?
+      const auto &PropertySets = Properties.getPropSets();
+
+      DevImgInfo.Properties = FrozenPropertyRegistry{PropertySets.size()};
+      for (auto [KV, FrozenPropSet] :
+           zip_equal(PropertySets, DevImgInfo.Properties)) {
+        const auto &PropertySetName = KV.first;
+        const auto &PropertySet = KV.second;
+        FrozenPropSet =
+            FrozenPropertySet{PropertySetName.str(), PropertySet.size()};
+        for (auto [KV2, FrozenProp] :
+             zip_equal(PropertySet, FrozenPropSet.Values)) {
+          const auto &PropertyName = KV2.first;
+          const auto &PropertyValue = KV2.second;
+          FrozenProp =
+              PropertyValue.getType() == PropertyValue::Type::UINT32
+                  ? FrozenPropertyValue{PropertyName.str(),
+                                        PropertyValue.asUint32()}
+                  : FrozenPropertyValue{PropertyName.str(),
+                                        PropertyValue.asRawByteArray(),
+                                        PropertyValue.getRawByteArraySize()};
+        }
+      };
+
+      Modules.push_back(MDesc.releaseModulePtr());
+    }
   }
+
+  assert(DevImgInfoVec.size() == Modules.size());
+  RTCBundleInfo BundleInfo;
+  BundleInfo.DevImgInfos = DynArray<RTCDevImgInfo>{DevImgInfoVec.size()};
+  std::move(DevImgInfoVec.begin(), DevImgInfoVec.end(),
+            BundleInfo.DevImgInfos.begin());
 
   return PostLinkResult{std::move(BundleInfo), std::move(Modules)};
 }
@@ -791,6 +798,32 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   }
 
   return std::move(AL);
+}
+
+void jit_compiler::encodeBuildOptions(RTCBundleInfo &BundleInfo,
+                                      const InputArgList &UserArgList) {
+  std::string CompileOptions;
+  raw_string_ostream COSOS{CompileOptions};
+
+  for (Arg *A : UserArgList.getArgs()) {
+    if (!(A->getOption().matches(OPT_Xs) ||
+          A->getOption().matches(OPT_Xs_separate))) {
+      continue;
+    }
+
+    // Trim first and last quote if they exist, but no others.
+    StringRef AV{A->getValue()};
+    AV = AV.trim();
+    if (AV.front() == AV.back() && (AV.front() == '\'' || AV.front() == '"')) {
+      AV = AV.drop_front().drop_back();
+    }
+
+    COSOS << (CompileOptions.empty() ? "" : " ") << AV;
+  }
+
+  if (!CompileOptions.empty()) {
+    BundleInfo.CompileOptions = CompileOptions;
+  }
 }
 
 void jit_compiler::configureDiagnostics(LLVMContext &Context,

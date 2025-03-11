@@ -120,9 +120,10 @@ void RTDeviceBinaryImage::print() const {
   std::cerr << "    Link options    : "
             << (Bin->LinkOptions ? Bin->LinkOptions : "NULL") << "\n";
   std::cerr << "    Entries  : ";
+
   for (sycl_offload_entry EntriesIt = Bin->EntriesBegin;
-       EntriesIt != Bin->EntriesEnd; ++EntriesIt)
-    std::cerr << EntriesIt->name << " ";
+       EntriesIt != Bin->EntriesEnd; EntriesIt = EntriesIt->Increment())
+    std::cerr << EntriesIt->GetName() << " ";
   std::cerr << "\n";
   std::cerr << "    Properties [" << Bin->PropertySetsBegin << "-"
             << Bin->PropertySetsEnd << "]:\n";
@@ -195,6 +196,7 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   DeviceRequirements.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
   VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
+  RegisteredKernels.init(Bin, __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS);
 
   ImageId = ImageCounter++;
 }

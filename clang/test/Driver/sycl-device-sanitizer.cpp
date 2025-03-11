@@ -52,3 +52,17 @@
 // RUN:   | FileCheck --check-prefix=SYCL-MSAN-XARCH-DEVICE %s
 // SYCL-MSAN-XARCH-DEVICE: clang{{.*}} "-fsycl-is-device"
 // SYCL-MSAN-XARCH-DEVICE-SAME: -fsanitize=memory
+
+/// ###########################################################################
+
+// RUN: %clangxx -fsycl -fsanitize=thread -c %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-TSAN %s
+// SYCL-TSAN: clang{{.*}} "-fsycl-is-device"
+// SYCL-TSAN-SAME: -fsanitize=thread
+// SYCL-TSAN-SAME: "-mllvm" "-tsan-instrument-func-entry-exit=0"
+// SYCL-TSAN-SAME: "-mllvm" "-tsan-instrument-memintrinsics=0"
+
+// RUN: %clangxx -fsycl -Xarch_device -fsanitize=thread -c %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-TSAN-XARCH-DEVICE %s
+// SYCL-TSAN-XARCH-DEVICE: clang{{.*}} "-fsycl-is-device"
+// SYCL-TSAN-XARCH-DEVICE-SAME: -fsanitize=thread

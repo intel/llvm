@@ -246,7 +246,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // associate the UR program with the image it was created for
-    NativePrograms.insert({Res, &Img});
+    NativePrograms.insert({Res, {Ctx, &Img}});
   }
 
   Ctx->addDeviceGlobalInitializer(Res, Devices, &Img);
@@ -928,7 +928,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
       // removal of map entries with same handle (obviously invalid entries).
       std::ignore = NativePrograms.erase(BuiltProgram.get());
       for (const RTDeviceBinaryImage *Img : ImgWithDeps) {
-        NativePrograms.insert({BuiltProgram.get(), Img});
+        NativePrograms.insert({BuiltProgram.get(), {ContextImpl, Img}});
       }
     }
 
@@ -1867,33 +1867,34 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         ++EntriesIt) {
+         EntriesIt = EntriesIt->Increment()) {
+
+      auto name = EntriesIt->GetName();
 
       // Skip creating unique kernel ID if it is a service kernel.
       // SYCL service kernels are identified by having
       // __sycl_service_kernel__ in the mangled name, primarily as part of
       // the namespace of the name type.
-      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img.get()));
+      if (std::strstr(name, "__sycl_service_kernel__")) {
+        m_ServiceKernels.insert(std::make_pair(name, Img.get()));
         continue;
       }
 
       // Skip creating unique kernel ID if it is an exported device
       // function. Exported device functions appear in the offload entries
       // among kernels, but are identifiable by being listed in properties.
-      if (m_ExportedSymbolImages.find(EntriesIt->name) !=
-          m_ExportedSymbolImages.end())
+      if (m_ExportedSymbolImages.find(name) != m_ExportedSymbolImages.end())
         continue;
 
       // ... and create a unique kernel ID for the entry
-      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+      auto It = m_KernelName2KernelIDs.find(name);
       if (It == m_KernelName2KernelIDs.end()) {
         std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+            std::make_shared<detail::kernel_id_impl>(name);
         sycl::kernel_id KernelID =
             detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
 
-        It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name, KernelID);
+        It = m_KernelName2KernelIDs.emplace_hint(It, name, KernelID);
       }
       m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
       m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
@@ -1994,25 +1995,23 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
         }
       }
     }
-    m_DeviceImages.insert(std::move(Img));
+    m_DeviceImages.insert({RawImg, std::move(Img)});
   }
 }
 
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
+    auto DevImgIt = m_DeviceImages.find(RawImg);
+    if (DevImgIt == m_DeviceImages.end())
+      continue;
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
     if (EntriesB == EntriesE)
       continue;
 
-    // Retrieve RTDeviceBinaryImage by looking up the first offload entry
-    kernel_id FirstKernelID = getSYCLKernelID(RawImg->EntriesBegin->name);
-    auto RTDBImages = getRawDeviceImages({FirstKernelID});
-    assert(RTDBImages.size() == 1);
-
-    RTDeviceBinaryImage *Img = *RTDBImages.begin();
+    RTDeviceBinaryImage *Img = DevImgIt->second.get();
 
     // Drop the kernel argument mask map
     m_EliminatedKernelArgMasks.erase(Img);
@@ -2022,24 +2021,29 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
     // Unmap the unique kernel IDs for the offload entries
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         ++EntriesIt) {
+         EntriesIt = EntriesIt->Increment()) {
 
       // Drop entry for service kernel
-      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(EntriesIt->name);
+      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
+        m_ServiceKernels.erase(EntriesIt->GetName());
         continue;
       }
 
       // Exported device functions won't have a kernel ID
-      if (m_ExportedSymbolImages.find(EntriesIt->name) !=
+      if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=
           m_ExportedSymbolImages.end()) {
         continue;
       }
 
-      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
-      assert(It != m_KernelName2KernelIDs.end());
-      m_KernelName2KernelIDs.erase(It);
-      m_KernelIDs2BinImage.erase(It->second);
+      // remove everything associated with this KernelName
+      m_KernelUsesAssert.erase(EntriesIt->GetName());
+      m_KernelImplicitLocalArgPos.erase(EntriesIt->GetName());
+
+      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
+          It != m_KernelName2KernelIDs.end()) {
+        m_KernelName2KernelIDs.erase(It);
+        m_KernelIDs2BinImage.erase(It->second);
+      }
     }
 
     // Drop reverse mapping
@@ -2051,13 +2055,50 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       m_ExportedSymbolImages.erase(ESProp->Name);
     }
 
-    // TODO: Handle other runtime info that was set up by `addImages`
-    assert(Img->getVirtualFunctions().empty());
-    assert(Img->getAssertUsed().empty());
-    assert(!Img->getProperty("sanUsed"));
-    assert(Img->getImplicitLocalArg().empty());
-    assert(Img->getDeviceGlobals().empty());
-    assert(Img->getHostPipes().empty());
+    for (const sycl_device_binary_property &VFProp :
+         Img->getVirtualFunctions()) {
+      std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+      for (const auto &SetName : detail::split_string(StrValue, ','))
+        m_VFSet2BinImage.erase(SetName);
+    }
+
+    {
+      std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+      auto DeviceGlobals = Img->getDeviceGlobals();
+      for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
+        if (auto DevGlobalIt = m_DeviceGlobals.find(DeviceGlobal->Name);
+            DevGlobalIt != m_DeviceGlobals.end()) {
+          auto findDevGlobalByValue = std::find_if(
+              m_Ptr2DeviceGlobal.begin(), m_Ptr2DeviceGlobal.end(),
+              [&DevGlobalIt](const std::pair<const void *,
+                                             DeviceGlobalMapEntry *> &Entry) {
+                return Entry.second == DevGlobalIt->second.get();
+              });
+          if (findDevGlobalByValue != m_Ptr2DeviceGlobal.end())
+            m_Ptr2DeviceGlobal.erase(findDevGlobalByValue);
+          m_DeviceGlobals.erase(DevGlobalIt);
+        }
+      }
+    }
+
+    {
+      std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+      auto HostPipes = Img->getHostPipes();
+      for (const sycl_device_binary_property &HostPipe : HostPipes) {
+        if (auto HostPipesIt = m_HostPipes.find(HostPipe->Name);
+            HostPipesIt != m_HostPipes.end()) {
+          auto findHostPipesByValue = std::find_if(
+              m_Ptr2HostPipe.begin(), m_Ptr2HostPipe.end(),
+              [&HostPipesIt](
+                  const std::pair<const void *, HostPipeMapEntry *> &Entry) {
+                return Entry.second == HostPipesIt->second.get();
+              });
+          if (findHostPipesByValue != m_Ptr2HostPipe.end())
+            m_Ptr2HostPipe.erase(findHostPipesByValue);
+          m_HostPipes.erase(HostPipesIt);
+        }
+      }
+    }
 
     // Purge references to the image in native programs map
     {
@@ -2067,17 +2108,17 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       // entry without calling UR release
       for (auto It = NativePrograms.begin(); It != NativePrograms.end();) {
         auto CurIt = It++;
-        if (CurIt->second == Img)
+        if (CurIt->second.second == Img) {
+          if (auto ContextImpl = CurIt->second.first.lock()) {
+            ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
+                Img->getImageID());
+          }
           NativePrograms.erase(CurIt);
+        }
       }
     }
 
-    // Finally, destroy the image by erasing the associated unique ptr
-    auto It =
-        std::find_if(m_DeviceImages.begin(), m_DeviceImages.end(),
-                     [Img](const auto &UPtr) { return UPtr.get() == Img; });
-    assert(It != m_DeviceImages.end());
-    m_DeviceImages.erase(It);
+    m_DeviceImages.erase(DevImgIt);
   }
 }
 
@@ -2135,7 +2176,7 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     auto Range = NativePrograms.equal_range(NativePrg);
     for (auto ImgIt = Range.first; ImgIt != Range.second; ++ImgIt) {
-      auto MapIt = m_EliminatedKernelArgMasks.find(ImgIt->second);
+      auto MapIt = m_EliminatedKernelArgMasks.find(ImgIt->second.second);
       if (MapIt == m_EliminatedKernelArgMasks.end())
         continue;
       auto ArgMaskMapIt = MapIt->second.find(KernelName);
@@ -2824,7 +2865,8 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
     std::ignore = NativePrograms.erase(LinkedProg);
     for (const device_image_plain &Img : ImgWithDeps) {
       NativePrograms.insert(
-          {LinkedProg, getSyclObjImpl(Img)->get_bin_image_ref()});
+          {LinkedProg,
+           {ContextImpl, getSyclObjImpl(Img)->get_bin_image_ref()}});
     }
   }
 
@@ -3594,6 +3636,8 @@ extern "C" void __sycl_register_lib(sycl_device_binaries desc) {
 
 // Executed as a part of current module's (.exe, .dll) static initialization
 extern "C" void __sycl_unregister_lib(sycl_device_binaries desc) {
-  (void)desc;
-  // TODO implement the function
+  // Partial cleanup is not necessary at shutdown
+  if (!sycl::detail::GlobalHandler::instance().isOkToDefer())
+    return;
+  sycl::detail::ProgramManager::getInstance().removeImages(desc);
 }

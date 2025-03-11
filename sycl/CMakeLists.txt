@@ -176,7 +176,7 @@ if ("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_OPENCL ON)
 endif()
 if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
-  set(SYCL_BUILD_BACKENDLEVEL_ZERO ON)
+  set(SYCL_BUILD_BACKEND_LEVEL_ZERO ON)
 endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
@@ -200,6 +200,8 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/device_aspect_macros_generator.py ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp
   COMMENT "Generating device_aspect_macros.hpp"
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl/info/aspects.def
+          ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl/info/aspects_deprecated.def
 )
 
 add_custom_target(sycl-device-aspect-macros-header
