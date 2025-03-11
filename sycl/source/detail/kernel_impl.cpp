@@ -34,14 +34,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
         "Input context must be the same as the context of cl_kernel");
 
   // Enable USM indirect access for interoperability kernels.
-  // Some UR Adapters (like OpenCL) require this call to enable USM
-  // For others, UR will turn this into a NOP.
-  if (Context->getPlatformImpl()->supports_usm()) {
-    bool EnableAccess = true;
-    getAdapter()->call<UrApiKind::urKernelSetExecInfo>(
-        MKernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
-        nullptr, &EnableAccess);
-  }
+  enableUSMIndirectAccess();
 }
 
 kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
@@ -54,7 +47,13 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
       MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
-      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {}
+      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
+  // Enable USM indirect access for interop and non-sycl-jit source kernels.
+  // sycl-jit kernels will enable this if needed through the regular kernel
+  // path.
+  if (MCreatedFromSource || MIsInterop)
+    enableUSMIndirectAccess();
+}
 
 kernel_impl::~kernel_impl() {
   try {
@@ -117,6 +116,18 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "info::kernel::num_args descriptor may only be used to query a kernel "
       "that resides in a kernel bundle constructed using a backend specific"
       "interoperability function or to query a device built-in kernel");
+}
+
+void kernel_impl::enableUSMIndirectAccess() const {
+  if (!MContext->getPlatformImpl()->supports_usm())
+    return;
+
+  // Some UR Adapters (like OpenCL) require this call to enable USM
+  // For others, UR will turn this into a NOP.
+  bool EnableAccess = true;
+  getAdapter()->call<UrApiKind::urKernelSetExecInfo>(
+      MKernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
+      nullptr, &EnableAccess);
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES

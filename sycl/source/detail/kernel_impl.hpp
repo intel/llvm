@@ -263,6 +263,8 @@ private:
   size_t queryMaxNumWorkGroups(queue Queue,
                                const range<Dimensions> &WorkGroupSize,
                                size_t DynamicLocalMemorySize) const;
+
+  void enableUSMIndirectAccess() const;
 };
 
 template <int Dimensions>
