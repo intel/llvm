@@ -10,7 +10,6 @@
 #include <cstring>
 #include <string>
 
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
