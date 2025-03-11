@@ -145,7 +145,7 @@ If the query returns false, attempting to concurrently access or atomically
 modify USM device memory located on the `peer` device results in undefined 
 behavior.
 
-|void enable_peer_access(const device &peer)
+|void ext_oneapi_enable_peer_access(const device &peer)
 |Enables this device to access USM device allocations located on the peer
 device. This does not permit the peer device to access this device's memory.
 Once this access is enabled, SYCL kernel functions and the explicit memory
@@ -157,7 +157,7 @@ If this device does not support peer access (as defined by
 throws an exception with the `errc::invalid` error code.
 
 
-|void disable_peer_access(const device &peer)
+|void ext_oneapi_disable_peer_access(const device &peer)
 |Disables access to the peer device's memory from this device. If peer access
 is not enabled, throws an `exception` with the `errc::invalid` error code.
 

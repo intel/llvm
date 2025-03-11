@@ -10769,6 +10769,8 @@ static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
 // to user supplied options.
 // NOTE: Any changes made here should be reflected in the similarly named
 // function in clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp.
+// NOTE2: JIT related changes made here should be reflected in 'translatorOpts'
+// from sycl-jit/jit-compiler/lib/translation/SPIRVLLVMTranslation.cpp.
 static void getTripleBasedSPIRVTransOpts(Compilation &C,
                                          const llvm::opt::ArgList &TCArgs,
                                          llvm::Triple Triple,
