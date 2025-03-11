@@ -225,6 +225,26 @@ def _mako_lib_cpp(path, namespace, tags, version, specs, meta):
         specs=specs,
         meta=meta,
     )
+
+    template = "manifests.hpp.mako"
+    fin = os.path.join(templates_dir, template)
+
+    name = "%s_manifests" % (namespace)
+    filename = "%s.hpp" % name
+    fout = os.path.join(path, filename)
+
+    print("Generating %s..." % fout)
+    loc += util.makoWrite(
+        fin,
+        fout,
+        name=name,
+        ver=version,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta,
+    )
+
     return loc
 
 
