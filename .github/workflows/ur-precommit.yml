@@ -9,6 +9,7 @@ on:
   # We rely on "Fork pull request workflows from outside collaborators" -
   # "Require approval for all outside collaborators" at
   # https://github.com/intel/llvm/settings/actions for security.
+  workflow_dispatch:
   pull_request:
     # branches:
     # - sycl
