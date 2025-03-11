@@ -567,6 +567,26 @@ public:
     assert(!std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage));
     assert(MRTCBinInfo);
     assert(MOrigins & ImageOriginKernelCompiler);
+    
+    std::shared_ptr<sycl::detail::context_impl> ContextImpl =
+        getSyclObjImpl(MContext);
+
+    for (const auto &SyclDev : Devices) {
+      DeviceImplPtr DevImpl = getSyclObjImpl(SyclDev);
+      if (!ContextImpl->hasDevice(DevImpl)) {
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "device not part of kernel_bundle context");
+      }
+      if (!DevImpl->extOneapiCanCompile(MRTCBinInfo->MLanguage)) {
+        // This error cannot not be exercised in the current implementation, as
+        // compatibility with a source language depends on the backend's
+        // capabilities and all devices in one context share the same backend in
+        // the current implementation, so this would lead to an error already
+        // during construction of the source bundle.
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "device does not support source language");
+      }
+    }
 
     if (MRTCBinInfo->MLanguage == syclex::source_language::sycl_jit) {
       assert(std::holds_alternative<std::string>(MBinImage));
@@ -660,10 +680,8 @@ public:
 
     std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
-    for (const auto &SyclDev : Devices) {
-      ur_device_handle_t Dev = getSyclObjImpl(SyclDev)->getHandleRef();
-      DeviceVec.push_back(Dev);
-    }
+    for (const auto &SyclDev : Devices)
+      DeviceVec.push_back(getSyclObjImpl(SyclDev)->getHandleRef());
 
     ur_program_handle_t UrProgram = nullptr;
     // SourceStrPtr will be null when source is Spir-V bytes.
@@ -674,8 +692,6 @@ public:
           Devices, BuildOptions, *SourceStrPtr, UrProgram);
     }
 
-    std::shared_ptr<sycl::detail::context_impl> ContextImpl =
-        getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
     if (!FetchedFromCache) {
