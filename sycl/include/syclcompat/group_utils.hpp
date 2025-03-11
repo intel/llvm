@@ -115,10 +115,10 @@ public:
     digit_counter_type *digit_counters[VALUES_PER_THREAD];
     digit_counter_type *buffer =
         reinterpret_cast<digit_counter_type *>(_local_memory);
-
+    auto g = item.get_group();
     reset_local_memory(item);
 
-    item.barrier(sycl::access::fence_space::local_space);
+    sycl::group_barrier(g, sycl::memory_scope::work_group);
 
 #pragma unroll
     for (int i = 0; i < VALUES_PER_THREAD; ++i) {
@@ -139,11 +139,11 @@ public:
       *digit_counters[i] = thread_prefixes[i] + 1;
     }
 
-    item.barrier(sycl::access::fence_space::local_space);
+    sycl::group_barrier(g, sycl::memory_scope::work_group);
 
     scan_counters(item);
 
-    item.barrier(sycl::access::fence_space::local_space);
+    sycl::group_barrier(g, sycl::memory_scope::work_group);
 
     for (int i = 0; i < VALUES_PER_THREAD; ++i) {
       ranks[i] = thread_prefixes[i] + *digit_counters[i];
