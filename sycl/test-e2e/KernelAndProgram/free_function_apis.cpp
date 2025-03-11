@@ -8,6 +8,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
+#include <sycl/ext/oneapi/experiemental/free_function_traits.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -43,7 +44,6 @@ void ff_4(int *ptr, int start) {}
 bool test_kernel_apis(queue Queue) {
   bool Pass = true;
 
-#ifndef __SYCL_DEVICE_ONLY__
   // Check for a free function, which is known to be a free function.
   // Expect: true.
   bool Pass1 = ext::oneapi::experimental::is_nd_range_kernel_v<ff_2, 2>;
@@ -95,14 +95,12 @@ bool test_kernel_apis(queue Queue) {
   Pass &= Pass8;
 
   std::cout << "Test kernel APIs: " << (Pass ? "PASS" : "FAIL") << std::endl;
-#endif
   return Pass;
 }
 
 bool test_bundle_apis(queue Queue) {
   bool Pass = true;
 
-#ifndef __SYCL_DEVICE_ONLY__
   context Context{Queue.get_context()};
   device Device{Queue.get_device()};
   std::vector<device> Devices{Context.get_devices()};
@@ -210,7 +208,6 @@ bool test_bundle_apis(queue Queue) {
   bool PassR = true;
   std::cout << "PassR=" << PassR << std::endl;
   Pass &= PassR;
-#endif
 
   std::cout << "Test bundle APIs: " << (Pass ? "PASS" : "FAIL") << std::endl;
   return Pass;

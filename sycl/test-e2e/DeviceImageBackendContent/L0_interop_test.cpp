@@ -22,10 +22,6 @@ int main() {
   sycl::queue q;
   sycl::context ctxt = q.get_context();
   sycl::device d = ctxt.get_devices()[0];
-  // The following ifndef is required due to a number of limitations of free
-  // function kernels. See CMPLRLLVM-61498.
-  // TODO: Remove it once these limitations are no longer there.
-#ifndef __SYCL_DEVICE_ONLY__
   // First, run the kernel using the SYCL API.
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctxt);
   sycl::kernel_id iota_id = syclexp::get_kernel_id<iota>();
@@ -90,5 +86,4 @@ int main() {
   assert(*ptr_twin == *ptr);
   sycl::free(ptr, q);
   sycl::free(ptr_twin, q);
-#endif
 }
