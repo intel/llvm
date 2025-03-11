@@ -434,7 +434,7 @@ protected:
 
   /// Caches list of device images that use or provide virtual functions from
   /// the same set. Used to simplify access.
-  std::unordered_map<std::string_view, std::set<RTDeviceBinaryImage *>>
+  std::unordered_map<std::string, std::set<RTDeviceBinaryImage *>>
       m_VFSet2BinImage;
 
   /// Protects built-in kernel ID cache.

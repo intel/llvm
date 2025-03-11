@@ -3434,7 +3434,7 @@ private:
   std::shared_ptr<detail::queue_impl> MQueue;
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::string_view MKernelName;
   detail::string MKernelNameStorage;
 #else

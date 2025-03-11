@@ -255,7 +255,7 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  std::string MKernelName;
+  std::string_view MKernelName;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -270,7 +270,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName,
+               std::string_view KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -292,7 +292,7 @@ public:
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
-  std::string getKernelName() const { return MKernelName; }
+  std::string_view getKernelName() const { return MKernelName; }
   std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
     return MStreams;
   }

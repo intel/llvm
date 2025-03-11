@@ -46,7 +46,7 @@ public:
     return m_DeviceImages;
   }
 
-  std::unordered_map<std::string_view,
+  std::unordered_map<std::string,
                      std::set<sycl::detail::RTDeviceBinaryImage *>> &
   getVFSet2BinImage() {
     return m_VFSet2BinImage;

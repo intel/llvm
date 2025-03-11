@@ -1108,7 +1108,7 @@ void handler::extractArgsAndReqsFromLambda(
 }
 
 void handler::setKernelName() {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   MKernelNameStorage = MKernel->get_info<info::kernel::function_name>();
   MKernelName = MKernelNameStorage;
 #else

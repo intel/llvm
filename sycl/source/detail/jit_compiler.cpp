@@ -800,7 +800,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     assert(KernelCmd->isFusable());
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
 
-    auto KernelName = KernelCG->MKernelName;
+    std::string_view KernelName = KernelCG->MKernelName;
     if (KernelName.empty()) {
       printPerformanceWarning(
           "Cannot fuse kernel with invalid kernel function name");
@@ -808,7 +808,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     }
 
     auto [DeviceImage, Program] =
-        retrieveKernelBinary(Queue, KernelName.c_str(), KernelCG);
+        retrieveKernelBinary(Queue, KernelName.data(), KernelCG);
     if (!DeviceImage || !Program) {
       printPerformanceWarning("No suitable IR available for fusion");
       return nullptr;
@@ -912,7 +912,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         SYCLTypeToIndices(CurrentNDR.GlobalOffset)};
 
     Ranges.push_back(JITCompilerNDR);
-    InputKernelInfo.emplace_back(KernelName.c_str(), ArgDescriptor,
+    InputKernelInfo.emplace_back(KernelName.data(), ArgDescriptor,
                                  JITCompilerNDR, BinInfo);
 
     // Collect information for the fused kernel

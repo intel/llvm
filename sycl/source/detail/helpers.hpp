@@ -9,6 +9,7 @@
 #include <ur_api.h>
 
 #include <memory>
+#include <string_view>
 #include <tuple>
 #include <vector>
 
@@ -27,7 +28,7 @@ void waitEvents(std::vector<sycl::event> DepEvents);
 #endif
 
 std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
-retrieveKernelBinary(const QueueImplPtr &, const char *KernelName,
+retrieveKernelBinary(const QueueImplPtr &, std::string_view KernelName,
                      CGExecKernel *CGKernel = nullptr);
 } // namespace detail
 } // namespace _V1
