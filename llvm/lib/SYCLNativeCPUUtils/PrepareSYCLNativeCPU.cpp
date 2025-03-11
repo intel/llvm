@@ -278,6 +278,34 @@ static bool IsUnusedBuiltinOrPrivateDef(const Function &F) {
   return false;
 }
 
+static CallInst *createNewCall(CallBase *I, StringRef Name, const Use &Use,
+                               llvm::Constant *CurrentStatePointerTLS,
+                               Type *StatePtrType, Function *&ReplaceFunc,
+                               Module &M) {
+  Value *SVal = getStateArg(I->getFunction(), CurrentStatePointerTLS);
+  if (nullptr == SVal || SVal->getType() != StatePtrType) {
+    // Something went wrong, try to recover
+    SVal = Constant::getNullValue(StatePtrType);
+  }
+  SmallVector<Value *> Args(I->arg_begin(), I->arg_end());
+  Args.push_back(SVal);
+  if (nullptr == ReplaceFunc)
+    ReplaceFunc = getReplaceFunc(M, Name, Use, Args);
+  auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
+                                Args, "", I->getIterator());
+  // If the parent function has debug info, we need to make sure that the
+  // CallInstructions in it have debug info, otherwise we end up with
+  // invalid IR after inlining.
+  if (I->getFunction()->hasMetadata("dbg")) {
+    if (!I->getMetadata("dbg")) {
+      I->setDebugLoc(DILocation::get(M.getContext(), 0, 0,
+                                     I->getFunction()->getSubprogram()));
+    }
+    NewI->setDebugLoc(I->getDebugLoc());
+  }
+  return NewI;
+}
+
 static constexpr StringRef STATE_TLS_NAME = "_ZL28nativecpu_thread_local_state";
 
 } // namespace
@@ -430,27 +458,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         ToRemove2.push_back(C);
         continue;
       }
-      Value *SVal = getStateArg(I->getFunction(), CurrentStatePointerTLS);
-      if (nullptr == SVal || SVal->getType() != StatePtrType) {
-        // Something went wrong, try to recover
-        SVal = Constant::getNullValue(StatePtrType);
-      }
-      SmallVector<Value *> Args(I->arg_begin(), I->arg_end());
-      Args.push_back(SVal);
-      if (nullptr == ReplaceFunc)
-        ReplaceFunc = getReplaceFunc(M, Entry.second, Use, Args);
-      auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
-                                    Args, "", I->getIterator());
-      // If the parent function has debug info, we need to make sure that the
-      // CallInstructions in it have debug info, otherwise we end up with
-      // invalid IR after inlining.
-      if (I->getFunction()->hasMetadata("dbg")) {
-        if (!I->getMetadata("dbg")) {
-          I->setDebugLoc(DILocation::get(M.getContext(), 0, 0,
-                                         I->getFunction()->getSubprogram()));
-        }
-        NewI->setDebugLoc(I->getDebugLoc());
-      }
+      CallInst *NewI =
+          createNewCall(I, Entry.second, Use, CurrentStatePointerTLS,
+                        StatePtrType, ReplaceFunc, M);
       ToRemove.push_back(std::make_pair(I, NewI));
     }
 
