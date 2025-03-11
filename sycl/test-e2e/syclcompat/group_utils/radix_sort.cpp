@@ -32,6 +32,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: spirv-backend && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: CMPLRLLVM-66043
+
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
