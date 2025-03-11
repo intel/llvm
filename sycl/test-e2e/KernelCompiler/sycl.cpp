@@ -518,7 +518,7 @@ int test_esimd() {
   // Deactivate implicit module splitting to exercise the downstream
   // ESIMD-specific splitting.
   source_kb kbSrcMixed2 = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, mixedSource);
+      ctx, syclex::source_language::sycl, mixedSource);
   exe_kb kbExeMixed2 =
       syclex::build(kbSrcMixed2, syclex::properties{syclex::build_options{
                                      "-fsycl-device-code-split=off"}});
