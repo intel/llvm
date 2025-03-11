@@ -80,13 +80,27 @@ jobs:
         git checkout origin/pr/${{ inputs.pr_no }}/merge
         git rev-parse origin/pr/${{ inputs.pr_no }}/merge
 
+    # TODO: As long as we didn't merge this workflow into main, we should allow both scripts location
+    - name: Establish bench scripts location
+      run: |
+        if [ -d "${{github.workspace}}/sycl-repo/devops/scripts/benchmarks" ]; then
+          echo "Bench scripts are in devops/scripts"
+          echo "BENCH_SCRIPTS_DIR=${{github.workspace}}/sycl-repo/devops/scripts/benchmarks" >> $GITHUB_ENV
+        elif [ -d "${{github.workspace}}/sycl-repo/unified-runtime/scripts/benchmarks" ]; then
+          echo "Bench scripts are in unified-runtime/scripts"
+          echo "BENCH_SCRIPTS_DIR=${{github.workspace}}/sycl-repo/unified-runtime/scripts/benchmarks" >> $GITHUB_ENV
+        else
+          echo "Bench scripts are absent...?"
+          exit 1
+        fi
+
     - name: Create virtual environment
       run: python -m venv .venv
 
     - name: Activate virtual environment and install pip packages
       run: |
         source .venv/bin/activate
-        pip install -r ${{github.workspace}}/sycl-repo/devops/scripts/benchmarks/requirements.txt
+        pip install -r ${BENCH_SCRIPTS_DIR}/requirements.txt
 
     - name: Configure SYCL
       run: >
@@ -144,7 +158,7 @@ jobs:
       id: benchmarks
       run: >
         source .venv/bin/activate &&
-        taskset -c "${{ env.CORES }}" ${{ github.workspace }}/sycl-repo/devops/scripts/benchmarks/main.py
+        taskset -c "${{ env.CORES }}" ${BENCH_SCRIPTS_DIR}/main.py
         ~/llvm_bench_workdir
         --sycl ${{ github.workspace }}/sycl_build
         --ur ${{ github.workspace }}/ur_install
@@ -198,6 +212,9 @@ jobs:
         path: benchmark_results_${{ inputs.pr_no }}.html
         key: benchmark-results-${{ inputs.pr_no }}-${{ matrix.adapter.str_name }}-${{ github.run_id }}
 
+    # TODO: As long as we didn't merge this workflow into main, we should allow both scripts location
     - name: Get information about platform
       if: ${{ always() }}
-      run: ${{github.workspace}}/sycl-repo/devops/scripts/get_system_info.sh
+      run: |
+        ${{github.workspace}}/sycl-repo/devops/scripts/get_system_info.sh || true
+        ${{github.workspace}}/sycl-repo/unified-runtime/.github/scripts/get_system_info.sh || true
