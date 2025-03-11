@@ -8,9 +8,7 @@ import os
 from options import options
 
 
-def generate_html(benchmark_runs: list, compare_names: list[str]):
-    # create path to data.js in html folder
-    html_path = os.path.join(os.path.dirname(__file__), "html")
+def generate_html(benchmark_runs: list, compare_names: list[str], html_path: str):
     benchmark_runs.sort(key=lambda run: run.date, reverse=True)
 
     if options.output_html == "local":

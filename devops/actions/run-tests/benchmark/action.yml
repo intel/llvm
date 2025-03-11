@@ -27,15 +27,24 @@ runs:
     shell: bash
     env:
       TARGET_DEVICE: ${{ inputs.target_devices }}
+      RUNNER_NAME: ${{ runner.name }}
     run: |
       case "$RUNNER_TAG" in
-        '["Linux", "gen12"]' | '["Linux", "pvc"]') ;;
+        '["PVC_PERF"]' ) ;;
         *)
           echo "#"
-          echo "# WARNING: Only gen12/pvc on Linux is fully supported."
+          echo "# WARNING: Only specific tuned runners are fully supported."
           echo "# This workflow is not guaranteed to work with other runners."
           echo "#" ;;
       esac
+
+      # Ensure runner name has nothing injected
+      # TODO: in terms of security, is this overkill?
+      if [ -z "$(printf '%s' "$RUNNER_NAME" | grep -oE '^[a-zA-Z0-9_-]+$')" ]; then
+          echo "Bad runner name, please ensure runner name is [a-zA-Z0-9_-]."
+          exit 1
+      fi
+      echo "RUNNER_NAME=$RUNNER_NAME" >> $GITHUB_ENV 
 
       # input.target_devices is not directly used, as this allows code injection
       case "$TARGET_DEVICE" in
@@ -46,11 +55,11 @@ runs:
           echo "# This workflow is not guaranteed to work with other backends."
           echo "#" ;;
       esac
+      echo "ONEAPI_DEVICE_SELECTOR=$TARGET_DEVICE" >> $GITHUB_ENV 
+
   - name: Compute CPU core range to run benchmarks on
     shell: bash
     run: |
-      # Taken from ur-benchmark-reusable.yml:
-
       # Compute the core range for the first NUMA node; second node is used by
       # UMF. Skip the first 4 cores as the kernel is likely to schedule more
       # work on these.
@@ -67,65 +76,62 @@ runs:
 
       ZE_AFFINITY_MASK=0
       echo "ZE_AFFINITY_MASK=$ZE_AFFINITY_MASK" >> $GITHUB_ENV
+  - name: Checkout results repo
+    shell: bash
+    run: |
+      git clone -b unify-ci https://github.com/intel/llvm-ci-perf-results
   - name: Run compute-benchmarks
     shell: bash
     run: |
-      cat << EOF
-      #
-      # NOTE TO DEVELOPERS:
-      #
-
-      Check latter steps of the workflow: This job produces an artifact with:
-        - benchmark results from passing/failing tests
-        - log containing all failing (too slow) benchmarks
-        - log containing all erroring benchmarks
-
-      While this step in the workflow provides debugging output describing this
-      information, it might be easier to inspect the logs from the artifact
-      instead.
-
-      EOF
-      export ONEAPI_DEVICE_SELECTOR="${{ inputs.target_devices }}"
+      # TODO generate summary + display helpful message here
       export CMPLR_ROOT=./toolchain
       echo "-----"
       sycl-ls
       echo "-----"
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
-      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py "$(realpath ./llvm_test_workdir)" --sycl "$(realpath ./toolchain)" --save baseline --preset Minimal
+      echo "-----"
+      mkdir -p "./llvm-ci-perf-results/$RUNNER_NAME"
+      taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
+        "$(realpath ./llvm_test_workdir)" \
+        --sycl "$(realpath ./toolchain)" \
+        --save baseline \
+        --output-html remote \
+        --results-dir "./llvm-ci-perf-results/$RUNNER_NAME"
+        --output-dir ./llvm_test_workdir \
+        --preset Minimal
       echo "-----"
       ls
-#  - name: Push compute-benchmarks results
-#    if: always()
-#    shell: bash
-#    run: |
-#      # TODO -- waiting on security clearance
-#      # Load configuration values
-#      $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
-#
-#      cd "./llvm-ci-perf-results"
-#      git config user.name "SYCL Benchmarking Bot"
-#      git config user.email "sys_sycl_benchmarks@intel.com"
-#      git pull
-#      git add .
-#      # Make sure changes have been made
-#      if git diff --quiet && git diff --cached --quiet; then
-#        echo "No new results added, skipping push."
-#      else
-#        git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
-#        git push "https://$GITHUB_TOKEN@github.com/$SANITIZED_PERF_RES_GIT_REPO.git" "$SANITIZED_PERF_RES_GIT_BRANCH"
-#      fi
-  - name: Find benchmark result artifact here
+  - name: Push compute-benchmarks results
     if: always()
     shell: bash
     run: |
-      cat << EOF
-      #
-      # Artifact link for benchmark results here:
-      #
-      EOF
-  - name: Archive compute-benchmark results
-    if: always()
-    uses: actions/upload-artifact@v4
-    with:
-      name: Compute-benchmark run ${{ github.run_id }} (${{ runner.name }})
-      path: ./artifact
+      # TODO redo configuration
+      # $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
+
+      cd "./llvm-ci-perf-results"
+      git config user.name "SYCL Benchmarking Bot"
+      git config user.email "sys_sycl_benchmarks@intel.com"
+      git pull
+      git add .
+      # Make sure changes have been made
+      if git diff --quiet && git diff --cached --quiet; then
+        echo "No new results added, skipping push."
+      else
+        git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
+        git push "https://$GITHUB_TOKEN@github.com/intel/llvm-ci-perf-results.git" unify-ci
+      fi
+#  - name: Find benchmark result artifact here
+#    if: always()
+#    shell: bash
+#    run: |
+#      cat << EOF
+#      #
+#      # Artifact link for benchmark results here:
+#      #
+#      EOF
+#  - name: Archive compute-benchmark results
+#    if: always()
+#    uses: actions/upload-artifact@v4
+#    with:
+#      name: Compute-benchmark run ${{ github.run_id }} (${{ runner.name }})
+#      path: ./artifact
