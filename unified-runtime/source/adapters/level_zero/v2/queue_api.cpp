@@ -385,7 +385,6 @@ ur_result_t urEnqueueUSMFreeExp(ur_queue_handle_t hQueue,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-
 ur_result_t urEnqueueCooperativeKernelLaunchExp(
     ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,

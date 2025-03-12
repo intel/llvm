@@ -194,6 +194,8 @@ struct ur_mem_image_t : _ur_object {
 
   ze_image_handle_t getZeImage() const { return zeImage.get(); }
 
+  ze_image_desc_t &getZeImageDesc() { return zeImageDesc; }
+
   std::pair<ze_image_handle_t, ze_image_region_t>
   getRWRegion(ur_rect_offset_t &origin, ur_rect_region_t &region,
               size_t rowPitch, size_t slicePitch);

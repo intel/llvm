@@ -207,63 +207,6 @@ ur_result_t urBindlessImagesImageCopyExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urBindlessImagesImageGetInfoExp(
-    ur_context_handle_t, ur_exp_image_mem_native_handle_t hImageMem,
-    ur_image_info_t propName, void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(UR_IMAGE_INFO_DEPTH >= propName,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-  UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
-  auto *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
-  ze_image_desc_t &Desc = UrImage->ZeImageDesc;
-  switch (propName) {
-  case UR_IMAGE_INFO_WIDTH:
-    if (pPropValue) {
-      *(uint64_t *)pPropValue = Desc.width;
-    }
-    if (pPropSizeRet) {
-      *pPropSizeRet = sizeof(uint64_t);
-    }
-    return UR_RESULT_SUCCESS;
-  case UR_IMAGE_INFO_HEIGHT:
-    if (pPropValue) {
-      *(uint32_t *)pPropValue = Desc.height;
-    }
-    if (pPropSizeRet) {
-      *pPropSizeRet = sizeof(uint32_t);
-    }
-    return UR_RESULT_SUCCESS;
-  case UR_IMAGE_INFO_DEPTH:
-    if (pPropValue) {
-      *(uint32_t *)pPropValue = Desc.depth;
-    }
-    if (pPropSizeRet) {
-      *pPropSizeRet = sizeof(uint32_t);
-    }
-    return UR_RESULT_SUCCESS;
-  case UR_IMAGE_INFO_FORMAT:
-    if (pPropValue) {
-      ur_image_format_t UrImageFormat;
-      UR_CALL(ze2urImageFormat(&Desc, &UrImageFormat));
-      *(ur_image_format_t *)pPropValue = UrImageFormat;
-    }
-    if (pPropSizeRet) {
-      *pPropSizeRet = sizeof(ur_image_format_t);
-    }
-    return UR_RESULT_SUCCESS;
-  default:
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-}
-
-ur_result_t
-urBindlessImagesMipmapFreeExp(ur_context_handle_t hContext,
-                              ur_device_handle_t hDevice,
-                              ur_exp_image_mem_native_handle_t hMem) {
-  return ur::level_zero::urBindlessImagesImageFreeExp(hContext, hDevice, hMem);
-}
-
 ur_result_t urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     ur_exp_external_mem_type_t memHandleType,

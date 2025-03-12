@@ -46,48 +46,8 @@ ur_result_t urBindlessImagesImageCopyExp(
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
-    bool hasWaitValue, uint64_t waitValue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-  return hQueue->get().bindlessImagesWaitExternalSemaphoreExp(
-      hSemaphore, hasWaitValue, waitValue, numEventsInWaitList, phEventWaitList,
-      phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
-    bool hasSignalValue, uint64_t signalValue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-  return hQueue->get().bindlessImagesSignalExternalSemaphoreExp(
-      hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
-      phEventWaitList, phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
 
-ur_result_t urBindlessImagesImageGetInfoExp(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem,
-    [[maybe_unused]] ur_image_info_t propName,
-    [[maybe_unused]] void *pPropValue, [[maybe_unused]] size_t *pPropSizeRet) {
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
-      "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
 
-ur_result_t urBindlessImagesMipmapFreeExp(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_image_mem_native_handle_t hMem) {
-
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
-      "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
 
 ur_result_t urBindlessImagesImportExternalMemoryExp(
     [[maybe_unused]] ur_context_handle_t hContext,
@@ -166,5 +126,25 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
+    bool hasWaitValue, uint64_t waitValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
+  return hQueue->get().bindlessImagesWaitExternalSemaphoreExp(
+      hSemaphore, hasWaitValue, waitValue, numEventsInWaitList, phEventWaitList,
+      phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
+    bool hasSignalValue, uint64_t signalValue, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
+  return hQueue->get().bindlessImagesSignalExternalSemaphoreExp(
+      hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
+      phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
 } // namespace ur::level_zero
-//===--------- image.cpp - Level Zero Adapter ----------------------------===//
