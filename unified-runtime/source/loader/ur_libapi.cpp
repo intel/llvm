@@ -869,7 +869,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName`
+///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1179,6 +1179,8 @@ ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     /// [in] handle of the device instance
     ur_device_handle_t hDevice,
@@ -1331,7 +1333,7 @@ ur_result_t UR_APICALL urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName`
+///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1475,6 +1477,8 @@ ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnDeleter`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 ur_result_t UR_APICALL urContextSetExtendedDeleter(
     /// [in] handle of the context.
     ur_context_handle_t hContext,
@@ -2591,7 +2595,7 @@ ur_result_t UR_APICALL urUSMPoolRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPool`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_USM_POOL_INFO_CONTEXT < propName`
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -6704,6 +6708,504 @@ ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an async device allocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) try {
+  auto pfnUSMDeviceAllocExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnUSMDeviceAllocExp;
+  if (nullptr == pfnUSMDeviceAllocExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnUSMDeviceAllocExp(hQueue, pPool, size, pProperties,
+                              numEventsInWaitList, phEventWaitList, ppMem,
+                              phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an async shared allocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) try {
+  auto pfnUSMSharedAllocExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnUSMSharedAllocExp;
+  if (nullptr == pfnUSMSharedAllocExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnUSMSharedAllocExp(hQueue, pPool, size, pProperties,
+                              numEventsInWaitList, phEventWaitList, ppMem,
+                              phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an async host allocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) try {
+  auto pfnUSMHostAllocExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnUSMHostAllocExp;
+  if (nullptr == pfnUSMHostAllocExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnUSMHostAllocExp(hQueue, pPool, size, pProperties,
+                            numEventsInWaitList, phEventWaitList, ppMem,
+                            phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an async free
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] pointer to USM memory object
+    void *pMem,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent) try {
+  auto pfnUSMFreeExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnUSMFreeExp;
+  if (nullptr == pfnUSMFreeExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnUSMFreeExp(hQueue, pPool, pMem, numEventsInWaitList,
+                       phEventWaitList, phEvent);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create USM memory pool with desired properties.
+///
+/// @details
+///     - Create a memory pool associated with a single device.
+///     - See also ::urUSMPoolCreate and ::ur_usm_pool_limits_desc_t.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPoolDesc`
+///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+ur_result_t UR_APICALL urUSMPoolCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to USM pool descriptor. Can be chained with
+    /// ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_desc_t *pPoolDesc,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool) try {
+  auto pfnPoolCreateExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolCreateExp;
+  if (nullptr == pfnPoolCreateExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPoolCreateExp(hContext, hDevice, pPoolDesc, pPool);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy a USM memory pool.
+///
+/// @details
+///     - Destroy a memory pool associated with a single device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+ur_result_t UR_APICALL urUSMPoolDestroyExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool to be destroyed
+    ur_usm_pool_handle_t hPool) try {
+  auto pfnPoolDestroyExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolDestroyExp;
+  if (nullptr == pfnPoolDestroyExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPoolDestroyExp(hContext, hDevice, hPool);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a new release threshold for a USM memory pool.
+///
+/// @details
+///     - Set a new release threshold for a USM memory pool.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool for the threshold to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] release threshold to be set
+    size_t newThreshold) try {
+  auto pfnPoolSetThresholdExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolSetThresholdExp;
+  if (nullptr == pfnPoolSetThresholdExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPoolSetThresholdExp(hContext, hDevice, hPool, newThreshold);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the default pool for a device.
+///
+/// @details
+///     - Get the default pool for a device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool) try {
+  auto pfnPoolGetDefaultDevicePoolExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolGetDefaultDevicePoolExp;
+  if (nullptr == pfnPoolGetDefaultDevicePoolExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPoolGetDefaultDevicePoolExp(hContext, hDevice, pPool);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query a pool for specific properties.
+///
+/// @details
+///     - Query a memory pool for specific properties.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urUSMPoolGetInfoExp(
+    /// [in] handle to USM memory pool for property retrieval
+    ur_usm_pool_handle_t hPool,
+    /// [in] queried property name
+    ur_usm_pool_info_t propName,
+    /// [out][optional] returned query value
+    void *pPropValue,
+    /// [out][optional] returned query value size
+    size_t *pPropSizeRet) try {
+  auto pfnPoolGetInfoExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolGetInfoExp;
+  if (nullptr == pfnPoolGetInfoExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPoolGetInfoExp(hPool, propName, pPropValue, pPropSizeRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the current pool for a device.
+///
+/// @details
+///     - Set the current pool for a device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool to set for a device
+    ur_usm_pool_handle_t hPool) try {
+  auto pfnPoolSetDevicePoolExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolSetDevicePoolExp;
+  if (nullptr == pfnPoolSetDevicePoolExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPoolSetDevicePoolExp(hContext, hDevice, hPool);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the currently set pool for a device.
+///
+/// @details
+///     - Get the currently set pool for a device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool) try {
+  auto pfnPoolGetDevicePoolExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolGetDevicePoolExp;
+  if (nullptr == pfnPoolGetDevicePoolExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPoolGetDevicePoolExp(hContext, hDevice, pPool);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Attempt to release a pool's memory back to the OS
+///
+/// @details
+///     - Attempt to release a pool's memory back to the OS
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+ur_result_t UR_APICALL urUSMPoolTrimToExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool for trimming
+    ur_usm_pool_handle_t hPool,
+    /// [in] minimum number of bytes to keep in the pool
+    size_t minBytesToKeep) try {
+  auto pfnPoolTrimToExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolTrimToExp;
+  if (nullptr == pfnPoolTrimToExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPoolTrimToExp(hContext, hDevice, hPool, minBytesToKeep);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate pitched memory
 ///
 /// @details
@@ -8711,8 +9213,8 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommandBuffer`
 ///         + `NULL == hQueue`
+///         + `NULL == hCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -8722,11 +9224,11 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    /// [in] Handle of the command-buffer object.
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -8739,13 +9241,13 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// phEvent are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
-  auto pfnEnqueueExp =
-      ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
-  if (nullptr == pfnEnqueueExp)
+  auto pfnCommandBufferExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnCommandBufferExp;
+  if (nullptr == pfnCommandBufferExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnEnqueueExp(hCommandBuffer, hQueue, numEventsInWaitList,
-                       phEventWaitList, phEvent);
+  return pfnCommandBufferExp(hQueue, hCommandBuffer, numEventsInWaitList,
+                             phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -8755,7 +9257,8 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///
 /// @details
 /// This entry-point is synchronous and may block if the command-buffer is
-/// executing when the entry-point is called.
+/// executing when the entry-point is called. On error, the state of the
+/// command-buffer commands being updated is undefined.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8763,66 +9266,75 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommand`
+///         + `NULL == hCommandBuffer`
+///         + `NULL == pUpdateKernelLaunch->hCommand`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUpdateKernelLaunch`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `numKernelUpdates == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS
-///         is not supported by the device, but any of
-///         `pUpdateKernelLaunch->numNewMemObjArgs`,
-///         `pUpdateKernelLaunch->numNewPointerArgs`, or
-///         `pUpdateKernelLaunch->numNewValueArgs` are not zero.
+///         is not supported by the device, and for any of any element of
+///         `pUpdateKernelLaunch` the `numNewMemObjArgs`, `numNewPointerArgs`,
+///         or `numNewValueArgs` members are not zero.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is nullptr and
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is nullptr and
+///         `pNewGlobalWorkSize` is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkSize` member is not nullptr
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkOffset` member is not
+///         nullptr.
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE
-///         is not supported by the device but `pUpdateKernelLaunch->hNewKernel`
-///         is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `hNewKernel` member is not nullptr.
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true
-///         on creation of the command-buffer `hCommand` belongs to.
-///         + If the command-buffer `hCommand` belongs to has not been
-///         finalized.
+///         on creation of the `hCommandBuffer`.
+///         + If `hCommandBuffer`  has not been finalized.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
-///         + If `hCommand` is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         was not created from `hCommandBuffer`.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pUpdateKernelLaunch->newWorkDim < 1 ||
-///         pUpdateKernelLaunch->newWorkDim > 3`
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is less than 1 or greater than 3.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + If `pUpdateKernelLaunch->hNewKernel` was not passed to the
-///         `hKernel` or `phKernelAlternatives` parameters of
-///         ::urCommandBufferAppendKernelLaunchExp when this command was
-///         created.
-///         + If `pUpdateKernelLaunch->newWorkDim` is different from the current
-///         workDim in `hCommand` and,
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize`, or
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` are nullptr.
+///         + If for any element of `pUpdateKernelLaunch` the `hNewKernel`
+///         member was not passed to the `hKernel` or `phKernelAlternatives`
+///         parameters of ::urCommandBufferAppendKernelLaunchExp when the
+///         command was created.
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is different from the current workDim in the `hCommand`
+///         member, and `pNewGlobalWorkSize` or `pNewGlobalWorkOffset` are
+///         nullptr.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    /// [in] Handle of the command-buffer kernel command to update.
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] Struct defining how the kernel command is to be updated.
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Length of pUpdateKernelLaunch.
+    uint32_t numKernelUpdates,
+    /// [in][range(0, numKernelUpdates)]  List of structs defining how a
+    /// kernel commands are to be updated.
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) try {
   auto pfnUpdateKernelLaunchExp =
@@ -8831,7 +9343,8 @@ ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   if (nullptr == pfnUpdateKernelLaunchExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+  return pfnUpdateKernelLaunchExp(hCommandBuffer, numKernelUpdates,
+                                  pUpdateKernelLaunch);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

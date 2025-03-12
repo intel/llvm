@@ -1155,7 +1155,7 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
     const std::string &Prefix) {
   auto Collection = std::make_unique<DeviceBinariesCollection>();
 
-  for (const auto &DevImgInfo : BundleInfo) {
+  for (const auto &DevImgInfo : BundleInfo.DevImgInfos) {
     DeviceBinaryContainer Binary;
     for (const auto &Symbol : DevImgInfo.SymbolTable) {
       // Create an offload entry for each kernel. We prepend a unique prefix to
@@ -1186,6 +1186,8 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
         }
       }
       Binary.addProperty(std::move(PropSet));
+
+      Binary.setCompileOptions(BundleInfo.CompileOptions.c_str());
     }
 
     Collection->addDeviceBinary(std::move(Binary),
