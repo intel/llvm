@@ -13,7 +13,7 @@
 #include <numeric> // std::accumulate
 
 #if SYCL_EXT_JIT_ENABLE
-#include "../jit_compiler.hpp"
+#include <detail/jit_compiler.hpp>
 #endif
 
 namespace sycl {
