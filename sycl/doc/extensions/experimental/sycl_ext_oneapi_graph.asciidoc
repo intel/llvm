@@ -547,6 +547,9 @@ namespace ext::oneapi::experimental{
 template <typename ValueT>
 class dynamic_parameter {
 public:
+
+  static_assert(sycl::is_device_copyable_v<ValueT>);
+
   dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &initialValue);
 
   void update(const ValueT& newValue);
@@ -565,11 +568,10 @@ Table {counter: tableNumber}. Template parameters of the `dynamic_parameter` cla
 |
 ValueT
 |
+:device_copyable: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec::device.copyable
 The type of the underlying object that a dynamic parameter represents is set at
-compile time using the `ValueT` parameter. This underlying type can be a pointer
-to a USM allocation, scalar passed by value, or a raw byte representation of the
-argument. The raw byte representation is intended to enable updating arguments set
-using link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+compile time using the `ValueT` parameter. This underlying type must be {device_copyable}[device
+copyable].
 |
 
 |===
