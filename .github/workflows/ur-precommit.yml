@@ -48,7 +48,6 @@ jobs:
   #   needs: [detect_changes]
   #   #if: ${{ always() && !cancelled() && contains(needs.detect_changes.outputs.filters, 'ur') }}
   #   uses: ./.github/workflows/ur-source-checks.yml
-
   adapters:
     name: Adapters
     #needs: [detect_changes, source_checks]
