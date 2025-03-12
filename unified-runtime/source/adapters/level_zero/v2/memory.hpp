@@ -189,8 +189,8 @@ struct ur_mem_image_t : _ur_object {
   ur_mem_image_t(ur_context_handle_t hContext,
                  ZeStruct<ze_image_desc_t> &zeImageDesc,
                  ze_image_handle_t zeImage, bool ownZeImage)
-      : hContext(hContext), zeImageDesc(zeImageDesc),
-        zeImage(zeImage, ownZeImage){};
+      : hContext(hContext), zeImage(zeImage, ownZeImage),
+        zeImageDesc(zeImageDesc){};
 
   ze_image_handle_t getZeImage() const { return zeImage.get(); }
 

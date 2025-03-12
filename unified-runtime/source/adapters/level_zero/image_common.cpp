@@ -8,14 +8,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <loader/ze_loader.h>
+
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
 #include "helpers/image_helpers.hpp"
 #include "logger/ur_logger.hpp"
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+#include "v2/memory.hpp"
+#else
+#include "memory.hpp"
+#endif
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
-#include "ur_level_zero.hpp"
 
 zeMemGetPitchFor2dImage_pfn zeMemGetPitchFor2dImageFunctionPtr = nullptr;
 
@@ -61,6 +67,73 @@ ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
   size_t Size = height * RowPitch;
   UR_CALL(ur::level_zero::urUSMDeviceAlloc(hContext, hDevice, pUSMDesc, pool,
                                            Size, ppMem));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urBindlessImagesImageAllocateExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    ur_exp_image_mem_native_handle_t *phImageMem) {
+  std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
+
+  UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pImageFormat && pImageDesc && phImageMem,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ZeStruct<ze_image_desc_t> ZeImageDesc;
+  UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
+
+  ze_image_bindless_exp_desc_t ZeImageBindlessDesc;
+  ZeImageBindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
+  ZeImageBindlessDesc.pNext = nullptr;
+  ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
+  ZeImageDesc.pNext = &ZeImageBindlessDesc;
+
+  ze_image_handle_t ZeImage;
+  ZE2UR_CALL(zeImageCreate,
+             (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
+  ZE2UR_CALL(zeContextMakeImageResident,
+             (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
+  UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
+                                 ZeImageDesc, phImageMem));
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urBindlessImagesUnsampledImageCreateExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_mem_native_handle_t hImageMem,
+    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    ur_exp_image_native_handle_t *phImage) {
+  UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
+                                   pImageDesc, nullptr, phImage));
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urBindlessImagesSampledImageCreateExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_mem_native_handle_t hImageMem,
+    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    ur_sampler_handle_t hSampler, ur_exp_image_native_handle_t *phImage) {
+  UR_CALL(bindlessImagesCreateImpl(hContext, hDevice, hImageMem, pImageFormat,
+                                   pImageDesc, hSampler, phImage));
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_image_native_handle_t hImage) {
+
+  UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
+
+  if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
+    ZE2UR_CALL(zeImageDestroy, (item->second));
+    hDevice->ZeOffsetToImageHandleMap.erase(item);
+  } else {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
 
   return UR_RESULT_SUCCESS;
 }
