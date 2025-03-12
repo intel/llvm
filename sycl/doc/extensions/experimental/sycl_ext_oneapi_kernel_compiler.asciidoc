@@ -811,16 +811,6 @@ the host application interact with device globals defined in runtime-compiled
 code. Device globals are only supported for the `source_language::sycl`
 language.
 
-This extension currently supports only a subset of the
-link:../experimental/sycl_ext_oneapi_device_global.asciidoc[
-sycl_ext_oneapi_device_global] extension:
-
-* Device globals must be declared at global scope.
-* Device globals declared with the `device_image_scope` property can be used in
-the runtime-compiled device code, but cannot be accessed from the host.
-
-We plan to lift both limitations in a future version of this extension.
-
 [source,c++]
 ----
 namespace sycl {
@@ -856,8 +846,7 @@ _Returns:_ The value `true` only if
 
 * the kernel bundle was created from a bundle of state
   `bundle_state::ext_oneapi_source` in the language `source_language::sycl`, and
-* it defines a device global whose name is `name` and which was declared without
-  the `device_image_scope` property.
+* it defines a device global whose name is `name`.
 
 a|
 [frame=all,grid=none]
@@ -885,8 +874,8 @@ _Throws:_
 
 * An `exception` with the `errc::invalid` error code if
   `ext_oneapi_has_device_global(name)` returns `false`.
-* An `exception` with the `errc::invalid` error code if the context associated
-  with this bundle does not contain device `dev`.
+* An `exception` with the `errc::invalid` error code if the bundle was not built
+  for device `dev`.
 * An `exception` with the `errc::memory_allocation` error code if the allocation
   or initialization of the device global's storage fails.
 
@@ -1127,6 +1116,12 @@ However, we don't yet have a utility library where this would go, and it may be
 hard for customers to discover this functionality if it is defined outside of
 this extension.
 
+* The specification of the _name_ of a device global needs to be refined. If
+  device globals declared in namespaces or as static class member should be
+  supported, we have to extend the `registered_names` property to also accept
+  their qualified source code names. Should device globals declared at global
+  scope be registered implicitly, similar to `extern "C"` kernels?
+
 == Non-normative implementation notes for {dpcpp}
 
 === Supported `build_options` when the language is `sycl`
@@ -1148,3 +1143,16 @@ files when the language is ``sycl``"). This is useful, for example, to compile
 kernels using external libraries. Note that for the second and fourth form,
 `dir` is a separate element in the `build_options` list.
 |===
+
+=== Limitations
+
+==== Device globals
+
+* Device globals must be declared at global scope. Device globals declared in a
+  namespace or as a static class member will be reported as not being present in
+  the kernel bundle.
+* Device globals declared with the `device_image_scope` property can be used in
+  the runtime-compiled device code, but cannot be accessed from the host.
+  Calling `kernel_bundle::ext_oneapi_get_device_global_address` for a device
+  global with `device_image_scope` will throw an `exception` with the
+  `errc::invalid` error code.
