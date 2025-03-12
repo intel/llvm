@@ -21,9 +21,24 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
+
+  # Common link step setup
+
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
+  find_package(Threads REQUIRED)
+
+  target_link_libraries(${LIB_NAME}
+    PRIVATE
+      ${CMAKE_DL_LIBS}
+      ${CMAKE_THREAD_LIBS_INIT}
+      $<$<NOT:$<BOOL:${WIN32}>>:UnifiedRuntimeLoader>
+      $<$<BOOL:${WIN32}>:shlwapi>
+  )
+
+  # Feature-specific compilation and link step setup
 
   # Unlike for sycl library, for LLVMSupport we have only one version for a given build,
   # so, we link LLVMSupport lib to matching sycl version only.
@@ -98,7 +113,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   if (WIN32)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
-    target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
     if (ARG_IMPLIB_NAME)
       add_custom_command(
         TARGET ${LIB_NAME} POST_BUILD
@@ -164,14 +178,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
   endif(SYCL_ENABLE_EXTENSION_JIT)
 
-  find_package(Threads REQUIRED)
-
-  target_link_libraries(${LIB_NAME}
-    PRIVATE
-      ${CMAKE_DL_LIBS}
-      ${CMAKE_THREAD_LIBS_INIT}
-  )
-
   # Link and include UR
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE
@@ -184,19 +190,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
       "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
   )
-
-  target_link_libraries(${LIB_NAME}
-    PRIVATE
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-  )
-
-  if (NOT WIN32)
-    target_link_libraries(${LIB_NAME}
-      PRIVATE
-      UnifiedRuntimeLoader
-    )
-  endif()
 
   target_include_directories(${LIB_NAME}
     PRIVATE
