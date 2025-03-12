@@ -860,8 +860,8 @@ has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
   return has_kernel_bundle<State>(Ctx, Devs, {get_kernel_id<Func>()});
 }
 } // namespace ext::oneapi::experimental
-
 #endif
+
 /////////////////////////
 // is_compatible API
 /////////////////////////
