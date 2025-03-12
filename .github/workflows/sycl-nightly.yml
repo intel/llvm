@@ -43,7 +43,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: oneapi
       build_artifact_suffix: oneapi
-      build_configure_extra_args: --cmake-opt=-DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise" --cmake-opt=-DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise"
+      build_configure_extra_args: -DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise" -DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise"
       cc: icx
       cxx: icpx
 
