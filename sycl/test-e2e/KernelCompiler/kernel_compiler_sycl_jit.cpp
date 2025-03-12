@@ -385,14 +385,11 @@ int test_esimd(sycl::queue q) {
 
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
-  if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+  if (!q.get_device().has(sycl::aspect::ext_intel_esimd)) {
+    std::cout << "Device '"
               << q.get_device().get_info<sycl::info::device::name>()
-              << std::endl;
-    return -1;
+              << "' does not support ESIMD, skipping test." << std::endl;
+    return 0;
   }
 
   std::string log;
