@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/context.hpp>                               // for context
 #include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
 #include <sycl/device.hpp>                                // for device
@@ -911,18 +912,23 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 }
 
 template <typename DataT>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_oneapi_bindless_images_gather)]]
+#endif
 std::enable_if_t<std::is_same_v<DataT, float4> || std::is_same_v<DataT, int4> ||
                      std::is_same_v<DataT, uint4>,
                  DataT>
 gather_image(const sampled_image_handle &imageHandle [[maybe_unused]],
              const float2 &coords [[maybe_unused]],
              const unsigned i [[maybe_unused]]) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#if defined(__SYCL_DEVICE_ONLY__)
   return __invoke__SampledImageGather<DataT>(
       CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, float2::size()),
       coords, i);
 #else
-  assert(false); // Gather_image is only currently supported on the cuda backend
+  throw exception{make_error_code(errc::feature_not_supported),
+                    "gather_image is not supported on the host"};
 #endif
 }
 
