@@ -203,7 +203,14 @@ jobs:
     env: ${{ fromJSON(inputs.env) }}
     steps:
     - name: Reset Intel GPU
-      if: inputs.reset_intel_gpu == 'true'
+      if: >
+        ${{ inputs.reset_intel_gpu == 'true' ||
+              ( github.event_name == 'workflow_dispatch' &&
+                inputs.tests_selector == 'compute-benchmarks' &&
+                inputs.runner == '["PVC_PERF"]' ) }}
+      # Specifically, manual dispatch running compute-benchmarks on PVC_PERF
+      # should reset intel GPU, since manual dispatch does not provide an option
+      # for users to pick whether or not manual dispatch resets the GPU.
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         base_dir="/sys/kernel/debug/dri"
