@@ -676,22 +676,6 @@ kernel_bundle<State> get_kernel_bundle(const context &Ctx,
   return get_kernel_bundle<State>(Ctx, Devs, {get_kernel_id<KernelName>()});
 }
 
-// For free functions.
-namespace ext::oneapi::experimental {
-template <auto *Func, bundle_state State>
-std::enable_if_t<is_kernel_v<Func>, kernel_bundle<State>>
-get_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
-  return get_kernel_bundle<State>(Ctx, Devs, {get_kernel_id<Func>()});
-}
-
-template <auto *Func, bundle_state State>
-std::enable_if_t<is_kernel_v<Func>, kernel_bundle<State>>
-get_kernel_bundle(const context &Ctx) {
-  return get_kernel_bundle<State>(Ctx, Ctx.get_devices(),
-                                  {get_kernel_id<Func>()});
-}
-} // namespace ext::oneapi::experimental
-
 // During device compilation mode the compiler does not yet know
 // what the kernels are named because that is exactly what its trying to
 // figure out during this phase. Therefore, we make the query declarations
