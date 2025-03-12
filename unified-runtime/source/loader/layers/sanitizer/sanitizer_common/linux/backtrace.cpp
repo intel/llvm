@@ -25,7 +25,7 @@ StackTrace GetCurrentBacktrace() {
   // call instruction. Adjust the addresses so that symbolizer would give more
   // precise result.
   for (int I = 0; I < FrameCount; I++) {
-    *(char *)&Frames[I] -= 1;
+    *(char **)&Frames[I] -= 1;
   }
 
   StackTrace Stack;
