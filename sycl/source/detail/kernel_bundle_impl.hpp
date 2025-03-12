@@ -385,6 +385,7 @@ public:
       std::vector<std::string> &&KernelNames,
       std::unordered_map<std::string, std::string> &&MangledKernelNames,
       std::vector<std::string> &&DeviceGlobalNames,
+      std::vector<std::unique_ptr<std::byte[]>> &&DeviceGlobalAllocations,
       sycl_device_binaries Binaries, std::string &&Prefix,
       syclex::source_language Lang)
       : kernel_bundle_impl(std::move(Ctx), std::move(Devs), KernelIDs,
@@ -399,6 +400,7 @@ public:
     MKernelNames = std::move(KernelNames);
     MMangledKernelNames = std::move(MangledKernelNames);
     MDeviceGlobalNames = std::move(DeviceGlobalNames);
+    MDeviceGlobalAllocations = std::move(DeviceGlobalAllocations);
     MDeviceBinaries = Binaries;
     MPrefix = std::move(Prefix);
     MLanguage = Lang;
@@ -535,6 +537,12 @@ public:
       std::vector<kernel_id> KernelIDs;
       std::vector<std::string> KernelNames;
       std::unordered_map<std::string, std::string> MangledKernelNames;
+
+      std::unordered_set<std::string> DeviceGlobalIDSet;
+      std::vector<std::string> DeviceGlobalIDVec;
+      std::vector<std::string> DeviceGlobalNames;
+      std::vector<std::unique_ptr<std::byte[]>> DeviceGlobalAllocations;
+
       for (const auto &KernelID : PM.getAllSYCLKernelIDs()) {
         std::string_view KernelName{KernelID.get_name()};
         if (KernelName.find(Prefix) == 0) {
@@ -552,8 +560,8 @@ public:
         }
       }
 
-      // Apply frontend information.
       for (const auto *RawImg : PM.getRawDeviceImages(KernelIDs)) {
+        // Mangled names.
         for (const sycl_device_binary_property &RKProp :
              RawImg->getRegisteredKernels()) {
 
@@ -563,14 +571,8 @@ public:
               reinterpret_cast<const char *>(BA.begin()), MangledNameLen};
           MangledKernelNames.emplace(RKProp->Name, MangledName);
         }
-      }
 
-      // Determine IDs of all device globals referenced by this bundle's
-      // kernels. These IDs are also prefixed.
-      std::unordered_set<std::string> DeviceGlobalIDSet;
-      std::vector<std::string> DeviceGlobalIDVec;
-      std::vector<std::string> DeviceGlobalNames;
-      for (const auto &RawImg : PM.getRawDeviceImages(KernelIDs)) {
+        // Device globals.
         for (const auto &DeviceGlobalProp : RawImg->getDeviceGlobals()) {
           std::string_view DeviceGlobalName{DeviceGlobalProp->Name};
           assert(DeviceGlobalName.find(Prefix) == 0);
@@ -585,12 +587,6 @@ public:
         }
       }
 
-      // Create the executable bundle.
-      auto ExecBundle = std::make_shared<kernel_bundle_impl>(
-          MContext, MDevices, KernelIDs, std::move(KernelNames),
-          std::move(MangledKernelNames), std::move(DeviceGlobalNames), Binaries,
-          std::move(Prefix), MLanguage);
-
       // Device globals are usually statically allocated and registered in the
       // integration footer, which we don't have in the RTC context. Instead, we
       // dynamically allocate storage tied to the executable kernel bundle.
@@ -599,13 +595,13 @@ public:
 
         size_t AllocSize = DeviceGlobalEntry->MDeviceGlobalTSize; // init value
         if (!DeviceGlobalEntry->MIsDeviceImageScopeDecorated) {
-          // USM pointer. TODO: it's actually a decorated multi_ptr.
+          // Consider storage for device USM pointer.
           AllocSize += sizeof(void *);
         }
         auto Alloc = std::make_unique<std::byte[]>(AllocSize);
         std::string_view DeviceGlobalName{DeviceGlobalEntry->MUniqueId};
         PM.addOrInitDeviceGlobalEntry(Alloc.get(), DeviceGlobalName.data());
-        ExecBundle->MDeviceGlobalAllocations.push_back(std::move(Alloc));
+        DeviceGlobalAllocations.push_back(std::move(Alloc));
 
         // Drop the RTC prefix from the entry's symbol name. Note that the PM
         // still manages this device global under its prefixed name.
@@ -614,7 +610,11 @@ public:
         DeviceGlobalEntry->MUniqueId = DeviceGlobalName;
       }
 
-      return ExecBundle;
+      return std::make_shared<kernel_bundle_impl>(
+          MContext, MDevices, KernelIDs, std::move(KernelNames),
+          std::move(MangledKernelNames), std::move(DeviceGlobalNames),
+          std::move(DeviceGlobalAllocations), Binaries, std::move(Prefix),
+          MLanguage);
     }
 
     ur_program_handle_t UrProgram = nullptr;
@@ -779,6 +779,28 @@ private:
             {MPrefix + mangle_device_global_name(Name)});
     assert(Entries.size() == 1);
     return Entries.front();
+  }
+
+  void unregister_device_globals_from_context() {
+    if (MDeviceGlobalNames.empty())
+      return;
+
+    // Manually trigger the release of resources for all device global map
+    // entries associated with this runtime-compiled bundle. Normally, this
+    // would happen in `~context_impl()`, however in the RTC setting, the
+    // context outlives the DG map entries owned by the program manager.
+
+    std::vector<std::string> DeviceGlobalIDs;
+    std::transform(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
+                   std::back_inserter(DeviceGlobalIDs),
+                   [&](const std::string &DGName) { return MPrefix + DGName; });
+    auto ContextImpl = getSyclObjImpl(MContext);
+    for (DeviceGlobalMapEntry *Entry :
+         ProgramManager::getInstance().getDeviceGlobalEntries(
+             DeviceGlobalIDs)) {
+      Entry->removeAssociatedResources(ContextImpl.get());
+      ContextImpl->removeAssociatedDeviceGlobal(Entry->MDeviceGlobalPtr);
+    }
   }
 
 public:
@@ -1121,6 +1143,7 @@ public:
   ~kernel_bundle_impl() {
     try {
       if (MDeviceBinaries) {
+        unregister_device_globals_from_context();
         ProgramManager::getInstance().removeImages(MDeviceBinaries);
         syclex::detail::SYCL_JIT_destroy(MDeviceBinaries);
       }
@@ -1162,11 +1185,10 @@ private:
   std::vector<std::string> MKernelNames;
   std::unordered_map<std::string, std::string> MMangledKernelNames;
   std::vector<std::string> MDeviceGlobalNames;
+  std::vector<std::unique_ptr<std::byte[]>> MDeviceGlobalAllocations;
   sycl_device_binaries MDeviceBinaries = nullptr;
   std::string MPrefix;
   include_pairs_t MIncludePairs;
-
-  std::vector<std::unique_ptr<std::byte[]>> MDeviceGlobalAllocations;
 };
 
 } // namespace detail
