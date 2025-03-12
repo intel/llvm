@@ -21,6 +21,17 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
+
+  # Common compilation step setup
+
+  target_compile_definitions(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      __SYCL_INTERNAL_API
+      SYCL2020_DISABLE_DEPRECATION_WARNINGS
+      $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
+  )
+
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
@@ -94,10 +105,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_options(${LIB_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000" "LINKER:/MANIFEST:NO" "LINKER:/MANIFEST:EMBED" "LINKER:/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME}")
   endif()
 
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
-
   if (WIN32)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
     if (ARG_IMPLIB_NAME)
       add_custom_command(
@@ -133,8 +141,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
   endif()
-
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
 
   target_include_directories(
     ${LIB_OBJ_NAME}
