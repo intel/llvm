@@ -26,9 +26,9 @@ class ComputeBench(Suite):
 
         repo_path = git_clone(
             self.directory,
-            "compute-benchmarks-repo",
-            "https://github.com/intel/compute-benchmarks.git",
-            "9369275026229b182bc4a555b73c2ec995a9e2b7",
+            "compute-benchmarks-luke-repo",
+            "https://github.com/lukaszstolarczuk/compute-benchmarks.git",
+            "7f6c486ff7fea4e1c1bcdfdb58b6301fa871d410",
         )
         build_path = create_build_path(self.directory, "compute-benchmarks-build")
 

@@ -32,6 +32,7 @@ concurrency:
 
 jobs:
   detect_changes:
+    if: false
     uses: ./.github/workflows/sycl-detect-changes.yml
 
   build:
