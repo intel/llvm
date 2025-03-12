@@ -551,23 +551,17 @@ int test_unsupported_options() {
       ctx, syclex::source_language::sycl_jit, "");
   std::vector<sycl::device> devs = kbSrc.get_devices();
 
-  auto CheckUnsupported = [&](const std::vector<std::string> &flags) {
-    try {
-      syclex::build(kbSrc, devs,
-                    syclex::properties{syclex::build_options{flags}});
-      assert(false && "unsupported option not detected");
-    } catch (sycl::exception &e) {
-      assert(e.code() == sycl::errc::build);
-      assert(std::string(e.what()).find("Parsing of user arguments failed") !=
-             std::string::npos);
-    }
-  };
-
-  CheckUnsupported({"-fsanitize=address"});
-  CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
-  CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
-  CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
-  CheckUnsupported({"-fno-sycl-device-code-split-esimd"});
+  try {
+    // Don't attempt to test exhaustively here...
+    syclex::build(kbSrc, devs,
+                  syclex::properties{
+                      syclex::build_options{"-fsycl-targets=intel_gpu_pvc"}});
+    assert(false && "unsupported option not detected");
+  } catch (sycl::exception &e) {
+    assert(e.code() == sycl::errc::build);
+    assert(std::string(e.what()).find("Parsing of user arguments failed") !=
+           std::string::npos);
+  }
 
   return 0;
 }

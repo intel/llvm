@@ -321,20 +321,15 @@ static void adjustArgs(const InputArgList &UserArgList,
   DAL.AddJoinedArg(
       nullptr, OptTable.getOption(OPT_resource_dir_EQ),
       (DPCPPRoot + "/lib/clang/" + Twine(CLANG_VERSION_MAJOR)).str());
-  for (auto *Arg : UserArgList) {
-    DAL.append(Arg);
-  }
-  // Remove args that will trigger an unused command line argument warning for
-  // the FrontendAction invocation, but are handled later (e.g. during device
-  // linking).
-  DAL.eraseArg(OPT_fsycl_device_lib_EQ);
-  DAL.eraseArg(OPT_fno_sycl_device_lib_EQ);
-  DAL.eraseArg(OPT_ftime_trace_EQ);
-  DAL.eraseArg(OPT_ftime_trace_granularity_EQ);
-  DAL.eraseArg(OPT_ftime_trace_verbose);
+  // User args may contain options not intended for the frontend, but we can't
+  // claim them here to tell the driver they're used later. Hence, suppress the
+  // unused argument warning.
+  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_Qunused_arguments));
 
   ArgStringList ASL;
   for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
+  for_each(UserArgList,
+           [&UserArgList, &ASL](Arg *A) { A->render(UserArgList, ASL); });
   transform(ASL, std::back_inserter(CommandLine),
             [](const char *AS) { return std::string{AS}; });
 }
@@ -751,51 +746,22 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
         UserArgsRef[MissingArgIndex], MissingArgIndex);
   }
 
-  // Check for unsupported options.
-  // TODO: There are probably more, e.g. requesting non-SPIR-V targets.
-  {
-    // -fsanitize=address
-    bool IsDeviceAsanEnabled = false;
-    if (Arg *A = AL.getLastArg(OPT_fsanitize_EQ, OPT_fno_sanitize_EQ)) {
-      if (A->getOption().matches(OPT_fsanitize_EQ) &&
-          A->getValues().size() == 1) {
-        std::string SanitizeVal = A->getValue();
-        IsDeviceAsanEnabled = SanitizeVal == "address";
-      }
-    } else {
-      // User can pass -fsanitize=address to device compiler via
-      // -Xsycl-target-frontend.
-      auto SyclFEArg = AL.getAllArgValues(OPT_Xsycl_frontend);
-      IsDeviceAsanEnabled = (std::count(SyclFEArg.begin(), SyclFEArg.end(),
-                                        "-fsanitize=address") > 0);
-      if (!IsDeviceAsanEnabled) {
-        auto SyclFEArgEq = AL.getAllArgValues(OPT_Xsycl_frontend_EQ);
-        IsDeviceAsanEnabled =
-            (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
-                        "-fsanitize=address") > 0);
-      }
-
-      // User can also enable asan for SYCL device via -Xarch_device option.
-      if (!IsDeviceAsanEnabled) {
-        auto DeviceArchVals = AL.getAllArgValues(OPT_Xarch_device);
-        for (auto DArchVal : DeviceArchVals) {
-          if (DArchVal.find("-fsanitize=address") != std::string::npos) {
-            IsDeviceAsanEnabled = true;
-            break;
-          }
-        }
-      }
-    }
-
-    if (IsDeviceAsanEnabled) {
-      return createStringError(
-          "Device ASAN is not supported for runtime compilation");
-    }
-  }
-
-  if (!AL.hasFlag(OPT_fsycl_device_code_split_esimd,
-                  OPT_fno_sycl_device_code_split_esimd, true)) {
-    return createStringError("ESIMD device code split cannot be deactivated");
+  // Check for options that are unsupported because they would interfere with
+  // the in-memory pipeline.
+  Arg *UnsupportedArg =
+      AL.getLastArg(OPT_Action_Group,     // Actions like -c or -S
+                    OPT_Link_Group,       // Linker flags
+                    OPT_DebugInfo_Group,  // Debugging
+                    OPT_o,                // Output file
+                    OPT_fsycl_targets_EQ, // AoT compilation
+                    OPT_fsycl_link_EQ,    // SYCL linker
+                    OPT_fno_sycl_device_code_split_esimd, // invoke_simd
+                    OPT_fsanitize_EQ                      // Sanitizer
+      );
+  if (UnsupportedArg) {
+    return createStringError(
+        "Option '%s' is not supported for SYCL runtime compilation",
+        UnsupportedArg->getAsString(AL).c_str());
   }
 
   return std::move(AL);
