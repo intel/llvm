@@ -1153,7 +1153,18 @@ std::string FunctionsCategorizer::computeCategoryFor(Function *F) const {
 std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints) {
+  return getDeviceCodeSplitter(std::move(MD), Mode, IROutputOnly,
+                               EmitOnlyKernelsAsEntryPoints,
+                               AllowDeviceImageDependencies);
+}
+
+std::unique_ptr<ModuleSplitterBase>
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
+                      bool EmitOnlyKernelsAsEntryPoints,
+                      bool OverwriteAllowDeviceImageDependencies) {
   FunctionsCategorizer Categorizer;
+
+  AllowDeviceImageDependencies = OverwriteAllowDeviceImageDependencies;
 
   EntryPointsGroupScope Scope =
       selectDeviceCodeGroupScope(MD.getModule(), Mode, IROutputOnly);

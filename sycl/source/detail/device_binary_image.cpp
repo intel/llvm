@@ -13,8 +13,11 @@
 #include <detail/compression.hpp>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <map>
 #include <memory>
+#include <set>
 
 namespace sycl {
 inline namespace _V1 {
@@ -147,21 +150,26 @@ void RTDeviceBinaryImage::dump(std::ostream &Out) const {
 
 sycl_device_binary_property
 RTDeviceBinaryImage::getProperty(const char *PropName) const {
-  RTDeviceBinaryImage::PropertyRange BoolProp;
-  BoolProp.init(Bin, __SYCL_PROPERTY_SET_SYCL_MISC_PROP);
-  if (!BoolProp.isAvailable())
+  if (!Misc.isAvailable())
     return nullptr;
-  auto It = std::find_if(BoolProp.begin(), BoolProp.end(),
+  auto It = std::find_if(Misc.begin(), Misc.end(),
                          [=](sycl_device_binary_property Prop) {
                            return !strcmp(PropName, Prop->Name);
                          });
-  if (It == BoolProp.end())
+  if (It == Misc.end())
     return nullptr;
 
   return *It;
 }
 
 void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
+  ImageId = ImageCounter++;
+
+  // If there was no binary, we let the owner handle initialization and they see
+  // fit. This is used when merging binaries, e.g. during linking.
+  if (!Bin)
+    return;
+
   // Bin != nullptr is guaranteed here.
   this->Bin = Bin;
   // If device binary image format wasn't set by its producer, then can't change
@@ -198,16 +206,12 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   HostPipes.init(Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
   VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
   RegisteredKernels.init(Bin, __SYCL_PROPERTY_SET_SYCL_REGISTERED_KERNELS);
-
-  ImageId = ImageCounter++;
+  Misc.init(Bin, __SYCL_PROPERTY_SET_SYCL_MISC_PROP);
 }
 
 std::atomic<uintptr_t> RTDeviceBinaryImage::ImageCounter = 1;
 
-DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
-    std::unique_ptr<char[]> &&DataPtr, size_t DataSize)
-    : RTDeviceBinaryImage() {
-  Data = std::move(DataPtr);
+DynRTDeviceBinaryImage::DynRTDeviceBinaryImage() : RTDeviceBinaryImage() {
   Bin = new sycl_device_binary_struct();
   Bin->Version = SYCL_DEVICE_BINARY_VERSION;
   Bin->Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
@@ -215,10 +219,21 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
   Bin->LinkOptions = "";
   Bin->ManifestStart = nullptr;
   Bin->ManifestEnd = nullptr;
-  Bin->BinaryStart = reinterpret_cast<unsigned char *>(Data.get());
-  Bin->BinaryEnd = Bin->BinaryStart + DataSize;
+  Bin->BinaryStart = nullptr;
+  Bin->BinaryEnd = nullptr;
   Bin->EntriesBegin = nullptr;
   Bin->EntriesEnd = nullptr;
+  Bin->Format = SYCL_DEVICE_BINARY_TYPE_NONE;
+  Bin->DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_UNKNOWN;
+}
+
+DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
+    std::unique_ptr<char[], std::function<void(void *)>> &&DataPtr,
+    size_t DataSize)
+    : DynRTDeviceBinaryImage() {
+  Data = std::move(DataPtr);
+  Bin->BinaryStart = reinterpret_cast<unsigned char *>(Data.get());
+  Bin->BinaryEnd = Bin->BinaryStart + DataSize;
   Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, DataSize);
   switch (Bin->Format) {
   case SYCL_DEVICE_BINARY_TYPE_SPIRV:
@@ -233,6 +248,420 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
 DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   delete Bin;
   Bin = nullptr;
+}
+
+// Exclusive property merge logic. It assumes there are no cases where
+// properties have different values and throws otherwise.
+template <typename RangeGetterT>
+static std::vector<sycl_device_binary_property>
+NaiveMergeBinaryProperties(const std::vector<const RTDeviceBinaryImage *> &Imgs,
+                           const RangeGetterT &RangeGetter) {
+  size_t PropertiesCount = 0;
+  for (const RTDeviceBinaryImage *Img : Imgs)
+    PropertiesCount += RangeGetter(*Img).size();
+
+  std::vector<sycl_device_binary_property> Props;
+  Props.reserve(PropertiesCount);
+  for (const RTDeviceBinaryImage *Img : Imgs) {
+    const RTDeviceBinaryImage::PropertyRange &Range = RangeGetter(*Img);
+    Props.insert(Props.end(), Range.begin(), Range.end());
+  }
+
+  return Props;
+}
+
+// Exclusive property merge logic. If IgnoreDuplicates is false it assumes there
+// are no cases where properties have different values and throws otherwise.
+template <typename RangeGetterT>
+static std::map<std::string_view, const sycl_device_binary_property>
+ExclusiveMergeBinaryProperties(
+    const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    const RangeGetterT &RangeGetter, bool IgnoreDuplicates = false) {
+  std::map<std::string_view, const sycl_device_binary_property> MergeMap;
+  for (const RTDeviceBinaryImage *Img : Imgs) {
+    const RTDeviceBinaryImage::PropertyRange &Range = RangeGetter(*Img);
+    for (const sycl_device_binary_property Prop : Range) {
+      const auto [It, Inserted] =
+          MergeMap.try_emplace(std::string_view{Prop->Name}, Prop);
+      if (IgnoreDuplicates || Inserted)
+        continue;
+      // If we didn't insert a new entry, check that the old entry had the
+      // exact same value.
+      const sycl_device_binary_property OtherProp = It->second;
+      if (OtherProp->Type != Prop->Type ||
+          OtherProp->ValSize != Prop->ValSize ||
+          (Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY &&
+           std::memcmp(OtherProp->ValAddr, Prop->ValAddr, Prop->ValSize) != 0))
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Unable to merge incompatible images.");
+    }
+  }
+  return MergeMap;
+}
+
+// Device requirements needs the ability to produce new properties. The
+// information for these are kept in this struct.
+struct MergedDeviceRequirements {
+  std::map<std::string_view, const sycl_device_binary_property> MergeMap;
+  std::set<uint32_t> Aspects;
+  std::set<std::string_view> JointMatrix;
+  std::set<std::string_view> JointMatrixMad;
+
+  size_t GetPropertiesCount() const {
+    return MergeMap.size() + !Aspects.empty() + !JointMatrix.empty() +
+           !JointMatrixMad.empty();
+  }
+
+  size_t GetAspectsContentSize() const {
+    return Aspects.size() * sizeof(uint32_t);
+  }
+
+  static size_t GetStringSetContentSize(const std::set<std::string_view> &Set) {
+    size_t Result = 0;
+    Result += Set.size() - 1;               // Semi-colon delimiters.
+    for (const std::string_view &Str : Set) // Strings.
+      Result += Str.size();
+    return Result;
+  }
+
+  size_t GetPropertiesContentByteSize() const {
+    size_t Result = 0;
+    for (const auto &PropIt : MergeMap)
+      Result += strlen(PropIt.second->Name) + 1 + PropIt.second->ValSize;
+
+    if (!Aspects.empty())
+      Result += strlen("aspects") + 1 + GetAspectsContentSize();
+
+    if (!JointMatrix.empty())
+      Result +=
+          strlen("joint_matrix") + 1 + GetStringSetContentSize(JointMatrix);
+
+    if (!JointMatrixMad.empty())
+      Result += strlen("joint_matrix_mad") + 1 +
+                GetStringSetContentSize(JointMatrixMad);
+
+    return Result;
+  }
+
+  void WriteAspectProperty(sycl_device_binary_property &NextFreeProperty,
+                           char *&NextFreeContent) const {
+    if (Aspects.empty())
+      return;
+    // Get the next free property entry and move the needle.
+    sycl_device_binary_property NewProperty = NextFreeProperty++;
+    NewProperty->Type = SYCL_PROPERTY_TYPE_BYTE_ARRAY;
+    NewProperty->ValSize = GetAspectsContentSize();
+    // Copy the name.
+    const size_t NameLen = std::strlen("aspects");
+    std::memcpy(NextFreeContent, "aspects", NameLen + 1);
+    NewProperty->Name = NextFreeContent;
+    NextFreeContent += NameLen + 1;
+    // Copy the values.
+    uint32_t *AspectContentIt = reinterpret_cast<uint32_t *>(NextFreeContent);
+    for (uint32_t Aspect : Aspects)
+      *(AspectContentIt++) = Aspect;
+    NewProperty->ValAddr = NextFreeContent;
+    NextFreeContent += NewProperty->ValSize;
+  }
+
+  static void WriteStringSetProperty(
+      const std::set<std::string_view> &Set, const char *SetName,
+      sycl_device_binary_property &NextFreeProperty, char *&NextFreeContent) {
+    if (Set.empty())
+      return;
+    // Get the next free property entry and move the needle.
+    sycl_device_binary_property NewProperty = NextFreeProperty++;
+    NewProperty->Type = SYCL_PROPERTY_TYPE_BYTE_ARRAY;
+    NewProperty->ValSize = GetStringSetContentSize(Set);
+    // Copy the name.
+    const size_t NameLen = std::strlen(SetName);
+    std::memcpy(NextFreeContent, SetName, NameLen + 1);
+    NewProperty->Name = NextFreeContent;
+    NextFreeContent += NameLen + 1;
+    // Copy the values.
+    NewProperty->ValAddr = NextFreeContent;
+    for (auto StrIt = Set.begin(); StrIt != Set.end(); ++StrIt) {
+      if (StrIt != Set.begin())
+        *(NextFreeContent++) = ';';
+      std::memcpy(NextFreeContent, StrIt->data(), StrIt->size());
+      NextFreeContent += StrIt->size();
+    }
+  }
+};
+
+// Merging device requirements is a little more involved, as it may impose
+// new requirements.
+static MergedDeviceRequirements
+MergeDeviceRequirements(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
+  MergedDeviceRequirements MergedReqs;
+  for (const RTDeviceBinaryImage *Img : Imgs) {
+    const RTDeviceBinaryImage::PropertyRange &Range =
+        Img->getDeviceRequirements();
+    for (const sycl_device_binary_property Prop : Range) {
+      std::string_view NameView = std::string_view{Prop->Name};
+
+      // Aspects we collect in a set early and add them afterwards.
+      if (NameView == std::string_view{"aspects"}) {
+        // Skip size bytes.
+        auto AspectIt = reinterpret_cast<const uint32_t *>(
+            reinterpret_cast<char *>(Prop->ValAddr) + 8);
+        for (size_t I = 0; I < Prop->ValSize / sizeof(uint32_t); ++I)
+          MergedReqs.Aspects.emplace(AspectIt[I]);
+        continue;
+      }
+
+      // joint_matrix and joint_matrix_mad have the same format, so we parse
+      // them the same way.
+      if (NameView == std::string_view{"joint_matrix"} ||
+          NameView == std::string_view{"joint_matrix_mad"}) {
+        std::set<std::string_view> &Set =
+            NameView == std::string_view{"joint_matrix"}
+                ? MergedReqs.JointMatrix
+                : MergedReqs.JointMatrixMad;
+
+        // Skip size bytes.
+        std::string_view Contents{reinterpret_cast<char *>(Prop->ValAddr) + 8,
+                                  Prop->ValSize};
+        size_t Pos = 0;
+        do {
+          const size_t NextPos = Contents.find(';', Pos);
+          if (NextPos != Pos)
+            Set.emplace(Contents.substr(Pos, NextPos - Pos));
+          Pos = NextPos + 1;
+        } while (Pos != 0);
+        continue;
+      }
+
+      const auto [It, Inserted] =
+          MergedReqs.MergeMap.try_emplace(NameView, Prop);
+      if (Inserted)
+        continue;
+      // Special handling has already happened, so we assume the rest are
+      // exclusive property values.
+      const sycl_device_binary_property OtherProp = It->second;
+      if (OtherProp->Type != Prop->Type ||
+          OtherProp->ValSize != Prop->ValSize ||
+          (Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY &&
+           std::memcmp(OtherProp->ValAddr, Prop->ValAddr, Prop->ValSize) != 0))
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Unable to merge incompatible images.");
+    }
+  }
+  return MergedReqs;
+}
+
+// Copies a property into new memory.
+static void CopyProperty(sycl_device_binary_property &NextFreeProperty,
+                         char *&NextFreeContent,
+                         const sycl_device_binary_property OldProperty) {
+  // Get the next free property entry and move the needle.
+  sycl_device_binary_property NewProperty = NextFreeProperty++;
+  NewProperty->Type = OldProperty->Type;
+  NewProperty->ValSize = OldProperty->ValSize;
+  // Copy the name.
+  const size_t NameLen = std::strlen(OldProperty->Name);
+  std::memcpy(NextFreeContent, OldProperty->Name, NameLen + 1);
+  NewProperty->Name = NextFreeContent;
+  NextFreeContent += NameLen + 1;
+  // Copy the values. If the type is uint32 it will have been stored in the size
+  // instead of the value address.
+  if (OldProperty->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY) {
+    std::memcpy(NextFreeContent, OldProperty->ValAddr, OldProperty->ValSize);
+    NewProperty->ValAddr = NextFreeContent;
+    NextFreeContent += OldProperty->ValSize;
+  } else {
+    NewProperty->ValAddr = nullptr;
+  }
+}
+
+DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
+    const std::vector<const RTDeviceBinaryImage *> &Imgs)
+    : DynRTDeviceBinaryImage() {
+  init(nullptr);
+
+  // Naive merges.
+  auto MergedSpecConstants =
+      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getSpecConstants();
+      });
+  auto MergedSpecConstantsDefaultValues =
+      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getSpecConstantsDefaultValues();
+      });
+  auto MergedKernelParamOptInfo =
+      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getKernelParamOptInfo();
+      });
+  auto MergedAssertUsed = NaiveMergeBinaryProperties(
+      Imgs, [](const RTDeviceBinaryImage &Img) { return Img.getAssertUsed(); });
+  auto MergedDeviceGlobals =
+      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getDeviceGlobals();
+      });
+  auto MergedHostPipes = NaiveMergeBinaryProperties(
+      Imgs, [](const RTDeviceBinaryImage &Img) { return Img.getHostPipes(); });
+  auto MergedVirtualFunctions =
+      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getVirtualFunctions();
+      });
+  auto MergedImplicitLocalArg =
+      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getImplicitLocalArg();
+      });
+  auto MergedExportedSymbols =
+      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getExportedSymbols();
+      });
+  auto MergedRegisteredKernels =
+      NaiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getRegisteredKernels();
+      });
+
+  std::array<const std::vector<sycl_device_binary_property> *, 10> MergedVecs{
+      &MergedSpecConstants,      &MergedSpecConstantsDefaultValues,
+      &MergedKernelParamOptInfo, &MergedAssertUsed,
+      &MergedDeviceGlobals,      &MergedHostPipes,
+      &MergedVirtualFunctions,   &MergedImplicitLocalArg,
+      &MergedExportedSymbols,    &MergedRegisteredKernels};
+
+  // Exclusive merges.
+  auto MergedDeviceLibReqMask =
+      ExclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getDeviceLibReqMask();
+      });
+  auto MergedProgramMetadata =
+      ExclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getProgramMetadata();
+      });
+  auto MergedImportedSymbols = ExclusiveMergeBinaryProperties(
+      Imgs,
+      [](const RTDeviceBinaryImage &Img) { return Img.getImportedSymbols(); },
+      /*IgnoreDuplicates=*/true);
+  auto MergedMisc =
+      ExclusiveMergeBinaryProperties(Imgs, [](const RTDeviceBinaryImage &Img) {
+        return Img.getMiscProperties();
+      });
+
+  std::array<
+      const std::map<std::string_view, const sycl_device_binary_property> *, 4>
+      MergedMaps{&MergedDeviceLibReqMask, &MergedProgramMetadata,
+                 &MergedImportedSymbols, &MergedMisc};
+
+  // When merging exported and imported, the exported symbols may cancel out
+  // some of the imported symbols.
+  for (const sycl_device_binary_property Prop : MergedExportedSymbols)
+    MergedImportedSymbols.erase(std::string_view{Prop->Name});
+
+  // For device requirements we need to do special handling to merge the
+  // property values as well.
+  MergedDeviceRequirements MergedDevReqs = MergeDeviceRequirements(Imgs);
+
+  // Now that we have merged all properties, we need to calculate how much
+  // memory we need to store the new property sets.
+  constexpr size_t PropertyByteSize =
+      sizeof(_sycl_device_binary_property_struct);
+  constexpr size_t PropertyAlignment =
+      alignof(_sycl_device_binary_property_struct);
+  constexpr size_t PaddedPropertyByteSize =
+      (1 + ((PropertyByteSize - 1) / PropertyAlignment)) * PropertyAlignment;
+
+  // Count the total number of property entries.
+  size_t PropertyCount = 0;
+  for (const auto &Vec : MergedVecs)
+    PropertyCount += Vec->size();
+  for (const auto &Map : MergedMaps)
+    PropertyCount += Map->size();
+  PropertyCount += MergedDevReqs.GetPropertiesCount();
+
+  // Count the bytes needed for the values and names of the properties.
+  auto GetPropertyContentSize = [](const sycl_device_binary_property Prop) {
+    return Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY ? Prop->ValSize : 0;
+  };
+  size_t PropertyContentByteSize = 0;
+  for (const auto &Vec : MergedVecs)
+    for (const auto &Prop : *Vec)
+      PropertyContentByteSize +=
+          strlen(Prop->Name) + 1 + GetPropertyContentSize(Prop);
+  for (const auto &Map : MergedMaps)
+    for (const auto &PropIt : *Map)
+      PropertyContentByteSize += strlen(PropIt.second->Name) + 1 +
+                                 GetPropertyContentSize(PropIt.second);
+  PropertyContentByteSize += MergedDevReqs.GetPropertiesContentByteSize();
+
+  const size_t PropertySectionSize = PropertyCount * PaddedPropertyByteSize;
+
+  // Allocate the memory aligned to the property entry alignment.
+  // Note: MSVC does not implement std::aligned_alloc.
+  Data = std::unique_ptr<char[], std::function<void(void *)>>(
+#ifdef _MSC_VER
+      static_cast<char *>(_aligned_malloc(sizeof(char) * PropertySectionSize +
+                                              PropertyContentByteSize,
+                                          PropertyAlignment)),
+      _aligned_free
+#else
+      static_cast<char *>(std::aligned_alloc(
+          PropertyAlignment,
+          sizeof(char) * PropertySectionSize + PropertyContentByteSize)),
+      std::free
+#endif
+  );
+
+  auto NextFreeProperty =
+      reinterpret_cast<sycl_device_binary_property>(Data.get());
+  char *NextFreeContent = Data.get() + PropertySectionSize;
+
+  auto CopyPropertiesVec =
+      [&](const auto &Properties,
+          RTDeviceBinaryImage::PropertyRange &TargetRange) {
+        if (Properties.empty())
+          return;
+        TargetRange.Begin = NextFreeProperty;
+        for (const sycl_device_binary_property Prop : Properties)
+          CopyProperty(NextFreeProperty, NextFreeContent, Prop);
+        TargetRange.End = NextFreeProperty;
+      };
+  auto CopyPropertiesMap =
+      [&](const auto &Properties,
+          RTDeviceBinaryImage::PropertyRange &TargetRange) {
+        if (Properties.empty())
+          return;
+        TargetRange.Begin = NextFreeProperty;
+        for (const auto &PropIt : Properties)
+          CopyProperty(NextFreeProperty, NextFreeContent, PropIt.second);
+        TargetRange.End = NextFreeProperty;
+      };
+
+  CopyPropertiesVec(MergedSpecConstants, SpecConstIDMap);
+  CopyPropertiesVec(MergedSpecConstantsDefaultValues,
+                    SpecConstDefaultValuesMap);
+  CopyPropertiesVec(MergedKernelParamOptInfo, KernelParamOptInfo);
+  CopyPropertiesVec(MergedAssertUsed, AssertUsed);
+  CopyPropertiesVec(MergedDeviceGlobals, DeviceGlobals);
+  CopyPropertiesVec(MergedHostPipes, HostPipes);
+  CopyPropertiesVec(MergedVirtualFunctions, VirtualFunctions);
+  CopyPropertiesVec(MergedImplicitLocalArg, ImplicitLocalArg);
+  CopyPropertiesVec(MergedExportedSymbols, ExportedSymbols);
+  CopyPropertiesVec(MergedRegisteredKernels, RegisteredKernels);
+
+  CopyPropertiesMap(MergedDeviceLibReqMask, DeviceLibReqMask);
+  CopyPropertiesMap(MergedProgramMetadata, ProgramMetadata);
+  CopyPropertiesMap(MergedImportedSymbols, ImportedSymbols);
+  CopyPropertiesMap(MergedMisc, Misc);
+
+  // Special handling for new device requirements.
+  {
+    DeviceRequirements.Begin = NextFreeProperty;
+    for (const auto &PropIt : MergedDevReqs.MergeMap)
+      CopyProperty(NextFreeProperty, NextFreeContent, PropIt.second);
+    MergedDevReqs.WriteAspectProperty(NextFreeProperty, NextFreeContent);
+    MergedDeviceRequirements::WriteStringSetProperty(
+        MergedDevReqs.JointMatrix, "joint_matrix", NextFreeProperty,
+        NextFreeContent);
+    MergedDeviceRequirements::WriteStringSetProperty(
+        MergedDevReqs.JointMatrixMad, "joint_matrix_mad", NextFreeProperty,
+        NextFreeContent);
+    DeviceRequirements.End = NextFreeProperty;
+  }
 }
 
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
