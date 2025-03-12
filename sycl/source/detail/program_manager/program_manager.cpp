@@ -1172,7 +1172,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
 ur_program_handle_t
 ProgramManager::getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
-                                         const ContextImplPtr Context) {
+                                         const ContextImplPtr &Context) {
   ur_program_handle_t Program;
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_PROGRAM,
