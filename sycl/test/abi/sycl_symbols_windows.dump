@@ -101,6 +101,7 @@
 ??$get_info@Ureference_count@context@info@_V1@sycl@@@context@_V1@sycl@@QEBAIXZ
 ??$get_info@Ureference_count@event@info@_V1@sycl@@@event@_V1@sycl@@QEBAIXZ
 ??$get_info@Ureference_count@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBAIXZ
+??$get_info@Uspill_memory_size@kernel_device_specific@info@intel@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVdevice@12@@Z
 ??$get_info@Usupports_fusion@device@info@experimental@codeplay@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_NXZ
 ??$get_info@Uuuid@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$array@E$0BA@@std@@XZ
 ??$get_info@Uwork_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVdevice@12@@Z

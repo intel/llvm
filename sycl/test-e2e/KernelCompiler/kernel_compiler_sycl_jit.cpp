@@ -12,6 +12,9 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
@@ -250,7 +253,7 @@ int test_build_and_run(sycl::queue q) {
 
   // Compilation with props and devices
   std::string log;
-  std::vector<std::string> flags{"-g", "-fno-fast-math",
+  std::vector<std::string> flags{"-fno-fast-math",
                                  "-fsycl-instrument-device-code"};
   std::vector<sycl::device> devs = kbSrc.get_devices();
   exe_kb kbExe2 = syclex::build(
@@ -422,6 +425,18 @@ int test_esimd(sycl::queue q) {
   // Test execution.
   run_2(q, kESIMD, true, 2.38f);
   run_2(q, kSYCL, false, 1.41f);
+
+  // Deactivate implicit module splitting to exercise the downstream
+  // ESIMD-specific splitting.
+  source_kb kbSrcMixed2 = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, mixedSource);
+  exe_kb kbExeMixed2 =
+      syclex::build(kbSrcMixed2, syclex::properties{syclex::build_options{
+                                     "-fsycl-device-code-split=off"}});
+
+  assert(kbExeMixed2.ext_oneapi_has_kernel("vector_add_esimd"));
+  assert(kbExeMixed2.ext_oneapi_has_kernel("vec_add"));
+  assert(std::distance(kbExeMixed2.begin(), kbExeMixed2.end()) == 2);
 
   return 0;
 }

@@ -86,7 +86,7 @@ int test_persistent_cache() {
   // Different build_options means no cache hit.
   // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY2:.*]]
   // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY2]]
-  std::vector<std::string> flags{"-g", "-fno-fast-math"};
+  std::vector<std::string> flags{"-O0", "-fno-fast-math"};
   exe_kb kbExe1c =
       syclex::build(kbSrc1, syclex::properties{syclex::build_options{flags}});
 
