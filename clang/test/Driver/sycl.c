@@ -145,6 +145,7 @@
 // RUN:   | FileCheck -check-prefix=DEBUG-WIN %s
 // RUN: %clang_cl -### -fsycl -Zi -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=DEBUG-WIN %s
-// DEBUG-WIN: {{.*}}"-fsycl-is-device"{{.*}}"-gcodeview"
+// DEBUG-WIN: {{.*}}"-fsycl-is-device"
+// DEBUG-WIN-NOT: "-gcodeview"
 // DEBUG-WIN: {{.*}}"-fsycl-is-host"{{.*}}"-gcodeview"
 // DEBUG-WIN-NOT: dwarf-version
