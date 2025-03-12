@@ -81,6 +81,10 @@ class ComputeBench(Suite):
             GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 5),
             GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 0, 100),
             GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 100),
+            UllsEmptyKernel(self, RUNTIMES.SYCL, 1000, 256),
+            UllsEmptyKernel(self, RUNTIMES.LEVEL_ZERO, 1000, 256),
+            UllsKernelSwitch(self, RUNTIMES.SYCL, 8, 200, 0, 0, 1, 1),
+            UllsKernelSwitch(self, RUNTIMES.LEVEL_ZERO, 8, 200, 0, 0, 1, 1),
         ]
 
         if options.ur is not None:
@@ -530,4 +534,62 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
             f"--withGraphs={self.withGraphs}",
             "--withCopyOffload=1",
             "--immediateAppendCmdList=0",
+        ]
+
+class UllsEmptyKernel(ComputeBenchmark):
+    def __init__(self, bench, runtime: RUNTIMES, wgc, wgs):
+        self.wgc = wgc
+        self.wgs = wgs
+        self.runtime = runtime
+        super().__init__(
+            bench, f"ulls_benchmark_{runtime.value}", "EmptyKernel"
+        )
+
+    def explicit_group(self):
+        return f"EmptyKernel {self.wgc} {self.wgs}"
+
+    def description(self) -> str:
+        return ""
+
+    def name(self):
+        return f"ulls_benchmark_{self.runtime.value} EmptyKernel wgc:{self.wgc}, wgs:{self.wgs}"
+
+    def bin_args(self) -> list[str]:
+        return [
+            "--iterations=10000",
+            f"--wgs={self.wgs}",
+            f"--wgc={self.wgs}",
+        ]
+
+class UllsKernelSwitch(ComputeBenchmark):
+    def __init__(self, bench, runtime: RUNTIMES, count, kernelTime, barrier, hostVisible, ioq, ctrBasedEvents):
+        self.count = count
+        self.kernelTime = kernelTime
+        self.barrier = barrier
+        self.hostVisible = hostVisible
+        self.ctrBasedEvents = ctrBasedEvents
+        self.runtime = runtime
+        self.ioq = ioq
+        super().__init__(
+            bench, f"ulls_benchmark_{runtime.value}", "KernelSwitch"
+        )
+
+    def explicit_group(self):
+        return f"KernelSwitch {self.count} {self.kernelTime}"
+
+    def description(self) -> str:
+        return ""
+
+    def name(self):
+        return f"ulls_benchmark_{self.runtime.value} KernelSwitch count {self.count} kernelTime {self.kernelTime}"
+
+    def bin_args(self) -> list[str]:
+        return [
+            "--iterations=1000",
+            f"--count={self.count}",
+            f"--kernelTime={self.kernelTime}",
+            f"--barrier={self.barrier}",
+            f"--hostVisible={self.hostVisible}",
+            f"--ioq={self.ioq}",
+            f"--ctrBasedEvents={self.ctrBasedEvents}",
         ]
