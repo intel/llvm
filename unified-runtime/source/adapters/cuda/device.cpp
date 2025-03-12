@@ -283,10 +283,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
     return ReturnValue(uint64_t{hDevice->getMaxAllocSize()});
   }
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
+  case UR_DEVICE_INFO_IMAGE_SUPPORT: {
     bool Enabled = false;
 
-    if (std::getenv("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr ||
+    if (std::getenv("SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr ||
         std::getenv("UR_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
       Enabled = true;
     } else {
@@ -904,23 +904,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA supports cubemap seamless filtering.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP: {
     // CUDA does support fetching 1D USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
     // CUDA does not support fetching 1D non-USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     // CUDA does support fetching 2D USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP: {
     // CUDA does support fetching 2D non-USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP: {
     // CUDA does support fetching 3D non-USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
@@ -928,15 +928,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA does support image arrays
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP: {
     // CUDA does support unique addressing per dimension
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP: {
     // CUDA does not support sampling 1D USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP: {
     // CUDA does support sampling 1D USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
@@ -1067,7 +1067,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(static_cast<ur_bool_t>(false));
     // TODO: Investigate if this information is available on CUDA.
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(static_cast<ur_bool_t>(false));
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
     return ReturnValue(static_cast<ur_bool_t>(true));
@@ -1104,12 +1104,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS;
     return ReturnValue(UpdateCapabilities);
   }
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP: {
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP: {
     int Value = getAttribute(hDevice,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 9;
     return ReturnValue(static_cast<bool>(Value));
   }
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);

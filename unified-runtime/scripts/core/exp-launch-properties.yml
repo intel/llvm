@@ -149,6 +149,6 @@ typed_etors: true
 desc: "Extension enums to $x_device_info_t to support arch specific launch properties."
 name: $x_device_info_t
 etors:
-    - name: CLUSTER_LAUNCH_EXP
+    - name: CLUSTER_LAUNCH_SUPPORT_EXP
       value: "0x1111"
       desc: "[$x_bool_t] return true if enqueue Cluster Launch is supported"
