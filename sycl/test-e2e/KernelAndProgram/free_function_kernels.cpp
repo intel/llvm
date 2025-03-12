@@ -146,7 +146,7 @@ bool test_1(queue Queue) {
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
 void ff_1(int *ptr, int start) {
-  int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
+  int (&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
@@ -164,7 +164,7 @@ bool test_2(queue Queue) {
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.parallel_for(R2, [=](nd_item<2> Item) {
-      int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
+      int (&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(usmPtr);
       id<2> GId = Item.get_global_id();
       id<2> LId = Item.get_local_id();
       ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
@@ -199,7 +199,7 @@ template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
 void ff_3(T *ptr, T start) {
-  int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
+  int (&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
@@ -220,7 +220,7 @@ bool test_3(queue Queue) {
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.parallel_for(R2, [=](nd_item<2> Item) {
-      int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
+      int (&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(usmPtr);
       id<2> GId = Item.get_global_id();
       id<2> LId = Item.get_local_id();
       ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
@@ -259,7 +259,7 @@ struct KArg {
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
 void ff_4(KArg Arg) {
-  int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(Arg.ptr);
+  int (&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(Arg.ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
@@ -277,7 +277,7 @@ bool test_4(queue Queue) {
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.parallel_for(R2, [=](nd_item<2> Item) {
-      int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
+      int (&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(usmPtr);
       id<2> GId = Item.get_global_id();
       id<2> LId = Item.get_local_id();
       ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
@@ -310,7 +310,7 @@ template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
 void ff_5(T Arg) {
-  int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(Arg.ptr);
+  int (&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(Arg.ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
@@ -331,7 +331,7 @@ bool test_5(queue Queue) {
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.parallel_for(R2, [=](nd_item<2> Item) {
-      int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
+      int (&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(usmPtr);
       id<2> GId = Item.get_global_id();
       id<2> LId = Item.get_local_id();
       ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
@@ -362,8 +362,7 @@ bool test_5(queue Queue) {
 
 constexpr int TestArrSize = 3;
 
-template <int ArrSize>
-struct KArgWithPtrArray {
+template <int ArrSize> struct KArgWithPtrArray {
   int *data[ArrSize];
   int start[ArrSize];
   int end[ArrSize];
@@ -387,7 +386,7 @@ bool test_6(queue Queue) {
   for (int i = 0; i < TestArrSize; ++i) {
     KArg.data[i] = malloc_shared<int>(Range, Queue);
     memset(KArg.data[i], 0, Range * sizeof(int));
-    KArg.start[i]= 3;
+    KArg.start[i] = 3;
     KArg.end[i] = 5;
   }
   int Result[Range] = {0, 0, 0, 8, 8, 8, 0, 0, 0, 0};

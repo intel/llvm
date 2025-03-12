@@ -6,8 +6,8 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
-#include <sycl/usm.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/usm.hpp>
 #include <vector>
 
 namespace syclext = sycl::ext::oneapi;
