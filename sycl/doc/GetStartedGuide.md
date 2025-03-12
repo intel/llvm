@@ -227,7 +227,7 @@ Secondly, set the `CUDA_LIB_PATH` environment variable and pass the CMake
 variable `CUDA_TOOLKIT_ROOT_DIR` as follows:
 
 ```sh
-CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py --cuda --cmake-opt="-DCUDA_TOOLKIT_ROOT_DIR=/path/to/cuda/toolkit"
+CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py --cuda -DCUDA_TOOLKIT_ROOT_DIR=/path/to/cuda/toolkit
 
 CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
 
@@ -260,7 +260,7 @@ variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed using the
 
 ```sh
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
-  --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
+  -DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
 ```
 If further customization is required — for instance when the layout of
 individual directories can not be inferred from `SYCL_BUILD_PI_HIP_ROCM_DIR` —
