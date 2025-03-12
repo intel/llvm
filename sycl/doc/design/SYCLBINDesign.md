@@ -1,5 +1,16 @@
 # SYCLBIN - A format for separately compiled SYCL device code
 
+Some applications may want to dynamically load device binaries at runtime, e.g.
+for modularity and to avoid having to recompile the entire application. However,
+doing so through the
+[sycl_ext_oneapi_kernel_compiler](https://github.com/intel/llvm/blob/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc)
+extension can be unnecessarily expensive, if the systems utilizing this
+modularity are able to compile the binaries separate from the application's
+execution. However, since the compiler may produce multiple binaries and related
+metadata, e.g. through module splitting or multiple device targets, a new
+SYCLBIN format is needed to define the interface between the compiler-produced
+binaries and the runtime's handling of it.
+
 This design document details the SYCLBIN binary format used for storing SYCL
 device binaries to be loaded dynamically by the SYCL runtime. It also details
 how the toolchain produces, links and packages these binaries, as well as how
