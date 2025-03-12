@@ -73,6 +73,7 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
             reset_intel_gpu: false
+            extra_lit_opts: -j 1
           - name: Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
