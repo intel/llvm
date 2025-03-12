@@ -299,9 +299,8 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
     }
   }
 
-  // FIXME: Check whether we can provide more accurate target information here
   auto *TargetMachine = Target->createTargetMachine(
-      TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      Mod.getTargetTriple(), CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
       llvm::CodeGenOptLevel::Default);
 
   llvm::legacy::PassManager PM;
@@ -379,9 +378,8 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
     }
   }
 
-  // FIXME: Check whether we can provide more accurate target information here
   auto *TargetMachine = Target->createTargetMachine(
-      TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      Mod.getTargetTriple(), CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
       llvm::CodeGenOptLevel::Default);
 
   std::string AMDObj;
