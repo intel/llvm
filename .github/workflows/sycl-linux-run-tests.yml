@@ -173,7 +173,7 @@ on:
 
       reset_intel_gpu:
         description: |
-          Reset intel GPUs
+          Reset Intel GPUs
         type: choice
         options:
           - false
