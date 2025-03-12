@@ -32,8 +32,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: spirv-backend && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-TRACKER: CMPLRLLVM-66043
+// UNSUPPORTED: cpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17400
 
 #include <iostream>
 
