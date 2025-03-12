@@ -13,6 +13,7 @@
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
 
 #include <execinfo.h>
+#include <stdint.h>
 #include <string>
 
 namespace ur_sanitizer_layer {
@@ -25,7 +26,7 @@ StackTrace GetCurrentBacktrace() {
   // call instruction. Adjust the addresses so that symbolizer would give more
   // precise result.
   for (int I = 0; I < FrameCount; I++) {
-    *(char **)&Frames[I] -= 1;
+    Frames[I] = (void *)((uintptr_t)Frames[I] - 1);
   }
 
   StackTrace Stack;
