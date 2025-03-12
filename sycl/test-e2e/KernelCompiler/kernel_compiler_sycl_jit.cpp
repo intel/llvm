@@ -13,8 +13,8 @@
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 1
-// RUN: %{l0_leak_check} %{run} %t.out 1
+// RUN: %{run} %t.out
+// RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -162,6 +162,8 @@ void ff_cp(int *ptr) {
 }
 )===";
 
+namespace syclex = sycl::ext::oneapi::experimental;
+
 void run_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   constexpr int Range = 10;
   int *usmPtr = sycl::malloc_shared<int>(Range, Queue);
@@ -223,23 +225,12 @@ void run_2(sycl::queue &Queue, sycl::kernel &Kernel, bool ESIMD, float seed) {
   sycl::free(C, Queue);
 }
 
-int test_build_and_run() {
+int test_build_and_run(sycl::queue q) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
   sycl::context ctx = q.get_context();
-
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
-  if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
-              << q.get_device().get_info<sycl::info::device::name>()
-              << std::endl;
-    return -1;
-  }
 
   // Create from source.
   syclex::include_files incFiles{"intermediate/AddEm.h", AddEmH};
@@ -307,23 +298,12 @@ int test_build_and_run() {
   return 0;
 }
 
-int test_device_code_split() {
+int test_device_code_split(sycl::queue q) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
   sycl::context ctx = q.get_context();
-
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
-  if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
-              << q.get_device().get_info<sycl::info::device::name>()
-              << std::endl;
-    return -1;
-  }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, DeviceCodeSplitSource);
@@ -359,23 +339,12 @@ int test_device_code_split() {
   return 0;
 }
 
-int test_device_libraries() {
+int test_device_libraries(sycl::queue q) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
   sycl::context ctx = q.get_context();
-
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
-  if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
-              << q.get_device().get_info<sycl::info::device::name>()
-              << std::endl;
-    return -1;
-  }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, DeviceLibrariesSource);
@@ -406,20 +375,12 @@ int test_device_libraries() {
   return 0;
 }
 
-int test_esimd() {
+int test_esimd(sycl::queue q) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
   sycl::context ctx = q.get_context();
-
-  if (!q.get_device().has(sycl::aspect::ext_intel_esimd)) {
-    std::cout << "Device '"
-              << q.get_device().get_info<sycl::info::device::name>()
-              << "' does not support ESIMD, skipping test." << std::endl;
-    return 0;
-  }
 
   bool ok =
       q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
@@ -465,22 +426,11 @@ int test_esimd() {
   return 0;
 }
 
-int test_unsupported_options() {
+int test_unsupported_options(sycl::queue q) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
 
-  sycl::queue q;
   sycl::context ctx = q.get_context();
-
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
-  if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
-              << q.get_device().get_info<sycl::info::device::name>()
-              << std::endl;
-    return -1;
-  }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, "");
@@ -507,19 +457,12 @@ int test_unsupported_options() {
   return 0;
 }
 
-int test_error() {
+int test_error(sycl::queue q) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
   sycl::context ctx = q.get_context();
-
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
-  if (!ok) {
-    return 0;
-  }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, BadSource);
@@ -536,19 +479,13 @@ int test_error() {
   return 0;
 }
 
-int test_warning() {
+int test_warning(sycl::queue q) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
-  if (!ok) {
-    return 0;
-  }
   std::string build_log;
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
@@ -562,18 +499,10 @@ int test_warning() {
   return 0;
 }
 
-int test_no_visible_ids() {
-  namespace syclex = sycl::ext::oneapi::experimental;
+int test_no_visible_ids(sycl::queue q) {
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
-  sycl::queue q;
   sycl::context ctx = q.get_context();
-
-  bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
-  if (!ok) {
-    return 0;
-  }
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, SYCLSource2);
   exe_kb kbExe = syclex::build(kbSrc);
@@ -582,13 +511,21 @@ int test_no_visible_ids() {
   return 0;
 }
 
-int main(int argc, char **) {
+int main() {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  int optional_tests = (argc > 1) ? test_warning() : 0;
-  return test_build_and_run() || test_device_code_split() ||
-         test_device_libraries() || test_esimd() ||
-         test_unsupported_options() || test_error() || optional_tests ||
-         test_no_visible_ids();
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    return -1;
+  }
+
+  return test_build_and_run(q) || test_device_code_split(q) ||
+         test_device_libraries(q) || test_esimd(q) ||
+         test_unsupported_options(q) || test_error(q) ||
+         test_no_visible_ids(q) || test_warning(q);
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
