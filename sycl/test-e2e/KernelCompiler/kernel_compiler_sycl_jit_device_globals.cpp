@@ -69,12 +69,12 @@ int test_device_global() {
   auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
 
   // Check presence of device globals.
-  assert(kbExe1.ext_oneapi_has_device_global("DG", d));
+  assert(kbExe1.ext_oneapi_has_device_global("DG"));
   // Querying a non-existing device global shall not crash.
-  assert(!kbExe1.ext_oneapi_has_device_global("bogus_DG", d));
+  assert(!kbExe1.ext_oneapi_has_device_global("bogus_DG"));
 
   void *dgAddr = kbExe1.ext_oneapi_get_device_global_address("DG", d);
-  size_t dgSize = kbExe1.ext_oneapi_get_device_global_size("DG", d);
+  size_t dgSize = kbExe1.ext_oneapi_get_device_global_size("DG");
   assert(dgSize == 4);
 
   int32_t val;

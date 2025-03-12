@@ -760,29 +760,16 @@ private:
     return "_Z" + std::to_string(Name.length()) + Name;
   }
 
-  bool is_valid_device(const device &DeviceCand) {
-    // Check if the device is in this bundle's list of devices.
-    if (std::count(MDevices.begin(), MDevices.end(), DeviceCand)) {
-      return true;
-    }
-
-    // Otherwise, if the device candidate is a sub-device it is also valid if
-    // its parent is valid.
-    return !getSyclObjImpl(DeviceCand)->isRootDevice() &&
-           is_valid_device(DeviceCand.get_info<info::device::parent_device>());
-  }
-
-  DeviceGlobalMapEntry *get_device_global_entry(const std::string &Name,
-                                                const device &Dev) {
+  DeviceGlobalMapEntry *get_device_global_entry(const std::string &Name) {
     if (MLanguage != syclex::source_language::sycl_jit || MPrefix.empty()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Querying device globals by name is only available "
                             "in kernel_bundles successfully built from "
-                            "kernel_bundle<bundle_state:ext_oneapi_source> "
+                            "kernel_bundle<bundle_state>::ext_oneapi_source> "
                             "with 'sycl_jit' source language.");
     }
 
-    if (!ext_oneapi_has_device_global(Name, Dev)) {
+    if (!ext_oneapi_has_device_global(Name)) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "device global '" + Name +
                                 "' not found in kernel_bundle");
@@ -892,12 +879,7 @@ public:
     return AdjustedName;
   }
 
-  bool ext_oneapi_has_device_global(const std::string &Name,
-                                    const device &Dev) {
-    if (!is_valid_device(Dev)) {
-      return false;
-    }
-
+  bool ext_oneapi_has_device_global(const std::string &Name) {
     std::string MangledName = mangle_device_global_name(Name);
     return std::find(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
                      MangledName) != MDeviceGlobalNames.end();
@@ -905,15 +887,20 @@ public:
 
   void *ext_oneapi_get_device_global_address(const std::string &Name,
                                              const device &Dev) {
-    DeviceGlobalMapEntry *Entry = get_device_global_entry(Name, Dev);
+    if (std::find(MDevices.begin(), MDevices.end(), Dev) == MDevices.end()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "kernel_bundle not built for device");
+    }
+
+    DeviceGlobalMapEntry *Entry = get_device_global_entry(Name);
     if (Entry->MIsDeviceImageScopeDecorated) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Cannot query USM pointer for device global with "
                             "'device_image_scope' property");
     }
 
-    // TODO: Is this the right approach? Should we just pass the queue as an
-    //       argument?
+    // TODO: Add context-only initialization via `urUSMContextMemcpyExp` instead
+    // of using a throw-away queue.
     queue InitQueue{MContext, Dev};
     auto &USMMem =
         Entry->getOrAllocateDeviceGlobalUSM(getSyclObjImpl(InitQueue));
@@ -921,9 +908,8 @@ public:
     return USMMem.getPtr();
   }
 
-  size_t ext_oneapi_get_device_global_size(const std::string &Name,
-                                           const device &Dev) {
-    return get_device_global_entry(Name, Dev)->MDeviceGlobalTSize;
+  size_t ext_oneapi_get_device_global_size(const std::string &Name) {
+    return get_device_global_entry(Name)->MDeviceGlobalTSize;
   }
 
   bool empty() const noexcept { return MDeviceImages.empty(); }

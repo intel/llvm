@@ -242,9 +242,8 @@ public:
         ext_oneapi_get_raw_kernel_name(detail::string_view{name}).c_str()};
   }
 
-  bool ext_oneapi_has_device_global(const std::string &name,
-                                    const device &dev) {
-    return ext_oneapi_has_device_global(detail::string_view{name}, dev);
+  bool ext_oneapi_has_device_global(const std::string &name) {
+    return ext_oneapi_has_device_global(detail::string_view{name});
   }
 
   void *ext_oneapi_get_device_global_address(const std::string &name,
@@ -252,9 +251,8 @@ public:
     return ext_oneapi_get_device_global_address(detail::string_view{name}, dev);
   }
 
-  size_t ext_oneapi_get_device_global_size(const std::string &name,
-                                           const device &dev) {
-    return ext_oneapi_get_device_global_size(detail::string_view{name}, dev);
+  size_t ext_oneapi_get_device_global_size(const std::string &name) {
+    return ext_oneapi_get_device_global_size(detail::string_view{name});
   }
 
 protected:
@@ -287,12 +285,10 @@ private:
   kernel ext_oneapi_get_kernel(detail::string_view name);
   detail::string ext_oneapi_get_raw_kernel_name(detail::string_view name);
 
-  bool ext_oneapi_has_device_global(detail::string_view name,
-                                    const device &dev);
+  bool ext_oneapi_has_device_global(detail::string_view name);
   void *ext_oneapi_get_device_global_address(detail::string_view name,
                                              const device &dev);
-  size_t ext_oneapi_get_device_global_size(detail::string_view name,
-                                           const device &dev);
+  size_t ext_oneapi_get_device_global_size(detail::string_view name);
 };
 
 } // namespace detail
@@ -524,20 +520,21 @@ public:
 
   /////////////////////////
   // ext_oneapi_has_device_global
-  //  only true if created from source and has this global for the given device
+  //  only true if kernel_bundle was created from source and has this device
+  //  global
   /////////////////////////
   template <bundle_state _State = State,
             typename = std::enable_if_t<_State == bundle_state::executable>>
-  bool ext_oneapi_has_device_global(const std::string &name,
-                                    const device &dev) {
-    return detail::kernel_bundle_plain::ext_oneapi_has_device_global(name, dev);
+  bool ext_oneapi_has_device_global(const std::string &name) {
+    return detail::kernel_bundle_plain::ext_oneapi_has_device_global(name);
   }
 
   /////////////////////////
   // ext_oneapi_get_device_global_address
-  //  kernel_bundle must be created from source, throws if device global is not
-  //  present for the given device, or has `device_image_scope` property.
-  //  Returns a USM pointer to the variable's allocation on the device.
+  //  kernel_bundle must be created from source, throws if bundle was not built
+  //  for this device, or device global is either not present or has
+  //  `device_image_scope` property.
+  //  Returns a USM pointer to the variable's initialized storage on the device.
   /////////////////////////
   template <bundle_state _State = State,
             typename = std::enable_if_t<_State == bundle_state::executable>>
@@ -550,14 +547,12 @@ public:
   /////////////////////////
   // ext_oneapi_get_device_global_size
   //  kernel_bundle must be created from source, throws if device global is not
-  //  present for the given device. Returns size in bytes.
+  //  present. Returns the variable's size in bytes.
   /////////////////////////
   template <bundle_state _State = State,
             typename = std::enable_if_t<_State == bundle_state::executable>>
-  size_t ext_oneapi_get_device_global_size(const std::string &name,
-                                           const device &dev) {
-    return detail::kernel_bundle_plain::ext_oneapi_get_device_global_size(name,
-                                                                          dev);
+  size_t ext_oneapi_get_device_global_size(const std::string &name) {
+    return detail::kernel_bundle_plain::ext_oneapi_get_device_global_size(name);
   }
 
 private:
