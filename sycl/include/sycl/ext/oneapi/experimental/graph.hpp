@@ -571,7 +571,14 @@ public:
             Graph, Num * sizeof(std::remove_extent_t<DataT>)) {}
 #endif
 
-  work_group_memory<DataT, PropertyListT> get() const { return WorkGroupMem; }
+  work_group_memory<DataT, PropertyListT> get() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Error: dynamic_work_group_memory::get() can be only "
+                          "called on the device!");
+#endif
+    return WorkGroupMem;
+  }
 
   /// Updates on the host this dynamic_work_group_memory and all registered
   /// nodes with a new buffer size.
