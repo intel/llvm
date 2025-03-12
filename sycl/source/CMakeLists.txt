@@ -178,8 +178,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       UnifiedRuntimeCommon
   )
 
-  add_dependencies(${LIB_OBJ_NAME} UnifiedRuntimeAdapters ur_umf)
-
   target_link_libraries(${LIB_NAME}
     PRIVATE
       UnifiedRuntime-Headers
@@ -191,11 +189,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       PRIVATE
       UnifiedRuntimeLoader
     )
-  else()
-    add_dependencies(${LIB_NAME} UnifiedRuntimeLoader)
   endif()
-
-  add_dependencies(${LIB_NAME} UnifiedRuntimeAdapters ur_umf)
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
