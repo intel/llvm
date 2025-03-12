@@ -4,6 +4,8 @@
 
 // RUN: %{run-aux} %{build} -Wno-error=deprecated-pragma -o %t.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64
 // RUN: %{run} %t.out
+// RUN: %if preview-breaking-changes-supported %{ %{run-aux} %{build} -Wno-error=deprecated-pragma -fpreview-breaking-changes -o %t2.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64 %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 // REQUIRES: target-amd
 
 #define __HIP_PLATFORM_AMD__

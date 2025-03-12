@@ -24,7 +24,12 @@ backend interop_handle::get_backend() const noexcept {
 }
 
 bool interop_handle::ext_codeplay_has_graph() const noexcept {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO create and link GitHub
   return MGraph != nullptr;
+#else
+  return MQueue->getInteropGraph() != nullptr;
+#endif
 }
 
 ur_native_handle_t
@@ -58,7 +63,14 @@ interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
 }
 
 ur_native_handle_t interop_handle::getNativeGraph() const {
-  if (!MGraph) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO create and link github issue
+  auto Graph = MGraph;
+#else
+  auto Graph = MQueue->getInteropGraph();
+#endif
+
+  if (!Graph) {
     throw exception(
         make_error_code(errc::invalid),
         "No backend graph object is available for the command-group");
@@ -66,7 +78,7 @@ ur_native_handle_t interop_handle::getNativeGraph() const {
 
   auto Adapter = MQueue->getAdapter();
   ur_native_handle_t Handle;
-  Adapter->call<detail::UrApiKind::urCommandBufferGetNativeHandleExp>(MGraph,
+  Adapter->call<detail::UrApiKind::urCommandBufferGetNativeHandleExp>(Graph,
                                                                       &Handle);
   return Handle;
 }

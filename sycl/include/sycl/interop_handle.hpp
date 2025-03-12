@@ -208,13 +208,25 @@ private:
   friend class detail::DispatchHostTask;
   using ReqToMem = std::pair<detail::AccessorImplHost *, ur_mem_handle_t>;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // MGraph should become a member of this class on the next ABI breaking
+  // window
+  // TODO create and link GitHub Issue
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
                  const std::shared_ptr<detail::device_impl> &Device,
                  const std::shared_ptr<detail::context_impl> &Context,
-                 const ur_exp_command_buffer_handle_t &Graph)
+                 ur_exp_command_buffer_handle_t Graph = nullptr)
       : MQueue(Queue), MDevice(Device), MContext(Context), MGraph(Graph),
         MMemObjs(std::move(MemObjs)) {}
+#else
+  interop_handle(std::vector<ReqToMem> MemObjs,
+                 const std::shared_ptr<detail::queue_impl> &Queue,
+                 const std::shared_ptr<detail::device_impl> &Device,
+                 const std::shared_ptr<detail::context_impl> &Context)
+      : MQueue(Queue), MDevice(Device), MContext(Context),
+        MMemObjs(std::move(MemObjs)) {}
+#endif
 
   template <backend Backend, typename DataT, int Dims>
   backend_return_t<Backend, buffer<DataT, Dims>>
@@ -242,7 +254,12 @@ private:
   std::shared_ptr<detail::queue_impl> MQueue;
   std::shared_ptr<detail::device_impl> MDevice;
   std::shared_ptr<detail::context_impl> MContext;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // MGraph should become a member of this class on the next ABI breaking
+  // window
+  // TODO link github issue
   ur_exp_command_buffer_handle_t MGraph;
+#endif
 
   std::vector<ReqToMem> MMemObjs;
 };

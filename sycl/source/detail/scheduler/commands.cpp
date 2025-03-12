@@ -420,7 +420,7 @@ public:
                "Host task submissions should have an associated queue");
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
-                          HostTask.MQueue->getContextImplPtr(), nullptr};
+                          HostTask.MQueue->getContextImplPtr()};
         // TODO: should all the backends that support this entry point use this
         // for host task?
         auto &Queue = HostTask.MQueue;
@@ -3087,8 +3087,19 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     };
     std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
 
+    ur_exp_command_buffer_handle_t InteropCommandBuffer =
+        ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    // The native command-buffer should be a member of the sycl::interop_handle
+    // class, but it is in an API breaking change to add it. So member lives in
+    // the queue as a intermediate workaround.
+    // TODO create and link github issue
     interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl,
-                      ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer};
+                      InteropCommandBuffer};
+#else
+    MQueue->setInteropGraph(InteropCommandBuffer);
+    interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl};
+#endif
     CommandBufferNativeCommandData CustomOpData{
         IH, HostTask->MHostTask->MInteropTask};
 
@@ -3480,7 +3491,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     EnqueueNativeCommandData CustomOpData{
         interop_handle{ReqToMem, HostTask->MQueue,
                        HostTask->MQueue->getDeviceImplPtr(),
-                       HostTask->MQueue->getContextImplPtr(), nullptr},
+                       HostTask->MQueue->getContextImplPtr()},
         HostTask->MHostTask->MInteropTask};
 
     ur_bool_t NativeCommandSupport = false;
