@@ -153,7 +153,7 @@ bool test_1(queue Queue) {
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
 void ff_1(int *ptr, int start) {
-  int(&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(ptr);
+  int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
@@ -171,7 +171,7 @@ bool test_2(queue Queue) {
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.parallel_for(R2, [=](nd_item<2> Item) {
-      int(&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(usmPtr);
+      int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
       id<2> GId = Item.get_global_id();
       id<2> LId = Item.get_local_id();
       ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
@@ -208,7 +208,7 @@ template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
 void ff_3(T *ptr, T start) {
-  int(&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(ptr);
+  int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
@@ -229,7 +229,7 @@ bool test_3(queue Queue) {
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.parallel_for(R2, [=](nd_item<2> Item) {
-      int(&ptr2D)[4][4] = *reinterpret_cast<int (*)[4][4]>(usmPtr);
+      int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
       id<2> GId = Item.get_global_id();
       id<2> LId = Item.get_local_id();
       ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
