@@ -21,7 +21,6 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/Demangle/Demangle.h"
-#include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -33,7 +32,6 @@
 #include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
-#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
@@ -54,11 +52,6 @@
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/DCE.h"
-#include "llvm/Transforms/Scalar/EarlyCSE.h"
-#include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include <algorithm>
@@ -371,38 +364,9 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
   PB.registerLoopAnalyses(LAM);
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
-  ModulePassManager MPM;
-  MPM.addPass(SYCLLowerESIMDPass(!SplitEsimd));
-
-  if (!OptLevelO0) {
-    FunctionPassManager FPM;
-    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
-  }
-  MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
-  FunctionPassManager MainFPM;
-  MainFPM.addPass(ESIMDLowerLoadStorePass{});
-
-  if (!OptLevelO0) {
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-    // TODO: maybe remove some passes below that don't affect code quality
-    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    MainFPM.addPass(EarlyCSEPass(true));
-    MainFPM.addPass(InstCombinePass{});
-    MainFPM.addPass(DCEPass{});
-  }
-  MPM.addPass(ESIMDLowerSLMReservationCalls{});
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
-  MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
-                                     /*RewriteSingleElementVectorsIn*/ false));
-  // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
-  // versions so the entry point table must be rebuilt.
-  // TODO Change entry point search to analysis?
   std::vector<std::string> Names;
   MD.saveEntryPointNames(Names);
+  ModulePassManager MPM = buildESIMDLoweringPipeline(OptLevelO0, !SplitEsimd);
   PreservedAnalyses Res = MPM.run(MD.getModule(), MAM);
   MD.rebuildEntryPoints(Names);
   return !Res.areAllPreserved();

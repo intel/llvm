@@ -103,6 +103,8 @@ add_llvm_component_library(LLVMSYCLLowerIR
   IRPrinter
   Support
   ipo
+  InstCombine
+  Scalar
   )
 
 target_include_directories(LLVMSYCLLowerIR

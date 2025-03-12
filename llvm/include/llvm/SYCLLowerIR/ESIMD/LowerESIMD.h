@@ -99,6 +99,11 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
+// Build an ESIMD lowering pipeline.
+ModulePassManager
+buildESIMDLoweringPipeline(bool OptLevelO0,
+                           bool ModuleContainsScalarCode = true);
+
 } // namespace llvm
 
 #endif // LLVM_SYCLLOWERIR_LOWERESIMD_H
