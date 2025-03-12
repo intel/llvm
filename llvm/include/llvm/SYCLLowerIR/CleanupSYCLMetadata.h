@@ -25,13 +25,13 @@ public:
 
 /// Removes the global variable "llvm.used".
 /// "llvm.used" is a global constant array containing references to kernels
-/// available in the module and callable from a host code. The elements of
+/// available in the module and callable from host code. The elements of
 /// the array are ConstantExpr bitcast to i8*.
 /// The variable must be removed because it has done the job to the moment
 /// of a compilation stage and the references to the kernels callable from
 /// host must not have users.
-class CleanupSYCLMetadataFromUsed
-    : public PassInfoMixin<CleanupSYCLMetadataFromUsed> {
+class CleanupSYCLMetadataFromLLVMUsed
+    : public PassInfoMixin<CleanupSYCLMetadataFromLLVMUsed> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
@@ -44,8 +44,8 @@ public:
 /// purpose. To avoid polluting other binaries with unused device_global
 /// variables, we remove them from llvm.compiler.used and erase them if they
 /// have no further uses.
-class RemoveDeviceGlobalFromCompilerUsed
-    : public PassInfoMixin<RemoveDeviceGlobalFromCompilerUsed> {
+class RemoveDeviceGlobalFromLLVMCompilerUsed
+    : public PassInfoMixin<RemoveDeviceGlobalFromLLVMCompilerUsed> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

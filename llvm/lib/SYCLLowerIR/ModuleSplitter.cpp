@@ -1410,6 +1410,10 @@ bool runPreSplitProcessingPipeline(Module &M) {
   ModuleAnalysisManager MAM;
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
 
+  // Propagate ESIMD attribute to wrapper functions to prevent
+  // spurious splits and kernel link errors.
+  MPM.addPass(SYCLFixupESIMDKernelWrapperMDPass());
+
   // After linking device bitcode "llvm.used" holds references to the kernels
   // that are defined in the device image. But after splitting device image into
   // separate kernels we may end up with having references to kernel declaration
@@ -1417,21 +1421,27 @@ bool runPreSplitProcessingPipeline(Module &M) {
   // and these declarations cause an assertion in llvm-spirv. To workaround this
   // issue remove "llvm.used" from the input module before performing any other
   // actions.
-  MPM.addPass(CleanupSYCLMetadataFromUsed());
-  MPM.addPass(SYCLFixupESIMDKernelWrapperMDPass());
+  MPM.addPass(CleanupSYCLMetadataFromLLVMUsed());
 
   // There may be device_global variables kept alive in "llvm.compiler.used"
   // to keep the optimizer from wrongfully removing them. llvm.compiler.used
   // symbols are usually removed at backend lowering, but this is handled here
   // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
   if (M.getTargetTriple().find("spir") != std::string::npos)
-    MPM.addPass(RemoveDeviceGlobalFromCompilerUsed());
+    MPM.addPass(RemoveDeviceGlobalFromLLVMCompilerUsed());
 
+  // Sanitizer specific passes.
   if (sycl::isModuleUsingAsan(M) || sycl::isModuleUsingMsan(M) ||
       sycl::isModuleUsingTsan(M))
     MPM.addPass(SanitizerKernelMetadataPass());
 
+  // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
+  // LLVM IR specification.
   MPM.addPass(SYCLJointMatrixTransformPass());
+
+  // Do invoke_simd processing before splitting because this:
+  // - saves processing time (the pass is run once, even though on larger IR)
+  // - doing it before SYCL/ESIMD splitting is required for correctness
   MPM.addPass(SYCLLowerInvokeSimdPass());
   return !MPM.run(M, MAM).areAllPreserved();
 }

@@ -34,6 +34,27 @@ void cleanupSYCLCompilerMetadata(const Module &M, llvm::StringRef MD) {
   Node->eraseFromParent();
 }
 
+// GV is supposed to be either llvm.compiler.used or llvm.used.
+SmallVector<Constant *>
+eraseGlobalVariableAndReturnOperands(GlobalVariable *GV) {
+  assert(GV->user_empty() && "Users aren't expected");
+  Constant *Initializer = GV->getInitializer();
+  GV->setInitializer(nullptr);
+  GV->eraseFromParent();
+
+  // Destroy the initializer and save operands.
+  SmallVector<Constant *> Operands;
+  Operands.resize(0);
+  for (auto &Op : GV->operands())
+    Operands.push_back(cast<Constant>(Op));
+
+  assert(isSafeToDestroyConstant(Initializer) &&
+         "Cannot remove initializer of the given GV");
+
+  Initializer->destroyConstant();
+  return Operands;
+}
+
 } // anonymous namespace
 
 PreservedAnalyses CleanupSYCLMetadataPass::run(Module &M,
@@ -49,32 +70,20 @@ PreservedAnalyses CleanupSYCLMetadataPass::run(Module &M,
   return PreservedAnalyses::all();
 }
 
-PreservedAnalyses CleanupSYCLMetadataFromUsed::run(Module &M,
-                                                   ModuleAnalysisManager &) {
+PreservedAnalyses
+CleanupSYCLMetadataFromLLVMUsed::run(Module &M, ModuleAnalysisManager &) {
   GlobalVariable *GV = M.getGlobalVariable("llvm.used");
   if (!GV)
     return PreservedAnalyses::all();
 
-  assert(GV->user_empty() && "Unexpected llvm.used users");
-  Constant *Initializer = GV->getInitializer();
-  GV->setInitializer(nullptr);
-  GV->eraseFromParent();
-
-  // Destroy the initializer and all operands of it.
-  SmallVector<Constant *, 8> IOperands;
-  for (auto It = Initializer->op_begin(), E = Initializer->op_end(); It != E;
-       It++)
-    IOperands.push_back(cast<Constant>(*It));
-
-  assert(isSafeToDestroyConstant(Initializer) &&
-         "Cannot remove initializer of llvm.used global");
-
-  Initializer->destroyConstant();
-  for (auto It = IOperands.begin(), E = IOperands.end(); It != E; It++) {
-    auto Op = (*It)->stripPointerCasts();
-    auto *F = dyn_cast<Function>(Op);
-    if (isSafeToDestroyConstant(*It))
-      (*It)->destroyConstant();
+  SmallVector<Constant *, 8> IOperands =
+      eraseGlobalVariableAndReturnOperands(GV);
+  // Erase all operands.
+  for (auto *Op : IOperands) {
+    auto StrippedOp = Op->stripPointerCasts();
+    auto *F = dyn_cast<Function>(StrippedOp);
+    if (isSafeToDestroyConstant(Op))
+      (Op)->destroyConstant();
     else if (F && F->getCallingConv() == CallingConv::SPIR_KERNEL &&
              !F->use_empty()) {
       // The element in "llvm.used" array has other users. That is Ok for
@@ -91,33 +100,19 @@ PreservedAnalyses CleanupSYCLMetadataFromUsed::run(Module &M,
 }
 
 PreservedAnalyses
-RemoveDeviceGlobalFromCompilerUsed::run(Module &M, ModuleAnalysisManager &) {
+RemoveDeviceGlobalFromLLVMCompilerUsed::run(Module &M,
+                                            ModuleAnalysisManager &) {
   GlobalVariable *GV = M.getGlobalVariable("llvm.compiler.used");
   if (!GV)
     return PreservedAnalyses::all();
 
-  // Erase the old llvm.compiler.used. A new one will be created at the end if
-  // there are other values in it (other than device_global).
-  assert(GV->user_empty() && "Unexpected llvm.compiler.used users");
-  Constant *Initializer = GV->getInitializer();
-  GV->setInitializer(nullptr);
-  GV->eraseFromParent();
-
   // Destroy the initializer. Keep the operands so we keep the ones we need.
-  SmallVector<Constant *, 8> IOperands;
-  for (auto It = Initializer->op_begin(), E = Initializer->op_end(); It != E;
-       It++)
-    IOperands.push_back(cast<Constant>(*It));
-
-  assert(isSafeToDestroyConstant(Initializer) &&
-         "Cannot remove initializer of llvm.compiler.used global");
-  Initializer->destroyConstant();
+  SmallVector<Constant *> IOperands = eraseGlobalVariableAndReturnOperands(GV);
 
   // Iterate through all operands. If they are device_global then we drop them
   // and erase them if they have no uses afterwards. All other values are kept.
-  SmallVector<Constant *, 8> NewOperands;
-  for (auto It = IOperands.begin(), E = IOperands.end(); It != E; It++) {
-    Constant *Op = *It;
+  SmallVector<Constant *> NewOperands;
+  for (auto *Op : IOperands) {
     auto *DG = dyn_cast<GlobalVariable>(Op->stripPointerCasts());
 
     // If it is not a device_global we keep it.
