@@ -121,6 +121,7 @@ public:
     size_t size() const { return std::distance(begin(), end()); }
     bool empty() const { return begin() == end(); }
     friend class RTDeviceBinaryImage;
+    friend class DynRTDeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 
   private:
@@ -238,6 +239,7 @@ public:
   const PropertyRange &getRegisteredKernels() const {
     return RegisteredKernels;
   }
+  const PropertyRange &getMiscProperties() const { return Misc; }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -245,6 +247,7 @@ public:
   }
 
 protected:
+  void init();
   void init(sycl_device_binary Bin);
   sycl_device_binary get() const { return Bin; }
 
@@ -266,6 +269,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
   RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
   RTDeviceBinaryImage::PropertyRange RegisteredKernels;
+  RTDeviceBinaryImage::PropertyRange Misc;
 
   std::vector<ur_program_metadata_t> ProgramMetadataUR;
 
@@ -275,19 +279,29 @@ private:
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary
-// data in destructor.
+// data and associated metadata in destructor.
 class DynRTDeviceBinaryImage : public RTDeviceBinaryImage {
 public:
-  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize);
+  DynRTDeviceBinaryImage(
+      std::unique_ptr<char[], std::function<void(void *)>> &&DataPtr,
+      size_t DataSize);
   ~DynRTDeviceBinaryImage() override;
+
+  // Merge ctor
+  DynRTDeviceBinaryImage(const std::vector<const RTDeviceBinaryImage *> &Imgs);
 
   void print() const override {
     RTDeviceBinaryImage::print();
     std::cerr << "    DYNAMICALLY CREATED\n";
   }
 
+  static DynRTDeviceBinaryImage
+  merge(const std::vector<RTDeviceBinaryImage *> &Imgs);
+
 protected:
-  std::unique_ptr<char[]> Data;
+  DynRTDeviceBinaryImage();
+
+  std::unique_ptr<char[], std::function<void(void *)>> Data;
 };
 
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
