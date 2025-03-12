@@ -22,17 +22,9 @@ namespace tsan {
 
 struct ShadowMemory {
   ShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
-      : Context(Context), Device(Device) {
-    [[maybe_unused]] ur_result_t URes =
-        getContext()->urDdiTable.Device.pfnRetain(Device);
-    assert(URes == UR_RESULT_SUCCESS);
-  }
+      : Context(Context), Device(Device) {}
 
-  virtual ~ShadowMemory() {
-    [[maybe_unused]] ur_result_t URes =
-        getContext()->urDdiTable.Device.pfnRelease(Device);
-    assert(URes == UR_RESULT_SUCCESS);
-  }
+  virtual ~ShadowMemory() {}
 
   virtual ur_result_t Setup() = 0;
 

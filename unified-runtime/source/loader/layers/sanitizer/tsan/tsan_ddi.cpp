@@ -99,7 +99,10 @@ ur_result_t urContextRetain(
   UR_CALL(getContext()->urDdiTable.Context.pfnRetain(hContext));
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
-  UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+  if (!ContextInfo) {
+    getContext()->logger.error("Invalid context");
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  }
   ContextInfo->RefCount++;
 
   return UR_RESULT_SUCCESS;
@@ -115,7 +118,11 @@ ur_result_t urContextRelease(
   UR_CALL(getContext()->urDdiTable.Context.pfnRelease(hContext));
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
-  UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+  if (!ContextInfo) {
+    getContext()->logger.error("Invalid context");
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  }
+
   if (--ContextInfo->RefCount == 0) {
     UR_CALL(getTsanInterceptor()->eraseContext(hContext));
   }
