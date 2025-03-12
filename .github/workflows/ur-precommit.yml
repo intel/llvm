@@ -48,7 +48,7 @@ jobs:
        include:
          - name: L0
            adapter_name: L0
-           runner: ubuntu
+           runner: ubuntu-latest
            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
            reset_intel_gpu: true
