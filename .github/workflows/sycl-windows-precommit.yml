@@ -1,27 +1,27 @@
 # name: SYCL Pre Commit on Windows
 
-# on:
-#   pull_request:
-#     branches:
-#     - sycl
-#     - llvmspirv_pulldown
-#     - sycl-rel-**
-#     # Do not run builds if changes are only in the following locations
-#     paths-ignore:
-#     - '.github/ISSUE_TEMPLATE/**'
-#     - '.github/CODEOWNERS'
-#     - 'sycl/doc/**'
-#     - 'sycl/gdb/**'
-#     - 'clang/docs/**'
-#     - '**.md'
-#     - '**.rst'
-#     - '.github/workflows/sycl-linux-*.yml'
-#     - '.github/workflows/sycl-precommit-aws.yml'
-#     - '.github/workflows/sycl-macos-*.yml'
-#     - '.github/workflows/sycl-nightly.yml'
-#     - '.github/workflows/sycl-rel-nightly.yml'
-#     - 'devops/containers/**'
-#     - 'devops/actions/build_container/**'
+on:
+  pull_request:
+    branches:
+    - sycl
+    - llvmspirv_pulldown
+    - sycl-rel-**
+    # Do not run builds if changes are only in the following locations
+    paths-ignore:
+    - '.github/ISSUE_TEMPLATE/**'
+    - '.github/CODEOWNERS'
+    - 'sycl/doc/**'
+    - 'sycl/gdb/**'
+    - 'clang/docs/**'
+    - '**.md'
+    - '**.rst'
+    - '.github/workflows/sycl-linux-*.yml'
+    - '.github/workflows/sycl-precommit-aws.yml'
+    - '.github/workflows/sycl-macos-*.yml'
+    - '.github/workflows/sycl-nightly.yml'
+    - '.github/workflows/sycl-rel-nightly.yml'
+    - 'devops/containers/**'
+    - 'devops/actions/build_container/**'
 
 # permissions: read-all
 
