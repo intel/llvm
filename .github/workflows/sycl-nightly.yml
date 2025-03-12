@@ -264,7 +264,7 @@ jobs:
         include:
           - name: Run compute-benchmarks on L0 PVC
             runner: '["PVC_PERF"]'
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
             reset_intel_gpu: false
     uses: ./.github/workflows/sycl-linux-run-tests.yml
