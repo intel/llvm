@@ -88,5 +88,4 @@ ur_result_t urBindlessImagesMipmapGetLevelExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-
 } // namespace ur::level_zero

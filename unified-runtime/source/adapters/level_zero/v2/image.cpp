@@ -44,7 +44,7 @@ ur_result_t urBindlessImagesImageAllocateExp(
                              &ZeImageDesc, &ZeImage));
   ZE2UR_CALL(zeContextMakeImageResident,
              (hContext->getZeHandle(), hDevice->ZeDevice, ZeImage));
-  UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true, 
+  UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
                                  ZeImageDesc, phImageMem));
   return UR_RESULT_SUCCESS;
 }
@@ -54,7 +54,7 @@ ur_result_t urBindlessImagesImageFreeExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem) {
 
-  ur_mem_image_t *urImg = reinterpret_cast<ur_mem_image_t*>(hImageMem);   
+  ur_mem_image_t *urImg = reinterpret_cast<ur_mem_image_t *>(hImageMem);
   ZE2UR_CALL(zeImageDestroy, (urImg->getZeImage()));
   return UR_RESULT_SUCCESS;
 }

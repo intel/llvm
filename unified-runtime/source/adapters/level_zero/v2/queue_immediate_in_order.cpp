@@ -821,8 +821,8 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
           pCopyRegion->dstOffset.y * DstRowPitch +
           pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
       ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
-                 (ZeCommandList, DstPtr, urSrcImg->getZeImage(), &SrcRegion, DstRowPitch,
-                  DstSlicePitch, zeSignalEvent, waitListView.num,
+                 (ZeCommandList, DstPtr, urSrcImg->getZeImage(), &SrcRegion,
+                  DstRowPitch, DstSlicePitch, zeSignalEvent, waitListView.num,
                   waitListView.handles));
     } else {
       // Copy from pitched USM memory to host
@@ -853,12 +853,13 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
     UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
                                  &pCopyRegion->copyExtent, SrcRegion));
 
-    auto * urImgSrc = reinterpret_cast<const ur_mem_image_t *>(pSrc);
-    auto * urImgDst = reinterpret_cast<ur_mem_image_t *>(pDst);
+    auto *urImgSrc = reinterpret_cast<const ur_mem_image_t *>(pSrc);
+    auto *urImgDst = reinterpret_cast<ur_mem_image_t *>(pDst);
 
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-               (ZeCommandList, urImgDst->getZeImage(), urImgSrc->getZeImage(), &DstRegion, &SrcRegion,
-                zeSignalEvent, waitListView.num, waitListView.handles));
+               (ZeCommandList, urImgDst->getZeImage(), urImgSrc->getZeImage(),
+                &DstRegion, &SrcRegion, zeSignalEvent, waitListView.num,
+                waitListView.handles));
   } else {
     logger::error("ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp: "
                   "unexpected imageCopyFlags");
@@ -879,7 +880,7 @@ ur_queue_immediate_in_order_t::bindlessImagesWaitExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-    logger::error(
+  logger::error(
       logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
       "{} function not implemented!", __FUNCTION__);
 
@@ -897,7 +898,7 @@ ur_queue_immediate_in_order_t::bindlessImagesSignalExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-    logger::error(
+  logger::error(
       logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
       "{} function not implemented!", __FUNCTION__);
 
@@ -1033,7 +1034,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-    logger::error(
+  logger::error(
       logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
       "{} function not implemented!", __FUNCTION__);
 
@@ -1044,7 +1045,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
-    logger::error(
+  logger::error(
       logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
       "{} function not implemented!", __FUNCTION__);
 

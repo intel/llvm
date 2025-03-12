@@ -711,10 +711,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
 #endif
 
     ZE2UR_CALL(zeImageViewCreateExt,
-               (zeCtx, hDevice->ZeDevice, &ZeImageDesc,
-                zeImg, &ZeImage));
-    ZE2UR_CALL(zeContextMakeImageResident,
-               (zeCtx, hDevice->ZeDevice, ZeImage));
+               (zeCtx, hDevice->ZeDevice, &ZeImageDesc, zeImg, &ZeImage));
+    ZE2UR_CALL(zeContextMakeImageResident, (zeCtx, hDevice->ZeDevice, ZeImage));
   } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_HOST ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
@@ -726,10 +724,9 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
       BindlessDesc.pNext = &PitchedDesc;
     }
 
-    ZE2UR_CALL(zeImageCreate, (zeCtx, hDevice->ZeDevice,
-                               &ZeImageDesc, &ZeImage));
-    ZE2UR_CALL(zeContextMakeImageResident,
-               (zeCtx, hDevice->ZeDevice, ZeImage));
+    ZE2UR_CALL(zeImageCreate,
+               (zeCtx, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
+    ZE2UR_CALL(zeContextMakeImageResident, (zeCtx, hDevice->ZeDevice, ZeImage));
   } else {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
