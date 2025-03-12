@@ -239,21 +239,6 @@ static inline auto poolMakeUniqueFromOps(umf_memory_pool_ops_t *ops,
       UMF_RESULT_SUCCESS, pool_unique_handle_t(hPool, umfPoolDestroy)};
 }
 
-static inline auto
-poolMakeUniqueFromOpsProviderHandle(umf_memory_pool_ops_t *ops,
-                                    umf_memory_provider_handle_t provider,
-                                    void *params) {
-  umf_memory_pool_handle_t hPool;
-  auto ret = umfPoolCreate(ops, provider, params, 0, &hPool);
-  if (ret != UMF_RESULT_SUCCESS) {
-    return std::pair<umf_result_t, pool_unique_handle_t>{
-        ret, pool_unique_handle_t(nullptr, nullptr)};
-  }
-
-  return std::pair<umf_result_t, pool_unique_handle_t>{
-      UMF_RESULT_SUCCESS, pool_unique_handle_t(hPool, umfPoolDestroy)};
-}
-
 static inline auto providerMakeUniqueFromOps(umf_memory_provider_ops_t *ops,
                                              void *params) {
   umf_memory_provider_handle_t hProvider;

@@ -76,38 +76,6 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 ///
 ///
 
-static ur_result_t
-CreateHostMemoryProviderPool(ur_device_handle_t_ *DeviceHandle,
-                             umf_memory_provider_handle_t *MemoryProviderHost,
-                             umf_memory_pool_handle_t *MemoryPoolHost) {
-
-  *MemoryProviderHost = nullptr;
-  CUcontext context = DeviceHandle->getNativeContext();
-
-  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
-  umf_result_t UmfResult =
-      umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams);
-  UMF_RETURN_UR_ERROR(UmfResult);
-  OnScopeExit Cleanup(
-      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
-
-  UmfResult = umf::setCUMemoryProviderParams(
-      CUMemoryProviderParams, 0 /* cuDevice */, context, UMF_MEMORY_TYPE_HOST);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  // create UMF CUDA memory provider and pool for the host memory
-  // (UMF_MEMORY_TYPE_HOST)
-  UmfResult = umfMemoryProviderCreate(
-      umfCUDAMemoryProviderOps(), CUMemoryProviderParams, MemoryProviderHost);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  UmfResult = umfPoolCreate(umfProxyPoolOps(), *MemoryProviderHost, nullptr, 0,
-                            MemoryPoolHost);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  return UR_RESULT_SUCCESS;
-}
-
 struct ur_context_handle_t_ {
 
   struct deleter_data {
@@ -120,10 +88,17 @@ struct ur_context_handle_t_ {
   std::vector<ur_device_handle_t> Devices;
   std::atomic_uint32_t RefCount;
 
-  // UMF CUDA memory provider and pool for the host memory
+  // UMF CUDA memory pool for the host memory
   // (UMF_MEMORY_TYPE_HOST)
-  umf_memory_provider_handle_t MemoryProviderHost = nullptr;
   umf_memory_pool_handle_t MemoryPoolHost = nullptr;
+
+  // UMF CUDA memory pools for the device memory
+  // (UMF_MEMORY_TYPE_DEVICE)
+  std::vector<umf_memory_pool_handle_t> MemoryDevicePools;
+
+  // UMF CUDA memory pools for the shared memory
+  // (UMF_MEMORY_TYPE_SHARED)
+  std::vector<umf_memory_pool_handle_t> MemorySharedPools;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
       : Devices{Devs, Devs + NumDevices}, RefCount{1} {
@@ -131,19 +106,24 @@ struct ur_context_handle_t_ {
       urDeviceRetain(Dev);
     }
 
-    // Create UMF CUDA memory provider for the host memory
-    // (UMF_MEMORY_TYPE_HOST) from any device (Devices[0] is used here, because
-    // it is guaranteed to exist).
-    UR_CHECK_ERROR(CreateHostMemoryProviderPool(Devices[0], &MemoryProviderHost,
-                                                &MemoryPoolHost));
+    // Create UMF CUDA memory provider and pool for the host memory
+    // (UMF_MEMORY_TYPE_HOST)
+    UR_CHECK_ERROR(createHostMemoryPool());
+
+    // Create UMF CUDA memory providers and pools for the device memory
+    // (UMF_MEMORY_TYPE_HOST) and the shared memory (UMF_MEMORY_TYPE_SHARED).
+    UR_CHECK_ERROR(createDeviceMemoryPools());
   };
 
   ~ur_context_handle_t_() {
     if (MemoryPoolHost) {
       umfPoolDestroy(MemoryPoolHost);
     }
-    if (MemoryProviderHost) {
-      umfMemoryProviderDestroy(MemoryProviderHost);
+    for (auto &Pool : MemoryDevicePools) {
+      umfPoolDestroy(Pool);
+    }
+    for (auto &Pool : MemorySharedPools) {
+      umfPoolDestroy(Pool);
     }
     for (auto &Dev : Devices) {
       urDeviceRelease(Dev);
@@ -190,6 +170,59 @@ private:
   std::mutex Mutex;
   std::vector<deleter_data> ExtendedDeleters;
   std::set<ur_usm_pool_handle_t> PoolHandles;
+
+  // Create UMF CUDA memory pool for the host memory (UMF_MEMORY_TYPE_HOST)
+  ur_result_t createHostMemoryPool() {
+    umf_memory_provider_handle_t memoryProviderHost = nullptr;
+    ur_result_t URResult = umf::createHostMemoryProvider(
+        Devices[0]->getNativeContext(), &memoryProviderHost);
+    if (URResult != UR_RESULT_SUCCESS) {
+      return URResult;
+    }
+
+    umf_result_t UmfResult =
+        umfPoolCreate(umfProxyPoolOps(), memoryProviderHost, nullptr,
+                      UMF_POOL_CREATE_FLAG_OWN_PROVIDER, &MemoryPoolHost);
+    UMF_RETURN_UR_ERROR(UmfResult);
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Create UMF CUDA memory pools for the device memory (UMF_MEMORY_TYPE_HOST)
+  // and the shared memory (UMF_MEMORY_TYPE_SHARED)
+  ur_result_t createDeviceMemoryPools() {
+    for (auto &Device : Devices) {
+      umf_memory_provider_handle_t memoryDeviceProvider = nullptr;
+      umf_memory_provider_handle_t memorySharedProvider = nullptr;
+      ur_result_t URResult = umf::createDeviceMemoryProviders(
+          Device, &memoryDeviceProvider, &memorySharedProvider);
+      if (URResult != UR_RESULT_SUCCESS) {
+        return URResult;
+      }
+
+      // create UMF CUDA memory pool for the device memory
+      // (UMF_MEMORY_TYPE_DEVICE)
+      umf_result_t UmfResult;
+      umf_memory_pool_handle_t memoryDevicePool = nullptr;
+      UmfResult =
+          umfPoolCreate(umfProxyPoolOps(), memoryDeviceProvider, nullptr,
+                        UMF_POOL_CREATE_FLAG_OWN_PROVIDER, &memoryDevicePool);
+      UMF_RETURN_UR_ERROR(UmfResult);
+
+      // create UMF CUDA memory pool for the shared memory
+      // (UMF_MEMORY_TYPE_SHARED)
+      umf_memory_pool_handle_t memorySharedPool = nullptr;
+      UmfResult =
+          umfPoolCreate(umfProxyPoolOps(), memorySharedProvider, nullptr,
+                        UMF_POOL_CREATE_FLAG_OWN_PROVIDER, &memorySharedPool);
+      UMF_RETURN_UR_ERROR(UmfResult);
+
+      MemoryDevicePools.push_back(memoryDevicePool);
+      MemorySharedPools.push_back(memorySharedPool);
+    }
+
+    return UR_RESULT_SUCCESS;
+  }
 };
 
 namespace {

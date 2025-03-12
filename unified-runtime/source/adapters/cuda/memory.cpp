@@ -422,7 +422,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
                                            const ur_device_handle_t hDevice) {
   ScopedContext Active(hDevice);
-  auto DeviceIdx = Mem->getContext()->getDeviceIndex(hDevice);
+  ur_context_handle_t Context = Mem->getContext();
+  auto DeviceIdx = Context->getDeviceIndex(hDevice);
   ur_lock LockGuard(Mem->MemoryAllocationMutex);
 
   if (Mem->isBuffer()) {
@@ -442,7 +443,8 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
                                        CU_MEMHOSTALLOC_DEVICEMAP));
       UR_CHECK_ERROR(cuMemHostGetDevicePointer(&DevPtr, Buffer.HostPtr, 0));
     } else {
-      *(void **)&DevPtr = umfPoolMalloc(hDevice->MemoryPoolDevice, Buffer.Size);
+      *(void **)&DevPtr =
+          umfPoolMalloc(Context->MemoryDevicePools[DeviceIdx], Buffer.Size);
       UMF_CHECK_PTR(*(void **)&DevPtr);
     }
   } else {

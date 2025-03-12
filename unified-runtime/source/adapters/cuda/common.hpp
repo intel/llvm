@@ -73,6 +73,8 @@ void assertion(bool Condition, const char *Message = nullptr);
 
 namespace umf {
 
+ur_result_t getProviderNativeError(const char *, int32_t);
+
 inline umf_result_t setCUMemoryProviderParams(
     umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams,
     int cuDevice, void *cuContext, umf_usm_memory_type_t memType) {
@@ -91,5 +93,14 @@ inline umf_result_t setCUMemoryProviderParams(
 
   return UMF_RESULT_SUCCESS;
 }
+
+ur_result_t
+createHostMemoryProvider(CUcontext contextCUDA,
+                         umf_memory_provider_handle_t *memoryProviderHost);
+
+ur_result_t
+createDeviceMemoryProviders(ur_device_handle_t_ *DeviceHandle,
+                            umf_memory_provider_handle_t *memoryDeviceProvider,
+                            umf_memory_provider_handle_t *memorySharedProvider);
 
 } // namespace umf

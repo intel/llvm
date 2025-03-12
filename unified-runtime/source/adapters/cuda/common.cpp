@@ -9,7 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "device.hpp"
 #include "logger/ur_logger.hpp"
+#include "umf_helpers.hpp"
 
 #include <cuda.h>
 
@@ -129,3 +131,84 @@ void setPluginSpecificMessage(CUresult cu_res) {
   setErrorMessage(message, UR_RESULT_ERROR_ADAPTER_SPECIFIC);
   free(message);
 }
+
+namespace umf {
+
+ur_result_t getProviderNativeError(const char *, int32_t) {
+  // TODO: implement when UMF supports CUDA
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+
+// Create UMF CUDA memory provider for the host memory (UMF_MEMORY_TYPE_HOST)
+// from a device
+ur_result_t
+createHostMemoryProvider(CUcontext contextCUDA,
+                         umf_memory_provider_handle_t *memoryProviderHost) {
+  *memoryProviderHost = nullptr;
+
+  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
+  umf_result_t UmfResult =
+      umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams);
+  UMF_RETURN_UR_ERROR(UmfResult);
+
+  OnScopeExit Cleanup(
+      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
+
+  UmfResult =
+      umf::setCUMemoryProviderParams(CUMemoryProviderParams, 0 /* cuDevice */,
+                                     contextCUDA, UMF_MEMORY_TYPE_HOST);
+  UMF_RETURN_UR_ERROR(UmfResult);
+
+  // create UMF CUDA memory provider and pool for the host memory
+  // (UMF_MEMORY_TYPE_HOST)
+  UmfResult = umfMemoryProviderCreate(
+      umfCUDAMemoryProviderOps(), CUMemoryProviderParams, memoryProviderHost);
+  UMF_RETURN_UR_ERROR(UmfResult);
+
+  return UR_RESULT_SUCCESS;
+}
+
+// Create UMF CUDA memory providers for the device memory (UMF_MEMORY_TYPE_HOST)
+// and the shared memory (UMF_MEMORY_TYPE_SHARED)
+ur_result_t createDeviceMemoryProviders(
+    ur_device_handle_t_ *DeviceHandle,
+    umf_memory_provider_handle_t *memoryDeviceProvider,
+    umf_memory_provider_handle_t *memorySharedProvider) {
+  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
+
+  umf_result_t UmfResult =
+      umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams);
+  UMF_RETURN_UR_ERROR(UmfResult);
+
+  OnScopeExit Cleanup(
+      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
+
+  CUdevice device = DeviceHandle->get();
+  CUcontext context = DeviceHandle->getNativeContext();
+
+  // create UMF CUDA memory provider for the device memory
+  // (UMF_MEMORY_TYPE_DEVICE)
+  UmfResult = umf::setCUMemoryProviderParams(CUMemoryProviderParams, device,
+                                             context, UMF_MEMORY_TYPE_DEVICE);
+  UMF_RETURN_UR_ERROR(UmfResult);
+
+  *memoryDeviceProvider = nullptr;
+  UmfResult = umfMemoryProviderCreate(
+      umfCUDAMemoryProviderOps(), CUMemoryProviderParams, memoryDeviceProvider);
+  UMF_RETURN_UR_ERROR(UmfResult);
+
+  // create UMF CUDA memory provider for the shared memory
+  // (UMF_MEMORY_TYPE_SHARED)
+  UmfResult = umf::setCUMemoryProviderParams(CUMemoryProviderParams, device,
+                                             context, UMF_MEMORY_TYPE_SHARED);
+  UMF_RETURN_UR_ERROR(UmfResult);
+
+  *memorySharedProvider = nullptr;
+  UmfResult = umfMemoryProviderCreate(
+      umfCUDAMemoryProviderOps(), CUMemoryProviderParams, memorySharedProvider);
+  UMF_RETURN_UR_ERROR(UmfResult);
+
+  return UR_RESULT_SUCCESS;
+}
+
+} // namespace umf

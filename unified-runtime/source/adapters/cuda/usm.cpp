@@ -22,13 +22,6 @@
 
 #include <cuda.h>
 
-namespace umf {
-ur_result_t getProviderNativeError(const char *, int32_t) {
-  // TODO: implement when UMF supports CUDA
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-} // namespace umf
-
 /// USM: Implements USM Host allocations using CUDA Pinned Memory
 /// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#page-locked-host-memory
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -110,13 +103,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
   return umf::umf2urResult(umfFree(pMem));
 }
 
-ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
+ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t Device,
                                ur_usm_device_mem_flags_t, size_t Size,
                                uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
-    *ResultPtr = umfPoolMalloc(Device->MemoryPoolDevice, Size);
+    auto DeviceIdx = Context->getDeviceIndex(Device);
+    *ResultPtr = umfPoolMalloc(Context->MemoryDevicePools[DeviceIdx], Size);
     UMF_CHECK_PTR(*ResultPtr);
   } catch (ur_result_t Err) {
     return Err;
@@ -131,14 +125,15 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
+ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t Device,
                                ur_usm_host_mem_flags_t,
                                ur_usm_device_mem_flags_t, size_t Size,
                                uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
-    *ResultPtr = umfPoolMalloc(Device->MemoryPoolShared, Size);
+    auto DeviceIdx = Context->getDeviceIndex(Device);
+    *ResultPtr = umfPoolMalloc(Context->MemorySharedPools[DeviceIdx], Size);
     UMF_CHECK_PTR(*ResultPtr);
   } catch (ur_result_t Err) {
     return Err;
@@ -307,25 +302,37 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     pNext = BaseDesc->pNext;
   }
 
+  umf_memory_provider_handle_t memoryProviderHost = nullptr;
+  UR_CHECK_ERROR(umf::createHostMemoryProvider(
+      Context->getDevices()[0]->getNativeContext(), &memoryProviderHost));
+
   auto UmfHostParamsHandle = getUmfParamsHandle(
       DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host]);
-  HostMemPool = umf::poolMakeUniqueFromOpsProviderHandle(
-                    umfDisjointPoolOps(), Context->MemoryProviderHost,
+  HostMemPool = umf::poolMakeUniqueFromOps(
+                    umfDisjointPoolOps(),
+                    umf::provider_unique_handle_t(memoryProviderHost),
                     UmfHostParamsHandle.get())
                     .second;
 
   for (const auto &Device : Context->getDevices()) {
+    umf_memory_provider_handle_t memoryDeviceProvider = nullptr;
+    umf_memory_provider_handle_t memorySharedProvider = nullptr;
+    UR_CHECK_ERROR(umf::createDeviceMemoryProviders(
+        Device, &memoryDeviceProvider, &memorySharedProvider));
+
     auto UmfDeviceParamsHandle = getUmfParamsHandle(
         DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Device]);
-    DeviceMemPool = umf::poolMakeUniqueFromOpsProviderHandle(
-                        umfDisjointPoolOps(), Device->MemoryProviderDevice,
+    DeviceMemPool = umf::poolMakeUniqueFromOps(
+                        umfDisjointPoolOps(),
+                        umf::provider_unique_handle_t(memoryDeviceProvider),
                         UmfDeviceParamsHandle.get())
                         .second;
 
     auto UmfSharedParamsHandle = getUmfParamsHandle(
         DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Shared]);
-    SharedMemPool = umf::poolMakeUniqueFromOpsProviderHandle(
-                        umfDisjointPoolOps(), Device->MemoryProviderShared,
+    SharedMemPool = umf::poolMakeUniqueFromOps(
+                        umfDisjointPoolOps(),
+                        umf::provider_unique_handle_t(memorySharedProvider),
                         UmfSharedParamsHandle.get())
                         .second;
 

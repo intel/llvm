@@ -82,28 +82,9 @@ public:
     // CUDA doesn't really have this concept, and could allow almost 100% of
     // global memory in one allocation, but is dependent on device usage.
     UR_CHECK_ERROR(cuDeviceTotalMem(&MaxAllocSize, cuDevice));
-
-    MemoryProviderDevice = nullptr;
-    MemoryProviderShared = nullptr;
-    MemoryPoolDevice = nullptr;
-    MemoryPoolShared = nullptr;
   }
 
-  ~ur_device_handle_t_() {
-    if (MemoryPoolDevice) {
-      umfPoolDestroy(MemoryPoolDevice);
-    }
-    if (MemoryPoolShared) {
-      umfPoolDestroy(MemoryPoolShared);
-    }
-    if (MemoryProviderDevice) {
-      umfMemoryProviderDestroy(MemoryProviderDevice);
-    }
-    if (MemoryProviderShared) {
-      umfMemoryProviderDestroy(MemoryProviderShared);
-    }
-    cuDevicePrimaryCtxRelease(CuDevice);
-  }
+  ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
 
   native_type get() const noexcept { return CuDevice; };
 
@@ -139,16 +120,6 @@ public:
 
   // bookkeeping for mipmappedArray leaks in Mapping external Memory
   std::map<CUarray, CUmipmappedArray> ChildCuarrayFromMipmapMap;
-
-  // UMF CUDA memory provider and pool for the device memory
-  // (UMF_MEMORY_TYPE_DEVICE)
-  umf_memory_provider_handle_t MemoryProviderDevice;
-  umf_memory_pool_handle_t MemoryPoolDevice;
-
-  // UMF CUDA memory provider and pool for the shared memory
-  // (UMF_MEMORY_TYPE_SHARED)
-  umf_memory_provider_handle_t MemoryProviderShared;
-  umf_memory_pool_handle_t MemoryPoolShared;
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);
