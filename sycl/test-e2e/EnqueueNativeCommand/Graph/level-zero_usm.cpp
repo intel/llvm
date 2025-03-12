@@ -22,9 +22,7 @@ int main() {
 
   exp_ext::command_graph Graph{Queue};
 
-  Graph.begin_recording(Queue);
-
-  auto EventA = Queue.submit([&](handler &CGH) {
+  auto NodeA = Graph.add([&](handler &CGH) {
     CGH.single_task([=]() {
       for (size_t i = 0; i < Size; i++) {
         PtrX[i] = i;
@@ -33,28 +31,28 @@ int main() {
     });
   });
 
-  auto EventB = Queue.submit([&](handler &CGH) {
-    CGH.depends_on(EventA);
+  auto NodeB = Graph.add(
+      [&](handler &CGH) {
+        CGH.ext_codeplay_enqueue_native_command([=](interop_handle IH) {
+          if (!IH.ext_codeplay_has_graph()) {
+            assert(false && "Native Handle should have a graph");
+          }
+          ze_command_list_handle_t NativeGraph =
+              IH.ext_codeplay_get_native_graph<
+                  backend::ext_oneapi_level_zero>();
 
-    CGH.ext_codeplay_enqueue_native_command([=](interop_handle IH) {
-      if (!IH.ext_codeplay_has_graph()) {
-        assert(false && "Native Handle should have a graph");
-      }
-      ze_command_list_handle_t NativeGraph =
-          IH.ext_codeplay_get_native_graph<backend::ext_oneapi_level_zero>();
+          auto Res = zeCommandListAppendMemoryCopy(
+              NativeGraph, PtrY, PtrX, Size * sizeof(int), nullptr, 0, nullptr);
+          assert(Res == ZE_RESULT_SUCCESS);
+        });
+      },
+      exp_ext::property::node::depends_on(NodeA));
 
-      auto Res = zeCommandListAppendMemoryCopy(
-          NativeGraph, PtrY, PtrX, Size * sizeof(int), nullptr, 0, nullptr);
-      assert(Res == ZE_RESULT_SUCCESS);
-    });
-  });
-
-  Queue.submit([&](handler &CGH) {
-    CGH.depends_on(EventB);
-    CGH.parallel_for(range<1>{Size}, [=](id<1> it) { PtrY[it] *= 2; });
-  });
-
-  Graph.end_recording();
+  Graph.add(
+      [&](handler &CGH) {
+        CGH.parallel_for(range<1>{Size}, [=](id<1> it) { PtrY[it] *= 2; });
+      },
+      exp_ext::property::node::depends_on(NodeB));
 
   auto ExecGraph = Graph.finalize();
   Queue.ext_oneapi_graph(ExecGraph).wait();

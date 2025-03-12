@@ -25,9 +25,7 @@ int main() {
     exp_ext::command_graph Graph{
         Queue, {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
-    Graph.begin_recording(Queue);
-
-    Queue.submit([&](handler &CGH) {
+    Graph.add([&](handler &CGH) {
       auto AccX = BufX.get_access(CGH);
       auto AccY = BufY.get_access(CGH);
       CGH.single_task([=]() {
@@ -38,7 +36,15 @@ int main() {
       });
     });
 
-    Queue.submit([&](handler &CGH) {
+    auto Platform =
+        get_native<backend::opencl>(Queue.get_context().get_platform());
+    clCommandCopyBufferKHR_fn clCommandCopyBufferKHR =
+        reinterpret_cast<clCommandCopyBufferKHR_fn>(
+            clGetExtensionFunctionAddressForPlatform(Platform,
+                                                     "clCommandCopyBufferKHR"));
+    assert(clCommandCopyBufferKHR != nullptr);
+
+    Graph.add([&](handler &CGH) {
       auto AccX = BufX.get_access(CGH);
       auto AccY = BufY.get_access(CGH);
 
@@ -46,14 +52,6 @@ int main() {
         if (!IH.ext_codeplay_has_graph()) {
           assert(false && "Native Handle should have a graph");
         }
-        auto Platform =
-            get_native<backend::opencl>(Queue.get_context().get_platform());
-        clCommandCopyBufferKHR_fn clCommandCopyBufferKHR =
-            reinterpret_cast<clCommandCopyBufferKHR_fn>(
-                clGetExtensionFunctionAddressForPlatform(
-                    Platform, "clCommandCopyBufferKHR"));
-        assert(clCommandCopyBufferKHR != nullptr);
-
         cl_command_buffer_khr NativeGraph =
             IH.ext_codeplay_get_native_graph<backend::opencl>();
         auto SrcBuffer = IH.get_native_mem<backend::opencl>(AccX);
@@ -66,12 +64,10 @@ int main() {
       });
     });
 
-    Queue.submit([&](handler &CGH) {
+    Graph.add([&](handler &CGH) {
       auto AccY = BufY.get_access(CGH);
       CGH.parallel_for(range<1>{Size}, [=](id<1> it) { AccY[it] *= 2; });
     });
-
-    Graph.end_recording();
 
     auto ExecGraph = Graph.finalize();
     Queue.ext_oneapi_graph(ExecGraph).wait();

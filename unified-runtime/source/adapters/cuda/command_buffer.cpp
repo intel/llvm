@@ -1512,6 +1512,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
     return Err;
   } catch (CUresult CuErr) {
     return mapErrorUR(CuErr);
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
 }
 

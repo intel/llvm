@@ -258,11 +258,10 @@ interop_handle::ext_codeplay_get_native_graph() const;
 
 Exceptions:
 
-* Throws with error code `invalid` if there is no native graph object
-  associated with the interop handle.
+* Throws with error code `invalid` if `ext_codeplay_has_graph()` returns
+  `false`.
 
 |===
-
 
 == Examples
 
@@ -284,9 +283,6 @@ q.submit([&](sycl::handler &cgh) {
 
       // Can enqueue arbitrary backend operations. This could also be a kernel
       // launch or call to a library that enqueues operations on the stream etc
-      //
-      // Important: Enqueuing a *synchronous* backend operation results in
-      // undefined behavior.
       hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
                       hipMemcpyDeviceToHost, stream);
     });
@@ -294,17 +290,115 @@ q.submit([&](sycl::handler &cgh) {
 q.wait();
 ```
 
-=== CUDA Stream Record Native Task
+=== Level-Zero Add Native Graph Node
+
+This example demonstrates how to use this extension to add a native command
+to a SYCL-Graph object on the Level-Zero backend. The command is doing a memory
+copy between two USM pointers.
+
+```c++
+Graph.add([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+      ze_command_list_handle_t NativeGraph =
+          IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_level_zero>();
+
+      zeCommandListAppendMemoryCopy(
+          NativeGraph, PtrY, PtrX, Size * sizeof(int), nullptr, 0, nullptr);
+    });
+  });
+```
+
+=== OpenCL Add Native Graph Node
+
+This example demonstrates how to use this extension to add a native command to
+a SYCL-Graph object on the OpenCL backend. The command is doing a copy between
+two buffer objects.
+
+```c++
+sycl::queue Queue;
+auto Platform = get_native<sycl::backend::opencl>(Queue.get_context().get_platform());
+clCommandCopyBufferKHR_fn clCommandCopyBufferKHR =
+    reinterpret_cast<clCommandCopyBufferKHR_fn>(
+        clGetExtensionFunctionAddressForPlatform(Platform, "clCommandCopyBufferKHR"));
+
+Graph.add([&](sycl::handler &CGH) {
+    auto AccX = BufX.get_access(CGH);
+    auto AccY = BufY.get_access(CGH);
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+        cl_command_buffer_khr NativeGraph =
+            IH.ext_codeplay_get_native_graph<sycl::backend::opencl>();
+        auto SrcBuffer = IH.get_native_mem<sycl::backend::opencl>(AccX);
+        auto DstBuffer = IH.get_native_mem<sycl::backend::opencl>(AccY);
+
+        clCommandCopyBufferKHR(
+            NativeGraph, nullptr, nullptr, SrcBuffer[0], DstBuffer[0], 0, 0,
+            Size * sizeof(int), 0, nullptr, nullptr, nullptr);
+    });
+  });
+```
+
+=== CUDA Add Native Graph Node
+
+This example demonstrates how to use this extension to add a native command to
+a SYCL-Graph object on the CUDA backend. The command is doing a memory copy
+between two device USM pointers.
+
+```c++
+Graph.add([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+      CUgraph NativeGraph =
+          IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_cuda>();
+
+      CUDA_MEMCPY3D Params;
+      std::memset(&Params, 0, sizeof(CUDA_MEMCPY3D));
+      Params.srcMemoryType = CU_MEMORYTYPE_DEVICE;
+      Params.srcDevice = (CUdeviceptr)PtrX;
+      Params.srcHost = nullptr;
+      Params.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+      Params.dstDevice = (CUdeviceptr)PtrY;
+      Params.dstHost = nullptr;
+      Params.WidthInBytes = Size * sizeof(int);
+      Params.Height = 1;
+      Params.Depth = 1;
+
+      CUgraphNode Node;
+      CUcontext Context = IH.get_native_context<sycl::backend::ext_oneapi_cuda>();
+       cuGraphAddMemcpyNode(&Node, NativeGraph, nullptr, 0, &Params, Context);
+    });
+  });
+```
+
+=== HIP Add Native Graph Node
+
+This example demonstrates how to use this extension to add a native command to
+a SYCL-Graph object on the HIP backend. The command is doing a memory copy
+between two device USM pointers.
+
+```c++
+Graph.add([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+      HIPGraph NativeGraph =
+          IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_hip>();
+
+      HIPGraphNode Node;
+      hipGraphAddMemcpyNode1D(&Node, NativeGraph, nullptr, 0, PtrY, PtrX,
+                              Size * sizeof(int), hipMemcpyDefault);
+    });
+  });
+```
+
+=== CUDA Stream Record Native Graph Nodes
 
 This example demonstrates how to use this extension to add stream recorded
 native nodes to a SYCL-Graph object on the CUDA backend.
 
-```
-q.submit([&](sycl::handler &cgh) {
-    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle h) {
+```c++
+q.submit([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
         auto NativeStream = h.get_native_queue<cuda>();
-        if (h.ext_codeplay_has_graph())  {
-            auto NativeGraph = h.ext_codeplay_get_native_graph<cuda>();
+        if (IH.ext_codeplay_has_graph())  {
+            auto NativeGraph =
+              IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_cuda>();
 
             // Start capture stream calls into graph
             cuStreamBeginCaptureToGraph(NativeStream, NativeGraph, nullptr,

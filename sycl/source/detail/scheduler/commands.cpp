@@ -3066,12 +3066,12 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     // available if a user asks for them inside the interop task scope
     std::vector<interop_handle::ReqToMem> ReqToMem;
     const std::vector<Requirement *> &HandlerReq = HostTask->getRequirements();
-    auto ReqToMemConv = [&ReqToMem, HostTask](Requirement *Req) {
+    auto ReqToMemConv = [&ReqToMem, ContextImpl](Requirement *Req) {
       const std::vector<AllocaCommandBase *> &AllocaCmds =
           Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
       for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-        if (getContext(HostTask->MQueue) == getContext(AllocaCmd->getQueue())) {
+        if (ContextImpl == getContext(AllocaCmd->getQueue())) {
           auto MemArg =
               reinterpret_cast<ur_mem_handle_t>(AllocaCmd->getMemAllocation());
           ReqToMem.emplace_back(std::make_pair(Req, MemArg));
@@ -3090,10 +3090,10 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     ur_exp_command_buffer_handle_t InteropCommandBuffer =
         ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    // CMPLRLLVM-66082
     // The native command-buffer should be a member of the sycl::interop_handle
-    // class, but it is in an API breaking change to add it. So member lives in
+    // class, but it is in an ABI breaking change to add it. So member lives in
     // the queue as a intermediate workaround.
-    // TODO create and link github issue
     interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl,
                       InteropCommandBuffer};
 #else
@@ -3108,6 +3108,11 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
         ChildCommandBuffer, MSyncPointDeps.size(),
         MSyncPointDeps.empty() ? nullptr : MSyncPointDeps.data(),
         &OutSyncPoint);
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    // See CMPLRLLVM-66082
+    MQueue->setInteropGraph(nullptr);
+#endif
 
     if (ChildCommandBuffer) {
       ur_result_t Res = Adapter->call_nocheck<

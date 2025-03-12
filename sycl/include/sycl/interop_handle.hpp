@@ -208,25 +208,22 @@ private:
   friend class detail::DispatchHostTask;
   using ReqToMem = std::pair<detail::AccessorImplHost *, ur_mem_handle_t>;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // MGraph should become a member of this class on the next ABI breaking
-  // window
-  // TODO create and link GitHub Issue
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
                  const std::shared_ptr<detail::device_impl> &Device,
                  const std::shared_ptr<detail::context_impl> &Context,
-                 ur_exp_command_buffer_handle_t Graph = nullptr)
-      : MQueue(Queue), MDevice(Device), MContext(Context), MGraph(Graph),
-        MMemObjs(std::move(MemObjs)) {}
-#else
-  interop_handle(std::vector<ReqToMem> MemObjs,
-                 const std::shared_ptr<detail::queue_impl> &Queue,
-                 const std::shared_ptr<detail::device_impl> &Device,
-                 const std::shared_ptr<detail::context_impl> &Context)
-      : MQueue(Queue), MDevice(Device), MContext(Context),
-        MMemObjs(std::move(MemObjs)) {}
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                 [[maybe_unused]]
 #endif
+                 ur_exp_command_buffer_handle_t Graph = nullptr)
+      : MQueue(Queue), MDevice(Device), MContext(Context),
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+        // CMPLRLLVM-66082 - MGraph should become a member of this class on the
+        // next ABI breaking window.
+        MGraph(Graph),
+#endif
+        MMemObjs(std::move(MemObjs)) {
+  }
 
   template <backend Backend, typename DataT, int Dims>
   backend_return_t<Backend, buffer<DataT, Dims>>
@@ -255,9 +252,8 @@ private:
   std::shared_ptr<detail::device_impl> MDevice;
   std::shared_ptr<detail::context_impl> MContext;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  // MGraph should become a member of this class on the next ABI breaking
-  // window
-  // TODO link github issue
+  // CMPLRLLVM-66082 - MGraph should become a member of this class on the
+  // next ABI breaking window.
   ur_exp_command_buffer_handle_t MGraph;
 #endif
 
