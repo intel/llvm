@@ -401,6 +401,9 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     }
   }
 
+  // Emit error if type is bfloat. LLVM native bfloat type is not supported.
+  BM->getErrorLog().checkError(!T->isBFloatTy(),
+                               SPIRVEC_UnsupportedLLVMBFloatType);
   if (T->isFloatingPointTy())
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
 
