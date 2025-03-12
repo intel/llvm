@@ -761,7 +761,8 @@ private:
   }
 
   DeviceGlobalMapEntry *get_device_global_entry(const std::string &Name) {
-    if (MLanguage != syclex::source_language::sycl_jit || MPrefix.empty()) {
+    if (MKernelNames.empty() ||
+        MLanguage != syclex::source_language::sycl_jit) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Querying device globals by name is only available "
                             "in kernel_bundles successfully built from "
@@ -806,7 +807,7 @@ private:
 
 public:
   bool ext_oneapi_has_kernel(const std::string &Name) {
-    return is_kernel_name(adjust_kernel_name(Name));
+    return !MKernelNames.empty() && is_kernel_name(adjust_kernel_name(Name));
   }
 
   kernel
@@ -880,19 +881,21 @@ public:
   }
 
   bool ext_oneapi_has_device_global(const std::string &Name) {
-    std::string MangledName = mangle_device_global_name(Name);
-    return std::find(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
-                     MangledName) != MDeviceGlobalNames.end();
+    return !MDeviceGlobalNames.empty() &&
+           std::find(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
+                     mangle_device_global_name(Name)) !=
+               MDeviceGlobalNames.end();
   }
 
   void *ext_oneapi_get_device_global_address(const std::string &Name,
                                              const device &Dev) {
+    DeviceGlobalMapEntry *Entry = get_device_global_entry(Name);
+
     if (std::find(MDevices.begin(), MDevices.end(), Dev) == MDevices.end()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "kernel_bundle not built for device");
     }
 
-    DeviceGlobalMapEntry *Entry = get_device_global_entry(Name);
     if (Entry->MIsDeviceImageScopeDecorated) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Cannot query USM pointer for device global with "
