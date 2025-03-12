@@ -509,6 +509,7 @@ public:
     return detail::kernel_bundle_plain::ext_oneapi_get_kernel(name);
   }
 
+  /////////////////////////
   // ext_oneapi_get_raw_kernel_name
   //  kernel_bundle must be created from source, throws if not present
   /////////////////////////
