@@ -161,7 +161,6 @@ jobs:
         taskset -c "${{ env.CORES }}" ${BENCH_SCRIPTS_DIR}/main.py
         ~/llvm_bench_workdir
         --sycl ${{ github.workspace }}/sycl_build
-        --ur ${{ github.workspace }}/ur_install
         --adapter ${{ matrix.adapter.str_name }}
         --compare baseline
         --compute-runtime ${{ inputs.compute_runtime_commit }}
@@ -169,6 +168,9 @@ jobs:
         ${{ inputs.upload_report && '--output-html' || '' }}
         ${{ inputs.pr_no != 0 && '--output-markdown' || '' }}
         ${{ inputs.bench_script_params }}
+        # Temporarily disabled due to build faiures
+        # https://github.com/intel/llvm/actions/runs/13814877162/job/38645384849#step:14:849
+        # --ur ${{ github.workspace }}/ur_install
 
     - name: Print benchmark results
       run: |
