@@ -32,7 +32,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cpu
+// UNSUPPORTED: spirv-backend
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17400
 
 #include <iostream>
