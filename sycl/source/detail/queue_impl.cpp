@@ -374,38 +374,40 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   bool IsKernel = false;
 
   {
-    // RAII handler around MHandler. submit_impl() must not be called in the
+    // RAII wrapper around MHandler. submit_impl() must not be called in the
     // scope.
-    struct Cleanup {
-      Cleanup(const std::shared_ptr<queue_impl> &Self,
+    struct Wrapper {
+      sycl::handler *MHandlerPtr;
+      Wrapper(const std::shared_ptr<queue_impl> &Self,
               const std::shared_ptr<queue_impl> &PrimaryQueue,
               const std::shared_ptr<queue_impl> &SecondaryQueue,
-              bool CallerNeedsEvent) {
-        if (MHandler)
-          MHandler->reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-        else
+              bool CallerNeedsEvent) : MHandlerPtr(MHandler.get()) {
+        if (MHandlerPtr)
+          MHandlerPtr->reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+        else {
           MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(
               Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
+          MHandlerPtr = MHandler.get();
+        }
       }
-      ~Cleanup() { MHandler->reset(nullptr, nullptr, nullptr, false); }
-    } cleanup(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+      ~Wrapper() { MHandlerPtr->reset(nullptr, nullptr, nullptr, false); }
+    } w(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
 
-    auto HandlerImpl = detail::getSyclObjImpl(*MHandler);
     MHandler->saveCodeLoc(Loc, IsTopCodeLoc);
 
     {
       NestedCallsTracker tracker;
-      CGF(*MHandler);
+      CGF(*w.MHandlerPtr);
     }
 
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
-    const CGType Type = HandlerImpl->MCGType;
+    const CGType Type = w.MHandlerPtr->impl->MCGType;
     if (Type == CGType::Kernel)
-      Streams = std::move(MHandler->MStreamStorage);
+      Streams = std::move(w.MHandlerPtr->MStreamStorage);
 
-    HandlerImpl->MEventMode = SubmitInfo.EventMode();
+    w.MHandlerPtr->impl->MEventMode = SubmitInfo.EventMode();
 
     if (SubmitInfo.PostProcessorFunc()) {
       IsKernel = Type == CGType::Kernel;
@@ -413,13 +415,13 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       if (IsKernel)
         // Kernel only uses assert if it's non interop one
         KernelUsesAssert =
-            !(MHandler->MKernel && MHandler->MKernel->isInterop()) &&
+            !(w.MHandlerPtr->MKernel && w.MHandlerPtr->MKernel->isInterop()) &&
             ProgramManager::getInstance().kernelUsesAssert(
-                MHandler->MKernelName.c_str());
+              w.MHandlerPtr->MKernelName.c_str());
       CallPostProcess = true;
     }
 
-    finalizeHandler(*MHandler, Event);
+    finalizeHandler(*w.MHandlerPtr, Event);
   }
 
   if (CallPostProcess)
