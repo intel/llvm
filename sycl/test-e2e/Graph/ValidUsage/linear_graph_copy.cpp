@@ -50,7 +50,6 @@ int main() {
   Queue.copy(DataA.data(), PtrA, Size);
   Queue.copy(DataB.data(), PtrB, Size);
   Queue.copy(DataC.data(), PtrC, Size);
-  Queue.wait_and_throw();
 
   Graph.begin_recording(Queue);
   Queue.submit([&](handler &CGH) {
@@ -82,15 +81,13 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
-  event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event =
-        Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
 
-  Queue.copy(PtrA, DataA.data(), Size, Event);
-  Queue.copy(PtrB, DataB.data(), Size, Event);
-  Queue.copy(PtrC, DataC.data(), Size, Event);
+  Queue.copy(PtrA, DataA.data(), Size);
+  Queue.copy(PtrB, DataB.data(), Size);
+  Queue.copy(PtrC, DataC.data(), Size);
   Queue.wait_and_throw();
 
   free(PtrA, Queue);

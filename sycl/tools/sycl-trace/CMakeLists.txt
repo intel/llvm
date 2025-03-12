@@ -90,36 +90,25 @@ target_include_directories(sycl_ur_trace_collector PRIVATE
 
 if(SYCL_BUILD_BACKEND_CUDA)
 
-  find_package(CUDA 10.1 REQUIRED)
+  find_package(CUDAToolkit 10.1 REQUIRED)
 
   target_compile_definitions(cuda_trace_collector PRIVATE USE_UR_CUDA)
 
-  # The following two if's can be removed when FindCUDA -> FindCUDAToolkit.
-  # CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
-  include(FindCUDACupti)
-  if(NOT CUDA_CUPTI_INCLUDE_DIR)
-     find_cuda_cupti_include_dir()
-  endif()
-  # CUDA_cupti_LIBRARY -> CUDAToolkit_cupti_LIBRARY
-  if(NOT CUDA_cupti_LIBRARY)
-     find_cuda_cupti_library()
-  endif()
-
   target_include_directories(cuda_trace_collector
     PRIVATE
-    ${CUDA_CUPTI_INCLUDE_DIR}
+    ${CUDAToolkit_cupti_INCLUDE_DIR}
   )
 
   target_link_libraries(cuda_trace_collector
     PRIVATE
       cudadrv
-      ${CUDA_cupti_LIBRARY}
+      ${CUDAToolkit_cupti_LIBRARY}
   )
 
   find_path(GEN_CUDA_META_H_DIR generated_cuda_meta.h PATHS
-      "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
-      "${CUDA_INCLUDE_DIRS}/../extras/CUPTI/include"
-      "${CUDA_INCLUDE_DIRS}"
+      "${CUDAToolkit_ROOT}/extras/CUPTI/include"
+      "${CUDAToolkit_INCLUDE_DIRS}/../extras/CUPTI/include"
+      "${CUDAToolkit_INCLUDE_DIRS}"
       NO_DEFAULT_PATH)
 
   if( EXISTS "${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h" )
