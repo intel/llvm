@@ -6,6 +6,31 @@ import subprocess
 import sys
 
 
+class _DeprecatedCmakeOpt(argparse._AppendAction):
+    sleep = 15
+
+    def __call__(self, parser, namespace, values, option_string):
+        print(
+            """
+        ****
+        the `--cmake-opt` argument is deprecated and will be removed in a future
+        version. It is no longer necessary to prefix cmake-options
+        ****
+        """,
+            file=sys.stderr,
+        )
+        if self.sleep:
+            import time
+
+            print(
+                f"sleeping for {self.sleep} seconds so you get the message",
+                file=sys.stderr,
+            )
+            time.sleep(self.sleep)
+            self.sleep = 0
+        return super().__call__(parser, namespace, values, option_string=option_string)
+
+
 def do_configure(args, passthrough_args):
     # Get absolute path to source directory
     abs_src_dir = os.path.abspath(
@@ -370,8 +395,8 @@ def main():
     )
     parser.add_argument(
         "--cmake-opt",
-        action="append",
-        help="Additional CMake option not configured via script parameters",
+        action=_DeprecatedCmakeOpt,
+        help="DEPRECATED. Additional CMake option not configured by this script",
     )
     parser.add_argument("--cmake-gen", default="Ninja", help="CMake generator")
     parser.add_argument(
