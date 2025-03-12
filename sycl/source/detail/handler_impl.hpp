@@ -47,12 +47,16 @@ public:
   void reset(const std::shared_ptr<queue_impl> &SubmissionPrimaryQueue,
              const std::shared_ptr<queue_impl> &SubmissionSecondaryQueue,
              bool EventNeeded) {
-    MSubmissionState = HandlerSubmissionState::NO_STATE;
-
     MSubmissionPrimaryQueue = SubmissionPrimaryQueue;
     MSubmissionSecondaryQueue = SubmissionSecondaryQueue;
 
     MEventNeeded = EventNeeded;
+
+    // do cleanup only on exit from submit_impl
+    if (SubmissionPrimaryQueue)
+      return;
+
+    MSubmissionState = HandlerSubmissionState::NO_STATE;
 
     // Stores auxiliary resources used by internal operations.
     MAuxiliaryResources.clear();
