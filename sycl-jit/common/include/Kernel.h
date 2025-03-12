@@ -409,7 +409,17 @@ struct RTCDevImgInfo {
   RTCDevImgInfo &operator=(RTCDevImgInfo &&) = default;
 };
 
-using RTCBundleInfo = DynArray<RTCDevImgInfo>;
+struct RTCBundleInfo {
+  DynArray<RTCDevImgInfo> DevImgInfos;
+  sycl::detail::string CompileOptions;
+
+  RTCBundleInfo() = default;
+  RTCBundleInfo(RTCBundleInfo &&) = default;
+  RTCBundleInfo &operator=(RTCBundleInfo &&) = default;
+};
+
+// LLVM's APIs prefer `char *` for byte buffers.
+using RTCDeviceCodeIR = DynArray<char>;
 
 } // namespace jit_compiler
 

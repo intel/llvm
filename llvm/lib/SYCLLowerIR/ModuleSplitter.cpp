@@ -25,6 +25,7 @@
 #include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/Support/CommandLine.h"
@@ -697,6 +698,31 @@ static bool mustPreserveGV(const GlobalValue &GV) {
   return true;
 }
 
+void cleanupSYCLRegisteredKernels(Module *M) {
+  NamedMDNode *MD = M->getNamedMetadata("sycl_registered_kernels");
+  if (!MD)
+    return;
+
+  if (MD->getNumOperands() == 0)
+    return;
+
+  SmallVector<Metadata *, 8> OperandsToKeep;
+  MDNode *RegisterdKernels = MD->getOperand(0);
+  for (const MDOperand &Op : RegisterdKernels->operands()) {
+    auto RegisteredKernel = cast<MDNode>(Op);
+    // Ignore metadata nodes with wrong number of operands.
+    if (RegisteredKernel->getNumOperands() != 2)
+      continue;
+
+    StringRef MangledName =
+        cast<MDString>(RegisteredKernel->getOperand(1))->getString();
+    if (M->getFunction(MangledName))
+      OperandsToKeep.push_back(RegisteredKernel);
+  }
+  MD->clearOperands();
+  MD->addOperand(MDNode::get(M->getContext(), OperandsToKeep));
+}
+
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
@@ -740,6 +766,7 @@ void ModuleDesc::cleanup() {
   // process all nodes in the named metadata and remove nodes which are
   // referencing kernels which are not included into submodule.
   processSubModuleNamedMetadata(M.get());
+  cleanupSYCLRegisteredKernels(M.get());
 }
 
 bool ModuleDesc::isSpecConstantDefault() const {
@@ -1402,6 +1429,12 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 }
 
 bool canBeImportedFunction(const Function &F) {
+
+  // We use sycl dynamic library mechanism to involve bf16 devicelib when
+  // necessary, all __devicelib_* functions from native or fallback bf16
+  // devicelib will be treated as imported function to user's device image.
+  if (llvm::isBF16DeviceLibFuncDecl(F))
+    return true;
   // It may be theoretically possible to determine what is importable
   // based solely on function F, but the "SYCL/imported symbols"
   // property list MUST NOT have any imported symbols that are not supplied

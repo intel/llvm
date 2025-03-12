@@ -27,10 +27,10 @@ class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
 struct RTCDevImgInfo;
+struct RTCBundleInfo;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
 using JITEnvVar = DynArray<char>;
-using RTCBundleInfo = DynArray<RTCDevImgInfo>;
 } // namespace jit_compiler
 
 namespace sycl {
@@ -49,11 +49,10 @@ public:
                            const std::string &KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);
 
-  sycl_device_binaries compileSYCL(
+  std::pair<sycl_device_binaries, std::string> compileSYCL(
       const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
-      const std::vector<std::string> &UserArgs, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames);
+      const std::vector<std::string> &UserArgs, std::string *LogPtr);
 
   void destroyDeviceBinaries(sycl_device_binaries Binaries);
 
@@ -78,7 +77,7 @@ private:
 
   sycl_device_binaries
   createDeviceBinaries(const ::jit_compiler::RTCBundleInfo &BundleInfo,
-                       const std::string &OffloadEntryPrefix);
+                       const std::string &Prefix);
 
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;
@@ -105,12 +104,14 @@ private:
   using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
   using MaterializeSpecConstFuncT =
       decltype(::jit_compiler::materializeSpecConstants) *;
+  using CalculateHashFuncT = decltype(::jit_compiler::calculateHash) *;
   using CompileSYCLFuncT = decltype(::jit_compiler::compileSYCL) *;
   using DestroyBinaryFuncT = decltype(::jit_compiler::destroyBinary) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
   FuseKernelsFuncT FuseKernelsHandle = nullptr;
   MaterializeSpecConstFuncT MaterializeSpecConstHandle = nullptr;
+  CalculateHashFuncT CalculateHashHandle = nullptr;
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
   DestroyBinaryFuncT DestroyBinaryHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;

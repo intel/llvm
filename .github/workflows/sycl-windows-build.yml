@@ -43,6 +43,7 @@ on:
         type: choice
         options:
           - "[]"
+          - '[sycl]'
           - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
       build_cache_suffix:
         type: choice
@@ -103,6 +104,7 @@ jobs:
         echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         echo "CCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "CCACHE_MAXSIZE=10G" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "LIT_OPTS='-j$env:NUMBER_OF_PROCESSORS $LIT_OPTS'" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - uses: ./devops/actions/cached_checkout
@@ -164,6 +166,19 @@ jobs:
       if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
         cmake --build build --target check-libdevice
+    - name: Generate/diff new ABI symbols
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      shell: bash
+      run: |
+        LLVM_BIN_PATH="build/bin" python.exe src/sycl/tools/abi_check.py --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll
+        diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
+    - name: Upload new ABI symbols
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_windows_abi_symbols
+        path: build/new_sycl_symbols_windows.dump
+        retention-days: ${{ inputs.retention-days }}
     - name: Install
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
