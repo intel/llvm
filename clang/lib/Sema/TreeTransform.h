@@ -10864,6 +10864,12 @@ OMPClause *TreeTransform<Derived>::TransformOMPAtomicDefaultMemOrderClause(
 }
 
 template <typename Derived>
+OMPClause *
+TreeTransform<Derived>::TransformOMPSelfMapsClause(OMPSelfMapsClause *C) {
+  llvm_unreachable("self_maps clause cannot appear in dependent context");
+}
+
+template <typename Derived>
 OMPClause *TreeTransform<Derived>::TransformOMPAtClause(OMPAtClause *C) {
   return getDerived().RebuildOMPAtClause(C->getAtKind(), C->getAtKindKwLoc(),
                                          C->getBeginLoc(), C->getLParenLoc(),
@@ -11906,7 +11912,12 @@ void OpenACCClauseTransform<Derived>::VisitDeviceResidentClause(
 template <typename Derived>
 void OpenACCClauseTransform<Derived>::VisitNoHostClause(
     const OpenACCNoHostClause &C) {
-  llvm_unreachable("device_resident clause not valid unless a decl transform");
+  llvm_unreachable("nohost  clause not valid unless a decl transform");
+}
+template <typename Derived>
+void OpenACCClauseTransform<Derived>::VisitBindClause(
+    const OpenACCBindClause &C) {
+  llvm_unreachable("bind clause not valid unless a decl transform");
 }
 
 template <typename Derived>

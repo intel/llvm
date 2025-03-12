@@ -597,8 +597,12 @@ def warn_cxx14_compat_decomp_decl : Warning<
 def ext_decomp_decl : ExtWarn<
   "decomposition declarations are a C++17 extension">, InGroup<CXX17>;
 def ext_decomp_decl_cond : ExtWarn<
-  "ISO C++17 does not permit structured binding declaration in a condition">,
-  InGroup<DiagGroup<"binding-in-condition">>;
+  "structured binding declaration in a condition is a C++2c extenstion">,
+  InGroup<CXX26>;
+def warn_cxx26_decomp_decl_cond : Warning<
+  "structured binding declaration in a condition is incompatible with "
+  "C++ standards before C++2c">,
+  InGroup<CXXPre26Compat>, DefaultIgnore;
 def err_decomp_decl_spec : Error<
   "decomposition declaration cannot be declared "
   "%plural{1:'%1'|:with '%1' specifiers}0">;
@@ -13157,9 +13161,6 @@ def warn_acc_routine_unimplemented
     : Warning<"OpenACC construct 'routine' with implicit function not yet "
               "implemented, pragma ignored">,
       InGroup<SourceUsesOpenACC>;
-def warn_acc_clause_unimplemented
-    : Warning<"OpenACC clause '%0' not yet implemented, clause ignored">,
-      InGroup<SourceUsesOpenACC>;
 def err_acc_construct_appertainment
     : Error<"OpenACC construct '%0' cannot be used here; it can only "
             "be used in a statement context">;
@@ -13400,6 +13401,9 @@ def err_acc_routine_overload_set
 def err_acc_magic_static_in_routine
     : Error<"function static variables are not permitted in functions to which "
             "an OpenACC 'routine' directive applies">;
+def err_acc_duplicate_bind
+    : Error<"multiple 'routine' directives with 'bind' clauses are not "
+            "permitted to refer to the same function">;
 
 // AMDGCN builtins diagnostics
 def err_amdgcn_global_load_lds_size_invalid_value : Error<"invalid size value">;
