@@ -393,8 +393,7 @@ ur_result_t urBindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-  std::cerr << "[UR API][L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":"
-            << __LINE__ << std::endl;
+
   ur_result_t res = hQueue->get().bindlessImagesImageCopyExp(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
       pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,

@@ -739,35 +739,20 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFreeExp(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
-    [[maybe_unused]] const void *pSrc, [[maybe_unused]] void *pDst,
-    [[maybe_unused]] const ur_image_desc_t *pSrcImageDesc,
-    [[maybe_unused]] const ur_image_desc_t *pDstImageDesc,
-    [[maybe_unused]] const ur_image_format_t *pSrcImageFormat,
-    [[maybe_unused]] const ur_image_format_t *pDstImageFormat,
-    [[maybe_unused]] ur_exp_image_copy_region_t *pCopyRegion,
-    [[maybe_unused]] ur_exp_image_copy_flags_t imageCopyFlags,
-    [[maybe_unused]] uint32_t numEventsInWaitList,
-    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
-    [[maybe_unused]] ur_event_handle_t *phEvent) {
+    const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
+    const ur_image_desc_t *pDstImageDesc,
+    const ur_image_format_t *pSrcImageFormat,
+    const ur_image_format_t *pDstImageFormat,
+    ur_exp_image_copy_region_t *pCopyRegion,
+    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
-
-  std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__
-            << std::endl;
-  std::cerr << "[L0_v2]" << __FUNCTION__ << " pSrc=" << pSrc << " pDst=" << pDst
-            << std::endl;
 
   ZeStruct<ze_image_desc_t> zeSrcImageDesc;
   ZeStruct<ze_image_desc_t> zeDstImageDesc;
 
   ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
   ur2zeImageDesc(pDstImageFormat, pDstImageDesc, zeDstImageDesc);
-
-  ze_image_handle_t zeSrcImgHandle;
-  ze_image_handle_t zeDstImgHandle;
-  ZE2UR_CALL(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
-                             &zeSrcImageDesc, &zeSrcImgHandle));
-  ZE2UR_CALL(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
-                             &zeDstImageDesc, &zeDstImgHandle));
 
   // ATTN: ze_tracer shows a lot of events (eg. ~60) created here
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
@@ -782,36 +767,24 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
     uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
     if (pDstImageDesc->rowPitch == 0) {
       // Copy to Non-USM memory
-      std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":"
-                << __LINE__ << std::endl;
-      std::cerr << "[L0_v2]" << __FUNCTION__ << ":Copy to non-USM memory"
-                << std::endl;
 
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
-      //   auto *UrImage = static_cast<_ur_image *>(pDst);
-      ze_image_handle_t zeDstImg = reinterpret_cast<ze_image_handle_t>(pDst);
+      auto *urDstImg = static_cast<ur_mem_image_t *>(pDst);
+
       const char *SrcPtr =
           static_cast<const char *>(pSrc) +
           pCopyRegion->srcOffset.z * SrcSlicePitch +
           pCopyRegion->srcOffset.y * SrcRowPitch +
           pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
 
-      std::cerr << "[L0_v2]" << __FUNCTION__
-                << " SrcPtr=" << static_cast<const void *>(SrcPtr)
-                << " zeDstImg=" << zeDstImg << std::endl;
-
       ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
-                 (ZeCommandList, zeDstImg, SrcPtr, &DstRegion, SrcRowPitch,
-                  SrcSlicePitch, zeSignalEvent, waitListView.num,
+                 (ZeCommandList, urDstImg->getZeImage(), SrcPtr, &DstRegion,
+                  SrcRowPitch, SrcSlicePitch, zeSignalEvent, waitListView.num,
                   waitListView.handles));
     } else {
       // Copy to pitched USM memory
-      std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":"
-                << __LINE__ << std::endl;
-      std::cerr << "[L0_v2]" << __FUNCTION__ << ":Copy to pitched USM memory"
-                << std::endl;
       uint32_t DstRowPitch = pDstImageDesc->rowPitch;
       ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
                                       (uint32_t)pCopyRegion->dstOffset.y,
@@ -837,31 +810,22 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
     uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
     if (pSrcImageDesc->rowPitch == 0) {
       // Copy from Non-USM memory to host
-      std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":"
-                << __LINE__ << std::endl;
-      std::cerr << "[L0_v2]" << __FUNCTION__
-                << ":Copy from Non-USM memory to host" << std::endl;
       ze_image_region_t SrcRegion;
       UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
                                    &pCopyRegion->copyExtent, SrcRegion));
-      //   auto *UrImage = static_cast<const _ur_image *>(pSrc);
-      ze_image_handle_t zeSrcImg =
-          reinterpret_cast<ze_image_handle_t>(const_cast<void *>(pSrc));
+
+      auto *urSrcImg = reinterpret_cast<const ur_mem_image_t *>(pSrc);
 
       char *DstPtr =
           static_cast<char *>(pDst) + pCopyRegion->dstOffset.z * DstSlicePitch +
           pCopyRegion->dstOffset.y * DstRowPitch +
           pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
       ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
-                 (ZeCommandList, DstPtr, zeSrcImg, &SrcRegion, DstRowPitch,
+                 (ZeCommandList, DstPtr, urSrcImg->getZeImage(), &SrcRegion, DstRowPitch,
                   DstSlicePitch, zeSignalEvent, waitListView.num,
                   waitListView.handles));
     } else {
       // Copy from pitched USM memory to host
-      std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":"
-                << __LINE__ << std::endl;
-      std::cerr << "[L0_v2]" << __FUNCTION__
-                << ":Copy from pitched USM memory to host" << std::endl;
       ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
                                       (uint32_t)pCopyRegion->dstOffset.y,
                                       (uint32_t)pCopyRegion->dstOffset.z,
@@ -882,37 +846,25 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
                   waitListView.num, waitListView.handles));
     }
   } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) {
-    std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__
-              << std::endl;
-    std::cerr << "[L0_v2]" << __FUNCTION__ << ":Copy D2D" << std::endl;
     ze_image_region_t DstRegion;
     UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
                                  &pCopyRegion->copyExtent, DstRegion));
     ze_image_region_t SrcRegion;
     UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
                                  &pCopyRegion->copyExtent, SrcRegion));
-    // auto *UrImageDst = static_cast<_ur_image *>(pDst);
-    // auto *UrImageSrc = static_cast<const _ur_image *>(pSrc);
-    ze_image_handle_t zeSrcImg =
-        reinterpret_cast<ze_image_handle_t>(const_cast<void *>(pSrc));
-    ze_image_handle_t zeDstImg = reinterpret_cast<ze_image_handle_t>(pDst);
+
+    auto * urImgSrc = reinterpret_cast<const ur_mem_image_t *>(pSrc);
+    auto * urImgDst = reinterpret_cast<ur_mem_image_t *>(pDst);
+
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-               (ZeCommandList, zeDstImg, zeSrcImg, &DstRegion, &SrcRegion,
+               (ZeCommandList, urImgDst->getZeImage(), urImgSrc->getZeImage(), &DstRegion, &SrcRegion,
                 zeSignalEvent, waitListView.num, waitListView.handles));
   } else {
     logger::error("ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp: "
                   "unexpected imageCopyFlags");
-    std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__
-              << " failed" << std::endl;
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
-  ze_bool_t isImmediate;
-  ZE2UR_CALL(zeCommandListIsImmediate, (ZeCommandList, &isImmediate));
-  assert(isImmediate && "not immediate command list");
-
-  std::cerr << "[L0_v2]" << __FUNCTION__ << ":" << __FILE__ << ":" << __LINE__
-            << " succeeded" << std::endl;
   return UR_RESULT_SUCCESS;
 }
 
@@ -927,7 +879,10 @@ ur_queue_immediate_in_order_t::bindlessImagesWaitExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
+    logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -942,7 +897,10 @@ ur_queue_immediate_in_order_t::bindlessImagesSignalExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
+    logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1075,7 +1033,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
+    logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1083,7 +1044,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
-  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
+    logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 } // namespace v2

@@ -8,7 +8,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "image_helpers.hpp"
+#include "common.hpp"
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+#include "v2/context.hpp"
+#include "v2/memory.hpp"
+#else
+#include "context.hpp"
+#include "memory.hpp"
+#endif
+
+#include "helpers/image_helpers.hpp"
+#include "sampler.hpp"
+
+#include <loader/ze_loader.h>
+#include <ze_api.h>
+
+zeImageGetDeviceOffsetExp_pfn zeImageGetDeviceOffsetExpFunctionPtr = nullptr;
 
 /// Construct UR image format from ZE image desc.
 ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
@@ -641,4 +656,107 @@ getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
     ZeImageFormatTypeSize = 0;
   }
   return {ZeImageFormatType, ZeImageFormatTypeSize};
+}
+
+ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
+                                     ur_device_handle_t hDevice,
+                                     ur_exp_image_mem_native_handle_t hImageMem,
+                                     const ur_image_format_t *pImageFormat,
+                                     const ur_image_desc_t *pImageDesc,
+                                     ur_sampler_handle_t hSampler,
+                                     ur_exp_image_native_handle_t *phImage) {
+  std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
+
+  UR_ASSERT(hContext && hDevice && hImageMem,
+            UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pImageFormat && pImageDesc && phImage,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ZeStruct<ze_image_desc_t> ZeImageDesc;
+  UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
+
+  ZeStruct<ze_image_bindless_exp_desc_t> BindlessDesc;
+  BindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
+  ZeImageDesc.pNext = &BindlessDesc;
+
+  ZeStruct<ze_sampler_desc_t> ZeSamplerDesc;
+  if (hSampler) {
+    ZeSamplerDesc = hSampler->ZeSamplerDesc;
+    BindlessDesc.pNext = &ZeSamplerDesc;
+    BindlessDesc.flags |= ZE_IMAGE_BINDLESS_EXP_FLAG_SAMPLED_IMAGE;
+  }
+
+  ze_image_handle_t ZeImage;
+
+  ze_memory_allocation_properties_t MemAllocProperties{
+      ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES, nullptr,
+      ZE_MEMORY_TYPE_UNKNOWN, 0, 0};
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+  ze_context_handle_t zeCtx = hContext->getZeHandle();
+#else
+  ze_context_handle_t zeCtx = hContext->ZeContext;
+#endif
+
+  ZE2UR_CALL(zeMemGetAllocProperties,
+             (zeCtx, reinterpret_cast<const void *>(hImageMem),
+              &MemAllocProperties, nullptr));
+  if (MemAllocProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    ur_mem_image_t *urImg = reinterpret_cast<ur_mem_image_t *>(hImageMem);
+    ze_image_handle_t zeImg = urImg->getZeImage();
+#else
+    _ur_image *urImg = reinterpret_cast<_ur_image *>(hImageMem);
+    ze_image_handle_t zeImg = urImg->ZeImage;
+#endif
+
+    ZE2UR_CALL(zeImageViewCreateExt,
+               (zeCtx, hDevice->ZeDevice, &ZeImageDesc,
+                zeImg, &ZeImage));
+    ZE2UR_CALL(zeContextMakeImageResident,
+               (zeCtx, hDevice->ZeDevice, ZeImage));
+  } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE ||
+             MemAllocProperties.type == ZE_MEMORY_TYPE_HOST ||
+             MemAllocProperties.type == ZE_MEMORY_TYPE_SHARED) {
+    ZeStruct<ze_image_pitched_exp_desc_t> PitchedDesc;
+    PitchedDesc.ptr = reinterpret_cast<void *>(hImageMem);
+    if (hSampler) {
+      ZeSamplerDesc.pNext = &PitchedDesc;
+    } else {
+      BindlessDesc.pNext = &PitchedDesc;
+    }
+
+    ZE2UR_CALL(zeImageCreate, (zeCtx, hDevice->ZeDevice,
+                               &ZeImageDesc, &ZeImage));
+    ZE2UR_CALL(zeContextMakeImageResident,
+               (zeCtx, hDevice->ZeDevice, ZeImage));
+  } else {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  static std::once_flag InitFlag;
+  std::call_once(InitFlag, [&]() {
+    ze_driver_handle_t DriverHandle = hContext->getPlatform()->ZeDriver;
+    auto Result = zeDriverGetExtensionFunctionAddress(
+        DriverHandle, "zeImageGetDeviceOffsetExp",
+        (void **)&zeImageGetDeviceOffsetExpFunctionPtr);
+    if (Result != ZE_RESULT_SUCCESS)
+      logger::error("zeDriverGetExtensionFunctionAddress "
+                    "zeImageGetDeviceOffsetExpv failed, err = {}",
+                    Result);
+  });
+  if (!zeImageGetDeviceOffsetExpFunctionPtr)
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+
+  uint64_t DeviceOffset{};
+  ze_image_handle_t ZeImageTranslated;
+  ZE2UR_CALL(zelLoaderTranslateHandle,
+             (ZEL_HANDLE_IMAGE, ZeImage, (void **)&ZeImageTranslated));
+  ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr,
+             (ZeImageTranslated, &DeviceOffset));
+  *phImage = DeviceOffset;
+
+  hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
+
+  return UR_RESULT_SUCCESS;
 }

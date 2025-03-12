@@ -182,9 +182,15 @@ struct ur_mem_image_t : _ur_object {
   ur_mem_image_t(ur_context_handle_t hContext, ur_mem_flags_t flags,
                  const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, void *pHost);
-  ur_mem_image_t(ur_context_handle_t, const ur_image_format_t *pImageFormat,
+  ur_mem_image_t(ur_context_handle_t hContext, 
+                 const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, ze_image_handle_t zeImage,
                  bool ownZeImage);
+  ur_mem_image_t(ur_context_handle_t hContext, 
+                 ZeStruct<ze_image_desc_t> &zeImageDesc, 
+                 ze_image_handle_t zeImage, bool ownZeImage)
+    : hContext(hContext), zeImageDesc(zeImageDesc), zeImage(zeImage, ownZeImage) {};
+
 
   ze_image_handle_t getZeImage() const { return zeImage.get(); }
 
@@ -224,8 +230,6 @@ struct ur_mem_handle_t_ {
                                           std::decay_t<decltype(arg)>>) {
             return static_cast<ur_mem_buffer_t *>(&arg);
           } else {
-            std::cerr << "[L0_v2][MEM]" << __FUNCTION__ << ":" << __FILE__
-                      << ":" << __LINE__ << std::endl;
             throw UR_RESULT_ERROR_INVALID_MEM_OBJECT;
           }
         },
@@ -239,8 +243,6 @@ struct ur_mem_handle_t_ {
                                        std::decay_t<decltype(arg)>>) {
             return static_cast<ur_mem_image_t *>(&arg);
           } else {
-            std::cerr << "[L0_v2][MEM]" << __FUNCTION__ << ":" << __FILE__
-                      << ":" << __LINE__ << std::endl;
             throw UR_RESULT_ERROR_INVALID_MEM_OBJECT;
           }
         },
@@ -266,3 +268,20 @@ private:
                ur_discrete_buffer_handle_t, ur_mem_sub_buffer_t, ur_mem_image_t>
       mem;
 };
+
+template <typename T>
+ur_result_t
+createUrMemFromZeImage(ur_context_handle_t Context, ze_image_handle_t ZeImage,
+                       bool OwnZeMemHandle,
+                       ZeStruct<ze_image_desc_t> &ZeImageDesc, T *UrMem) {
+  try {
+    auto UrImage =
+        new ur_mem_image_t(Context, ZeImageDesc, ZeImage, OwnZeMemHandle);
+    *UrMem = reinterpret_cast<T>(UrImage);
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}

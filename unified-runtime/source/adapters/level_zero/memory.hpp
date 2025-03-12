@@ -9,7 +9,6 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include "common.hpp"
 #include <cassert>
 #include <list>
 #include <map>
@@ -19,12 +18,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include <ur/ur.hpp>
-#include <ur_ddi.h>
-#include <ze_api.h>
-#include <zes_api.h>
-
-#include "ur_level_zero.hpp"
+#include "common.hpp"
+#include "context.hpp"
+#include "event.hpp"
+#include "program.hpp"
+#include "queue.hpp"
+#include "sampler.hpp"
 
 struct ur_device_handle_t_;
 

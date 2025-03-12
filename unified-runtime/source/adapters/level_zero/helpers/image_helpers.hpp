@@ -13,7 +13,12 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "../common.hpp"
+typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
+    ze_image_handle_t hImage, uint64_t *pDeviceOffset);
+
+typedef ze_result_t(ZE_APICALL *zeMemGetPitchFor2dImage_pfn)(
+    ze_context_handle_t hContext, ze_device_handle_t hDevice, size_t imageWidth,
+    size_t imageHeight, unsigned int elementSizeInBytes, size_t *rowPitch);
 
 /// Construct UR image format from ZE image desc.
 ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
@@ -36,3 +41,11 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
 
 std::pair<ze_image_format_type_t, size_t>
 getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat);
+
+ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
+                                     ur_device_handle_t hDevice,
+                                     ur_exp_image_mem_native_handle_t hImageMem,
+                                     const ur_image_format_t *pImageFormat,
+                                     const ur_image_desc_t *pImageDesc,
+                                     ur_sampler_handle_t hSampler,
+                                     ur_exp_image_native_handle_t *phImage);
