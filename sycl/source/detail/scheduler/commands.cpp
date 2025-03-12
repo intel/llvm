@@ -502,7 +502,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
                             ur_event_handle_t &Event) {
 #ifndef NDEBUG
   for (const EventImplPtr &Event : EventImpls)
-    assert(!Event->isHost() &&
+    assert(Event->getHandle() &&
            "Only non-host events are expected to be waited for here");
 #endif
   if (!EventImpls.empty()) {
@@ -759,8 +759,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // 2. Some types of commands do not produce UR events after they are
   // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected =
-      (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
+  bool PiEventExpected = !DepEvent->isDefaultConstructed();
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
 
@@ -1844,9 +1843,8 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
 }
 
 UpdateHostRequirementCommand::UpdateHostRequirementCommand(
-    QueueImplPtr Queue, Requirement Req, AllocaCommandBase *SrcAllocaCmd,
-    void **DstPtr)
-    : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
+    Requirement Req, AllocaCommandBase *SrcAllocaCmd, void **DstPtr)
+    : Command(CommandType::UPDATE_REQUIREMENT, nullptr),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {
 
   emitInstrumentationDataProxy();
@@ -1954,6 +1952,9 @@ ExecCGCommand::ExecCGCommand(
   }
   if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
     MEvent->markAsProfilingTagEvent();
+
+  if (isHostTask())
+    MEvent->markAsHost();
 
   emitInstrumentationDataProxy();
 }
