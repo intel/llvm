@@ -1426,7 +1426,8 @@ ProgramManager::ProgramManager()
                           UseSpvEnv + ": " + SpvFile);
     File.seekg(0, std::ios::end);
     size_t Size = File.tellg();
-    std::unique_ptr<char[]> Data(new char[Size]);
+    std::unique_ptr<char[], std::function<void(void *)>> Data(new char[Size],
+                                                              std::free);
     File.seekg(0);
     File.read(Data.get(), Size);
     File.close();
@@ -2736,7 +2737,7 @@ void ProgramManager::bringSYCLDeviceImageToState(
       break;
     case bundle_state::object: {
       std::vector<device_image_plain> LinkedDevImages =
-          link(DeviceImage, MainImgImpl->get_devices(),
+          link(DeviceImage.getAll(), MainImgImpl->get_devices(),
                /*PropList=*/{});
       // Since only one device image is passed here one output device image is
       // expected
@@ -2890,10 +2891,14 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
   return CompiledImages;
 }
 
-static void mergeImageData(const std::vector<device_image_plain> &Imgs,
-                           std::vector<kernel_id> &KernelIDs,
-                           std::vector<unsigned char> &NewSpecConstBlob,
-                           device_image_impl::SpecConstMapT &NewSpecConstMap) {
+// Returns a merged device binary image, new set of kernel IDs and new
+// specialization constant data.
+static const RTDeviceBinaryImage *
+mergeImageData(const std::vector<device_image_plain> &Imgs,
+               std::vector<kernel_id> &KernelIDs,
+               std::vector<unsigned char> &NewSpecConstBlob,
+               device_image_impl::SpecConstMapT &NewSpecConstMap,
+               std::unique_ptr<DynRTDeviceBinaryImage> &MergedImageStorage) {
   for (const device_image_plain &Img : Imgs) {
     const std::shared_ptr<device_image_impl> &DeviceImageImpl =
         getSyclObjImpl(Img);
@@ -2931,10 +2936,28 @@ static void mergeImageData(const std::vector<device_image_plain> &Imgs,
   }
   // device_image_impl expects kernel ids to be sorted for fast search
   std::sort(KernelIDs.begin(), KernelIDs.end(), LessByHash<kernel_id>{});
+
+  // If there is only a single image, use it as the result.
+  if (Imgs.size() == 1)
+    return getSyclObjImpl(Imgs[0])->get_bin_image_ref();
+
+  // Otherwise we create a dynamic image with the merged information.
+  std::vector<const RTDeviceBinaryImage *> BinImgs;
+  BinImgs.reserve(Imgs.size());
+  for (const device_image_plain &Img : Imgs) {
+    auto ImgBinRef = getSyclObjImpl(Img)->get_bin_image_ref();
+    // For some cases, like SYCL kernel compiler binaries, we don't have
+    // binaries. For these we assume no properties associated, so they can be
+    // safely ignored.
+    if (ImgBinRef)
+      BinImgs.push_back(ImgBinRef);
+  }
+  MergedImageStorage = std::make_unique<DynRTDeviceBinaryImage>(BinImgs);
+  return MergedImageStorage.get();
 }
 
 std::vector<device_image_plain>
-ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
+ProgramManager::link(const std::vector<device_image_plain> &Imgs,
                      const std::vector<device> &Devs,
                      const property_list &PropList) {
   {
@@ -2943,7 +2966,6 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
 
-  const std::vector<device_image_plain> &Imgs = ImgWithDeps.getAll();
   std::vector<ur_program_handle_t> URPrograms;
   URPrograms.reserve(Imgs.size());
   for (const device_image_plain &Img : Imgs)
@@ -2953,18 +2975,17 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
   URDevices.reserve(Devs.size());
   for (const device &Dev : Devs)
     URDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
-
+  // FIXME: Linker options are picked from the first object, but is that safe?
   std::string LinkOptionsStr;
   applyLinkOptionsFromEnvironment(LinkOptionsStr);
-  const device_image_plain &MainImg = ImgWithDeps.getMain();
-  const std::shared_ptr<device_image_impl> &InputImpl = getSyclObjImpl(MainImg);
-  if (LinkOptionsStr.empty()) {
+  const std::shared_ptr<device_image_impl> &FirstImgImpl =
+      getSyclObjImpl(Imgs[0]);
+  if (LinkOptionsStr.empty() && FirstImgImpl->get_bin_image_ref())
     appendLinkOptionsFromImage(LinkOptionsStr,
-                               *(InputImpl->get_bin_image_ref()));
-  }
+                               *(FirstImgImpl->get_bin_image_ref()));
   // Should always come last!
   appendLinkEnvironmentVariablesThatAppend(LinkOptionsStr);
-  const context &Context = InputImpl->get_context();
+  const context &Context = FirstImgImpl->get_context();
   const ContextImplPtr &ContextImpl = getSyclObjImpl(Context);
   const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
@@ -3001,7 +3022,9 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
   std::shared_ptr<std::vector<kernel_id>> KernelIDs{new std::vector<kernel_id>};
   std::vector<unsigned char> NewSpecConstBlob;
   device_image_impl::SpecConstMapT NewSpecConstMap;
-  mergeImageData(Imgs, *KernelIDs, NewSpecConstBlob, NewSpecConstMap);
+  std::unique_ptr<DynRTDeviceBinaryImage> MergedImageStorage;
+  const RTDeviceBinaryImage *NewBinImg = mergeImageData(
+      Imgs, *KernelIDs, NewSpecConstBlob, NewSpecConstMap, MergedImageStorage);
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
@@ -3010,10 +3033,11 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
     // underlying program disposed of). Protecting from incorrect values by
     // removal of map entries with same handle (obviously invalid entries).
     std::ignore = NativePrograms.erase(LinkedProg);
-    for (const device_image_plain &Img : ImgWithDeps) {
-      NativePrograms.insert(
-          {LinkedProg,
-           {ContextImpl, getSyclObjImpl(Img)->get_bin_image_ref()}});
+    for (const device_image_plain &Img : Imgs) {
+      const std::shared_ptr<device_image_impl> &ImgImpl = getSyclObjImpl(Img);
+      if (ImgImpl->get_bin_image_ref())
+        NativePrograms.insert(
+            {LinkedProg, {ContextImpl, ImgImpl->get_bin_image_ref()}});
     }
   }
 
@@ -3023,20 +3047,20 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
   // input ones and then merge them afterwards.
   std::vector<const std::optional<detail::KernelCompilerBinaryInfo> *>
       RTCInfoPtrs;
-  RTCInfoPtrs.reserve(ImgWithDeps.size());
-  for (const device_image_plain &DevImg : ImgWithDeps) {
+  RTCInfoPtrs.reserve(Imgs.size());
+  for (const device_image_plain &DevImg : Imgs) {
     const DeviceImageImplPtr &DevImgImpl = getSyclObjImpl(DevImg);
     CombinedOrigins |= DevImgImpl->getOriginMask();
     RTCInfoPtrs.emplace_back(&(DevImgImpl->getRTCInfo()));
   }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
-  auto BinImg = InputImpl->get_bin_image_ref();
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
-          BinImg, Context, Devs, bundle_state::executable, std::move(KernelIDs),
-          LinkedProg, std::move(NewSpecConstMap), std::move(NewSpecConstBlob),
-          CombinedOrigins, std::move(MergedRTCInfo));
+          NewBinImg, Context, Devs, bundle_state::executable,
+          std::move(KernelIDs), LinkedProg, std::move(NewSpecConstMap),
+          std::move(NewSpecConstBlob), CombinedOrigins,
+          std::move(MergedRTCInfo), std::move(MergedImageStorage));
 
   // TODO: Make multiple sets of device images organized by devices they are
   // compiled for.
@@ -3071,6 +3095,8 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
   std::vector<unsigned char> SpecConstBlob;
   device_image_impl::SpecConstMapT SpecConstMap;
 
+  std::unique_ptr<DynRTDeviceBinaryImage> MergedImageStorage;
+  const RTDeviceBinaryImage *ResultBinImg = MainInputImpl->get_bin_image_ref();
   if (DevImgWithDeps.hasDeps()) {
     KernelIDs = std::make_shared<std::vector<kernel_id>>();
     // Sort the images to make the order of spec constant values used for
@@ -3081,7 +3107,8 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
                 return getSyclObjImpl(A)->get_bin_image_ref()->getImageID() <
                        getSyclObjImpl(B)->get_bin_image_ref()->getImageID();
               });
-    mergeImageData(SortedImgs, *KernelIDs, SpecConstBlob, SpecConstMap);
+    ResultBinImg = mergeImageData(SortedImgs, *KernelIDs, SpecConstBlob,
+                                  SpecConstMap, MergedImageStorage);
   } else {
     KernelIDs = MainInputImpl->get_kernel_ids_ptr();
     SpecConstBlob = MainInputImpl->get_spec_const_blob_ref();
@@ -3104,10 +3131,10 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
       std::move(BinImgs), Context, Devs, &DevImgWithDeps, SpecConstBlob);
 
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
-      MainInputImpl->get_bin_image_ref(), Context, Devs,
-      bundle_state::executable, std::move(KernelIDs), ResProgram,
-      std::move(SpecConstMap), std::move(SpecConstBlob), CombinedOrigins,
-      std::move(MergedRTCInfo));
+      ResultBinImg, Context, Devs, bundle_state::executable,
+      std::move(KernelIDs), ResProgram, std::move(SpecConstMap),
+      std::move(SpecConstBlob), CombinedOrigins, std::move(MergedRTCInfo),
+      std::move(MergedImageStorage));
   return createSyclObjFromImpl<device_image_plain>(std::move(ExecImpl));
 }
 

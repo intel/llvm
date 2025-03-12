@@ -1183,6 +1183,36 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
   }
   return build_from_source(SourceKB, Devices, Options, nullptr, KernelNames);
 }
+
+__SYCL_EXPORT kernel_bundle<bundle_state::object> compile_from_source(
+    kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+    const std::vector<device> &Devices,
+    const std::vector<sycl::detail::string_view> &CompileOptions,
+    sycl::detail::string *LogPtr,
+    const std::vector<sycl::detail::string_view> &RegisteredKernelNames);
+
+inline kernel_bundle<bundle_state::object>
+compile_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+                    const std::vector<device> &Devices,
+                    const std::vector<std::string> &CompileOptions,
+                    std::string *LogPtr,
+                    const std::vector<std::string> &RegisteredKernelNames) {
+  std::vector<sycl::detail::string_view> Options;
+  for (const std::string &opt : CompileOptions)
+    Options.push_back(sycl::detail::string_view{opt});
+
+  std::vector<sycl::detail::string_view> KernelNames;
+  for (const std::string &name : RegisteredKernelNames)
+    KernelNames.push_back(sycl::detail::string_view{name});
+
+  sycl::detail::string Log;
+  auto result = compile_from_source(SourceKB, Devices, Options,
+                                    LogPtr ? &Log : nullptr, KernelNames);
+  if (LogPtr)
+    *LogPtr = Log.c_str();
+  return result;
+}
+
 } // namespace detail
 
 /////////////////////////
@@ -1219,6 +1249,39 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
                                                 IncludePairsVec);
 }
 #endif
+
+/////////////////////////
+// syclex::compile(source_kb) => obj_kb
+/////////////////////////
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
+kernel_bundle<bundle_state::object>
+compile(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+        const std::vector<device> &Devices, PropertyListT props = {}) {
+  std::vector<std::string> CompileOptionsVec;
+  std::string *LogPtr = nullptr;
+  std::vector<std::string> RegisteredKernelNamesVec;
+  if constexpr (props.template has_property<build_options>())
+    CompileOptionsVec = props.template get_property<build_options>().opts;
+  if constexpr (props.template has_property<save_log>())
+    LogPtr = props.template get_property<save_log>().log;
+  if constexpr (props.template has_property<registered_names>())
+    RegisteredKernelNamesVec =
+        props.template get_property<registered_names>().names;
+  return detail::compile_from_source(SourceKB, Devices, CompileOptionsVec,
+                                     LogPtr, RegisteredKernelNamesVec);
+}
+
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
+kernel_bundle<bundle_state::object>
+compile(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+        PropertyListT props = {}) {
+  return compile<PropertyListT>(SourceKB, SourceKB.get_devices(), props);
+}
 
 /////////////////////////
 // syclex::build(source_kb) => exe_kb
