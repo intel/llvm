@@ -381,9 +381,11 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       Wrapper(const std::shared_ptr<queue_impl> &Self,
               const std::shared_ptr<queue_impl> &PrimaryQueue,
               const std::shared_ptr<queue_impl> &SecondaryQueue,
-              bool CallerNeedsEvent) : MHandlerPtr(MHandler.get()) {
+              bool CallerNeedsEvent)
+          : MHandlerPtr(MHandler.get()) {
         if (MHandlerPtr)
-          MHandlerPtr->reset(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+          MHandlerPtr->reset(Self, PrimaryQueue, SecondaryQueue,
+                             CallerNeedsEvent);
         else {
           MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(
               Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
@@ -417,7 +419,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
         KernelUsesAssert =
             !(w.MHandlerPtr->MKernel && w.MHandlerPtr->MKernel->isInterop()) &&
             ProgramManager::getInstance().kernelUsesAssert(
-              w.MHandlerPtr->MKernelName.c_str());
+                w.MHandlerPtr->MKernelName.c_str());
       CallPostProcess = true;
     }
 
