@@ -1,8 +1,5 @@
 // REQUIRES: cpu,windows
 //
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16507
-//
 // RUN: %{build} -o %t.out
 //
 // MSVC implementation of assert does not call an unreachable built-in, so the
