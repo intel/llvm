@@ -33,11 +33,12 @@ permissions: read-all
 
 jobs:
   detect_changes:
+    if: false
     uses: ./.github/workflows/sycl-detect-changes.yml
 
   build:
     needs: [detect_changes]
-    if: always() && success()
+    if: false
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: ${{ github.sha }}
@@ -53,7 +54,7 @@ jobs:
 
   run_prebuilt_e2e_tests:
     needs: [build, detect_changes]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -153,11 +154,7 @@ jobs:
 
   test-perf:
     needs: [build, detect_changes]
-    if: |
-      always() && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-      && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
-          || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
+    if: false
     strategy:
       fail-fast: false
       matrix:

@@ -1,8 +1,25 @@
-name: UR - Build adapters, test on HW
+name: UR - Build adapters, test on HW.
 
 on:
   workflow_call:
     inputs:
+      reset_intel_gpu:
+        type: string
+        required: False
+      extra_lit_opts:
+        description: |
+          Extra options to be added to LIT_OPTS.
+        type: string
+        default: ''
+      target_devices:
+        type: string
+        required: False
+      image:
+        type: string
+        required: False
+      image_options:
+        type: string
+        required: True
       adapter_name:
         required: true
         type: string
@@ -83,7 +100,9 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
 
     runs-on: ${{inputs.runner_name}}
-
+    container:
+      image: ${{ inputs.image }}
+      options: ${{ inputs.image_options }}
     steps:
     # TODO:
     # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
@@ -94,17 +113,52 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
+    - name: Install build tools
+      run: |
+        export DEBIAN_FRONTEND=noninteractive
+        sudo apt update && apt install -yqq \
+          build-essential \
+          cmake \
+          ninja-build \
+          ccache \
+          git \
+          python3 \
+          python3-psutil \
+          python-is-python3 \
+          python3-pip \
+          ocl-icd-opencl-dev \
+          vim \
+          libffi-dev \
+          libva-dev \
+          libtool \
+          wget \
+          sudo \
+          zstd \
+          zip \
+          unzip \
+          pigz \
+          jq \
+          curl \
+          libhwloc-dev \
+          libzstd-dev \
+          time --option="APT::Acquire::Retries=3"
+
     - name: Install UR python dependencies
+      if: always()
       working-directory: ${{github.workspace}}/unified-runtime
       run: pip install -r third_party/requirements.txt
 
     - name: Download DPC++
+      if: always()
+      
       run: |
+        pwd
         wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-12-12/sycl_linux.tar.gz
         mkdir dpcpp_compiler
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 
     - name: Configure Unified Runtime project
+      if: always()
       working-directory: ${{github.workspace}}/unified-runtime
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
@@ -128,27 +182,24 @@ jobs:
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
+      if: always()
       # This is so that device binaries can find the sycl runtime library
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
 
     - name: Install
+      if: always()
       # This is to check that install command does not fail
       run: cmake --install ${{github.workspace}}/build
 
     - name: Test adapter specific
-      env:
-        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        ZE_DEBUG: 1
-      run: ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
+      run: ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
-      env:
-        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
-        ZE_DEBUG: 1
-      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "conformance" --timeout 600 -VV
+      if: always()
+      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "conformance" --timeout 600
 
     - name: Get information about platform
-      if: ${{ always() }}
+      if: always()
       run: ${{github.workspace}}/unified-runtime/.github/scripts/get_system_info.sh
