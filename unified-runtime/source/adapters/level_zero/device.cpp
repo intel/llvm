@@ -284,11 +284,11 @@ ur_result_t urDeviceGetInfo(
       // Supports reading and writing of images.
       SupportedExtensions += ("cl_khr_3d_image_writes ");
 
-    // L0 does not tell us if bfloat16 is supported.
-    // For now, assume ATS and PVC support it.
-    // TODO: change the way we detect bfloat16 support.
-    if ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
-        (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
+    if (Device->Platform->zeDriverExtensionMap.count(
+            ZE_BFLOAT16_CONVERSIONS_EXT_NAME))
+      SupportedExtensions += ("cl_intel_bfloat16_conversions ");
+    else if ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
+             (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
     return ReturnValue(SupportedExtensions.c_str());
@@ -1203,6 +1203,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
@@ -1512,12 +1514,23 @@ ur_device_handle_t_::useImmediateCommandLists() {
     bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
-    if ((isDG2SupportedDriver && isDG2OrNewer) || isPVC()) {
+    // Disable immediate command lists for DG2 devices on Windows due to driver
+    // limitations.
+    bool isLinux = true;
+#ifdef _WIN32
+    isLinux = false;
+#endif
+    if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
+        isNewerThanIntelDG2()) {
       return PerQueue;
     } else {
       return NotUsed;
     }
   }
+
+  logger::info("NOTE: L0 Immediate CommandList Setting: {}",
+               ImmediateCommandlistsSetting);
+
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;

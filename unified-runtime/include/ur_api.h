@@ -2222,6 +2222,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] support the ::urProgramSetSpecializationConstants entry
   /// point
   UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 121,
+  /// [::ur_bool_t] return true if the device has a native assert
+  /// implementation.
+  UR_DEVICE_INFO_USE_NATIVE_ASSERT = 122,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2790,6 +2793,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     /// [in] handle of the device instance
     ur_device_handle_t hDevice,
@@ -2984,20 +2989,6 @@ typedef enum ur_context_info_t {
   /// [::ur_bool_t] to indicate if the ::urEnqueueUSMFill2D entrypoint is
   /// supported.
   UR_CONTEXT_INFO_USM_FILL2D_SUPPORT = 4,
-  /// [::ur_memory_order_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory order capabilities.
-  UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 5,
-  /// [::ur_memory_scope_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory scope capabilities.
-  UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 6,
-  /// [::ur_memory_order_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory fence order capabilities.
-  /// Zero is returned if the backend does not support context-level fences.
-  UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 7,
-  /// [::ur_memory_scope_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory fence scope capabilities.
-  /// Zero is returned if the backend does not support context-level fences.
-  UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 8,
   /// @cond
   UR_CONTEXT_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -3046,7 +3037,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName`
+///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -3184,6 +3175,8 @@ typedef void (*ur_context_extended_deleter_t)(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnDeleter`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     /// [in] handle of the context.
     ur_context_handle_t hContext,
