@@ -42,14 +42,15 @@ extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
 
 extern SYCL_EXTERNAL __SYCL_GLOBAL__ void *
-__spirv_GenericCastToPtrExplicit_ToGlobal(void *, int);
+__spirv_GenericCastToPtrExplicit_ToGlobal(void *, int) noexcept;
 extern SYCL_EXTERNAL __SYCL_LOCAL__ void *
-__spirv_GenericCastToPtrExplicit_ToLocal(void *, int);
+__spirv_GenericCastToPtrExplicit_ToLocal(void *, int) noexcept;
 extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
-__spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
+__spirv_GenericCastToPtrExplicit_ToPrivate(void *, int) noexcept;
 
 extern SYCL_EXTERNAL __attribute__((convergent)) void
-__spirv_ControlBarrier(uint32_t Execution, uint32_t Memory, uint32_t Semantics);
+__spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
+                       uint32_t Semantics) noexcept;
 
 extern "C" SYCL_EXTERNAL void __devicelib_exit();
 
