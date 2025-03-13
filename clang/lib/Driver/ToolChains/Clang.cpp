@@ -5521,8 +5521,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (IsCuda || IsHIP || IsSYCL)
     IsWindowsMSVC |= AuxTriple && AuxTriple->isWindowsMSVCEnvironment();
 
-  // Adjust for SYCL NativeCPU compilations.  When compiling in device mode, we
-  // adjust to host after the initial compilation.
+  // Adjust for SYCL NativeCPU compilations.  When compiling in device mode, the
+  // first compilation uses the NativeCPU target for LLVM IR generation, the
+  // second compilation uses the host target for machine code generation.
   const bool IsSYCLNativeCPU = isSYCLNativeCPU(Triple);
   if (IsSYCL && IsSYCLDevice && IsSYCLNativeCPU && AuxTriple &&
       isa<AssembleJobAction>(JA)) {
@@ -6037,6 +6038,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CollectArgsForIntegratedAssembler(C, Args, CmdArgs, D);
     }
     if (IsSYCLDevice && IsSYCLNativeCPU) {
+      // NativeCPU generates an initial LLVM module for an unknown target, then
+      // compiles that for host. Avoid generating a warning for that.
       CmdArgs.push_back("-Wno-override-module");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-native-cpu-backend");

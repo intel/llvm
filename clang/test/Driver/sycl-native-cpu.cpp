@@ -3,7 +3,7 @@
 
 
 // checks that the host triple is native_cpu, the device triple is set, and that the sycl-native-cpu LLVM option is set
-// CHECK: clang{{.*}}"-triple" "native_cpu"{{.*}}"-aux-triple" "[[TRIPLE:.*]]"{{.*}}"-fsycl-is-native-cpu"{{.*}}"-D" "__SYCL_NATIVE_CPU__"
+// CHECK: clang{{.*}}"-triple" "native_cpu"{{.*}}"-aux-triple" "{{.*}}" "-fsycl-is-native-cpu"{{.*}}"-D" "__SYCL_NATIVE_CPU__"
 
 // checks that the target triples are set correctly when the target is set explicitly
 // CHECK-AARCH64: clang{{.*}}"-triple" "native_cpu"{{.*}}"-aux-triple" "aarch64-unknown-linux-gnu"{{.*}}"-fsycl-is-native-cpu"{{.*}}"-D" "__SYCL_NATIVE_CPU__"
@@ -19,7 +19,10 @@
 // CHECK-WIN-NOT: dwarf
 
 // checks that -sycl-opt is not enabled by default on NativeCPU so that the full llvm optimization is enabled
+// Also check that we suppress warnings about the intentional module mismatch
 // RUN:   %clang -fsycl -fsycl-targets=native_cpu -### %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
+// CHECK-OPTS-NOT: -sycl-opt
+// CHECK-OPTS: "-Wno-override-module"
 // CHECK-OPTS-NOT: -sycl-opt
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -### 2>&1 | FileCheck -check-prefix=CHECK-NONATIVECPU %s
