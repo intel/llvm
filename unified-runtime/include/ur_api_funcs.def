@@ -17,6 +17,8 @@
 
 // Auto-generated file, do not edit.
 
+_UR_API(urAdapterSetLoggerCallback)
+_UR_API(urAdapterSetLoggerCallbackLevel)
 _UR_API(urPlatformGet)
 _UR_API(urPlatformGetInfo)
 _UR_API(urPlatformGetNativeHandle)
