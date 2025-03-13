@@ -1889,14 +1889,16 @@ static bool shouldSkipEmptyImage(sycl_device_binary RawImg, bool IsRTC) {
 }
 
 static bool isCompiledAtRuntime(sycl_device_binaries DeviceBinary) {
-  // Check whether the first device binary contains an offload entry with a `$`
-  // in its name.
+  // Check whether the first device binary contains a legacy format offload
+  // entry with a `$` in its name.
   if (DeviceBinary->NumDeviceBinaries > 0) {
     sycl_device_binary Binary = DeviceBinary->DeviceBinaries;
     if (Binary->EntriesBegin != Binary->EntriesEnd) {
       sycl_offload_entry Entry = Binary->EntriesBegin;
-      if (std::string_view{Entry->name}.find('$') != std::string_view::npos)
+      if (!Entry->IsNewOffloadEntryType() &&
+          std::string_view{Entry->name}.find('$') != std::string_view::npos) {
         return true;
+      }
     }
   }
   return false;
