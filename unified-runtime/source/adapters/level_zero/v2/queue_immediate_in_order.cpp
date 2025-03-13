@@ -754,7 +754,7 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
   ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
   ur2zeImageDesc(pDstImageFormat, pDstImageDesc, zeDstImageDesc);
 
-  // ATTN: ze_tracer shows a lot of events (eg. ~60) created here
+  // ze_tracer shows a lot of events (eg. ~60) created here
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
   auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
 
@@ -771,7 +771,7 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
-      auto *urDstImg = static_cast<ur_mem_image_t *>(pDst);
+      auto *urDstImg = static_cast<ur_bindless_mem_handle_t *>(pDst);
 
       const char *SrcPtr =
           static_cast<const char *>(pSrc) +
@@ -814,7 +814,7 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
       UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
                                    &pCopyRegion->copyExtent, SrcRegion));
 
-      auto *urSrcImg = reinterpret_cast<const ur_mem_image_t *>(pSrc);
+      auto *urSrcImg = reinterpret_cast<const ur_bindless_mem_handle_t *>(pSrc);
 
       char *DstPtr =
           static_cast<char *>(pDst) + pCopyRegion->dstOffset.z * DstSlicePitch +
@@ -853,8 +853,8 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
     UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
                                  &pCopyRegion->copyExtent, SrcRegion));
 
-    auto *urImgSrc = reinterpret_cast<const ur_mem_image_t *>(pSrc);
-    auto *urImgDst = reinterpret_cast<ur_mem_image_t *>(pDst);
+    auto *urImgSrc = reinterpret_cast<const ur_bindless_mem_handle_t *>(pSrc);
+    auto *urImgDst = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
 
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
                (ZeCommandList, urImgDst->getZeImage(), urImgSrc->getZeImage(),

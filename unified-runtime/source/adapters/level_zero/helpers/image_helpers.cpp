@@ -692,26 +692,18 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
       ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES, nullptr,
       ZE_MEMORY_TYPE_UNKNOWN, 0, 0};
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
   ze_context_handle_t zeCtx = hContext->getZeHandle();
-#else
-  ze_context_handle_t zeCtx = hContext->ZeContext;
-#endif
 
   ZE2UR_CALL(zeMemGetAllocProperties,
              (zeCtx, reinterpret_cast<const void *>(hImageMem),
               &MemAllocProperties, nullptr));
   if (MemAllocProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-    ur_mem_image_t *urImg = reinterpret_cast<ur_mem_image_t *>(hImageMem);
-    ze_image_handle_t zeImg = urImg->getZeImage();
-#else
-    _ur_image *urImg = reinterpret_cast<_ur_image *>(hImageMem);
-    ze_image_handle_t zeImg = urImg->ZeImage;
-#endif
+    ur_bindless_mem_handle_t *urImg =
+        reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
+    ze_image_handle_t zeImg1 = urImg->getZeImage();
 
     ZE2UR_CALL(zeImageViewCreateExt,
-               (zeCtx, hDevice->ZeDevice, &ZeImageDesc, zeImg, &ZeImage));
+               (zeCtx, hDevice->ZeDevice, &ZeImageDesc, zeImg1, &ZeImage));
     ZE2UR_CALL(zeContextMakeImageResident, (zeCtx, hDevice->ZeDevice, ZeImage));
   } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE ||
              MemAllocProperties.type == ZE_MEMORY_TYPE_HOST ||
@@ -744,7 +736,6 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   });
   if (!zeImageGetDeviceOffsetExpFunctionPtr)
     return UR_RESULT_ERROR_INVALID_OPERATION;
-
   uint64_t DeviceOffset{};
   ze_image_handle_t ZeImageTranslated;
   ZE2UR_CALL(zelLoaderTranslateHandle,
@@ -754,6 +745,5 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   *phImage = DeviceOffset;
 
   hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
-
   return UR_RESULT_SUCCESS;
 }

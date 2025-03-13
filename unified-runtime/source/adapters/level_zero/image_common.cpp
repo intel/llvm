@@ -95,8 +95,7 @@ ur_result_t urBindlessImagesImageAllocateExp(
              (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
   ZE2UR_CALL(zeContextMakeImageResident,
              (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
-  UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
-                                 ZeImageDesc, phImageMem));
+  UR_CALL(createUrImgFromZeImage(ZeImage, ZeImageDesc, phImageMem));
   return UR_RESULT_SUCCESS;
 }
 
@@ -162,13 +161,10 @@ ur_result_t urBindlessImagesImageGetInfoExp(
             UR_RESULT_ERROR_INVALID_ENUMERATION);
   UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-  auto *UrImage = reinterpret_cast<ur_mem_image_t *>(hImageMem);
-  ze_image_desc_t &Desc = UrImage->getZeImageDesc();
-#else
-  auto *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
-  ze_image_desc_t &Desc = UrImage->ZeImageDesc;
-#endif
+  ur_bindless_mem_handle_t *urImg =
+      reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
+  ze_image_desc_t &Desc = urImg->getZeImageDesc();
+
   switch (propName) {
   case UR_IMAGE_INFO_WIDTH:
     if (pPropValue) {

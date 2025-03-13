@@ -24,7 +24,8 @@ ur_result_t
 urBindlessImagesImageFreeExp([[maybe_unused]] ur_context_handle_t hContext,
                              [[maybe_unused]] ur_device_handle_t hDevice,
                              ur_exp_image_mem_native_handle_t hImageMem) {
-  ur_mem_image_t *urImg = reinterpret_cast<ur_mem_image_t *>(hImageMem);
+  ur_bindless_mem_handle_t *urImg =
+      reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
   ZE2UR_CALL(zeImageDestroy, (urImg->getZeImage()));
   return UR_RESULT_SUCCESS;
 }

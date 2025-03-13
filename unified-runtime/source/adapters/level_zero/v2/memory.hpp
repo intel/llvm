@@ -270,20 +270,3 @@ private:
                ur_discrete_buffer_handle_t, ur_mem_sub_buffer_t, ur_mem_image_t>
       mem;
 };
-
-template <typename T>
-ur_result_t
-createUrMemFromZeImage(ur_context_handle_t Context, ze_image_handle_t ZeImage,
-                       bool OwnZeMemHandle,
-                       ZeStruct<ze_image_desc_t> &ZeImageDesc, T *UrMem) {
-  try {
-    auto UrImage =
-        new ur_mem_image_t(Context, ZeImageDesc, ZeImage, OwnZeMemHandle);
-    *UrMem = reinterpret_cast<T>(UrImage);
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-  return UR_RESULT_SUCCESS;
-}

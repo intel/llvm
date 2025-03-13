@@ -1,6 +1,6 @@
 //===--------- image.cpp - Level Zero Adapter -----------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2025 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -16,13 +16,6 @@
 #include "memory.hpp"
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
-
-typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
-    ze_image_handle_t hImage, uint64_t *pDeviceOffset);
-
-typedef ze_result_t(ZE_APICALL *zeMemGetPitchFor2dImage_pfn)(
-    ze_context_handle_t hContext, ze_device_handle_t hDevice, size_t imageWidth,
-    size_t imageHeight, unsigned int elementSizeInBytes, size_t *rowPitch);
 
 namespace ur::level_zero {
 
@@ -108,11 +101,10 @@ ur_result_t urBindlessImagesImageCopyExp(
     uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
     if (pDstImageDesc->rowPitch == 0) {
       // Copy to Non-USM memory
-
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
-      auto *UrImage = static_cast<_ur_image *>(pDst);
+    auto *UrImage = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
 
       const char *SrcPtr =
           static_cast<const char *>(pSrc) +
@@ -121,7 +113,7 @@ ur_result_t urBindlessImagesImageCopyExp(
           pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
 
         ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
-                 (ZeCommandList, UrImage->ZeImage, SrcPtr, &DstRegion,
+                 (ZeCommandList, UrImage->getZeImage(), SrcPtr, &DstRegion,
                   SrcRowPitch, SrcSlicePitch, ZeEvent, WaitList.Length,
                   WaitList.ZeEventList));
     } else {
@@ -154,13 +146,13 @@ ur_result_t urBindlessImagesImageCopyExp(
       ze_image_region_t SrcRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->srcOffset,
                                    &pCopyRegion->copyExtent, SrcRegion));
-      auto *UrImage = static_cast<const _ur_image *>(pSrc);
+      auto *UrImage = static_cast<const ur_bindless_mem_handle_t *>(pSrc);
       char *DstPtr =
           static_cast<char *>(pDst) + pCopyRegion->dstOffset.z * DstSlicePitch +
           pCopyRegion->dstOffset.y * DstRowPitch +
           pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
       ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
-                 (ZeCommandList, DstPtr, UrImage->ZeImage, &SrcRegion,
+                 (ZeCommandList, DstPtr, UrImage->getZeImage(), &SrcRegion,
                   DstRowPitch, DstSlicePitch, ZeEvent, WaitList.Length,
                   WaitList.ZeEventList));
     } else {
@@ -191,10 +183,10 @@ ur_result_t urBindlessImagesImageCopyExp(
     ze_image_region_t SrcRegion;
     UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->srcOffset,
                                  &pCopyRegion->copyExtent, SrcRegion));
-    auto *UrImageDst = static_cast<_ur_image *>(pDst);
-    auto *UrImageSrc = static_cast<const _ur_image *>(pSrc);
+    auto *UrImageDst = static_cast<ur_bindless_mem_handle_t *>(pDst);
+    auto *UrImageSrc = static_cast<const ur_bindless_mem_handle_t *>(pSrc);
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-               (ZeCommandList, UrImageDst->ZeImage, UrImageSrc->ZeImage,
+               (ZeCommandList, UrImageDst->getZeImage(), UrImageSrc->getZeImage(),
                 &DstRegion, &SrcRegion, ZeEvent, WaitList.Length,
                 WaitList.ZeEventList));
   } else {
@@ -295,8 +287,7 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
              (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
   ZE2UR_CALL(zeContextMakeImageResident,
              (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
-  UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
-                                 ZeImageDesc, phImageMem));
+  UR_CALL(createUrMemFromZeImage(hContext, ZeImage, true, ZeImageDesc, phImageMem));
   externalMemoryData->urMemoryHandle =
       reinterpret_cast<ur_mem_handle_t>(*phImageMem);
   return UR_RESULT_SUCCESS;
