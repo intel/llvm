@@ -112,7 +112,7 @@ jobs:
       uses: ./devops/actions/cleanup
     - uses: ./devops/actions/cached_checkout
       with:
-        path: src
+        path: llvm
         ref: ${{ inputs.ref || github.sha }}
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Configure
@@ -125,7 +125,7 @@ jobs:
         mkdir install
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
-        python.exe src/buildbot/configure.py -o build ^
+        python.exe llvm/buildbot/configure.py -o build ^
           --ci-defaults %ARGS% ^
           "-DCMAKE_C_COMPILER=${{inputs.compiler}}" ^
           "-DCMAKE_CXX_COMPILER=${{inputs.compiler}}" ^
@@ -173,8 +173,8 @@ jobs:
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       shell: bash
       run: |
-        LLVM_BIN_PATH="build/bin" python.exe src/sycl/tools/abi_check.py --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll
-        diff -Naur src/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
+        LLVM_BIN_PATH="build/bin" python.exe llvm/sycl/tools/abi_check.py --mode dump_symbols --output build/new_sycl_symbols_windows.dump build/bin/sycl?.dll
+        diff -Naur llvm/sycl/test/abi/sycl_symbols_windows.dump build/new_sycl_symbols_windows.dump || true
     - name: Upload new ABI symbols
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       uses: actions/upload-artifact@v4
@@ -219,8 +219,6 @@ jobs:
         Remove-Item -Path "windows_detect_hung_tests.ps1"
         exit $exitCode
     #############################################################################
-    - name: Move llvm repo folder to match run stage
-      run: mv ./src ./llvm
     - name: Setup SYCL toolchain
       if: ${{ inputs.e2e_binaries_artifact && always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: |
