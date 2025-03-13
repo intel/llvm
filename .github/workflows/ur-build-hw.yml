@@ -114,8 +114,8 @@ jobs:
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
     - name: Install build tools
       run: |
-      bash devops/scripts/create-sycl-user.sh
-      bash devops/scripts/install_build_tools.sh
+        bash devops/scripts/create-sycl-user.sh
+        bash devops/scripts/install_build_tools.sh
 
     - name: Install UR python dependencies
       working-directory: ${{github.workspace}}/unified-runtime
