@@ -6,6 +6,7 @@
 import os
 import json
 from pathlib import Path
+import socket
 from utils.result import Result, BenchmarkRun
 from options import Compare, options
 from datetime import datetime, timezone
@@ -13,7 +14,6 @@ from utils.utils import run
 
 
 class BenchmarkHistory:
-    benchmark_run_index_max = 0
     runs = []
 
     def __init__(self, dir):
@@ -35,27 +35,21 @@ class BenchmarkHistory:
         # Get all JSON files in the results directory
         benchmark_files = list(results_dir.glob("*.json"))
 
-        # Extract index numbers and sort files by index number
-        def extract_index(file_path: Path) -> int:
+        # Extract timestamp and sort files by it
+        def extract_timestamp(file_path: Path) -> str:
             try:
-                return int(file_path.stem.split("_")[0])
-            except (IndexError, ValueError):
-                return -1
+                return file_path.stem.split("_")[-1]
+            except IndexError:
+                return ""
 
-        benchmark_files = [
-            file for file in benchmark_files if extract_index(file) != -1
-        ]
-        benchmark_files.sort(key=extract_index)
+        benchmark_files.sort(key=extract_timestamp, reverse=True)
 
         # Load the first n benchmark files
         benchmark_runs = []
-        for file_path in benchmark_files[n::-1]:
+        for file_path in benchmark_files[:n]:
             benchmark_run = self.load_result(file_path)
             if benchmark_run:
                 benchmark_runs.append(benchmark_run)
-
-        if benchmark_files:
-            self.benchmark_run_index_max = extract_index(benchmark_files[-1])
 
         self.runs = benchmark_runs
 
@@ -89,6 +83,7 @@ class BenchmarkHistory:
             github_repo=github_repo,
             date=datetime.now(tz=timezone.utc),
             results=results,
+            hostname=socket.gethostname()
         )
 
     def save(self, save_name, results: list[Result], to_file=True):
@@ -102,10 +97,11 @@ class BenchmarkHistory:
         results_dir = Path(os.path.join(self.dir, "results"))
         os.makedirs(results_dir, exist_ok=True)
 
-        self.benchmark_run_index_max += 1
+        # Use formatted timestamp for the filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         file_path = Path(
             os.path.join(
-                results_dir, f"{self.benchmark_run_index_max}_{save_name}.json"
+                results_dir, f"{save_name}_{timestamp}.json"
             )
         )
         with file_path.open("w") as file:
@@ -138,6 +134,7 @@ class BenchmarkHistory:
             name=first_run.name,
             git_hash="average",
             date=first_run.date,  # should this be different?
+            hostname=first_run.hostname
         )
 
         return average_benchmark_run

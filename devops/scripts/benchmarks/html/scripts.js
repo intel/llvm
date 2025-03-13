@@ -13,12 +13,13 @@ let timeseriesData, barChartsData, allRunNames;
 let runSelect, selectedRunsDiv, suiteFiltersContainer;
 
 // Run selector functions
-function updateSelectedRuns() {
+function updateSelectedRuns(forceUpdate = true) {
     selectedRunsDiv.innerHTML = '';
     activeRuns.forEach(name => {
         selectedRunsDiv.appendChild(createRunElement(name));
     });
-    updateCharts();
+    if (forceUpdate)
+        updateCharts();
 }
 
 function createRunElement(name) {
@@ -439,7 +440,7 @@ function setupRunSelector() {
         runSelect.appendChild(option);
     });
 
-    updateSelectedRuns();
+    updateSelectedRuns(false);
 }
 
 function setupSuiteFilters() {

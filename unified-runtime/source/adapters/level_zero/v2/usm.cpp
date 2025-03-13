@@ -17,6 +17,12 @@
 
 #include <umf/providers/provider_level_zero.h>
 
+static inline void UMF_CALL_THROWS(umf_result_t res) {
+  if (res != UMF_RESULT_SUCCESS) {
+    throw res;
+  }
+}
+
 namespace umf {
 ur_result_t getProviderNativeError(const char *providerName,
                                    int32_t nativeError) {
@@ -99,35 +105,21 @@ descToDisjoinPoolMemType(const usm::pool_descriptor &desc) {
 static umf::provider_unique_handle_t
 makeProvider(usm::pool_descriptor poolDescriptor) {
   umf_level_zero_memory_provider_params_handle_t hParams;
-  umf_result_t umf_ret = umfLevelZeroMemoryProviderParamsCreate(&hParams);
-  if (umf_ret != UMF_RESULT_SUCCESS) {
-    throw umf::umf2urResult(umf_ret);
-  }
-
+  UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsCreate(&hParams));
   std::unique_ptr<umf_level_zero_memory_provider_params_t,
                   decltype(&umfLevelZeroMemoryProviderParamsDestroy)>
       params(hParams, &umfLevelZeroMemoryProviderParamsDestroy);
 
-  umf_ret = umfLevelZeroMemoryProviderParamsSetContext(
-      hParams, poolDescriptor.hContext->getZeHandle());
-  if (umf_ret != UMF_RESULT_SUCCESS) {
-    throw umf::umf2urResult(umf_ret);
-  };
+  UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetContext(
+      hParams, poolDescriptor.hContext->getZeHandle()));
 
   ze_device_handle_t level_zero_device_handle =
       poolDescriptor.hDevice ? poolDescriptor.hDevice->ZeDevice : nullptr;
 
-  umf_ret = umfLevelZeroMemoryProviderParamsSetDevice(hParams,
-                                                      level_zero_device_handle);
-  if (umf_ret != UMF_RESULT_SUCCESS) {
-    throw umf::umf2urResult(umf_ret);
-  }
-
-  umf_ret = umfLevelZeroMemoryProviderParamsSetMemoryType(
-      hParams, urToUmfMemoryType(poolDescriptor.type));
-  if (umf_ret != UMF_RESULT_SUCCESS) {
-    throw umf::umf2urResult(umf_ret);
-  }
+  UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetDevice(
+      hParams, level_zero_device_handle));
+  UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetMemoryType(
+      hParams, urToUmfMemoryType(poolDescriptor.type)));
 
   std::vector<ze_device_handle_t> residentZeHandles;
 
@@ -140,12 +132,12 @@ makeProvider(usm::pool_descriptor poolDescriptor) {
       residentZeHandles.push_back(device->ZeDevice);
     }
 
-    umf_ret = umfLevelZeroMemoryProviderParamsSetResidentDevices(
-        hParams, residentZeHandles.data(), residentZeHandles.size());
-    if (umf_ret != UMF_RESULT_SUCCESS) {
-      throw umf::umf2urResult(umf_ret);
-    }
+    UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetResidentDevices(
+        hParams, residentZeHandles.data(), residentZeHandles.size()));
   }
+
+  UMF_CALL_THROWS(umfLevelZeroMemoryProviderParamsSetFreePolicy(
+      hParams, UMF_LEVEL_ZERO_MEMORY_PROVIDER_FREE_POLICY_BLOCKING_FREE));
 
   auto [ret, provider] =
       umf::providerMakeUniqueFromOps(umfLevelZeroMemoryProviderOps(), hParams);

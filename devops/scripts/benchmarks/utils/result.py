@@ -35,6 +35,7 @@ class Result:
 class BenchmarkRun:
     results: list[Result]
     name: str = "This PR"
+    hostname: str = "Unknown"
     git_hash: str = ""
     github_repo: str = None
     date: datetime = field(
