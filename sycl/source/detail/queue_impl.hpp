@@ -925,7 +925,7 @@ protected:
   /// Stores an event that should be associated with the queue
   ///
   /// \param Event is the event to be stored
-  void addEvent(const event &Event, bool IsHostTask);
+  void addEvent(const event &Event);
 
   /// Protects all the fields that can be changed by class' methods.
   mutable std::mutex MMutex;

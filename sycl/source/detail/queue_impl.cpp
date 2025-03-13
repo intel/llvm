@@ -302,7 +302,7 @@ sycl::detail::optional<event> queue_impl::getLastEvent() {
   return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
 }
 
-void queue_impl::addEvent(const event &Event, bool isHostTask) {
+void queue_impl::addEvent(const event &Event) {
   EventImplPtr EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
@@ -315,10 +315,8 @@ void queue_impl::addEvent(const event &Event, bool isHostTask) {
   }
   // As long as the queue supports urQueueFinish we only need to store events
   // for undiscarded, unenqueued commands and host tasks.
-  // Event->isHost can be false for L0 on user events but we still need to sync
-  // host tasks explicitly.
-  else if (MEmulateOOO || ((EImpl->getHandle() == nullptr || isHostTask) &&
-                           !EImpl->isDiscarded())) {
+  else if (MEmulateOOO ||
+           (EImpl->getHandle() == nullptr && !EImpl->isDiscarded())) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -403,7 +401,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   } else
     finalizeHandler(Handler, Event);
 
-  addEvent(Event, Type == CGType::CodeplayHostTask);
+  addEvent(Event);
 
   auto EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
