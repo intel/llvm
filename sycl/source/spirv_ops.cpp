@@ -16,7 +16,7 @@
 // This operation is NOP on HOST as all operations there are blocking and
 // by the moment this function was called, the operations generating
 // the __ocl_event_t objects had already been finished.
-__SYCL_EXPORT void __spirv_GroupWaitEvents(__spv::Scope Execution,
+__SYCL_EXPORT void __spirv_GroupWaitEvents(int32_t Execution,
                                            uint32_t NumEvents,
                                            __ocl_event_t *WaitEvents) noexcept {
   (void)Execution;

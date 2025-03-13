@@ -196,7 +196,7 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, a, true)
 
 #define __CLC_GROUP_COLLECTIVE_INNER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY) \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
-      __spirv_Group, SPIRV_NAME)(uint scope, uint op, TYPE x) {                \
+      __spirv_Group, SPIRV_NAME)(int scope, uint op, TYPE x) {                \
     TYPE carry = IDENTITY;                                                     \
     /* Perform GroupOperation within sub-group */                              \
     TYPE sg_x = __CLC_APPEND(__clc__Subgroup, CLC_NAME)(op, x, &carry);        \
@@ -253,11 +253,11 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, a, true)
 
 __CLC_GROUP_COLLECTIVE(Any, __CLC_OR, bool, false);
 __CLC_GROUP_COLLECTIVE(All, __CLC_AND, bool, true);
-_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAny(uint scope,
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAny(int scope,
                                                              bool predicate) {
   return __spirv_GroupAny(scope, Reduce, predicate);
 }
-_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAll(uint scope,
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAll(int scope,
                                                              bool predicate) {
   return __spirv_GroupAll(scope, Reduce, predicate);
 }
@@ -343,13 +343,13 @@ __CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
 // half requires additional mangled entry points
 #define __CLC_GROUP_COLLECTIVE__DF16(MANGLED_NAME, SPIRV_DISPATCH)             \
-  _CLC_DEF _CLC_CONVERGENT half MANGLED_NAME(uint scope, uint op, half x) {    \
+  _CLC_DEF _CLC_CONVERGENT half MANGLED_NAME(int scope, uint op, half x) {    \
     return SPIRV_DISPATCH(scope, op, x);                                       \
   }
-__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFAddjjDF16_, __spirv_GroupFAdd)
-__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMinjjDF16_, __spirv_GroupFMin)
-__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMaxjjDF16_, __spirv_GroupFMax)
-__CLC_GROUP_COLLECTIVE__DF16(_Z20__spirv_GroupFMulKHRjjDF16_,
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFAddiiDF16_, __spirv_GroupFAdd)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMiniiDF16_, __spirv_GroupFMin)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMaxiiDF16_, __spirv_GroupFMax)
+__CLC_GROUP_COLLECTIVE__DF16(_Z20__spirv_GroupFMulKHRiiDF16_,
                              __spirv_GroupFMulKHR)
 #undef __CLC_GROUP_COLLECTIVE__DF16
 
@@ -380,7 +380,7 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
 
 #define __CLC_GROUP_BROADCAST(TYPE, TYPE_MANGLED)                              \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      uint scope, TYPE x, ulong local_id) {                                    \
+      int scope, TYPE x, ulong local_id) {                                    \
     if (scope == Subgroup) {                                                   \
       return _Z28__spirv_SubgroupShuffleINTELI##TYPE_MANGLED##ET_S0_j(         \
           x, local_id);                                                        \
@@ -396,17 +396,17 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
     return result;                                                             \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      uint scope, TYPE x, ulong2 local_id) {                                   \
+      int scope, TYPE x, ulong2 local_id) {                                   \
     ulong linear_local_id = __clc__2d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      uint scope, TYPE x, ulong3 local_id) {                                   \
+      int scope, TYPE x, ulong3 local_id) {                                   \
     ulong linear_local_id = __clc__3d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      uint scope, TYPE x, uint local_id) {                                     \
+      int scope, TYPE x, uint local_id) {                                     \
     return __spirv_GroupBroadcast(scope, x, (ulong)local_id);                  \
   }
 __CLC_GROUP_BROADCAST(char, a);

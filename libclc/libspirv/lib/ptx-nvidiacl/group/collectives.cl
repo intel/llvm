@@ -204,13 +204,13 @@ __clc__SubgroupShuffleUp(complex_double x, uint delta) {
 // TODO: Implement InclusiveScan/ExclusiveScan
 //       Currently only Reduce is required (for GroupAny and GroupAll)
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool
-__clc__SubgroupBitwiseOr(uint op, bool predicate, bool *carry) {
+__clc__SubgroupBitwiseOr(int op, bool predicate, bool *carry) {
   bool result = __nvvm_vote_any_sync(__clc__membermask(), predicate);
   *carry = result;
   return result;
 }
 _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool
-__clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
+__clc__SubgroupBitwiseAny(int op, bool predicate, bool *carry) {
   bool result = __nvvm_vote_all_sync(__clc__membermask(), predicate);
   *carry = result;
   return result;
@@ -477,7 +477,7 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
 #define __CLC_GROUP_COLLECTIVE_OUTER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY) \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
-      __spirv_Group, SPIRV_NAME)(uint scope, uint op, TYPE x) {                \
+      __spirv_Group, SPIRV_NAME)(int scope, int op, TYPE x) {                \
     __CLC_GROUP_COLLECTIVE_INNER(CLC_NAME, OP, TYPE, IDENTITY)                 \
   }
 
@@ -495,18 +495,18 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
 #define __CLC_GROUP_COLLECTIVE_MANUAL_MANGLE(SPIRV_NAME_MANGLED, CLC_NAME, OP, \
                                              TYPE, IDENTITY)                   \
-  _CLC_DEF _CLC_CONVERGENT TYPE SPIRV_NAME_MANGLED(uint scope, uint op,        \
+  _CLC_DEF _CLC_CONVERGENT TYPE SPIRV_NAME_MANGLED(int scope, int op,        \
                                                    TYPE x) {                   \
     __CLC_GROUP_COLLECTIVE_INNER(CLC_NAME, OP, TYPE, IDENTITY)                 \
   }
 
 __CLC_GROUP_COLLECTIVE(BitwiseOr, __CLC_OR, bool, false);
 __CLC_GROUP_COLLECTIVE(BitwiseAny, __CLC_AND, bool, true);
-_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAny(uint scope,
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAny(int scope,
                                                              bool predicate) {
   return __spirv_GroupBitwiseOr(scope, Reduce, predicate);
 }
-_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAll(uint scope,
+_CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT bool __spirv_GroupAll(int scope,
                                                              bool predicate) {
   return __spirv_GroupBitwiseAny(scope, Reduce, predicate);
 }
@@ -536,13 +536,13 @@ __CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, float, 1)
 __CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, double, 1)
 
 __CLC_GROUP_COLLECTIVE_MANUAL_MANGLE(
-    _Z22__spirv_GroupCMulINTELjjN5__spv12complex_halfE, CMulINTEL,
+    _Z22__spirv_GroupCMulINTELiiN5__spv12complex_halfE, CMulINTEL,
     __CLC_COMPLEX_MUL, complex_half, ((complex_half){1, 0}))
 __CLC_GROUP_COLLECTIVE_MANUAL_MANGLE(
-    _Z22__spirv_GroupCMulINTELjjN5__spv13complex_floatE, CMulINTEL,
+    _Z22__spirv_GroupCMulINTELiiN5__spv13complex_floatE, CMulINTEL,
     __CLC_COMPLEX_MUL, complex_float, ((complex_float){1, 0}))
 __CLC_GROUP_COLLECTIVE_MANUAL_MANGLE(
-    _Z22__spirv_GroupCMulINTELjjN5__spv14complex_doubleE, CMulINTEL,
+    _Z22__spirv_GroupCMulINTELiiN5__spv14complex_doubleE, CMulINTEL,
     __CLC_COMPLEX_MUL, complex_double, ((complex_double){1, 0}))
 
 __CLC_GROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
@@ -602,13 +602,13 @@ __CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
 // half requires additional mangled entry points
 #define __CLC_GROUP_COLLECTIVE__DF16(MANGLED_NAME, SPIRV_DISPATCH)             \
-  _CLC_DEF _CLC_CONVERGENT half MANGLED_NAME(uint scope, uint op, half x) {    \
+  _CLC_DEF _CLC_CONVERGENT half MANGLED_NAME(int scope, uint op, half x) {    \
     return SPIRV_DISPATCH(scope, op, x);                                       \
   }
-__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFAddjjDF16_, __spirv_GroupFAdd)
-__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMinjjDF16_, __spirv_GroupFMin)
-__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMaxjjDF16_, __spirv_GroupFMax)
-__CLC_GROUP_COLLECTIVE__DF16(_Z20__spirv_GroupFMulKHRjjDF16_,
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFAddiiDF16_, __spirv_GroupFAdd)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMiniiDF16_, __spirv_GroupFMin)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMaxiiDF16_, __spirv_GroupFMax)
+__CLC_GROUP_COLLECTIVE__DF16(_Z20__spirv_GroupFMulKHRiiDF16_,
                              __spirv_GroupFMulKHR)
 #undef __CLC_GROUP_COLLECTIVE__DF16
 
@@ -639,7 +639,7 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
 
 #define __CLC_GROUP_BROADCAST(TYPE)                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      uint scope, TYPE x, ulong local_id) {                                    \
+      int scope, TYPE x, ulong local_id) {                                    \
     if (scope == Subgroup) {                                                   \
       return __clc__SubgroupShuffle(x, local_id);                              \
     }                                                                          \
@@ -654,17 +654,17 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
     return result;                                                             \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      uint scope, TYPE x, ulong2 local_id) {                                   \
+      int scope, TYPE x, ulong2 local_id) {                                   \
     ulong linear_local_id = __clc__2d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      uint scope, TYPE x, ulong3 local_id) {                                   \
+      int scope, TYPE x, ulong3 local_id) {                                   \
     ulong linear_local_id = __clc__3d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      uint scope, TYPE x, uint local_id) {                                     \
+      int scope, TYPE x, uint local_id) {                                     \
     return __spirv_GroupBroadcast(scope, x, (ulong)local_id);                  \
   }
 __CLC_GROUP_BROADCAST(char);
@@ -681,18 +681,18 @@ __CLC_GROUP_BROADCAST(double)
 
 // half requires additional mangled entry points
 _CLC_DEF _CLC_CONVERGENT half
-_Z17__spirv_GroupBroadcastjDF16_m(uint scope, half x, ulong local_id) {
+_Z17__spirv_GroupBroadcastiDF16_m(int scope, half x, ulong local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
 }
 _CLC_DEF _CLC_CONVERGENT half
-_Z17__spirv_GroupBroadcastjDF16_Dv2_m(uint scope, half x, ulong2 local_id) {
+_Z17__spirv_GroupBroadcastiDF16_Dv2_m(int scope, half x, ulong2 local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
 }
 _CLC_DEF _CLC_CONVERGENT half
-_Z17__spirv_GroupBroadcastjDF16_Dv3_m(uint scope, half x, ulong3 local_id) {
+_Z17__spirv_GroupBroadcastiDF16_Dv3_m(int scope, half x, ulong3 local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
 }
-_CLC_DEF _CLC_CONVERGENT half _Z22__spirv_GroupBroadcastjDF16_j(uint scope,
+_CLC_DEF _CLC_CONVERGENT half _Z22__spirv_GroupBroadcastiDF16_j(int scope,
                                                                 half x,
                                                                 uint local_id) {
   return __spirv_GroupBroadcast(scope, x, (ulong)local_id);

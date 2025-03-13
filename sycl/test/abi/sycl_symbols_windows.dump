@@ -3473,7 +3473,7 @@
 ?__smoothstep_impl@_V1@sycl@@YAMMMM@Z
 ?__smoothstep_impl@_V1@sycl@@YANNNN@Z
 ?__spirv_ControlBarrier@@YAXUScope@__spv@@0I@Z
-?__spirv_GroupWaitEvents@@YAXUScope@__spv@@IPEAPEAX@Z
+?__spirv_GroupWaitEvents@@YAXHIPEAPEAX@Z
 ?__spirv_MemoryBarrier@@YAXUScope@__spv@@I@Z
 ?__spirv_ocl_prefetch@@YAXPEBD_K@Z
 ?__sqrt_impl@_V1@sycl@@YA?AV?$vec@M$00@12@V312@@Z

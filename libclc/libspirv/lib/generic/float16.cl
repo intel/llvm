@@ -3210,7 +3210,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONSTFN __clc_vec16_int8_t __spirv_FUnordNotEqual(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_float16_t __local *args_1,
+    __clc_int32_t args_0, __clc_float16_t __local *args_1,
     __clc_float16_t const __global *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_fp16_t __local *)(args_1),
@@ -3219,7 +3219,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_float16_t __global *args_1,
+    __clc_int32_t args_0, __clc_float16_t __global *args_1,
     __clc_float16_t const __local *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_fp16_t __global *)(args_1),
@@ -3228,7 +3228,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec2_float16_t __local *args_1,
+    __clc_int32_t args_0, __clc_vec2_float16_t __local *args_1,
     __clc_vec2_float16_t const __global *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec2_fp16_t __local *)(args_1),
@@ -3237,7 +3237,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec2_float16_t __global *args_1,
+    __clc_int32_t args_0, __clc_vec2_float16_t __global *args_1,
     __clc_vec2_float16_t const __local *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec2_fp16_t __global *)(args_1),
@@ -3246,7 +3246,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec3_float16_t __local *args_1,
+    __clc_int32_t args_0, __clc_vec3_float16_t __local *args_1,
     __clc_vec3_float16_t const __global *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec3_fp16_t __local *)(args_1),
@@ -3255,7 +3255,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec3_float16_t __global *args_1,
+    __clc_int32_t args_0, __clc_vec3_float16_t __global *args_1,
     __clc_vec3_float16_t const __local *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec3_fp16_t __global *)(args_1),
@@ -3264,7 +3264,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec4_float16_t __local *args_1,
+    __clc_int32_t args_0, __clc_vec4_float16_t __local *args_1,
     __clc_vec4_float16_t const __global *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec4_fp16_t __local *)(args_1),
@@ -3273,7 +3273,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec4_float16_t __global *args_1,
+    __clc_int32_t args_0, __clc_vec4_float16_t __global *args_1,
     __clc_vec4_float16_t const __local *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec4_fp16_t __global *)(args_1),
@@ -3282,7 +3282,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec8_float16_t __local *args_1,
+    __clc_int32_t args_0, __clc_vec8_float16_t __local *args_1,
     __clc_vec8_float16_t const __global *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec8_fp16_t __local *)(args_1),
@@ -3291,7 +3291,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec8_float16_t __global *args_1,
+    __clc_int32_t args_0, __clc_vec8_float16_t __global *args_1,
     __clc_vec8_float16_t const __local *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec8_fp16_t __global *)(args_1),
@@ -3300,7 +3300,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec16_float16_t __local *args_1,
+    __clc_int32_t args_0, __clc_vec16_float16_t __local *args_1,
     __clc_vec16_float16_t const __global *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec16_fp16_t __local *)(args_1),
@@ -3309,7 +3309,7 @@ _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT __clc_event_t __spirv_GroupAsyncCopy(
-    __clc_uint32_t args_0, __clc_vec16_float16_t __global *args_1,
+    __clc_int32_t args_0, __clc_vec16_float16_t __global *args_1,
     __clc_vec16_float16_t const __local *args_2, __clc_size_t args_3,
     __clc_size_t args_4, __clc_event_t args_5) {
   return __spirv_GroupAsyncCopy(args_0, (__clc_vec16_fp16_t __global *)(args_1),
