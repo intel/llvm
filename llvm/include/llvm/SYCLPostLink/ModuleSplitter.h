@@ -13,11 +13,10 @@
 #ifndef LLVM_SYCLLOWERIR_MODULE_SPLITTER_H
 #define LLVM_SYCLLOWERIR_MODULE_SPLITTER_H
 
-#include "SYCLDeviceRequirements.h"
-
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/PropertySetIO.h"
 
