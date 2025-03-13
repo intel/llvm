@@ -6,7 +6,7 @@ on:
   workflow_call:
     inputs:
       pr_no:
-        type: number
+        type: string
         required: false
       upload_results:
         type: string # true/false: workflow_dispatch does not support booleans
