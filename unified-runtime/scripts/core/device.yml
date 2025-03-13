@@ -253,7 +253,7 @@ etors:
       desc: "[uint32_t] address bits"
     - name: MAX_MEM_ALLOC_SIZE
       desc: "[uint64_t] max memory allocation size"
-    - name: IMAGE_SUPPORTED
+    - name: IMAGE_SUPPORT
       desc: "[$x_bool_t] images are supported"
     - name: MAX_READ_IMAGE_ARGS
       desc: "[uint32_t] max number of image objects arguments of a kernel declared with the read_only qualifier"
@@ -425,7 +425,7 @@ etors:
       desc: "[$x_bool_t] return true if Async Barrier is supported"
     - name: MEM_CHANNEL_SUPPORT
       desc: "[$x_bool_t] return true if specifying memory channels is supported"
-    - name: HOST_PIPE_READ_WRITE_SUPPORTED
+    - name: HOST_PIPE_READ_WRITE_SUPPORT
       desc: "[$x_bool_t] Return true if the device supports enqueueing commands to read and write pipes from the host."
     - name: MAX_REGISTERS_PER_WORK_GROUP
       desc: "[uint32_t][optional-query] The maximum number of registers available per block."
