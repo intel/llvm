@@ -148,16 +148,19 @@ jobs:
           time --option="APT::Acquire::Retries=3"
 
     - name: Install UR python dependencies
+      if: always()
       working-directory: ${{github.workspace}}/unified-runtime
       run: pip install -r third_party/requirements.txt
 
     - name: Download DPC++
+      if: always()
       run: |
         wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-12-12/sycl_linux.tar.gz
         mkdir dpcpp_compiler
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 
     - name: Configure Unified Runtime project
+      if: always()
       working-directory: ${{github.workspace}}/unified-runtime
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
@@ -181,10 +184,12 @@ jobs:
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
+      if: always()
       # This is so that device binaries can find the sycl runtime library
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
 
     - name: Install
+      if: always()
       # This is to check that install command does not fail
       run: cmake --install ${{github.workspace}}/build
 
@@ -194,8 +199,9 @@ jobs:
       if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
+      if: always()
       run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "conformance" --timeout 600
 
     - name: Get information about platform
-      if: ${{ always() }}
+      if: always()
       run: ${{github.workspace}}/unified-runtime/.github/scripts/get_system_info.sh
