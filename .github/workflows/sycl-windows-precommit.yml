@@ -55,7 +55,7 @@ jobs:
       name: Build Windows E2E tests
       runner: '["Windows", "build-e2e"]'
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      test_mode: build-only
+      testing_mode: build-only
 
   run-e2e:
     needs: [build, build-e2e]
@@ -77,4 +77,4 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      test_mode: run-only
+      testing_mode: run-only
