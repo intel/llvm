@@ -3324,6 +3324,10 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
           0, TempContext, &NativeProperties, &UREvent);
       MEvent->setHandle(UREvent);
+      // the only existing way to let backend know about this event to enable
+      // QueueFinish and barrier functionality
+      Adapter->call<UrApiKind::urEnqueueEventsWait>(MQueue->getHandleRef(), 1,
+                                                    &UREvent, nullptr);
     }
     queue_impl::getThreadPool().submit<DispatchHostTask>(
         DispatchHostTask(this, std::move(ReqToMem), std::move(ReqUrMem)));
