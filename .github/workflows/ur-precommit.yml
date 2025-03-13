@@ -49,7 +49,7 @@ jobs:
          - name: L0
            adapter_name: L0
            runner: ubuntu-24.04
-           image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+           image_options:  --user root --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
            reset_intel_gpu: true
            extra_lit_opts: --param gpu-intel-gen12=True
