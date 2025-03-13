@@ -927,6 +927,8 @@ std::enable_if_t<std::is_same_v<DataT, float4> || std::is_same_v<DataT, int4> ||
   return __invoke__SampledImageGather<DataT>(
       CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, float2::size()),
       coords, i);
+#else
+  return {0,0,0,0};
 #endif
 #else
   throw exception{make_error_code(errc::feature_not_supported),
