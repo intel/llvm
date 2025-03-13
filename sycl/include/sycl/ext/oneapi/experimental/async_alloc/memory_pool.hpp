@@ -7,98 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/context.hpp>       // for context
-#include <sycl/device.hpp>        // for device
+// #include <detail/memory_pool_impl.hpp>
+#include <sycl/context.hpp> // for context
+#include <sycl/device.hpp>  // for device
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool_properties.hpp>
 #include <sycl/queue.hpp>         // for queue
 #include <sycl/usm/usm_enums.hpp> // for usm::alloc
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
-namespace property {
 
-// Property that determines the initial threshold of a memory pool.
-struct initial_threshold : public sycl::detail::PropertyWithData<
-                               sycl::detail::MemPoolInitialThreshold> {
-public:
-  initial_threshold(size_t initialThreshold)
-      : initialThreshold(initialThreshold) {};
-  size_t get_initial_threshold() { return initialThreshold; }
-
-private:
-  size_t initialThreshold;
-};
-
-// Property that determines the maximum size of a memory pool.
-struct maximum_size
-    : public sycl::detail::PropertyWithData<sycl::detail::MemPoolMaximumSize> {
-public:
-  maximum_size(size_t maxSize) : maxSize(maxSize) {};
-  size_t get_maximum_size() { return maxSize; }
-
-private:
-  size_t maxSize;
-};
-
-// Property that provides a performance hint that all allocations from this pool
-// will only be read from within SYCL kernel functions.
-struct read_only
-    : public sycl::detail::DataLessProperty<sycl::detail::MemPoolReadOnly> {
-public:
-  read_only() = default;
-};
-
-// Property that initial allocations to a pool (not subsequent allocations from
-// prior frees) are iniitialised to zero.
-struct zero_init
-    : public sycl::detail::DataLessProperty<sycl::detail::MemPoolZeroInit> {
-public:
-  zero_init() = default;
-};
-} // namespace property
-
+// Forward declare memory_pool_impl.
 namespace detail {
-class memory_pool_impl {
-public:
-  memory_pool_impl(const sycl::context &ctx, const sycl::device &dev,
-                   const sycl::usm::alloc kind, const property_list &props);
-  memory_pool_impl(const sycl::context &ctx, const sycl::device &dev,
-                   const sycl::usm::alloc kind, ur_usm_pool_handle_t poolHandle,
-                   const bool isDefaultPool, const property_list &props);
-
-  ~memory_pool_impl();
-
-  memory_pool_impl(const memory_pool_impl &) = delete;
-  memory_pool_impl &operator=(const memory_pool_impl &) = delete;
-
-  ur_usm_pool_handle_t get_handle() const { return MPoolHandle; }
-  sycl::device get_device() const { return MDevice; }
-  sycl::context get_context() const {
-    return sycl::detail::createSyclObjFromImpl<sycl::context>(MContextImplPtr);
-  }
-  sycl::usm::alloc get_alloc_kind() const { return MKind; }
-  const property_list &getPropList() const { return MPropList; }
-
-  // Returns backend specific values.
-  size_t get_threshold() const;
-  size_t get_reserved_size_current() const;
-  size_t get_reserved_size_high() const;
-  size_t get_used_size_current() const;
-  size_t get_used_size_high() const;
-
-  void set_new_threshold(size_t newThreshold);
-  void reset_reserved_size_high();
-  void reset_used_size_high();
-  void trim_to(size_t minBytesToKeep);
-
-private:
-  std::shared_ptr<sycl::detail::context_impl> MContextImplPtr;
-  sycl::device MDevice;
-  sycl::usm::alloc MKind;
-  ur_usm_pool_handle_t MPoolHandle{0};
-  bool MIsDefaultPool = false;
-  property_list MPropList;
-};
+class memory_pool_impl;
 } // namespace detail
 
 /// Memory pool
@@ -129,10 +51,9 @@ public:
   bool operator!=(const memory_pool &rhs) const { return !(*this == rhs); }
 
   // Impl handles getters and setters.
-  sycl::context get_context() const { return impl->get_context(); }
-  sycl::device get_device() const { return impl->get_device(); }
-  sycl::usm::alloc get_alloc_kind() const { return impl->get_alloc_kind(); }
-
+  sycl::context get_context() const;
+  sycl::device get_device() const;
+  sycl::usm::alloc get_alloc_kind() const;
   size_t get_threshold() const;
   size_t get_reserved_size_current() const;
   size_t get_reserved_size_high() const;
@@ -145,11 +66,11 @@ public:
   void trim_to(size_t minBytesToKeep);
 
   // Property getters.
-  template <typename propertyT> bool has_property() const noexcept {
-    return getPropList().template has_property<propertyT>();
-  }
-  template <typename propertyT> propertyT get_property() const {
-    return getPropList().template get_property<propertyT>();
+  template <typename PropertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<PropertyT>();
+}
+  template <typename PropertyT> PropertyT get_property() const {
+    return getPropList().template get_property<PropertyT>();
   }
 
 protected:
@@ -165,25 +86,81 @@ protected:
   const property_list &getPropList() const;
 
   memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl) : impl(Impl) {}
+  memory_pool(const sycl::context &ctx, const sycl::device &dev,
+              const sycl::usm::alloc kind,
+              const std::pair<std::tuple<bool, bool, bool, bool>,
+                              std::tuple<size_t, size_t, bool, bool>> &props);
+
+  template <typename Properties = empty_properties_t,
+            typename = std::enable_if_t<
+                detail::all_are_properties_of_v<memory_pool, Properties>>>
+  std::pair<std::tuple<bool, bool, bool, bool>,
+            std::tuple<size_t, size_t, bool, bool>>
+  stripProps(const Properties &props) {
+
+    // Pair of tuples of set properties and their values.
+    // initial_threshold, maximum_size, read_only, zero_init.
+    std::pair<std::tuple<bool, bool, bool, bool>,
+              std::tuple<size_t, size_t, bool, bool>>
+        tuple;
+    bool initialThreshold = 0;
+    bool maximumSize = 0;
+    bool readOnly = 0;
+    bool zeroInit = 0;
+    // size_t initialThresholdVal = 0;
+    size_t maximumSizeVal = 0;
+    bool readOnlyVal = 0;
+    bool zeroInitVal = 0;
+
+    // auto a = props.template has_property<initial_threshold_key>();
+    // auto a = decltype(props)::has_property<initial_threshold_key>();
+    // properties P2{maximum_size{1024}};
+    // if constexpr (P2.has_property<initial_threshold_key>()) {
+    //   // initialThreshold = 1;
+    //   constexpr size_t initialThresholdVal =
+    //       P2.get_property<ext::oneapi::experimental::initial_threshold>().value;
+    //   // std::cout << "Stripping initial threshold: " << initialThresholdVal
+    //   //           << std::endl;
+    // } else {
+    //   // std::cout << "do nothing" << std::endl;
+    // }
+
+    // if (props.template has_property<
+    //         ext::oneapi::experimental::maximum_size_key>()) {
+    //   maximumSize = 1;
+    //   maximumSizeVal =
+    //       props.template
+    //       get_property<ext::oneapi::experimental::maximum_size>()
+    //           .value;
+    //   std::cout << "Stripping maximum size: " << maximumSizeVal << std::endl;
+    // }
+
+    // if (props.template has_property<ext::oneapi::experimental::read_only>())
+    // {
+    //   readOnly = 1;
+    //   readOnlyVal =
+    //       props.template get_property<ext::oneapi::experimental::read_only>()
+    //           .value;
+    //   std::cout << "Stripping read only: " << readOnlyVal << std::endl;
+    // }
+
+    // if (props.template has_property<
+    //         ext::oneapi::experimental::zero_init_key>()) {
+    //   zeroInit = 1;
+    //   zeroInitVal =
+    //       props.template get_property<ext::oneapi::experimental::zero_init>()
+    //           .value;
+    //   std::cout << "Stripping zero init: " << zeroInitVal << std::endl;
+    // }
+
+    tuple.first = {initialThreshold, maximumSize, readOnly, zeroInit};
+    tuple.second = {0, maximumSizeVal, readOnlyVal, zeroInitVal};
+
+    return tuple;
+  }
 };
 
 } // namespace ext::oneapi::experimental
-
-template <>
-struct is_property<sycl::ext::oneapi::experimental::property::initial_threshold>
-    : std::true_type {};
-
-template <>
-struct is_property<sycl::ext::oneapi::experimental::property::maximum_size>
-    : std::true_type {};
-
-template <>
-struct is_property<sycl::ext::oneapi::experimental::property::read_only>
-    : std::true_type {};
-
-template <>
-struct is_property<sycl::ext::oneapi::experimental::property::zero_init>
-    : std::true_type {};
 } // namespace _V1
 } // namespace sycl
 

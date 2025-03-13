@@ -8,10 +8,14 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/memory_pool_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool_properties.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -28,217 +32,19 @@ getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
   }
   return RetUrEvents;
 }
-
-ur_usm_pool_handle_t
-create_memory_pool_device(const sycl::context &ctx, const sycl::device &dev,
-                          const size_t threshold, const size_t maxSize,
-                          const bool readOnly, const bool zeroInit) {
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(ctx);
-  ur_context_handle_t C = CtxImpl->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(dev);
-  ur_device_handle_t Device = DevImpl->getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
-
-  ur_usm_pool_limits_desc_t LimitsDesc{UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC,
-                                       nullptr, maxSize, threshold};
-
-  ur_usm_pool_flags_t Flags = {UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP};
-  if (readOnly)
-    Flags += UR_USM_POOL_FLAG_READ_ONLY_EXP;
-  if (zeroInit)
-    Flags += UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK;
-
-  ur_usm_pool_desc_t PoolDesc{UR_STRUCTURE_TYPE_USM_POOL_DESC, &LimitsDesc,
-                              Flags};
-
-  ur_usm_pool_handle_t poolHandle;
-
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolCreateExp>(
-          C, Device, &PoolDesc, &poolHandle);
-
-  return poolHandle;
-}
-
-void destroy_memory_pool(const sycl::context &ctx, const sycl::device &dev,
-                         ur_usm_pool_handle_t &poolHandle) {
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(ctx);
-  ur_context_handle_t C = CtxImpl->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(dev);
-  ur_device_handle_t Device = DevImpl->getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
-
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolDestroyExp>(
-          C, Device, poolHandle);
-}
 } // namespace
 
-// <--- Memory pool impl --->
-detail::memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
-                                           const sycl::device &dev,
-                                           const sycl::usm::alloc kind,
-                                           const property_list &props)
-    : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
-      MKind(kind), MPropList(props) {
-  size_t maxSize = 0;
-  size_t threshold = 0;
-  bool readOnly = false;
-  bool zeroInit = false;
-
-  // Get properties.
-  if (props.has_property<property::maximum_size>()) {
-    maxSize = props.get_property<property::maximum_size>().get_maximum_size();
-  }
-  if (props.has_property<property::initial_threshold>()) {
-    threshold = props.get_property<property::initial_threshold>()
-                    .get_initial_threshold();
-  }
-  if (props.has_property<property::read_only>()) {
-    readOnly = true;
-  }
-  if (props.has_property<property::zero_init>()) {
-    zeroInit = true;
-  }
-
-  if (kind == sycl::usm::alloc::device)
-    MPoolHandle = create_memory_pool_device(ctx, dev, threshold, maxSize,
-                                            readOnly, zeroInit);
-  else
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Only device allocated memory pools are supported!");
-}
-
-detail::memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
-                                           const sycl::device &dev,
-                                           const sycl::usm::alloc kind,
-                                           ur_usm_pool_handle_t poolHandle,
-                                           const bool isDefaultPool,
-                                           const property_list &props)
-    : MContextImplPtr(sycl::detail::getSyclObjImpl(ctx)), MDevice(dev),
-      MKind(kind), MPoolHandle(poolHandle), MIsDefaultPool(isDefaultPool),
-      MPropList(props) {}
-
-detail::memory_pool_impl::~memory_pool_impl() {
-
-  // Default memory pools cannot be destroyed.
-  if (MIsDefaultPool) {
-    return;
-  }
-  ur_usm_pool_handle_t handle = this->get_handle();
-  sycl::context ctx = this->get_context();
-  sycl::device dev = this->get_device();
-  destroy_memory_pool(ctx, dev, handle);
-}
-
-size_t detail::memory_pool_impl::get_threshold() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  size_t threshold = 0;
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          MPoolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &threshold,
-          nullptr);
-
-  return threshold;
-}
-
-size_t detail::memory_pool_impl::get_reserved_size_current() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  size_t resSizeCurrent = 0;
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          MPoolHandle, UR_USM_POOL_INFO_RESERVED_CURRENT_EXP, &resSizeCurrent,
-          nullptr);
-
-  return resSizeCurrent;
-}
-
-size_t detail::memory_pool_impl::get_reserved_size_high() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  size_t resSizeHigh = 0;
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          MPoolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP, &resSizeHigh,
-          nullptr);
-
-  return resSizeHigh;
-}
-
-size_t detail::memory_pool_impl::get_used_size_current() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  size_t usedSizeCurrent = 0;
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          MPoolHandle, UR_USM_POOL_INFO_USED_CURRENT_EXP, &usedSizeCurrent,
-          nullptr);
-
-  return usedSizeCurrent;
-}
-
-size_t detail::memory_pool_impl::get_used_size_high() const {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  size_t usedSizeHigh = 0;
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolGetInfoExp>(
-          MPoolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP, &usedSizeHigh, nullptr);
-
-  return usedSizeHigh;
-}
-
-void detail::memory_pool_impl::set_new_threshold(size_t newThreshold) {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
-          MPoolHandle, UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP, &newThreshold,
-          8 /*uint64_t*/);
-}
-
-void detail::memory_pool_impl::reset_reserved_size_high() {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  uint64_t resetVal = 0; // Reset to zero
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
-          MPoolHandle, UR_USM_POOL_INFO_RESERVED_HIGH_EXP,
-          static_cast<void *>(&resetVal), 8 /*uint64_t*/);
-}
-
-void detail::memory_pool_impl::reset_used_size_high() {
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  uint64_t resetVal = 0; // Reset to zero
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
-          MPoolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP,
-          static_cast<void *>(&resetVal), 8 /*uint64_t*/);
-}
-
-void detail::memory_pool_impl::trim_to(size_t minBytesToKeep) {
-  ur_context_handle_t C = MContextImplPtr->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(MDevice);
-  ur_device_handle_t Device = DevImpl->getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolTrimToExp>(
-          C, Device, MPoolHandle, minBytesToKeep);
-}
-
 // <--- Memory pool --->
+__SYCL_EXPORT sycl::context memory_pool::get_context() const {
+  return impl->get_context();
+}
+__SYCL_EXPORT sycl::device memory_pool::get_device() const {
+  return impl->get_device();
+}
+__SYCL_EXPORT sycl::usm::alloc memory_pool::get_alloc_kind() const {
+  return impl->get_alloc_kind();
+}
+
 __SYCL_EXPORT size_t memory_pool::get_threshold() const {
   return impl->get_threshold();
 }
@@ -265,11 +71,10 @@ __SYCL_EXPORT size_t memory_pool::get_used_size_high() const {
 
 __SYCL_EXPORT void memory_pool::set_new_threshold(size_t newThreshold) {
 
-  // Throw when threshold is being reduced
-  if (newThreshold < get_threshold()) {
+  // Throw when threshold is being reduced.
+  if (newThreshold < get_threshold())
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Lowering the release threshold is disallowed!");
-  }
   impl->set_new_threshold(newThreshold);
 }
 
@@ -290,17 +95,15 @@ __SYCL_EXPORT memory_pool::memory_pool(const sycl::context &ctx,
                                        const sycl::usm::alloc kind,
                                        const property_list &props) {
 
-  if (kind == sycl::usm::alloc::host) {
+  if (kind == sycl::usm::alloc::host)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Host allocated memory pools selected but device supplied!");
-  }
 
-  if (kind != sycl::usm::alloc::device) {
+  if (kind != sycl::usm::alloc::device)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device allocated memory pools are supported!");
-  }
 
   impl = std::make_shared<detail::memory_pool_impl>(ctx, dev, kind, props);
 }
@@ -327,15 +130,14 @@ __SYCL_EXPORT memory_pool::memory_pool(const sycl::context &, const void *,
 }
 
 // <--- Async allocs/frees --->
-__SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
-                                 size_t size) {
+__SYCL_EXPORT
+void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
 
   // Non-device allocations are unsupported.
-  if (kind != sycl::usm::alloc::device) {
+  if (kind != sycl::usm::alloc::device)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Only device backed asynchronous allocations are supported!");
-  }
 
   h.throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
@@ -356,7 +158,8 @@ __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
       &alloc, &Event);
 
   // Async malloc must return a void* immediately.
-  // Set up CommandGroup which is a no-op and pass the event from the alloc.
+  // Set up CommandGroup which is a no-op and pass the
+  // event from the alloc.
   h.impl->MAllocSize = size;
   h.impl->MAsyncAllocEvent = Event;
   h.setType(detail::CGType::AsyncAlloc);

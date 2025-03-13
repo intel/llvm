@@ -571,10 +571,12 @@ context_impl::get_default_memory_pool(const context &Context,
   if (auto it = std::find_if(MMemPoolImplPtrs.begin(), MMemPoolImplPtrs.end(),
                              [&](auto &pair) { return Device == pair.first; });
       it != MMemPoolImplPtrs.end()) {
-    return it->second;
+    // Check if the shared_ptr of memory_pool_impl has not been destroyed.
+    if (!it->second.expired())
+      return it->second.lock();
   }
 
-  // We haven't requested the default pool for this device yet.
+  // The memory_pool_impl does not exist for this device yet.
   ur_usm_pool_handle_t PoolHandle;
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
@@ -584,6 +586,9 @@ context_impl::get_default_memory_pool(const context &Context,
       sycl::ext::oneapi::experimental::detail::memory_pool_impl>(
       Context, Device, sycl::usm::alloc::device, PoolHandle,
       true /*Default pool*/, property_list{});
+
+  // Hold onto a weak_ptr of the memory_pool_impl. Prevents circular
+  // dependencies between the context_impl and memory_pool_impl.
   MMemPoolImplPtrs.push_back(std::pair(Device, MemPoolImplPtr));
 
   return MemPoolImplPtr;

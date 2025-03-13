@@ -9,13 +9,13 @@
 #pragma once
 #include <detail/device_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
+#include <detail/memory_pool_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
 
@@ -262,9 +262,11 @@ private:
   mutable PropertySupport MSupportBufferLocationByDevices;
 
   // Device pools.
+  // Weak_ptr preventing circular dependency between memory_pool_impl and
+  // context_impl.
   std::vector<std::pair<
-      device, std::shared_ptr<
-                  sycl::ext::oneapi::experimental::detail::memory_pool_impl>>>
+      device,
+      std::weak_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>>>
       MMemPoolImplPtrs;
 
   std::set<const void *> MAssociatedDeviceGlobals;

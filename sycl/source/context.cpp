@@ -137,11 +137,10 @@ sycl::ext::oneapi::experimental::memory_pool
 context::ext_oneapi_get_default_memory_pool(const device &dev,
                                             const usm::alloc &kind) const {
 
-  if (kind == sycl::usm::alloc::host) {
+  if (kind == sycl::usm::alloc::host)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Default host memory pool requested but device supplied!");
-  }
 
   if (kind != sycl::usm::alloc::device)
     throw sycl::exception(
