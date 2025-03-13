@@ -5,11 +5,11 @@ on:
     - cron: '0 1 * * *'  # 2 hrs earlier than sycl-nightly.yml
   workflow_call:
     inputs:
-      pr_no:
-        type: number
+      commit_hash:
+        type: string
         required: false
       upload_results:
-        type: bool
+        type: string # true/false: workflow_dispatch does not support booleans
         required: true
       runner:
         type: string
@@ -18,16 +18,17 @@ on:
         type: string
         required: true
       reset_intel_gpu:
-        type: bool
+        type: string  # true/false: workflow_dispatch does not support booleans
         required: true
         default: true
 
   workflow_dispatch:
     inputs:
-      pr_no:
-        description: Specific PR no. to build
-        type: number
+      commit_hash:
+        description: Commit hash to build intel/llvm from
+        type: string
         required: false
+        default: ''
       upload_results:
         description: 'Save and upload results'
         type: choice
@@ -53,17 +54,15 @@ on:
           - true
         default: true
 
-permissions:
-  contents: read
-  packages: read
+permissions: read-all
 
 jobs:
   build_sycl:
     name: Build SYCL from PR
-    if: inputs.pr_no != null
+    if: inputs.commit_hash != ''
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
-      build_ref: "origin/pr/${{ inputs.pr_no }}/merge"
+      build_ref: ${{ inputs.commit_hash }}
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
@@ -71,19 +70,20 @@ jobs:
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
+      changes: '[]'
 
   run_benchmarks_build:
     name: Run Benchmarks (on PR Build)
     needs: [ build_sycl ]
-    if: inputs.pr_no != null
+    if: inputs.commit_hash != ''
     strategy:
       matrix:
         # Set default values if not specified:
         include:
           - runner: ${{ inputs.runner || '["PVC_PERF"]' }}
             backend: ${{ inputs.backend || 'level_zero:gpu' }}
-            reset_intel_gpu: ${{ inputs.reset_intel_gpu || true }}
-            ref: origin/pr/${{ inputs.pr_no }}/merge
+            reset_intel_gpu: ${{ inputs.reset_intel_gpu || 'true' }}
+            ref: ${{ inputs.commit_hash }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
@@ -96,21 +96,23 @@ jobs:
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       tests_selector: benchmark_v2
       repo_ref: ${{ matrix.ref }}
+      devops_ref: ${{ github.ref }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build_sycl.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build_sycl.outputs.artifact_decompress_command }}
 
   run_benchmarks_nightly:
     name: Run Benchmarks (on Nightly Build)
-    if: inputs.pr_no == 0
+    if: inputs.commit_hash == ''
     strategy:
       matrix:
         # Set default values if not specified:
         include:
           - runner: ${{ inputs.runner || '["PVC_PERF"]' }}
             backend: ${{ inputs.backend || 'level_zero:gpu' }}
-            reset_intel_gpu: ${{ inputs.reset_intel_gpu || true }}
+            reset_intel_gpu: ${{ inputs.reset_intel_gpu || 'true' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
+    secrets: inherit
     with:
       # TODO support other benchmarks
       name: Run compute-benchmarks (${{ matrix.runner }}, ${{ matrix.backend }})
@@ -120,3 +122,4 @@ jobs:
       target_devices: ${{ matrix.backend }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       tests_selector: benchmark_v2
+      repo_ref: ${{ github.ref }}
