@@ -1,4 +1,3 @@
-add_definitions(-g -O0)
 add_sycl_unittest(SchedulerTests OBJECT
     BlockedCommands.cpp
     Commands.cpp

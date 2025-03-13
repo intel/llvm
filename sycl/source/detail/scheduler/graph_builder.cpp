@@ -270,16 +270,18 @@ void Scheduler::GraphBuilder::addNodeToLeaves(
 }
 
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
-    MemObjRecord *Record, Requirement *Req, std::vector<Command *> &ToEnqueue) {
-  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, nullptr);
+    MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
+    std::vector<Command *> &ToEnqueue) {
+  auto Context = queue_impl::getContext(Queue);
+  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Context);
   assert(AllocaCmd && "There must be alloca for requirement!");
   UpdateHostRequirementCommand *UpdateCommand =
-      new UpdateHostRequirementCommand(*Req, AllocaCmd, &Req->MData);
+      new UpdateHostRequirementCommand(Queue, *Req, AllocaCmd, &Req->MData);
   // Need copy of requirement because after host accessor destructor call
   // dependencies become invalid if requirement is stored by pointer.
   const Requirement *StoredReq = UpdateCommand->getRequirement();
 
-  std::set<Command *> Deps = findDepsForReq(Record, Req, nullptr);
+  std::set<Command *> Deps = findDepsForReq(Record, Req, Context);
   std::vector<Command *> ToCleanUp;
   for (Command *Dep : Deps) {
     Command *ConnCmd =
@@ -531,7 +533,8 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   } else
     insertMemoryMove(Record, Req, nullptr, ToEnqueue);
 
-  Command *UpdateHostAccCmd = insertUpdateHostReqCmd(Record, Req, ToEnqueue);
+  Command *UpdateHostAccCmd =
+      insertUpdateHostReqCmd(Record, Req, nullptr, ToEnqueue);
 
   // Need empty command to be blocked until host accessor is destructed
   EmptyCommand *EmptyCmd = addEmptyCmd(

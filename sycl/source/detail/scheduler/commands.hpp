@@ -696,13 +696,12 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
 class UpdateHostRequirementCommand : public Command {
 public:
-  UpdateHostRequirementCommand(Requirement Req, AllocaCommandBase *SrcAllocaCmd,
-                               void **DstPtr);
+  UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,
+                               AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  bool producesPiEvent() const final { return false; }
 
 private:
   ur_result_t enqueueImp() final;
