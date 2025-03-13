@@ -44,8 +44,22 @@ jobs:
       changes: ${{ needs.detect_changes.outputs.filters }}
       e2e_binaries_artifact: sycl_windows_e2ebin
 
-  e2e:
+  build-e2e:
     needs: build
+    # Continue if build was successful.
+    if: |
+      always()
+      && !cancelled()
+      && needs.build.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-windows-run-tests.yml
+    with:
+      runner: '["Windows", "build-e2e"]'
+      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      e2e_binaries_artifact: sycl_windows_e2ebin
+      test_mode: build-only
+
+  run-e2e:
+    needs: [build, build-e2e]
     # Continue if build was successful.
     if: |
       always()
@@ -65,4 +79,4 @@ jobs:
       runner: ${{ matrix.runner }}
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       e2e_binaries_artifact: sycl_windows_e2ebin
-      extra_lit_opts: --param test-mode=run-only
+      test_mode: run-only
