@@ -3,6 +3,7 @@ from enum import Enum
 
 from presets import presets
 
+
 class Compare(Enum):
     LATEST = "latest"
     AVERAGE = "average"

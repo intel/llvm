@@ -83,7 +83,7 @@ class BenchmarkHistory:
             github_repo=github_repo,
             date=datetime.now(tz=timezone.utc),
             results=results,
-            hostname=socket.gethostname()
+            hostname=socket.gethostname(),
         )
 
     def save(self, save_name, results: list[Result], to_file=True):
@@ -99,11 +99,7 @@ class BenchmarkHistory:
 
         # Use formatted timestamp for the filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = Path(
-            os.path.join(
-                results_dir, f"{save_name}_{timestamp}.json"
-            )
-        )
+        file_path = Path(os.path.join(results_dir, f"{save_name}_{timestamp}.json"))
         with file_path.open("w") as file:
             json.dump(serialized, file, indent=4)
         print(f"Benchmark results saved to {file_path}")
@@ -134,7 +130,7 @@ class BenchmarkHistory:
             name=first_run.name,
             git_hash="average",
             date=first_run.date,  # should this be different?
-            hostname=first_run.hostname
+            hostname=first_run.hostname,
         )
 
         return average_benchmark_run

@@ -30,9 +30,9 @@ presets: dict[str, list[str]] = {
     ],
 }
 
+
 def enabled_suites(preset: str) -> list[str]:
     try:
         return presets[preset]
     except KeyError:
         raise ValueError(f"Preset '{preset}' not found.")
-

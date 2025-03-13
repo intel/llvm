@@ -28,7 +28,7 @@ class ComputeBench(Suite):
             self.directory,
             "compute-benchmarks-repo",
             "https://github.com/intel/compute-benchmarks.git",
-            "dfdbf2ff9437ee159627cc2cd9159c289da1a7ba",
+            "b5cc46acf61766ab00da04e85bd4da4f7591eb21",
         )
         build_path = create_build_path(self.directory, "compute-benchmarks-build")
 
@@ -86,6 +86,19 @@ class ComputeBench(Suite):
             UllsKernelSwitch(self, RUNTIMES.SYCL, 8, 200, 0, 0, 1, 1),
             UllsKernelSwitch(self, RUNTIMES.LEVEL_ZERO, 8, 200, 0, 0, 1, 1),
         ]
+
+        for in_order_queue in [0, 1]:
+            for num_kernels in [4, 32]:
+                for measure_completion_time in [0, 1]:
+                    benches.append(
+                        GraphApiSubmitGraph(
+                            self,
+                            RUNTIMES.SYCL,
+                            in_order_queue,
+                            num_kernels,
+                            measure_completion_time,
+                        )
+                    )
 
         if options.ur is not None:
             benches += [
@@ -536,14 +549,46 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
             "--immediateAppendCmdList=0",
         ]
 
+
+class GraphApiSubmitGraph(ComputeBenchmark):
+    def __init__(
+        self, bench, runtime: RUNTIMES, inOrderQueue, numKernels, measureCompletionTime
+    ):
+        self.inOrderQueue = inOrderQueue
+        self.numKernels = numKernels
+        self.runtime = runtime
+        self.measureCompletionTime = measureCompletionTime
+        super().__init__(bench, f"graph_api_benchmark_{runtime.value}", "SubmitGraph")
+
+    def explicit_group(self):
+        return f"SubmitGraph {self.numKernels}"
+
+    def description(self) -> str:
+        return (
+            f"Measures {self.runtime.value.upper()} performance when executing {self.numKernels} "
+            f"trivial kernels using graphs. Tests overhead and benefits of graph-based execution."
+        )
+
+    def name(self):
+        return f"graph_api_benchmark_{self.runtime.value} SubmitGraph numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
+
+    def bin_args(self) -> list[str]:
+        return [
+            "--iterations=10000",
+            f"--NumKernels={self.numKernels}",
+            f"--MeasureCompletionTime={self.measureCompletionTime}",
+            f"--InOrderQueue={self.inOrderQueue}",
+            "--Profiling=0",
+            "--KernelExecutionTime=1",
+        ]
+
+
 class UllsEmptyKernel(ComputeBenchmark):
     def __init__(self, bench, runtime: RUNTIMES, wgc, wgs):
         self.wgc = wgc
         self.wgs = wgs
         self.runtime = runtime
-        super().__init__(
-            bench, f"ulls_benchmark_{runtime.value}", "EmptyKernel"
-        )
+        super().__init__(bench, f"ulls_benchmark_{runtime.value}", "EmptyKernel")
 
     def explicit_group(self):
         return f"EmptyKernel {self.wgc} {self.wgs}"
@@ -561,8 +606,19 @@ class UllsEmptyKernel(ComputeBenchmark):
             f"--wgc={self.wgs}",
         ]
 
+
 class UllsKernelSwitch(ComputeBenchmark):
-    def __init__(self, bench, runtime: RUNTIMES, count, kernelTime, barrier, hostVisible, ioq, ctrBasedEvents):
+    def __init__(
+        self,
+        bench,
+        runtime: RUNTIMES,
+        count,
+        kernelTime,
+        barrier,
+        hostVisible,
+        ioq,
+        ctrBasedEvents,
+    ):
         self.count = count
         self.kernelTime = kernelTime
         self.barrier = barrier
@@ -570,9 +626,7 @@ class UllsKernelSwitch(ComputeBenchmark):
         self.ctrBasedEvents = ctrBasedEvents
         self.runtime = runtime
         self.ioq = ioq
-        super().__init__(
-            bench, f"ulls_benchmark_{runtime.value}", "KernelSwitch"
-        )
+        super().__init__(bench, f"ulls_benchmark_{runtime.value}", "KernelSwitch")
 
     def explicit_group(self):
         return f"KernelSwitch {self.count} {self.kernelTime}"
