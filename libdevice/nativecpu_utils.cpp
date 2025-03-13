@@ -36,8 +36,7 @@ using __nativecpu_state = native_cpu::state;
 DEVICE_EXTERN_C void __mux_work_group_barrier(uint32_t id, uint32_t scope,
                                               uint32_t semantics);
 __SYCL_CONVERGENT__ DEVICE_EXTERNAL void
-__spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
-                       uint32_t Semantics) {
+__spirv_ControlBarrier(int32_t Execution, int32_t Memory, int32_t Semantics) {
   if (__spv::Scope::Flag::Workgroup == Execution)
     // todo: check id and args; use mux constants
     __mux_work_group_barrier(0, Execution, Semantics);
@@ -45,7 +44,7 @@ __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
 
 DEVICE_EXTERN_C void __mux_mem_barrier(uint32_t scope, uint32_t semantics);
 __SYCL_CONVERGENT__ DEVICE_EXTERNAL void
-__spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) {
+__spirv_MemoryBarrier(int32_t Memory, int32_t Semantics) {
   __mux_mem_barrier(Memory, Semantics);
 }
 
