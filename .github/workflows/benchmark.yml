@@ -100,7 +100,7 @@ jobs:
 
   run_benchmarks_nightly:
     name: Run Benchmarks (on Nightly Build)
-    if: inputs.pr_no == 0
+    if: inputs.pr_no == null
     strategy:
       matrix:
         # Set default values if not specified:
@@ -118,3 +118,4 @@ jobs:
       target_devices: ${{ matrix.backend }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       tests_selector: benchmark_v2
+      repo_ref: ${{ github.ref }}
