@@ -12,6 +12,7 @@ from .result import Result
 from options import options
 from enum import Enum
 
+
 class ComputeBench(Suite):
     def __init__(self, directory):
         self.directory = directory
@@ -58,7 +59,7 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return []
 
-        if options.ur_adapter == "cuda":
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
             return []
 
         benches = [
