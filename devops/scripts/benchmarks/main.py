@@ -468,6 +468,10 @@ if __name__ == "__main__":
         type=int,
         help="Number of build jobs to run simultaneously",
         default=options.build_jobs,
+        "--hip_arch",
+        type=str,
+        help="HIP device architecture",
+        default=None,
     )
 
     args = parser.parse_args()
@@ -497,6 +501,7 @@ if __name__ == "__main__":
     options.cublas_directory = args.cublas_directory
     options.custom_results_dir = args.results_dir
     options.build_jobs = args.build_jobs
+    options.hip_arch = args.hip_arch
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
