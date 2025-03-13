@@ -112,9 +112,13 @@ jobs:
     #
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-    - name: Install build tools
+      
+    - name: Create user sycl
       run: |
         bash devops/scripts/create-sycl-user.sh
+
+    - name: Install build tools
+      run: |
         bash devops/scripts/install_build_tools.sh
 
     - name: Install UR python dependencies
