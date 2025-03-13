@@ -116,7 +116,7 @@ int main() {
   Graph.end_recording();
 
   auto ExecGraph = Graph.finalize();
-  Queue.ext_oneapi_graph(ExecGraph).wait();
+  Queue.ext_oneapi_graph(ExecGraph);
 
   std::vector<int> HostDataY(Size);
   std::vector<int> HostDataZ(Size);

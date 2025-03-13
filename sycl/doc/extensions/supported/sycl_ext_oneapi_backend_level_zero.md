@@ -275,8 +275,8 @@ struct {
 <td>
 
 ``` C++
-using syclext = sycl::ext::oneapi::experimental;
-syclext::command_graph<syclext::graph_state::executable>
+ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::executable>
 ```
 
 See [sycl_ext_oneapi_graph](../experimental/sycl_ext_oneapi_graph.asciidoc)

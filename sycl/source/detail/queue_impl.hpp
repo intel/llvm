@@ -1016,7 +1016,7 @@ protected:
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // CMPLRLLVM-66082
   // This member should be part of the sycl::interop_handle class, but it
-  // in an API breaking change. So member lives here temporarily where it can
+  // is an API breaking change. So member lives here temporarily where it can
   // be accessed through the queue member of the interop_handle
   ur_exp_command_buffer_handle_t MInteropGraph{};
 #endif

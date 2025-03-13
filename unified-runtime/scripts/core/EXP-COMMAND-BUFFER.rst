@@ -532,7 +532,7 @@ Changelog
 | 1.10      | Remove extension string macro, make device info enum  |
 |           | primary mechanism for reporting support.              |
 +-----------+-------------------------------------------------------+
-| 1.11       | Support native commands.                             |
+| 1.11      | Support native commands.                              |
 +-----------+-------------------------------------------------------+
 
 Contributors

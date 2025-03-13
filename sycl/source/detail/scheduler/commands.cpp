@@ -3089,19 +3089,18 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 
     ur_exp_command_buffer_handle_t InteropCommandBuffer =
         ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl,
+                      InteropCommandBuffer};
+    CommandBufferNativeCommandData CustomOpData{
+        IH, HostTask->MHostTask->MInteropTask};
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // CMPLRLLVM-66082
     // The native command-buffer should be a member of the sycl::interop_handle
     // class, but it is in an ABI breaking change to add it. So member lives in
     // the queue as a intermediate workaround.
-    interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl,
-                      InteropCommandBuffer};
-#else
     MQueue->setInteropGraph(InteropCommandBuffer);
-    interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl};
 #endif
-    CommandBufferNativeCommandData CustomOpData{
-        IH, HostTask->MHostTask->MInteropTask};
 
     Adapter->call<UrApiKind::urCommandBufferAppendNativeCommandExp>(
         MCommandBuffer, CommandBufferInteropFreeFunc, &CustomOpData,

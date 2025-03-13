@@ -105,7 +105,6 @@ int main() {
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
   std::vector<int> HostData(Size);
-
   Queue.copy(PtrY, HostData.data(), Size).wait();
   for (size_t i = 0; i < Size; i++) {
     const int Ref = i * 2;
