@@ -30,9 +30,7 @@ StackTrace GetCurrentBacktrace() {
   }
 
   StackTrace Stack;
-  if (FrameCount > 1)
-    Stack.stack =
-        std::vector<BacktraceFrame>(&Frames[0], &Frames[FrameCount - 1]);
+  Stack.stack = std::vector<BacktraceFrame>(&Frames[0], &Frames[FrameCount]);
 
   return Stack;
 }
