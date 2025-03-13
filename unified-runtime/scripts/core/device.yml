@@ -409,7 +409,7 @@ etors:
     - name: ATOMIC_FENCE_SCOPE_CAPABILITIES
       desc: "[$x_memory_scope_capability_flags_t] return a bit-field of atomic memory fence scope capabilities"
     - name: BFLOAT16
-      desc: "[$x_bool_t] support for bfloat16"
+      desc: "[$x_bool_t][deprecated-value] support for bfloat16"
     - name: MAX_COMPUTE_QUEUE_INDICES
       desc: |
             [uint32_t] Returns 1 if the device doesn't have a notion of a

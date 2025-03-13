@@ -1460,7 +1460,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
-
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     const cl_device_info info_name = CL_DEVICE_SUB_GROUP_SIZES_INTEL;
     bool isExtensionSupported;
@@ -1486,7 +1485,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
                                                      SubGroupSizes.size());
   }
-
   case UR_DEVICE_INFO_UUID: {
     // Use the cl_khr_device_uuid extension, if available.
     bool isKhrDeviceUuidSupported = false;
@@ -1565,7 +1563,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
-  case UR_DEVICE_INFO_BFLOAT16:
   case UR_DEVICE_INFO_ASYNC_BARRIER:
   case UR_DEVICE_INFO_USM_POOL_SUPPORT: // end of TODO
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
