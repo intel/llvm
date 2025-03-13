@@ -48,10 +48,6 @@ on:
         required: false
         default: "cl"
 
-      e2e_binaries_artifact:
-        type: string
-        required: false
-
       testing_mode:
         type: string
         default: "full"
@@ -120,7 +116,7 @@ jobs:
       if: inputs.testing_mode == 'run-only'
       uses: actions/download-artifact@v4
       with:
-        name: ${{ inputs.e2e_binaries_artifact }}
+        name: sycl_windows_e2ebin
     - name: Extract E2E Binaries
       if: inputs.testing_mode == 'run-only'
       shell: bash
@@ -154,7 +150,7 @@ jobs:
       if: inputs.testing_mode == 'build-only'
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ inputs.e2e_binaries_artifact }}
+        name: sycl_windows_e2ebin
         path: e2e_bin.tar.gz
         retention-days: 3
 
