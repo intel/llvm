@@ -1,6 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 
-// // UN SUPPORTED: hip || level_ zero
+// UNSUPPORTED: hip || level_zero
 // UNSUPPORTED-INTENDED: Image channels queries not working correctly on HIP.
 // Also, the feature is not fully implemented in the Level Zero stack.
 
@@ -13,7 +13,7 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
-#define VERBOSE_PRINT
+// #define VERBOSE_PRINT
 
 void printString(std::string name) {
 #ifdef VERBOSE_PRINT
@@ -39,16 +39,13 @@ int main() {
     q.submit([&](sycl::handler &cgh) { cgh.single_task([]() {}); });
 
     // Extension: image descriptor - can use the same for both images
-    std::cerr << "[SYCL] Creating image descriptor" << std::endl;
     sycl::ext::oneapi::experimental::image_descriptor desc(
         {width, height, depth}, 1, sycl::image_channel_type::signed_int32);
 
-    std::cerr << "[SYCL] image_mem" << std::endl;
     // Extension: returns the device pointer to the allocated memory
     // Input images memory
     sycl::ext::oneapi::experimental::image_mem imgMem(desc, dev, ctxt);
 
-    std::cerr << "[SYCL] support check" << std::endl;
     // Extension: query for bindless image support -- device aspects
     bool bindlessSupport = dev.has(sycl::aspect::ext_oneapi_bindless_images);
     bool bindlessSharedUsmSupport =
@@ -66,7 +63,6 @@ int main() {
               << "\nbindless_images_2d_usm_support: " << usm2dSupport << "\n";
 #endif
 
-    std::cerr << "[SYCL] support check cntd" << std::endl;
     // Extension: query for sampled image fetch capabilities
     bool sampledFetch1DUSMSupport =
         dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_1d_usm);
@@ -87,48 +83,43 @@ int main() {
               << "\nsampledFetch3DSupport: " << sampledFetch3DSupport << "\n";
 #endif
 
-// std::cerr << "[SYCL] get info 1" << std::endl;
-
     // Extension: get pitch alignment information from device -- device info
     // Make sure our pitch alignment queries work properly
     // These can be different depending on the device so we cannot test that the
     // values are correct
     // But we should at least see that the query itself works
-//     auto pitchAlign = dev.get_info<
-//         sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
-//     auto maxPitch = dev.get_info<sycl::ext::oneapi::experimental::info::device::
-//                                      max_image_linear_row_pitch>();
-//     auto maxWidth = dev.get_info<sycl::ext::oneapi::experimental::info::device::
-//                                      max_image_linear_width>();
-//     auto maxheight = dev.get_info<sycl::ext::oneapi::experimental::info::
-//                                       device::max_image_linear_height>();
-// #ifdef VERBOSE_PRINT
-//     std::cout << "image_row_pitch_align: " << pitchAlign
-//               << "\nmax_image_linear_row_pitch: " << maxPitch
-//               << "\nmax_image_linear_width: " << maxWidth
-//               << "\nmax_image_linear_height: " << maxheight << "\n";
-// #endif
+    auto pitchAlign = dev.get_info<
+        sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
+    auto maxPitch = dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                                     max_image_linear_row_pitch>();
+    auto maxWidth = dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                                     max_image_linear_width>();
+    auto maxheight = dev.get_info<sycl::ext::oneapi::experimental::info::
+                                      device::max_image_linear_height>();
 
-//     std::cerr << "[SYCL] get info mipap" << std::endl;
+#ifdef VERBOSE_PRINT
+    std::cout << "image_row_pitch_align: " << pitchAlign
+              << "\nmax_image_linear_row_pitch: " << maxPitch
+              << "\nmax_image_linear_width: " << maxWidth
+              << "\nmax_image_linear_height: " << maxheight << "\n";
+#endif
 
-//     // Extension: query for bindless image mipmaps support -- aspects & info
-//     bool mipmapSupport = dev.has(sycl::aspect::ext_oneapi_mipmap);
-//     bool mipmapAnisotropySupport =
-//         dev.has(sycl::aspect::ext_oneapi_mipmap_anisotropy);
-//     float mipmapMaxAnisotropy = dev.get_info<
-//         sycl::ext::oneapi::experimental::info::device::mipmap_max_anisotropy>();
-//     bool mipmapLevelReferenceSupport =
-//         dev.has(sycl::aspect::ext_oneapi_mipmap_level_reference);
+    // Extension: query for bindless image mipmaps support -- aspects & info
+    bool mipmapSupport = dev.has(sycl::aspect::ext_oneapi_mipmap);
+    bool mipmapAnisotropySupport =
+        dev.has(sycl::aspect::ext_oneapi_mipmap_anisotropy);
+    float mipmapMaxAnisotropy = dev.get_info<
+        sycl::ext::oneapi::experimental::info::device::mipmap_max_anisotropy>();
+    bool mipmapLevelReferenceSupport =
+        dev.has(sycl::aspect::ext_oneapi_mipmap_level_reference);
 
-// #ifdef VERBOSE_PRINT
-//     std::cout << "mipmapSupport: " << mipmapSupport
-//               << "\nmipmapAnisotropySupport: " << mipmapAnisotropySupport
-//               << "\nmipmapMaxAnisotropy: " << mipmapMaxAnisotropy
-//               << "\nmipmapLevelReferenceSupport: "
-//               << mipmapLevelReferenceSupport << "\n";
-// #endif
-
-    std::cerr << "[SYCL] get info cubemap" << std::endl;
+#ifdef VERBOSE_PRINT
+    std::cout << "mipmapSupport: " << mipmapSupport
+              << "\nmipmapAnisotropySupport: " << mipmapAnisotropySupport
+              << "\nmipmapMaxAnisotropy: " << mipmapMaxAnisotropy
+              << "\nmipmapLevelReferenceSupport: "
+              << mipmapLevelReferenceSupport << "\n";
+#endif
 
     // Extension: query for bindless image cubemaps support -- aspects.
     bool cubemapSupport = dev.has(sycl::aspect::ext_oneapi_cubemap);

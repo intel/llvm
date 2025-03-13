@@ -47,8 +47,6 @@ ur_result_t urBindlessImagesImageCopyExp(
   return exceptionToResult(std::current_exception());
 }
 
-
-
 ur_result_t urBindlessImagesImportExternalMemoryExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice, [[maybe_unused]] size_t size,
