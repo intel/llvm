@@ -53,9 +53,7 @@ on:
           - true
         default: true
 
-permissions:
-  contents: read
-  packages: read
+permissions: read-all
 
 jobs:
   build_sycl:
