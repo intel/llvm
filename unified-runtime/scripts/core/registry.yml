@@ -643,6 +643,18 @@ etors:
 - name: USM_POOL_SET_INFO_EXP
   desc: Enumerator for $xUSMPoolSetInfoExp
   value: '265'
+- name: BINDLESS_IMAGES_GET_IMAGE_MEMORY_POINTER_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageMemoryPointerSupportExp
+  value: '266'
+- name: BINDLESS_IMAGES_GET_IMAGE_MEMORY_OPAQUE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageMemoryOpaqueSupportExp
+  value: '267'
+- name: BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageUnsampledHandleSupportExp
+  value: '268'
+- name: BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP
+  desc: Enumerator for $xBindlessImagesGetImageSampledHandleSupportExp
+  value: '269'
 ---
 type: enum
 desc: Defines structure types

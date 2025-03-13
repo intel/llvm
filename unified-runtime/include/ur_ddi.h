@@ -1445,6 +1445,35 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageGetInfoExp_t)(
     void *, size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesGetImageMemoryPointerSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageMemoryPointerSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, bool *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesGetImageMemoryOpaqueSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageMemoryOpaqueSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, bool *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for
+/// urBindlessImagesGetImageUnsampledHandleSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageUnsampledHandleSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, bool, bool *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesGetImageSampledHandleSupportExp
+typedef ur_result_t(
+    UR_APICALL *ur_pfnBindlessImagesGetImageSampledHandleSupportExp_t)(
+    ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
+    const ur_image_format_t *, bool, bool *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesMipmapGetLevelExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapGetLevelExp_t)(
     ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_native_handle_t,
@@ -1520,6 +1549,14 @@ typedef struct ur_bindless_images_exp_dditable_t {
   ur_pfnBindlessImagesSampledImageCreateExp_t pfnSampledImageCreateExp;
   ur_pfnBindlessImagesImageCopyExp_t pfnImageCopyExp;
   ur_pfnBindlessImagesImageGetInfoExp_t pfnImageGetInfoExp;
+  ur_pfnBindlessImagesGetImageMemoryPointerSupportExp_t
+      pfnGetImageMemoryPointerSupportExp;
+  ur_pfnBindlessImagesGetImageMemoryOpaqueSupportExp_t
+      pfnGetImageMemoryOpaqueSupportExp;
+  ur_pfnBindlessImagesGetImageUnsampledHandleSupportExp_t
+      pfnGetImageUnsampledHandleSupportExp;
+  ur_pfnBindlessImagesGetImageSampledHandleSupportExp_t
+      pfnGetImageSampledHandleSupportExp;
   ur_pfnBindlessImagesMipmapGetLevelExp_t pfnMipmapGetLevelExp;
   ur_pfnBindlessImagesMipmapFreeExp_t pfnMipmapFreeExp;
   ur_pfnBindlessImagesImportExternalMemoryExp_t pfnImportExternalMemoryExp;

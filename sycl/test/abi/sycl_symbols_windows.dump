@@ -44,6 +44,10 @@
 ??$get_backend_info@Uversion@platform@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_backend_info@Uversion@platform@info@_V1@sycl@@@platform@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_backend_info@Uversion@platform@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
+??$get_image_handle_supported@Usampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVdevice@34@AEBVcontext@34@@Z
+??$get_image_handle_supported@Usampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
+??$get_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVdevice@34@AEBVcontext@34@@Z
+??$get_image_handle_supported@Uunsampled_image_handle@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA_NAEBUimage_descriptor@01234@W4image_memory_handle_type@01234@AEBVqueue@34@@Z
 ??$get_info@U?$max_work_groups@$00@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$00@23@XZ
 ??$get_info@U?$max_work_groups@$01@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$01@23@XZ
 ??$get_info@U?$max_work_groups@$02@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$id@$02@23@XZ
@@ -354,7 +358,9 @@
 ??0dynamic_command_group@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV?$command_graph@$0A@@12345@AEBV?$vector@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V?$allocator@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@@2@@std@@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@@Z
 ??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_KPEBX@Z
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
 ??0event@_V1@sycl@@AEAA@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
 ??0event@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0event@_V1@sycl@@QEAA@AEBV012@@Z
@@ -505,14 +511,10 @@
 ??1exception@_V1@sycl@@UEAA@XZ
 ??1exception_list@_V1@sycl@@QEAA@XZ
 ??1executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
-??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@@Z
-?updateWorkGroupMem@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAX_K@Z
 ??1filter_selector@ONEAPI@_V1@sycl@@UEAA@XZ
 ??1filter_selector@oneapi@ext@_V1@sycl@@UEAA@XZ
 ??1fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAA@XZ
 ??1gpu_selector@_V1@sycl@@UEAA@XZ
-??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
-?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVdynamic_work_group_memory_base@detail@experimental@oneapi@ext@23@@Z
 ??1handler@_V1@sycl@@AEAA@XZ
 ??1image_mem@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
 ??1image_mem_impl@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
@@ -4136,6 +4138,8 @@
 ?get_handle@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AUimage_mem_handle@23456@XZ
 ?get_image_channel_type@experimental@oneapi@ext@_V1@sycl@@YA?AW4image_channel_type@45@Uimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?get_image_channel_type@experimental@oneapi@ext@_V1@sycl@@YA?AW4image_channel_type@45@Uimage_mem_handle@12345@AEBVqueue@45@@Z
+?get_image_memory_support@experimental@oneapi@ext@_V1@sycl@@YA?AV?$vector@W4image_memory_handle_type@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4image_memory_handle_type@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
+?get_image_memory_support@experimental@oneapi@ext@_V1@sycl@@YA?AV?$vector@W4image_memory_handle_type@experimental@oneapi@ext@_V1@sycl@@V?$allocator@W4image_memory_handle_type@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?get_image_num_channels@experimental@oneapi@ext@_V1@sycl@@YAIUimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?get_image_num_channels@experimental@oneapi@ext@_V1@sycl@@YAIUimage_mem_handle@12345@AEBVqueue@45@@Z
 ?get_image_range@experimental@oneapi@ext@_V1@sycl@@YA?AV?$range@$02@45@Uimage_mem_handle@12345@AEBVdevice@45@AEBVcontext@45@@Z
@@ -4346,6 +4350,7 @@
 ?select_device@filter_selector@oneapi@ext@_V1@sycl@@UEBA?AVdevice@45@XZ
 ?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVsampler@23@@Z
+?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVdynamic_work_group_memory_base@detail@experimental@oneapi@ext@23@@Z
 ?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVwork_group_memory_impl@detail@23@@Z
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setArgsToAssociatedAccessors@handler@_V1@sycl@@AEAAXXZ
@@ -4421,6 +4426,7 @@
 ?updateAccessor@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBVAccessorBaseHost@267@@Z
 ?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBVraw_kernel_arg@34567@_K@Z
 ?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBX_K@Z
+?updateWorkGroupMem@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAX_K@Z
 ?use_kernel_bundle@handler@_V1@sycl@@QEAAXAEBV?$kernel_bundle@$01@23@@Z
 ?verifyDeviceHasProgressGuarantee@handler@_V1@sycl@@AEAAXW4forward_progress_guarantee@experimental@oneapi@ext@23@W4execution_scope@56723@1@Z
 ?verifyReductionProps@detail@_V1@sycl@@YAXAEBVproperty_list@23@@Z

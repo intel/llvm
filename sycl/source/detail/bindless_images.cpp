@@ -904,6 +904,130 @@ get_image_num_channels(const image_mem_handle memHandle,
                                 syclQueue.get_context());
 }
 
+__SYCL_EXPORT std::vector<image_memory_handle_type>
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::device &syclDevice,
+                         const sycl::context &syclContext) {
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(syclDevice);
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  ur_image_desc_t urDesc;
+  ur_image_format_t urFormat;
+  populate_ur_structs(imageDescriptor, urDesc, urFormat);
+
+  bool supportsPointerAllocation = false;
+  Adapter->call<
+      sycl::errc::runtime,
+      sycl::detail::UrApiKind::urBindlessImagesGetImageMemoryPointerSupportExp>(
+      CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
+      &supportsPointerAllocation);
+
+  bool supportsOpaqueAllocation = false;
+  Adapter->call<
+      sycl::errc::runtime,
+      sycl::detail::UrApiKind::urBindlessImagesGetImageMemoryOpaqueSupportExp>(
+      CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
+      &supportsOpaqueAllocation);
+
+  std::vector<image_memory_handle_type> supportedMemHandleTypes;
+
+  if (supportsPointerAllocation) {
+    supportedMemHandleTypes.push_back(image_memory_handle_type::usm_pointer);
+  }
+
+  if (supportsOpaqueAllocation) {
+    supportedMemHandleTypes.push_back(image_memory_handle_type::opaque_handle);
+  }
+
+  return supportedMemHandleTypes;
+}
+
+__SYCL_EXPORT std::vector<image_memory_handle_type>
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::queue &syclQueue) {
+  return get_image_memory_support(imageDescriptor, syclQueue.get_device(),
+                                  syclQueue.get_context());
+}
+
+template <>
+__SYCL_EXPORT bool get_image_handle_supported<unsampled_image_handle>(
+    const image_descriptor &imageDescriptor,
+    image_memory_handle_type imageMemoryHandleType,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(syclDevice);
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  ur_image_desc_t urDesc;
+  ur_image_format_t urFormat;
+  populate_ur_structs(imageDescriptor, urDesc, urFormat);
+
+  const bool isOpaqueMemoryHandle =
+      (imageMemoryHandleType == image_memory_handle_type::opaque_handle);
+
+  bool supportsUnsampledHandle = false;
+  Adapter->call<sycl::errc::runtime,
+                sycl::detail::UrApiKind::
+                    urBindlessImagesGetImageUnsampledHandleSupportExp>(
+      CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
+      isOpaqueMemoryHandle, &supportsUnsampledHandle);
+
+  return supportsUnsampledHandle;
+}
+
+template <>
+__SYCL_EXPORT bool get_image_handle_supported<unsampled_image_handle>(
+    const image_descriptor &imageDescriptor,
+    image_memory_handle_type imageMemoryHandleType,
+    const sycl::queue &syclQueue) {
+  return get_image_handle_supported<unsampled_image_handle>(
+      imageDescriptor, imageMemoryHandleType, syclQueue.get_device(),
+      syclQueue.get_context());
+}
+
+template <>
+__SYCL_EXPORT bool get_image_handle_supported<sampled_image_handle>(
+    const image_descriptor &imageDescriptor,
+    image_memory_handle_type imageMemoryHandleType,
+    const sycl::device &syclDevice, const sycl::context &syclContext) {
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(syclDevice);
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  const sycl::detail::AdapterPtr &Adapter = CtxImpl->getAdapter();
+
+  ur_image_desc_t urDesc;
+  ur_image_format_t urFormat;
+  populate_ur_structs(imageDescriptor, urDesc, urFormat);
+
+  const bool isOpaqueMemoryHandle =
+      (imageMemoryHandleType == image_memory_handle_type::opaque_handle);
+
+  bool supportsSampledHandle = false;
+  Adapter->call<
+      sycl::errc::runtime,
+      sycl::detail::UrApiKind::urBindlessImagesGetImageSampledHandleSupportExp>(
+      CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
+      isOpaqueMemoryHandle, &supportsSampledHandle);
+
+  return supportsSampledHandle;
+}
+
+template <>
+__SYCL_EXPORT bool get_image_handle_supported<sampled_image_handle>(
+    const image_descriptor &imageDescriptor,
+    image_memory_handle_type imageMemoryHandleType,
+    const sycl::queue &syclQueue) {
+  return get_image_handle_supported<sampled_image_handle>(
+      imageDescriptor, imageMemoryHandleType, syclQueue.get_device(),
+      syclQueue.get_context());
+}
+
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

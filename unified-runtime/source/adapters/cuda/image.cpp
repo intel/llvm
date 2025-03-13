@@ -1006,6 +1006,347 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
   }
 }
 
+bool verifyCommonImagePropertiesSupport(const ur_device_handle_t hDevice,
+                                        const ur_image_desc_t *pImageDesc,
+                                        const ur_image_format_t *pImageFormat,
+                                        bool isOpaqueAllocation) {
+
+  // Verify image dimensions are within device limits.
+  size_t maxImageWidth, maxImageHeight, maxImageDepth;
+
+  if (pImageDesc->depth != 0 && pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+
+    // Verify for standard 3D images.
+    UR_CHECK_ERROR(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH,
+                                   sizeof(size_t), &maxImageWidth, nullptr));
+    UR_CHECK_ERROR(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT,
+                                   sizeof(size_t), &maxImageHeight, nullptr));
+    UR_CHECK_ERROR(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH,
+                                   sizeof(size_t), &maxImageDepth, nullptr));
+    if ((pImageDesc->width > maxImageWidth) ||
+        (pImageDesc->height > maxImageHeight) ||
+        (pImageDesc->depth > maxImageDepth)) {
+      return false;
+    }
+  } else if (pImageDesc->height != 0 &&
+             pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+
+    if (pImageDesc->numMipLevel == 1) {
+      if (!isOpaqueAllocation) {
+        // Verify for standard 2D images backed by linear memory.
+        UR_CHECK_ERROR(
+            urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP,
+                            sizeof(size_t), &maxImageWidth, nullptr));
+        UR_CHECK_ERROR(
+            urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP,
+                            sizeof(size_t), &maxImageHeight, nullptr));
+
+        size_t maxImageLinearPitch;
+        UR_CHECK_ERROR(
+            urDeviceGetInfo(hDevice, UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP,
+                            sizeof(size_t), &maxImageLinearPitch, nullptr));
+        if (pImageDesc->rowPitch > maxImageLinearPitch) {
+          return false;
+        }
+      } else {
+        // Verify for standard 2D images backed by opaque memory.
+        UR_CHECK_ERROR(
+            urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH,
+                            sizeof(size_t), &maxImageWidth, nullptr));
+        UR_CHECK_ERROR(
+            urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT,
+                            sizeof(size_t), &maxImageHeight, nullptr));
+      }
+    } else {
+      // Verify for 2D mipmap images.
+      int32_t maxMipmapWidth, maxMipmapHeight;
+      UR_CHECK_ERROR(cuDeviceGetAttribute(
+          &maxMipmapWidth,
+          CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_MIPMAPPED_WIDTH,
+          hDevice->get()));
+      UR_CHECK_ERROR(cuDeviceGetAttribute(
+          &maxMipmapHeight,
+          CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_MIPMAPPED_HEIGHT,
+          hDevice->get()));
+      maxImageWidth = static_cast<size_t>(maxMipmapWidth);
+      maxImageHeight = static_cast<size_t>(maxMipmapHeight);
+    }
+
+    if ((pImageDesc->width > maxImageWidth) ||
+        (pImageDesc->height > maxImageHeight)) {
+      return false;
+    }
+  } else if (pImageDesc->width != 0 &&
+             pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+
+    if (pImageDesc->numMipLevel == 1) {
+      if (!isOpaqueAllocation) {
+        // Verify for standard 1D images backed by linear memory.
+        //
+        /// TODO: We have a query for `max_image_linear_width`, however, that
+        /// query is for 2D textures (at least as far as the CUDA/HIP
+        /// implementations go). We should split the `max_image_linear_width`
+        /// query into 1D and 2D variants to ensure that 1D image dimensions
+        /// can be properly verified and used to the fullest extent.
+        int32_t maxImageLinearWidth;
+        UR_CHECK_ERROR(cuDeviceGetAttribute(
+            &maxImageLinearWidth,
+            CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_LINEAR_WIDTH,
+            hDevice->get()));
+        maxImageWidth = static_cast<size_t>(maxImageLinearWidth);
+      } else {
+        // Verify for standard 1D images backed by opaque memory.
+        UR_CHECK_ERROR(
+            urDeviceGetInfo(hDevice, UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE,
+                            sizeof(size_t), &maxImageWidth, nullptr));
+      }
+    } else {
+      // Verify for 1D mipmap images.
+      int32_t maxMipmapWidth;
+      UR_CHECK_ERROR(cuDeviceGetAttribute(
+          &maxMipmapWidth,
+          CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_MIPMAPPED_WIDTH,
+          hDevice->get()));
+      maxImageWidth = static_cast<size_t>(maxMipmapWidth);
+    }
+    if ((pImageDesc->width > maxImageWidth)) {
+      return false;
+    }
+  }
+
+  // Verify layered image dimensions are within device limits.
+  size_t maxImageLayers;
+
+  if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY) {
+    // Take the smaller of maximum surface and maximum texture width, as we do
+    // for `UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH` and others.
+    int32_t maxTextureLayeredWidth, maxSurfaceLayeredWidth;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxTextureLayeredWidth,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_LAYERED_WIDTH, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxSurfaceLayeredWidth,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_LAYERED_WIDTH, hDevice->get()));
+
+    maxImageWidth = static_cast<size_t>(
+        std::min(maxTextureLayeredWidth, maxSurfaceLayeredWidth));
+
+    // Take the smaller of maximum surface and maximum texture layers, as we do
+    // for `UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH` and others.
+    int32_t maxTextureLayers, maxSurfaceLayers;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxTextureLayers, CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_LAYERED_LAYERS,
+        hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxSurfaceLayers, CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_LAYERED_LAYERS,
+        hDevice->get()));
+
+    maxImageLayers =
+        static_cast<size_t>(std::min(maxTextureLayers, maxSurfaceLayers));
+
+    if (pImageDesc->width > maxImageWidth ||
+        pImageDesc->arraySize > maxImageLayers) {
+      return false;
+    }
+
+  } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY) {
+    // Take the smaller of maximum surface and maximum texture width and height,
+    // as we do  for `UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH` and others.
+    int32_t maxTextureLayeredWidth, maxSurfaceLayeredWidth;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxTextureLayeredWidth,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_WIDTH, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxSurfaceLayeredWidth,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_LAYERED_WIDTH, hDevice->get()));
+
+    int32_t maxTextureLayeredHeight, maxSurfaceLayeredHeight;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxTextureLayeredHeight,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_HEIGHT, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxSurfaceLayeredHeight,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_LAYERED_HEIGHT, hDevice->get()));
+
+    maxImageWidth = static_cast<size_t>(
+        std::min(maxTextureLayeredWidth, maxSurfaceLayeredWidth));
+
+    maxImageHeight = static_cast<size_t>(
+        std::min(maxTextureLayeredHeight, maxSurfaceLayeredHeight));
+
+    // Take the smaller of maximum surface and maximum texture layers, as we do
+    // for `UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH` and others.
+    int32_t maxTextureLayers, maxSurfaceLayers;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxTextureLayers, CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LAYERED_LAYERS,
+        hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxSurfaceLayers, CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_LAYERED_LAYERS,
+        hDevice->get()));
+
+    maxImageLayers = static_cast<size_t>(
+        std::min(maxTextureLayeredWidth, maxSurfaceLayeredWidth));
+
+    if (pImageDesc->width > maxImageWidth ||
+        pImageDesc->height > maxImageHeight ||
+        pImageDesc->arraySize > maxImageLayers) {
+      return false;
+    }
+  }
+
+  // Verify cubemap support and whether cubemap image dimensions are within
+  // device limits.
+  if (pImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
+
+    if (!isOpaqueAllocation) {
+      // Bindless Images do not provide support for cubemaps backed by
+      // USM/linear memory.
+      return false;
+    }
+
+    if (pImageDesc->arraySize != 0) {
+      // Bindless Images do not provide support for layered cubemaps.
+      return false;
+    }
+
+    // Take the smaller of maximum surface and maximum texture cubemap widths,
+    // as we do for `UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH` and others.
+    int32_t maxTexCubemapWidth, maxSurfCubemapWidth;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxTexCubemapWidth, CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACECUBEMAP_WIDTH,
+        hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxSurfCubemapWidth, CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURECUBEMAP_WIDTH,
+        hDevice->get()));
+
+    maxImageWidth =
+        static_cast<size_t>(std::min(maxTexCubemapWidth, maxSurfCubemapWidth));
+
+    // Cubemaps always have equal width and height.
+    if (pImageDesc->width > maxImageWidth ||
+        pImageDesc->height > maxImageWidth) {
+      return false;
+    }
+  }
+
+  // Verify gather image dimensions are within device limits.
+  if (pImageDesc->type == UR_MEM_TYPE_IMAGE_GATHER_EXP) {
+
+    // Gather images only support 2D.
+    if (pImageDesc->height == 0 || pImageDesc->depth > 0) {
+      return false;
+    }
+
+    int32_t maxGatherTextureWidth, maxGatherTextureHeight;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxGatherTextureWidth,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_GATHER_WIDTH, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &maxGatherTextureHeight,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_GATHER_HEIGHT, hDevice->get()));
+
+    maxImageWidth = static_cast<size_t>(maxGatherTextureWidth);
+    maxImageHeight = static_cast<size_t>(maxGatherTextureHeight);
+
+    if (pImageDesc->width > maxImageWidth ||
+        pImageDesc->height > maxImageHeight) {
+      return false;
+    }
+  }
+
+  // Verify 3-channel format support.
+  // CUDA does not allow 3-channel formats.
+  if (pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGB ||
+      pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGX) {
+    return false;
+  }
+
+  // Once we've verified all of the above properties are valid, return true.
+  return true;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryPointerSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    bool *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, true /* isOpaqueAllocation */);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryOpaqueSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    bool *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, false /* isOpaqueAllocation */);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesGetImageUnsampledHandleSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    bool isOpaqueAllocation, bool *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Currently the Bindless Images extension does not allow creation of
+  // unsampled image handles from non-opaque (USM) memory.
+  if (!isOpaqueAllocation) {
+    *pSupportedRet = false;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Bindless Images do not allow creation of `unsampled_image_handle`s for
+  // mipmap images.
+  if (pImageDesc->numMipLevel > 1) {
+    *pSupportedRet = false;
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, isOpaqueAllocation);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesGetImageSampledHandleSupportExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
+    bool isOpaqueAllocation, bool *pSupportedRet) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Verify support for common image properties (dims, channel types, image
+  // types, etc.).
+  *pSupportedRet = verifyCommonImagePropertiesSupport(
+      hDevice, pImageDesc, pImageFormat, isOpaqueAllocation);
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_native_handle_t hImageMem, uint32_t mipmapLevel,

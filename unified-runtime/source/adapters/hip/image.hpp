@@ -32,3 +32,8 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
                             const HIP_RESOURCE_DESC &ResourceDesc,
                             const unsigned int normalized_dtype_flag,
                             ur_exp_image_native_handle_t *phRetImage);
+
+bool verifyCommonImagePropertiesSupport(const ur_device_handle_t hDevice,
+                                        const ur_image_desc_t *pImageDesc,
+                                        const ur_image_format_t *pImageFormat,
+                                        bool isOpaqueAllocation);
