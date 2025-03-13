@@ -155,6 +155,7 @@ on:
           - e2e
           - cts
           - compute-benchmarks
+          - benchmark-v2
 
       env:
         description: |
@@ -328,6 +329,15 @@ jobs:
     - name: Run compute-benchmarks on SYCL
       if: inputs.tests_selector == 'compute-benchmarks'
       uses: ./devops/actions/run-tests/benchmark
+      with:
+        target_devices: ${{ inputs.target_devices }}
+      env:
+        RUNNER_TAG: ${{ inputs.runner }}
+        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
+
+    - name: Run Benchmarks
+      if: inputs.tests_selector == 'benchmark-v2'
+      uses: ./devops/actions/run-tests/benchmark_v2
       with:
         target_devices: ${{ inputs.target_devices }}
       env:
