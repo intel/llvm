@@ -126,6 +126,7 @@ on:
           - '["cts-cpu"]'
           - '["Linux", "build"]'
           - '["cuda"]'
+          - '["PVC_PERF"]'
       image:
         type: choice
         options:
@@ -170,17 +171,14 @@ on:
           Extra options to be added to LIT_OPTS.
         default: ''
 
-      install_igc_driver:
+      reset_intel_gpu:
+        description: |
+          Reset Intel GPUs
         type: choice
         options:
           - false
           - true
 
-      install_dev_igc_driver:
-        type: choice
-        options:
-          - false
-          - true
       e2e_testing_mode:
         type: choice
         options:

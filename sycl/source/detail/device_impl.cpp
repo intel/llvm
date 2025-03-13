@@ -73,8 +73,9 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
   }
   MPlatform = Platform;
 
-  MIsAssertFailSupported =
-      has_extension(UR_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
+  Adapter->call<UrApiKind::urDeviceGetInfo>(
+      MDevice, UR_DEVICE_INFO_USE_NATIVE_ASSERT, sizeof(ur_bool_t),
+      &MUseNativeAssert, nullptr);
 }
 
 device_impl::~device_impl() {
@@ -478,7 +479,7 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_srgb:
     return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
-    return isAssertFailSupported();
+    return useNativeAssert();
   case aspect::ext_oneapi_cuda_async_barrier: {
     int async_barrier_supported;
     bool call_successful =
@@ -804,9 +805,7 @@ bool device_impl::has(aspect Aspect) const {
   return false; // This device aspect has not been implemented yet.
 }
 
-bool device_impl::isAssertFailSupported() const {
-  return MIsAssertFailSupported;
-}
+bool device_impl::useNativeAssert() const { return MUseNativeAssert; }
 
 std::string device_impl::getDeviceName() const {
   std::call_once(MDeviceNameFlag,

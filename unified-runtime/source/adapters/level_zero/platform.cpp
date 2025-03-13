@@ -66,7 +66,11 @@ ur_result_t urPlatformGetInfo(
   switch (ParamName) {
   case UR_PLATFORM_INFO_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero V2");
+#else
     return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero");
+#endif
   case UR_PLATFORM_INFO_VENDOR_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) Corporation");
