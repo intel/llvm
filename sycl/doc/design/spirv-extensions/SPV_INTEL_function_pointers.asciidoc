@@ -49,7 +49,7 @@ If you are interested in using this feature in your software product, please let
 This extension is written against the SPIR-V Specification, Version 1.6
 Revision 5, Unified.
 
-This extension interacts with link:https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/KHR/SPV_KHR_untyped_pointers.asciidoc[*SPV_KHR_untyped_pointers*] extension.
+This extension interacts with link:https://github.khronos.org/SPIRV-Registry/extensions/KHR/SPV_KHR_untyped_pointers.html[*SPV_KHR_untyped_pointers*] extension.
 
 This extension requires SPIR-V 1.0.
 
