@@ -119,6 +119,7 @@ jobs:
 
     - name: Install build tools
       run: |
+        export DEBIAN_FRONTEND=noninteractive
         bash devops/scripts/install_build_tools.sh
 
     - name: Install UR python dependencies
