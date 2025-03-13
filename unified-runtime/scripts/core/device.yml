@@ -447,6 +447,8 @@ etors:
       desc: "[uint32_t] the number of compute units for specific backend."
     - name: PROGRAM_SET_SPECIALIZATION_CONSTANTS
       desc: "[$x_bool_t] support the $xProgramSetSpecializationConstants entry point"
+    - name: USE_NATIVE_ASSERT
+      desc: "[$x_bool_t] return true if the device has a native assert implementation."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -864,6 +866,9 @@ params:
       desc: |
             [out][optional] pointer to the Host's global timestamp that
             correlates with the Device's global timestamp value
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no means to support the operation."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Memory order capabilities"

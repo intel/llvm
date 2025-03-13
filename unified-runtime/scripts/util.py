@@ -14,6 +14,7 @@ import configparser
 import glob
 import json
 import yaml
+import subprocess
 from mako.template import Template
 from mako import exceptions
 
@@ -208,6 +209,21 @@ def makoWrite(inpath, outpath, **args):
 
 def makoFileListWrite(outpath):
     jsonWrite(outpath, makoFileList)
+
+
+def formatGeneratedFiles(clang_format):
+    for file in makoFileList:
+        if re.search(r"(\.h|\.hpp|\.c|\.cpp|\.def)$", file) is None:
+            continue
+        print("Formatting {}".format(file))
+        proc = subprocess.run(
+            [clang_format, "--style=file", "-i", file],
+            stderr=subprocess.PIPE,
+        )
+        if proc.returncode != 0:
+            print("-- clang-format failed with non-zero return code. --")
+            print(proc.stderr.decode())
+            raise Exception("Failed to format {}".format(file))
 
 
 def makeErrorCount():

@@ -120,9 +120,10 @@ void RTDeviceBinaryImage::print() const {
   std::cerr << "    Link options    : "
             << (Bin->LinkOptions ? Bin->LinkOptions : "NULL") << "\n";
   std::cerr << "    Entries  : ";
+
   for (sycl_offload_entry EntriesIt = Bin->EntriesBegin;
-       EntriesIt != Bin->EntriesEnd; ++EntriesIt)
-    std::cerr << EntriesIt->name << " ";
+       EntriesIt != Bin->EntriesEnd; EntriesIt = EntriesIt->Increment())
+    std::cerr << EntriesIt->GetName() << " ";
   std::cerr << "\n";
   std::cerr << "    Properties [" << Bin->PropertySetsBegin << "-"
             << Bin->PropertySetsEnd << "]:\n";
@@ -180,6 +181,7 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   SpecConstDefaultValuesMap.init(
       Bin, __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
   DeviceLibReqMask.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK);
+  DeviceLibMetadata.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_METADATA);
   KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
   AssertUsed.init(Bin, __SYCL_PROPERTY_SET_SYCL_ASSERT_USED);
   ImplicitLocalArg.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPLICIT_LOCAL_ARG);

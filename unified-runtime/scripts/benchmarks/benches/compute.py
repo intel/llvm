@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -27,7 +27,7 @@ class ComputeBench(Suite):
             self.directory,
             "compute-benchmarks-repo",
             "https://github.com/intel/compute-benchmarks.git",
-            "9369275026229b182bc4a555b73c2ec995a9e2b7",
+            "dfdbf2ff9437ee159627cc2cd9159c289da1a7ba",
         )
         build_path = create_build_path(self.directory, "compute-benchmarks-build")
 

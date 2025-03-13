@@ -46,11 +46,11 @@ jobs:
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults --hip --cuda \
-          --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
-          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
+          -DNATIVECPU_USE_OCK=Off \
+          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
 
     - name: Build with coverity
-      run: $GITHUB_WORKSPACE/cov-analysis-linux64-*/bin/cov-build --dir cov-int cmake --build $GITHUB_WORKSPACE/build
+      run: $GITHUB_WORKSPACE/cov-analysis-linux64-*/bin/cov-build --dir cov-int cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
 
     - name: Compress results
       run: tar -I pigz -cf intel_llvm.tgz cov-int

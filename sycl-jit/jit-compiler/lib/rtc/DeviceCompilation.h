@@ -44,6 +44,9 @@ performPostLink(std::unique_ptr<llvm::Module> Module,
 llvm::Expected<llvm::opt::InputArgList>
 parseUserArgs(View<const char *> UserArgs);
 
+void encodeBuildOptions(RTCBundleInfo &BundleInfo,
+                        const llvm::opt::InputArgList &UserArgList);
+
 void configureDiagnostics(llvm::LLVMContext &Context, std::string &BuildLog);
 
 } // namespace jit_compiler

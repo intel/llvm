@@ -1,0 +1,254 @@
+//===----------------------------------------------------------------------===//
+/*
+ *
+ * Copyright (C) 2025 Intel Corporation
+ *
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT
+ *
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ * @file tsan_interceptor.cpp
+ *
+ */
+
+#include "tsan_interceptor.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
+#include "tsan_report.hpp"
+
+namespace ur_sanitizer_layer {
+namespace tsan {
+
+TsanRuntimeDataWrapper::~TsanRuntimeDataWrapper() {
+  [[maybe_unused]] ur_result_t Result;
+  if (DevicePtr) {
+    Result = getContext()->urDdiTable.USM.pfnFree(Context, DevicePtr);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
+}
+
+TsanRuntimeData *TsanRuntimeDataWrapper::getDevicePtr() {
+  if (DevicePtr == nullptr) {
+    ur_result_t Result = getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, nullptr, nullptr, sizeof(TsanRuntimeData),
+        (void **)&DevicePtr);
+    if (Result != UR_RESULT_SUCCESS) {
+      getContext()->logger.error(
+          "Failed to alloc device usm for asan runtime data: {}", Result);
+    }
+  }
+  return DevicePtr;
+}
+
+ur_result_t TsanRuntimeDataWrapper::syncFromDevice(ur_queue_handle_t Queue) {
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+      Queue, true, ur_cast<void *>(&Host), getDevicePtr(),
+      sizeof(TsanRuntimeData), 0, nullptr, nullptr));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanRuntimeDataWrapper::syncToDevice(ur_queue_handle_t Queue) {
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+      Queue, true, getDevicePtr(), ur_cast<void *>(&Host),
+      sizeof(TsanRuntimeData), 0, nullptr, nullptr));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t DeviceInfo::allocShadowMemory() {
+  ur_context_handle_t ShadowContext;
+  UR_CALL(getContext()->urDdiTable.Context.pfnCreate(1, &Handle, nullptr,
+                                                     &ShadowContext));
+  Shadow = GetShadowMemory(ShadowContext, Handle, Type);
+  assert(Shadow && "Failed to get shadow memory");
+  UR_CALL(Shadow->Setup());
+  getContext()->logger.info("ShadowMemory(Global): {} - {}",
+                            (void *)Shadow->ShadowBegin,
+                            (void *)Shadow->ShadowEnd);
+  return UR_RESULT_SUCCESS;
+}
+
+void ContextInfo::insertAllocInfo(ur_device_handle_t Device,
+                                  std::shared_ptr<TsanAllocInfo> &AI) {
+  if (Device) {
+    std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
+    AllocInfosMap[Device].emplace_back(AI);
+  } else {
+    for (auto Device : DeviceList) {
+      std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
+      AllocInfosMap[Device].emplace_back(AI);
+    }
+  }
+}
+
+ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
+                                            ur_device_handle_t Device,
+                                            const ur_usm_desc_t *Properties,
+                                            ur_usm_pool_handle_t Pool,
+                                            size_t Size, AllocType Type,
+                                            void **ResultPtr) {
+  auto CI = getContextInfo(Context);
+
+  void *Allocated = nullptr;
+
+  if (Type == AllocType::DEVICE_USM) {
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, Properties, Pool, Size, &Allocated));
+  } else if (Type == AllocType::HOST_USM) {
+    UR_CALL(getContext()->urDdiTable.USM.pfnHostAlloc(Context, Properties, Pool,
+                                                      Size, &Allocated));
+  } else if (Type == AllocType::SHARED_USM) {
+    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
+        Context, Device, Properties, Pool, Size, &Allocated));
+  }
+
+  auto AI = std::make_shared<TsanAllocInfo>(
+      TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size});
+
+  // For updating shadow memory
+  CI->insertAllocInfo(Device, AI);
+
+  *ResultPtr = Allocated;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::insertContext(ur_context_handle_t Context,
+                                           std::shared_ptr<ContextInfo> &CI) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
+
+  if (m_ContextMap.find(Context) != m_ContextMap.end()) {
+    CI = m_ContextMap.at(Context);
+    return UR_RESULT_SUCCESS;
+  }
+
+  CI = std::make_shared<ContextInfo>(Context);
+
+  // Don't move CI, since it's a return value as well
+  m_ContextMap.emplace(Context, CI);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::eraseContext(ur_context_handle_t Context) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
+  assert(m_ContextMap.find(Context) != m_ContextMap.end());
+  m_ContextMap.erase(Context);
+  // TODO: Remove devices in each context
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::insertDevice(ur_device_handle_t Device,
+                                          std::shared_ptr<DeviceInfo> &DI) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
+
+  if (m_DeviceMap.find(Device) != m_DeviceMap.end()) {
+    DI = m_DeviceMap.at(Device);
+    return UR_RESULT_SUCCESS;
+  }
+
+  DI = std::make_shared<DeviceInfo>(Device);
+
+  // Don't move DI, since it's a return value as well
+  m_DeviceMap.emplace(Device, DI);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
+                                             ur_queue_handle_t Queue,
+                                             LaunchInfo &LaunchInfo) {
+  auto CI = getContextInfo(GetContext(Queue));
+  auto DI = getDeviceInfo(GetDevice(Queue));
+
+  ManagedQueue InternalQueue(CI->Handle, DI->Handle);
+  if (!InternalQueue) {
+    getContext()->logger.error("Failed to create internal queue");
+    return UR_RESULT_ERROR_INVALID_QUEUE;
+  }
+
+  UR_CALL(prepareLaunch(CI, DI, InternalQueue, Kernel, LaunchInfo));
+
+  UR_CALL(updateShadowMemory(CI, DI, InternalQueue));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
+                                              ur_queue_handle_t Queue,
+                                              LaunchInfo &LaunchInfo) {
+  // FIXME: We must use block operation here, until we support
+  // urEventSetCallback
+  UR_CALL(getContext()->urDdiTable.Queue.pfnFinish(Queue));
+
+  UR_CALL(LaunchInfo.Data.syncFromDevice(Queue));
+
+  for (uptr ReportIndex = 0;
+       ReportIndex < LaunchInfo.Data.Host.RecordedReportCount; ReportIndex++) {
+    ReportDataRace(LaunchInfo.Data.Host.Report[ReportIndex], Kernel);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
+                                           std::shared_ptr<DeviceInfo> &DI,
+                                           ur_queue_handle_t Queue,
+                                           ur_kernel_handle_t Kernel,
+                                           LaunchInfo &LaunchInfo) {
+  // Prepare launch info data
+  LaunchInfo.Data.Host.GlobalShadowOffset = DI->Shadow->ShadowBegin;
+  LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DI->Shadow->ShadowEnd;
+  LaunchInfo.Data.Host.DeviceTy = DI->Type;
+  LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
+
+  LaunchInfo.Data.syncToDevice(Queue);
+
+  // EnqueueWrite __TsanLaunchInfo
+  void *LaunchInfoPtr = LaunchInfo.Data.getDevicePtr();
+  ur_result_t URes =
+      getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
+          Queue, GetProgram(Kernel), "__TsanLaunchInfo", true,
+          sizeof(LaunchInfoPtr), 0, &LaunchInfoPtr, 0, nullptr, nullptr);
+  if (URes != UR_RESULT_SUCCESS) {
+    getContext()->logger.info("EnqueueWriteGlobal(__TsanLaunchInfo) "
+                              "failed, maybe empty kernel: {}",
+                              URes);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+TsanInterceptor::updateShadowMemory(std::shared_ptr<ContextInfo> &CI,
+                                    std::shared_ptr<DeviceInfo> &DI,
+                                    ur_queue_handle_t Queue) {
+  std::scoped_lock<ur_shared_mutex> Guard(CI->AllocInfosMapMutex);
+  for (auto &AllocInfo : CI->AllocInfosMap[DI->Handle]) {
+    UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo->AllocBegin,
+                                    AllocInfo->AllocSize));
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+} // namespace tsan
+
+using namespace tsan;
+
+static TsanInterceptor *interceptor;
+
+TsanInterceptor *getTsanInterceptor() { return interceptor; }
+
+void initTsanInterceptor() {
+  if (interceptor) {
+    return;
+  }
+  interceptor = new TsanInterceptor();
+}
+
+void destroyTsanInterceptor() {
+  delete interceptor;
+  interceptor = nullptr;
+}
+
+} // namespace ur_sanitizer_layer

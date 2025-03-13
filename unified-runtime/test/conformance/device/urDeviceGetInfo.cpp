@@ -2561,6 +2561,22 @@ TEST_P(urDeviceGetInfoTest, Success2DBlockArrayCapabilities) {
             0);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessUseNativeAssert) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_USE_NATIVE_ASSERT;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(ur_bool_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
 TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
   ur_device_type_t device_type;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,

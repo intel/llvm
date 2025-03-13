@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 
-def do_configure(args):
+def do_configure(args, passthrough_args):
     # Get absolute path to source directory
     abs_src_dir = os.path.abspath(
         args.src_dir if args.src_dir else os.path.join(__file__, "../..")
@@ -71,6 +71,9 @@ def do_configure(args):
         # For more info on the enablement of level_zero_v2 refer to this document:
         # https://github.com/intel/llvm/blob/sycl/unified-runtime/source/adapters/level_zero/v2/README.md
         if args.level_zero_v2:
+            sycl_enabled_backends.append("level_zero_v2")
+        elif args.level_zero_v1_and_v2:
+            sycl_enabled_backends.append("level_zero")
             sycl_enabled_backends.append("level_zero_v2")
         else:
             sycl_enabled_backends.append("level_zero")
@@ -252,6 +255,7 @@ def do_configure(args):
             ]
         )
 
+    cmake_cmd += passthrough_args
     print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
 
     try:
@@ -339,6 +343,11 @@ def main():
         "--level_zero_v2", action="store_true", help="Enable SYCL Level Zero V2"
     )
     parser.add_argument(
+        "--level_zero_v1_and_v2",
+        action="store_true",
+        help="Enable SYCL Level Zero Legacy and V2",
+    )
+    parser.add_argument(
         "--host-target",
         default="host",
         help="host LLVM target architecture, defaults to 'host', multiple targets may be provided as a semi-colon separated string",
@@ -409,11 +418,11 @@ def main():
         "--native-cpu-libclc-targets",
         help="Target triples for libclc, used by the Native CPU backend",
     )
-    args = parser.parse_args()
+    args, passthrough_args = parser.parse_known_intermixed_args()
 
     print("args:{}".format(args))
 
-    return do_configure(args)
+    return do_configure(args, passthrough_args)
 
 
 if __name__ == "__main__":
