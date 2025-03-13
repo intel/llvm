@@ -700,6 +700,7 @@ class ObjectFileHandler final : public FileHandler {
         if (SF->isIR() &&
             (Name == "llvm.used" || Name == "llvm.compiler.used" ||
              Name == "__AsanDeviceGlobalMetadata" ||
+             Name == "__MsanDeviceGlobalMetadata" ||
              Name == "__AsanKernelMetadata" || Name == "__MsanKernelMetadata"))
           continue;
 
