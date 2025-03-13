@@ -58,7 +58,7 @@ permissions: read-all
 jobs:
   build_sycl:
     name: Build SYCL from PR
-    if: inputs.pr_no != null
+    if: inputs.pr_no != 0
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_ref: "origin/pr/${{ inputs.pr_no }}/merge"
@@ -73,7 +73,7 @@ jobs:
   run_benchmarks_build:
     name: Run Benchmarks (on PR Build)
     needs: [ build_sycl ]
-    if: inputs.pr_no != null
+    if: inputs.pr_no != 0
     strategy:
       matrix:
         # Set default values if not specified:
@@ -100,7 +100,7 @@ jobs:
 
   run_benchmarks_nightly:
     name: Run Benchmarks (on Nightly Build)
-    if: inputs.pr_no == null
+    if: inputs.pr_no == 0
     strategy:
       matrix:
         # Set default values if not specified:

@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       pr_no:
-        description: Specific PR no. to build
+        description: Specific PR no. to build (0 for nightly)
         type: number
-        required: false
+        required: true
       upload_results:
         description: 'Save and upload results'
         type: choice
