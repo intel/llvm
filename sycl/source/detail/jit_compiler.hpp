@@ -46,7 +46,7 @@ public:
   ur_kernel_handle_t
   materializeSpecConstants(QueueImplPtr Queue,
                            const RTDeviceBinaryImage *BinImage,
-                           const std::string &KernelName,
+                           std::string_view KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);
 
   std::pair<sycl_device_binaries, std::string> compileSYCL(

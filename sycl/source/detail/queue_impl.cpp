@@ -394,7 +394,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
       // Kernel only uses assert if it's non interop one
       KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                          ProgramManager::getInstance().kernelUsesAssert(
-                             Handler.MKernelName.c_str());
+                             Handler.MKernelName.data());
     finalizeHandler(Handler, Event);
 
     PostProcess(IsKernel, KernelUsesAssert, Event);
