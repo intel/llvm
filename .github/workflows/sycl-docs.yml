@@ -49,6 +49,7 @@ jobs:
         mkdir clang
         mv $GITHUB_WORKSPACE/build/tools/sycl/doc/html/* .
         mv $GITHUB_WORKSPACE/build/tools/clang/docs/html/* clang/
+        cp -r $GITHUB_WORKSPACE/repo/devops/scripts/benchmarks/html benchmarks
         touch .nojekyll
     # Upload the generated docs as an artifact and deploy to GitHub Pages.
     - name: Upload artifact
