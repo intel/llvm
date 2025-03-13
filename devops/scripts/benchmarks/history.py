@@ -6,6 +6,7 @@
 import os
 import json
 from pathlib import Path
+import socket
 from utils.result import Result, BenchmarkRun
 from options import Compare, options
 from datetime import datetime, timezone
@@ -82,6 +83,7 @@ class BenchmarkHistory:
             github_repo=github_repo,
             date=datetime.now(tz=timezone.utc),
             results=results,
+            hostname=socket.gethostname()
         )
 
     def save(self, save_name, results: list[Result], to_file=True):
@@ -132,6 +134,7 @@ class BenchmarkHistory:
             name=first_run.name,
             git_hash="average",
             date=first_run.date,  # should this be different?
+            hostname=first_run.hostname
         )
 
         return average_benchmark_run
