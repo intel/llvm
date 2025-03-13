@@ -13,6 +13,7 @@
 #include "event.hpp"
 #include "helpers/image_helpers.hpp"
 #include "logger/ur_logger.hpp"
+#include "memory.hpp"
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
@@ -729,15 +730,23 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
 ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
     uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = size;
-  std::ignore = offset;
-  std::ignore = hExternalMem;
-  std::ignore = phRetMem;
-  logger::error("[UR][L0] {} function not implemented!",
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  UR_ASSERT(hContext && hDevice && hExternalMem,
+            UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(offset && size, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
+
+  struct ur_ze_external_memory_data *externalMemoryData =
+      reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
+
+  void *ZeHandleHost;
+  UR_CALL(ZeHostMemAllocHelper(&ZeHandleHost, hContext, size));
+
+  void *pMem = nullptr;
+  ZE2UR_CALL(zeContextMakeMemoryResident,
+             (hContext->ZeContext, hDevice->ZeDevice, phRetMem, size));
+  externalMemoryData->urMemoryHandle =
+      reinterpret_cast<ur_mem_handle_t>(*phRetMem) + offset;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesReleaseExternalMemoryExp(
