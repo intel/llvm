@@ -16,8 +16,8 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 1
-// RUN: %{l0_leak_check} %{run} %t.out 1
+// RUN: %{run} %t.out
+// RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
