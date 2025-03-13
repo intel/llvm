@@ -1043,16 +1043,10 @@ void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
 
 void handler::setArgHelper(
     int ArgIndex,
-    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParam) {
+    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParam,
+    detail::kernel_param_kind_t ParamKind) {
 
-  // TODO: Make a switch statement based on the kernel_param_kind_t, this could
-  // be propagated from the templated set_arg.
-  impl->MDynParams.push_back(
-      std::make_shared<
-          ext::oneapi::experimental::detail::dynamic_parameter_base>(
-          DynamicParam));
-  addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
-         impl->MDynParams.back().get(), 0, ArgIndex);
+  addArg(ParamKind, &DynamicParam, 0, ArgIndex);
 
   // Register the dynamic parameter with the handler for later association
   // with the node being added
@@ -1736,9 +1730,9 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
     }
 
     // If the event dependency has a graph, that means that the queue that
-    // created it was in recording mode. If the current queue is not recording,
-    // we need to set it to recording (implements the transitive queue recording
-    // feature).
+    // created it was in recording mode. If the current queue is not
+    // recording, we need to set it to recording (implements the transitive
+    // queue recording feature).
     if (!QueueGraph) {
       EventGraph->beginRecording(MQueue);
     }
@@ -1793,15 +1787,16 @@ void handler::verifyDeviceHasProgressGuarantee(
           "Required progress guarantee for work groups is not "
           "supported by this device.");
     }
-    // If we are here, the device supports the guarantee required but there is a
-    // caveat in that if the guarantee required is a concurrent guarantee, then
-    // we most likely also need to enable cooperative launch of the kernel. That
-    // is, although the device supports the required guarantee, some setup work
-    // is needed to truly make the device provide that guarantee at runtime.
-    // Otherwise, we will get the default guarantee which is weaker than
-    // concurrent. Same reasoning applies for sub_group but not for work_item.
-    // TODO: Further design work is probably needed to reflect this behavior in
-    // Unified Runtime.
+    // If we are here, the device supports the guarantee required but there is
+    // a caveat in that if the guarantee required is a concurrent guarantee,
+    // then we most likely also need to enable cooperative launch of the
+    // kernel. That is, although the device supports the required guarantee,
+    // some setup work is needed to truly make the device provide that
+    // guarantee at runtime. Otherwise, we will get the default guarantee
+    // which is weaker than concurrent. Same reasoning applies for sub_group
+    // but not for work_item.
+    // TODO: Further design work is probably needed to reflect this behavior
+    // in Unified Runtime.
     if (guarantee == forward_progress::concurrent)
       setKernelIsCooperative(true);
   } else if (threadScope == execution_scope::sub_group) {
@@ -1923,8 +1918,8 @@ void handler::memcpyToHostOnlyDeviceGlobal(const void *DeviceGlobalPtr,
       MQueue->getDeviceImplPtr();
   host_task([=] {
     // Capture context and device as weak to avoid keeping them alive for too
-    // long. If they are dead by the time this executes, the operation would not
-    // have been visible anyway.
+    // long. If they are dead by the time this executes, the operation would
+    // not have been visible anyway.
     std::shared_ptr<detail::context_impl> ContextImpl = WeakContextImpl.lock();
     std::shared_ptr<detail::device_impl> DeviceImpl = WeakDeviceImpl.lock();
     if (ContextImpl && DeviceImpl)

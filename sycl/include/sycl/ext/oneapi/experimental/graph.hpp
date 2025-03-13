@@ -17,11 +17,11 @@
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
 #endif
-#include <sycl/device.hpp> // for device
+#include <sycl/device.hpp>                     // for device
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
+#include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp> // for dynamic_work_group_memory
 #include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properties_t
-#include <sycl/nd_range.hpp>                         // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
 
@@ -615,8 +615,7 @@ public:
                     const ValueT &Param)
       : detail::dynamic_parameter_base(Graph, sizeof(ValueT), &Param) {}
 
-  /// Updates this dynamic parameter and all registered nodes with a new
-  /// value.
+  /// Updates this dynamic parameter and all registered nodes with a new value.
   /// @param NewValue The new value for the parameter.
   void update(const ValueT &NewValue) {
     if constexpr (IsAccessor) {
