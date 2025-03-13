@@ -28,7 +28,7 @@ class ComputeBench(Suite):
             self.directory,
             "compute-benchmarks-repo",
             "https://github.com/intel/compute-benchmarks.git",
-            "9369275026229b182bc4a555b73c2ec995a9e2b7",
+            "dfdbf2ff9437ee159627cc2cd9159c289da1a7ba",
         )
         build_path = create_build_path(self.directory, "compute-benchmarks-build")
 
