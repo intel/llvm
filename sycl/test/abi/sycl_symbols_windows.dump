@@ -4190,6 +4190,7 @@
 ?make_device@detail@_V1@sycl@@YA?AVdevice@23@_KW4backend@23@@Z
 ?make_device@detail@level_zero@oneapi@ext@_V1@sycl@@YA?AVdevice@56@AEBVplatform@56@_K@Z
 ?make_edge@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEAVnode@34567@0@Z
+?make_empty@event@_V1@sycl@@QEAAXXZ
 ?make_error_code@_V1@sycl@@YA?AVerror_code@std@@W4errc@12@@Z
 ?make_event@detail@_V1@sycl@@YA?AVevent@23@_KAEBVcontext@23@W4backend@23@@Z
 ?make_event@detail@_V1@sycl@@YA?AVevent@23@_KAEBVcontext@23@_NW4backend@23@@Z
