@@ -21,8 +21,10 @@
 // checks that -sycl-opt is not enabled by default on NativeCPU so that the full llvm optimization is enabled
 // Also check that we pass the expected backend uptions.
 // RUN:   %clang -fsycl -fsycl-targets=native_cpu -### %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
+// CHECK-OPTS: clang{{.*}}"-triple" "native_cpu"{{.*}}"-aux-triple" "[[TRIPLE:[^"]*]]"
+// CHECK-OPTS: clang{{.*}}"-triple" "[[TRIPLE]]"{{.*}}"-fsycl-is-device"
 // CHECK-OPTS-NOT: -sycl-opt
-// CHECK-OPTS: "-Wno-override-module" "-mllvm" "-sycl-native-cpu-backend"
+// CHECK-OPTS-SAME: "-Wno-override-module" "-mllvm" "-sycl-native-cpu-backend"
 // CHECK-OPTS-NOT: -sycl-opt
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -### 2>&1 | FileCheck -check-prefix=CHECK-NONATIVECPU %s
