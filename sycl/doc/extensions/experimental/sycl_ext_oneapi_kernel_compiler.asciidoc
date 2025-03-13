@@ -285,7 +285,8 @@ Any remaining kernels (those that are not compatible with any of the devices in
 The new bundle has the same associated context as `sourceBundle`, and the new
 bundle's set of associated devices is `devs` (with duplicate devices removed).
 
-_Effects (2)_: Equivalent to `build(sourceBundle, ctxt.get_devices(), props)`.
+_Effects (2)_: Equivalent to
+`build(sourceBundle, sourceBundle.get_devices(), props)`.
 
 _Returns:_ The newly created kernel bundle, which has `executable` state.
 
