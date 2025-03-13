@@ -145,7 +145,7 @@ jobs:
           curl \
           libhwloc-dev \
           libzstd-dev \
-          time
+          time --option="APT::Acquire::Retries=3"
 
     - name: Install UR python dependencies
       working-directory: ${{github.workspace}}/unified-runtime
