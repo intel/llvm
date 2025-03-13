@@ -1,8 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// UNSUPPORTED: cuda
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16968
 
 // UNSUPPORTED: gpu-intel-gen12
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16072

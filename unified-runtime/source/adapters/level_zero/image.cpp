@@ -888,7 +888,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  ze_intel_external_semaphore_wait_exp_params_t WaitParams = {
+  ze_intel_external_semaphore_wait_params_exp_t WaitParams = {
       ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP, nullptr, 0};
   WaitParams.value = hasValue ? waitValue : 0;
   const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
@@ -950,7 +950,7 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  ze_intel_external_semaphore_signal_exp_params_t SignalParams = {
+  ze_intel_external_semaphore_signal_params_exp_t SignalParams = {
       ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXP, nullptr, 0};
   SignalParams.value = hasValue ? signalValue : 0;
   const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =

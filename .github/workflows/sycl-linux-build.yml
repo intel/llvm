@@ -163,14 +163,15 @@ jobs:
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults ${{ inputs.build_configure_extra_args }} \
-          --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
-          --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
-          --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
-          --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DLLVM_INSTALL_UTILS=ON \
+          -DNATIVECPU_USE_OCK=Off \
+          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV \
+          --level_zero_v1_and_v2
     - name: Compile
       id: build
-      run: cmake --build $GITHUB_WORKSPACE/build
+      run: cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
