@@ -11022,6 +11022,7 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                               const JobAction &JA,
                                               const llvm::opt::ArgList &TCArgs,
                                               ArgStringList &PostLinkArgs) {
+
   // See if device code splitting is requested
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
@@ -11047,6 +11048,25 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
 
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
+
+  // For bfloat16 conversions LLVM IR devicelib, we only need to embed it
+  // when non-AOT compilation is used.
+  if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT()) {
+    SYCLInstallationDetector SYCLInstall(TC.getDriver());
+    SmallVector<SmallString<128>, 4> DeviceLibLocCandidates;
+    SmallString<128> NativeBfloat16Name("libsycl-native-bfloat16.bc");
+    SYCLInstall.getSYCLDeviceLibPath(DeviceLibLocCandidates);
+    for (const auto &DeviceLibLoc : DeviceLibLocCandidates) {
+      SmallString<128> FullLibName(DeviceLibLoc);
+      llvm::sys::path::append(FullLibName, NativeBfloat16Name);
+      if (llvm::sys::fs::exists(FullLibName)) {
+        SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
+        SYCLDeviceLibDir += DeviceLibLoc.str();
+        addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
+        break;
+      }
+    }
+  }
 }
 
 // On Intel targets we don't need non-kernel functions as entry points,
