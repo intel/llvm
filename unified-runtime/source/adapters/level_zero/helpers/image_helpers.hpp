@@ -22,8 +22,9 @@ typedef ze_result_t(ZE_APICALL *zeMemGetPitchFor2dImage_pfn)(
 
 struct ur_bindless_mem_handle_t {
 
-  ur_bindless_mem_handle_t(ze_image_handle_t zeImage, const ZeStruct<ze_image_desc_t> &zeImageDesc) 
-                                  : zeImage(zeImage), zeImageDesc(zeImageDesc) {};
+  ur_bindless_mem_handle_t(ze_image_handle_t zeImage,
+                           const ZeStruct<ze_image_desc_t> &zeImageDesc)
+      : zeImage(zeImage), zeImageDesc(zeImageDesc){};
 
   ze_image_handle_t getZeImage() const { return zeImage; }
   ze_image_desc_t &getZeImageDesc() { return zeImageDesc; }
@@ -35,9 +36,9 @@ private:
 
 /// Construct UR bindless image struct from ZE image handle and desc.
 template <typename T>
-ur_result_t
-createUrImgFromZeImage(ze_image_handle_t ZeImage,
-                       const ZeStruct<ze_image_desc_t> &ZeImageDesc, T *UrMem) {
+ur_result_t createUrImgFromZeImage(ze_image_handle_t ZeImage,
+                                   const ZeStruct<ze_image_desc_t> &ZeImageDesc,
+                                   T *UrMem) {
   try {
     auto urImg = new ur_bindless_mem_handle_t(ZeImage, ZeImageDesc);
     *UrMem = reinterpret_cast<T>(urImg);

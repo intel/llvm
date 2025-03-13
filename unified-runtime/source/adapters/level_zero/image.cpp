@@ -31,14 +31,12 @@ urBindlessImagesImageFreeExp(ur_context_handle_t hContext,
 }
 
 ur_result_t urBindlessImagesImageCopyExp(
-    ur_queue_handle_t hQueue, const void *pSrc,
-    void *pDst, const ur_image_desc_t *pSrcImageDesc,
-    const ur_image_desc_t *pDstImageDesc,
+    ur_queue_handle_t hQueue, const void *pSrc, void *pDst,
+    const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,
     const ur_image_format_t *pSrcImageFormat,
     const ur_image_format_t *pDstImageFormat,
     ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags,
-    uint32_t numEventsInWaitList,
+    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
@@ -104,7 +102,7 @@ ur_result_t urBindlessImagesImageCopyExp(
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
-    auto *UrImage = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
+      auto *UrImage = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
 
       const char *SrcPtr =
           static_cast<const char *>(pSrc) +
@@ -112,7 +110,7 @@ ur_result_t urBindlessImagesImageCopyExp(
           pCopyRegion->srcOffset.y * SrcRowPitch +
           pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
 
-        ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
+      ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
                  (ZeCommandList, UrImage->getZeImage(), SrcPtr, &DstRegion,
                   SrcRowPitch, SrcSlicePitch, ZeEvent, WaitList.Length,
                   WaitList.ZeEventList));
@@ -186,9 +184,9 @@ ur_result_t urBindlessImagesImageCopyExp(
     auto *UrImageDst = static_cast<ur_bindless_mem_handle_t *>(pDst);
     auto *UrImageSrc = static_cast<const ur_bindless_mem_handle_t *>(pSrc);
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-               (ZeCommandList, UrImageDst->getZeImage(), UrImageSrc->getZeImage(),
-                &DstRegion, &SrcRegion, ZeEvent, WaitList.Length,
-                WaitList.ZeEventList));
+               (ZeCommandList, UrImageDst->getZeImage(),
+                UrImageSrc->getZeImage(), &DstRegion, &SrcRegion, ZeEvent,
+                WaitList.Length, WaitList.ZeEventList));
   } else {
     logger::error("urBindlessImagesImageCopyExp: unexpected imageCopyFlags");
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -287,7 +285,8 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
              (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
   ZE2UR_CALL(zeContextMakeImageResident,
              (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
-  UR_CALL(createUrMemFromZeImage(hContext, ZeImage, true, ZeImageDesc, phImageMem));
+  UR_CALL(
+      createUrMemFromZeImage(hContext, ZeImage, true, ZeImageDesc, phImageMem));
   externalMemoryData->urMemoryHandle =
       reinterpret_cast<ur_mem_handle_t>(*phImageMem);
   return UR_RESULT_SUCCESS;
