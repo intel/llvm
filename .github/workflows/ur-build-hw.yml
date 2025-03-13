@@ -116,7 +116,7 @@ jobs:
     - name: Install build tools
       run: |
         export DEBIAN_FRONTEND=noninteractive
-        apt update && apt install -yqq \
+        sudo apt update && apt install -yqq \
           build-essential \
           cmake \
           ninja-build \
