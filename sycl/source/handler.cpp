@@ -1003,15 +1003,13 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     auto *DynBase = static_cast<
         ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
 
-    auto *DynWorkGroupBase = static_cast<
-        ext::oneapi::experimental::detail::dynamic_work_group_memory_base *>(
-        Ptr);
-
     registerDynamicParameter(*DynBase, Index + IndexShift);
 
-    addArg(kernel_param_kind_t::kind_std_layout, nullptr,
-           DynWorkGroupBase->BufferSize, Index + IndexShift);
-    break;
+    Ptr = static_cast<void *>(
+        static_cast<unsigned char *>(Ptr) +
+        sizeof(ext::oneapi::experimental::detail::dynamic_parameter_base));
+
+    [[fallthrough]];
   }
   case kernel_param_kind_t::kind_work_group_memory: {
     addArg(kernel_param_kind_t::kind_std_layout, nullptr,
@@ -1045,19 +1043,20 @@ void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
 
 void handler::setArgHelper(
     int ArgIndex,
-    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-        &DynWorkGroupMemParam) {
+    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParam) {
 
-  impl->MDynWorkGroupMemoryParams.push_back(
+  // TODO: Make a switch statement based on the kernel_param_kind_t, this could
+  // be propagated from the templated set_arg.
+  impl->MDynParams.push_back(
       std::make_shared<
-          ext::oneapi::experimental::detail::dynamic_work_group_memory_base>(
-          DynWorkGroupMemParam));
+          ext::oneapi::experimental::detail::dynamic_parameter_base>(
+          DynamicParam));
   addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
-         impl->MDynWorkGroupMemoryParams.back().get(), 0, ArgIndex);
+         impl->MDynParams.back().get(), 0, ArgIndex);
 
   // Register the dynamic parameter with the handler for later association
   // with the node being added
-  registerDynamicParameter(DynWorkGroupMemParam, ArgIndex);
+  registerDynamicParameter(DynamicParam, ArgIndex);
 }
 
 // The argument can take up more space to store additional information about

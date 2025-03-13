@@ -20,8 +20,8 @@
 #include <sycl/device.hpp> // for device
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp> // for dynamic_work_group_memory
-#include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properties_t
+#include <sycl/nd_range.hpp>                         // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
 
@@ -524,24 +524,13 @@ protected:
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
-
-class dynamic_work_group_memory_base : public dynamic_parameter_base {
-public:
-  dynamic_work_group_memory_base(
-      experimental::command_graph<graph_state::modifiable> Graph, size_t Size)
-      : dynamic_parameter_base(Graph), BufferSize(Size) {}
-
-private:
-  size_t BufferSize{};
-  friend class sycl::handler;
-};
 } // namespace detail
 
 template <typename DataT, typename PropertyListT = empty_properties_t>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory
 #ifndef __SYCL_DEVICE_ONLY__
-    : public detail::dynamic_work_group_memory_base
+    : public detail::dynamic_parameter_base
 #endif
 {
 public:
@@ -567,8 +556,9 @@ public:
 #else
   dynamic_work_group_memory(
       experimental::command_graph<graph_state::modifiable> Graph, size_t Num)
-      : detail::dynamic_work_group_memory_base(
-            Graph, Num * sizeof(std::remove_extent_t<DataT>)) {}
+      : detail::dynamic_parameter_base(Graph) {
+    WorkGroupMem.buffer_size = Num * sizeof(std::remove_extent_t<DataT>);
+  }
 #endif
 
   work_group_memory<DataT, PropertyListT> get() const {
@@ -597,7 +587,7 @@ private:
 
 #ifdef __SYCL_DEVICE_ONLY__
   [[maybe_unused]] unsigned char
-      Padding[sizeof(detail::dynamic_work_group_memory_base)];
+      Padding[sizeof(detail::dynamic_parameter_base)];
 
   using value_type = std::remove_all_extents_t<DataT>;
   using decoratedPtr = typename sycl::detail::DecoratedType<

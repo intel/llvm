@@ -19,6 +19,9 @@
 namespace sycl {
 inline namespace _V1 {
 class handler;
+namespace ext::oneapi::experimental {
+template <typename, typename> class dynamic_work_group_memory;
+}
 
 namespace detail {
 template <typename T> struct is_unbounded_array : std::false_type {};
@@ -39,6 +42,8 @@ public:
 private:
   size_t buffer_size;
   friend class sycl::handler;
+  template <typename, typename>
+  friend class ext::oneapi::experimental::dynamic_work_group_memory;
 };
 
 } // namespace detail

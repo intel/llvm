@@ -159,7 +159,6 @@ struct image_descriptor;
 
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
-class dynamic_work_group_memory_base;
 class dynamic_parameter_base;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
@@ -516,7 +515,8 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  /// TODO: remove the first version of this func (the one without the IsTopCodeLoc arg)
+  /// TODO: remove the first version of this func (the one without the
+  /// IsTopCodeLoc arg)
   ///   at the next ABI breaking window since removing it breaks ABI on windows.
   void saveCodeLoc(detail::code_location CodeLoc);
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
@@ -681,11 +681,10 @@ private:
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
 
-  // setArgHelper for graph dynamic_work_group_memory
-  void
-  setArgHelper(int ArgIndex,
-               ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-                   &DynWorkGroupMemParam);
+  // setArgHelper for graph dynamic parameters used inside the kernel.
+  void setArgHelper(
+      int ArgIndex,
+      ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParam);
 
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
@@ -732,8 +731,9 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    MHostKernel =
+        std::make_unique<detail::HostKernel<KernelType, LambdaArgType, Dims>>(
+            KernelFunc);
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -1884,9 +1884,9 @@ public:
   void set_arg(int argIndex,
                ext::oneapi::experimental::dynamic_work_group_memory<DataT>
                    &dynWorkGroupMem) {
-    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-        &dynWorkGroupMemImpl = dynWorkGroupMem;
-    setArgHelper(argIndex, dynWorkGroupMemImpl);
+    ext::oneapi::experimental::detail::dynamic_parameter_base &dynParamBase =
+        dynWorkGroupMem;
+    setArgHelper(argIndex, dynParamBase);
   }
 
   // set_arg for the raw_kernel_arg extension type.
