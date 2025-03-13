@@ -23,8 +23,8 @@ int main() {
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  int *PtrA = malloc_device<T>(N*N, Queue);
-  std::vector<T> HostDataA(N*N);
+  int *PtrA = malloc_device<T>(N * N, Queue);
+  std::vector<T> HostDataA(N * N);
 
   exp_ext::dynamic_work_group_memory<T[][LocalSize]> DynLocalMemA{Graph,
                                                                   LocalSize};
@@ -32,7 +32,7 @@ int main() {
 
   Queue.memset(PtrA, 0, N * N * sizeof(T)).wait();
 
-  nd_range<2> NDRange2D{range<2>{N,N}, range<2>{LocalSize,LocalSize}};
+  nd_range<2> NDRange2D{range<2>{N, N}, range<2>{LocalSize, LocalSize}};
 
   auto KernelNodeA = Graph.add([&](handler &cgh) {
     cgh.parallel_for(NDRange2D, [=](nd_item<2> Item) {
@@ -77,7 +77,7 @@ int main() {
       },
       exp_ext::property::node::depends_on{KernelNodeA});
 
-  nd_range<1> NDRange{N*N,LocalSize};
+  nd_range<1> NDRange{N * N, LocalSize};
   auto KernelNodeC = Graph.add(
       [&](handler &cgh) {
         cgh.parallel_for(NDRange, [=](nd_item<1> Item) {
@@ -100,8 +100,8 @@ int main() {
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  Queue.copy(PtrA, HostDataA.data(), N*N).wait();
-  for (size_t i = 0; i < N*N; i++) {
+  Queue.copy(PtrA, HostDataA.data(), N * N).wait();
+  for (size_t i = 0; i < N * N; i++) {
     assert(HostDataA[i] == LocalSize * LocalSize);
   }
 
@@ -112,9 +112,11 @@ int main() {
   DynLocalMemA.update(NewLocalSize);
   DynLocalMemC.update(NewLocalSize);
 
-  KernelNodeA.update_nd_range(nd_range<2>{range<2>{N,N}, range<2>{NewLocalSize, NewLocalSize}});
-  KernelNodeB.update_nd_range(nd_range<2>{range<2>{N,N}, range<2>{NewLocalSize, NewLocalSize}});
-  KernelNodeC.update_nd_range(nd_range<1>{N*N, NewLocalSize});
+  KernelNodeA.update_nd_range(
+      nd_range<2>{range<2>{N, N}, range<2>{NewLocalSize, NewLocalSize}});
+  KernelNodeB.update_nd_range(
+      nd_range<2>{range<2>{N, N}, range<2>{NewLocalSize, NewLocalSize}});
+  KernelNodeC.update_nd_range(nd_range<1>{N * N, NewLocalSize});
 
   ExecGraph.update(KernelNodeA);
   ExecGraph.update(KernelNodeB);
@@ -122,8 +124,8 @@ int main() {
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  Queue.copy(PtrA, HostDataA.data(), N*N).wait();
-  for (size_t i = 0; i < N*N; i++) {
+  Queue.copy(PtrA, HostDataA.data(), N * N).wait();
+  for (size_t i = 0; i < N * N; i++) {
     assert(HostDataA[i] == NewLocalSize * NewLocalSize);
   }
 

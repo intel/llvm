@@ -732,7 +732,8 @@ private:
                                                  LambdaArgType>::value;
 
     MHostKernel =
-        std::make_unique<detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+        std::make_unique<detail::HostKernel<KernelType, LambdaArgType, Dims>>(
+            KernelFunc);
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
