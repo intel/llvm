@@ -2368,7 +2368,7 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
              (ZeCommandList, nullptr, ZeEventList.size(),
               getPointerFromVector(ZeEventList)));
 
-  // Call user-define function immediately
+  // Call user-defined function immediately
   pfnNativeCommand(pData);
 
   // Barrier on all commands after user defined commands.

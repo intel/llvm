@@ -510,7 +510,7 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   UR_CALL(
       hCommandBuffer->commandListManager.appendBarrier(0, nullptr, nullptr));
 
-  // Call user-define function immediately
+  // Call user-defined function immediately
   pfnNativeCommand(pData);
 
   // Barrier on all commands after user defined commands.

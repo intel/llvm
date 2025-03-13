@@ -1118,7 +1118,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
   try {
-    // Call user-define function immediately
+    // Call user-defined function immediately
     pfnNativeCommand(pData);
 
     // HIP graph node returned by interop_handle::getNativeGraph() in callback

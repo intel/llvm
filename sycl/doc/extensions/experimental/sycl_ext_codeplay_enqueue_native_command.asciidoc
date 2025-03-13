@@ -53,12 +53,16 @@ specification.*
 
 == Backend support status
 
-This extension is currently implemented in {dpcpp} only for GPU devices and
+The base extension is currently implemented in {dpcpp} only for GPU devices and
 only when using the CUDA or HIP backends.  Attempting to use this extension in
 kernels that run on other devices or backends may result in undefined
 behavior.  Be aware that the compiler is not able to issue a diagnostic to
 warn you if this happens.
 
+The semantics in the <<sycl-graph-interaction, SYCL-Graph Interaction>> section
+however are implemented for all of Level-Zero, OpenCL, CUDA and HIP devices.
+Where support is conditional on the device reporting the
+`aspect::ext_oneapi_limited_graph` aspect.
 
 == Overview
 
@@ -245,6 +249,10 @@ bool interop_handle::ext_codeplay_has_graph() const;
 ----
 
 | Query if the `interop_handle` object has a native graph object available.
+  Note that host-task nodes in a `command_graph` will return `false` for this,
+  as host-task commands are executed by the SYCL runtime rather than the
+  backend device, so there is no native graph object associated with the
+  command.
 
 |
 [source,c++]
