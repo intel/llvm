@@ -21,6 +21,7 @@
  */
 
 #include <clc/clcfunc.h>
+#include <clc/clctypes.h>
 
 _CLC_DECL float __clc_sinf_piby4(float x, float y);
 _CLC_DECL float __clc_cosf_piby4(float x, float y);

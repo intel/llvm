@@ -363,20 +363,11 @@ whose _Name_ is `foo/bar.h`.
 If such an entry is found, the compiler uses the associated _Content_ as the
 content of the include file.
 
-When the source language is `source_language::sycl`, the following header files
-are implicitly available.
-Therefore, the source string may `#include` these even without defining their
-content via the `include_files` property:
-
-* `<sycl/sycl.hpp>`;
-* The {cpp} standard library headers;
-* The SYCL backend headers `"sycl/backend/<backend_name>.hpp"` for any backends
-  that the implementation supports; and
-* Any SYCL extension headers in "sycl/ext" for extensions that the
-  implementation supports.
-
-The include files defined via the `include_files` property are searched first,
-before these implicitly available headers.
+[_Note_: This property is only required if an `#include` statement references a
+file that is not already implicitly available.
+For more information about implicitly available headers, see the section
+"Including files when the language is ``sycl``".
+_{endnote}_]
 
 _Effects (1):_ Creates a new `include_files` property with no (_Name_,
 _Content_) pairs.
@@ -485,53 +476,52 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-struct registered_kernel_names {
-  registered_kernel_names();                                       (1)
-  registered_kernel_names(const std::string &name);                (2)
-  registered_kernel_names(const std::vector<std::string> &names);  (3)
-  void add(const std::string &name);                               (4)
+struct registered_names {
+  registered_names();                                       (1)
+  registered_names(const std::string &name);                (2)
+  registered_names(const std::vector<std::string> &names);  (3)
+  void add(const std::string &name);                        (4)
 };
-using registered_kernel_names_key = registered_kernel_names;
+using registered_names_key = registered_names;
 
 template<>
-struct is_property_key<registered_kernel_names_key> : std::true_type {};
+struct is_property_key<registered_names_key> : std::true_type {};
 
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
 
-This property is useful when the source language represents kernel names
-differently in the source code and the generated code.
-For example, {cpp} function names in the generated code are "mangled" in an
-implementation-defined way.
+This property is useful when the source language represents names differently in
+the source code and the generated code.
+For example, {cpp} function names and the names of static variables at global
+scope are "mangled" in an implementation-defined way in the generated code.
 The precise meaning of this property is defined by each source language, but in
-general it allows the application to supply a list of kernel names as they
-appear in the source code.
+general it allows the application to supply a list of names as they appear in
+the source code.
 The application can then get the corresponding raw (i.e. mangled) names after
 the code is compiled.
 See the section below "Obtaining a kernel when the language is ``sycl``" for a
 description of how this property is used with the `source_language::sycl`
 language.
 
-_Effects (1):_ Creates a new `registered_kernel_names` property with no
-registered kernel names.
+_Effects (1):_ Creates a new `registered_names` property with no registered
+names.
 
-_Effects (2):_ Creates a new `registered_kernel_names` property with a single
-registered kernel name.
+_Effects (2):_ Creates a new `registered_names` property with a single
+registered name.
 
-_Effects (3):_ Creates a new `registered_kernel_names` property from a vector
-of kernel names.
+_Effects (3):_ Creates a new `registered_names` property from a vector of names.
 
-_Effects (4):_ Adds `name` to the property's list of registered kernel names.
+_Effects (4):_ Adds `name` to the property's list of registered names.
 
-_Preconditions (2-4):_ Each source language defines its own requirements for
-the registered kernel names.
+_Preconditions (2-4):_ Each source language defines its own requirements for the
+registered names.
 For the language `source_language::sycl`, each name must be a {cpp} expression
 for a pointer to a kernel function as defined below under "Obtaining a kernel
 when the language is ``sycl``".
 
-[_Note:_ It is not an error to have duplicate names in a
-`registered_kernel_names` property, but the duplicates have no effect.
+[_Note:_ It is not an error to have duplicate names in a `registered_names`
+property, but the duplicates have no effect.
 _{endnote}_]
 |====
 
@@ -643,8 +633,8 @@ _Constraints:_ This function is not available when `State` is
 
 _Returns:_ If the kernel bundle was created from a bundle of state
 `bundle_state::ext_oneapi_source` and `name` was registered via
-`registered_kernel_names`, returns the compiler-generated (e.g. mangled) name
-for this kernel function.
+`registered_names`, returns the compiler-generated (e.g. mangled) name for this
+kernel function.
 If the kernel bundle was created from a bundle of state
 `bundle_state::ext_oneapi_source` and `name` is the same as a
 compiler-generated name for a kernel defined in that bundle, that same
@@ -656,12 +646,33 @@ _Throws:_
   `ext_oneapi_has_kernel(name)` returns `false`.
 |====
 
+=== Including files when the language is `sycl`
+
+When the source language is `source_language::sycl`, the compiler searches
+multiple locations to find files referenced by `#include` statements.
+Any include files defined via the `include_files` property are searched first,
+followed by the directories below, in order:
+
+1. The current working directory.
+2. Any directory added explicitly to the search list via the `build_options`
+   property.
+
+Finally, the compiler searches a set of implicitly available header files, which
+do not need to be specified via the `include_files` property:
+
+* `<sycl/sycl.hpp>`;
+* The {cpp} standard library headers;
+* The SYCL backend headers `"sycl/backend/<backend_name>.hpp"` for any backends
+  that the implementation supports; and
+* Any SYCL extension headers in `"sycl/ext"` for extensions that the
+  implementation supports.
+
 === Obtaining a kernel when the language is `sycl`
 
 When the kernel is defined in the language `source_language::sycl`, the host
 code may query for the kernel or obtain the `kernel` object using either the
 kernel's name as it is generated by the compiler (i.e. the {cpp} mangled name)
-or by using the `registered_kernel_names` property.
+or by using the `registered_names` property.
 
 ==== Using the compiler-generated name
 
@@ -691,11 +702,10 @@ sycl::kernel_bundle<sycl::bundle_state::executable> kb = /*...*/;
 sycl::kernel k = kb.ext_oneapi_get_kernel("foo");
 ----
 
-==== Using the `registered_kernel_names` property
+==== Using the `registered_names` property
 
 When the kernel is not declared as `extern "C"`, the compiler generates a
-mangled name, so it is more convenient to use the `registered_kernel_names`
-property.
+mangled name, so it is more convenient to use the `registered_names` property.
 Each string in the property must be the {cpp} expression for a pointer to a
 kernel function.
 These expression strings are conceptually compiled at the bottom of source
@@ -724,7 +734,7 @@ The host code can compile this and get the kernel's `kernel` object like so:
 sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
 
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclexp::build(kb_src,
-  syclexp::properties{syclexp::registered_kernel_names{"mykernels::bar"}});
+  syclexp::properties{syclexp::registered_names{"mykernels::bar"}});
 
 sycl::kernel k = kb.ext_oneapi_get_kernel("mykernels::bar");
 ----
@@ -744,21 +754,21 @@ the kernel by calling `ext_oneapi_get_raw_kernel_name` like this:
 sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
 
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclexp::build(kb_src,
-  syclexp::properties{syclexp::registered_kernel_names{"mykernels::bar"}});
+  syclexp::properties{syclexp::registered_names{"mykernels::bar"}});
 
 std::string mangled_name = kb.ext_oneapi_get_raw_kernel_name("mykernels::bar");
 ----
 
 Again, the string passed to `ext_oneapi_get_raw_kernel_name` must have exactly
-the same content as the string that was used to construct the
-`registered_kernel_names` property.
+the same content as the string that was used to construct the `registered_names`
+property.
 The application may also pass this compiler-generated (i.e. mangled) name to
 `ext_oneapi_get_kernel` in order to get the `kernel` object.
 
 ==== Instantiating templated kernel functions
 
-The `registered_kernel_names` property can also be used to instantiate a
-kernel that is defined as a function template.
+The `registered_names` property can also be used to instantiate a kernel that is
+defined as a function template.
 For example, consider source code that defines a kernel function template like
 this:
 
@@ -774,8 +784,8 @@ std::string source = R"""(
 )""";
 ----
 
-The application can use the `registered_kernel_names` property to instantiate
-the template for specific template arguments.
+The application can use the `registered_names` property to instantiate the
+template for specific template arguments.
 For example, this host code instantiates the template twice and gets a `kernel`
 object for each instantiation:
 
@@ -784,7 +794,7 @@ object for each instantiation:
 sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
 
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclexp::build(kb_src,
-  syclexp::properties{syclexp::registered_kernel_names{{"bartmpl<float>", "bartmpl<int>"}});
+  syclexp::properties{syclexp::registered_names{{"bartmpl<float>", "bartmpl<int>"}});
 
 sycl::kernel k_float = kb.ext_oneapi_get_kernel("bartmpl<float>");
 sycl::kernel k_int = kb.ext_oneapi_get_kernel("bartmpl<int>");
@@ -818,7 +828,7 @@ int main() {
     extern "C"
     SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
     void iota(float start, float *ptr) {
-      size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
       ptr[id] = start + static_cast<float>(id);
     }
   )""";
@@ -830,7 +840,7 @@ int main() {
       syclexp::source_language::sycl,
       source);
 
-  // Compile the kernel.  There is no need to use the "registered_kernel_names"
+  // Compile the kernel.  There is no need to use the "registered_names"
   // property because the kernel is declared extern "C".
   sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
     syclexp::build(kb_src);
@@ -847,12 +857,13 @@ int main() {
     sycl::nd_range ndr{{NUM}, {WGSIZE}};
     cgh.parallel_for(ndr, iota);
   }).wait();
+  sycl::free(ptr, q);
 }
 ----
 
 === Disambiguating overloaded kernel functions
 
-This example demonstrates how to use the `registered_kernel_names` property to
+This example demonstrates how to use the `registered_names` property to
 disambiguate a kernel function that has several overloads.
 
 [source,c++]
@@ -874,13 +885,13 @@ int main() {
 
     SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
     void iota(float start, float *ptr) {
-      size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
       ptr[id] = start + static_cast<float>(id);
     }
 
-    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::range_kernel<1>))
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
     void iota(int start, int *ptr) {
-      size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
       ptr[id] = start + static_cast<int>(id);
     }
   )""";
@@ -896,11 +907,11 @@ int main() {
   // use a C++ cast to disambiguate between them.  Here, we are selecting the
   // "int" overload.
   std::string iota_name{"(void(*)(int, int*))iota"};
-  sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe = syclexp::build(kb_src,
-    syclexp::properties{syclexp::registered_kernel_names{iota_name}});
+  sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
+    syclexp::build(kb_src, syclexp::properties{syclexp::registered_names{iota_name}});
 
   // Get the kernel by passing the same string we used to construct the
-  // "registered_kernel_names" property.
+  // "registered_names" property.
   sycl::kernel iota = kb_exe.ext_oneapi_get_kernel(iota_name);
 
   int *ptr = sycl::malloc_shared<int>(NUM, q);
@@ -912,6 +923,7 @@ int main() {
     sycl::nd_range ndr{{NUM}, {WGSIZE}};
     cgh.parallel_for(ndr, iota);
   }).wait();
+  sycl::free(ptr, q);
 }
 ----
 
@@ -938,3 +950,25 @@ There is no inherent reason why this functionality needs to be built into
 However, we don't yet have a utility library where this would go, and it may be
 hard for customers to discover this functionality if it is defined outside of
 this extension.
+
+== Non-normative implementation notes for {dpcpp}
+
+=== Supported `build_options` when the language is `sycl`
+
+The SYCL runtime compiler supports the following {dpcpp} options to be passed in
+the `build_options` property.
+
+[%header,cols="1,3"]
+|===
+|Option
+|Notes
+
+|`-I<dir>` +
+`-I <dir>` +
+`--include-directory=<dir>` +
+`--include-directory <dir>`
+| Add `<dir>` to to the search list for include files (see section "Including
+files when the language is ``sycl``"). This is useful, for example, to compile
+kernels using external libraries. Note that for the second and fourth form,
+`dir` is a separate element in the `build_options` list.
+|===

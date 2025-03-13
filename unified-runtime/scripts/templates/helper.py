@@ -741,6 +741,20 @@ def get_adapter_handles(specs):
 
 """
 Public:
+    returns a list of all adapter manifests
+"""
+
+
+def get_adapter_manifests(specs):
+    objs = []
+    for s in specs:
+        for obj in s["objects"]:
+            if "manifest" in obj["type"]:
+                objs.append(obj)
+    return objs
+
+"""
+Public:
     returns a list of all loader API functions' names
 """
 
@@ -1532,7 +1546,6 @@ def get_pfncbtables(specs, meta, namespace, tags):
         objs = get_class_function_objs(specs, cname, Version("1.0"))
         if len(objs) > 0:
             name = get_table_name(namespace, tags, {"class": cname})
-            print(name)
             table = "%s_%s_callbacks_t" % (namespace, _camel_to_snake(name))
             tables.append({"name": name, "type": table, "functions": objs})
     return tables

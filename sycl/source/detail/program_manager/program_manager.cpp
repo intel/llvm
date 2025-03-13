@@ -613,6 +613,42 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+// Quick check to see whether BinImage is a compiler-generated device image.
+static bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage) {
+  // SYCL devicelib image.
+  if (BinImage->getDeviceLibMetadata().isAvailable())
+    return true;
+
+  return false;
+}
+
+static bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
+                                             const device &Dev) {
+  // Decide whether a devicelib image should be used.
+  if (BinImage->getDeviceLibMetadata().isAvailable()) {
+    const RTDeviceBinaryImage::PropertyRange &DeviceLibMetaProp =
+        BinImage->getDeviceLibMetadata();
+    uint32_t DeviceLibMeta =
+        DeviceBinaryProperty(*(DeviceLibMetaProp.begin())).asUint32();
+    // Currently, only bfloat conversion devicelib are supported, so the prop
+    // DeviceLibMeta are only used to represent fallback or native version.
+    // For bfloat16 conversion devicelib, we have fallback and native version.
+    // The native should be used on platform which supports native bfloat16
+    // conversion capability and fallback version should be used on all other
+    // platforms. The native bfloat16 capability can be queried via extension.
+    // TODO: re-design the encode of the devicelib metadata if we must support
+    // more devicelib images in this way.
+    enum { DEVICELIB_FALLBACK = 0, DEVICELIB_NATIVE };
+    const std::shared_ptr<detail::device_impl> &DeviceImpl =
+        detail::getSyclObjImpl(Dev);
+    std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
+    bool NativeBF16Supported = (DeviceImpl->has_extension(NativeBF16ExtName));
+    return NativeBF16Supported == (DeviceLibMeta == DEVICELIB_NATIVE);
+  }
+
+  return false;
+}
+
 static bool checkLinkingSupport(const device &Dev,
                                 const RTDeviceBinaryImage &Img) {
   const char *Target = Img.getRawData().DeviceTargetSpec;
@@ -668,6 +704,9 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       if (Img->getFormat() != Format ||
           !doesDevSupportDeviceRequirements(Dev, *Img) ||
           !compatibleWithDevice(Img, Dev))
+        continue;
+      if (isSpecialDeviceImage(Img) &&
+          !isSpecialDeviceImageShouldBeUsed(Img, Dev))
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
@@ -1798,6 +1837,48 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   return {};
 }
 
+static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
+  // For bfloat16 device library image, we should keep it. However, in some
+  // scenario, __sycl_register_lib can be called multiple times and the same
+  // bfloat16 device library image may be handled multiple times which is not
+  // needed. 2 static bool variables are created to record whether native or
+  // fallback bfloat16 device library image has been handled, if yes, we just
+  // need to skip it.
+  sycl_device_binary_property_set ImgPS;
+  static bool IsNativeBF16DeviceLibHandled = false;
+  static bool IsFallbackBF16DeviceLibHandled = false;
+  for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
+       ++ImgPS) {
+    if (ImgPS->Name &&
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
+      sycl_device_binary_property ImgP;
+      for (ImgP = ImgPS->PropertiesBegin; ImgP != ImgPS->PropertiesEnd;
+           ++ImgP) {
+        if (ImgP->Name && !strcmp("bfloat16", ImgP->Name) &&
+            (ImgP->Type == SYCL_PROPERTY_TYPE_UINT32))
+          break;
+      }
+      if (ImgP == ImgPS->PropertiesEnd)
+        return true;
+
+      // A valid bfloat16 device library image is found here, need to check
+      // wheter it has been handled already.
+      uint32_t BF16NativeVal = DeviceBinaryProperty(ImgP).asUint32();
+      if (((BF16NativeVal == 0) && IsFallbackBF16DeviceLibHandled) ||
+          ((BF16NativeVal == 1) && IsNativeBF16DeviceLibHandled))
+        return true;
+
+      if (BF16NativeVal == 0)
+        IsFallbackBF16DeviceLibHandled = true;
+      else
+        IsNativeBF16DeviceLibHandled = true;
+
+      return false;
+    }
+  }
+  return true;
+}
+
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
@@ -1805,7 +1886,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
-    if (EntriesB == EntriesE)
+    if ((EntriesB == EntriesE) && shouldSkipEmptyImage(RawImg))
       continue;
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
@@ -1867,33 +1948,34 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         ++EntriesIt) {
+         EntriesIt = EntriesIt->Increment()) {
+
+      auto name = EntriesIt->GetName();
 
       // Skip creating unique kernel ID if it is a service kernel.
       // SYCL service kernels are identified by having
       // __sycl_service_kernel__ in the mangled name, primarily as part of
       // the namespace of the name type.
-      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img.get()));
+      if (std::strstr(name, "__sycl_service_kernel__")) {
+        m_ServiceKernels.insert(std::make_pair(name, Img.get()));
         continue;
       }
 
       // Skip creating unique kernel ID if it is an exported device
       // function. Exported device functions appear in the offload entries
       // among kernels, but are identifiable by being listed in properties.
-      if (m_ExportedSymbolImages.find(EntriesIt->name) !=
-          m_ExportedSymbolImages.end())
+      if (m_ExportedSymbolImages.find(name) != m_ExportedSymbolImages.end())
         continue;
 
       // ... and create a unique kernel ID for the entry
-      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+      auto It = m_KernelName2KernelIDs.find(name);
       if (It == m_KernelName2KernelIDs.end()) {
         std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+            std::make_shared<detail::kernel_id_impl>(name);
         sycl::kernel_id KernelID =
             detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
 
-        It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name, KernelID);
+        It = m_KernelName2KernelIDs.emplace_hint(It, name, KernelID);
       }
       m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
       m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
@@ -2020,25 +2102,25 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
     // Unmap the unique kernel IDs for the offload entries
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         ++EntriesIt) {
+         EntriesIt = EntriesIt->Increment()) {
 
       // Drop entry for service kernel
-      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.erase(EntriesIt->name);
+      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
+        m_ServiceKernels.erase(EntriesIt->GetName());
         continue;
       }
 
       // Exported device functions won't have a kernel ID
-      if (m_ExportedSymbolImages.find(EntriesIt->name) !=
+      if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=
           m_ExportedSymbolImages.end()) {
         continue;
       }
 
       // remove everything associated with this KernelName
-      m_KernelUsesAssert.erase(EntriesIt->name);
-      m_KernelImplicitLocalArgPos.erase(EntriesIt->name);
+      m_KernelUsesAssert.erase(EntriesIt->GetName());
+      m_KernelImplicitLocalArgPos.erase(EntriesIt->GetName());
 
-      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
           It != m_KernelName2KernelIDs.end()) {
         m_KernelName2KernelIDs.erase(It);
         m_KernelIDs2BinImage.erase(It->second);

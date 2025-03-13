@@ -35,7 +35,7 @@ on:
         type: string
         default: ''
 
-      ref:
+      repo_ref:
         type: string
         required: True
         description: |
@@ -126,6 +126,7 @@ on:
           - '["cts-cpu"]'
           - '["Linux", "build"]'
           - '["cuda"]'
+          - '["PVC_PERF"]'
       image:
         type: choice
         options:
@@ -170,17 +171,14 @@ on:
           Extra options to be added to LIT_OPTS.
         default: ''
 
-      install_igc_driver:
+      reset_intel_gpu:
+        description: |
+          Reset Intel GPUs
         type: choice
         options:
           - false
           - true
 
-      install_dev_igc_driver:
-        type: choice
-        options:
-          - false
-          - true
       e2e_testing_mode:
         type: choice
         options:
@@ -214,7 +212,7 @@ jobs:
         done
     - uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.devops_ref || inputs.ref }}
+        ref: ${{ inputs.devops_ref || inputs.repo_ref }}
         sparse-checkout: |
           devops
     - name: Register cleanup after job is finished
@@ -304,7 +302,7 @@ jobs:
       if: inputs.tests_selector == 'e2e'
       uses: ./devops/actions/run-tests/e2e
       with:
-        ref: ${{ inputs.tests_ref || inputs.ref || github.sha }}
+        ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
         testing_mode: ${{ inputs.e2e_testing_mode }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
