@@ -2,7 +2,7 @@ set(LLVM_LINK_COMPONENTS
   Core
   IRReader
   Support
-  SYCLLowerIR
+  SYCLPostLink
   )
 
 add_llvm_tool(sycl-module-split
