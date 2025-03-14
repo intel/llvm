@@ -1,4 +1,4 @@
-// REQUIRES: linux, ocloc, gpu && level_zero
+// REQUIRES: linux, gpu && level_zero
 // REQUIRES: (arch-intel_gpu_pvc || gpu-intel-dg2)
 
 // RUN: %{run-aux} %{build} %device_asan_aot_flags -O0 -g %S/Inputs/host-usm-oob.cpp -o %t.out

@@ -1,4 +1,4 @@
-//==------------------- df.cpp --- kernel_compiler extension tests   -------==//
+//==--- sycl_device_flags.cpp --- kernel_compiler extension tests ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,8 +13,7 @@
 // UNSUPPORTED-INTENDED:  IGC shader dump not available on Windows.
 
 // RUN: %{build} -o %t.out
-// RUN: env IGC_DumpToCustomDir=%T.dump_0 IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out sycl %T.dump_0/
-// RUN: env IGC_DumpToCustomDir=%T.dump_1 IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out sycl_jit %T.dump_1/
+// RUN: env IGC_DumpToCustomDir=%T.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out %T.dump/
 
 // clang-format off
 /*
@@ -106,9 +105,8 @@ int test_dump(std::string &dump_dir) {
 
 int main(int argc, char *argv[]) {
 
-  if (argc != 3) {
-    std::cerr << "Usage: " << argv[0] << " <lang> <dump_directory>"
-              << std::endl;
+  if (argc != 2) {
+    std::cerr << "Usage: " << argv[0] << " <dump_directory>" << std::endl;
     return 1;
   }
 
@@ -116,22 +114,20 @@ int main(int argc, char *argv[]) {
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
-  syclex::source_language lang = std::strcmp(argv[1], "sycl_jit") == 0
-                                     ? syclex::source_language::sycl_jit
-                                     : syclex::source_language::sycl;
-  std::string dump_dir = argv[2];
+  std::string dump_dir = argv[1];
 
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
-  bool ok = q.get_device().ext_oneapi_can_compile(lang);
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
     std::cout << "compiling from SYCL source not supported" << std::endl;
     return 0; // if kernel compilation is not supported, do nothing.
   }
 
-  source_kb kbSrc =
-      syclex::create_kernel_bundle_from_source(ctx, lang, SYCLSource);
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl, SYCLSource);
 
   std::vector<std::string> flags{"-Xs", "-doubleGRF",
                                  "-XsXfinalizer \"-printregusage\""};

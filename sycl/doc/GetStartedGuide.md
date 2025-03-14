@@ -222,7 +222,8 @@ headers.
 Secondly pass the CMake variable `CUDAToolkit_ROOT` as follows:
 
 ```sh
-CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py --cuda --cmake-opt="-DCUDAToolkit_ROOT=/path/to/cuda/toolkit"
+CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py \
+    --cuda -DCUDA_Toolkit_ROOT=/path/to/cuda/toolkit
 
 CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
 
@@ -250,12 +251,12 @@ instruction on how to install this refer to
 
 The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it is
 installed somewhere else, the directory must be provided through the CMake
-variable `UR_HIP_ROCM_DIR` which can be passed using the
-`--cmake-opt` option of `configure.py` as follows:
+variable `UR_HIP_ROCM_DIR` which can be passed through to cmake using the
+configure helper script as follows:
 
 ```sh
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
-  --cmake-opt=-DUR_HIP_ROCM_DIR=/usr/local/rocm
+  -DUR_HIP_ROCM_DIR=/usr/local/rocm
 ```
 If further customization is required — for instance when the layout of
 individual directories can not be inferred from `UR_HIP_ROCM_DIR` —
