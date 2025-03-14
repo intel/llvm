@@ -541,7 +541,7 @@ loadBitcodeLibrary(StringRef LibPath, LLVMContext &Context) {
     Diag.print(/*ProgName=*/nullptr, SOS);
     return createStringError(DiagMsg);
   }
-  return Lib;
+  return std::move(Lib);
 }
 
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
