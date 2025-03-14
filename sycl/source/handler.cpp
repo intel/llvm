@@ -543,8 +543,6 @@ event handler::finalize() {
         NewEvent->setSubmissionTime();
 
         EnqueueKernel();
-        if (NewEvent->isHost() || NewEvent->getHandle() == nullptr)
-          NewEvent->setComplete();
         NewEvent->setEnqueued();
 
         MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);

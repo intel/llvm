@@ -333,9 +333,10 @@ static void adjustArgs(const InputArgList &UserArgList,
   DAL.eraseArg(OPT_ftime_trace_granularity_EQ);
   DAL.eraseArg(OPT_ftime_trace_verbose);
 
-  for (auto *Arg : DAL) {
-    CommandLine.emplace_back(Arg->getAsString(DAL));
-  }
+  ArgStringList ASL;
+  for_each(DAL, [&DAL, &ASL](Arg *A) { A->render(DAL, ASL); });
+  transform(ASL, std::back_inserter(CommandLine),
+            [](const char *AS) { return std::string{AS}; });
 }
 
 static void setupTool(ClangTool &Tool, const std::string &DPCPPRoot,
@@ -530,6 +531,19 @@ static bool getDeviceLibraries(const ArgList &Args,
   return FoundUnknownLib;
 }
 
+static Expected<std::unique_ptr<llvm::Module>>
+loadBitcodeLibrary(StringRef LibPath, LLVMContext &Context) {
+  SMDiagnostic Diag;
+  std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Context);
+  if (!Lib) {
+    std::string DiagMsg;
+    raw_string_ostream SOS(DiagMsg);
+    Diag.print(/*ProgName=*/nullptr, SOS);
+    return createStringError(DiagMsg);
+  }
+  return std::move(Lib);
+}
+
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                                         const InputArgList &UserArgList,
                                         std::string &BuildLog) {
@@ -557,16 +571,13 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   for (const std::string &LibName : LibNames) {
     std::string LibPath = DPCPPRoot + "/lib/" + LibName;
 
-    SMDiagnostic Diag;
-    std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Context);
-    if (!Lib) {
-      std::string DiagMsg;
-      raw_string_ostream SOS(DiagMsg);
-      Diag.print(/*ProgName=*/nullptr, SOS);
-      return createStringError(DiagMsg);
+    auto LibOrErr = loadBitcodeLibrary(LibPath, Context);
+    if (!LibOrErr) {
+      return LibOrErr.takeError();
     }
 
-    if (Linker::linkModules(Module, std::move(Lib), Linker::LinkOnlyNeeded)) {
+    if (Linker::linkModules(Module, std::move(*LibOrErr),
+                            Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",
                                LibPath.c_str(), BuildLog.c_str());
     }
@@ -606,6 +617,31 @@ static IRSplitMode getDeviceCodeSplitMode(const InputArgList &UserArgList) {
   return SPLIT_AUTO;
 }
 
+static void encodeProperties(PropertySetRegistry &Properties,
+                             RTCDevImgInfo &DevImgInfo) {
+  const auto &PropertySets = Properties.getPropSets();
+
+  DevImgInfo.Properties = FrozenPropertyRegistry{PropertySets.size()};
+  for (auto [KV, FrozenPropSet] :
+       zip_equal(PropertySets, DevImgInfo.Properties)) {
+    const auto &PropertySetName = KV.first;
+    const auto &PropertySet = KV.second;
+    FrozenPropSet =
+        FrozenPropertySet{PropertySetName.str(), PropertySet.size()};
+    for (auto [KV2, FrozenProp] :
+         zip_equal(PropertySet, FrozenPropSet.Values)) {
+      const auto &PropertyName = KV2.first;
+      const auto &PropertyValue = KV2.second;
+      FrozenProp = PropertyValue.getType() == PropertyValue::Type::UINT32
+                       ? FrozenPropertyValue{PropertyName.str(),
+                                             PropertyValue.asUint32()}
+                       : FrozenPropertyValue{
+                             PropertyName.str(), PropertyValue.asRawByteArray(),
+                             PropertyValue.getRawByteArraySize()};
+    }
+  };
+}
+
 Expected<PostLinkResult>
 jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
                               const InputArgList &UserArgList) {
@@ -636,9 +672,9 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
   // Otherwise: Port over the `removeSYCLKernelsConstRefArray` and
   // `removeDeviceGlobalFromCompilerUsed` methods.
 
-  assert(!isModuleUsingAsan(*Module));
-  // Otherwise: Need to instrument each image scope device globals if the module
-  // has been instrumented by sanitizer pass.
+  assert(!(isModuleUsingAsan(*Module) || isModuleUsingMsan(*Module) ||
+           isModuleUsingTsan(*Module)));
+  // Otherwise: Run `SanitizerKernelMetadataPass`.
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.
@@ -656,8 +692,9 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
       /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints);
   assert(Splitter->hasMoreSplits());
 
-  // TODO: Call `verifyNoCrossModuleDeviceGlobalUsage` if device globals shall
-  //       be processed.
+  if (auto Err = Splitter->verifyNoCrossModuleDeviceGlobalUsage()) {
+    return std::move(Err);
+  }
 
   SmallVector<RTCDevImgInfo> DevImgInfoVec;
   SmallVector<std::unique_ptr<llvm::Module>> Modules;
@@ -667,6 +704,7 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
   //       `-fno-sycl-device-code-split-esimd` as a prerequisite for compiling
   //       `invoke_simd` code.
 
+  bool IsBF16DeviceLibUsed = false;
   while (Splitter->hasMoreSplits()) {
     ModuleDesc MDesc = Splitter->nextSplit();
 
@@ -697,35 +735,58 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
       GlobalBinImageProps PropReq{
           /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
           /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
-          /*DeviceGlobals=*/false};
+          /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
           computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
+
+      // When the split mode is none, the required work group size will be added
+      // to the whole module, which will make the runtime unable to launch the
+      // other kernels in the module that have different required work group
+      // sizes or no required work group sizes. So we need to remove the
+      // required work group size metadata in this case.
+      if (SplitMode == module_split::SPLIT_NONE) {
+        Properties.remove(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
+                          PropSetRegTy::PROPERTY_REQD_WORK_GROUP_SIZE);
+      }
+
       // TODO: Manually add `compile_target` property as in
       //       `saveModuleProperties`?
-      const auto &PropertySets = Properties.getPropSets();
 
-      DevImgInfo.Properties = FrozenPropertyRegistry{PropertySets.size()};
-      for (auto [KV, FrozenPropSet] :
-           zip_equal(PropertySets, DevImgInfo.Properties)) {
-        const auto &PropertySetName = KV.first;
-        const auto &PropertySet = KV.second;
-        FrozenPropSet =
-            FrozenPropertySet{PropertySetName.str(), PropertySet.size()};
-        for (auto [KV2, FrozenProp] :
-             zip_equal(PropertySet, FrozenPropSet.Values)) {
-          const auto &PropertyName = KV2.first;
-          const auto &PropertyValue = KV2.second;
-          FrozenProp =
-              PropertyValue.getType() == PropertyValue::Type::UINT32
-                  ? FrozenPropertyValue{PropertyName.str(),
-                                        PropertyValue.asUint32()}
-                  : FrozenPropertyValue{PropertyName.str(),
-                                        PropertyValue.asRawByteArray(),
-                                        PropertyValue.getRawByteArraySize()};
-        }
-      };
+      encodeProperties(Properties, DevImgInfo);
 
+      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(MDesc.getModule());
       Modules.push_back(MDesc.releaseModulePtr());
+    }
+  }
+
+  if (IsBF16DeviceLibUsed) {
+    const std::string &DPCPPRoot = getDPCPPRoot();
+    if (DPCPPRoot == InvalidDPCPPRoot) {
+      return createStringError("Could not locate DPCPP root directory");
+    }
+
+    auto &Ctx = Modules.front()->getContext();
+    auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
+      std::string LibPath = DPCPPRoot + "/lib/" + LibName;
+      auto LibOrErr = loadBitcodeLibrary(LibPath, Ctx);
+      if (!LibOrErr) {
+        return LibOrErr.takeError();
+      }
+
+      std::unique_ptr<llvm::Module> LibModule = std::move(*LibOrErr);
+      PropertySetRegistry Properties =
+          computeDeviceLibProperties(*LibModule, LibName);
+      encodeProperties(Properties, DevImgInfoVec.emplace_back());
+      Modules.push_back(std::move(LibModule));
+
+      return Error::success();
+    };
+
+    if (auto Err = WrapLibraryInDevImg("libsycl-fallback-bfloat16.bc")) {
+      return std::move(Err);
+    }
+    if (auto Err = WrapLibraryInDevImg("libsycl-native-bfloat16.bc")) {
+      return std::move(Err);
     }
   }
 

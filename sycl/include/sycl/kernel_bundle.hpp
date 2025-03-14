@@ -26,20 +26,22 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
+#include <algorithm> // for copy
 #include <array>      // for array
 #include <cstddef>    // for std::byte
 #include <cstring>    // for size_t, memcpy
 #include <functional> // for function
-#include <iterator>   // for distance
+#include <iterator>   // for distance, back_inserter
 #include <memory>     // for shared_ptr, operator==, hash
 #if __has_include(<span>)
 #include <span>
 #endif
-#include <string>      // for string
-#include <type_traits> // for enable_if_t, remove_refer...
-#include <utility>     // for move
-#include <variant>     // for hash
-#include <vector>      // for vector
+#include <string>        // for string
+#include <type_traits>   // for enable_if_t, remove_refer...
+#include <unordered_map> // for unordered_map
+#include <utility>       // for move
+#include <variant>       // for hash
+#include <vector>        // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -240,6 +242,19 @@ public:
         ext_oneapi_get_raw_kernel_name(detail::string_view{name}).c_str()};
   }
 
+  bool ext_oneapi_has_device_global(const std::string &name) {
+    return ext_oneapi_has_device_global(detail::string_view{name});
+  }
+
+  void *ext_oneapi_get_device_global_address(const std::string &name,
+                                             const device &dev) {
+    return ext_oneapi_get_device_global_address(detail::string_view{name}, dev);
+  }
+
+  size_t ext_oneapi_get_device_global_size(const std::string &name) {
+    return ext_oneapi_get_device_global_size(detail::string_view{name});
+  }
+
 protected:
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
@@ -269,6 +284,11 @@ private:
   bool ext_oneapi_has_kernel(detail::string_view name);
   kernel ext_oneapi_get_kernel(detail::string_view name);
   detail::string ext_oneapi_get_raw_kernel_name(detail::string_view name);
+
+  bool ext_oneapi_has_device_global(detail::string_view name);
+  void *ext_oneapi_get_device_global_address(detail::string_view name,
+                                             const device &dev);
+  size_t ext_oneapi_get_device_global_size(detail::string_view name);
 };
 
 } // namespace detail
@@ -497,6 +517,43 @@ public:
             typename = std::enable_if_t<_State == bundle_state::executable>>
   std::string ext_oneapi_get_raw_kernel_name(const std::string &name) {
     return detail::kernel_bundle_plain::ext_oneapi_get_raw_kernel_name(name);
+  }
+
+  /////////////////////////
+  // ext_oneapi_has_device_global
+  //  only true if kernel_bundle was created from source and has this device
+  //  global
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  bool ext_oneapi_has_device_global(const std::string &name) {
+    return detail::kernel_bundle_plain::ext_oneapi_has_device_global(name);
+  }
+
+  /////////////////////////
+  // ext_oneapi_get_device_global_address
+  //  kernel_bundle must be created from source, throws if bundle was not built
+  //  for this device, or device global is either not present or has
+  //  `device_image_scope` property.
+  //  Returns a USM pointer to the variable's initialized storage on the device.
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  void *ext_oneapi_get_device_global_address(const std::string &name,
+                                             const device &dev) {
+    return detail::kernel_bundle_plain::ext_oneapi_get_device_global_address(
+        name, dev);
+  }
+
+  /////////////////////////
+  // ext_oneapi_get_device_global_size
+  //  kernel_bundle must be created from source, throws if device global is not
+  //  present. Returns the variable's size in bytes.
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  size_t ext_oneapi_get_device_global_size(const std::string &name) {
+    return detail::kernel_bundle_plain::ext_oneapi_get_device_global_size(name);
   }
 
 private:
@@ -954,14 +1011,19 @@ struct build_source_bundle_props;
 struct include_files
     : detail::run_time_property_key<include_files,
                                     detail::PropKind::IncludeFiles> {
-  include_files();
+  include_files() {}
   include_files(const std::string &name, const std::string &content) {
-    record.emplace_back(std::make_pair(name, content));
+    record.emplace(name, content);
   }
   void add(const std::string &name, const std::string &content) {
-    record.emplace_back(std::make_pair(name, content));
+    bool inserted = record.try_emplace(name, content).second;
+    if (!inserted) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Include file '" + name +
+                                "' is already registered");
+    }
   }
-  std::vector<std::pair<std::string, std::string>> record;
+  std::unordered_map<std::string, std::string> record;
 };
 using include_files_key = include_files;
 
@@ -977,8 +1039,10 @@ struct build_options
     : detail::run_time_property_key<build_options,
                                     detail::PropKind::BuildOptions> {
   std::vector<std::string> opts;
+  build_options() {}
   build_options(const std::string &optsArg) : opts{optsArg} {}
   build_options(const std::vector<std::string> &optsArg) : opts(optsArg) {}
+  void add(const std::string &opt) { opts.push_back(opt); }
 };
 using build_options_key = build_options;
 
@@ -1116,7 +1180,10 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const std::string &Source, PropertyListT props = {}) {
   std::vector<std::pair<std::string, std::string>> IncludePairsVec;
   if constexpr (props.template has_property<include_files>()) {
-    IncludePairsVec = props.template get_property<include_files>().record;
+    const std::unordered_map<std::string, std::string> &IncludePairs =
+        props.template get_property<include_files>().record;
+    std::copy(IncludePairs.begin(), IncludePairs.end(),
+              std::back_inserter(IncludePairsVec));
   }
 
   return detail::make_kernel_bundle_from_source(SyclContext, Language, Source,
@@ -1132,7 +1199,10 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const std::vector<std::byte> &Bytes, PropertyListT props = {}) {
   std::vector<std::pair<std::string, std::string>> IncludePairsVec;
   if constexpr (props.template has_property<include_files>()) {
-    IncludePairsVec = props.template get_property<include_files>().record;
+    const std::unordered_map<std::string, std::string> &IncludePairs =
+        props.template get_property<include_files>().record;
+    std::copy(IncludePairs.begin(), IncludePairs.end(),
+              std::back_inserter(IncludePairsVec));
   }
 
   return detail::make_kernel_bundle_from_source(SyclContext, Language, Bytes,

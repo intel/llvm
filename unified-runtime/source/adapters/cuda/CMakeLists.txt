@@ -54,7 +54,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 )
 
 find_package(Threads REQUIRED)
-find_package(CUDA 10.1 REQUIRED)
+find_package(CUDAToolkit 10.1 REQUIRED)
 
 # Make imported library global to use it within the project.
 add_library(cudadrv SHARED IMPORTED GLOBAL)
@@ -62,14 +62,14 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 if (WIN32)
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_IMPLIB               ${CUDA_CUDA_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+      IMPORTED_IMPLIB               ${CUDA_cuda_driver_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
   )
 else()
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
+      IMPORTED_LOCATION             ${CUDA_cuda_driver_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
   )
 endif()
 
@@ -82,17 +82,6 @@ endif()
 # Only enable xpti tracing on Linux as tracing tools aren't available on
 # Windows yet.
 if (UR_ENABLE_TRACING AND UNIX)
-  include(FindCUDACupti)
-  # The following two ifs can be removed when FindCUDA -> FindCUDAToolkit.
-  # CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
-  if(NOT CUDA_CUPTI_INCLUDE_DIR)
-    find_cuda_cupti_include_dir()
-  endif()
-  # CUDA_cupti_LIBRARY -> CUDAToolkit_cupti_LIBRARY
-  if(NOT CUDA_cupti_LIBRARY)
-    find_cuda_cupti_library()
-  endif()
-
   if (NOT XPTI_INCLUDES)
     get_target_property(XPTI_INCLUDES xpti INCLUDE_DIRECTORIES)
   endif()
@@ -106,7 +95,7 @@ if (UR_ENABLE_TRACING AND UNIX)
     )
   target_include_directories(${TARGET_NAME} PRIVATE
     ${XPTI_INCLUDES}
-    ${CUDA_CUPTI_INCLUDE_DIR}
+    ${CUDAToolkit_cupti_INCLUDE_DIR}
   )
   target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})
 endif()
