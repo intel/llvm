@@ -1,4 +1,4 @@
-//=- kernel_compiler_sycl_jit_device_globals.cpp - RTC device globals tests -=//
+//==--- sycl_device_globals.cpp --- kernel_compiler extension tests --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -54,16 +54,16 @@ int test_device_global() {
   sycl::context ctx = q.get_context();
   sycl::device d = q.get_device();
 
-  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << d.get_info<sycl::info::device::name>() << std::endl;
     return -1;
   }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, DGSource);
+      ctx, syclex::source_language::sycl, DGSource);
 
   exe_kb kbExe1 = syclex::build(kbSrc);
   auto addK = kbExe1.ext_oneapi_get_kernel("ff_dg_adder");
@@ -142,13 +142,13 @@ int test_error() {
   sycl::context ctx = q.get_context();
   sycl::device d = q.get_device();
 
-  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  bool ok = d.ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
     return 0;
   }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, DGSource);
+      ctx, syclex::source_language::sycl, DGSource);
   exe_kb kbExe = syclex::build(kbSrc);
 
   try {

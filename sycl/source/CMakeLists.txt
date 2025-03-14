@@ -42,6 +42,17 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
   endif()
 
+  # To facilitate better tracing and profiling except on release builds.
+  check_cxx_compiler_flag("-fno-omit-frame-pointer" CXX_HAS_NO_OMIT_FRAME_POINTER)
+  if (CXX_HAS_NO_OMIT_FRAME_POINTER)
+    target_compile_options(${LIB_NAME} PUBLIC
+      $<$<CONFIG:Debug,RelWithDebInfo>:-fno-omit-frame-pointer>
+      )
+    target_compile_options(${LIB_OBJ_NAME} PUBLIC
+      $<$<CONFIG:Debug,RelWithDebInfo>:-fno-omit-frame-pointer>
+      )
+  endif()
+
   if (SYCL_ENABLE_COVERAGE)
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
       -fprofile-instr-generate -fcoverage-mapping
@@ -185,8 +196,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
   )
 
-  add_dependencies(${LIB_OBJ_NAME} UnifiedRuntimeAdapters ur_umf)
-
   target_link_libraries(${LIB_NAME}
     PRIVATE
       UnifiedRuntime-Headers
@@ -198,8 +207,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       PRIVATE
       UnifiedRuntimeLoader
     )
-  else()
-    add_dependencies(${LIB_NAME} UnifiedRuntimeLoader)
   endif()
 
   target_include_directories(${LIB_NAME}
@@ -207,8 +214,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
       "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
   )
-
-  add_dependencies(${LIB_NAME} UnifiedRuntimeAdapters ur_umf)
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
