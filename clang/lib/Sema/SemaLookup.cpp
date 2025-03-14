@@ -782,12 +782,11 @@ static void GetQualTypesForProgModelBuiltin(
 static void GetProgModelBuiltinFctOverloads(
     ASTContext &Context, unsigned GenTypeMaxCnt,
     std::vector<QualType> &FunctionList, SmallVector<QualType, 1> &RetTypes,
-    SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes, bool IsVariadic,
-    FunctionProtoType::ExceptionSpecInfo &ESI) {
+    SmallVector<SmallVector<QualType, 1>, 5> &ArgTypes, bool IsVariadic) {
   FunctionProtoType::ExtProtoInfo PI(
       Context.getDefaultCallingConvention(false, false, true));
   PI.Variadic = IsVariadic;
-  PI.ExceptionSpec = ESI;
+  PI.ExceptionSpec = FunctionProtoType::ExceptionSpecInfo{EST_BasicNoexcept};
 
   // Do not attempt to create any FunctionTypes if there are no return types,
   // which happens when a type belongs to a disabled extension.
@@ -895,15 +894,8 @@ static void InsertBuiltinDeclarationsFromTable(
 
     // Create function overload for each type combination.
     std::vector<QualType> FunctionList;
-    ExceptionSpecificationType EST =
-        (S.getLangOpts().DeclareSPIRVBuiltins &&
-         (S.getLangOpts().SYCLIsDevice || S.getLangOpts().OpenMPIsTargetDevice))
-            ? EST_BasicNoexcept
-            : EST_None;
-    FunctionProtoType::ExceptionSpecInfo ESI{EST};
     GetProgModelBuiltinFctOverloads(Context, GenTypeMaxCnt, FunctionList,
-                                    RetTypes, ArgTypes, Builtin.IsVariadic,
-                                    ESI);
+                                    RetTypes, ArgTypes, Builtin.IsVariadic);
 
     SourceLocation Loc = LR.getNameLoc();
     DeclContext *Parent = Context.getTranslationUnitDecl();
