@@ -375,7 +375,7 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "expand-large-div-rem",
       "structurizecfg",
       "fix-irreducible",
-      "expand-large-fp-convert",
+      "expand-fp",
       "fpbuiltin-fn-selection",
       "callbrprepare",
       "scalarizer",
@@ -428,7 +428,7 @@ extern "C" int optMain(
   // For codegen passes, only passes that do IR to IR transformation are
   // supported.
   initializeExpandLargeDivRemLegacyPassPass(Registry);
-  initializeExpandLargeFpConvertLegacyPassPass(Registry);
+  initializeExpandFpLegacyPassPass(Registry);
   initializeExpandMemCmpLegacyPassPass(Registry);
   initializeScalarizeMaskedMemIntrinLegacyPassPass(Registry);
   initializeSelectOptimizePass(Registry);
