@@ -29,6 +29,8 @@ namespace detail {
 // Treat 0 as reserved for host task traces
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
 
+thread_local std::unique_ptr<sycl::handler> queue_impl::MHandler;
+
 thread_local bool NestedCallsDetector = false;
 class NestedCallsTracker {
 public:
@@ -363,43 +365,69 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  auto HandlerImpl = detail::getSyclObjImpl(Handler);
-  Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
-  {
-    NestedCallsTracker tracker;
-    CGF(Handler);
-  }
-
-  // Scheduler will later omit events, that are not required to execute tasks.
-  // Host and interop tasks, however, are not submitted to low-level runtimes
-  // and require separate dependency management.
-  const CGType Type = HandlerImpl->MCGType;
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
-  if (Type == CGType::Kernel)
-    Streams = std::move(Handler.MStreamStorage);
+  bool CallPostProcess = false;
+  bool KernelUsesAssert = false;
+  bool IsKernel = false;
 
-  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+  {
+    // RAII wrapper around MHandler. submit_impl() must not be called in the
+    // scope.
+    struct Wrapper {
+      sycl::handler *MHandlerPtr;
+      Wrapper(const std::shared_ptr<queue_impl> &Self,
+              const std::shared_ptr<queue_impl> &PrimaryQueue,
+              const std::shared_ptr<queue_impl> &SecondaryQueue,
+              bool CallerNeedsEvent)
+          : MHandlerPtr(MHandler.get()) {
+        if (MHandlerPtr)
+          MHandlerPtr->reset(Self, PrimaryQueue, SecondaryQueue,
+                             CallerNeedsEvent);
+        else {
+          MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(
+              Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
+          MHandlerPtr = MHandler.get();
+        }
+      }
+      ~Wrapper() { MHandlerPtr->reset(nullptr, nullptr, nullptr, false); }
+    } w(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
 
-  if (SubmitInfo.PostProcessorFunc()) {
-    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+    MHandler->saveCodeLoc(Loc, IsTopCodeLoc);
 
-    bool IsKernel = Type == CGType::Kernel;
-    bool KernelUsesAssert = false;
+    {
+      NestedCallsTracker tracker;
+      CGF(*w.MHandlerPtr);
+    }
 
-    if (IsKernel)
-      // Kernel only uses assert if it's non interop one
-      KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                         ProgramManager::getInstance().kernelUsesAssert(
-                             Handler.MKernelName.c_str());
-    finalizeHandler(Handler, Event);
+    // Scheduler will later omit events, that are not required to execute tasks.
+    // Host and interop tasks, however, are not submitted to low-level runtimes
+    // and require separate dependency management.
+    const CGType Type = w.MHandlerPtr->impl->MCGType;
+    if (Type == CGType::Kernel)
+      Streams = std::move(w.MHandlerPtr->MStreamStorage);
 
-    PostProcess(IsKernel, KernelUsesAssert, Event);
-  } else
-    finalizeHandler(Handler, Event);
+    w.MHandlerPtr->impl->MEventMode = SubmitInfo.EventMode();
+
+    if (SubmitInfo.PostProcessorFunc()) {
+      IsKernel = Type == CGType::Kernel;
+
+      if (IsKernel)
+        // Kernel only uses assert if it's non interop one
+        KernelUsesAssert =
+            !(w.MHandlerPtr->MKernel && w.MHandlerPtr->MKernel->isInterop()) &&
+            ProgramManager::getInstance().kernelUsesAssert(
+                w.MHandlerPtr->MKernelName.c_str());
+      CallPostProcess = true;
+    }
+
+    finalizeHandler(*w.MHandlerPtr, Event);
+  }
+
+  if (CallPostProcess)
+    (*SubmitInfo.PostProcessorFunc())(IsKernel, KernelUsesAssert, Event);
 
   addEvent(Event);
 
