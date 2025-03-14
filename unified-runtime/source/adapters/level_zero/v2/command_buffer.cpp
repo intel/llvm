@@ -493,15 +493,4 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
-
-ur_result_t urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t UrQueue,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_event_handle_t *Event) try {
-  return UrQueue->get().enqueueCommandBufferExp(
-      CommandBuffer, NumEventsInWaitList, EventWaitList, Event);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
 } // namespace ur::level_zero
