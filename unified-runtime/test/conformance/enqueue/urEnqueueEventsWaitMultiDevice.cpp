@@ -194,13 +194,6 @@ TEST_P(urEnqueueEventsWaitMultiDeviceMTTest, EnqueueWaitSingleQueueMultiOps) {
 }
 
 TEST_P(urEnqueueEventsWaitMultiDeviceMTTest, EnqueueWaitOnAllQueues) {
-  // Fails when -fsanitize=cfi
-#ifdef UR_USE_CFI
-  if (getParam().value) {
-    UUR_KNOWN_FAILURE_ON(uur::OpenCL{});
-  }
-#endif
-
   std::vector<uur::raii::Event> eventsRaii(devices.size());
   std::vector<ur_event_handle_t> events(devices.size());
   auto work = [this, &events, &eventsRaii](size_t i) {

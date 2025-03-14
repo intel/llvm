@@ -31,13 +31,14 @@ struct wait_list_view {
   }
 };
 
-struct ur_command_list_manager : public _ur_object {
+struct ur_command_list_manager {
 
   ur_command_list_manager(ur_context_handle_t context,
                           ur_device_handle_t device,
                           v2::raii::command_list_unique_handle &&commandList,
                           v2::event_flags_t flags = v2::EVENT_FLAGS_COUNTER,
                           ur_queue_t_ *queue = nullptr);
+  ur_command_list_manager(ur_command_list_manager &&src) = default;
   ~ur_command_list_manager();
 
   ur_result_t appendKernelLaunch(ur_kernel_handle_t hKernel, uint32_t workDim,
