@@ -343,6 +343,7 @@ and not recommended to use in production environment.
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
     emitted.
     Enabled by default.
+    This option is replaced with -fsycl-device-obj=<arg>.
 
 **`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
 
@@ -382,6 +383,7 @@ and not recommended to use in production environment.
     Enable use of correctly rounded `sycl::sqrt` function as defined by IEE754.
     Without this flag, the default precision requirement for `sycl::sqrt` is 3
     ULP.
+    This option is replaced with -foffload-fp32-prec-sqrt.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
 
