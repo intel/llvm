@@ -2337,10 +2337,12 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm::Type *DstTy = ConvertType(DestTy);
 
     if (SrcTy->isPointerTy() && DstTy->isPointerTy() &&
-        SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
+        SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace()) {
       Src = Builder.CreateAddrSpaceCast(
           Src,
           llvm::PointerType::get(VMContext, DstTy->getPointerAddressSpace()));
+      SrcTy = Src->getType();
+    }
 
     // FIXME: this is a gross but seemingly necessary workaround for an issue
     // manifesting when a target uses a non-default AS for indirect sret args,
