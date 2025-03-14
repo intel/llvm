@@ -91,6 +91,14 @@ jobs:
       with:
         python-version: "3.10"
 
+    # Latest distros do not allow global pip installation
+    # Adding the venv path to GITHUB_PATH means future jobs use the venv'd pip
+    - name: Set up Python venv
+      run: |
+        python3 -m venv .venv
+        . .venv/bin/activate
+        echo "$PATH" >> $GITHUB_PATH
+
     - name: Install prerequisites
       working-directory: ${{github.workspace}}/unified-runtime
       run: |

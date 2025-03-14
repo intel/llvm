@@ -23,7 +23,24 @@ jobs:
 
     - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.0.0
       with:
-        python-version: 3.9
+        python-version: "3.10"
+
+    # Latest distros do not allow global pip installation
+    # Adding the venv path to GITHUB_PATH means future jobs use the venv'd pip
+    - name: "[Lin] Set up Python venv"
+      if: matrix.os == 'ubuntu-22.04'
+      run: |
+        python3 -m venv .venv
+        . .venv/bin/activate
+        echo "$PATH" >> $GITHUB_PATH
+
+    - name: "[Win] Set up Python venv"
+      if: matrix.os == 'windows-2022'
+      shell: cmd
+      run: |
+        python3 -m venv .venv
+        .venv/Scripts/activate.bat
+        echo "$PATH" >> $GITHUB_PATH
 
     - name: Install UR python dependencies
       working-directory: ${{github.workspace}}/unified-runtime
