@@ -35,9 +35,9 @@ const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject) {
 }
 
 // Helper function for creation SYCL interface objects from implementations.
-// Note! This function relies on the fact that all SYCL interface classes
+// Note! These functions rely on the fact that all SYCL interface classes
 // contain "impl" field that points to implementation object. "impl" field
-// should be accessible from this function.
+// should be accessible from these functions.
 template <class T>
 T createSyclObjFromImpl(
     std::add_rvalue_reference_t<decltype(T::impl)> ImplObj) {
