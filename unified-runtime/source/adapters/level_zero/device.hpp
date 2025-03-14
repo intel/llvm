@@ -243,3 +243,19 @@ struct ur_device_handle_t_ : _ur_object {
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
 };
+
+inline std::vector<ur_device_handle_t>
+CollectDevicesAndSubDevices(const std::vector<ur_device_handle_t> &Devices) {
+  std::vector<ur_device_handle_t> DevicesAndSubDevices;
+  std::function<void(const std::vector<ur_device_handle_t> &)>
+      CollectDevicesAndSubDevicesRec =
+          [&](const std::vector<ur_device_handle_t> &Devices) {
+            for (auto &Device : Devices) {
+              DevicesAndSubDevices.push_back(Device);
+              CollectDevicesAndSubDevicesRec(Device->SubDevices);
+            }
+          };
+  CollectDevicesAndSubDevicesRec(Devices);
+
+  return DevicesAndSubDevices;
+}
