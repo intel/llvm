@@ -1,4 +1,4 @@
-//==--- kernel_compiler_sycl_jit_lt.cpp - kernel_compiler lifetime tests ---==//
+//==--------- sycl_lifetimes.cpp - kernel_compiler lifetime tests ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

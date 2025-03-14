@@ -1,4 +1,4 @@
-//==- kernel_compiler_sycl_jit.cpp --- kernel_compiler extension tests -----==//
+//==--- sycl.cpp --- kernel_compiler extension tests -----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -134,6 +134,12 @@ void device_libs_kernel(float *ptr) {
 
   // cl_intel_devicelib_imf
   ptr[3] = sycl::ext::intel::math::sqrt(ptr[3] * 2);
+
+  // cl_intel_devicelib_imf_bf16
+  ptr[4] = sycl::ext::intel::math::float2bfloat16(ptr[4] * 0.5f);
+
+  // cl_intel_devicelib_bfloat16
+  ptr[5] = sycl::ext::oneapi::bfloat16{ptr[5] / 0.25f};
 }
 )===";
 
@@ -239,7 +245,7 @@ int test_build_and_run(sycl::queue q) {
   syclex::include_files incFiles{"intermediate/AddEm.h", AddEmH};
   incFiles.add("intermediate/PlusEm.h", PlusEmH);
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSource,
+      ctx, syclex::source_language::sycl, SYCLSource,
       syclex::properties{incFiles});
 
   // Double check kernel_bundle.get_source() / get_backend().
@@ -287,7 +293,7 @@ int test_build_and_run(sycl::queue q) {
   syclex::include_files incFiles2{"intermediate/AddEm.h", AddEmHModified};
   incFiles2.add("intermediate/PlusEm.h", PlusEmH);
   source_kb kbSrc2 = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSource,
+      ctx, syclex::source_language::sycl, SYCLSource,
       syclex::properties{incFiles2});
 
   exe_kb kbExe3 = syclex::build(kbSrc2);
@@ -301,6 +307,7 @@ int test_build_and_run(sycl::queue q) {
   return 0;
 }
 
+
 int test_device_code_split(sycl::queue q) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
@@ -309,7 +316,7 @@ int test_device_code_split(sycl::queue q) {
   sycl::context ctx = q.get_context();
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, DeviceCodeSplitSource);
+      ctx, syclex::source_language::sycl, DeviceCodeSplitSource);
 
   // Test explicit device code split
   std::vector<std::string> names{"vec_add<float>", "vec_add<int>",
@@ -350,11 +357,11 @@ int test_device_libraries(sycl::queue q) {
   sycl::context ctx = q.get_context();
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, DeviceLibrariesSource);
+      ctx, syclex::source_language::sycl, DeviceLibrariesSource);
   exe_kb kbExe = syclex::build(kbSrc);
 
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("device_libs_kernel");
-  constexpr size_t nElem = 4;
+  constexpr size_t nElem = 6;
   float *ptr = sycl::malloc_shared<float>(nElem, q);
   for (int i = 0; i < nElem; ++i)
     ptr[i] = 1.0f;
@@ -365,8 +372,8 @@ int test_device_libraries(sycl::queue q) {
   });
   q.wait_and_throw();
 
-  // Check that the kernel was executed. Given the {1.0, 1.0, 1.0, 1.0} input,
-  // the expected result is approximately {0.84, 1.41, 0.0, 1.41}.
+  // Check that the kernel was executed. Given the {1.0, ..., 1.0} input,
+  // the expected result is approximately {0.84, 1.41, 0.0, 1.41, 0.5, 4.0}.
   for (unsigned i = 0; i < nElem; ++i) {
     std::cout << ptr[i] << ' ';
     assert(ptr[i] != 1.0f);
@@ -395,7 +402,7 @@ int test_esimd(sycl::queue q) {
   std::string log;
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, ESIMDSource);
+      ctx, syclex::source_language::sycl, ESIMDSource);
   exe_kb kbExe =
       syclex::build(kbSrc, syclex::properties{syclex::save_log{&log}});
 
@@ -409,7 +416,7 @@ int test_esimd(sycl::queue q) {
   // Mix ESIMD and normal kernel.
   std::string mixedSource = std::string{ESIMDSource} + SYCLSource2;
   source_kb kbSrcMixed = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, mixedSource);
+      ctx, syclex::source_language::sycl, mixedSource);
   exe_kb kbExeMixed = syclex::build(kbSrcMixed);
 
   // Both kernels should be available.
@@ -426,7 +433,7 @@ int test_esimd(sycl::queue q) {
   // Deactivate implicit module splitting to exercise the downstream
   // ESIMD-specific splitting.
   source_kb kbSrcMixed2 = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, mixedSource);
+      ctx, syclex::source_language::sycl, mixedSource);
   exe_kb kbExeMixed2 =
       syclex::build(kbSrcMixed2, syclex::properties{syclex::build_options{
                                      "-fsycl-device-code-split=off"}});
@@ -445,7 +452,7 @@ int test_unsupported_options(sycl::queue q) {
   sycl::context ctx = q.get_context();
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, "");
+      ctx, syclex::source_language::sycl, "");
   std::vector<sycl::device> devs = kbSrc.get_devices();
 
   auto CheckUnsupported = [&](const std::vector<std::string> &flags) {
@@ -477,7 +484,7 @@ int test_error(sycl::queue q) {
   sycl::context ctx = q.get_context();
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, BadSource);
+      ctx, syclex::source_language::sycl, BadSource);
   try {
     exe_kb kbExe = syclex::build(kbSrc);
     assert(false && "we should not be here");
@@ -501,7 +508,7 @@ int test_warning(sycl::queue q) {
   std::string build_log;
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, WarningSource);
+      ctx, syclex::source_language::sycl, WarningSource);
   exe_kb kbExe =
       syclex::build(kbSrc, syclex::properties{syclex::save_log{&build_log}});
   bool found_warning =
@@ -516,7 +523,7 @@ int test_no_visible_ids(sycl::queue q) {
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
   sycl::context ctx = q.get_context();
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSource2);
+      ctx, syclex::source_language::sycl, SYCLSource2);
   exe_kb kbExe = syclex::build(kbSrc);
   assert(kbExe.get_kernel_ids().size() == 0 && "Visible RTC kernel ids");
   assert(sycl::get_kernel_ids().size() == 0 && "Visible RTC kernel ids");
@@ -529,7 +536,7 @@ int main() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
     return -1;
   }
