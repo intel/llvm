@@ -338,7 +338,6 @@ ur_command_list_manager::appendBarrier(uint32_t numEventsInWaitList,
                                        const ur_event_handle_t *phEventWaitList,
                                        ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendBarrier");
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   auto zeSignalEvent =
       getSignalEvent(phEvent, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER);

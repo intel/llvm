@@ -507,15 +507,15 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
   (void)pSyncPoint;
 
   // Barrier on all commands before user defined commands.
-  UR_CALL(
-      hCommandBuffer->commandListManager.appendBarrier(0, nullptr, nullptr));
+
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendBarrier(0, nullptr, nullptr));
 
   // Call user-defined function immediately
   pfnNativeCommand(pData);
 
   // Barrier on all commands after user defined commands.
-  UR_CALL(
-      hCommandBuffer->commandListManager.appendBarrier(0, nullptr, nullptr));
+  UR_CALL(commandListLocked->appendBarrier(0, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 }
@@ -523,8 +523,10 @@ ur_result_t urCommandBufferAppendNativeCommandExp(
 ur_result_t
 urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
                                   ur_native_handle_t *phNativeCommandBuffer) {
+
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
   ze_command_list_handle_t ZeCommandList =
-      hCommandBuffer->commandListManager.getZeCommandList();
+      commandListLocked->getZeCommandList();
   *phNativeCommandBuffer = reinterpret_cast<ur_native_handle_t>(ZeCommandList);
   return UR_RESULT_SUCCESS;
 }
