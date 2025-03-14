@@ -1,5 +1,6 @@
 // Fails with opencl non-cpu, enable when fixed.
 // XFAIL: (opencl && !cpu && !accelerator)
+// XFAIL: (level_zero && gpu)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14641
 
 // TODO: Currently using the -Wno-deprecated-declarations flag due to issue
