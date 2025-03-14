@@ -251,4 +251,5 @@ ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t hContext,
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
 } // namespace ur::level_zero
