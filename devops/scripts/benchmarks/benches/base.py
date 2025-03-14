@@ -6,7 +6,7 @@
 import os
 import shutil
 from pathlib import Path
-from utils.result import Result
+from utils.result import BenchmarkMetadata, Result
 from options import options
 from utils.utils import download, run
 import urllib.request
@@ -78,6 +78,9 @@ class Benchmark:
     def name(self):
         raise NotImplementedError()
 
+    def description(self):
+        return "No description provided."
+
     def lower_is_better(self):
         return True
 
@@ -96,6 +99,23 @@ class Benchmark:
     def get_suite_name(self) -> str:
         return self.suite.name()
 
+    def result_names(self) -> list[str]:
+        return [self.name()]
+
+    def notes(self) -> str:
+        return None
+
+    def unstable(self) -> str:
+        return None
+
+    def get_metadata(self) -> BenchmarkMetadata:
+        return BenchmarkMetadata(
+            type='benchmark',
+            description=self.description(),
+            notes=self.notes(),
+            unstable=self.unstable(),
+        )
+
 
 class Suite:
     def benchmarks(self) -> list[Benchmark]:
@@ -106,3 +126,6 @@ class Suite:
 
     def setup(self):
         return
+
+    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+        return {}

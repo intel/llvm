@@ -12,6 +12,10 @@ let timeseriesData, barChartsData, allRunNames;
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer;
 
+// Add this at the top of the file with the other variable declarations
+let showNotes = true;
+let showUnstable = false;
+
 // Run selector functions
 function updateSelectedRuns(forceUpdate = true) {
     selectedRunsDiv.innerHTML = '';
@@ -85,7 +89,8 @@ function createChart(data, containerId, type) {
                 title: {
                     display: true,
                     text: data.unit
-                }
+                },
+                grace: '20%',
             }
         }
     };
@@ -178,7 +183,7 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData) {
     // Create timeseries charts
     filteredTimeseriesData.forEach((data, index) => {
         const containerId = `timeseries-${index}`;
-        const container = createChartContainer(data, containerId);
+        const container = createChartContainer(data, containerId, 'benchmark');
         document.querySelector('.timeseries .charts').appendChild(container);
         createChart(data, containerId, 'time');
     });
@@ -186,7 +191,7 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData) {
     // Create bar charts
     filteredBarChartsData.forEach((data, index) => {
         const containerId = `barchart-${index}`;
-        const container = createChartContainer(data, containerId);
+        const container = createChartContainer(data, containerId, 'group');
         document.querySelector('.bar-charts .charts').appendChild(container);
         createChart(data, containerId, 'bar');
     });
@@ -195,11 +200,41 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData) {
     filterCharts();
 }
 
-function createChartContainer(data, canvasId) {
+function createChartContainer(data, canvasId, type) {
     const container = document.createElement('div');
     container.className = 'chart-container';
     container.setAttribute('data-label', data.label);
     container.setAttribute('data-suite', data.suite);
+    
+    // Check if this benchmark is marked as unstable
+    const metadata = metadataForLabel(data.label, type);
+    if (metadata && metadata.unstable) {
+        container.setAttribute('data-unstable', 'true');
+        
+        // Add unstable warning
+        const unstableWarning = document.createElement('div');
+        unstableWarning.className = 'benchmark-unstable';
+        unstableWarning.textContent = metadata.unstable;
+        unstableWarning.style.display = showUnstable ? 'block' : 'none';
+        container.appendChild(unstableWarning);
+    }
+    
+    // Add notes if present
+    if (metadata && metadata.notes) {
+        const noteElement = document.createElement('div');
+        noteElement.className = 'benchmark-note';
+        noteElement.textContent = metadata.notes;
+        noteElement.style.display = showNotes ? 'block' : 'none';
+        container.appendChild(noteElement);
+    }
+    
+    // Add description if present in metadata, but only for groups
+    if (metadata && metadata.description && metadata.type === "group") {
+        const descElement = document.createElement('div');
+        descElement.className = 'benchmark-description';
+        descElement.textContent = metadata.description;
+        container.appendChild(descElement);
+    }
 
     const canvas = document.createElement('canvas');
     canvas.id = canvasId;
@@ -221,17 +256,26 @@ function createChartContainer(data, canvasId) {
     summary.appendChild(downloadButton);
     details.appendChild(summary);
 
-    latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
-
     // Create and append extra info
     const extraInfo = document.createElement('div');
     extraInfo.className = 'extra-info';
+    latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
     extraInfo.innerHTML = generateExtraInfo(latestRunsLookup, data);
     details.appendChild(extraInfo);
 
     container.appendChild(details);
 
     return container;
+}
+
+function metadataForLabel(label, type) {
+    for (const [key, metadata] of Object.entries(benchmarkMetadata)) {
+        if (metadata.type === type && label.startsWith(key)) {
+            return metadata;
+        }
+    }
+    
+    return null;
 }
 
 // Pre-compute a lookup for the latest run per label
@@ -259,17 +303,31 @@ function generateExtraInfo(latestRunsLookup, data) {
     const labels = data.datasets ? data.datasets.map(dataset => dataset.label) : [data.label];
 
     return labels.map(label => {
+        const metadata = metadataForLabel(label);
         const latestRun = latestRunsLookup.get(label);
-
-        if (latestRun) {
-            return `<div class="extra-info-entry">
-                        <strong>${label}:</strong> ${formatCommand(latestRun.result)}<br>
-                        <em>Description:</em> ${latestRun.result.description}
-                    </div>`;
+        
+        let html = '<div class="extra-info-entry">';
+        
+        if (metadata) {
+            html += `<strong>${label}:</strong> ${formatCommand(latestRun.result)}<br>`;
+            
+            if (metadata.description) {
+                html += `<em>Description:</em> ${metadata.description}`;
+            }
+            
+            if (metadata.notes) {
+                html += `<br><em>Notes:</em> <span class="note-text">${metadata.notes}</span>`;
+            }
+            
+            if (metadata.unstable) {
+                html += `<br><em class="unstable-warning">⚠️ Unstable:</em> <span class="unstable-text">${metadata.unstable}</span>`;
+            }
+        } else {
+            html += `<strong>${label}:</strong> No data available`;
         }
-        return `<div class="extra-info-entry">
-                        <strong>${label}:</strong> No data available
-                </div>`;
+        
+        html += '</div>';
+        return html;
     }).join('');
 }
 
@@ -331,6 +389,10 @@ function updateURL() {
         url.searchParams.delete('runs');
     }
 
+    // Add toggle states to URL
+    url.searchParams.set('notes', showNotes);
+    url.searchParams.set('unstable', showUnstable);
+
     history.replaceState(null, '', url);
 }
 
@@ -342,7 +404,19 @@ function filterCharts() {
     document.querySelectorAll('.chart-container').forEach(container => {
         const label = container.getAttribute('data-label');
         const suite = container.getAttribute('data-suite');
-        container.style.display = (regex.test(label) && activeSuites.includes(suite)) ? '' : 'none';
+        const isUnstable = container.getAttribute('data-unstable') === 'true';
+
+        // Hide unstable benchmarks if showUnstable is false
+        const shouldShow = regex.test(label) && 
+                          activeSuites.includes(suite) && 
+                          (showUnstable || !isUnstable);
+
+        container.style.display = shouldShow ? '' : 'none';
+    });
+
+    // Update notes visibility
+    document.querySelectorAll('.benchmark-note').forEach(note => {
+        note.style.display = showNotes ? 'block' : 'none';
     });
 
     updateURL();
@@ -395,13 +469,20 @@ function processBarChartsData(benchmarkRuns) {
             if (!result.explicit_group) return;
 
             if (!groupedResults[result.explicit_group]) {
+                // Look up group metadata
+                const groupMetadata = metadataForLabel(result.explicit_group);
+                
                 groupedResults[result.explicit_group] = {
                     label: result.explicit_group,
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
                     labels: [],
-                    datasets: []
+                    datasets: [],
+                    // Add metadata if available
+                    description: groupMetadata?.description || null,
+                    notes: groupMetadata?.notes || null,
+                    unstable: groupMetadata?.unstable || null
                 };
             }
 
@@ -466,6 +547,43 @@ function setupSuiteFilters() {
     });
 }
 
+function setupToggles() {
+    const notesToggle = document.getElementById('show-notes');
+    const unstableToggle = document.getElementById('show-unstable');
+    
+    notesToggle.addEventListener('change', function() {
+        showNotes = this.checked;
+        // Update all note elements visibility
+        document.querySelectorAll('.benchmark-note').forEach(note => {
+            note.style.display = showNotes ? 'block' : 'none';
+        });
+        filterCharts();
+    });
+    
+    unstableToggle.addEventListener('change', function() {
+        showUnstable = this.checked;
+        // Update all unstable warning elements visibility
+        document.querySelectorAll('.benchmark-unstable').forEach(warning => {
+            warning.style.display = showUnstable ? 'block' : 'none';
+        });
+        filterCharts();
+    });
+    
+    // Initialize from URL params if present
+    const notesParam = getQueryParam('notes');
+    const unstableParam = getQueryParam('unstable');
+    
+    if (notesParam !== null) {
+        showNotes = notesParam === 'true';
+        notesToggle.checked = showNotes;
+    }
+    
+    if (unstableParam !== null) {
+        showUnstable = unstableParam === 'true';
+        unstableToggle.checked = showUnstable;
+    }
+}
+
 function initializeCharts() {
     // Process raw data
     timeseriesData = processTimeseriesData(benchmarkRuns);
@@ -502,6 +620,7 @@ function initializeCharts() {
     // Setup UI components
     setupRunSelector();
     setupSuiteFilters();
+    setupToggles();
 
     // Apply URL parameters
     const regexParam = getQueryParam('regex');
@@ -542,7 +661,8 @@ function loadData() {
         fetch(remoteDataUrl)
             .then(response => response.json())
             .then(data => {
-                benchmarkRuns = data;
+                benchmarkRuns = data.runs || data;
+                benchmarkMetadata = data.metadata || benchmarkMetadata || {};
                 initializeCharts();
             })
             .catch(error => {
@@ -553,7 +673,7 @@ function loadData() {
                 loadingIndicator.style.display = 'none'; // Hide loading indicator
             });
     } else {
-        // Use local data
+        // Use local data (benchmarkRuns and benchmarkMetadata should be defined in data.js)
         initializeCharts();
         loadingIndicator.style.display = 'none'; // Hide loading indicator
     }

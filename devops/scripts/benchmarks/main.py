@@ -137,6 +137,18 @@ def process_results(
     return valid_results, processed
 
 
+def collect_metadata(suites):
+    metadata = {}
+
+    for s in suites:
+        metadata.update(s.additionalMetadata())
+        suite_benchmarks = s.benchmarks()
+        for benchmark in suite_benchmarks:
+            metadata[benchmark.name()] = benchmark.get_metadata()
+
+    return metadata
+
+
 def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
@@ -159,6 +171,13 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         if not options.dry_run
         else []
     )
+
+    # Collect metadata from all benchmarks without setting them up
+    metadata = collect_metadata(suites)
+
+    # If dry run, we're done
+    if options.dry_run:
+        suites = []
 
     benchmarks = []
     failures = {}
@@ -290,7 +309,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         html_path = options.output_directory
         if options.output_directory is None:
             html_path = os.path.join(os.path.dirname(__file__), "html")
-        generate_html(history.runs, compare_names, html_path)
+        generate_html(history.runs, compare_names, html_path, metadata)
 
 
 def validate_and_parse_env_args(env_args):

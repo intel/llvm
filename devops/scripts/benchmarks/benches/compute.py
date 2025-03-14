@@ -8,7 +8,7 @@ import csv
 import io
 from utils.utils import run, git_clone, create_build_path
 from .base import Benchmark, Suite
-from utils.result import Result
+from utils.result import BenchmarkMetadata, Result
 from options import options
 from enum import Enum
 
@@ -53,6 +53,23 @@ class ComputeBench(Suite):
         run(f"cmake --build {build_path} -j", add_sycl=True)
 
         self.built = True
+
+    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+        return {
+            "SubmitKernel" : BenchmarkMetadata(
+                type="group",
+                description="Measures CPU time overhead of submitting kernels through different APIs.",
+                notes="Each layer builds on top of the previous layer, adding functionality and overhead. "
+                      "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API. "
+                      "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance."
+                      "Work is ongoing to reduce the overhead of the SYCL API",
+            ),
+            "SinKernelGraph" : BenchmarkMetadata(
+                type="group",
+                unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
+            ),
+        }
+
 
     def benchmarks(self) -> list[Benchmark]:
         if options.sycl is None:
@@ -106,14 +123,7 @@ class ComputeBench(Suite):
                 SubmitKernelUR(self, 1, 0),
                 SubmitKernelUR(self, 1, 1),
                 MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
-                MemcpyExecute(self, 100, 8, 102400, 10, 1, 1, 1),
-                MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1, 1),
-                MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1, 1),
                 MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
-                MemcpyExecute(self, 100, 8, 102400, 10, 0, 1, 1),
-                MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1, 1),
-                MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1, 1),
-                MemcpyExecute(self, 4096, 1, 1024, 10, 0, 1, 0),
                 MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
                 GraphApiSinKernelGraph(self, RUNTIMES.UR, 0, 5),
                 GraphApiSinKernelGraph(self, RUNTIMES.UR, 1, 5),
@@ -539,6 +549,9 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
 
     def name(self):
         return f"graph_api_benchmark_{self.runtime.value} SinKernelGraph graphs:{self.withGraphs}, numKernels:{self.numKernels}"
+
+    def unstable(self) -> str:
+        return "This benchmark combines both eager and graph execution, and may not be representative of real use cases."
 
     def bin_args(self) -> list[str]:
         return [

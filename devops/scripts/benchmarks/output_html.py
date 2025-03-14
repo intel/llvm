@@ -6,10 +6,17 @@
 import json
 import os
 from options import options
+from utils.result import BenchmarkMetadata
 
 
-def generate_html(benchmark_runs: list, compare_names: list[str], html_path: str):
+def generate_html(
+    benchmark_runs: list,
+    compare_names: list[str],
+    html_path: str,
+    metadata: dict[str, BenchmarkMetadata],
+):
     benchmark_runs.sort(key=lambda run: run.date, reverse=True)
+    serializable_metadata = {k: v.__dict__ for k, v in metadata.items()}
 
     if options.output_html == "local":
         data_path = os.path.join(html_path, "data.js")
@@ -26,6 +33,11 @@ def generate_html(benchmark_runs: list, compare_names: list[str], html_path: str
 
             f.write("\n];\n\n")  # terminates benchmarkRuns
 
+            f.write("benchmarkMetadata = ")
+            json.dump(serializable_metadata, f)
+
+            f.write(";\n\n")  # terminates benchmarkMetadata
+
             f.write("defaultCompareNames = ")
             json.dump(compare_names, f)
             f.write(";\n")  # terminates defaultCompareNames
@@ -34,12 +46,8 @@ def generate_html(benchmark_runs: list, compare_names: list[str], html_path: str
     else:
         data_path = os.path.join(html_path, "data.json")
         with open(data_path, "w") as f:
-            f.write("[\n")
-            for i, run in enumerate(benchmark_runs):
-                if i > 0:
-                    f.write(",\n")
-                f.write(run.to_json())
-            f.write("\n]\n")
+            json_data = {"runs": benchmark_runs, "metadata": serializable_metadata}
+            json.dump(json_data, f, indent=2)
 
         print(
             f"Upload {data_path} to a location set in config.js remoteDataUrl argument."

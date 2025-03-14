@@ -42,3 +42,12 @@ class BenchmarkRun:
         default=None,
         metadata=config(encoder=datetime.isoformat, decoder=datetime.fromisoformat),
     )
+
+
+@dataclass_json
+@dataclass
+class BenchmarkMetadata:
+    type: str = 'benchmark' # or 'group'
+    description: Optional[str] = None
+    notes: Optional[str] = None
+    unstable: Optional[str] = None
