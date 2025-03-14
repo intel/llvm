@@ -630,7 +630,7 @@ public:
     try {
       for (sycl_device_binaries &Binaries : MDeviceBinaries) {
         ProgramManager::getInstance().removeImages(Binaries);
-        syclex::detail::SYCL_JIT_destroy(Binaries);
+        syclex::detail::SYCL_JIT_Destroy(Binaries);
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_bundle_impl", e);

@@ -483,20 +483,12 @@ public:
     if (!MRTCBinInfo.has_value())
       return Name;
 
-    switch (MRTCBinInfo->MLanguage) {
-    case syclex::source_language::sycl_jit: {
+    if (MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
       auto It = MRTCBinInfo->MMangledKernelNames.find(Name);
       if (It != MRTCBinInfo->MMangledKernelNames.end())
         return It->second;
-      break;
     }
-    case syclex::source_language::sycl:
-      if (Name.find("__sycl_kernel_") == std::string::npos)
-        return "__sycl_kernel_" + Name;
-      break;
-    default:
-      break;
-    }
+
     return Name;
   }
 
@@ -515,7 +507,7 @@ public:
 
     assert(MRTCBinInfo);
     std::string AdjustedName = adjustKernelName(Name);
-    if (MRTCBinInfo->MLanguage == syclex::source_language::sycl_jit) {
+    if (MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
       auto &PM = ProgramManager::getInstance();
       auto KID = PM.tryGetSYCLKernelID(MRTCBinInfo->MPrefix + AdjustedName);
 
@@ -549,9 +541,9 @@ public:
     return MRTCBinInfo;
   }
 
-  bool isNonSYCLJITSourceBased() const noexcept {
+  bool isNonSYCLSourceBased() const noexcept {
     return (getOriginMask() & ImageOriginKernelCompiler) &&
-           !isFromSourceLanguage(syclex::source_language::sycl_jit);
+           !isFromSourceLanguage(syclex::source_language::sycl);
   }
 
   bool isFromSourceLanguage(syclex::source_language Lang) const noexcept {
@@ -588,7 +580,7 @@ public:
       }
     }
 
-    if (MRTCBinInfo->MLanguage == syclex::source_language::sycl_jit) {
+    if (MRTCBinInfo->MLanguage == syclex::source_language::sycl) {
       assert(std::holds_alternative<std::string>(MBinImage));
 
       // Build device images via the program manager.
@@ -613,7 +605,7 @@ public:
         SourceExt << ")]];\n";
       }
 
-      auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_to_SPIRV(
+      auto [Binaries, Prefix] = syclex::detail::SYCL_JIT_Compile(
           RegisteredKernelNames.empty() ? SourceStr : SourceExt.str(),
           MRTCBinInfo->MIncludePairs, BuildOptions, LogPtr);
 
@@ -719,11 +711,6 @@ public:
                          Result.begin(),
                          [](std::byte B) { return static_cast<uint8_t>(B); });
           return Result;
-        }
-        case syclex::source_language::sycl: {
-          return syclex::detail::SYCL_to_SPIRV(
-              *SourceStrPtr, MRTCBinInfo->MIncludePairs, BuildOptions, LogPtr,
-              RegisteredKernelNames);
         }
         default:
           break;

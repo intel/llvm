@@ -1,4 +1,4 @@
-//==- kernel_compiler_sycl_jit_join.cpp --- kernel_compiler extension tests ==//
+//==----------- sycl_join.cpp --- kernel_compiler extension tests ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -67,7 +67,7 @@ int main() {
   sycl::context Ctx = Q.get_context();
 
   if (!Q.get_device().ext_oneapi_can_compile(
-          syclex::source_language::sycl_jit)) {
+          syclex::source_language::sycl)) {
     std::cout << "Apparently this device does not support `sycl_jit` source "
                  "kernel bundle extension: "
               << Q.get_device().get_info<sycl::info::device::name>()
@@ -78,9 +78,9 @@ int main() {
   int Failed = 0;
 
   source_kb KBSrc1 = syclex::create_kernel_bundle_from_source(
-      Ctx, syclex::source_language::sycl_jit, SYCLSource1);
+      Ctx, syclex::source_language::sycl, SYCLSource1);
   source_kb KBSrc2 = syclex::create_kernel_bundle_from_source(
-      Ctx, syclex::source_language::sycl_jit, SYCLSource2);
+      Ctx, syclex::source_language::sycl, SYCLSource2);
 
   // Test joining of source kernel bundles.
   {

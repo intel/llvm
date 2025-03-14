@@ -43,7 +43,7 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
                          const KernelArgMask *ArgMask,
                          ur_program_handle_t Program, std::mutex *CacheMutex)
     : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(Program),
-      MCreatedFromSource(DeviceImageImpl->isNonSYCLJITSourceBased()),
+      MCreatedFromSource(DeviceImageImpl->isNonSYCLSourceBased()),
       MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MIsInterop(MDeviceImageImpl->getOriginMask() & ImageOriginInterop),
@@ -90,7 +90,7 @@ bool kernel_impl::hasSYCLMetadata() const noexcept {
   return !isInteropOrSourceBased() ||
          (MDeviceImageImpl &&
           MDeviceImageImpl->isFromSourceLanguage(
-              sycl::ext::oneapi::experimental::source_language::sycl_jit));
+              sycl::ext::oneapi::experimental::source_language::sycl));
 }
 
 bool kernel_impl::isBuiltInKernel(const device &Device) const {

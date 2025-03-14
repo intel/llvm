@@ -1,4 +1,4 @@
-//==- kernel_compiler_opencl.cpp --- kernel_compiler extension tests -------==//
+//==--- opencl.cpp --- kernel_compiler extension tests ---------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
