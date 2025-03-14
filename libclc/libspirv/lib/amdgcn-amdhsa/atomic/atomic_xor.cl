@@ -11,7 +11,7 @@
 #include <libspirv/spirv_types.h>
 
 #define __CLC_OP ^
-#define __SPIRV_BUILTIN _Z17__spirv_AtomicXor
+#define __SPIRV_BUILTIN __spirv_AtomicXor
 #define __HIP_BUILTIN __hip_atomic_fetch_xor
 
 #include "atomic_safe.def"
