@@ -1924,6 +1924,11 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
       m_ExportedSymbolImages.insert({ESProp->Name, Img.get()});
     }
 
+    if (EntriesB == EntriesE) {
+      m_DeviceImages.insert({RawImg, std::move(Img)});
+      continue;
+    }
+
     // Record mapping between virtual function sets and device images
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
