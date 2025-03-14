@@ -307,7 +307,6 @@ int test_build_and_run(sycl::queue q) {
   return 0;
 }
 
-
 int test_device_code_split(sycl::queue q) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
