@@ -56,6 +56,7 @@ jobs:
       runner: '["Windows", "build-e2e"]'
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       testing_mode: build-only
+      extra_lit_opts: --param sycl_build_targets="spir"
 
   run-e2e:
     needs: [build, build-e2e]

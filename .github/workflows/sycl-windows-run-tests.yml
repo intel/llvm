@@ -142,12 +142,12 @@ jobs:
         cmake --build build-e2e --target check-sycl-e2e
 
     - name: Pack E2E test binaries
-      if: inputs.testing_mode == 'build-only'
+      if: ${{ always() && inputs.testing_mode == 'build-only' }}
       shell: bash
       run: |
         tar -czf e2e_bin.tar.gz -C build-e2e .
     - name: Upload E2E test binaries
-      if: inputs.testing_mode == 'build-only'
+      if: ${{ always() && inputs.testing_mode == 'build-only' }}
       uses: actions/upload-artifact@v4
       with:
         name: sycl_windows_e2ebin
