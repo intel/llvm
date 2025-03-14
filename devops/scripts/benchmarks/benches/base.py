@@ -75,12 +75,6 @@ class Benchmark:
         self.data_path = self.create_data_path(name, skip_data_dir)
         return download(self.data_path, url, file, untar, unzip, checksum)
 
-    def name(self):
-        raise NotImplementedError()
-
-    def description(self):
-        return "No description provided."
-
     def lower_is_better(self):
         return True
 
@@ -99,8 +93,11 @@ class Benchmark:
     def get_suite_name(self) -> str:
         return self.suite.name()
 
-    def result_names(self) -> list[str]:
-        return [self.name()]
+    def name(self):
+        raise NotImplementedError()
+
+    def description(self):
+        return "No description provided."
 
     def notes(self) -> str:
         return None

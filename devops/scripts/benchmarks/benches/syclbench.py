@@ -31,8 +31,8 @@ class SyclBench(Suite):
         repo_path = git_clone(
             self.directory,
             "sycl-bench-repo",
-            "https://github.com/mateuszpn/sycl-bench.git",
-            "1e6ab2cfd004a72c5336c26945965017e06eab71",
+            "https://github.com/unisa-hpc/sycl-bench.git",
+            "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b",
         )
 
         configure_command = [

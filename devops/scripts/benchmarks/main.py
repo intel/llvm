@@ -333,7 +333,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--adapter",
         type=str,
-        help="Options to build the Unified Runtime as part of the benchmark",
+        help="Unified Runtime adapter to use.",
         default="level_zero",
     )
     parser.add_argument(

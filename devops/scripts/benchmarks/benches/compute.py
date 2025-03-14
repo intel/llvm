@@ -13,6 +13,20 @@ from options import options
 from enum import Enum
 
 
+class RUNTIMES(Enum):
+    SYCL = "sycl"
+    LEVEL_ZERO = "l0"
+    UR = "ur"
+
+
+def runtime_to_name(runtime: RUNTIMES) -> str:
+    return {
+        RUNTIMES.SYCL: "SYCL",
+        RUNTIMES.LEVEL_ZERO: "Level Zero",
+        RUNTIMES.UR: "Unified Runtime",
+    }[runtime]
+
+
 class ComputeBench(Suite):
     def __init__(self, directory):
         self.directory = directory
@@ -70,6 +84,16 @@ class ComputeBench(Suite):
             ),
         }
 
+    def enabled_runtimes(self, supported_runtimes=None):
+        # all runtimes in the RUNTIMES enum
+        runtimes = supported_runtimes or list(RUNTIMES)
+
+        # Filter out UR if not available
+        if options.ur is None:
+            runtimes = [r for r in runtimes if r != RUNTIMES.UR]
+
+        return runtimes
+
     def benchmarks(self) -> list[Benchmark]:
         if options.sycl is None:
             return []
@@ -77,11 +101,46 @@ class ComputeBench(Suite):
         if options.ur_adapter == "cuda":
             return []
 
-        benches = [
-            SubmitKernelL0(self, 0),
-            SubmitKernelL0(self, 1),
-            SubmitKernelSYCL(self, 0),
-            SubmitKernelSYCL(self, 1),
+        benches = []
+
+        # Add SubmitKernel benchmarks using loops
+        for runtime in self.enabled_runtimes():
+            for in_order_queue in [0, 1]:
+                for measure_completion in [0, 1]:
+                    benches.append(
+                        SubmitKernel(self, runtime, in_order_queue, measure_completion)
+                    )
+
+        # Add SinKernelGraph benchmarks
+        for runtime in self.enabled_runtimes():
+            for with_graphs in [0, 1]:
+                for num_kernels in [5, 100]:
+                    benches.append(
+                        GraphApiSinKernelGraph(self, runtime, with_graphs, num_kernels)
+                    )
+
+        # Add ULLS benchmarks
+        for runtime in self.enabled_runtimes([RUNTIMES.SYCL, RUNTIMES.LEVEL_ZERO]):
+            benches.append(UllsEmptyKernel(self, runtime, 1000, 256))
+            benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
+
+        # Add GraphApiSubmitGraph benchmarks
+        for runtime in self.enabled_runtimes([RUNTIMES.SYCL]):
+            for in_order_queue in [0, 1]:
+                for num_kernels in [4, 10, 32]:
+                    for measure_completion_time in [0, 1]:
+                        benches.append(
+                            GraphApiSubmitGraph(
+                                self,
+                                runtime,
+                                in_order_queue,
+                                num_kernels,
+                                measure_completion_time,
+                            )
+                        )
+
+        # Add other benchmarks
+        benches += [
             QueueInOrderMemcpy(self, 0, "Device", "Device", 1024),
             QueueInOrderMemcpy(self, 0, "Host", "Device", 1024),
             QueueMemcpy(self, "Device", "Device", 1024),
@@ -89,45 +148,14 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 0, 1, "Device", "Device", 1024),
             ExecImmediateCopyQueue(self, 1, 1, "Device", "Host", 1024),
             VectorSum(self),
-            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 0, 5),
-            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 1, 5),
-            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 0, 100),
-            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 1, 100),
-            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 0, 5),
-            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 5),
-            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 0, 100),
-            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 100),
-            UllsEmptyKernel(self, RUNTIMES.SYCL, 1000, 256),
-            UllsEmptyKernel(self, RUNTIMES.LEVEL_ZERO, 1000, 256),
-            UllsKernelSwitch(self, RUNTIMES.SYCL, 8, 200, 0, 0, 1, 1),
-            UllsKernelSwitch(self, RUNTIMES.LEVEL_ZERO, 8, 200, 0, 0, 1, 1),
         ]
 
-        for in_order_queue in [0, 1]:
-            for num_kernels in [4, 32]:
-                for measure_completion_time in [0, 1]:
-                    benches.append(
-                        GraphApiSubmitGraph(
-                            self,
-                            RUNTIMES.SYCL,
-                            in_order_queue,
-                            num_kernels,
-                            measure_completion_time,
-                        )
-                    )
-
+        # Add UR-specific benchmarks
         if options.ur is not None:
             benches += [
-                SubmitKernelUR(self, 0, 0),
-                SubmitKernelUR(self, 1, 0),
-                SubmitKernelUR(self, 1, 1),
                 MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
                 MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
                 MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
-                GraphApiSinKernelGraph(self, RUNTIMES.UR, 0, 5),
-                GraphApiSinKernelGraph(self, RUNTIMES.UR, 1, 5),
-                GraphApiSinKernelGraph(self, RUNTIMES.UR, 0, 100),
-                GraphApiSinKernelGraph(self, RUNTIMES.UR, 1, 100),
             ]
 
         return benches
@@ -228,98 +256,49 @@ class ComputeBenchmark(Benchmark):
         return
 
 
-class SubmitKernelSYCL(ComputeBenchmark):
-    def __init__(self, bench, ioq):
+class SubmitKernel(ComputeBenchmark):
+    def __init__(self, bench, runtime: RUNTIMES, ioq, measure_completion=0):
         self.ioq = ioq
-        super().__init__(bench, "api_overhead_benchmark_sycl", "SubmitKernel")
+        self.runtime = runtime
+        self.measure_completion = measure_completion
+        super().__init__(
+            bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel"
+        )
 
     def name(self):
         order = "in order" if self.ioq else "out of order"
-        return f"api_overhead_benchmark_sycl SubmitKernel {order}"
+        completion_str = " with measure completion" if self.measure_completion else ""
+        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}"
 
     def explicit_group(self):
-        return "SubmitKernel"
-
-    def bin_args(self) -> list[str]:
-        return [
-            f"--Ioq={self.ioq}",
-            "--DiscardEvents=0",
-            "--MeasureCompletion=0",
-            "--iterations=100000",
-            "--Profiling=0",
-            "--NumKernels=10",
-            "--KernelExecTime=1",
-        ]
+        return (
+            "SubmitKernel"
+            if self.measure_completion == 0
+            else "SubmitKernel With Completion"
+        )
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
+        runtime_name = runtime_to_name(self.runtime)
+
+        completion_desc = ""
+        if self.runtime == RUNTIMES.UR:
+            completion_desc = f", {'including' if self.measure_completion else 'excluding'} kernel completion time"
+
+        l0_specific = ""
+        if self.runtime == RUNTIMES.LEVEL_ZERO:
+            l0_specific = " Uses immediate command lists"
+
         return (
-            f"Measures CPU time overhead of submitting {order} kernels through SYCL API."
-            "Uses 10 simple kernels with minimal execution time to isolate API overhead from kernel execution time."
-        )
-
-
-class SubmitKernelUR(ComputeBenchmark):
-    def __init__(self, bench, ioq, measureCompletion):
-        self.ioq = ioq
-        self.measureCompletion = measureCompletion
-        super().__init__(bench, "api_overhead_benchmark_ur", "SubmitKernel")
-
-    def name(self):
-        order = "in order" if self.ioq else "out of order"
-        return f"api_overhead_benchmark_ur SubmitKernel {order}" + (
-            " with measure completion" if self.measureCompletion else ""
-        )
-
-    def explicit_group(self):
-        return "SubmitKernel"
-
-    def description(self) -> str:
-        order = "in-order" if self.ioq else "out-of-order"
-        completion = "including" if self.measureCompletion else "excluding"
-        return (
-            f"Measures CPU time overhead of submitting {order} kernels through Unified Runtime API, "
-            f"{completion} kernel completion time. Uses 10 simple kernels with minimal execution time "
-            f"to isolate API overhead."
+            f"Measures CPU time overhead of submitting {order} kernels through {runtime_name} API{completion_desc}. "
+            f"Runs 10 simple kernels with minimal execution time to isolate API overhead from kernel execution time. {l0_specific}"
         )
 
     def bin_args(self) -> list[str]:
         return [
             f"--Ioq={self.ioq}",
             "--DiscardEvents=0",
-            f"--MeasureCompletion={self.measureCompletion}",
-            "--iterations=100000",
-            "--Profiling=0",
-            "--NumKernels=10",
-            "--KernelExecTime=1",
-        ]
-
-
-class SubmitKernelL0(ComputeBenchmark):
-    def __init__(self, bench, ioq):
-        self.ioq = ioq
-        super().__init__(bench, "api_overhead_benchmark_l0", "SubmitKernel")
-
-    def name(self):
-        order = "in order" if self.ioq else "out of order"
-        return f"api_overhead_benchmark_l0 SubmitKernel {order}"
-
-    def explicit_group(self):
-        return "SubmitKernel"
-
-    def description(self) -> str:
-        order = "in-order" if self.ioq else "out-of-order"
-        return (
-            f"Measures CPU time overhead of submitting {order} kernels through Level Zero API. "
-            f"Uses immediate command lists with 10 minimal kernels to isolate submission overhead "
-            f"from execution time."
-        )
-
-    def bin_args(self) -> list[str]:
-        return [
-            f"--Ioq={self.ioq}",
-            "--DiscardEvents=0",
-            "--MeasureCompletion=0",
+            f"--MeasureCompletion={self.measure_completion}",
             "--iterations=100000",
             "--Profiling=0",
             "--NumKernels=10",
@@ -519,12 +498,6 @@ class MemcpyExecute(ComputeBenchmark):
             f"--SrcUSM={self.srcUSM}",
             f"--DstUSM={self.dstUSM}",
         ]
-
-
-class RUNTIMES(Enum):
-    SYCL = "sycl"
-    LEVEL_ZERO = "l0"
-    UR = "ur"
 
 
 class GraphApiSinKernelGraph(ComputeBenchmark):
