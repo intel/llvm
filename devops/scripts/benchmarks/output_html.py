@@ -18,36 +18,36 @@ def generate_html(
     benchmark_runs.sort(key=lambda run: run.date, reverse=True)
     serializable_metadata = {k: v.__dict__ for k, v in metadata.items()}
 
+    serializable_runs = [json.loads(run.to_json()) for run in benchmark_runs]
+
+    data = {
+        "runs": serializable_runs,
+        "metadata": serializable_metadata,
+        "defaultCompareNames": compare_names,
+    }
+
     if options.output_html == "local":
         data_path = os.path.join(html_path, "data.js")
-        # Write data to js file
-        # We can't store this as a standalone json file because it needs to be inline in the html
         with open(data_path, "w") as f:
-            f.write("benchmarkRuns = [\n")
-            # it might be tempting to just to create a list and convert
-            # that to a json, but that leads to json being serialized twice.
-            for i, run in enumerate(benchmark_runs):
-                if i > 0:
-                    f.write(",\n")
-                f.write(run.to_json())
-
-            f.write("\n];\n\n")  # terminates benchmarkRuns
+            # For local format, we need to write JavaScript variable assignments
+            f.write("benchmarkRuns = ")
+            json.dump(data["runs"], f, indent=2)
+            f.write(";\n\n")
 
             f.write("benchmarkMetadata = ")
-            json.dump(serializable_metadata, f)
-
-            f.write(";\n\n")  # terminates benchmarkMetadata
+            json.dump(data["metadata"], f, indent=2)
+            f.write(";\n\n")
 
             f.write("defaultCompareNames = ")
-            json.dump(compare_names, f)
-            f.write(";\n")  # terminates defaultCompareNames
+            json.dump(data["defaultCompareNames"], f, indent=2)
+            f.write(";\n")
 
         print(f"See {os.getcwd()}/html/index.html for the results.")
     else:
+        # For remote format, we write a single JSON file
         data_path = os.path.join(html_path, "data.json")
         with open(data_path, "w") as f:
-            json_data = {"runs": benchmark_runs, "metadata": serializable_metadata}
-            json.dump(json_data, f, indent=2)
+            json.dump(data, f, indent=2)
 
         print(
             f"Upload {data_path} to a location set in config.js remoteDataUrl argument."
