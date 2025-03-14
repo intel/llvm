@@ -224,10 +224,6 @@ option currently requires `--offload-new-driver` to be set.
 </td>
 </tr>
 <tr>
-<td>`--offload-ir`</td>
-<td>*TODO*</td>
-</tr>
-<tr>
 <td>`--offload-rdc`</td>
 <td>This is an alias of `-fgpu-rdc`.</td>
 </tr>
