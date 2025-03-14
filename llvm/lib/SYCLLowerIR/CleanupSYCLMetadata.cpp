@@ -45,7 +45,7 @@ eraseGlobalVariableAndReturnOperands(GlobalVariable *GV) {
   // Destroy the initializer and save operands.
   SmallVector<Constant *> Operands;
   Operands.resize(0);
-  for (auto &Op : GV->operands())
+  for (auto &Op : Initializer->operands())
     Operands.push_back(cast<Constant>(Op));
 
   assert(isSafeToDestroyConstant(Initializer) &&
