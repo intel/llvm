@@ -46,7 +46,7 @@ jobs:
     uses: ./.github/workflows/benchmark.yml
     secrets: inherit
     with:
-      pr_no: ${{ inputs.commit_hash }}
+      commit_hash: ${{ inputs.commit_hash }}
       upload_results: ${{ inputs.upload_results }}
       runner: ${{ inputs.runner }}
       backend: ${{ inputs.backend }}
