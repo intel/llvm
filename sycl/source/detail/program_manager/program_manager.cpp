@@ -2834,6 +2834,8 @@ static void mergeImageData(const std::vector<device_image_plain> &Imgs,
                            device_image_impl::SpecConstMapT &NewSpecConstMap) {
   for (const device_image_plain &Img : Imgs) {
     std::shared_ptr<device_image_impl> DeviceImageImpl = getSyclObjImpl(Img);
+    if (!DeviceImageImpl->get_kernel_ids_ptr())
+      continue;
     // Duplicates are not expected here, otherwise urProgramLink should fail
     KernelIDs.insert(KernelIDs.end(),
                      DeviceImageImpl->get_kernel_ids_ptr()->begin(),
