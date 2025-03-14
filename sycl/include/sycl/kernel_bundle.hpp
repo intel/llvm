@@ -956,7 +956,7 @@ struct include_files
                                     detail::PropKind::IncludeFiles> {
   include_files() {}
   include_files(const std::string &name, const std::string &content) {
-    record.emplace_back(std::make_pair(name, content));
+    record.emplace_back(name, content);
   }
   void add(const std::string &name, const std::string &content) {
     if (std::find_if(record.begin(), record.end(), [&name](auto &p) {
@@ -966,7 +966,7 @@ struct include_files
                             "Include file '" + name +
                                 "' is already registered");
     }
-    record.emplace_back(std::make_pair(name, content));
+    record.emplace_back(name, content);
   }
   std::vector<std::pair<std::string, std::string>> record;
 };
