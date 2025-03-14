@@ -1837,13 +1837,17 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   return {};
 }
 
-static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
+static bool shouldSkipEmptyImage(sycl_device_binary RawImg, bool IsRTC) {
   // For bfloat16 device library image, we should keep it. However, in some
   // scenario, __sycl_register_lib can be called multiple times and the same
   // bfloat16 device library image may be handled multiple times which is not
   // needed. 2 static bool variables are created to record whether native or
   // fallback bfloat16 device library image has been handled, if yes, we just
   // need to skip it.
+  // We cannot prevent redundant loads of device library images if they are part
+  // of a runtime-compiled device binary, as these will be freed when the
+  // corresponding kernel bundle is destroyed. Hence, normal kernels cannot rely
+  // on the presence of RTC device library images.
   sycl_device_binary_property_set ImgPS;
   static bool IsNativeBF16DeviceLibHandled = false;
   static bool IsFallbackBF16DeviceLibHandled = false;
@@ -1861,8 +1865,13 @@ static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
       if (ImgP == ImgPS->PropertiesEnd)
         return true;
 
-      // A valid bfloat16 device library image is found here, need to check
-      // wheter it has been handled already.
+      // A valid bfloat16 device library image is found here.
+      // If it originated from RTC, we cannot skip it, but do not mark it as
+      // being present.
+      if (IsRTC)
+        return false;
+
+      // Otherwise, we need to check whether it has been handled already.
       uint32_t BF16NativeVal = DeviceBinaryProperty(ImgP).asUint32();
       if (((BF16NativeVal == 0) && IsFallbackBF16DeviceLibHandled) ||
           ((BF16NativeVal == 1) && IsNativeBF16DeviceLibHandled))
@@ -1879,14 +1888,33 @@ static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
   return true;
 }
 
+static bool isCompiledAtRuntime(sycl_device_binaries DeviceBinary) {
+  // Check whether the first device binary contains a legacy format offload
+  // entry with a `$` in its name.
+  if (DeviceBinary->NumDeviceBinaries > 0) {
+    sycl_device_binary Binary = DeviceBinary->DeviceBinaries;
+    if (Binary->EntriesBegin != Binary->EntriesEnd) {
+      sycl_offload_entry Entry = Binary->EntriesBegin;
+      if (!Entry->IsNewOffloadEntryType() &&
+          std::string_view{Entry->name}.find('$') != std::string_view::npos) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
+  const bool IsRTC = isCompiledAtRuntime(DeviceBinary);
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
-    // Treat the image as empty one
-    if ((EntriesB == EntriesE) && shouldSkipEmptyImage(RawImg))
+    // If the image does not contain kernels, skip it unless it is one of the
+    // bfloat16 device libraries, and it wasn't loaded before or resulted from
+    // runtime compilation.
+    if ((EntriesB == EntriesE) && shouldSkipEmptyImage(RawImg, IsRTC))
       continue;
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
@@ -2081,6 +2109,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 }
 
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
+  bool IsRTC = isCompiledAtRuntime(DeviceBinary);
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     auto DevImgIt = m_DeviceImages.find(RawImg);
@@ -2088,8 +2117,11 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       continue;
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
-    // Treat the image as empty one
-    if (EntriesB == EntriesE)
+    // Skip clean up if there are no offload entries, unless `DeviceBinary`
+    // resulted from runtime compilation: Then, this is one of the `bfloat16`
+    // device libraries, so we want to make sure that the image and its exported
+    // symbols are removed from the program manager's maps.
+    if (EntriesB == EntriesE && !IsRTC)
       continue;
 
     RTDeviceBinaryImage *Img = DevImgIt->second.get();
