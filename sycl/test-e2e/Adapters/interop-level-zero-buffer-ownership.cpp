@@ -17,6 +17,7 @@
 
 // Keep ownership
 // CHECK: zeMemFree
+// CHECK: zeMemFree
 
 // Account for zeMemFree used to query page sizes by the UMF (only affects v2 L0
 // adapter)
