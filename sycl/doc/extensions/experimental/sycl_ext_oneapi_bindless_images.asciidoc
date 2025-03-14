@@ -1415,10 +1415,17 @@ defined sampling function will result in undefined behaviour.
 
 ==== `gather_image`
 
-[NOTE]
-=====
-`gather_image` is only currently supported in the CUDA backend.
-=====
+We provide the following device aspect to retrieve support information for
+`gather_image`.
+
+The device aspect descriptor for this query is:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Description
+|`aspect::ext_oneapi_bindless_images_gather` | Indicates if the device supports
+`gather_image`.
+|======================
 
 `DataT` is a vector type with four components. DataT can only be `sycl::float4`
 , `sycl::int4`, or `sycl::uint4`. `ImageHandle` must be a two dimensional image
