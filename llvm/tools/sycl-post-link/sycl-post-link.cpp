@@ -104,6 +104,11 @@ cl::opt<std::string> OutputDir{
         "Directory where files listed in the result file table will be output"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
+cl::opt<std::string> DeviceLibDir{
+    "device-lib-dir",
+    cl::desc("Directory where sycl fallback device libraries reside"),
+    cl::value_desc("dirname"), cl::cat(PostLinkCat)};
+
 struct TargetFilenamePair {
   std::string Target;
   std::string Filename;
@@ -307,8 +312,17 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
                                  StringRef Suff, StringRef Target = "") {
-  auto PropSet =
-      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+
+  PropSetRegTy PropSet;
+
+  // For bf16 devicelib module, no kernel included and no specialization
+  // constant used, skip regular Prop emit. However, we have fallback and
+  // native version of bf16 devicelib and we need new property values to
+  // indicate all exported function.
+  if (!MD.isSYCLDeviceLib())
+    PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+  else
+    PropSet = computeDeviceLibProperties(MD.getModule(), MD.Name);
 
   // When the split mode is none, the required work group size will be added
   // to the whole module, which will make the runtime unable to
@@ -429,13 +443,22 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
   MD.saveSplitInformationAsMetadata();
-  if (!IRFilename.empty()) {
-    // don't save IR, just record the filename
-    BaseTriple.Ir = IRFilename.str();
+
+  if (!MD.isSYCLDeviceLib()) {
+    if (!IRFilename.empty()) {
+      // don't save IR, just record the filename
+      BaseTriple.Ir = IRFilename.str();
+    } else {
+      MD.cleanup();
+      BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
+    }
   } else {
-    MD.cleanup();
+    // For deviceLib Modules, don't need to do clean up, no entry-point
+    // is included, the module only includes a bunch of exported functions
+    // intended to be invoked by user's device modules.
     BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
+
   if (DoSymGen) {
     // save the names of the entry points - the symbol table
     BaseTriple.Sym = saveModuleSymbolTable(MD, I, Suffix);
@@ -454,6 +477,26 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
     }
     addTableRow(*Table, CopyTriple);
   }
+}
+
+void saveDeviceLibModule(
+    std::vector<std::unique_ptr<util::SimpleTable>> &OutTables, int I,
+    const std::string &DeviceLibFileName) {
+  SMDiagnostic Err;
+  LLVMContext Context;
+  StringRef DeviceLibLoc = DeviceLibDir;
+  std::string DeviceLibPath = DeviceLibLoc.str() + "/" + DeviceLibFileName;
+  std::unique_ptr<Module> DeviceLibIR =
+      parseIRFile(DeviceLibPath, Err, Context);
+  Module *DeviceLibMPtr = DeviceLibIR.get();
+  if (!DeviceLibMPtr) {
+    errs() << "sycl-post-link NOTE: fail to load bfloat16 device library "
+              "modules\n";
+    return;
+  }
+  llvm::module_split::ModuleDesc DeviceLibMD(std::move(DeviceLibIR),
+                                             DeviceLibFileName);
+  saveModule(OutTables, DeviceLibMD, I, DeviceLibFileName);
 }
 
 module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
@@ -780,6 +823,9 @@ processInputModule(std::unique_ptr<Module> M) {
   // if none were made.
   bool Modified = false;
 
+  // Keeps track of whether any device image uses bf16 devicelib.
+  bool IsBF16DeviceLibUsed = false;
+
   // Propagate ESIMD attribute to wrapper functions to prevent
   // spurious splits and kernel link errors.
   Modified |= runModulePass<SYCLFixupESIMDKernelWrapperMDPass>(*M);
@@ -890,6 +936,7 @@ processInputModule(std::unique_ptr<Module> M) {
                 "have been made\n";
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
+      IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
       saveModule(Tables, IrMD, ID, OutIRFileName);
     }
 
@@ -898,11 +945,17 @@ processInputModule(std::unique_ptr<Module> M) {
     if (!MMsWithDefaultSpecConsts.empty()) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
+        IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
         saveModule(Tables, IrMD, ID, OutIRFileName);
       }
 
       ++ID;
     }
+  }
+
+  if (IsBF16DeviceLibUsed && (DeviceLibDir.getNumOccurrences() > 0)) {
+    saveDeviceLibModule(Tables, ID, "libsycl-fallback-bfloat16.bc");
+    saveDeviceLibModule(Tables, ID + 1, "libsycl-native-bfloat16.bc");
   }
   return Tables;
 }

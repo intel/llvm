@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 
-def do_configure(args):
+def do_configure(args, passthrough_args):
     # Get absolute path to source directory
     abs_src_dir = os.path.abspath(
         args.src_dir if args.src_dir else os.path.join(__file__, "../..")
@@ -255,6 +255,7 @@ def do_configure(args):
             ]
         )
 
+    cmake_cmd += passthrough_args
     print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
 
     try:
@@ -417,11 +418,11 @@ def main():
         "--native-cpu-libclc-targets",
         help="Target triples for libclc, used by the Native CPU backend",
     )
-    args = parser.parse_args()
+    args, passthrough_args = parser.parse_known_intermixed_args()
 
     print("args:{}".format(args))
 
-    return do_configure(args)
+    return do_configure(args, passthrough_args)
 
 
 if __name__ == "__main__":
