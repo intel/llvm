@@ -13,9 +13,7 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
-#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool_properties.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
 
 namespace sycl {
 inline namespace _V1 {

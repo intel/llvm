@@ -7,7 +7,6 @@
 
 #include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT

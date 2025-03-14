@@ -204,6 +204,9 @@ public:
   /// Adds an associated device global to the tracked associates.
   void addAssociatedDeviceGlobal(const void *DeviceGlobalPtr);
 
+  /// Removes an associated device global from the tracked associates.
+  void removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr);
+
   /// Adds a device global initializer.
   void addDeviceGlobalInitializer(ur_program_handle_t Program,
                                   const std::vector<device> &Devs,

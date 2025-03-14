@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-// #include <detail/memory_pool_impl.hpp>
 #include <sycl/context.hpp> // for context
 #include <sycl/device.hpp>  // for device
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool_properties.hpp>
@@ -86,78 +85,6 @@ protected:
   const property_list &getPropList() const;
 
   memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl) : impl(Impl) {}
-  memory_pool(const sycl::context &ctx, const sycl::device &dev,
-              const sycl::usm::alloc kind,
-              const std::pair<std::tuple<bool, bool, bool, bool>,
-                              std::tuple<size_t, size_t, bool, bool>> &props);
-
-  template <typename Properties = empty_properties_t,
-            typename = std::enable_if_t<
-                detail::all_are_properties_of_v<memory_pool, Properties>>>
-  std::pair<std::tuple<bool, bool, bool, bool>,
-            std::tuple<size_t, size_t, bool, bool>>
-  stripProps(const Properties &props) {
-
-    // Pair of tuples of set properties and their values.
-    // initial_threshold, maximum_size, read_only, zero_init.
-    std::pair<std::tuple<bool, bool, bool, bool>,
-              std::tuple<size_t, size_t, bool, bool>>
-        tuple;
-    bool initialThreshold = 0;
-    bool maximumSize = 0;
-    bool readOnly = 0;
-    bool zeroInit = 0;
-    // size_t initialThresholdVal = 0;
-    size_t maximumSizeVal = 0;
-    bool readOnlyVal = 0;
-    bool zeroInitVal = 0;
-
-    // auto a = props.template has_property<initial_threshold_key>();
-    // auto a = decltype(props)::has_property<initial_threshold_key>();
-    // properties P2{maximum_size{1024}};
-    // if constexpr (P2.has_property<initial_threshold_key>()) {
-    //   // initialThreshold = 1;
-    //   constexpr size_t initialThresholdVal =
-    //       P2.get_property<ext::oneapi::experimental::initial_threshold>().value;
-    //   // std::cout << "Stripping initial threshold: " << initialThresholdVal
-    //   //           << std::endl;
-    // } else {
-    //   // std::cout << "do nothing" << std::endl;
-    // }
-
-    // if (props.template has_property<
-    //         ext::oneapi::experimental::maximum_size_key>()) {
-    //   maximumSize = 1;
-    //   maximumSizeVal =
-    //       props.template
-    //       get_property<ext::oneapi::experimental::maximum_size>()
-    //           .value;
-    //   std::cout << "Stripping maximum size: " << maximumSizeVal << std::endl;
-    // }
-
-    // if (props.template has_property<ext::oneapi::experimental::read_only>())
-    // {
-    //   readOnly = 1;
-    //   readOnlyVal =
-    //       props.template get_property<ext::oneapi::experimental::read_only>()
-    //           .value;
-    //   std::cout << "Stripping read only: " << readOnlyVal << std::endl;
-    // }
-
-    // if (props.template has_property<
-    //         ext::oneapi::experimental::zero_init_key>()) {
-    //   zeroInit = 1;
-    //   zeroInitVal =
-    //       props.template get_property<ext::oneapi::experimental::zero_init>()
-    //           .value;
-    //   std::cout << "Stripping zero init: " << zeroInitVal << std::endl;
-    // }
-
-    tuple.first = {initialThreshold, maximumSize, readOnly, zeroInit};
-    tuple.second = {0, maximumSizeVal, readOnlyVal, zeroInitVal};
-
-    return tuple;
-  }
 };
 
 } // namespace ext::oneapi::experimental

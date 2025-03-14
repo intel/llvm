@@ -6,17 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <detail/memory_pool_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/memory_pool_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
-#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool_properties.hpp>
-#include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
-
-
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
 
 namespace sycl {
 inline namespace _V1 {

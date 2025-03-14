@@ -201,15 +201,22 @@ jobs:
     steps:
     - name: Reset Intel GPU
       if: inputs.reset_intel_gpu == 'true'
+      shell: bash      
       run: |
-        sudo mount -t debugfs none /sys/kernel/debug
-        base_dir="/sys/kernel/debug/dri"
+        if [[ '${{ inputs.runner }}' == '["Linux", "bmg"]' ]]; then
+          sudo bash -c 'echo 0000:05:00.0 > /sys/bus/pci/drivers/xe/unbind'
+          sudo bash -c 'echo 1 > /sys/bus/pci/devices/0000:05:00.0/reset'
+          sudo bash -c 'echo 0000:05:00.0 > /sys/bus/pci/drivers/xe/bind'
+        else
+          sudo mount -t debugfs none /sys/kernel/debug
+          base_dir="/sys/kernel/debug/dri"
 
-        for dir in "$base_dir"/*; do
-         if [ -f "$dir/i915_wedged" ]; then
-          sudo bash -c 'echo 1 > $0/i915_wedged' $dir
-         fi
-        done
+          for dir in "$base_dir"/*; do
+           if [ -f "$dir/i915_wedged" ]; then
+            sudo bash -c 'echo 1 > $0/i915_wedged' $dir
+           fi
+          done
+        fi
     - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.devops_ref || inputs.repo_ref }}
@@ -315,6 +322,7 @@ jobs:
       uses: ./devops/actions/run-tests/cts
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
+        cts_exclude_ref: ${{ inputs.repo_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
