@@ -9,10 +9,10 @@ name: (TEST) Hijacking aggregate workflow for testing
 on:
   workflow_dispatch:
     inputs:
-      pr_no:
-        description: Specific PR no. to build (0 for nightly)
-        type: number
-        required: true
+      commit_hash:
+        description: Specific commit hash to build SYCL from
+        type: string
+        required: false
       upload_results:
         description: 'Save and upload results'
         type: choice
@@ -46,7 +46,7 @@ jobs:
     uses: ./.github/workflows/benchmark.yml
     secrets: inherit
     with:
-      pr_no: ${{ inputs.pr_no }}
+      pr_no: ${{ inputs.commit_hash }}
       upload_results: ${{ inputs.upload_results }}
       runner: ${{ inputs.runner }}
       backend: ${{ inputs.backend }}
