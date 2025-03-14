@@ -1,4 +1,4 @@
-//==- kernel_compiler_sycl_jit.cpp --- kernel_compiler extension tests -----==//
+//==--- sycl.cpp --- kernel_compiler extension tests -----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -241,10 +241,10 @@ int test_build_and_run() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;
@@ -254,7 +254,7 @@ int test_build_and_run() {
   syclex::include_files incFiles{"intermediate/AddEm.h", AddEmH};
   incFiles.add("intermediate/PlusEm.h", PlusEmH);
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSource,
+      ctx, syclex::source_language::sycl, SYCLSource,
       syclex::properties{incFiles});
 
   // Double check kernel_bundle.get_source() / get_backend().
@@ -302,7 +302,7 @@ int test_build_and_run() {
   syclex::include_files incFiles2{"intermediate/AddEm.h", AddEmHModified};
   incFiles2.add("intermediate/PlusEm.h", PlusEmH);
   source_kb kbSrc2 = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSource,
+      ctx, syclex::source_language::sycl, SYCLSource,
       syclex::properties{incFiles2});
 
   exe_kb kbExe3 = syclex::build(kbSrc2);
@@ -325,17 +325,17 @@ int test_lifetimes() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;
   }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSource2);
+      ctx, syclex::source_language::sycl, SYCLSource2);
 
   exe_kb kbExe1 = syclex::build(kbSrc);
   assert(sycl::get_kernel_ids().size() == 1);
@@ -375,17 +375,17 @@ int test_device_code_split() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;
   }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, DeviceCodeSplitSource);
+      ctx, syclex::source_language::sycl, DeviceCodeSplitSource);
 
   // Test explicit device code split
   std::vector<std::string> names{"vec_add<float>", "vec_add<int>",
@@ -427,17 +427,17 @@ int test_device_libraries() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;
   }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, DeviceLibrariesSource);
+      ctx, syclex::source_language::sycl, DeviceLibrariesSource);
   exe_kb kbExe = syclex::build(kbSrc);
 
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("device_libs_kernel");
@@ -481,10 +481,10 @@ int test_esimd() {
   }
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;
@@ -493,7 +493,7 @@ int test_esimd() {
   std::string log;
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, ESIMDSource);
+      ctx, syclex::source_language::sycl, ESIMDSource);
   exe_kb kbExe =
       syclex::build(kbSrc, syclex::properties{syclex::save_log{&log}});
 
@@ -507,7 +507,7 @@ int test_esimd() {
   // Mix ESIMD and normal kernel.
   std::string mixedSource = std::string{ESIMDSource} + SYCLSource2;
   source_kb kbSrcMixed = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, mixedSource);
+      ctx, syclex::source_language::sycl, mixedSource);
   exe_kb kbExeMixed = syclex::build(kbSrcMixed);
 
   // Both kernels should be available.
@@ -524,7 +524,7 @@ int test_esimd() {
   // Deactivate implicit module splitting to exercise the downstream
   // ESIMD-specific splitting.
   source_kb kbSrcMixed2 = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, mixedSource);
+      ctx, syclex::source_language::sycl, mixedSource);
   exe_kb kbExeMixed2 =
       syclex::build(kbSrcMixed2, syclex::properties{syclex::build_options{
                                      "-fsycl-device-code-split=off"}});
@@ -544,17 +544,17 @@ int test_unsupported_options() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;
   }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, "");
+      ctx, syclex::source_language::sycl, "");
   std::vector<sycl::device> devs = kbSrc.get_devices();
 
   auto CheckUnsupported = [&](const std::vector<std::string> &flags) {
@@ -587,13 +587,13 @@ int test_error() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
     return 0;
   }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, BadSource);
+      ctx, syclex::source_language::sycl, BadSource);
   try {
     exe_kb kbExe = syclex::build(kbSrc);
     assert(false && "we should not be here");
@@ -616,14 +616,14 @@ int test_warning() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
     return 0;
   }
   std::string build_log;
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, WarningSource);
+      ctx, syclex::source_language::sycl, WarningSource);
   exe_kb kbExe =
       syclex::build(kbSrc, syclex::properties{syclex::save_log{&build_log}});
   bool found_warning =
