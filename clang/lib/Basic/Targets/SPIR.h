@@ -481,6 +481,10 @@ public:
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
+
+  const llvm::omp::GV &getGridValue() const override {
+    return llvm::omp::SPIRVGridValues;
+  }
 };
 
 // x86-32 SPIRV32 Windows target
