@@ -112,13 +112,12 @@ jobs:
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            # The new Xe kernel driver used by BMG doesn't support resetting.
-            reset_intel_gpu: false
+            reset_intel_gpu: true
           - name: SPIR-V Backend / Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            reset_intel_gpu: false
+            reset_intel_gpu: true
             extra_lit_opts: --param spirv-backend=True
             e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
     uses: ./.github/workflows/sycl-linux-run-tests.yml
