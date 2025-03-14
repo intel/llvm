@@ -1758,7 +1758,7 @@ TEST_P(urDeviceGetInfoTest, SuccessAtomicFenceScopeCapabilities) {
   ASSERT_EQ(property_value & UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK, 0);
 }
 
-TEST_P(urDeviceGetInfoTest, SuccessBFloat64) {
+TEST_P(urDeviceGetInfoTest, SuccessBFloat16) {
   size_t property_size = 0;
   const ur_device_info_t property_name = UR_DEVICE_INFO_BFLOAT16;
 
