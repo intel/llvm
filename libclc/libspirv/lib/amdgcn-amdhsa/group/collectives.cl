@@ -196,7 +196,7 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, a, true)
 
 #define __CLC_GROUP_COLLECTIVE_INNER(SPIRV_NAME, CLC_NAME, OP, TYPE, IDENTITY) \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
-      __spirv_Group, SPIRV_NAME)(int scope, uint op, TYPE x) {                \
+      __spirv_Group, SPIRV_NAME)(int scope, int op, TYPE x) {                \
     TYPE carry = IDENTITY;                                                     \
     /* Perform GroupOperation within sub-group */                              \
     TYPE sg_x = __CLC_APPEND(__clc__Subgroup, CLC_NAME)(op, x, &carry);        \
