@@ -213,7 +213,7 @@ public:
       const std::vector<unsigned char> &SpecializationConsts);
 
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
-                                               const ContextImplPtr Context);
+                                               const ContextImplPtr &Context);
 
   void addImages(sycl_device_binaries DeviceImages);
   void removeImages(sycl_device_binaries DeviceImages);

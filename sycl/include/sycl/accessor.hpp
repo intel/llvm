@@ -556,7 +556,11 @@ public:
   friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <typename, int, access::mode, access::target, access::placeholder,
             typename>
@@ -592,7 +596,11 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   LocalAccessorImplPtr impl;
 };
@@ -851,7 +859,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
 public:
   // 4.7.6.9.1. Interface for buffer command accessors
@@ -2242,7 +2254,11 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <typename DataT_, int Dimensions_> friend class local_accessor;
 
@@ -2658,7 +2674,11 @@ protected:
   friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 #endif // __SYCL_DEVICE_ONLY__
 
 public:

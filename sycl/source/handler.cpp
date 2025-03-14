@@ -315,7 +315,7 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(Graph)) {}
+    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -534,7 +534,7 @@ event handler::finalize() {
         EnqueueKernel();
         auto EventImpl = std::make_shared<detail::event_impl>(
             detail::event_impl::HES_Discarded);
-        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
+        MLastEvent = detail::createSyclObjFromImpl<event>(std::move(EventImpl));
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setWorkerQueue(MQueue);
@@ -545,7 +545,7 @@ event handler::finalize() {
         EnqueueKernel();
         NewEvent->setEnqueued();
 
-        MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+        MLastEvent = detail::createSyclObjFromImpl<event>(std::move(NewEvent));
       }
       return MLastEvent;
     }

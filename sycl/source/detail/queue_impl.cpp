@@ -364,7 +364,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  auto HandlerImpl = detail::getSyclObjImpl(Handler);
+  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {

@@ -157,7 +157,11 @@ private:
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   std::shared_ptr<detail::node_impl> impl;
 };
@@ -370,7 +374,11 @@ protected:
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
   std::shared_ptr<detail::graph_impl> impl;
 
   static void checkNodePropertiesAndThrow(const property_list &Properties);
@@ -470,7 +478,11 @@ private:
       : modifiable_command_graph(Impl) {}
 
   template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 };
 
 template <>

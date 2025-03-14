@@ -64,7 +64,7 @@ std::vector<event> event::get_wait_list() {
 }
 
 event::event(std::shared_ptr<detail::event_impl> event_impl)
-    : impl(event_impl) {}
+    : impl(std::move(event_impl)) {}
 
 template <typename Param>
 typename detail::is_event_info_desc<Param>::return_type
