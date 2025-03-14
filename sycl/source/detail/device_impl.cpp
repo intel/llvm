@@ -609,7 +609,12 @@ bool device_impl::has(aspect Aspect) const {
     return call_successful && support;
   }
   case aspect::ext_oneapi_bindless_images_gather: {
-    return this->getBackend() == backend::ext_oneapi_cuda;
+    ur_bool_t support = false;
+    bool call_successful =
+        getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            MDevice, UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
   }
   case aspect::ext_oneapi_cubemap: {
     ur_bool_t support = false;
