@@ -9512,12 +9512,16 @@ typedef enum ur_exp_external_mem_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Dictates the type of external semaphore handle.
 typedef enum ur_exp_external_semaphore_type_t {
-  /// Opaque file descriptor
+  /// Binary semaphore opaque file descriptor
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD = 0,
-  /// Win32 NT handle
+  /// Binary semaphore Win32 NT handle
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT = 1,
-  /// Win32 NT DirectX 12 fence handle
+  /// Fence semaphore Win32 NT DirectX 12 handle
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE = 2,
+  /// Timeline semaphore opaque file descriptor
+  UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD = 3,
+  /// Timeline semaphore Win32 NT handle
+  UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT = 4,
   /// @cond
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10225,7 +10229,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`

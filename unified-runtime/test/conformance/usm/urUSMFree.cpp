@@ -94,7 +94,7 @@ TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
 }
 
 TEST_P(urUSMFreeTest, InvalidNullContext) {
-  void* Ptr = nullptr;
+  void *Ptr = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urUSMFree(nullptr, &Ptr));
 }
