@@ -19,6 +19,10 @@ inputs:
   upload_results:
     type: string
     required: True
+  build_hash:
+    type: string
+    required: False
+    default: ''
 
 runs:
   using: "composite"
@@ -81,6 +85,8 @@ runs:
     run: |
       git clone -b unify-ci https://github.com/intel/llvm-ci-perf-results
   - name: Run compute-benchmarks
+    env:
+      BUILD_HASH: ${{ inputs.build_hash }}
     shell: bash
     run: |
       # TODO generate summary + display helpful message here
@@ -91,16 +97,22 @@ runs:
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
       echo "-----"
       mkdir -p "./llvm-ci-perf-results/$RUNNER_NAME"
+
+      # TODO accomodate for different GPUs and backends
+      SAVE_NAME="Baseline_PVC_L0"
+      if [ -n "$BUILD_HASH" ]; then
+          SAVE_NAME="Commit_PVC_$BUILD_HASH"
+      fi
+
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \
         --sycl "$(realpath ./toolchain)" \
-        --save baseline \
+        --save "$SAVE_NAME" \
         --output-html remote \
         --results-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
         --output-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
         --preset Minimal
       echo "-----"
-      ls
   - name: Push compute-benchmarks results
     if: inputs.upload_results == 'true' && always()
     shell: bash
@@ -120,18 +132,4 @@ runs:
         git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
         git push "https://$GITHUB_TOKEN@github.com/intel/llvm-ci-perf-results.git" unify-ci
       fi
-#  - name: Find benchmark result artifact here
-#    if: always()
-#    shell: bash
-#    run: |
-#      cat << EOF
-#      #
-#      # Artifact link for benchmark results here:
-#      #
-#      EOF
-#  - name: Archive compute-benchmark results
-#    if: always()
-#    uses: actions/upload-artifact@v4
-#    with:
-#      name: Compute-benchmark run ${{ github.run_id }} (${{ runner.name }})
-#      path: ./artifact
+

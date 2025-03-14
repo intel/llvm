@@ -116,8 +116,12 @@ on:
 
       benchmark_upload_results:
         type: string
-        required: False
         default: 'false'
+        required: False
+      benchmark_build_hash:
+        type: string
+        default: ''
+        required: False
 
   workflow_dispatch:
     inputs:
@@ -343,6 +347,7 @@ jobs:
       with:
         target_devices: ${{ inputs.target_devices }}
         upload_results: ${{ inputs.benchmark_upload_results }}
+        build_hash: ${{ inputs.benchmark_build_hash }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
