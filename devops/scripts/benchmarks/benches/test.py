@@ -50,7 +50,8 @@ class TestSuite(Suite):
             "Foo Group": BenchmarkMetadata(
                 type="group",
                 description="This is a test benchmark for Foo Group.",
-                notes="This is a test note for Foo Group.",
+                notes="This is a test note for Foo Group.\n"
+                      "Look, multiple lines!",
             ),
             "Bar Group": BenchmarkMetadata(
                 type="group",

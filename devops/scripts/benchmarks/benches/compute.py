@@ -59,10 +59,10 @@ class ComputeBench(Suite):
             "SubmitKernel": BenchmarkMetadata(
                 type="group",
                 description="Measures CPU time overhead of submitting kernels through different APIs.",
-                notes="Each layer builds on top of the previous layer, adding functionality and overhead. "
-                "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API. "
-                "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance."
-                "Work is ongoing to reduce the overhead of the SYCL API",
+                notes="Each layer builds on top of the previous layer, adding functionality and overhead.\n"
+                "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
+                "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
+                "Work is ongoing to reduce the overhead of the SYCL API\n",
             ),
             "SinKernelGraph": BenchmarkMetadata(
                 type="group",
