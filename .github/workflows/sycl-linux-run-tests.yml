@@ -114,6 +114,11 @@ on:
         default: ''
         required: False
 
+      benchmark_upload_results:
+        type: string
+        required: False
+        default: 'false'
+
   workflow_dispatch:
     inputs:
       runner:
@@ -337,6 +342,7 @@ jobs:
       uses: ./devops/actions/run-tests/benchmark_v2
       with:
         target_devices: ${{ inputs.target_devices }}
+        upload_results: ${{ inputs.benchmark_upload_results }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
