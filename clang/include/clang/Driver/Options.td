@@ -7044,8 +7044,8 @@ defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   BothFlags<[], [ClangOption, CLOption, CC1Option], " that SYCL ID queries fit "
             "within MAX_INT.">>;
 def fsycl_device_obj_EQ : Joined<["-"], "fsycl-device-obj=">,
-  Values<"spirv,llvmir">, HelpText<"Specify format of device code stored in "
-  "the resulting object. Valid values are: spirv, llvmir (default)">;
+  Values<"spirv,llvmir,asm">, HelpText<"Specify format of device code stored "
+  "in the resulting object. Valid values are: spirv, asm, llvmir (default)">;
 def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
   Alias<fsycl_device_obj_EQ>, AliasArgs<["llvmir"]>, Flags<[Deprecated]>,
   HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects (deprecated)">;

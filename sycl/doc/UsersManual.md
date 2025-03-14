@@ -347,7 +347,8 @@ and not recommended to use in production environment.
 **`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
 
     Specify format of device code stored in the resulting object. The <arg> can
-    be one of the following:  "spirv" - SPIR-V is emitted, "llvmir" - LLVM-IR
+    be one of the following:  "spirv" - SPIR-V, "asm" - assembly output when
+    possible (PTX, when targetting Nvidia devices) , or "llvmir" - LLVM-IR
     bitcode format is emitted (default).
 
 **`-fsycl-help[=backend]`**
