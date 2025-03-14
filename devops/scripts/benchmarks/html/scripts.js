@@ -205,12 +205,12 @@ function createChartContainer(data, canvasId, type) {
     container.className = 'chart-container';
     container.setAttribute('data-label', data.label);
     container.setAttribute('data-suite', data.suite);
-    
+
     // Check if this benchmark is marked as unstable
     const metadata = metadataForLabel(data.label, type);
     if (metadata && metadata.unstable) {
         container.setAttribute('data-unstable', 'true');
-        
+
         // Add unstable warning
         const unstableWarning = document.createElement('div');
         unstableWarning.className = 'benchmark-unstable';
@@ -218,7 +218,7 @@ function createChartContainer(data, canvasId, type) {
         unstableWarning.style.display = showUnstable ? 'block' : 'none';
         container.appendChild(unstableWarning);
     }
-    
+
     // Add notes if present
     if (metadata && metadata.notes) {
         const noteElement = document.createElement('div');
@@ -227,7 +227,7 @@ function createChartContainer(data, canvasId, type) {
         noteElement.style.display = showNotes ? 'block' : 'none';
         container.appendChild(noteElement);
     }
-    
+
     // Add description if present in metadata, but only for groups
     if (metadata && metadata.description && metadata.type === "group") {
         const descElement = document.createElement('div');
@@ -274,7 +274,7 @@ function metadataForLabel(label, type) {
             return metadata;
         }
     }
-    
+
     return null;
 }
 
@@ -305,27 +305,27 @@ function generateExtraInfo(latestRunsLookup, data) {
     return labels.map(label => {
         const metadata = metadataForLabel(label);
         const latestRun = latestRunsLookup.get(label);
-        
+
         let html = '<div class="extra-info-entry">';
-        
+
         if (metadata) {
             html += `<strong>${label}:</strong> ${formatCommand(latestRun.result)}<br>`;
-            
+
             if (metadata.description) {
                 html += `<em>Description:</em> ${metadata.description}`;
             }
-            
+
             if (metadata.notes) {
                 html += `<br><em>Notes:</em> <span class="note-text">${metadata.notes}</span>`;
             }
-            
+
             if (metadata.unstable) {
                 html += `<br><em class="unstable-warning">⚠️ Unstable:</em> <span class="unstable-text">${metadata.unstable}</span>`;
             }
         } else {
             html += `<strong>${label}:</strong> No data available`;
         }
-        
+
         html += '</div>';
         return html;
     }).join('');
@@ -407,9 +407,9 @@ function filterCharts() {
         const isUnstable = container.getAttribute('data-unstable') === 'true';
 
         // Hide unstable benchmarks if showUnstable is false
-        const shouldShow = regex.test(label) && 
-                          activeSuites.includes(suite) && 
-                          (showUnstable || !isUnstable);
+        const shouldShow = regex.test(label) &&
+            activeSuites.includes(suite) &&
+            (showUnstable || !isUnstable);
 
         container.style.display = shouldShow ? '' : 'none';
     });
@@ -471,7 +471,7 @@ function processBarChartsData(benchmarkRuns) {
             if (!groupedResults[result.explicit_group]) {
                 // Look up group metadata
                 const groupMetadata = metadataForLabel(result.explicit_group);
-                
+
                 groupedResults[result.explicit_group] = {
                     label: result.explicit_group,
                     suite: result.suite,
@@ -550,7 +550,7 @@ function setupSuiteFilters() {
 function setupToggles() {
     const notesToggle = document.getElementById('show-notes');
     const unstableToggle = document.getElementById('show-unstable');
-    
+
     notesToggle.addEventListener('change', function() {
         showNotes = this.checked;
         // Update all note elements visibility
@@ -559,7 +559,7 @@ function setupToggles() {
         });
         filterCharts();
     });
-    
+
     unstableToggle.addEventListener('change', function() {
         showUnstable = this.checked;
         // Update all unstable warning elements visibility
@@ -568,16 +568,16 @@ function setupToggles() {
         });
         filterCharts();
     });
-    
+
     // Initialize from URL params if present
     const notesParam = getQueryParam('notes');
     const unstableParam = getQueryParam('unstable');
-    
+
     if (notesParam !== null) {
         showNotes = notesParam === 'true';
         notesToggle.checked = showNotes;
     }
-    
+
     if (unstableParam !== null) {
         showUnstable = unstableParam === 'true';
         unstableToggle.checked = showUnstable;

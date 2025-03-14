@@ -110,7 +110,7 @@ class Benchmark:
 
     def get_metadata(self) -> BenchmarkMetadata:
         return BenchmarkMetadata(
-            type='benchmark',
+            type="benchmark",
             description=self.description(),
             notes=self.notes(),
             unstable=self.unstable(),

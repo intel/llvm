@@ -47,7 +47,7 @@ class BenchmarkRun:
 @dataclass_json
 @dataclass
 class BenchmarkMetadata:
-    type: str = 'benchmark' # or 'group'
+    type: str = "benchmark"  # or 'group'
     description: Optional[str] = None
     notes: Optional[str] = None
     unstable: Optional[str] = None

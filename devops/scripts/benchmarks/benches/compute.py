@@ -56,20 +56,19 @@ class ComputeBench(Suite):
 
     def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
         return {
-            "SubmitKernel" : BenchmarkMetadata(
+            "SubmitKernel": BenchmarkMetadata(
                 type="group",
                 description="Measures CPU time overhead of submitting kernels through different APIs.",
                 notes="Each layer builds on top of the previous layer, adding functionality and overhead. "
-                      "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API. "
-                      "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance."
-                      "Work is ongoing to reduce the overhead of the SYCL API",
+                "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API. "
+                "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance."
+                "Work is ongoing to reduce the overhead of the SYCL API",
             ),
-            "SinKernelGraph" : BenchmarkMetadata(
+            "SinKernelGraph": BenchmarkMetadata(
                 type="group",
                 unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
             ),
         }
-
 
     def benchmarks(self) -> list[Benchmark]:
         if options.sycl is None:

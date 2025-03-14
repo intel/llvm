@@ -39,18 +39,20 @@ class TestSuite(Suite):
                 value = base_value * value_multiplier
                 diff = base_diff * value_multiplier
 
-                result.append(TestBench(self, name, value, diff, group, notes, unstable))
+                result.append(
+                    TestBench(self, name, value, diff, group, notes, unstable)
+                )
 
         return result
 
     def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
         return {
-            "Foo Group" : BenchmarkMetadata(
+            "Foo Group": BenchmarkMetadata(
                 type="group",
                 description="This is a test benchmark for Foo Group.",
                 notes="This is a test note for Foo Group.",
             ),
-            "Bar Group" : BenchmarkMetadata(
+            "Bar Group": BenchmarkMetadata(
                 type="group",
                 description="This is a test benchmark for Bar Group.",
                 unstable="This is an unstable note for Bar Group.",
