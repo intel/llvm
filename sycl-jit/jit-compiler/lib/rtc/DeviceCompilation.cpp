@@ -772,20 +772,14 @@ void jit_compiler::encodeBuildOptions(RTCBundleInfo &BundleInfo,
   std::string CompileOptions;
   raw_string_ostream COSOS{CompileOptions};
 
-  for (Arg *A : UserArgList.getArgs()) {
-    if (!(A->getOption().matches(OPT_Xs) ||
-          A->getOption().matches(OPT_Xs_separate))) {
-      continue;
+  for (Arg *A : UserArgList.filtered(OPT_Xs, OPT_Xs_separate)) {
+    if (!CompileOptions.empty()) {
+      COSOS << ' ';
     }
-
-    // Trim first and last quote if they exist, but no others.
-    StringRef AV{A->getValue()};
-    AV = AV.trim();
-    if (AV.front() == AV.back() && (AV.front() == '\'' || AV.front() == '"')) {
-      AV = AV.drop_front().drop_back();
+    if (A->getOption().matches(OPT_Xs)) {
+      COSOS << '-';
     }
-
-    COSOS << (CompileOptions.empty() ? "" : " ") << AV;
+    COSOS << A->getValue();
   }
 
   if (!CompileOptions.empty()) {
