@@ -106,6 +106,7 @@ RemoveDeviceGlobalFromLLVMCompilerUsed::run(Module &M,
   if (!GV)
     return PreservedAnalyses::all();
 
+  const auto *VAT = cast<ArrayType>(GV->getValueType());
   // Destroy the initializer. Keep the operands so we keep the ones we need.
   SmallVector<Constant *> IOperands = eraseGlobalVariableAndReturnOperands(GV);
 
@@ -133,7 +134,6 @@ RemoveDeviceGlobalFromLLVMCompilerUsed::run(Module &M,
   // If we have any operands left from the original llvm.compiler.used we create
   // a new one with the new size.
   if (!NewOperands.empty()) {
-    const auto *VAT = cast<ArrayType>(GV->getValueType());
     ArrayType *ATy = ArrayType::get(VAT->getElementType(), NewOperands.size());
     GlobalVariable *NGV =
         new GlobalVariable(M, ATy, false, GlobalValue::AppendingLinkage,
