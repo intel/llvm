@@ -134,6 +134,12 @@ void device_libs_kernel(float *ptr) {
 
   // cl_intel_devicelib_imf
   ptr[3] = sycl::ext::intel::math::sqrt(ptr[3] * 2);
+
+  // cl_intel_devicelib_imf_bf16
+  ptr[4] = sycl::ext::intel::math::float2bfloat16(ptr[4] * 0.5f);
+
+  // cl_intel_devicelib_bfloat16
+  ptr[5] = sycl::ext::oneapi::bfloat16{ptr[5] / 0.25f};
 }
 )===";
 
@@ -435,7 +441,7 @@ int test_device_libraries() {
   exe_kb kbExe = syclex::build(kbSrc);
 
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("device_libs_kernel");
-  constexpr size_t nElem = 4;
+  constexpr size_t nElem = 6;
   float *ptr = sycl::malloc_shared<float>(nElem, q);
   for (int i = 0; i < nElem; ++i)
     ptr[i] = 1.0f;
@@ -446,8 +452,8 @@ int test_device_libraries() {
   });
   q.wait_and_throw();
 
-  // Check that the kernel was executed. Given the {1.0, 1.0, 1.0, 1.0} input,
-  // the expected result is approximately {0.84, 1.41, 0.0, 1.41}.
+  // Check that the kernel was executed. Given the {1.0, ..., 1.0} input,
+  // the expected result is approximately {0.84, 1.41, 0.0, 1.41, 0.5, 4.0}.
   for (unsigned i = 0; i < nElem; ++i) {
     std::cout << ptr[i] << ' ';
     assert(ptr[i] != 1.0f);
