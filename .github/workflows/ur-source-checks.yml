@@ -21,9 +21,22 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - uses: actions/setup-python@6ca8e8598faa206f7140a65ba31b899bebe16f58 # v5.0.0
-      with:
-        python-version: 3.9
+    # Latest distros do not allow global pip installation
+    # Adding the venv path to GITHUB_PATH means future jobs use the venv'd pip
+    - name: "[Lin] Set up Python venv"
+      if: matrix.os == 'ubuntu-22.04'
+      run: |
+        python3 -m venv .venv
+        . .venv/bin/activate
+        echo "$PATH" >> $GITHUB_PATH
+
+    - name: "[Win] Set up Python venv"
+      if: matrix.os == 'windows-2022'
+      shell: cmd
+      run: |
+        python3 -m venv .venv
+        .venv/Scripts/activate.bat
+        echo "$PATH" >> $GITHUB_PATH
 
     - name: Install UR python dependencies
       working-directory: ${{github.workspace}}/unified-runtime
