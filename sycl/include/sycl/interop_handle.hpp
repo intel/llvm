@@ -144,9 +144,6 @@ public:
   template <backend Backend = backend::opencl>
   backend_return_t<Backend, graph> ext_codeplay_get_native_graph() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    // TODO: replace the exception thrown below with the SYCL 2020 exception
-    // with the error code 'errc::backend_mismatch' when those new exceptions
-    // are ready to be used.
     if (Backend != get_backend())
       throw exception(make_error_code(errc::invalid),
                       "Incorrect backend argument was passed");

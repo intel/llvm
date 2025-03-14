@@ -177,14 +177,14 @@ dependencies are satisfied.
 The SYCL command described above completes once all of the native asynchronous
 tasks it contains have completed.
 
-The call to `interopCallable` is done by the host thread, users should
-therefore not perform blocking or synchronization tasks inside
-`interopCallable`, as it will defer the host thread returning to SYCL user
-code.
-
 The call to `interopCallable` must not add tasks to backend objects that underly
 any other queue, aside from the queue that is associated with this handler,
 otherwise, the behavior is undefined.
+
+[_Note:_ The function object `interopCallable` is invoked to enqueue commands to a
+native queue or graph and therefore, APIs which block or synchronize could
+prolong or interfere with other commands being enqueued to the backend.
+_{endnote}_]
 
 === SYCL-Graph Interaction
 
@@ -202,6 +202,8 @@ that they respect the graph node edges.
 ==== Interop Handle Class Modifications
 
 ```c++
+// Alias is for editorial brevity in the ext_codeplay_get_native_graph
+// definition, and is non-normative.
 using graph = ext::oneapi::experimental::command_graph<
       ext::oneapi::experimental::graph_state::executable>;
 
@@ -212,28 +214,6 @@ class interop_handle {
   backend_return_t<Backend, graph> ext_codeplay_get_native_graph() const;
 };
 ```
-
-Table {counter: tableNumber}. Native types for
-`template <backend Backend, class T> backend_return_t<Backend, T>` where `T` is
-instantiated as `command_graph<graph_state::executable>`.
-
-[cols="2a,a"]
-|===
-|Backend|Native graph type
-
-| `backend::opencl`
-| `cl_command_buffer_khr`
-
-| `backend::ext_oneapi_level_zero`
-| `ze_command_list_handle_t`
-
-| `backend::ext_oneapi_cuda`
-| `CUGraph`
-
-| `backend::ext_oneapi_hip`
-| `hipGraph_t`
-
-|===
 
 ==== New Interop Handle Member Functions
 
@@ -248,11 +228,16 @@ Table {counter: tableNumber}. Additional member functions of the `sycl::interop_
 bool interop_handle::ext_codeplay_has_graph() const;
 ----
 
-| Query if the `interop_handle` object has a native graph object available.
-  Note that host-task nodes in a `command_graph` will return `false` for this,
-  as host-task commands are executed by the SYCL runtime rather than the
-  backend device, so there is no native graph object associated with the
-  command.
+|
+_Returns_: True if the `interop_handle object` was constructed and passed to
+an enqueue native command function object by `ext_codeplay_enqueue_native_command`,
+that was invoked when adding a graph node, either explicitly or implicitly
+via graph record.
+
+[_Note:_ that host-task nodes in a `command_graph` will return `false` from this
+query, as the host-task callable is invoked during graph execution rather than
+graph finalization.
+_{endnote}_]
 
 |
 [source,c++]
@@ -262,12 +247,42 @@ backend_return_t<Backend, graph>
 interop_handle::ext_codeplay_get_native_graph() const;
 ----
 
-| Return the native graph object associated with the `interop_handle`.
+|
+_Returns_: The native graph object associated with the `interop_handle`.
 
-Exceptions:
+_Throws_: An exception with the `errc::invalid` error code if
+`ext_codeplay_has_graph()` returns `false`.
 
-* Throws with error code `invalid` if `ext_codeplay_has_graph()` returns
-  `false`.
+|===
+
+== Implementation Notes
+
+When `interop_handle::get_native_queue()` is invoked in a native command
+function object on graph finalize, the queue that is returned to the user is an
+internal queue created by the SYCL runtime, as there is no user provided queue
+at the point of graph finalization. This queue has the same device and context
+as the graph was created with. The only valid usage of this queue is to perform
+stream capture to a graph for backend APIs that provide this functionality.
+
+Table {counter: tableNumber}. Native types for
+`template <backend Backend, class T> backend_return_t<Backend, T>` where `T` is
+instantiated as `command_graph<graph_state::executable>`.
+
+[cols="2a,a"]
+|===
+|Backend|Native Graph Type
+
+| `backend::opencl`
+| `cl_command_buffer_khr`
+
+| `backend::ext_oneapi_level_zero`
+| `ze_command_list_handle_t`
+
+| `backend::ext_oneapi_cuda`
+| `CUGraph`
+
+| `backend::ext_oneapi_hip`
+| `hipGraph_t`
 
 |===
 
