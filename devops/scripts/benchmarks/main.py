@@ -159,18 +159,14 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         options.extra_ld_libraries.extend(cr.ld_libraries())
         options.extra_env_vars.update(cr.env_vars())
 
-    suites = (
-        [
-            ComputeBench(directory),
-            VelocityBench(directory),
-            SyclBench(directory),
-            LlamaCppBench(directory),
-            UMFSuite(directory),
-            TestSuite(),
-        ]
-        if not options.dry_run
-        else []
-    )
+    suites = [
+        ComputeBench(directory),
+        VelocityBench(directory),
+        SyclBench(directory),
+        LlamaCppBench(directory),
+        UMFSuite(directory),
+        TestSuite(),
+    ]
 
     # Collect metadata from all benchmarks without setting them up
     metadata = collect_metadata(suites)
