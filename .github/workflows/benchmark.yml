@@ -96,6 +96,7 @@ jobs:
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       tests_selector: benchmark_v2
       repo_ref: ${{ matrix.ref }}
+      devops_ref: ${{ github.ref }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build_sycl.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build_sycl.outputs.artifact_decompress_command }}
