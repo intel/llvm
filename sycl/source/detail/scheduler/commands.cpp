@@ -2316,7 +2316,8 @@ void SetArgBasedOnType(
     const AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex) {
+    const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
+    size_t NextTrueIndex) {
   switch (Arg.MType) {
   case kernel_param_kind_t::kind_work_group_memory:
     break;
@@ -2355,7 +2356,7 @@ void SetArgBasedOnType(
     sampler *SamplerPtr = (sampler *)Arg.MPtr;
     ur_sampler_handle_t Sampler =
         (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
-            ->getOrCreateSampler(Context);
+            ->getOrCreateSampler(ContextImpl);
     Adapter->call<UrApiKind::urKernelSetArgSampler>(Kernel, NextTrueIndex,
                                                     nullptr, Sampler);
     break;
@@ -2414,7 +2415,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
     SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                      Queue->get_context(), Arg, NextTrueIndex);
+                      Queue->getContextImplPtr(), Arg, NextTrueIndex);
   };
 
   applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
@@ -2600,11 +2601,11 @@ ur_result_t enqueueImpCommandBufferKernel(
   }
 
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &Ctx,
+  auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &ContextImpl,
                   &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
                                          size_t NextTrueIndex) {
     sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl,
-                                    getMemAllocationFunc, Ctx, Arg,
+                                    getMemAllocationFunc, ContextImpl, Arg,
                                     NextTrueIndex);
   };
   // Copy args for modification
