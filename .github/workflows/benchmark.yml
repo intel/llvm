@@ -70,6 +70,7 @@ jobs:
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
+      changes: []
 
   run_benchmarks_build:
     name: Run Benchmarks (on PR Build)
