@@ -16,6 +16,9 @@ inputs:
   target_devices:
     type: string
     required: True
+  upload_results:
+    type: string
+    required: True
 
 runs:
   using: "composite"
@@ -99,7 +102,7 @@ runs:
       echo "-----"
       ls
   - name: Push compute-benchmarks results
-    if: always()
+    if: inputs.upload_results == 'true' && always()
     shell: bash
     run: |
       # TODO redo configuration

@@ -95,6 +95,7 @@ jobs:
       target_devices: ${{ matrix.backend }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       tests_selector: benchmark_v2
+      benchmark_upload_results: ${{ inputs.upload_results }}
       repo_ref: ${{ matrix.ref }}
       devops_ref: ${{ github.ref }}
       sycl_toolchain_artifact: sycl_linux_default
@@ -122,4 +123,5 @@ jobs:
       target_devices: ${{ matrix.backend }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       tests_selector: benchmark_v2
+      benchmark_upload_results: ${{ inputs.upload_results }}
       repo_ref: ${{ github.ref }}
