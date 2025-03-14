@@ -703,6 +703,8 @@ public:
     return MGraph.lock();
   }
 
+  bool hasCommandGraph() const { return !MGraph.expired(); }
+
   unsigned long long getQueueID() { return MQueueID; }
 
   void *getTraceEvent() { return MTraceEvent; }

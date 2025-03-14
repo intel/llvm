@@ -466,7 +466,7 @@ event handler::finalize() {
     }
 
     if (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-        !MQueue->getCommandGraph() && !impl->CGData.MRequirements.size() &&
+        !MQueue->hasCommandGraph() && !impl->CGData.MRequirements.size() &&
         !MStreamStorage.size() &&
         (!impl->CGData.MEvents.size() ||
          (MQueue->isInOrder() &&
@@ -2010,7 +2010,7 @@ void handler::setNDRangeUsed(bool Value) { (void)Value; }
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
     int ArgIndex) {
-  if (MQueue && MQueue->getCommandGraph()) {
+  if (MQueue && MQueue->hasCommandGraph()) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Dynamic Parameters cannot be used with Graph Queue recording.");
