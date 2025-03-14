@@ -532,11 +532,11 @@ event handler::finalize() {
 
       if (DiscardEvent) {
         EnqueueKernel();
-        auto EventImpl = std::make_shared<detail::event_impl>(
-            detail::event_impl::HES_Discarded);
-        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
+        auto EventImpl = detail::getSyclObjImpl(MLastEvent);
+        EventImpl->setStateDiscarded();
       } else {
-        NewEvent = std::make_shared<detail::event_impl>(MQueue);
+        NewEvent = detail::getSyclObjImpl(MLastEvent);
+        NewEvent->setQueue(MQueue);
         NewEvent->setWorkerQueue(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
@@ -544,8 +544,6 @@ event handler::finalize() {
 
         EnqueueKernel();
         NewEvent->setEnqueued();
-
-        MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
       }
       return MLastEvent;
     }
