@@ -1148,6 +1148,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       // We need to temporarily create these toolchains so that we can access
       // tools for inferring architectures.
       llvm::DenseSet<StringRef> Archs;
+<<<<<<< HEAD
       if (NVPTXTriple) {
         auto TempTC = std::make_unique<toolchains::CudaToolChain>(
             *this, *NVPTXTriple, *HostTC, C.getInputArgs(), Action::OFK_None);
@@ -1163,8 +1164,17 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           Archs.insert(Arch);
       }
       if (!AMDTriple && !NVPTXTriple) {
+=======
+      for (const std::optional<llvm::Triple> &TT : {NVPTXTriple, AMDTriple}) {
+        if (!TT)
+          continue;
+
+        auto &TC =
+            getOffloadToolChain(C.getInputArgs(), Action::OFK_OpenMP, *TT,
+                                C.getDefaultToolChain().getTriple());
+>>>>>>> befb52db94cc63558981baac5e58d86ed2ec1f37
         for (StringRef Arch :
-             getOffloadArchs(C, C.getArgs(), Action::OFK_OpenMP, nullptr, true))
+             getOffloadArchs(C, C.getArgs(), Action::OFK_OpenMP, &TC, true))
           Archs.insert(Arch);
       }
 
