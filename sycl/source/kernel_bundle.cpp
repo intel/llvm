@@ -142,6 +142,21 @@ kernel_bundle_plain::ext_oneapi_get_raw_kernel_name(detail::string_view name) {
   return detail::string{impl->ext_oneapi_get_raw_kernel_name(name.data())};
 }
 
+bool kernel_bundle_plain::ext_oneapi_has_device_global(
+    detail::string_view name) {
+  return impl->ext_oneapi_has_device_global(name.data());
+}
+
+void *kernel_bundle_plain::ext_oneapi_get_device_global_address(
+    detail::string_view name, const device &dev) {
+  return impl->ext_oneapi_get_device_global_address(name.data(), dev);
+}
+
+size_t kernel_bundle_plain::ext_oneapi_get_device_global_size(
+    detail::string_view name) {
+  return impl->ext_oneapi_get_device_global_size(name.data());
+}
+
 //////////////////////////////////
 ///// sycl::detail free functions
 //////////////////////////////////

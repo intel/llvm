@@ -692,8 +692,9 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
       /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints);
   assert(Splitter->hasMoreSplits());
 
-  // TODO: Call `verifyNoCrossModuleDeviceGlobalUsage` if device globals shall
-  //       be processed.
+  if (auto Err = Splitter->verifyNoCrossModuleDeviceGlobalUsage()) {
+    return std::move(Err);
+  }
 
   SmallVector<RTCDevImgInfo> DevImgInfoVec;
   SmallVector<std::unique_ptr<llvm::Module>> Modules;
@@ -734,7 +735,7 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
       GlobalBinImageProps PropReq{
           /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
           /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
-          /*DeviceGlobals=*/false};
+          /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
           computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
 
