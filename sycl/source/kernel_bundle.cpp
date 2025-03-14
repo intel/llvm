@@ -142,6 +142,21 @@ kernel_bundle_plain::ext_oneapi_get_raw_kernel_name(detail::string_view name) {
   return detail::string{impl->ext_oneapi_get_raw_kernel_name(name.data())};
 }
 
+bool kernel_bundle_plain::ext_oneapi_has_device_global(
+    detail::string_view name) {
+  return impl->ext_oneapi_has_device_global(name.data());
+}
+
+void *kernel_bundle_plain::ext_oneapi_get_device_global_address(
+    detail::string_view name, const device &dev) {
+  return impl->ext_oneapi_get_device_global_address(name.data(), dev);
+}
+
+size_t kernel_bundle_plain::ext_oneapi_get_device_global_size(
+    detail::string_view name) {
+  return impl->ext_oneapi_get_device_global_size(name.data());
+}
+
 //////////////////////////////////
 ///// sycl::detail free functions
 //////////////////////////////////
@@ -370,8 +385,6 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
     } else if (Language == source_language::spirv) {
       return true;
     } else if (Language == source_language::sycl) {
-      return detail::SYCL_Compilation_Available();
-    } else if (Language == source_language::sycl_jit) {
       return detail::SYCL_JIT_Compilation_Available();
     }
   }
