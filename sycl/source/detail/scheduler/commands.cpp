@@ -1059,12 +1059,6 @@ void AllocaCommandBase::emitInstrumentationData() {
 #endif
 }
 
-bool AllocaCommandBase::producesPiEvent() const {
-  // for reference see enqueueImp()
-  auto TypedSyclMemObj = static_cast<detail::SYCLMemObjT *>(getSYCLMemObj());
-  return TypedSyclMemObj->hasInteropEvent();
-}
-
 bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
 bool AllocaCommandBase::readyForCleanup() const { return false; }
@@ -1096,6 +1090,12 @@ void AllocaCommand::emitInstrumentationData() {
 #endif
 }
 
+bool AllocaCommand::producesPiEvent() const {
+  // for reference see enqueueImp()
+  auto TypedSyclMemObj = static_cast<detail::SYCLMemObjT *>(getSYCLMemObj());
+  return TypedSyclMemObj->hasInteropEvent();
+}
+
 ur_result_t AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1123,8 +1123,8 @@ ur_result_t AllocaCommand::enqueueImp() {
                                        std::move(EventImpls), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
-  auto TypedSyclMemObj = static_cast<detail::SYCLMemObjT *>(getSYCLMemObj());
-  assert((!!UREvent == (TypedSyclMemObj->hasInteropEvent())) &&
+
+  assert((!!UREvent == producesPiEvent()) &&
          "AllocaCommand: native event is expected only when it is for interop "
          "memory object with native event provided.");
 
@@ -1170,6 +1170,8 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
     ToEnqueue.push_back(ConnectionCmd);
 }
 
+bool AllocaSubBufCommand::producesPiEvent() const { return false; }
+
 void AllocaSubBufCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
@@ -1209,8 +1211,8 @@ ur_result_t AllocaSubBufCommand::enqueueImp() {
           MRequirement.MAccessRange, std::move(EventImpls), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
-
-  MEvent->setHandle(UREvent);
+  assert(UREvent == nullptr &&
+         "AllocaSubBufCommand: it shouldn't produce native event.");
 
   XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
                                             MMemAllocation);
@@ -1321,6 +1323,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
     EventImpls.push_back(UnmapEventImpl);
   }
   ur_event_handle_t UREvent = nullptr;
+  // Synchronous wait
   if (SkipRelease)
     Command::waitForEvents(MQueue, EventImpls, UREvent);
   else {
@@ -1331,7 +1334,8 @@ ur_result_t ReleaseCommand::enqueueImp() {
         Result != UR_RESULT_SUCCESS)
       return Result;
   }
-  MEvent->setHandle(UREvent);
+  assert(!UREvent && "ReleaseCommand: release shouldn't produce native event.");
+
   return UR_RESULT_SUCCESS;
 }
 
