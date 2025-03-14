@@ -8,6 +8,7 @@ on:
       commit_hash:
         type: string
         required: false
+        default: ''
       upload_results:
         type: string # true/false: workflow_dispatch does not support booleans
         required: true
