@@ -27,6 +27,7 @@
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
 #include "llvm/GenXIntrinsics/GenXMetadata.h"
+#include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -39,6 +40,11 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/EarlyCSE.h"
+#include "llvm/Transforms/Scalar/SROA.h"
 
 #include <cctype>
 #include <cstring>
@@ -2291,4 +2297,40 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   }
 
   return ESIMDIntrCalls.size();
+}
+
+ModulePassManager
+llvm::buildESIMDLoweringPipeline(bool OptLevelO0,
+                                 bool ModuleContainsScalarCode) {
+  ModulePassManager MPM;
+  MPM.addPass(SYCLLowerESIMDPass(ModuleContainsScalarCode));
+
+  if (!OptLevelO0) {
+    FunctionPassManager FPM;
+    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
+    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+  }
+  MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
+  FunctionPassManager MainFPM;
+  MainFPM.addPass(ESIMDLowerLoadStorePass{});
+
+  if (!OptLevelO0) {
+    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
+    MainFPM.addPass(EarlyCSEPass(true));
+    MainFPM.addPass(InstCombinePass{});
+    MainFPM.addPass(DCEPass{});
+    // TODO: maybe remove some passes below that don't affect code quality
+    MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
+    MainFPM.addPass(EarlyCSEPass(true));
+    MainFPM.addPass(InstCombinePass{});
+    MainFPM.addPass(DCEPass{});
+  }
+  MPM.addPass(ESIMDLowerSLMReservationCalls{});
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
+  MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
+                                     /*RewriteSingleElementVectorsIn*/ false));
+  // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
+  // versions so the entry point table must be rebuilt.
+
+  return MPM;
 }
