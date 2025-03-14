@@ -265,6 +265,7 @@ protected:
   std::vector<EventImplPtr> &MPreparedDepsEvents;
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
+  // Event is nullptr when Queue == nullptr too
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      ur_event_handle_t &Event);
 

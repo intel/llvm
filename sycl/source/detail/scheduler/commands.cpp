@@ -1059,7 +1059,11 @@ void AllocaCommandBase::emitInstrumentationData() {
 #endif
 }
 
-bool AllocaCommandBase::producesPiEvent() const { return false; }
+bool AllocaCommandBase::producesPiEvent() const {
+  // for reference see enqueueImp()
+  auto TypedSyclMemObj = static_cast<detail::SYCLMemObjT *>(getSYCLMemObj());
+  return TypedSyclMemObj->hasInteropEvent();
+}
 
 bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
@@ -1104,7 +1108,8 @@ ur_result_t AllocaCommand::enqueueImp() {
     if (!MQueue) {
       // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue, EventImpls, UREvent);
-      MEvent->setHandle(UREvent);
+      assert(UREvent == nullptr && "AllocaCommand: waitForEvents without Queue "
+                                   "shouldn't produce native event.");
 
       return UR_RESULT_SUCCESS;
     }
@@ -1118,6 +1123,10 @@ ur_result_t AllocaCommand::enqueueImp() {
                                        std::move(EventImpls), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
+  auto TypedSyclMemObj = static_cast<detail::SYCLMemObjT *>(getSYCLMemObj());
+  assert((!!UREvent == (TypedSyclMemObj->hasInteropEvent())) &&
+         "AllocaCommand: native event is expected only when it is for interop "
+         "memory object with native event provided.");
 
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
