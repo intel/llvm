@@ -260,7 +260,7 @@ function createChartContainer(data, canvasId, type) {
     const extraInfo = document.createElement('div');
     extraInfo.className = 'extra-info';
     latestRunsLookup = createLatestRunsLookup(benchmarkRuns);
-    extraInfo.innerHTML = generateExtraInfo(latestRunsLookup, data);
+    extraInfo.innerHTML = generateExtraInfo(latestRunsLookup, data, 'benchmark');
     details.appendChild(extraInfo);
 
     container.appendChild(details);
@@ -299,11 +299,11 @@ function createLatestRunsLookup(benchmarkRuns) {
     return latestRunsMap;
 }
 
-function generateExtraInfo(latestRunsLookup, data) {
+function generateExtraInfo(latestRunsLookup, data, type) {
     const labels = data.datasets ? data.datasets.map(dataset => dataset.label) : [data.label];
 
     return labels.map(label => {
-        const metadata = metadataForLabel(label);
+        const metadata = metadataForLabel(label, type);
         const latestRun = latestRunsLookup.get(label);
 
         let html = '<div class="extra-info-entry">';
