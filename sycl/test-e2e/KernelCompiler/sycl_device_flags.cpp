@@ -131,10 +131,6 @@ int main(int argc, char *argv[]) {
 
   std::vector<std::string> flags{"-Xs", "-doubleGRF",
                                  "-XsXfinalizer \"-printregusage\""};
-  if (lang == syclex::source_language::sycl) {
-    // Flags with and without space, inner quotes.
-    flags = {"-Xs '-doubleGRF'", "-Xs'-Xfinalizer \"-printregusage\"'"};
-  }
   exe_kb kbExe =
       syclex::build(kbSrc, syclex::properties{syclex::build_options{flags}});
 
