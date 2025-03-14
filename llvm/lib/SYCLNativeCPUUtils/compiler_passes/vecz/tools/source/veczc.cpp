@@ -141,9 +141,14 @@ static llvm::TargetMachine *initLLVMTarget(llvm::StringRef triple_string,
   }
   llvm::PassRegistry &registry = *llvm::PassRegistry::getPassRegistry();
   llvm::initializeAlwaysInlinerLegacyPassPass(registry);
+#if LLVM_VERSION_GREATER_EQUAL(21, 0)
+  return target->createTargetMachine(triple, cpu_model, target_features, opts,
+                                     llvm::Reloc::Model::Static);
+#else
   return target->createTargetMachine(triple.getTriple(), cpu_model,
                                      target_features, opts,
                                      llvm::Reloc::Model::Static);
+#endif
 }
 
 static vecz::VeczPassOptions getDefaultPassOptions() {
@@ -362,7 +367,11 @@ int main(const int argc, const char *const argv[]) {
                         : nullptr);
   assert(!UserTriple.size() || tm);
   if (tm) {
+#if LLVM_VERSION_GREATER_EQUAL(21, 0)
+    module->setTargetTriple(tm->getTargetTriple());
+#else
     module->setTargetTriple(tm->getTargetTriple().getTriple());
+#endif
     module->setDataLayout(tm->createDataLayout());
   }
 
