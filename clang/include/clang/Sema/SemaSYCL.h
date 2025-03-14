@@ -668,6 +668,8 @@ public:
   bool isFreeFunction(const FunctionDecl *FD);
   
   StmtResult BuildSYCLKernelCallStmt(FunctionDecl *FD, CompoundStmt *Body);
+
+  static bool hasSYCLAddIRAttributesFunctionAttr(const Decl *D, StringRef Attr);
 };
 
 } // namespace clang
