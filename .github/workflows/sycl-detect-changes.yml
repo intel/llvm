@@ -74,6 +74,7 @@ jobs:
               - 'sycl/test-e2e/(ESIMD|InvokeSimd)/**'
             ur:
               - 'unified-runtime/**'
+              - .github/workflows/ur-*
 
       - name: Set output
         id: result
