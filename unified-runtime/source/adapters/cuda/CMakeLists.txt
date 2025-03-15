@@ -93,9 +93,22 @@ if (UR_ENABLE_TRACING AND UNIX)
     XPTI_ENABLE_INSTRUMENTATION
     XPTI_STATIC_LIBRARY
     )
+
+  # CUDAToolkit_CUPTI_INCLUDE_DIR is provided by FindCUDAToolkit since CMake
+  # 3.24, but we support versions back to 3.20. Find it if not found already.
+  if (NOT CUDAToolkit_CUPTI_INCLUDE_DIR)
+    find_path(CUDAToolkit_CUPTI_INCLUDE_DIR cupti.h PATHS
+      "${CUDAToolkit_ROOT_DIR}/extras/CUPTI/include"
+      ${CUDAToolkit_INCLUDE_DIRS}
+      PATH_SUFFIXES "../extras/CUPTI/include"
+                    "../../../extras/CUPTI/include"
+      REQUIRED
+      NO_DEFAULT_PATH)
+  endif()
+
   target_include_directories(${TARGET_NAME} PRIVATE
     ${XPTI_INCLUDES}
-    ${CUDAToolkit_cupti_INCLUDE_DIR}
+    ${CUDAToolkit_CUPTI_INCLUDE_DIR}
   )
   target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})
 endif()
