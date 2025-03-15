@@ -515,4 +515,20 @@ ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *hostPtr) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t UR_APICALL urUSMContextMemcpyExp(ur_context_handle_t hContext,
+                                             void *pDst, const void *pSrc,
+                                             size_t size) {
+  ur_device_handle_t hDevice = hContext->getDevices()[0];
+  auto commandList = hContext->getCommandListCache().getImmediateCommandList(
+      hDevice->ZeDevice, true,
+      hDevice
+          ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
+          .ZeOrdinal,
+      true, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
+      std::nullopt);
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+             (commandList.get(), pDst, pSrc, size, nullptr, 0, nullptr));
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace ur::level_zero
