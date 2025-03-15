@@ -41,7 +41,7 @@ class VelocityBench(Suite):
         if options.sycl is None:
             return []
 
-        if options.ur_adapter == "cuda":
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
             return [
                 Hashtable(self),
                 Bitcracker(self),
@@ -77,6 +77,11 @@ class VelocityBase(Benchmark):
     def extra_cmake_args(self) -> list[str]:
         if options.ur_adapter == "cuda":
             return [f"-DUSE_NVIDIA_BACKEND=YES", f"-DUSE_SM=80"]
+        if options.ur_adapter == "hip":
+            return [
+                f"-DUSE_AMD_BACKEND=YES",
+                f"-DUSE_AMDHIP_BACKEND={options.hip_arch}",
+            ]
         return []
 
     def ld_libraries(self) -> list[str]:
