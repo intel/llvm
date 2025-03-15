@@ -103,7 +103,7 @@ DefSubgroupBlockINTEL(uint8_t) DefSubgroupBlockINTEL(uint16_t)
 #define DefineGOp1(spir_sfx, name)\
 DEVICE_EXTERN_C bool __mux_sub_group_##name##_i1(bool);\
 DEVICE_EXTERN_C bool __mux_work_group_##name##_i1(uint32_t id, bool val);\
-DEVICE_EXTERNAL bool __spirv_Group ## spir_sfx(unsigned g, bool val) {\
+DEVICE_EXTERNAL bool __spirv_Group ## spir_sfx(int32_t g, bool val) {\
   if (__spv::Scope::Flag::Subgroup == g)\
     return __mux_sub_group_##name##_i1(val);\
   else if (__spv::Scope::Flag::Workgroup == g)\
@@ -124,7 +124,7 @@ DefineGOp1(All, all)
   DEVICE_EXTERN_C MuxType __mux_work_group_scan_inclusive_##mux_sfx(uint32_t,  \
                                                                     MuxType);  \
   DEVICE_EXTERN_C MuxType __mux_work_group_reduce_##mux_sfx(uint32_t, MuxType);\
-  DEVICE_EXTERNAL Type __spirv_Group##spir_sfx(uint32_t g, uint32_t id,        \
+  DEVICE_EXTERNAL Type __spirv_Group##spir_sfx(int32_t g, int32_t id,          \
                                                Type v) {                       \
     if (__spv::Scope::Flag::Subgroup == g) {                                   \
       if (static_cast<unsigned>(__spv::GroupOperation::InclusiveScan) == id)   \
@@ -202,7 +202,7 @@ DefineLogicalGroupOp(bool, bool, i1)
                                                           int32_t sg_lid);
 
 #define DefineBroadCastImpl(Type, Sfx, MuxType, IDType)                       \
-  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(int32_t g, Type v,              \
                                               IDType l) {                     \
     if (__spv::Scope::Flag::Subgroup == g)                                    \
       return __mux_sub_group_broadcast_##Sfx(v, l);                           \
@@ -210,7 +210,7 @@ DefineLogicalGroupOp(bool, bool, i1)
       return __mux_work_group_broadcast_##Sfx(0, v, l, 0, 0);                 \
   }                                                                           \
                                                                               \
-  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(int32_t g, Type v,              \
                                          sycl::vec<IDType, 2>::vector_t l) {  \
     if (__spv::Scope::Flag::Subgroup == g)                                    \
       return __mux_sub_group_broadcast_##Sfx(v, l[0]);                        \
@@ -218,7 +218,7 @@ DefineLogicalGroupOp(bool, bool, i1)
       return __mux_work_group_broadcast_##Sfx(0, v, l[0], l[1], 0);           \
   }                                                                           \
                                                                               \
-  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(int32_t g, Type v,              \
                                           sycl::vec<IDType, 3>::vector_t l) { \
     if (__spv::Scope::Flag::Subgroup == g)                                    \
       return __mux_sub_group_broadcast_##Sfx(v, l[0]);                        \

@@ -18,7 +18,7 @@ int __clc_nvvm_reflect_arch();
 
 #define __CLC_GROUP_CP_ASYNC_DST_GLOBAL(TYPE)                                  \
   _CLC_OVERLOAD _CLC_DEF event_t __spirv_GroupAsyncCopy(                       \
-      unsigned int scope, __attribute__((address_space(1))) TYPE *dst,         \
+      int scope, __attribute__((address_space(1))) TYPE *dst,                  \
       const __attribute__((address_space(3))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
     STRIDED_COPY(__attribute__((address_space(1))),                            \
@@ -64,7 +64,7 @@ __CLC_GROUP_CP_ASYNC_DST_GLOBAL(uchar16);
 
 #define __CLC_GROUP_CP_ASYNC_4(TYPE)                                           \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT event_t __spirv_GroupAsyncCopy(       \
-      unsigned int scope, __attribute__((address_space(3))) TYPE *dst,         \
+      int scope, __attribute__((address_space(3))) TYPE *dst,                  \
       const __attribute__((address_space(1))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
     if (__clc_nvvm_reflect_arch() >= 800) {                                    \
@@ -95,7 +95,7 @@ __CLC_GROUP_CP_ASYNC_4(uchar4);
 
 #define __CLC_GROUP_CP_ASYNC_8(TYPE)                                           \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT event_t __spirv_GroupAsyncCopy(       \
-      unsigned int scope, __attribute__((address_space(3))) TYPE *dst,         \
+      int scope, __attribute__((address_space(3))) TYPE *dst,                  \
       const __attribute__((address_space(1))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
     if (__clc_nvvm_reflect_arch() >= 800) {                                    \
@@ -129,7 +129,7 @@ __CLC_GROUP_CP_ASYNC_8(uchar8);
 
 #define __CLC_GROUP_CP_ASYNC_16(TYPE)                                          \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT event_t __spirv_GroupAsyncCopy(       \
-      unsigned int scope, __attribute__((address_space(3))) TYPE *dst,         \
+      int scope, __attribute__((address_space(3))) TYPE *dst,                  \
       const __attribute__((address_space(1))) TYPE *src, size_t num_gentypes,  \
       size_t stride, event_t event) {                                          \
     if (__clc_nvvm_reflect_arch() >= 800) {                                    \
