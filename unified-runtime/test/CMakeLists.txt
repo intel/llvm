@@ -10,6 +10,26 @@ FetchContent_Declare(
   GIT_TAG        release-1.12.1
 )
 
+include(FindLit)
+function(add_ur_lit_testsuite target)
+  configure_file(lit.site.cfg.py.in lit.site.cfg.py)
+
+  if(UR_STANDALONE_BUILD)
+    add_custom_target(check-${target}
+      COMMAND "${URLIT_LIT_BINARY}" "${CMAKE_CURRENT_BINARY_DIR}" -v
+    )
+    add_test(NAME lit COMMAND ${URLIT_LIT_BINARY} "${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    add_lit_testsuite(check-${target} "Running Unified Runtime tests"
+      ${CMAKE_CURRENT_BINARY_DIR}
+      DEPENDS FileCheck
+    )
+  endif()
+endfunction()
+
+add_ur_lit_testsuite(unified-runtime)
+add_dependencies(check-unified-runtime ur_adapter_mock)
+
 set(UR_TEST_DEVICES_COUNT 1 CACHE STRING "Count of devices on which conformance and adapters tests will be run")
 set(UR_TEST_PLATFORMS_COUNT 1 CACHE STRING "Count of platforms on which conformance and adapters tests will be run")
 set(UR_TEST_FUZZTESTS ON CACHE BOOL "Run fuzz tests if using clang and UR_DPCXX is specified")
