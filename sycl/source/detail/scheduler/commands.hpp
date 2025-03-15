@@ -168,7 +168,9 @@ public:
   }
   // Shows that command could be enqueued, but is blocking enqueue of all
   // commands depending on it. Regular usage - host task.
-  bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
+  bool isBlocking() const {
+    return isHostTask() && !producesPiEvent() && !MEvent->isCompleted();
+  }
 
   void addBlockedUserUnique(const EventImplPtr &NewUser) {
     if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
@@ -694,12 +696,13 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
 class UpdateHostRequirementCommand : public Command {
 public:
-  UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,
-                               AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
+  UpdateHostRequirementCommand(Requirement Req, AllocaCommandBase *SrcAllocaCmd,
+                               void **DstPtr);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
+  bool producesPiEvent() const final { return false; }
 
 private:
   ur_result_t enqueueImp() final;

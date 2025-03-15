@@ -189,6 +189,10 @@ typedef ur_result_t(UR_APICALL *ur_pfnEventGetNativeHandle_t)(
     ur_event_handle_t, ur_native_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEventHostSignal
+typedef ur_result_t(UR_APICALL *ur_pfnEventHostSignal_t)(ur_event_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEventCreateWithNativeHandle
 typedef ur_result_t(UR_APICALL *ur_pfnEventCreateWithNativeHandle_t)(
     ur_native_handle_t, ur_context_handle_t,
@@ -210,6 +214,7 @@ typedef struct ur_event_dditable_t {
   ur_pfnEventRetain_t pfnRetain;
   ur_pfnEventRelease_t pfnRelease;
   ur_pfnEventGetNativeHandle_t pfnGetNativeHandle;
+  ur_pfnEventHostSignal_t pfnHostSignal;
   ur_pfnEventCreateWithNativeHandle_t pfnCreateWithNativeHandle;
   ur_pfnEventSetCallback_t pfnSetCallback;
 } ur_event_dditable_t;

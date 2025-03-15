@@ -236,6 +236,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
   pDdiTable->pfnRetain = ur::level_zero::urEventRetain;
   pDdiTable->pfnRelease = ur::level_zero::urEventRelease;
   pDdiTable->pfnGetNativeHandle = ur::level_zero::urEventGetNativeHandle;
+  pDdiTable->pfnHostSignal = ur::level_zero::urEventHostSignal;
   pDdiTable->pfnCreateWithNativeHandle =
       ur::level_zero::urEventCreateWithNativeHandle;
   pDdiTable->pfnSetCallback = ur::level_zero::urEventSetCallback;

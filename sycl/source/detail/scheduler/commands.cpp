@@ -233,7 +233,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
     if (CommandQueue && EventImpl->getWorkerQueue() == CommandQueue &&
-        CommandQueue->isInOrder() && !IsHostTaskCommand)
+        CommandQueue->isInOrder() && (!IsHostTaskCommand))
       continue;
 
     RetUrEvents.push_back(Handle);
@@ -285,7 +285,7 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
     // kept.
     if (!HasEventMode && MWorkerQueue &&
         EventImpl->getWorkerQueue() == MWorkerQueue &&
-        MWorkerQueue->isInOrder() && !isHostTask())
+        MWorkerQueue->isInOrder() && (!isHostTask()))
       continue;
 
     RetUrEvents.push_back(EventImpl->getHandle());
@@ -502,7 +502,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
                             ur_event_handle_t &Event) {
 #ifndef NDEBUG
   for (const EventImplPtr &Event : EventImpls)
-    assert(!Event->isHost() &&
+    assert(Event->getHandle() &&
            "Only non-host events are expected to be waited for here");
 #endif
   if (!EventImpls.empty()) {
@@ -759,8 +759,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // 2. Some types of commands do not produce UR events after they are
   // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected =
-      (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
+  bool PiEventExpected = !DepEvent->isDefaultConstructed();
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
 
@@ -1844,9 +1843,8 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
 }
 
 UpdateHostRequirementCommand::UpdateHostRequirementCommand(
-    QueueImplPtr Queue, Requirement Req, AllocaCommandBase *SrcAllocaCmd,
-    void **DstPtr)
-    : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
+    Requirement Req, AllocaCommandBase *SrcAllocaCmd, void **DstPtr)
+    : Command(CommandType::UPDATE_REQUIREMENT, nullptr),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {
 
   emitInstrumentationDataProxy();
@@ -1954,6 +1952,9 @@ ExecCGCommand::ExecCGCommand(
   }
   if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
     MEvent->markAsProfilingTagEvent();
+
+  if (isHostTask())
+    MEvent->markAsHost();
 
   emitInstrumentationDataProxy();
 }
@@ -3317,7 +3318,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // Host task is executed asynchronously so we should record where it was
     // submitted to report exception origin properly.
     copySubmissionCodeLocation();
-
+    if (producesPiEvent()) {
+      auto TempContext = getContext(HostTask->MQueue)->getHandleRef();
+      ur_event_native_properties_t NativeProperties{};
+      auto &Adapter = MQueue->getAdapter();
+      Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
+          0, TempContext, &NativeProperties, &UREvent);
+      MEvent->setHandle(UREvent);
+    }
     queue_impl::getThreadPool().submit<DispatchHostTask>(
         DispatchHostTask(this, std::move(ReqToMem), std::move(ReqUrMem)));
 
@@ -3645,7 +3653,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
 bool ExecCGCommand::producesPiEvent() const {
   return !MCommandBuffer &&
-         MCommandGroup->getType() != CGType::CodeplayHostTask;
+         !(
+             MCommandGroup->getType() == CGType::CodeplayHostTask && !MQueue /* MQueue is set only when we have native sync with host task */);
 }
 
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {

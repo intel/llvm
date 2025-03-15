@@ -180,9 +180,8 @@ public:
   sycl::detail::UpdateHostRequirementCommand *
   insertUpdateHostReqCmd(sycl::detail::MemObjRecord *Record,
                          sycl::detail::Requirement *Req,
-                         const sycl::detail::QueueImplPtr &Queue,
                          std::vector<sycl::detail::Command *> &ToEnqueue) {
-    return MGraphBuilder.insertUpdateHostReqCmd(Record, Req, Queue, ToEnqueue);
+    return MGraphBuilder.insertUpdateHostReqCmd(Record, Req, ToEnqueue);
   }
 
   sycl::detail::EmptyCommand *
