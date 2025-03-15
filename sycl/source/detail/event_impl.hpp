@@ -300,6 +300,8 @@ public:
     return MGraph.lock();
   }
 
+  bool hasCommandGraph() const { return !MGraph.expired(); }
+
   void setEventFromSubmittedExecCommandBuffer(bool value) {
     MEventFromSubmittedExecCommandBuffer = value;
   }
