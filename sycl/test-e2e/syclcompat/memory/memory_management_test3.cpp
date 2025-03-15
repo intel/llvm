@@ -32,9 +32,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: level_zero_v2_adapter
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17271
-
 #include <sycl/detail/core.hpp>
 
 #include <syclcompat/memory.hpp>
