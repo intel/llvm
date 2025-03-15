@@ -26,7 +26,6 @@ string(CONCAT sycl_targets_opt
   "-fsycl-targets="
   "spir64_x86_64-unknown-unknown,"
   "spir64_gen-unknown-unknown,"
-  "spir64_fpga-unknown-unknown,"
   "spir64-unknown-unknown,"
   "spirv64-unknown-unknown")
 
@@ -300,6 +299,14 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
     include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     sycl-compiler)
+
+  set(tsan_obj_deps
+    device.h atomic.hpp spirv_vars.h
+    ${UR_SANITIZER_INCLUDE_DIR}/tsan/tsan_libdevice.hpp
+    include/tsan_rtl.hpp
+    include/sanitizer_defs.hpp
+    include/spir_global_var.hpp
+    sycl-compiler)
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -394,6 +401,7 @@ else()
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
 
+    # msan aot
     set(msan_devicetypes pvc cpu)
 
     foreach(msan_ft IN LISTS sanitizer_filetypes)
@@ -406,6 +414,13 @@ else()
       endforeach()
     endforeach()
 
+    # tsan jit
+    add_devicelibs(libsycl-tsan
+      SRC sanitizer/tsan_rtl.cpp
+      DEPENDENCIES ${tsan_obj_deps}
+      EXTRA_OPTS -fno-sycl-instrument-device-code
+                 -I${UR_SANITIZER_INCLUDE_DIR}
+                 -I${CMAKE_CURRENT_SOURCE_DIR})
   endif()
 endif()
 

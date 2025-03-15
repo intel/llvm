@@ -1,5 +1,7 @@
 // See https://github.com/intel/llvm-test-suite/issues/906
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 
 // RUN: %{build} -o %t.out
 
@@ -20,12 +22,12 @@
 // CHECK: UR ---> UrQueue->executeOpenCommandList
 // CHECK: ---> urQueueFinish
 // Look for close and Execute after urQueueFinish
-// CHECK:  ZE ---> zeCommandListClose
-// CHECK:  ZE ---> zeCommandQueueExecuteCommandLists
+// CHECK:  zeCommandListClose
+// CHECK:  zeCommandQueueExecuteCommandLists
 // CHECK: ---> urEventGetInfo
 // No close and execute here, should already have happened.
-// CHECK-NOT:  ZE ---> zeCommandListClose
-// CHECK-NOT:  ZE ---> zeCommandQueueExecuteCommandLists
+// CHECK-NOT:  zeCommandListClose
+// CHECK-NOT:  zeCommandQueueExecuteCommandLists
 // CHECK-NOT: Test Fail
 // CHECK: Test Pass
 // UNSUPPORTED: ze_debug

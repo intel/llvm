@@ -1,4 +1,6 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s
@@ -23,22 +25,22 @@ int main(int argc, char *argv[]) {
 
   submit_kernel(q); // starts a batch
                     // CHECK: ---> urEnqueueKernelLaunch
-                    // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
+                    // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   // continue the batch
   event barrier = q.ext_oneapi_submit_barrier();
   // CHECK: ---> urEnqueueEventsWaitWithBarrierExt
-  // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
+  // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   submit_kernel(q);
   // CHECK: ---> urEnqueueKernelLaunch
-  // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
+  // CHECK-NOT: zeCommandQueueExecuteCommandLists
 
   // interop should close the batch
   ze_event_handle_t ze_event =
       get_native<backend::ext_oneapi_level_zero>(barrier);
   // CHECK: ---> urEventGetNativeHandle
-  // CHECK: ZE ---> zeCommandQueueExecuteCommandLists
+  // CHECK: zeCommandQueueExecuteCommandLists
   zeEventHostSynchronize(ze_event, UINT64_MAX);
 
   // CHECK: ---> urQueueFinish

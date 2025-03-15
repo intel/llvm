@@ -68,10 +68,16 @@ jobs:
             runner: '["Linux", "cuda"]'
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: cuda:gpu
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: hip:gpu
+            reset_intel_gpu: false
+            extra_lit_opts: -j 1
           - name: Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
             reset_intel_gpu: true
             extra_lit_opts: --param matrix-xmx8=True
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
@@ -86,20 +92,28 @@ jobs:
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
+            reset_intel_gpu: true
             extra_lit_opts: -j 50
           - name: Dev IGC on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
+            reset_intel_gpu: true
             use_igc_dev: true
             extra_lit_opts: -j 50
           - name: Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            # The new Xe kernel driver used by BMG doesn't support resetting.
-            reset_intel_gpu: false
+            reset_intel_gpu: true
+          - name: SPIR-V Backend / Intel Battlemage Graphics
+            runner: '["Linux", "bmg"]'
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
+            reset_intel_gpu: true
+            extra_lit_opts: --param spirv-backend=True
+            e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
@@ -107,13 +121,13 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      extra_lit_opts: --param fallback-to-build-if-requires-build-and-run=True ${{ matrix.extra_lit_opts }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      ref: ${{ github.sha }}
+      repo_ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-      e2e_binaries_artifact: sycl_e2e_bin_default
+      e2e_binaries_artifact: ${{ matrix.e2e_binaries_artifact || 'sycl_e2e_bin_default' }}
       e2e_testing_mode: 'run-only'
 
       # Do not install drivers on AMD and CUDA runners.
@@ -129,32 +143,6 @@ jobs:
         'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
-
-  test:
-    needs: [build, detect_changes]
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: hip:gpu
-
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    with:
-      name: ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
-      image_options: ${{ matrix.image_options }}
-      target_devices: ${{ matrix.target_devices }}
-
-      ref: ${{ github.sha }}
-
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
-
 
   test-perf:
     needs: [build, detect_changes]
@@ -192,7 +180,7 @@ jobs:
       env: '{"LIT_FILTER":"PerformanceTests/"}'
       extra_lit_opts: -a -j 1 --param enable-perf-tests=True
 
-      ref: ${{ github.sha }}
+      repo_ref: ${{ github.sha }}
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}

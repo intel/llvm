@@ -54,6 +54,10 @@ bool isModuleUsingMsan(const Module &M) {
   return M.getNamedGlobal("__MsanKernelMetadata");
 }
 
+bool isModuleUsingTsan(const Module &M) {
+  return M.getNamedGlobal("__TsanKernelMetadata");
+}
+
 // This function traverses over reversed call graph by BFS algorithm.
 // It means that an edge links some function @func with functions
 // which contain call of function @func. It starts from
@@ -153,6 +157,35 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
         ->getZExtValue();
   }
   return std::nullopt;
+}
+
+PropSetRegTy computeDeviceLibProperties(const Module &M,
+                                        const std::string &DeviceLibName) {
+  PropSetRegTy PropSet;
+
+  {
+    for (const auto &F : M.functions()) {
+      if (F.isDeclaration() || !F.getName().starts_with("__devicelib_"))
+        continue;
+      if (F.getCallingConv() == CallingConv::SPIR_FUNC) {
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F.getName(),
+                    /*PropVal=*/true);
+      }
+    }
+  }
+
+  {
+    // Currently, only bfloat16 conversion devicelib is supported, the
+    // metadata value '0' means fallback version and '1' means native version.
+    uint32_t IsNativeBF16DeviceLib = 0;
+    if (DeviceLibName.find("native") != std::string::npos)
+      IsNativeBF16DeviceLib = 1;
+    std::map<StringRef, uint32_t> BF16DeviceLibMeta = {
+        {"bfloat16", IsNativeBF16DeviceLib}};
+    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_METADATA, BF16DeviceLibMeta);
+  }
+
+  return PropSet;
 }
 
 PropSetRegTy computeModuleProperties(const Module &M,
@@ -406,6 +439,8 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "asan");
     else if (isModuleUsingMsan(M))
       PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "msan");
+    else if (isModuleUsingTsan(M))
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "sanUsed", "tsan");
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {
@@ -467,7 +502,22 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
 
       PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
-                   "uses-virtual-functions-set", AllSets);
+                  "uses-virtual-functions-set", AllSets);
+    }
+  }
+
+  if (const NamedMDNode *MD = M.getNamedMetadata("sycl_registered_kernels")) {
+    if (MD->getNumOperands() == 1) {
+      const MDNode *RegisteredKernels = MD->getOperand(0);
+      for (const MDOperand &Op : RegisteredKernels->operands()) {
+        const auto *RegisteredKernel = cast<MDNode>(Op);
+        if (RegisteredKernel->getNumOperands() != 2)
+          continue;
+        PropSet.add(
+            PropSetRegTy::SYCL_REGISTERED_KERNELS,
+            cast<MDString>(RegisteredKernel->getOperand(0))->getString(),
+            cast<MDString>(RegisteredKernel->getOperand(1))->getString());
+      }
     }
   }
 

@@ -1,4 +1,6 @@
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: v2 adapter does not support changing residency.
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=DEVICE %s
@@ -18,19 +20,19 @@ int main(int argc, char *argv[]) {
 
   auto ptr1 = malloc_device<int>(1, Q);
   // DEVICE: ---> urUSMDeviceAlloc
-  // DEVICE: ZE ---> zeMemAllocDevice
-  // DEVICE: ZE ---> zeContextMakeMemoryResident
+  // DEVICE: zeMemAllocDevice
+  // DEVICE: zeContextMakeMemoryResident
 
   auto ptr2 = malloc_shared<int>(1, Q);
   // SHARED: ---> urUSMSharedAlloc
-  // SHARED: ZE ---> zeMemAllocShared
-  // SHARED: ZE ---> zeContextMakeMemoryResident
-  // SHARED-NOT: ZE ---> zeContextMakeMemoryResident
+  // SHARED: zeMemAllocShared
+  // SHARED: zeContextMakeMemoryResident
+  // SHARED-NOT: zeContextMakeMemoryResident
 
   auto ptr3 = malloc_host<int>(1, Q);
   // HOST: ---> urUSMHostAlloc
-  // HOST: ZE ---> zeMemAllocHost
-  // HOST: ZE ---> zeContextMakeMemoryResident
+  // HOST: zeMemAllocHost
+  // HOST: zeContextMakeMemoryResident
 
   free(ptr1, Q);
   free(ptr2, Q);

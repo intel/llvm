@@ -246,7 +246,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // associate the UR program with the image it was created for
-    NativePrograms.insert({Res, &Img});
+    NativePrograms.insert({Res, {Ctx, &Img}});
   }
 
   Ctx->addDeviceGlobalInitializer(Res, Devices, &Img);
@@ -613,6 +613,42 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+// Quick check to see whether BinImage is a compiler-generated device image.
+static bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage) {
+  // SYCL devicelib image.
+  if (BinImage->getDeviceLibMetadata().isAvailable())
+    return true;
+
+  return false;
+}
+
+static bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
+                                             const device &Dev) {
+  // Decide whether a devicelib image should be used.
+  if (BinImage->getDeviceLibMetadata().isAvailable()) {
+    const RTDeviceBinaryImage::PropertyRange &DeviceLibMetaProp =
+        BinImage->getDeviceLibMetadata();
+    uint32_t DeviceLibMeta =
+        DeviceBinaryProperty(*(DeviceLibMetaProp.begin())).asUint32();
+    // Currently, only bfloat conversion devicelib are supported, so the prop
+    // DeviceLibMeta are only used to represent fallback or native version.
+    // For bfloat16 conversion devicelib, we have fallback and native version.
+    // The native should be used on platform which supports native bfloat16
+    // conversion capability and fallback version should be used on all other
+    // platforms. The native bfloat16 capability can be queried via extension.
+    // TODO: re-design the encode of the devicelib metadata if we must support
+    // more devicelib images in this way.
+    enum { DEVICELIB_FALLBACK = 0, DEVICELIB_NATIVE };
+    const std::shared_ptr<detail::device_impl> &DeviceImpl =
+        detail::getSyclObjImpl(Dev);
+    std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
+    bool NativeBF16Supported = (DeviceImpl->has_extension(NativeBF16ExtName));
+    return NativeBF16Supported == (DeviceLibMeta == DEVICELIB_NATIVE);
+  }
+
+  return false;
+}
+
 static bool checkLinkingSupport(const device &Dev,
                                 const RTDeviceBinaryImage &Img) {
   const char *Target = Img.getRawData().DeviceTargetSpec;
@@ -668,6 +704,9 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       if (Img->getFormat() != Format ||
           !doesDevSupportDeviceRequirements(Dev, *Img) ||
           !compatibleWithDevice(Img, Dev))
+        continue;
+      if (isSpecialDeviceImage(Img) &&
+          !isSpecialDeviceImageShouldBeUsed(Img, Dev))
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
@@ -928,7 +967,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
       // removal of map entries with same handle (obviously invalid entries).
       std::ignore = NativePrograms.erase(BuiltProgram.get());
       for (const RTDeviceBinaryImage *Img : ImgWithDeps) {
-        NativePrograms.insert({BuiltProgram.get(), Img});
+        NativePrograms.insert({BuiltProgram.get(), {ContextImpl, Img}});
       }
     }
 
@@ -1798,14 +1837,84 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   return {};
 }
 
+static bool shouldSkipEmptyImage(sycl_device_binary RawImg, bool IsRTC) {
+  // For bfloat16 device library image, we should keep it. However, in some
+  // scenario, __sycl_register_lib can be called multiple times and the same
+  // bfloat16 device library image may be handled multiple times which is not
+  // needed. 2 static bool variables are created to record whether native or
+  // fallback bfloat16 device library image has been handled, if yes, we just
+  // need to skip it.
+  // We cannot prevent redundant loads of device library images if they are part
+  // of a runtime-compiled device binary, as these will be freed when the
+  // corresponding kernel bundle is destroyed. Hence, normal kernels cannot rely
+  // on the presence of RTC device library images.
+  sycl_device_binary_property_set ImgPS;
+  static bool IsNativeBF16DeviceLibHandled = false;
+  static bool IsFallbackBF16DeviceLibHandled = false;
+  for (ImgPS = RawImg->PropertySetsBegin; ImgPS != RawImg->PropertySetsEnd;
+       ++ImgPS) {
+    if (ImgPS->Name &&
+        !strcmp(__SYCL_PROPERTY_SET_DEVICELIB_METADATA, ImgPS->Name)) {
+      sycl_device_binary_property ImgP;
+      for (ImgP = ImgPS->PropertiesBegin; ImgP != ImgPS->PropertiesEnd;
+           ++ImgP) {
+        if (ImgP->Name && !strcmp("bfloat16", ImgP->Name) &&
+            (ImgP->Type == SYCL_PROPERTY_TYPE_UINT32))
+          break;
+      }
+      if (ImgP == ImgPS->PropertiesEnd)
+        return true;
+
+      // A valid bfloat16 device library image is found here.
+      // If it originated from RTC, we cannot skip it, but do not mark it as
+      // being present.
+      if (IsRTC)
+        return false;
+
+      // Otherwise, we need to check whether it has been handled already.
+      uint32_t BF16NativeVal = DeviceBinaryProperty(ImgP).asUint32();
+      if (((BF16NativeVal == 0) && IsFallbackBF16DeviceLibHandled) ||
+          ((BF16NativeVal == 1) && IsNativeBF16DeviceLibHandled))
+        return true;
+
+      if (BF16NativeVal == 0)
+        IsFallbackBF16DeviceLibHandled = true;
+      else
+        IsNativeBF16DeviceLibHandled = true;
+
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool isCompiledAtRuntime(sycl_device_binaries DeviceBinary) {
+  // Check whether the first device binary contains a legacy format offload
+  // entry with a `$` in its name.
+  if (DeviceBinary->NumDeviceBinaries > 0) {
+    sycl_device_binary Binary = DeviceBinary->DeviceBinaries;
+    if (Binary->EntriesBegin != Binary->EntriesEnd) {
+      sycl_offload_entry Entry = Binary->EntriesBegin;
+      if (!Entry->IsNewOffloadEntryType() &&
+          std::string_view{Entry->name}.find('$') != std::string_view::npos) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
+  const bool IsRTC = isCompiledAtRuntime(DeviceBinary);
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
-    // Treat the image as empty one
-    if (EntriesB == EntriesE)
+    // If the image does not contain kernels, skip it unless it is one of the
+    // bfloat16 device libraries, and it wasn't loaded before or resulted from
+    // runtime compilation.
+    if ((EntriesB == EntriesE) && shouldSkipEmptyImage(RawImg, IsRTC))
       continue;
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
@@ -1867,33 +1976,34 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
     for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         ++EntriesIt) {
+         EntriesIt = EntriesIt->Increment()) {
+
+      auto name = EntriesIt->GetName();
 
       // Skip creating unique kernel ID if it is a service kernel.
       // SYCL service kernels are identified by having
       // __sycl_service_kernel__ in the mangled name, primarily as part of
       // the namespace of the name type.
-      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img.get()));
+      if (std::strstr(name, "__sycl_service_kernel__")) {
+        m_ServiceKernels.insert(std::make_pair(name, Img.get()));
         continue;
       }
 
       // Skip creating unique kernel ID if it is an exported device
       // function. Exported device functions appear in the offload entries
       // among kernels, but are identifiable by being listed in properties.
-      if (m_ExportedSymbolImages.find(EntriesIt->name) !=
-          m_ExportedSymbolImages.end())
+      if (m_ExportedSymbolImages.find(name) != m_ExportedSymbolImages.end())
         continue;
 
       // ... and create a unique kernel ID for the entry
-      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+      auto It = m_KernelName2KernelIDs.find(name);
       if (It == m_KernelName2KernelIDs.end()) {
         std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+            std::make_shared<detail::kernel_id_impl>(name);
         sycl::kernel_id KernelID =
             detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
 
-        It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name, KernelID);
+        It = m_KernelName2KernelIDs.emplace_hint(It, name, KernelID);
       }
       m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
       m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
@@ -1994,7 +2104,134 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
         }
       }
     }
-    m_DeviceImages.insert(std::move(Img));
+    m_DeviceImages.insert({RawImg, std::move(Img)});
+  }
+}
+
+void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
+  bool IsRTC = isCompiledAtRuntime(DeviceBinary);
+  for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
+    sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
+    auto DevImgIt = m_DeviceImages.find(RawImg);
+    if (DevImgIt == m_DeviceImages.end())
+      continue;
+    const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
+    const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
+    // Skip clean up if there are no offload entries, unless `DeviceBinary`
+    // resulted from runtime compilation: Then, this is one of the `bfloat16`
+    // device libraries, so we want to make sure that the image and its exported
+    // symbols are removed from the program manager's maps.
+    if (EntriesB == EntriesE && !IsRTC)
+      continue;
+
+    RTDeviceBinaryImage *Img = DevImgIt->second.get();
+
+    // Drop the kernel argument mask map
+    m_EliminatedKernelArgMasks.erase(Img);
+
+    // Acquire lock to modify maps for kernel bundles
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+
+    // Unmap the unique kernel IDs for the offload entries
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+         EntriesIt = EntriesIt->Increment()) {
+
+      // Drop entry for service kernel
+      if (std::strstr(EntriesIt->GetName(), "__sycl_service_kernel__")) {
+        m_ServiceKernels.erase(EntriesIt->GetName());
+        continue;
+      }
+
+      // Exported device functions won't have a kernel ID
+      if (m_ExportedSymbolImages.find(EntriesIt->GetName()) !=
+          m_ExportedSymbolImages.end()) {
+        continue;
+      }
+
+      // remove everything associated with this KernelName
+      m_KernelUsesAssert.erase(EntriesIt->GetName());
+      m_KernelImplicitLocalArgPos.erase(EntriesIt->GetName());
+
+      if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
+          It != m_KernelName2KernelIDs.end()) {
+        m_KernelName2KernelIDs.erase(It);
+        m_KernelIDs2BinImage.erase(It->second);
+      }
+    }
+
+    // Drop reverse mapping
+    m_BinImg2KernelIDs.erase(Img);
+
+    // Unregister exported symbols (needs to happen after the ID unmap loop)
+    for (const sycl_device_binary_property &ESProp :
+         Img->getExportedSymbols()) {
+      m_ExportedSymbolImages.erase(ESProp->Name);
+    }
+
+    for (const sycl_device_binary_property &VFProp :
+         Img->getVirtualFunctions()) {
+      std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+      for (const auto &SetName : detail::split_string(StrValue, ','))
+        m_VFSet2BinImage.erase(SetName);
+    }
+
+    {
+      std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+      auto DeviceGlobals = Img->getDeviceGlobals();
+      for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
+        if (auto DevGlobalIt = m_DeviceGlobals.find(DeviceGlobal->Name);
+            DevGlobalIt != m_DeviceGlobals.end()) {
+          auto findDevGlobalByValue = std::find_if(
+              m_Ptr2DeviceGlobal.begin(), m_Ptr2DeviceGlobal.end(),
+              [&DevGlobalIt](const std::pair<const void *,
+                                             DeviceGlobalMapEntry *> &Entry) {
+                return Entry.second == DevGlobalIt->second.get();
+              });
+          if (findDevGlobalByValue != m_Ptr2DeviceGlobal.end())
+            m_Ptr2DeviceGlobal.erase(findDevGlobalByValue);
+          m_DeviceGlobals.erase(DevGlobalIt);
+        }
+      }
+    }
+
+    {
+      std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+      auto HostPipes = Img->getHostPipes();
+      for (const sycl_device_binary_property &HostPipe : HostPipes) {
+        if (auto HostPipesIt = m_HostPipes.find(HostPipe->Name);
+            HostPipesIt != m_HostPipes.end()) {
+          auto findHostPipesByValue = std::find_if(
+              m_Ptr2HostPipe.begin(), m_Ptr2HostPipe.end(),
+              [&HostPipesIt](
+                  const std::pair<const void *, HostPipeMapEntry *> &Entry) {
+                return Entry.second == HostPipesIt->second.get();
+              });
+          if (findHostPipesByValue != m_Ptr2HostPipe.end())
+            m_Ptr2HostPipe.erase(findHostPipesByValue);
+          m_HostPipes.erase(HostPipesIt);
+        }
+      }
+    }
+
+    // Purge references to the image in native programs map
+    {
+      std::lock_guard<std::mutex> NativeProgramsGuard(MNativeProgramsMutex);
+
+      // The map does not keep references to program handles; we can erase the
+      // entry without calling UR release
+      for (auto It = NativePrograms.begin(); It != NativePrograms.end();) {
+        auto CurIt = It++;
+        if (CurIt->second.second == Img) {
+          if (auto ContextImpl = CurIt->second.first.lock()) {
+            ContextImpl->getKernelProgramCache().removeAllRelatedEntries(
+                Img->getImageID());
+          }
+          NativePrograms.erase(CurIt);
+        }
+      }
+    }
+
+    m_DeviceImages.erase(DevImgIt);
   }
 }
 
@@ -2052,7 +2289,7 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     auto Range = NativePrograms.equal_range(NativePrg);
     for (auto ImgIt = Range.first; ImgIt != Range.second; ++ImgIt) {
-      auto MapIt = m_EliminatedKernelArgMasks.find(ImgIt->second);
+      auto MapIt = m_EliminatedKernelArgMasks.find(ImgIt->second.second);
       if (MapIt == m_EliminatedKernelArgMasks.end())
         continue;
       auto ArgMaskMapIt = MapIt->second.find(KernelName);
@@ -2741,7 +2978,8 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
     std::ignore = NativePrograms.erase(LinkedProg);
     for (const device_image_plain &Img : ImgWithDeps) {
       NativePrograms.insert(
-          {LinkedProg, getSyclObjImpl(Img)->get_bin_image_ref()});
+          {LinkedProg,
+           {ContextImpl, getSyclObjImpl(Img)->get_bin_image_ref()}});
     }
   }
 
@@ -3511,6 +3749,8 @@ extern "C" void __sycl_register_lib(sycl_device_binaries desc) {
 
 // Executed as a part of current module's (.exe, .dll) static initialization
 extern "C" void __sycl_unregister_lib(sycl_device_binaries desc) {
-  (void)desc;
-  // TODO implement the function
+  // Partial cleanup is not necessary at shutdown
+  if (!sycl::detail::GlobalHandler::instance().isOkToDefer())
+    return;
+  sycl::detail::ProgramManager::getInstance().removeImages(desc);
 }

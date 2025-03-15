@@ -9,7 +9,7 @@
 #include <libspirv/ptx-nvidiacl/libdevice.h>
 #include <clc/clcmacro.h>
 #include <clc/utils.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 #include <libspirv/spirv.h>
 
 _CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(int, __spirv_ocl_ilogb, __nv_ilogbf, float)

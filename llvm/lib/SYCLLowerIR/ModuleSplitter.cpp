@@ -25,12 +25,14 @@
 #include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/LineIterator.h"
+#include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/Internalize.h"
@@ -297,6 +299,23 @@ void collectFunctionsAndGlobalVariablesToExtract(
   }
 }
 
+static bool isIntrinsicOrBuiltin(const Function &F) {
+  return F.isIntrinsic() || F.getName().starts_with("__") ||
+         isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName());
+}
+
+// Checks for use of undefined user functions and emits a warning message.
+static void checkForCallsToUndefinedFunctions(const Module &M) {
+  if (AllowDeviceImageDependencies)
+    return;
+  for (const Function &F : M) {
+    if (!isIntrinsicOrBuiltin(F) && F.isDeclaration() && !F.use_empty())
+      WithColor::warning() << "Undefined function " << F.getName()
+                           << " found in " << M.getName()
+                           << ". This may result in runtime errors.\n";
+  }
+}
+
 // Check "spirv.ExecutionMode" named metadata in the module and remove nodes
 // that reference kernels that have dead prototypes or don't reference any
 // kernel at all (nullptr). Dead prototypes are removed as well.
@@ -381,6 +400,7 @@ ModuleDesc extractCallGraph(const ModuleDesc &MD,
   // GenXSPIRVWriterAdaptor pass that relies on this cleanup. This cleanup call
   // can be removed once that pass no longer depends on this cleanup.
   SplitM.cleanup();
+  checkForCallsToUndefinedFunctions(SplitM.getModule());
 
   return SplitM;
 }
@@ -697,6 +717,31 @@ static bool mustPreserveGV(const GlobalValue &GV) {
   return true;
 }
 
+void cleanupSYCLRegisteredKernels(Module *M) {
+  NamedMDNode *MD = M->getNamedMetadata("sycl_registered_kernels");
+  if (!MD)
+    return;
+
+  if (MD->getNumOperands() == 0)
+    return;
+
+  SmallVector<Metadata *, 8> OperandsToKeep;
+  MDNode *RegisterdKernels = MD->getOperand(0);
+  for (const MDOperand &Op : RegisterdKernels->operands()) {
+    auto RegisteredKernel = cast<MDNode>(Op);
+    // Ignore metadata nodes with wrong number of operands.
+    if (RegisteredKernel->getNumOperands() != 2)
+      continue;
+
+    StringRef MangledName =
+        cast<MDString>(RegisteredKernel->getOperand(1))->getString();
+    if (M->getFunction(MangledName))
+      OperandsToKeep.push_back(RegisteredKernel);
+  }
+  MD->clearOperands();
+  MD->addOperand(MDNode::get(M->getContext(), OperandsToKeep));
+}
+
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
@@ -740,6 +785,7 @@ void ModuleDesc::cleanup() {
   // process all nodes in the named metadata and remove nodes which are
   // referencing kernels which are not included into submodule.
   processSubModuleNamedMetadata(M.get());
+  cleanupSYCLRegisteredKernels(M.get());
 }
 
 bool ModuleDesc::isSpecConstantDefault() const {
@@ -1402,6 +1448,12 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 }
 
 bool canBeImportedFunction(const Function &F) {
+
+  // We use sycl dynamic library mechanism to involve bf16 devicelib when
+  // necessary, all __devicelib_* functions from native or fallback bf16
+  // devicelib will be treated as imported function to user's device image.
+  if (llvm::isBF16DeviceLibFuncDecl(F))
+    return true;
   // It may be theoretically possible to determine what is importable
   // based solely on function F, but the "SYCL/imported symbols"
   // property list MUST NOT have any imported symbols that are not supplied
@@ -1419,8 +1471,7 @@ bool canBeImportedFunction(const Function &F) {
   // in a header file.  Thus SYCL IR that is a declaration
   // will be considered as SYCL_EXTERNAL for the purposes of
   // this function.
-  if (F.isIntrinsic() || F.getName().starts_with("__") ||
-      isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName()) ||
+  if (isIntrinsicOrBuiltin(F) ||
       (!F.isDeclaration() && !llvm::sycl::utils::isSYCLExternalFunction(&F)))
     return false;
 
