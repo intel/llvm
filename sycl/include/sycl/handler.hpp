@@ -152,13 +152,14 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
-template <typename, typename>
-class work_group_memory;
+template <typename, typename> class work_group_memory;
+template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
+class dynamic_parameter_base;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
@@ -679,6 +680,12 @@ private:
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
 
+  // setArgHelper for graph dynamic parameters used inside the kernel.
+  void setArgHelper(
+      int ArgIndex,
+      ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParam,
+      detail::kernel_param_kind_t ParamKind);
+
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
                     sycl::ext::oneapi::experimental::raw_kernel_arg &&Arg) {
@@ -724,8 +731,9 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    MHostKernel =
+        std::make_unique<detail::HostKernel<KernelType, LambdaArgType, Dims>>(
+            KernelFunc);
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -1869,6 +1877,17 @@ public:
   void set_arg(int argIndex,
                ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
     setArgHelper(argIndex, dynamicParam);
+  }
+
+  // set_arg for graph dynamic_work_group_memory
+  template <typename DataT>
+  void set_arg(int argIndex,
+               ext::oneapi::experimental::dynamic_work_group_memory<DataT>
+                   &dynWorkGroupMem) {
+    ext::oneapi::experimental::detail::dynamic_parameter_base &dynParamBase =
+        dynWorkGroupMem;
+    setArgHelper(argIndex, dynParamBase,
+                 detail::kernel_param_kind_t::kind_dynamic_work_group_memory);
   }
 
   // set_arg for the raw_kernel_arg extension type.
@@ -3769,7 +3788,8 @@ private:
             "A local accessor must not be used in a SYCL kernel function "
             "that is invoked via single_task or via the simple form of "
             "parallel_for that takes a range parameter.");
-      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
+      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory ||
+          Kind == detail::kernel_param_kind_t::kind_dynamic_work_group_memory)
         throw sycl::exception(
             make_error_code(errc::kernel_argument),
             "A work group memory object must not be used in a SYCL kernel "
