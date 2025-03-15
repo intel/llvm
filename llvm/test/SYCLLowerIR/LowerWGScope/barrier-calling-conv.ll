@@ -12,7 +12,7 @@ target triple = "spir64-unknown-unknown"
 
 define internal spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlNS0_5groupILi1EEEE_clES5_(ptr addrspace(4) noundef align 1 dereferenceable_or_null(1) %this, ptr noundef byval(%"class.sycl::_V1::group") align 8 %group) !work_group_scope !0 {
 entry:
-; CHECK: call spir_func void @_Z22__spirv_ControlBarrierjjj(
+; CHECK: call spir_func void @_Z22__spirv_ControlBarrieriii(
 
   %this.addr = alloca ptr addrspace(4), align 8
   %this.addr.ascast = addrspacecast ptr %this.addr to ptr addrspace(4)
@@ -22,6 +22,6 @@ entry:
   ret void
 }
 
-; CHECK: declare spir_func void @_Z22__spirv_ControlBarrierjjj(
+; CHECK: declare spir_func void @_Z22__spirv_ControlBarrieriii(
 
 !0 = !{}
