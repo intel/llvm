@@ -3,16 +3,15 @@
 
 #ifdef cl_khr_int64_extended_atomics
 
-#define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED)                                                                                \
-  _CLC_OVERLOAD _CLC_DEF TYPE atom_or(volatile AS TYPE *p, TYPE val) {                                                          \
-    return _Z16__spirv_AtomicOrPU3##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE##TYPE_MANGLED( \
-        p, Device, SequentiallyConsistent, val);                                                                                \
+#define IMPL(TYPE, AS)                                                          \
+  _CLC_OVERLOAD _CLC_DEF TYPE atom_or(volatile AS TYPE *p, TYPE val) {          \
+    return __spirv_AtomicOr((AS TYPE *)p, Device, SequentiallyConsistent, val); \
   }
 
-IMPL(long, l, global, AS1)
-IMPL(unsigned long, m, global, AS1)
-IMPL(long, l, local, AS3)
-IMPL(unsigned long, m, local, AS3)
+IMPL(long, global)
+IMPL(unsigned long, global)
+IMPL(long, local)
+IMPL(unsigned long, local)
 #undef IMPL
 
 #endif

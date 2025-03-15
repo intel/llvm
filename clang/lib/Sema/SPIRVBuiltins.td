@@ -392,10 +392,13 @@ def AIGenTypeNNoScalar     : GenericType<"AIGenTypeNNoScalar", TLAllInts, VecNoS
 // All integer to unsigned
 def AI2UGenTypeN           : GenericType<"AI2UGenTypeN", TLAllUIntsTwice, VecAndScalar>;
 // Signed integer
+def SGenType1 : GenericType<"SGenType1", TLSignedInts, Vec1>;
 def SGenTypeN              : GenericType<"SGenTypeN", TLSignedInts, VecAndScalar>;
 // Unsigned integer
+def UGenType1 : GenericType<"UGenType1", TLUnsignedInts, Vec1>;
 def UGenTypeN              : GenericType<"UGenTypeN", TLUnsignedInts, VecAndScalar>;
 // Float
+def FGenType1 : GenericType<"FGenType1", TLFloat, Vec1>;
 def FGenTypeN              : GenericType<"FGenTypeN", TLFloat, VecAndScalar>;
 // (u)int, (u)long, and all floats
 def IntLongFloatGenType1   : GenericType<"IntLongFloatGenType1", TLIntLongFloats, Vec1>;
@@ -959,4 +962,68 @@ foreach name = ["GroupSMin", "GroupSMax"] in {
 // TODO: These builtins need to support vectors of bool.
 foreach name = ["GroupLogicalAndKHR", "GroupLogicalOrKHR"] in {
   def : SPVBuiltin<name, [Bool, UInt, UInt, Bool], Attr.Convergent>;
+}
+
+// 3.56.18. Atomic Instructions
+
+foreach AS = [GlobalAS, LocalAS, PrivateAS, GenericAS] in {
+  def : SPVBuiltin<
+            "AtomicLoad", [AGenType1, PointerType<AGenType1, AS>, Int, Int],
+            Attr.Convergent>;
+
+  def : SPVBuiltin<"AtomicStore",
+                   [Void, PointerType<AGenType1, AS>, Int, Int, AGenType1],
+                   Attr.Convergent>;
+
+  def : SPVBuiltin<"AtomicExchange",
+                   [AGenType1, PointerType<AGenType1, AS>, Int, Int, AGenType1],
+                   Attr.Convergent>;
+
+  foreach name = ["AtomicCompareExchange", "AtomicCompareExchangeWeak"] in {
+    def : SPVBuiltin<name,
+                     [AIGenType1, PointerType<AIGenType1, AS>, Int, Int, Int,
+                      AIGenType1, AIGenType1],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicIIncrement", "AtomicIDecrement"] in {
+    def : SPVBuiltin<name, [AIGenType1, PointerType<AIGenType1, AS>, Int, Int],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicSMin", "AtomicSMax"] in {
+    def : SPVBuiltin<name,
+                     [SGenType1, PointerType<SGenType1, AS>, Int, Int,
+                      SGenType1],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicUMin", "AtomicUMax"] in {
+    def : SPVBuiltin<name,
+                     [UGenType1, PointerType<UGenType1, AS>, Int, Int,
+                      UGenType1],
+                     Attr.Convergent>;
+  }
+
+  foreach name = ["AtomicIAdd", "AtomicISub", "AtomicAnd", "AtomicOr",
+                  "AtomicXor"] in {
+    def : SPVBuiltin<name,
+                     [AIGenType1, PointerType<AIGenType1, AS>, Int, Int,
+                      AIGenType1],
+                     Attr.Convergent>;
+  }
+
+  def : SPVBuiltin<
+            "AtomicFlagTestAndSet", [Bool, PointerType<Int, AS>, Int, Int],
+            Attr.Convergent>;
+
+  def : SPVBuiltin<"AtomicFlagClear", [Void, PointerType<Int, AS>, Int, Int],
+                   Attr.Convergent>;
+
+  foreach name = ["AtomicFMaxEXT", "AtomicFMinEXT", "AtomicFAddEXT"] in {
+    def : SPVBuiltin<name,
+                     [FGenType1, PointerType<FGenType1, AS>, Int, Int,
+                      FGenType1],
+                     Attr.Convergent>;
+  }
 }

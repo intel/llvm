@@ -6,30 +6,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-_CLC_DECL int
-_Z24__spirv_AtomicIIncrementPU3AS3iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local int *, enum Scope, enum MemorySemanticsMask);
-_CLC_DECL int
-_Z24__spirv_AtomicIIncrementPU3AS1iN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global int *, enum Scope, enum MemorySemanticsMask);
-_CLC_DECL uint
-_Z24__spirv_AtomicIIncrementPU3AS3jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local uint *, enum Scope, enum MemorySemanticsMask);
-_CLC_DECL uint
-_Z24__spirv_AtomicIIncrementPU3AS1jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global uint *, enum Scope, enum MemorySemanticsMask);
+_CLC_OVERLOAD _CLC_DECL int __spirv_AtomicIIncrement(local int *, int Scope,
+                                                     enum MemorySemanticsMask);
+_CLC_OVERLOAD _CLC_DECL int __spirv_AtomicIIncrement(global int *, int Scope,
+                                                     enum MemorySemanticsMask);
+_CLC_OVERLOAD _CLC_DECL uint __spirv_AtomicIIncrement(local uint *, int Scope,
+                                                      enum MemorySemanticsMask);
+_CLC_OVERLOAD _CLC_DECL uint __spirv_AtomicIIncrement(global uint *, int Scope,
+                                                      enum MemorySemanticsMask);
 
 #ifdef cl_khr_int64_base_atomics
-_CLC_DECL long
-_Z24__spirv_AtomicIIncrementPU3AS3lN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local long *, enum Scope, enum MemorySemanticsMask);
-_CLC_DECL long
-_Z24__spirv_AtomicIIncrementPU3AS1lN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global long *, enum Scope, enum MemorySemanticsMask);
-_CLC_DECL unsigned long
-_Z24__spirv_AtomicIIncrementPU3AS3mN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile local unsigned long *, enum Scope, enum MemorySemanticsMask);
-_CLC_DECL unsigned long
-_Z24__spirv_AtomicIIncrementPU3AS1mN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(
-    volatile global unsigned long *, enum Scope, enum MemorySemanticsMask);
+_CLC_OVERLOAD _CLC_DECL long __spirv_AtomicIIncrement(local long *, int Scope,
+                                                      enum MemorySemanticsMask);
+_CLC_OVERLOAD _CLC_DECL long __spirv_AtomicIIncrement(global long *, int Scope,
+                                                      enum MemorySemanticsMask);
+_CLC_OVERLOAD _CLC_DECL unsigned long
+__spirv_AtomicIIncrement(local unsigned long *, int Scope,
+                         enum MemorySemanticsMask);
+_CLC_OVERLOAD _CLC_DECL unsigned long
+__spirv_AtomicIIncrement(global unsigned long *, int Scope,
+                         enum MemorySemanticsMask);
 #endif
