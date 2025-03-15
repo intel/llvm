@@ -167,8 +167,7 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DLLVM_INSTALL_UTILS=ON \
           -DNATIVECPU_USE_OCK=Off \
-          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV \
-          --level_zero_v1_and_v2
+          -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV
     - name: Compile
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build --target sycl-toolchain
