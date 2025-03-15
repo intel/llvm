@@ -114,6 +114,15 @@ on:
         default: ''
         required: False
 
+      benchmark_upload_results:
+        type: string
+        default: 'false'
+        required: False
+      benchmark_build_hash:
+        type: string
+        default: ''
+        required: False
+
   workflow_dispatch:
     inputs:
       runner:
@@ -126,6 +135,7 @@ on:
           - '["cts-cpu"]'
           - '["Linux", "build"]'
           - '["cuda"]'
+          - '["Linux", "bmg"]'
           - '["PVC_PERF"]'
       image:
         type: choice
@@ -154,6 +164,7 @@ on:
           - e2e
           - cts
           - compute-benchmarks
+          - benchmark_v2
 
       env:
         description: |
@@ -334,6 +345,17 @@ jobs:
       uses: ./devops/actions/run-tests/benchmark
       with:
         target_devices: ${{ inputs.target_devices }}
+      env:
+        RUNNER_TAG: ${{ inputs.runner }}
+        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
+
+    - name: Run benchmarks
+      if: inputs.tests_selector == 'benchmark_v2'
+      uses: ./devops/actions/run-tests/benchmark_v2
+      with:
+        target_devices: ${{ inputs.target_devices }}
+        upload_results: ${{ inputs.benchmark_upload_results }}
+        build_hash: ${{ inputs.benchmark_build_hash }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

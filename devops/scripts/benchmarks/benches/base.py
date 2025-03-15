@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6,7 +6,7 @@
 import os
 import shutil
 from pathlib import Path
-from .result import Result
+from utils.result import BenchmarkMetadata, Result
 from options import options
 from utils.utils import download, run
 import urllib.request
@@ -55,19 +55,25 @@ class Benchmark:
             data_path = os.path.join(self.directory, name)
         else:
             data_path = os.path.join(self.directory, "data", name)
-            if options.rebuild and Path(data_path).exists():
+            if options.redownload and Path(data_path).exists():
                 shutil.rmtree(data_path)
 
         Path(data_path).mkdir(parents=True, exist_ok=True)
 
         return data_path
 
-    def download(self, name, url, file, untar=False, unzip=False, skip_data_dir=False):
+    def download(
+        self,
+        name,
+        url,
+        file,
+        untar=False,
+        unzip=False,
+        skip_data_dir=False,
+        checksum="",
+    ):
         self.data_path = self.create_data_path(name, skip_data_dir)
-        return download(self.data_path, url, file, untar, unzip)
-
-    def name(self):
-        raise NotImplementedError()
+        return download(self.data_path, url, file, untar, unzip, checksum)
 
     def lower_is_better(self):
         return True
@@ -87,6 +93,26 @@ class Benchmark:
     def get_suite_name(self) -> str:
         return self.suite.name()
 
+    def name(self):
+        raise NotImplementedError()
+
+    def description(self):
+        return "No description provided."
+
+    def notes(self) -> str:
+        return None
+
+    def unstable(self) -> str:
+        return None
+
+    def get_metadata(self) -> BenchmarkMetadata:
+        return BenchmarkMetadata(
+            type="benchmark",
+            description=self.description(),
+            notes=self.notes(),
+            unstable=self.unstable(),
+        )
+
 
 class Suite:
     def benchmarks(self) -> list[Benchmark]:
@@ -97,3 +123,6 @@ class Suite:
 
     def setup(self):
         return
+
+    def additionalMetadata(self) -> dict[str, BenchmarkMetadata]:
+        return {}

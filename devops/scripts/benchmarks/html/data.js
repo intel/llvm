@@ -1,0 +1,3 @@
+benchmarkRuns = [];
+
+defaultCompareNames = [];
