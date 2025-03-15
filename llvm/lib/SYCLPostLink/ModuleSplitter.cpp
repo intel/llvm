@@ -8,7 +8,7 @@
 // See comments in the header.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"

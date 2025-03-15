@@ -12,7 +12,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
-#include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/Support/PropertySetIO.h"
 
 #include <set>
