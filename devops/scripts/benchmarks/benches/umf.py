@@ -6,10 +6,10 @@
 import random
 from utils.utils import git_clone
 from .base import Benchmark, Suite
-from .result import Result
+from utils.result import Result
 from utils.utils import run, create_build_path
 from options import options
-from .oneapi import get_oneapi
+from utils.oneapi import get_oneapi
 import os
 import csv
 import io
@@ -22,8 +22,6 @@ def isUMFAvailable():
 class UMFSuite(Suite):
     def __init__(self, directory):
         self.directory = directory
-        if not isUMFAvailable():
-            print("UMF not provided. Related benchmarks will not run")
 
     def name(self) -> str:
         return "UMF"
