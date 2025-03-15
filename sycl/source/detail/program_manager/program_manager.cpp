@@ -1952,6 +1952,11 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
       m_ExportedSymbolImages.insert({ESProp->Name, Img.get()});
     }
 
+    if (EntriesB == EntriesE) {
+      m_DeviceImages.insert({RawImg, std::move(Img)});
+      continue;
+    }
+
     // Record mapping between virtual function sets and device images
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
@@ -2861,6 +2866,8 @@ static void mergeImageData(const std::vector<device_image_plain> &Imgs,
                            device_image_impl::SpecConstMapT &NewSpecConstMap) {
   for (const device_image_plain &Img : Imgs) {
     std::shared_ptr<device_image_impl> DeviceImageImpl = getSyclObjImpl(Img);
+    if (!DeviceImageImpl->get_kernel_ids_ptr())
+      continue;
     // Duplicates are not expected here, otherwise urProgramLink should fail
     KernelIDs.insert(KernelIDs.end(),
                      DeviceImageImpl->get_kernel_ids_ptr()->begin(),
