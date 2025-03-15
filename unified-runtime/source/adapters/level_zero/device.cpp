@@ -1075,6 +1075,8 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
     return ReturnValue(Device->isIntelDG2OrNewer() &&
                        Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&

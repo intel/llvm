@@ -16,6 +16,7 @@
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
+#include <sycl/ext/oneapi/experimental/graph.hpp>     // for command_graph
 #include <sycl/image.hpp>                             // for image
 #include <ur_api.h> // for ur_mem_handle_t, ur...
 
@@ -48,6 +49,10 @@ public:
   /// Returns a backend associated with the queue associated with this
   /// interop_handle.
   __SYCL_EXPORT backend get_backend() const noexcept;
+
+  /// Returns true if command-group is being added to a graph as a node and
+  /// a backend graph object is available for interop.
+  __SYCL_EXPORT bool ext_codeplay_has_graph() const noexcept;
 
   /// Receives a SYCL accessor that has been defined as a requirement for the
   /// command group, and returns the underlying OpenCL memory object that is
@@ -134,6 +139,23 @@ public:
 #endif
   }
 
+  using graph = ext::oneapi::experimental::command_graph<
+      ext::oneapi::experimental::graph_state::executable>;
+  template <backend Backend = backend::opencl>
+  backend_return_t<Backend, graph> ext_codeplay_get_native_graph() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    if (Backend != get_backend())
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
+
+    // C-style cast required to allow various native types
+    return (backend_return_t<Backend, graph>)getNativeGraph();
+#else
+    // we believe this won't be ever called on device side
+    return 0;
+#endif
+  }
+
   /// Returns the SYCL application interoperability native backend object
   /// associated with the device associated with the SYCL queue that the host
   /// task was submitted to. The native backend object returned must be in
@@ -186,9 +208,19 @@ private:
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
                  const std::shared_ptr<detail::device_impl> &Device,
-                 const std::shared_ptr<detail::context_impl> &Context)
+                 const std::shared_ptr<detail::context_impl> &Context,
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+                 [[maybe_unused]]
+#endif
+                 ur_exp_command_buffer_handle_t Graph = nullptr)
       : MQueue(Queue), MDevice(Device), MContext(Context),
-        MMemObjs(std::move(MemObjs)) {}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+        // CMPLRLLVM-66082 - MGraph should become a member of this class on the
+        // next ABI breaking window.
+        MGraph(Graph),
+#endif
+        MMemObjs(std::move(MemObjs)) {
+  }
 
   template <backend Backend, typename DataT, int Dims>
   backend_return_t<Backend, buffer<DataT, Dims>>
@@ -211,10 +243,16 @@ private:
   getNativeQueue(int32_t &NativeHandleDesc) const;
   __SYCL_EXPORT ur_native_handle_t getNativeDevice() const;
   __SYCL_EXPORT ur_native_handle_t getNativeContext() const;
+  __SYCL_EXPORT ur_native_handle_t getNativeGraph() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
   std::shared_ptr<detail::device_impl> MDevice;
   std::shared_ptr<detail::context_impl> MContext;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // CMPLRLLVM-66082 - MGraph should become a member of this class on the
+  // next ABI breaking window.
+  ur_exp_command_buffer_handle_t MGraph;
+#endif
 
   std::vector<ReqToMem> MMemObjs;
 };
