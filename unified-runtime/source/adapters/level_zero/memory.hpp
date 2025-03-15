@@ -104,7 +104,7 @@ protected:
 
   // Since the destructor isn't virtual, callers must destruct it via _ur_buffer
   // or _ur_image
-  ~ur_mem_handle_t_() {};
+  ~ur_mem_handle_t_(){};
 };
 
 struct _ur_buffer final : ur_mem_handle_t_ {
@@ -117,8 +117,8 @@ struct _ur_buffer final : ur_mem_handle_t_ {
 
   // Sub-buffer constructor
   _ur_buffer(_ur_buffer *Parent, size_t Origin, size_t Size)
-      : ur_mem_handle_t_(mem_type_t::buffer, Parent->UrContext), Size(Size),
-        SubBuffer{{Parent, Origin}} {
+      : ur_mem_handle_t_(mem_type_t::buffer, Parent->UrContext),
+        Size(Size), SubBuffer{{Parent, Origin}} {
     // Retain the Parent Buffer due to the Creation of the SubBuffer.
     Parent->RefCount.increment();
   }
@@ -262,3 +262,13 @@ createUrMemFromZeImage(ur_context_handle_t Context, ze_image_handle_t ZeImage,
   }
   return UR_RESULT_SUCCESS;
 }
+
+#ifndef MEMORY_HPP
+#define MEMORY_HPP
+
+#include "common.hpp"
+
+ur_result_t ZeHostMemAllocHelper(void **ZeHandleHost,
+                                 ur_context_handle_t hContext, size_t size);
+
+#endif // MEMORY_HPP
