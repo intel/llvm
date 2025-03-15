@@ -20,6 +20,7 @@ https://github.com/intel/llvm/issues
 - Nikita Kornev, Intel
 - Dmitry Sidorov, Intel
 - Alex Bezzubikov, Intel
+- Viktoria Maximova, Intel
 
 == Notice
 
@@ -39,14 +40,16 @@ If you are interested in using this feature in your software product, please let
 
 [width="40%",cols="25,25"]
 |==================================
-| Last Modified Date | {docdate}
-| Revision           | I
+| Last Modified Date | 2025-03-13
+| Revision           | 10
 |==================================
 
 == Dependencies
 
-This extension is written against the SPIR-V Specification, Version 1.4
-Revision 1, Unified.
+This extension is written against the SPIR-V Specification, Version 1.6
+Revision 5, Unified.
+
+This extension interacts with link:https://github.khronos.org/SPIRV-Registry/extensions/KHR/SPV_KHR_untyped_pointers.html[*SPV_KHR_untyped_pointers*] extension.
 
 This extension requires SPIR-V 1.0.
 
@@ -133,7 +136,7 @@ CodeSectionINTEL
 |ArgumentAttributeINTEL         | 6409
 |====
 
-== Modifications to the SPIR-V Specification, Version 1.4
+== Modifications to the SPIR-V Specification, Version 1.6
 
 === Terms
 
@@ -179,7 +182,7 @@ all invocations of all work groups.
 
 === Decorations
 
-Modify Section 3.20, Decorations, adding to the end of the list of decorations: ::
+Modify Section 3.20, Decoration, adding to the end of the list of decorations: ::
 
 [cols="1,6,1,1,6",options="header",width = "100%"]
 |====
@@ -204,7 +207,7 @@ Argument Attribute_ |
 
 === Capabilities
 
-Modify Section 3.31, Capabilities, adding to the end of the list of capabilities: ::
+Modify Section 3.31, Capability, adding to the end of the list of capabilities: ::
 
 
 [cols="1,10,8,8",options="header",width = "80%"]
@@ -223,13 +226,13 @@ Modify Section 3.31, Capabilities, adding to the end of the list of capabilities
 
 === Instructions
 
-Modify Section 3.32.6, Type-Declaration Instructions, change the third sentence in the description of *OpTypeFunction* instruction to say: ::
+Modify Section 3.56.6, Type-Declaration Instructions, change the third sentence in the description of *OpTypeFunction* instruction to say: ::
 
 *OpTypeFunction* can be used as operand of *OpTypePointer* to declare function
 pointer type. *OpFunction* and *OpTypePointer* are only valid uses of
 *OpTypeFunction*.
 
-Modify Section 3.32.7, Constant-Creation Instructions, adding to the end of the list of instructions: ::
+Modify Section 3.56.7, Constant-Creation Instructions, adding to the end of the list of instructions: ::
 
 [cols="2*1,3*3",width="100%"]
 |=====
@@ -241,7 +244,7 @@ Result value can be used immediately in *OpFunctionPointerCallINTEL*, inserted
 into a composite constant or stored somewhere for further usage in
 *OpFunctionPointerCallINTEL*. +
  +
-_Result Type_ must be an *OpTypePointer*. Its _Type_ operand must be the same
+_Result Type_ must be a link:https://github.khronos.org/SPIRV-Registry/extensions/KHR/SPV_KHR_untyped_pointers.html#PointerType[pointer type]. If the _Result Type_ is *OpTypePointer*, its _Type_ operand must be the same
 *OpTypeFunction* which was used as _Function Type_ operand of the _Function_
 operand. Its _Storage Class_ operand must be *CodeSectionINTEL*
 | <<Capability,Capability>>: +
@@ -249,7 +252,7 @@ operand. Its _Storage Class_ operand must be *CodeSectionINTEL*
 | 4 | 5600 | '<id>' 'Result Type' | '<id> Result ' | '<id>' 'Function'
 |=====
 
-Modify Section 3.32.9, Function Instructions, adding to the end of the list of instructions: ::
+Modify Section 3.56.9, Function Instructions, adding to the end of the list of instructions: ::
 
 [cols="2*1,4*3",width="100%"]
 |=====
@@ -370,22 +373,23 @@ Removed *OpFunctionPointerINTEL* instruction.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2019-02-05|Alexey Sachkov|*Initial revision*
-|B|2019-02-27|Alexey Sachkov|Updated description of
+|1|2019-02-05|Alexey Sachkov|*Initial revision*
+|2|2019-02-27|Alexey Sachkov|Updated description of
 *OpFunctionPointerCallINTEL*: added information about type-checking. Added
 *ReferencedIndirectly* decoration
-|C|2019-01-03|Alexey Sachkov|Added missed `INTEL` suffix
-|D|2019-06-03|Alexey Sachkov|Added *FunctionPointersINTEL* and
+|3|2019-01-03|Alexey Sachkov|Added missed `INTEL` suffix
+|4|2019-06-03|Alexey Sachkov|Added *FunctionPointersINTEL* and
 *IndirectReferencesINTEL* capabilities
-|E|2019-06-04|Alexey Sachkov|Applied comments from Mariusz and Pawel: +
+|5|2019-06-04|Alexey Sachkov|Applied comments from Mariusz and Pawel: +
 - OpFunctionType -> OpTypeFunction +
 - Added definition of Function Pointer into Terms section +
 - New capabilities implicitly requires Addresses capability +
 - Small updates in descriptions of new instructions
-|F|2019-06-21|Alexey Sachkov|Added new storage class dedicated for function
+|6|2019-06-21|Alexey Sachkov|Added new storage class dedicated for function
 pointers. Updated validation rules. Misc updates.
-|G|2019-07-19|Ben Ashbaugh|Assigned SPIR-V enums, added preview extension disclaimer text.
-|H|2021-11-15|Nikita Kornev|Added new *ArgumentAttributeINTEL* decoration.
-|I|2022-10-08|Dmitry Sidorov, Alex Bezzubikov, Alexey Sachkov|Replaced *OpFunctionPointerINTEL* with
+|7|2019-07-19|Ben Ashbaugh|Assigned SPIR-V enums, added preview extension disclaimer text.
+|8|2021-11-15|Nikita Kornev|Added new *ArgumentAttributeINTEL* decoration.
+|9|2022-10-08|Dmitry Sidorov, Alex Bezzubikov, Alexey Sachkov|Replaced *OpFunctionPointerINTEL* with
 *OpConstantFunctionPointerINTEL*
+|10|2025-03-13|Viktoria Maximova|Allow to use *OpTypeUntypedPointerKHR* as a result type of *OpConstantFunctionPointerINTEL*.
 |========================================
