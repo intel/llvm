@@ -46,6 +46,8 @@ bool isESIMDKernel(const Function &F);
 bool isESIMD(const Function &F);
 // Tells whether given function is a kernel.
 bool isKernel(const Function &F);
+// Tells whether a given Module contains an invoke_simd builtin.
+bool moduleContainsInvokeSimdBuiltin(Module &M);
 
 /// Reports and error with the message \p Msg concatenated with the optional
 /// \p OptMsg if \p Condition is false.
