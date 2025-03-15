@@ -113,6 +113,9 @@ etors:
     - name: BINDLESS_SAMPLE_2D_USM_EXP
       value: "0x201C"
       desc: "[$x_bool_t] returns true if the device supports sampling USM backed 2D sampled image data."
+    - name: BINDLESS_IMAGES_GATHER_EXP
+      value: "0x201D"
+      desc: "[$x_bool_t] returns true if the device supports sampled image gather."
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -178,6 +181,15 @@ etors:
     - name: IMAGE_CUBEMAP_EXP
       value: "0x2000"
       desc: "Experimental cubemap image object"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: True
+desc: "Memory types"
+name: $x_mem_type_t
+etors:
+    - name: IMAGE_GATHER_EXP
+      value: "0x2001"
+      desc: "Experimental gather image object"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Sampler cubemap seamless filtering mode."

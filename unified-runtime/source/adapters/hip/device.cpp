@@ -891,7 +891,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
-
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP: {
+    // HIP doesn't support sampled image gather.
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
     return ReturnValue(ur_bool_t{false});
   }

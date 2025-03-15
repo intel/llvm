@@ -345,6 +345,103 @@ entry:
   ret <4 x float> %1
 }
 
+; <--- TEXTURE GATHER --->
+declare {float,float,float,float} @llvm.nvvm.tld4.unified.r.2d.v4f32.f32(i64, float, float)
+define <4 x float> @__clc_llvm_nvvm_tld4_r_2d_v4f32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {float,float,float,float} @llvm.nvvm.tld4.unified.r.2d.v4f32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x float>@__clc_structf32_to_vector({float,float,float,float} %0)
+  ret <4 x float> %1
+}
+
+declare {float,float,float,float} @llvm.nvvm.tld4.unified.g.2d.v4f32.f32(i64, float, float)
+define <4 x float> @__clc_llvm_nvvm_tld4_g_2d_v4f32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {float,float,float,float} @llvm.nvvm.tld4.unified.g.2d.v4f32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x float>@__clc_structf32_to_vector({float,float,float,float} %0)
+  ret <4 x float> %1
+}
+
+declare {float,float,float,float} @llvm.nvvm.tld4.unified.b.2d.v4f32.f32(i64, float, float)
+define <4 x float> @__clc_llvm_nvvm_tld4_b_2d_v4f32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {float,float,float,float} @llvm.nvvm.tld4.unified.b.2d.v4f32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x float>@__clc_structf32_to_vector({float,float,float,float} %0)
+  ret <4 x float> %1
+}
+
+declare {float,float,float,float} @llvm.nvvm.tld4.unified.a.2d.v4f32.f32(i64, float, float)
+define <4 x float> @__clc_llvm_nvvm_tld4_a_2d_v4f32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {float,float,float,float} @llvm.nvvm.tld4.unified.a.2d.v4f32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x float>@__clc_structf32_to_vector({float,float,float,float} %0)
+  ret <4 x float> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.r.2d.v4s32.f32(i64, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tld4_r_2d_v4s32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.r.2d.v4s32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x i32>@__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.g.2d.v4s32.f32(i64, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tld4_g_2d_v4s32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.g.2d.v4s32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x i32>@__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.b.2d.v4s32.f32(i64, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tld4_b_2d_v4s32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.b.2d.v4s32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x i32>@__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.a.2d.v4s32.f32(i64, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tld4_a_2d_v4s32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.a.2d.v4s32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x i32>@__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.r.2d.v4u32.f32(i64, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tld4_r_2d_v4u32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.r.2d.v4u32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x i32>@__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.g.2d.v4u32.f32(i64, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tld4_g_2d_v4u32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.g.2d.v4u32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x i32>@__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.b.2d.v4u32.f32(i64, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tld4_b_2d_v4u32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.b.2d.v4u32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x i32>@__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.a.2d.v4u32.f32(i64, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tld4_a_2d_v4u32_f32(i64 %img, float %x, float %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tld4.unified.a.2d.v4u32.f32(i64 %img, float %x, float %y);
+  %1 = tail call <4 x i32>@__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
 ; <--- TEXTURE FETCHING (integer coordinates) --->
 declare {i32,i32,i32,i32} @llvm.nvvm.tex.unified.1d.v4s32.s32(i64, i32)
 define <4 x i32> @__clc_llvm_nvvm_tex_1d_v4i32_s32(i64 %img, i32 %x) nounwind alwaysinline {
