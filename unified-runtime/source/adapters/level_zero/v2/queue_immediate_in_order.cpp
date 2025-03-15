@@ -15,7 +15,9 @@
 #include "ur.hpp"
 
 #include "../common/latency_tracker.hpp"
+#include "../helpers/image_helpers.hpp"
 #include "../helpers/kernel_helpers.hpp"
+
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
 
@@ -626,6 +628,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFill2D(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -638,6 +641,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy2D(
   UR_CALL(commandListLocked->appendUSMMemcpy2D(
       blocking, pDst, dstPitch, pSrc, srcPitch, width, height,
       numEventsInWaitList, phEventWaitList, phEvent));
+  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
   return UR_RESULT_SUCCESS;
 }
 
@@ -710,6 +714,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueReadHostPipe(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -725,6 +730,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueWriteHostPipe(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -763,18 +769,127 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = pDst;
-  std::ignore = pSrc;
-  std::ignore = pSrcImageDesc;
-  std::ignore = pDstImageDesc;
-  std::ignore = imageCopyFlags;
-  std::ignore = pSrcImageFormat;
-  std::ignore = pDstImageFormat;
-  std::ignore = pCopyRegion;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
+
+  ZeStruct<ze_image_desc_t> zeSrcImageDesc;
+  ZeStruct<ze_image_desc_t> zeDstImageDesc;
+
+  ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
+  ur2zeImageDesc(pDstImageFormat, pDstImageDesc, zeDstImageDesc);
+
+  // ze_tracer shows a lot of events (eg. ~60) created here
+  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
+  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ze_command_list_handle_t ZeCommandList =
+      commandListManager.getZeCommandList();
+
+  if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+    uint32_t SrcRowPitch =
+        pSrcImageDesc->width * getPixelSizeBytes(pSrcImageFormat);
+    uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
+    if (pDstImageDesc->rowPitch == 0) {
+      // Copy to Non-USM memory
+
+      ze_image_region_t DstRegion;
+      UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
+                                   &pCopyRegion->copyExtent, DstRegion));
+      auto *urDstImg = static_cast<ur_bindless_mem_handle_t *>(pDst);
+
+      const char *SrcPtr =
+          static_cast<const char *>(pSrc) +
+          pCopyRegion->srcOffset.z * SrcSlicePitch +
+          pCopyRegion->srcOffset.y * SrcRowPitch +
+          pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
+
+      ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
+                 (ZeCommandList, urDstImg->getZeImage(), SrcPtr, &DstRegion,
+                  SrcRowPitch, SrcSlicePitch, zeSignalEvent, waitListView.num,
+                  waitListView.handles));
+    } else {
+      // Copy to pitched USM memory
+      uint32_t DstRowPitch = pDstImageDesc->rowPitch;
+      ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
+                                      (uint32_t)pCopyRegion->dstOffset.y,
+                                      (uint32_t)pCopyRegion->dstOffset.z,
+                                      DstRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.height,
+                                      (uint32_t)pCopyRegion->copyExtent.depth};
+      uint32_t DstSlicePitch = 0;
+      ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
+                                      (uint32_t)pCopyRegion->srcOffset.y,
+                                      (uint32_t)pCopyRegion->srcOffset.z,
+                                      SrcRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.height,
+                                      (uint32_t)pCopyRegion->copyExtent.depth};
+      ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
+                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
+                  waitListView.num, waitListView.handles));
+    }
+  } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    uint32_t DstRowPitch =
+        pDstImageDesc->width * getPixelSizeBytes(pDstImageFormat);
+    uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
+    if (pSrcImageDesc->rowPitch == 0) {
+      // Copy from Non-USM memory to host
+      ze_image_region_t SrcRegion;
+      UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
+                                   &pCopyRegion->copyExtent, SrcRegion));
+
+      auto *urSrcImg = reinterpret_cast<const ur_bindless_mem_handle_t *>(pSrc);
+
+      char *DstPtr =
+          static_cast<char *>(pDst) + pCopyRegion->dstOffset.z * DstSlicePitch +
+          pCopyRegion->dstOffset.y * DstRowPitch +
+          pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
+      ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
+                 (ZeCommandList, DstPtr, urSrcImg->getZeImage(), &SrcRegion,
+                  DstRowPitch, DstSlicePitch, zeSignalEvent, waitListView.num,
+                  waitListView.handles));
+    } else {
+      // Copy from pitched USM memory to host
+      ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
+                                      (uint32_t)pCopyRegion->dstOffset.y,
+                                      (uint32_t)pCopyRegion->dstOffset.z,
+                                      DstRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.height,
+                                      (uint32_t)pCopyRegion->copyExtent.depth};
+      uint32_t SrcRowPitch = pSrcImageDesc->rowPitch;
+      ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
+                                      (uint32_t)pCopyRegion->srcOffset.y,
+                                      (uint32_t)pCopyRegion->srcOffset.z,
+                                      SrcRowPitch,
+                                      (uint32_t)pCopyRegion->copyExtent.height,
+                                      (uint32_t)pCopyRegion->copyExtent.depth};
+      uint32_t SrcSlicePitch = 0;
+      ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
+                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
+                  waitListView.num, waitListView.handles));
+    }
+  } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) {
+    ze_image_region_t DstRegion;
+    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->dstOffset,
+                                 &pCopyRegion->copyExtent, DstRegion));
+    ze_image_region_t SrcRegion;
+    UR_CALL(getImageRegionHelper(zeSrcImageDesc, &pCopyRegion->srcOffset,
+                                 &pCopyRegion->copyExtent, SrcRegion));
+
+    auto *urImgSrc = reinterpret_cast<const ur_bindless_mem_handle_t *>(pSrc);
+    auto *urImgDst = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
+
+    ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
+               (ZeCommandList, urImgDst->getZeImage(), urImgSrc->getZeImage(),
+                &DstRegion, &SrcRegion, zeSignalEvent, waitListView.num,
+                waitListView.handles));
+  } else {
+    logger::error("ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp: "
+                  "unexpected imageCopyFlags");
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
@@ -788,6 +903,10 @@ ur_queue_immediate_in_order_t::bindlessImagesWaitExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -802,6 +921,10 @@ ur_queue_immediate_in_order_t::bindlessImagesSignalExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -946,6 +1069,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -953,6 +1080,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
+  logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 } // namespace v2

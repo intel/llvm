@@ -13,7 +13,42 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "../common.hpp"
+typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
+    ze_image_handle_t hImage, uint64_t *pDeviceOffset);
+
+typedef ze_result_t(ZE_APICALL *zeMemGetPitchFor2dImage_pfn)(
+    ze_context_handle_t hContext, ze_device_handle_t hDevice, size_t imageWidth,
+    size_t imageHeight, unsigned int elementSizeInBytes, size_t *rowPitch);
+
+struct ur_bindless_mem_handle_t {
+
+  ur_bindless_mem_handle_t(ze_image_handle_t zeImage,
+                           const ZeStruct<ze_image_desc_t> &zeImageDesc)
+      : zeImage(zeImage), zeImageDesc(zeImageDesc){};
+
+  ze_image_handle_t getZeImage() const { return zeImage; }
+  ze_image_desc_t &getZeImageDesc() { return zeImageDesc; }
+
+private:
+  ::ze_image_handle_t zeImage;
+  ZeStruct<ze_image_desc_t> zeImageDesc;
+};
+
+/// Construct UR bindless image struct from ZE image handle and desc.
+template <typename T>
+ur_result_t createUrImgFromZeImage(ze_image_handle_t ZeImage,
+                                   const ZeStruct<ze_image_desc_t> &ZeImageDesc,
+                                   T *UrMem) {
+  try {
+    auto urImg = new ur_bindless_mem_handle_t(ZeImage, ZeImageDesc);
+    *UrMem = reinterpret_cast<T>(urImg);
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
 
 /// Construct UR image format from ZE image desc.
 ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
@@ -36,3 +71,11 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
 
 std::pair<ze_image_format_type_t, size_t>
 getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat);
+
+ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
+                                     ur_device_handle_t hDevice,
+                                     ur_exp_image_mem_native_handle_t hImageMem,
+                                     const ur_image_format_t *pImageFormat,
+                                     const ur_image_desc_t *pImageDesc,
+                                     ur_sampler_handle_t hSampler,
+                                     ur_exp_image_native_handle_t *phImage);
