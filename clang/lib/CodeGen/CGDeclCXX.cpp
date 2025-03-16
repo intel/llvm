@@ -1073,9 +1073,6 @@ void CodeGenFunction::GenerateCXXGlobalVarDeclInitFunc(llvm::Function *Fn,
     EmitCXXGlobalVarDeclInit(*D, Addr, PerformInit);
   }
 
-  if (getLangOpts().HLSL)
-    CGM.getHLSLRuntime().annotateHLSLResource(D, Addr);
-
   FinishFunction();
 }
 
