@@ -923,6 +923,11 @@ public:
   const std::vector<device> &get_devices() const noexcept { return MDevices; }
 
   std::vector<kernel_id> get_kernel_ids() const {
+    // RTC kernel bundles shouldn't have user-facing kernel ids, return an
+    // empty vector when the bundle contains RTC kernels.
+    if (MLanguage == syclex::source_language::sycl) {
+      return {};
+    }
     // Collect kernel ids from all device images, then remove duplicates
 
     std::vector<kernel_id> Result;

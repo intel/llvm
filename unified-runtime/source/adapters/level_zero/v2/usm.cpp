@@ -166,11 +166,10 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t hContext,
     logger::info("USM pooling is disabled. Skiping pool limits adjustment.");
   }
 
-  auto [result, descriptors] = usm::pool_descriptor::create(this, hContext);
-  if (result != UR_RESULT_SUCCESS) {
-    throw result;
-  }
-
+  auto devicesAndSubDevices =
+      CollectDevicesAndSubDevices(hContext->getDevices());
+  auto descriptors = usm::pool_descriptor::createFromDevices(
+      this, hContext, devicesAndSubDevices);
   for (auto &desc : descriptors) {
     if (disjointPoolConfigs.has_value()) {
       auto &poolConfig =

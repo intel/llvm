@@ -21,6 +21,26 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
+
+  # Common compilation step setup
+
+  target_include_directories(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}
+      ${sycl_inc_dir}
+      ${BOOST_UNORDERED_INCLUDE_DIRS}
+  )
+
+  # Object libraries are not linked, so these "libraries" are in fact include
+  # directories
+  target_link_libraries(${LIB_OBJ_NAME}
+    PRIVATE
+      UnifiedRuntime-Headers
+      # TODO: Remove dependency on opencl headers.
+      OpenCL-Headers
+  )
+
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
@@ -87,8 +107,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
   endif()
 
-  target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
-
   # ur_win_proxy_loader
   if (WIN32)
     include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/ur_win_proxy_loader)
@@ -147,17 +165,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
 
-  target_include_directories(
-    ${LIB_OBJ_NAME}
-    PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}
-      "${sycl_inc_dir}"
-  )
-  #TODO: Remove dependency on opencl headers.
-  target_link_libraries(${LIB_OBJ_NAME}
-    PRIVATE OpenCL-Headers
-  )
-
   if(SYCL_ENABLE_EXTENSION_JIT)
     if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)
       message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR variable: Must be set when extension to JIT SYCL kernels is enabled")
@@ -182,13 +189,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       ${CMAKE_THREAD_LIBS_INIT}
   )
 
-  # Link and include UR
-  target_link_libraries(${LIB_OBJ_NAME}
-    PRIVATE
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-  )
-
+  # Link UR
   target_link_libraries(${LIB_NAME}
     PRIVATE
       UnifiedRuntime-Headers

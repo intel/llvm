@@ -322,6 +322,7 @@ jobs:
       uses: ./devops/actions/run-tests/cts
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
+        cts_exclude_ref: ${{ inputs.repo_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}

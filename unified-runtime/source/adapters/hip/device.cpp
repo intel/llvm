@@ -1076,6 +1076,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_CONTEXT_MEMCPY_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP: {
+    return ReturnValue(false);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
@@ -1089,167 +1093,167 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   default:
     break;
   }
-  return UR_RESULT_ERROR_INVALID_ENUMERATION;
-}
-
-/// \return UR_RESULT_SUCCESS if the function is executed successfully
-/// HIP devices are always root devices so retain always returns success.
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t) {
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urDevicePartition(ur_device_handle_t, const ur_device_partition_properties_t *,
-                  uint32_t, ur_device_handle_t *, uint32_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-/// \return UR_RESULT_SUCCESS always since HIP devices are always root
-/// devices.
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceRelease(ur_device_handle_t) {
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
-                                                ur_device_type_t DeviceType,
-                                                uint32_t NumEntries,
-                                                ur_device_handle_t *phDevices,
-                                                uint32_t *pNumDevices) {
-  ur_result_t Err = UR_RESULT_SUCCESS;
-  const bool AskingForDefault = DeviceType == UR_DEVICE_TYPE_DEFAULT;
-  const bool AskingForGPU = DeviceType == UR_DEVICE_TYPE_GPU;
-  const bool AskingForAll = DeviceType == UR_DEVICE_TYPE_ALL;
-  const bool ReturnDevices = AskingForDefault || AskingForGPU || AskingForAll;
-
-  size_t NumDevices = ReturnDevices ? hPlatform->Devices.size() : 0;
-
-  try {
-    UR_ASSERT(pNumDevices || phDevices, UR_RESULT_ERROR_INVALID_VALUE);
-
-    if (pNumDevices) {
-      *pNumDevices = NumDevices;
-    }
-
-    if (ReturnDevices && phDevices) {
-      for (size_t i = 0; i < std::min(size_t(NumEntries), NumDevices); ++i) {
-        phDevices[i] = hPlatform->Devices[i].get();
-      }
-    }
-
-    return Err;
-  } catch (ur_result_t Err) {
-    return Err;
-  } catch (...) {
-    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-}
 
-/// Gets the native HIP handle of a UR device object
-///
-/// \param[in] hDevice The UR device to get the native HIP object of.
-/// \param[out] phNativeHandle Set to the native handle of the UR device object.
-///
-/// \return UR_RESULT_SUCCESS
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
-    ur_device_handle_t hDevice, ur_native_handle_t *phNativeHandle) {
-  *phNativeHandle = hDevice->get();
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice,
-    [[maybe_unused]] ur_adapter_handle_t hAdapter,
-    [[maybe_unused]] const ur_device_native_properties_t *pProperties,
-    ur_device_handle_t *phDevice) {
-  // We can't cast between ur_native_handle_t and hipDevice_t, so memcpy the
-  // bits instead
-  hipDevice_t HIPDevice = 0;
-  memcpy(&HIPDevice, &hNativeDevice, sizeof(hipDevice_t));
-
-  auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
-    return Dev->get() == HIPDevice;
-  };
-
-  // Get list of platforms
-  uint32_t NumPlatforms = 0;
-  ur_adapter_handle_t AdapterHandle = &adapter;
-  ur_result_t Result =
-      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
-  if (Result != UR_RESULT_SUCCESS)
-    return Result;
-
-  // We can only have a maximum of one platform.
-  if (NumPlatforms != 1)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
-
-  ur_platform_handle_t Platform = nullptr;
-
-  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, &Platform, nullptr);
-  if (Result != UR_RESULT_SUCCESS)
-    return Result;
-
-  // Iterate through the platform's devices to find the device that matches
-  // nativeHandle
-  auto SearchRes = std::find_if(std::begin(Platform->Devices),
-                                std::end(Platform->Devices), IsDevice);
-  if (SearchRes != end(Platform->Devices)) {
-    *phDevice = static_cast<ur_device_handle_t>((*SearchRes).get());
+  /// \return UR_RESULT_SUCCESS if the function is executed successfully
+  /// HIP devices are always root devices so retain always returns success.
+  UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t) {
     return UR_RESULT_SUCCESS;
   }
 
-  // If the provided nativeHandle cannot be matched to an
-  // existing device return error
-  return UR_RESULT_ERROR_INVALID_OPERATION;
-}
+  UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
+      ur_device_handle_t, const ur_device_partition_properties_t *, uint32_t,
+      ur_device_handle_t *, uint32_t *) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 
-/// \return UR_RESULT_SUCCESS If available, the first binary that is PTX
-///
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceSelectBinary(ur_device_handle_t, const ur_device_binary_t *pBinaries,
-                     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
-  // Ignore unused parameter
-  UR_ASSERT(NumBinaries > 0, UR_RESULT_ERROR_INVALID_ARGUMENT);
+  /// \return UR_RESULT_SUCCESS always since HIP devices are always root
+  /// devices.
+  UR_APIEXPORT ur_result_t UR_APICALL urDeviceRelease(ur_device_handle_t) {
+    return UR_RESULT_SUCCESS;
+  }
 
-  // Look for an image for the HIP target, and return the first one that is
-  // found
+  UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
+      ur_platform_handle_t hPlatform, ur_device_type_t DeviceType,
+      uint32_t NumEntries, ur_device_handle_t *phDevices,
+      uint32_t *pNumDevices) {
+    ur_result_t Err = UR_RESULT_SUCCESS;
+    const bool AskingForDefault = DeviceType == UR_DEVICE_TYPE_DEFAULT;
+    const bool AskingForGPU = DeviceType == UR_DEVICE_TYPE_GPU;
+    const bool AskingForAll = DeviceType == UR_DEVICE_TYPE_ALL;
+    const bool ReturnDevices = AskingForDefault || AskingForGPU || AskingForAll;
+
+    size_t NumDevices = ReturnDevices ? hPlatform->Devices.size() : 0;
+
+    try {
+      UR_ASSERT(pNumDevices || phDevices, UR_RESULT_ERROR_INVALID_VALUE);
+
+      if (pNumDevices) {
+        *pNumDevices = NumDevices;
+      }
+
+      if (ReturnDevices && phDevices) {
+        for (size_t i = 0; i < std::min(size_t(NumEntries), NumDevices); ++i) {
+          phDevices[i] = hPlatform->Devices[i].get();
+        }
+      }
+
+      return Err;
+    } catch (ur_result_t Err) {
+      return Err;
+    } catch (...) {
+      return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    }
+  }
+
+  /// Gets the native HIP handle of a UR device object
+  ///
+  /// \param[in] hDevice The UR device to get the native HIP object of.
+  /// \param[out] phNativeHandle Set to the native handle of the UR device
+  /// object.
+  ///
+  /// \return UR_RESULT_SUCCESS
+  UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
+      ur_device_handle_t hDevice, ur_native_handle_t * phNativeHandle) {
+    *phNativeHandle = hDevice->get();
+    return UR_RESULT_SUCCESS;
+  }
+
+  UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
+      ur_native_handle_t hNativeDevice,
+      [[maybe_unused]] ur_adapter_handle_t hAdapter,
+      [[maybe_unused]] const ur_device_native_properties_t *pProperties,
+      ur_device_handle_t *phDevice) {
+    // We can't cast between ur_native_handle_t and hipDevice_t, so memcpy the
+    // bits instead
+    hipDevice_t HIPDevice = 0;
+    memcpy(&HIPDevice, &hNativeDevice, sizeof(hipDevice_t));
+
+    auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
+      return Dev->get() == HIPDevice;
+    };
+
+    // Get list of platforms
+    uint32_t NumPlatforms = 0;
+    ur_adapter_handle_t AdapterHandle = &adapter;
+    ur_result_t Result =
+        urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
+    if (Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    // We can only have a maximum of one platform.
+    if (NumPlatforms != 1)
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+
+    ur_platform_handle_t Platform = nullptr;
+
+    Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, &Platform, nullptr);
+    if (Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    // Iterate through the platform's devices to find the device that matches
+    // nativeHandle
+    auto SearchRes = std::find_if(std::begin(Platform->Devices),
+                                  std::end(Platform->Devices), IsDevice);
+    if (SearchRes != end(Platform->Devices)) {
+      *phDevice = static_cast<ur_device_handle_t>((*SearchRes).get());
+      return UR_RESULT_SUCCESS;
+    }
+
+    // If the provided nativeHandle cannot be matched to an
+    // existing device return error
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  /// \return UR_RESULT_SUCCESS If available, the first binary that is PTX
+  ///
+  UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
+      ur_device_handle_t, const ur_device_binary_t *pBinaries,
+      uint32_t NumBinaries, uint32_t *pSelectedBinary) {
+    // Ignore unused parameter
+    UR_ASSERT(NumBinaries > 0, UR_RESULT_ERROR_INVALID_ARGUMENT);
+
+    // Look for an image for the HIP target, and return the first one that is
+    // found
 #if defined(__HIP_PLATFORM_AMD__)
-  const char *BinaryType = UR_DEVICE_BINARY_TARGET_AMDGCN;
+    const char *BinaryType = UR_DEVICE_BINARY_TARGET_AMDGCN;
 #elif defined(__HIP_PLATFORM_NVIDIA__)
-  const char *BinaryType = UR_DEVICE_BINARY_TARGET_NVPTX64;
+    const char *BinaryType = UR_DEVICE_BINARY_TARGET_NVPTX64;
 #else
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
-  for (uint32_t i = 0; i < NumBinaries; i++) {
-    if (strcmp(pBinaries[i].pDeviceTargetSpec, BinaryType) == 0) {
-      *pSelectedBinary = i;
-      return UR_RESULT_SUCCESS;
+    for (uint32_t i = 0; i < NumBinaries; i++) {
+      if (strcmp(pBinaries[i].pDeviceTargetSpec, BinaryType) == 0) {
+        *pSelectedBinary = i;
+        return UR_RESULT_SUCCESS;
+      }
     }
+
+    // No image can be loaded for the given device
+    return UR_RESULT_ERROR_INVALID_BINARY;
   }
 
-  // No image can be loaded for the given device
-  return UR_RESULT_ERROR_INVALID_BINARY;
-}
+  ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
+                                                     uint64_t *pDeviceTimestamp,
+                                                     uint64_t *pHostTimestamp) {
+    if (!pDeviceTimestamp && !pHostTimestamp)
+      return UR_RESULT_SUCCESS;
 
-ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
-                                                   uint64_t *pDeviceTimestamp,
-                                                   uint64_t *pHostTimestamp) {
-  if (!pDeviceTimestamp && !pHostTimestamp)
+    ur_event_handle_t_::native_type Event;
+    ScopedDevice Active(hDevice);
+
+    if (pDeviceTimestamp) {
+      UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
+      UR_CHECK_ERROR(hipEventRecord(Event));
+      *pDeviceTimestamp = hDevice->getElapsedTime(Event);
+    }
+
+    if (pHostTimestamp) {
+      using namespace std::chrono;
+      *pHostTimestamp =
+          duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+              .count();
+    }
     return UR_RESULT_SUCCESS;
-
-  ur_event_handle_t_::native_type Event;
-  ScopedDevice Active(hDevice);
-
-  if (pDeviceTimestamp) {
-    UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
-    UR_CHECK_ERROR(hipEventRecord(Event));
-    *pDeviceTimestamp = hDevice->getElapsedTime(Event);
   }
-
-  if (pHostTimestamp) {
-    using namespace std::chrono;
-    *pHostTimestamp =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
-  }
-  return UR_RESULT_SUCCESS;
-}
