@@ -303,12 +303,12 @@ public:
       DeviceDiagnosticReason Reason = DeviceDiagnosticReason::Sycl |
                                       DeviceDiagnosticReason::Esimd);
   SemaDiagnosticBuilder DiagIfDeviceCode(
-      SourceLocation Loc, unsigned DiagID,
-      const FunctionDecl *FD,
+      SourceLocation Loc, unsigned DiagID, const FunctionDecl *FD,
       DeviceDiagnosticReason Reason = DeviceDiagnosticReason::Sycl |
                                       DeviceDiagnosticReason::Esimd);
 
-  void delayFunctionBodyCheckForAddressTaken(const FunctionDecl *FD, SourceLocation Loc);
+  void delayFunctionBodyCheckForAddressTaken(const FunctionDecl *FD,
+                                             SourceLocation Loc);
 
   void checkFunctionWithAddressTaken();
 

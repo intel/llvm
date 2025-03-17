@@ -11108,7 +11108,7 @@ static bool checkAddressOfFunctionIsAvailable(Sema &S, const FunctionDecl *FD,
   if (Complain && S.getLangOpts().SYCLIsDevice &&
       S.getLangOpts().getSYCLAllowFuncPtr() !=
           LangOptions::SYCLFuncPtrPreference::Off) {
-            bool IsMarked = FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>();
+    bool IsMarked = FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>();
     if (S.getLangOpts().getSYCLAllowFuncPtr() ==
             LangOptions::SYCLFuncPtrPreference::LabeledOnly &&
         !IsMarked) {

@@ -687,7 +687,8 @@ public:
         SemaSYCLRef.Diag(e->getExprLoc(), diag::err_builtin_target_unsupported)
             << Name << "SYCL device";
       }
-    } else if (SemaSYCLRef.getLangOpts().getSYCLAllowFuncPtr() == LangOptions::SYCLFuncPtrPreference::Off &&
+    } else if (SemaSYCLRef.getLangOpts().getSYCLAllowFuncPtr() ==
+                   LangOptions::SYCLFuncPtrPreference::Off &&
                !e->isTypeDependent() &&
                !isa<CXXPseudoDestructorExpr>(e->getCallee())) {
       bool MaybeConstantExpr = false;
@@ -5851,8 +5852,8 @@ void SemaSYCL::checkFunctionWithAddressTaken() {
         const FunctionDecl *LexCtx = CtxLocPair.first;
         SourceLocation Loc = CtxLocPair.second;
         SemaRef.SYCL().DiagIfDeviceCode(
-            Loc, diag::err_sycl_taking_address_of_function_with_no_definition, LexCtx,
-            Sema::DeviceDiagnosticReason::Sycl);
+            Loc, diag::err_sycl_taking_address_of_function_with_no_definition,
+            LexCtx, Sema::DeviceDiagnosticReason::Sycl);
       }
   }
 }

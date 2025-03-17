@@ -168,9 +168,9 @@ public:
   enum class SYCLFuncPtrPreference : int {
     Off,         //< Never allowed.
     LabeledOnly, //< Allowed if the function has the
-                 //intel::device_indirectly_callable attribute.
+                 // intel::device_indirectly_callable attribute.
     DefinedOnly, //< Allowed if the function has a definition in the TU or has
-                 //the intel::device_indirectly_callable attribute.
+                 // the intel::device_indirectly_callable attribute.
     On,          //< Allowed.
   };
 
