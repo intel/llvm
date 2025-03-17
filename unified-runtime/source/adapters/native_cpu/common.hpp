@@ -53,11 +53,6 @@ namespace ur {
 } // namespace ur
 } // namespace detail
 
-// Base class to store common data
-struct _ur_object {
-  ur_shared_mutex Mutex;
-};
-
 // Todo: replace this with a common helper once it is available
 struct RefCounted {
   std::atomic_uint32_t _refCount;
@@ -65,6 +60,11 @@ struct RefCounted {
   uint32_t decrementReferenceCount() { return --_refCount; }
   RefCounted() : _refCount{1} {}
   uint32_t getReferenceCount() const { return _refCount; }
+};
+
+// Base class to store common data
+struct _ur_object : RefCounted {
+  ur_shared_mutex Mutex;
 };
 
 template <typename T> inline void decrementOrDelete(T *refC) {
