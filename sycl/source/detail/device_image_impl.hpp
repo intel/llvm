@@ -56,11 +56,15 @@ constexpr uint8_t ImageOriginKernelCompiler = 1 << 2;
 // Information unique to images compiled at runtime through the
 // ext_oneapi_kernel_compiler extension.
 struct KernelCompilerBinaryInfo {
+  KernelCompilerBinaryInfo(syclex::source_language Lang) : MLanguage{Lang} {}
+
   KernelCompilerBinaryInfo(syclex::source_language Lang,
-                           std::set<std::string> &&KernelNames = {},
-                           include_pairs_t &&IncludePairsVec = {})
-      : MLanguage{Lang}, MKernelNames{std::move(KernelNames)},
-        MIncludePairs{std::move(IncludePairsVec)} {}
+                           include_pairs_t &&IncludePairsVec)
+      : MLanguage{Lang}, MIncludePairs{std::move(IncludePairsVec)} {}
+
+  KernelCompilerBinaryInfo(syclex::source_language Lang,
+                           std::set<std::string> &&KernelNames)
+      : MLanguage{Lang}, MKernelNames{std::move(KernelNames)} {}
 
   KernelCompilerBinaryInfo(
       syclex::source_language Lang, std::set<std::string> &&KernelNames,
@@ -218,8 +222,8 @@ public:
         MKernelIDs(std::make_shared<std::vector<kernel_id>>()),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
-        MRTCBinInfo(KernelCompilerBinaryInfo{Lang, std::set<std::string>{},
-                                             std::move(IncludePairsVec)}) {
+        MRTCBinInfo(
+            KernelCompilerBinaryInfo{Lang, std::move(IncludePairsVec)}) {
     updateSpecConstSymMap();
   }
 
