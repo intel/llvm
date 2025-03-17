@@ -8,7 +8,6 @@
 
 #pragma once
 #include <sycl/context.hpp>           // for context
-#include <sycl/detail/impl_utils.hpp> // for createSyclObjFromImpl
 #include <sycl/device.hpp>            // for device
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool_properties.hpp>
 #include <sycl/queue.hpp>         // for queue
@@ -87,6 +86,8 @@ public:
 protected:
   std::shared_ptr<detail::memory_pool_impl> impl;
 
+  memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl) : impl(Impl) {}
+
   template <class Obj>
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
@@ -95,8 +96,6 @@ protected:
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   const property_list &getPropList() const;
-
-  memory_pool(std::shared_ptr<detail::memory_pool_impl> Impl) : impl(Impl) {}
 };
 
 } // namespace ext::oneapi::experimental
