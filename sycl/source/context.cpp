@@ -125,7 +125,8 @@ std::vector<device> context::get_devices() const {
   return impl->get_info<info::context::devices>();
 }
 
-context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
+context::context(std::shared_ptr<detail::context_impl> Impl)
+    : impl(std::move(Impl)) {}
 
 ur_native_handle_t context::getNative() const { return impl->getNative(); }
 

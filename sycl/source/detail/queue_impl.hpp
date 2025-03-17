@@ -368,7 +368,7 @@ public:
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
     if (SubmitInfo.SecondaryQueue()) {
       event ResEvent;
-      const std::shared_ptr<queue_impl> SecondQueue =
+      const std::shared_ptr<queue_impl> &SecondQueue =
           SubmitInfo.SecondaryQueue();
       try {
         ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
@@ -702,6 +702,8 @@ public:
   getCommandGraph() const {
     return MGraph.lock();
   }
+
+  bool hasCommandGraph() const { return !MGraph.expired(); }
 
   unsigned long long getQueueID() { return MQueueID; }
 

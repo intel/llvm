@@ -63,12 +63,18 @@ sycl/test-e2e/Adapters/ @intel/unified-runtime-reviewers
 sycl/ur_win_proxy_loader @intel/llvm-reviewers-runtime
 sycl/test-e2e/Adapters/dll-detach-order.cpp @intel/llvm-reviewers-runtime
 
-# CUDA specific runtime implementations
+# CUDA and HIP
 sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
-
-# CUDA and HIP device code tests
 sycl/test/check_device_code/cuda/ @intel/llvm-reviewers-cuda
 sycl/test/check_device_code/hip/ @intel/llvm-reviewers-cuda
+llvm/include/llvm/SYCLLowerIR/GlobalOffset.h @intel/llvm-reviewers-cuda
+llvm/lib/SYCLLowerIR/GlobalOffset.cpp @intel/llvm-reviewers-cuda
+llvm/include/llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h @intel/llvm-reviewers-cuda
+llvm/lib/SYCLLowerIR/LocalAccessorToSharedMemory.cpp @intel/llvm-reviewers-cuda
+llvm/include/llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h @intel/llvm-reviewers-cuda
+llvm/lib/SYCLLowerIR/SYCLCreateNVVMAnnotations.cpp @intel/llvm-reviewers-cuda
+llvm/lib/Target/NVPTX @intel/llvm-reviewers-cuda
+llvm/lib/Target/AMDGPU @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
