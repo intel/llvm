@@ -57,9 +57,6 @@ private:
   ur_usm_pool_handle_t MPoolHandle{0};
   bool MIsDefaultPool = false;
   property_list MPropList;
-  std::pair<std::tuple<bool, bool, bool, bool>,
-            std::tuple<size_t, size_t, bool, bool>>
-      MPropsTuple;
 };
 
 } // namespace detail
