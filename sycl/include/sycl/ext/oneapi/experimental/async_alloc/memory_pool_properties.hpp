@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/ext/oneapi/properties/property.hpp>
+#include <cstddef>
+#include <sycl/properties/property_traits.hpp>
 
 namespace sycl {
 inline namespace _V1 {
