@@ -42,7 +42,7 @@ ABIArgInfo CommonSPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
     if (const BuiltinType *BT = Ty->getAs<BuiltinType>()) {
       switch (BT->getKind()) {
       case BuiltinType::Bool:
-        // Bool / i1 isn't a legal SPIR-V type.
+        // Bool / i1 isn't a legal kernel argument in SPIR-V.
         // Coerce the type to follow the host representation of bool.
         return ABIArgInfo::getDirect(CGT.ConvertTypeForMem(Ty));
       default:
