@@ -124,14 +124,14 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppMessage)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pError)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -169,14 +169,14 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_ADAPTER_INFO_VERSION < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -262,14 +262,14 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_PLATFORM_INFO_ADAPTER < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -298,11 +298,11 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pVersion)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   ur_result_t result = pfnGetApiVersion(hPlatform, pVersion);
@@ -325,11 +325,11 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativePlatform)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   ur_result_t result = pfnGetNativeHandle(hPlatform, phNativePlatform);
@@ -356,11 +356,11 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phPlatform)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -392,14 +392,14 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pFrontendOption)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == ppPlatformOption)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   ur_result_t result =
@@ -434,11 +434,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPlatform)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NumEntries > 0 && phDevices == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPlatform)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_DEVICE_TYPE_VPU < DeviceType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -487,14 +487,14 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -587,14 +587,14 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pProperties)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pProperties->pProperties)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -630,14 +630,14 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pBinaries)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSelectedBinary)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NumBinaries == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -668,11 +668,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeDevice)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -704,11 +704,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevice)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -874,14 +874,14 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -915,11 +915,11 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeContext)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -956,11 +956,11 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phContext)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -995,11 +995,11 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pfnDeleter)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -1034,9 +1034,6 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -1045,6 +1042,9 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
 
     if (NULL == phMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_MEM_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1111,11 +1111,11 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_MEM_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1224,14 +1224,14 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pRegion)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_MEM_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1271,11 +1271,11 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hMem)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hMem)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -1312,11 +1312,11 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -1357,9 +1357,6 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -1368,6 +1365,9 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
 
     if (NULL == phMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -1410,14 +1410,14 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hMemory)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hMemory)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_MEM_INFO_REFERENCE_COUNT < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1462,14 +1462,14 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hMemory)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hMemory)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_IMAGE_INFO_NUM_SAMPLES < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1505,14 +1505,14 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phSampler)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT < pDesc->addressingMode)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1606,14 +1606,14 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hSampler)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hSampler)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_SAMPLER_INFO_FILTER_MODE < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1647,11 +1647,11 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hSampler)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeSampler)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hSampler)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -1683,11 +1683,11 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phSampler)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -1725,11 +1725,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1779,14 +1779,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == ppMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1842,14 +1842,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == ppMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1897,11 +1897,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -1937,11 +1937,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_ALLOC_INFO_POOL < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1975,14 +1975,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pPoolDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == ppPool)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2073,14 +2073,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPool)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_POOL_INFO_USED_HIGH_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2129,14 +2129,14 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2182,11 +2182,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -2215,11 +2215,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -2254,14 +2254,14 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pStart)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hPhysicalMem)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pStart)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2299,11 +2299,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -2334,11 +2334,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2382,11 +2382,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pStart)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_VIRTUAL_MEM_INFO_ACCESS_MODE < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2424,14 +2424,14 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == phPhysicalMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == phPhysicalMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL != pProperties && UR_PHYSICAL_MEM_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -2569,9 +2569,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pIL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -2581,6 +2578,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     if (NULL != pProperties && pProperties->count > 0 &&
         NULL == pProperties->pMetadatas)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pProperties && NULL != pProperties->pMetadatas &&
         pProperties->count == 0)
@@ -2633,9 +2633,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevices)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -2651,6 +2648,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     if (NULL != pProperties && pProperties->count > 0 &&
         NULL == pProperties->pMetadatas)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pProperties && NULL != pProperties->pMetadatas &&
         pProperties->count == 0)
@@ -2775,14 +2775,14 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phPrograms)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phProgram)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -2870,17 +2870,17 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pFunctionName)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == ppFunctionPointer)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -2922,17 +2922,17 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pGlobalVariableName)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == ppGlobalVariablePointerRet)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -2978,14 +2978,14 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_PROGRAM_INFO_KERNEL_NAMES < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -3076,11 +3076,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pSpecConstants)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -3111,11 +3111,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeProgram)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -3147,11 +3147,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phProgram)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -3185,14 +3185,14 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pKernelName)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phKernel)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -3231,11 +3231,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pArgValue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -3307,14 +3307,14 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_KERNEL_INFO_SPILL_MEM_SIZE < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -3539,11 +3539,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pPropValue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_KERNEL_EXEC_INFO_CACHE_CONFIG < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -3659,11 +3659,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pSpecConstants)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -3694,11 +3694,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeKernel)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -3732,11 +3732,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phKernel)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -3787,12 +3787,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pGlobalWorkOffset)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -3801,6 +3795,12 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
 
     if (NULL == pSuggestedLocalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -3841,14 +3841,14 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_QUEUE_INFO_EMPTY < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -3886,14 +3886,14 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == phQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == phQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL != pProperties && UR_QUEUE_FLAGS_MASK & pProperties->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -3994,11 +3994,11 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeQueue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -4032,11 +4032,11 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phQueue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -4132,14 +4132,14 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hEvent)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EVENT_INFO_REFERENCE_COUNT < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -4293,11 +4293,11 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hEvent)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeEvent)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -4329,11 +4329,11 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phEvent)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -4369,11 +4369,11 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hEvent)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pfnNotify)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hEvent)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXECUTION_INFO_QUEUED < execStatus)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -4433,17 +4433,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pGlobalWorkOffset)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4617,14 +4617,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4698,14 +4698,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4792,14 +4792,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -4917,14 +4917,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -5251,14 +5251,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pPattern)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pPattern)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -5352,14 +5352,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hImage)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -5441,14 +5441,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hImage)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -5627,14 +5627,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == ppRetMap)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == ppRetMap)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (UR_MAP_FLAGS_MASK & mapFlags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -5705,14 +5705,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pMappedPtr)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hQueue)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hMem)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pMappedPtr)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -5777,14 +5777,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pPattern)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (patternSize == 0 || size == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -5860,14 +5860,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (size == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -5942,11 +5942,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_MIGRATION_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -6008,11 +6008,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_ADVICE_FLAGS_MASK & advice)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -6076,14 +6076,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pPattern)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (pitch == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -6182,14 +6182,14 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (srcPitch == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -6284,17 +6284,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == name)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -6365,17 +6365,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == name)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -6447,17 +6447,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pipe_symbol)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -6530,17 +6530,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pipe_symbol)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -6604,11 +6604,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pProperties &&
         UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
@@ -6670,11 +6670,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pProperties &&
         UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
@@ -6736,11 +6736,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pProperties &&
         UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK & pProperties->flags)
@@ -6797,11 +6797,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
@@ -6847,17 +6847,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreateExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pPoolDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pPool)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -6995,14 +6995,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pPool)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pPool)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -7038,11 +7038,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPool)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_POOL_INFO_USED_HIGH_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -7123,14 +7123,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pPool)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pPool)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -7225,17 +7225,17 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == ppMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pResultPitch)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -7375,12 +7375,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -7389,6 +7383,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 
     if (NULL == phImageMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
@@ -7472,12 +7472,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -7486,6 +7480,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 
     if (NULL == phImage)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
@@ -7532,15 +7532,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hSampler)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -7549,6 +7540,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
     if (NULL == phImage)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hSampler)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
@@ -7618,9 +7618,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -7641,6 +7638,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
     if (NULL == pCopyRegion)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -7694,11 +7694,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_IMAGE_INFO_NUM_SAMPLES < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -7736,14 +7736,14 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == phImageMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == phImageMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -7824,17 +7824,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pExternalMemDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phExternalMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE < memHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -7879,15 +7879,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hExternalMem)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pImageFormat)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -7896,6 +7887,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 
     if (NULL == phImageMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hExternalMem)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type)
       return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
@@ -7940,6 +7940,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == ppRetMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hContext)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
@@ -7948,9 +7951,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
 
     if (NULL == hExternalMem)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == ppRetMem)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -8033,17 +8033,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pExternalSemaphoreDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phExternalSemaphore)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT < semHandleType)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -8249,17 +8249,17 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pCommandBufferDesc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == phCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -8396,17 +8396,17 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pGlobalWorkOffset)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phKernelAlternatives == NULL && numKernelAlternatives > 0)
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -8487,14 +8487,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pDst)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pSrc)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (size == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -8568,14 +8568,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMemory)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pPattern)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (patternSize == 0 || size == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -8745,14 +8745,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -8828,14 +8828,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -9023,14 +9023,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pSrc)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pSrc)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -9119,14 +9119,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pDst)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pDst)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -9205,14 +9205,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pPattern)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == hBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pPattern)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -9286,11 +9286,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMemory)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_MIGRATION_FLAGS_MASK & flags)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -9365,11 +9365,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMemory)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_ADVICE_FLAGS_MASK & advice)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -9535,14 +9535,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == pUpdateKernelLaunch)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == hCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL == pUpdateKernelLaunch->hCommand)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == pUpdateKernelLaunch)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (numKernelUpdates == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -9569,11 +9569,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommand)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phSignalEvent)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommand)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   ur_result_t result = pfnUpdateSignalEventExp(hCommand, phSignalEvent);
@@ -9645,14 +9645,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -9737,17 +9737,17 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pGlobalWorkOffset)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pGlobalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -9808,17 +9808,17 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pLocalWorkSize)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == pGroupCountRet)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -9873,11 +9873,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phEvent)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList == NULL && numEventsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -9951,12 +9951,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hKernel)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pGlobalWorkOffset)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -9965,6 +9959,12 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
     if (NULL == launchPropList)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == hKernel)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (phEventWaitList != NULL && numEventsInWaitList > 0) {
       for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
@@ -10011,11 +10011,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevices)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -10046,11 +10046,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevices)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hProgram)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -10090,9 +10090,6 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phDevices)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -10101,6 +10098,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
 
     if (NULL == phProgram)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (count == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -10133,11 +10133,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -10164,11 +10164,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pMem)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hContext)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -10284,17 +10284,17 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == commandDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == peerDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (propSize != 0 && pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == commandDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == peerDevice)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -10419,11 +10419,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hQueue)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pfnNativeEnqueue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NULL != pProperties &&
         UR_EXP_ENQUEUE_NATIVE_COMMAND_FLAGS_MASK & pProperties->flags)
