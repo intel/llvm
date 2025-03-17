@@ -4,6 +4,7 @@
 // RUN: %{build} %device_tsan_flags -O2 -g -o %t2.out
 // RUN: %{run} %t2.out 2>&1 | FileCheck %s
 // UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: CMPLRLLVM-66203
 #include "sycl/detail/core.hpp"
 #include "sycl/usm.hpp"
 
