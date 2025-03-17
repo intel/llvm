@@ -625,10 +625,6 @@ GetDeviceMemoryScopeCapabilities(ur_device_handle_t device,
       device, UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES, flags);
 }
 
-ur_result_t GetDeviceBFloat16Support(ur_device_handle_t device, bool &support) {
-  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_BFLOAT16, support);
-}
-
 ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
                                             uint32_t &max_indices) {
   return GetDeviceInfo<uint32_t>(

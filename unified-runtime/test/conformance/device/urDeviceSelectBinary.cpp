@@ -34,9 +34,10 @@ TEST_P(urDeviceSelectBinaryTest, Success) {
 }
 
 TEST_P(urDeviceSelectBinaryTest, InvalidNullHandleDevice) {
-  ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-      urDeviceSelectBinary(nullptr, binaries, binaries_length, nullptr));
+  uint32_t selected_binary;
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+                   urDeviceSelectBinary(nullptr, binaries, binaries_length,
+                                        &selected_binary));
 }
 
 TEST_P(urDeviceSelectBinaryTest, InvalidNullPointerBinaries) {

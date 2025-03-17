@@ -291,8 +291,6 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_memory_scope_capability_flags_t>(
       hDevice, UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_BFLOAT16);
-  std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
