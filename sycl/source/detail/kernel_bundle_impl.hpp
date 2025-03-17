@@ -302,9 +302,11 @@ public:
     }
 
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
-
       MDeviceImages.insert(MDeviceImages.end(), Bundle->MDeviceImages.begin(),
                            Bundle->MDeviceImages.end());
+      MDeviceBinaries.insert(MDeviceBinaries.end(),
+                             Bundle->MDeviceBinaries.begin(),
+                             Bundle->MDeviceBinaries.end());
     }
 
     fillUniqueDeviceImages();
@@ -368,9 +370,10 @@ public:
 
   // oneapi_ext_kernel_compiler
   // construct from built source files
-  kernel_bundle_impl(const context &Context, const std::vector<device> &Devs,
-                     std::vector<device_image_plain> &&DevImgs,
-                     std::vector<sycl_device_binaries> &&DevBinaries)
+  kernel_bundle_impl(
+      const context &Context, const std::vector<device> &Devs,
+      std::vector<device_image_plain> &&DevImgs,
+      std::vector<std::shared_ptr<ManagedDeviceBinaries>> &&DevBinaries)
       : MContext(Context), MDevices(Devs),
         MUniqueDeviceImages(std::move(DevImgs)),
         MState(bundle_state::executable),
@@ -393,7 +396,7 @@ public:
     assert(allSourceBasedImages() && "All images must be source-based.");
 
     std::vector<device_image_plain> NewDevImgs;
-    std::vector<sycl_device_binaries> NewDeviceBinaries;
+    std::vector<std::shared_ptr<ManagedDeviceBinaries>> NewDeviceBinaries;
     for (device_image_plain &DevImg : MUniqueDeviceImages) {
       std::vector<std::shared_ptr<device_image_impl>> NewDevImgImpls =
           getSyclObjImpl(DevImg)->buildFromSource(Devices, BuildOptions, LogPtr,
@@ -626,17 +629,6 @@ public:
     return true;
   }
 
-  ~kernel_bundle_impl() {
-    try {
-      for (sycl_device_binaries &Binaries : MDeviceBinaries) {
-        ProgramManager::getInstance().removeImages(Binaries);
-        syclex::detail::SYCL_JIT_Destroy(Binaries);
-      }
-    } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_bundle_impl", e);
-    }
-  }
-
   bool hasSourceBasedImages() const noexcept {
     return std::any_of(begin(), end(), [](const device_image_plain &DevImg) {
       return getSyclObjImpl(DevImg)->getOriginMask() &
@@ -771,8 +763,8 @@ private:
   bundle_state MState;
 
   // For sycl_jit, building from source may have produced sycl binaries that
-  // this kernel_bundle now manages.
-  std::vector<sycl_device_binaries> MDeviceBinaries;
+  // the kernel_bundles now manage.
+  std::vector<std::shared_ptr<ManagedDeviceBinaries>> MDeviceBinaries;
 };
 
 } // namespace detail

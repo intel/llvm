@@ -115,6 +115,22 @@ struct KernelCompilerBinaryInfo {
   include_pairs_t MIncludePairs;
 };
 
+// Helper class to unregister shared SYCL binaries.
+class ManagedDeviceBinaries {
+public:
+  ManagedDeviceBinaries(sycl_device_binaries &&Binaries)
+      : MBinaries{Binaries} {}
+  ~ManagedDeviceBinaries() try {
+    ProgramManager::getInstance().removeImages(MBinaries);
+    syclex::detail::SYCL_JIT_Destroy(MBinaries);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM(
+        "exception during unregistration of SYCL binaries", e);
+  }
+private:
+  sycl_device_binaries MBinaries;
+};
+
 // The class is impl counterpart for sycl::device_image
 // It can represent a program in different states, kernel_id's it has and state
 // of specialization constants for it
@@ -550,12 +566,12 @@ public:
     return MRTCBinInfo && MRTCBinInfo->MLanguage == Lang;
   }
 
-  std::vector<std::shared_ptr<device_image_impl>>
-  buildFromSource(const std::vector<device> Devices,
-                  const std::vector<std::string> &BuildOptions,
-                  std::string *LogPtr,
-                  const std::vector<std::string> &RegisteredKernelNames,
-                  std::vector<sycl_device_binaries> &OutDeviceBinaries) const {
+  std::vector<std::shared_ptr<device_image_impl>> buildFromSource(
+      const std::vector<device> Devices,
+      const std::vector<std::string> &BuildOptions, std::string *LogPtr,
+      const std::vector<std::string> &RegisteredKernelNames,
+      std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBinaries)
+      const {
     assert(!std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage));
     assert(MRTCBinInfo);
     assert(MOrigins & ImageOriginKernelCompiler);
@@ -666,7 +682,8 @@ public:
         Result.push_back(getSyclObjImpl(ImgWithDeps.getMain()));
       }
 
-      OutDeviceBinaries.push_back(std::move(Binaries));
+      OutDeviceBinaries.emplace_back(
+          std::make_shared<ManagedDeviceBinaries>(std::move(Binaries)));
       return Result;
     }
 
