@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/memory_pool_impl.hpp>
-#include <detail/queue_impl.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 
 namespace sycl {
