@@ -7027,14 +7027,14 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hPool)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pPropValue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (pPropValue == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_USM_POOL_INFO_USED_HIGH_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -9428,11 +9428,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pfnNativeCommand)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0)
       return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
@@ -9673,11 +9673,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hCommandBuffer)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == phNativeCommandBuffer)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hCommandBuffer)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
   ur_result_t result =

@@ -227,7 +227,7 @@ template <OperationPath PathKind>
 void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
                    size_t Size,
                    sycl::ext::oneapi::experimental::memory_pool &memPool,
-                   void *Ptr) {
+                   [[maybe_unused]] void *Ptr) {
   // simple alloc with specified pool
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
   try {
@@ -264,7 +264,7 @@ void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
 /// @param Ptr Generic pointer to allocated memory.
 template <OperationPath PathKind>
 void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
-                   size_t Size, void *Ptr) {
+                   size_t Size, [[maybe_unused]] void *Ptr) {
   // simple alloc
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
   try {
