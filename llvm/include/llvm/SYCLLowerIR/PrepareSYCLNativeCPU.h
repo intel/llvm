@@ -23,7 +23,10 @@ class ModulePass;
 
 class PrepareSYCLNativeCPUPass
     : public PassInfoMixin<PrepareSYCLNativeCPUPass> {
+  const bool O3;
+
 public:
+  PrepareSYCLNativeCPUPass(bool O3) : O3(O3) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
 
