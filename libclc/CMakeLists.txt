@@ -338,10 +338,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( DARCH ${ARCH} )
   endif()
 
-  if( ARCH STREQUAL native_cpu )
-    LIST( APPEND dirs native_cpu )
-  endif()
-
   set( clc_lib_files )
   libclc_configure_lib_source(
     clc_lib_files
