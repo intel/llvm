@@ -232,30 +232,101 @@ extern __DPCPP_SYCL_EXTERNAL
 #define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
 
+// Atomic SPIR-V builtins
+#define __SPIRV_ATOMIC_LOAD(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicLoad(AS Type *P, int S,      \
+                                                       int O);
+#define __SPIRV_ATOMIC_STORE(AS, Type)                                         \
+  extern __DPCPP_SYCL_EXTERNAL void __spirv_AtomicStore(AS Type *P, int S,     \
+                                                        int O, Type V);
+#define __SPIRV_ATOMIC_EXCHANGE(AS, Type)                                      \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicExchange(AS Type *P, int S,  \
+                                                           int O, Type V);
+#define __SPIRV_ATOMIC_CMP_EXCHANGE(AS, Type)                                  \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicCompareExchange(             \
+      AS Type *P, int S, int E, int U, Type V, Type C);
+#define __SPIRV_ATOMIC_IADD(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicIAdd(AS Type *P, int S,      \
+                                                       int O, Type V);
+#define __SPIRV_ATOMIC_ISUB(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicISub(AS Type *P, int S,      \
+                                                       int O, Type V);
+#define __SPIRV_ATOMIC_FADD(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFAddEXT(AS Type *P, int S,   \
+                                                          int O, Type V);
+#define __SPIRV_ATOMIC_SMIN(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMin(AS Type *P, int S,      \
+                                                       int O, Type V);
+#define __SPIRV_ATOMIC_UMIN(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMin(AS Type *P, int S,      \
+                                                       int O, Type V);
+#define __SPIRV_ATOMIC_FMIN(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMinEXT(AS Type *P, int S,   \
+                                                          int O, Type V);
+#define __SPIRV_ATOMIC_SMAX(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicSMax(AS Type *P, int S,      \
+                                                       int O, Type V);
+#define __SPIRV_ATOMIC_UMAX(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicUMax(AS Type *P, int S,      \
+                                                       int O, Type V);
+#define __SPIRV_ATOMIC_FMAX(AS, Type)                                          \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicFMaxEXT(AS Type *P, int S,   \
+                                                          int O, Type V);
+#define __SPIRV_ATOMIC_AND(AS, Type)                                           \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicAnd(AS Type *P, int S,       \
+                                                      int O, Type V);
+#define __SPIRV_ATOMIC_OR(AS, Type)                                            \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicOr(AS Type *P, int S, int O, \
+                                                     Type V);
+#define __SPIRV_ATOMIC_XOR(AS, Type)                                           \
+  extern __DPCPP_SYCL_EXTERNAL Type __spirv_AtomicXor(AS Type *P, int S,       \
+                                                      int O, Type V);
+
+#define __SPIRV_ATOMIC_FLOAT(AS, Type)                                         \
+  __SPIRV_ATOMIC_FADD(AS, Type)                                                \
+  __SPIRV_ATOMIC_FMIN(AS, Type)                                                \
+  __SPIRV_ATOMIC_FMAX(AS, Type)                                                \
+  __SPIRV_ATOMIC_LOAD(AS, Type)                                                \
+  __SPIRV_ATOMIC_STORE(AS, Type)                                               \
+  __SPIRV_ATOMIC_EXCHANGE(AS, Type)
+
+#define __SPIRV_ATOMIC_BASE(AS, Type)                                          \
+  __SPIRV_ATOMIC_FLOAT(AS, Type)                                               \
+  __SPIRV_ATOMIC_CMP_EXCHANGE(AS, Type)                                        \
+  __SPIRV_ATOMIC_IADD(AS, Type)                                                \
+  __SPIRV_ATOMIC_ISUB(AS, Type)                                                \
+  __SPIRV_ATOMIC_AND(AS, Type)                                                 \
+  __SPIRV_ATOMIC_OR(AS, Type)                                                  \
+  __SPIRV_ATOMIC_XOR(AS, Type)
+
+#define __SPIRV_ATOMIC_SIGNED(AS, Type)                                        \
+  __SPIRV_ATOMIC_BASE(AS, Type)                                                \
+  __SPIRV_ATOMIC_SMIN(AS, Type)                                                \
+  __SPIRV_ATOMIC_SMAX(AS, Type)
+
+#define __SPIRV_ATOMIC_UNSIGNED(AS, Type)                                      \
+  __SPIRV_ATOMIC_BASE(AS, Type)                                                \
+  __SPIRV_ATOMIC_UMIN(AS, Type)                                                \
+  __SPIRV_ATOMIC_UMAX(AS, Type)
+
 // Helper atomic operations which select correct signed/unsigned version
 // of atomic min/max based on the type
 #define __SPIRV_ATOMIC_MINMAX(AS, Op)                                          \
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && std::is_signed<T>::value, T>               \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
-                         __spv::MemorySemanticsMask::Flag Semantics,           \
-                         T Value) {                                            \
+      __spirv_Atomic##Op(AS T *Ptr, int Memory, int Semantics, T Value) {      \
     return __spirv_AtomicS##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if_t<                                                   \
       std::is_integral<T>::value && !std::is_signed<T>::value, T>              \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
-                         __spv::MemorySemanticsMask::Flag Semantics,           \
-                         T Value) {                                            \
+      __spirv_Atomic##Op(AS T *Ptr, int Memory, int Semantics, T Value) {      \
     return __spirv_AtomicU##Op(Ptr, Memory, Semantics, Value);                 \
   }                                                                            \
   template <typename T>                                                        \
   typename std::enable_if_t<std::is_floating_point<T>::value, T>               \
-      __spirv_Atomic##Op(AS T *Ptr, __spv::Scope::Flag Memory,                 \
-                         __spv::MemorySemanticsMask::Flag Semantics,           \
-                         T Value) {                                            \
+      __spirv_Atomic##Op(AS T *Ptr, int Memory, int Semantics, T Value) {      \
     return __spirv_AtomicF##Op##EXT(Ptr, Memory, Semantics, Value);            \
   }
 
@@ -263,6 +334,15 @@ extern __DPCPP_SYCL_EXTERNAL
   macro(__attribute__((opencl_global)), Arg)                                   \
       macro(__attribute__((opencl_local)), Arg) macro(, Arg)
 
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, _Float16)
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, float)
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, double)
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_SIGNED, int)
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_SIGNED, long)
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_SIGNED, long long)
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned int)
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long)
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_UNSIGNED, unsigned long long)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Min)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 
