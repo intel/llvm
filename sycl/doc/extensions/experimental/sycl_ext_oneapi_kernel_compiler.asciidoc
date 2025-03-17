@@ -1026,38 +1026,44 @@ build_options{{
 Relax the requirement that parameter types for free-function kernels must be
 forward-declarable.
 
-=== Unsupported `build_options` when the language is `sycl`
+=== Known issues and limitations when the language is `sycl`
 
-The SYCL runtime compiler currently does not support the following {dpcpp}
-options and associated features.
+==== Changing the compiler action or output
+
+As the {dpcpp} frontend is integrated tightly in the runtime compilation
+pipeline, the application cannot change the runtime compiler's action (e.g.
+`-c`, `-S`) or output file (`-o`). Similarly, options related to linking (e.g.
+`-L`) are incompatible, including the SYCL-specific `-fsycl-link` action. The
+implementation throws an `exception` with the `errc::invalid` error code when it
+detects an option that conflicts with the runtime compilation pipeline.
 
 ==== Ahead-of-time compilation
 
-With the exception of the `-Xs` option, all other options to control
-ahead-of-time (AOT) compilation, such as `-fsycl-targets`, are unsupported.
-
 The kernels in a SYCL source string are compiled automatically to native code
 for all devices passed to the `build` function (see section "New free functions
-to create and build kernel bundles").
-
-==== Other compiler actions
-
-As the {dpcpp} frontend is integrated tightly in the runtime compilation
-pipeline, all options to change the compiler action (e.g. `-c`, `-S`) or output
-files (`-o`) are unsupported. Options related to linking (e.g. `-L`) are
-unsupported, including the SYCL-specific `-fsycl-link` action.
+to create and build kernel bundles"). The implementation rejects the use of the
+`-fsycl-targets=` options to request ahead-of-time (AOT) compilation, and throws
+an `exception` with the `errc::invalid` error code when this option is detected.
+The application can use the `-Xs` option described above to pass options to the
+backend of the device compiler, but all other options to control AOT compilation
+are ignored.
 
 ==== `invoke_simd`
 
-While the SYCL runtime compiler supports ESIMD kernels and source strings
-containing a mix of SYCL and ESIMD kernels, the `invoke_simd` functionality is
-currently unsupported. The related `-fno-sycl-device-code-split-esimd` option is
-unsupported.
+The SYCL runtime compiler currently does not implement the logic required to
+support the `-fno-sycl-device-code-split-esimd` option, and throws an
+`exception` with the `errc::invalid` error code when this option is detected. As
+a consequence, the `invoke_simd` functionality is unavailable. However, the SYCL
+runtime compiler supports ESIMD kernels and source strings containing a mix of
+SYCL and ESIMD kernels.
 
 ==== Sanitizers
 
-Device, memory and thread sanitizers are unsupported for runtime-compiled
-kernels. The `-fsanitize=` option is unsupported.
+The implementation currently lacks the necessary linking of device libraries to
+support device, memory and thread sanitizers for runtime-compiled code. If the
+`-fsanitize=` option is detected, an `exception` with the `errc::invalid` error
+code is thrown. Other means of activating the sanitizer (e.g. via
+`-Xsycl-device-frontend`) may cause the runtime compilation to fail.
 
 === Caching
 
