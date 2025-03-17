@@ -43,8 +43,6 @@ SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
-  sycl_ext_oneapi_properties]
 * link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions]
 * link:../supported/sycl_ext_oneapi_default_context.asciidoc[
@@ -407,17 +405,15 @@ namespace ext::oneapi::experimental {
 
 class memory_pool {
 
-  template <typename Properties = empty_properties_t>
-  memory_pool(context ctx, usm::alloc kind, Properties props = {});
+  memory_pool(context ctx, usm::alloc kind, const property_list& propList = {});
 
-  template <typename Properties = empty_properties_t>
-  memory_pool(context ctx, device dev, usm::alloc kind, Properties props = {});
+  memory_pool(context ctx, device dev, usm::alloc kind,
+    const property_list& propList = {});
 
-  template <typename Properties = empty_properties_t>
-  memory_pool(queue q, usm::alloc kind, Properties props = {});
+  memory_pool(queue q, usm::alloc kind, const property_list& propList = {});
 
-  template <typename Properties = empty_properties_t>
-  memory_pool(context ctx, void *ptr, size_t size, Properties props = {});
+  memory_pool(context ctx, void *ptr, size_t size,
+    const property_list& propList = {});
 
   ~memory_pool();
 
@@ -437,6 +433,8 @@ class memory_pool {
 
   void increase_threshold_to(size_t newThreshold);
 
+  /* -- SYCL 2020 property interface members -- */
+
 }; // memory_pool
 
 }  // ext::oneapi::experimental
@@ -444,54 +442,53 @@ class memory_pool {
 
 [source, c++]
 ----
-template <typename Properties = empty_properties_t>
-memory_pool(context ctx, usm::alloc kind, Properties props = {});
+memory_pool(context ctx, usm::alloc kind, const property_list& propList = {});
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context `ctx`
 and all SYCL devices associated with it, with the allocation kind `kind` and
-applying any properties in `props`.
+applying any properties in `propList`.
 
 _Throws_: An exception with the `errc::invalid` error code if `kind` is
 `usm::alloc::device`, `usm::alloc::shared` or `usm::alloc::unknown`.
 
 [source, c++]
 ----
-template <typename Properties = empty_properties_t>
-memory_pool(context ctx, device dev, usm::alloc kind, Properties props = {});
+memory_pool(context ctx, device dev, usm::alloc kind,
+  const property_list& propList = {});
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context `ctx`
 and device `dev`, with the allocation kind `kind` and applying any properties in
-`props`.
+`propList`.
 
 _Throws_: An exception with the `errc::invalid` error code if `kind` is
 `usm::alloc::host` or `usm::alloc::unknown`.
 
 [source, c++]
 ----
-template <typename Properties = empty_properties_t>
-memory_pool(queue q, usm::alloc kind, Properties props = {});
+memory_pool(queue q, usm::alloc kind, const property_list& propList = {});
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context and
 device from the queue `q``, with the allocation kind `kind` and applying any
-properties in `props`. If `kind` is `usm::alloc::host` this is equivalent to
-calling `memory_pool(queue.get_context(), props)` otherwise this is equivalent
-to calling `memory_pool(queue.get_context(), queue.get_device(), props)`.
+properties in `propList`. If `kind` is `usm::alloc::host` this is equivalent to
+calling `memory_pool(queue.get_context(), propList)` otherwise this is
+equivalent to calling
+`memory_pool(queue.get_context(), queue.get_device(), propList)`.
 
 _Throws_: An exception with the `errc::invalid` error code if `kind` is
 `usm::alloc::unknown`.
 
 [source, c++]
 ----
-template <typename Properties = empty_properties_t>
-memory_pool(context ctx, void *ptr, size_t size, Properties props = {});
+memory_pool(context ctx, void *ptr, size_t size,
+  const property_list& propList = {});
 ----
 
 _Effects_: Constructs a memory pool which is associated with context `ctx`, 
 uses an existing USM memory allocation `ptr` of size (in bytes) `size`,
-and applying any properties in `props`. The memory pool will use the existing
+and applying any properties in `propList`. The memory pool will use the existing
 USM memory allocation instead of allocating from the SYCL runtime. The
 associated device and allocation kind of the memory pool is inferred from the
 `ptr`. If `ptr` is not a valid USM pointer of kind `usm::alloc::host`,
@@ -501,8 +498,8 @@ the size of memory allocated for `ptr` the result is undefined behavior. If
 is still alive the result is undefined behavior. The maximum size and initial
 threshold of the memory pool are set to `size`.
 
-_Throws_: An exception with the `errc::invalid` error code if `props` contains
-the `maximum_size` or `initial_threshold` properties.
+_Throws_: An exception with the `errc::invalid` error code if `propList`
+contains the `maximum_size` or `initial_threshold` properties.
 
 
 [source, c++]
@@ -596,25 +593,17 @@ struct initial_threshold {
   initial_threshold(size_t initialThreshold);
 };
 
-using initial_threshold_key = initial_threshold;
-
 struct maximum_size {
   maximum_size(size_t maxSize);
 };
-
-using maximum_size_key = maximum_size;
 
 struct read_only {
   read_only();
 };
 
-using read_only_key = read_only;
-
 struct zero_init {
   zero_init();
 };
-
-using zero_init_key = zero_init;
 
 }  // ext::oneapi::experimental
 ----
@@ -826,4 +815,13 @@ another queue?
 if it increases the size of the threshold, however, we may want to also allow
 setting a new lower threshold. This would work by not immediately freeing any
 memory but using this lower threshold at the next synchronization point.
+--
+
+. Switching to the compile-time properties extension.
++
+--
+*UNRESOLVED*: Currently this extension uses the SYCL 2020 properties mechanism
+due to limitations in the design of the new properties extension, once these are
+addressed, this extension should be updated to use the new properties extension
+instead.
 --
