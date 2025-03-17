@@ -3903,7 +3903,6 @@
 ?ext_oneapi_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?ext_oneapi_get_default_memory_pool@context@_V1@sycl@@QEBA?AVmemory_pool@experimental@oneapi@ext@23@AEBVdevice@23@AEBW4alloc@usm@23@@Z
 ?ext_oneapi_get_default_memory_pool@context@_V1@sycl@@QEBA?AVmemory_pool@experimental@oneapi@ext@23@XZ
-?khr_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?ext_oneapi_get_device_global_address@kernel_bundle_plain@detail@_V1@sycl@@AEAAPEAXVstring_view@234@AEBVdevice@34@@Z
 ?ext_oneapi_get_device_global_address@kernel_bundle_plain@detail@_V1@sycl@@QEAAPEAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEBVdevice@34@@Z
 ?ext_oneapi_get_device_global_size@kernel_bundle_plain@detail@_V1@sycl@@AEAA_KVstring_view@234@@Z
