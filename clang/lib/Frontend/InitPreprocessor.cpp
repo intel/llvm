@@ -1515,7 +1515,7 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // active or SYCL is active without CUDA compatibility enabled.
   bool EnableCUDADevicePath =
       LangOpts.CUDAIsDevice && !LangOpts.HIP &&
-      (!LangOpts.isSYCL() || LangOpts.SYCLCUDACompat)
+      (!LangOpts.isSYCL() || LangOpts.SYCLCUDACompat);
   if (EnableCUDADevicePath) {
     // The CUDA_ARCH value is set for the GPU target specified in the NVPTX
     // backend's target defines.
