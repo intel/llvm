@@ -91,7 +91,12 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 };
 
 namespace detail {
@@ -127,7 +132,12 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   backend ext_oneapi_get_backend_impl() const noexcept;
 
@@ -190,7 +200,12 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 };
 
 namespace detail {
@@ -242,6 +257,19 @@ public:
         ext_oneapi_get_raw_kernel_name(detail::string_view{name}).c_str()};
   }
 
+  bool ext_oneapi_has_device_global(const std::string &name) {
+    return ext_oneapi_has_device_global(detail::string_view{name});
+  }
+
+  void *ext_oneapi_get_device_global_address(const std::string &name,
+                                             const device &dev) {
+    return ext_oneapi_get_device_global_address(detail::string_view{name}, dev);
+  }
+
+  size_t ext_oneapi_get_device_global_size(const std::string &name) {
+    return ext_oneapi_get_device_global_size(detail::string_view{name});
+  }
+
 protected:
   // \returns a kernel object which represents the kernel identified by
   // kernel_id passed
@@ -271,6 +299,11 @@ private:
   bool ext_oneapi_has_kernel(detail::string_view name);
   kernel ext_oneapi_get_kernel(detail::string_view name);
   detail::string ext_oneapi_get_raw_kernel_name(detail::string_view name);
+
+  bool ext_oneapi_has_device_global(detail::string_view name);
+  void *ext_oneapi_get_device_global_address(detail::string_view name,
+                                             const device &dev);
+  size_t ext_oneapi_get_device_global_size(detail::string_view name);
 };
 
 } // namespace detail
@@ -501,6 +534,43 @@ public:
     return detail::kernel_bundle_plain::ext_oneapi_get_raw_kernel_name(name);
   }
 
+  /////////////////////////
+  // ext_oneapi_has_device_global
+  //  only true if kernel_bundle was created from source and has this device
+  //  global
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  bool ext_oneapi_has_device_global(const std::string &name) {
+    return detail::kernel_bundle_plain::ext_oneapi_has_device_global(name);
+  }
+
+  /////////////////////////
+  // ext_oneapi_get_device_global_address
+  //  kernel_bundle must be created from source, throws if bundle was not built
+  //  for this device, or device global is either not present or has
+  //  `device_image_scope` property.
+  //  Returns a USM pointer to the variable's initialized storage on the device.
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  void *ext_oneapi_get_device_global_address(const std::string &name,
+                                             const device &dev) {
+    return detail::kernel_bundle_plain::ext_oneapi_get_device_global_address(
+        name, dev);
+  }
+
+  /////////////////////////
+  // ext_oneapi_get_device_global_size
+  //  kernel_bundle must be created from source, throws if device global is not
+  //  present. Returns the variable's size in bytes.
+  /////////////////////////
+  template <bundle_state _State = State,
+            typename = std::enable_if_t<_State == bundle_state::executable>>
+  size_t ext_oneapi_get_device_global_size(const std::string &name) {
+    return detail::kernel_bundle_plain::ext_oneapi_get_device_global_size(name);
+  }
+
 private:
   kernel_bundle(detail::KernelBundleImplPtr Impl)
       : kernel_bundle_plain(std::move(Impl)) {}
@@ -510,7 +580,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend Backend, bundle_state StateB>
   friend auto get_native(const kernel_bundle<StateB> &Obj)
@@ -852,7 +926,7 @@ compile(const kernel_bundle<bundle_state::input> &InputBundle,
   detail::KernelBundleImplPtr Impl =
       detail::compile_impl(InputBundle, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::object>>(Impl);
+      kernel_bundle<sycl::bundle_state::object>>(std::move(Impl));
 }
 
 inline kernel_bundle<bundle_state::object>
@@ -887,7 +961,7 @@ link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
   detail::KernelBundleImplPtr Impl =
       detail::link_impl(ObjectBundles, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+      kernel_bundle<sycl::bundle_state::executable>>(std::move(Impl));
 }
 
 inline kernel_bundle<bundle_state::executable>
@@ -934,7 +1008,7 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   detail::KernelBundleImplPtr Impl =
       detail::build_impl(InputBundle, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
-      kernel_bundle<sycl::bundle_state::executable>>(Impl);
+      kernel_bundle<sycl::bundle_state::executable>>(std::move(Impl));
 }
 
 inline kernel_bundle<bundle_state::executable>
@@ -1204,7 +1278,7 @@ void handler::set_specialization_constant(
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
   detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-      KernelBundleImplPtr)
+      std::move(KernelBundleImplPtr))
       .set_specialization_constant<SpecName>(Value);
 }
 
@@ -1221,7 +1295,7 @@ handler::get_specialization_constant() const {
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
 
   return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-             KernelBundleImplPtr)
+             std::move(KernelBundleImplPtr))
       .get_specialization_constant<SpecName>();
 }
 
