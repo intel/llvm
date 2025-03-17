@@ -335,6 +335,9 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USE_NATIVE_ASSERT);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_device_command_buffer_update_capability_flags_t>(
