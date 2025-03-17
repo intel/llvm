@@ -75,7 +75,7 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
-static bool hasSYCLCudaCompatFlag(const ArgList &Args) {
+static bool isSYCLCudaCompatEnabled(const ArgList &Args) {
   return Args.hasFlag(options::OPT_fsycl_cuda_compat,
                       options::OPT_fno_sycl_cuda_compat, false);
 }
