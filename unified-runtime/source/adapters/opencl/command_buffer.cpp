@@ -443,8 +443,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
+    ur_queue_handle_t hQueue, ur_exp_command_buffer_handle_t hCommandBuffer,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
@@ -727,4 +727,50 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   }
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
+}
+
+UR_APIEXPORT
+ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    void *pData, ur_exp_command_buffer_handle_t,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
+  cl_ext::clCommandBarrierWithWaitListKHR_fn clCommandBarrierWithWaitListKHR =
+      nullptr;
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<decltype(clCommandBarrierWithWaitListKHR)>(
+          CLContext,
+          cl_ext::ExtFuncPtrCache->clCommandBarrierWithWaitListKHRCache,
+          cl_ext::CommandBarrierWithWaitListName,
+          &clCommandBarrierWithWaitListKHR));
+
+  const bool IsInOrder = hCommandBuffer->IsInOrder;
+  cl_sync_point_khr *RetSyncPoint = IsInOrder ? nullptr : pSyncPoint;
+  const cl_sync_point_khr *SyncPointWaitList =
+      IsInOrder ? nullptr : pSyncPointWaitList;
+  uint32_t WaitListSize = IsInOrder ? 0 : numSyncPointsInWaitList;
+  CL_RETURN_ON_FAILURE(clCommandBarrierWithWaitListKHR(
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr, WaitListSize,
+      SyncPointWaitList, nullptr, nullptr));
+
+  // Call user-defined function immediately
+  pfnNativeCommand(pData);
+
+  // Barrier on all commands after user defined commands.
+  CL_RETURN_ON_FAILURE(clCommandBarrierWithWaitListKHR(
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr, 0, nullptr,
+      RetSyncPoint, nullptr));
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+                                  ur_native_handle_t *phNativeCommandBuffer) {
+  *phNativeCommandBuffer =
+      reinterpret_cast<ur_native_handle_t>(hCommandBuffer->CLCommandBuffer);
+  return UR_RESULT_SUCCESS;
 }

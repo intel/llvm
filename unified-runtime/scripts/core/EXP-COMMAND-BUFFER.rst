@@ -40,36 +40,14 @@ Querying Command-Buffer Support
 --------------------------------------------------------------------------------
 
 Support for command-buffers can be queried for a given device/adapter by using
-the device info query with ${X}_DEVICE_INFO_EXTENSIONS. Adapters supporting this
-experimental feature will report the string "ur_exp_command_buffer" in the
-returned list of supported extensions.
-
-.. hint::
-    The macro ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP is defined for the string
-    returned from extension queries for this feature. Since the actual string
-    may be subject to change it is safer to use this macro when querying for
-    support for this experimental feature.
+the device info query with ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP. Adapters
+supporting this experimental feature will report ``true``.
 
 .. parsed-literal::
 
-    // Retrieve length of extension string
-    size_t returnedSize;
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-                    &returnedSize);
-
-    // Retrieve extension string
-    std::unique_ptr<char[]> returnedExtensions(new char[returnedSize]);
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_EXTENSIONS, returnedSize,
-                      returnedExtensions.get(), nullptr);
-
-    std::string_view ExtensionsString(returnedExtensions.get());
-    bool CmdBufferSupport =
-        ExtensionsString.find(${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP)
-            != std::string::npos;
-
-.. note::
-    The ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP device info query exists to
-    serve the same purpose as ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP.
+    ur_bool_t CmdBufferSupport = false;
+    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+                      sizeof(CmdBufferSupport), &CmdBufferSupport, nullptr);
 
 Command-Buffer Creation
 --------------------------------------------------------------------------------
@@ -119,6 +97,7 @@ Currently only the following commands are supported:
 * ${x}CommandBufferAppendMemBufferFillExp
 * ${x}CommandBufferAppendUSMPrefetchExp
 * ${x}CommandBufferAppendUSMAdviseExp
+* ${x}CommandBufferAppendNativeCommandExp
 
 It is planned to eventually support any command type from the Core API which can
 actually be appended to the equivalent adapter native constructs.
@@ -184,7 +163,7 @@ specific graph command-buffer execution is required this ordering must be
 enforced by the user to ensure there is only a single command-buffer execution
 in flight when using these command signal events.
 
-When a user calls ${x}CommandBufferEnqueueExp all the signal events returned
+When a user calls ${x}EnqueueCommandBufferExp all the signal events returned
 from the individual commands in the command-buffer are synchronously reset to
 a non-complete state prior to the asynchronous commands beginning.
 
@@ -209,6 +188,38 @@ command-buffer, before the code path returns to user code for the user to
 enqueue the second command-buffer. Resulting in the first command-buffer's
 wait node completing too early for the intended overall executing ordering.
 
+Native Commands
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+The command-buffer interface enables user interop with native backend APIs.
+Through ${x}CommandBufferAppendNativeCommandExp the user can immediately invoke
+some native API calls that add commands to the command-buffer in a way that the
+UR is aware of. In doing so, the UR adapter can respect the dependencies of the
+native commands with the other UR command-buffer commands.
+
+In order for UR to guarantee correct synchronization of commands enqueued
+within the native API through the function passed to
+${x}CommandBufferAppendNativeCommandExp, the ${x}_exp_command_buffer_handle_t
+arguments must only use the native command-buffer accessed through
+${x}CommandBufferGetNativeHandleExp. Use of a native command-buffer that is
+not a native command-buffer returned by ${x}CommandBufferGetNativeHandleExp
+results in undefined behavior.
+
+The ${x}_exp_command_buffer_handle_t ``hChildCommandBuffer`` parameter to
+${x}CommandBufferAppendNativeCommandExp is used by the CUDA & HIP adapters
+to implement this feature, but is ignored by Level-Zero and OpenCL. This
+represents a child graph node that will be added to the parent graph, with
+the child graph node expressing the sync-point dependencies and returned
+sync point. This child graph object will be packed into the ``void* pData``
+argument that will be given to the user in the ``pfnNativeCommand`` callback
+for adding the native nodes to the command-buffer.
+
+Level-Zero & OpenCL backends use barrier nodes to enforce the dependencies
+on the user added nodes, rather than using an append child graph API. As a
+result the native command-buffer object for ``hCommandBuffer`` should
+be packed into ``void* pData``, as the adapters will ignore the
+``hChildCommandBuffer`` parameter.
+
 Enqueueing Command-Buffers
 --------------------------------------------------------------------------------
 
@@ -221,8 +232,8 @@ enqueued or executed simultaneously, and submissions may be serialized.
 .. parsed-literal::
     ${x}_event_handle_t executionEvent;
 
-    ${x}CommandBufferEnqueueExp(hCommandBuffer, hQueue, 0, nullptr,
-                              &executionEvent);
+    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr,
+                                &executionEvent);
 
 
 Updating Command-Buffer Commands
@@ -385,7 +396,7 @@ ${x}CommandBufferUpdateSignalEventExp there must also have been a non-null
     ${x}CommandBufferFinalizeExp(hCommandBuffer);
 
     // Enqueue command-buffer
-    ${x}CommandBufferEnqueueExp(hCommandBuffer, hQueue, 0, nullptr, nullptr);
+    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr, nullptr);
 
     // Wait for command-buffer to finish
     ${x}QueueFinish(hQueue);
@@ -402,16 +413,13 @@ ${x}CommandBufferUpdateSignalEventExp there must also have been a non-null
 API
 --------------------------------------------------------------------------------
 
-Macros
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${X}_COMMAND_BUFFER_EXTENSION_STRING_EXP
-
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP
     * ${X}_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP
     * ${X}_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP
 * ${x}_device_command_buffer_update_capability_flags_t
     * UPDATE_KERNEL_ARGUMENTS
     * LOCAL_WORK_SIZE
@@ -431,14 +439,13 @@ Enums
     * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC
     * ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC
 * ${x}_command_t
-    * ${X}_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP
+    * ${X}_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP
 * ${x}_function_t
     * ${X}_FUNCTION_COMMAND_BUFFER_CREATE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_RETAIN_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_RELEASE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP
-    * ${X}_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP
@@ -451,6 +458,7 @@ Enums
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP
     * ${X}_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP
+    * ${X}_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP
 * ${x}_exp_command_buffer_info_t
     * ${X}_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT
     * ${X}_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR
@@ -486,11 +494,13 @@ Functions
 * ${x}CommandBufferAppendMemBufferFillExp
 * ${x}CommandBufferAppendUSMPrefetchExp
 * ${x}CommandBufferAppendUSMAdviseExp
-* ${x}CommandBufferEnqueueExp
+* ${x}CommandBufferAppendNativeCommandExp
 * ${x}CommandBufferUpdateKernelLaunchExp
 * ${x}CommandBufferUpdateSignalEventExp
 * ${x}CommandBufferUpdateWaitEventsExp
 * ${x}CommandBufferGetInfoExp
+* ${x}CommandBufferGetNativeHandleExp
+* ${x}EnqueueCommandBufferExp
 
 Changelog
 --------------------------------------------------------------------------------
@@ -516,6 +526,13 @@ Changelog
 | 1.7       | Remove command handle reference counting and querying |
 +-----------+-------------------------------------------------------+
 | 1.8       | Change Kernel command update API to take a list       |
++-----------+-------------------------------------------------------+
+| 1.9       | Rename enqueue API to urEnqueueCommandBufferExp       |
++-----------+-------------------------------------------------------+
+| 1.10      | Remove extension string macro, make device info enum  |
+|           | primary mechanism for reporting support.              |
++-----------+-------------------------------------------------------+
+| 1.11      | Support native commands.                              |
 +-----------+-------------------------------------------------------+
 
 Contributors

@@ -73,10 +73,11 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
             reset_intel_gpu: false
+            extra_lit_opts: -j 1
           - name: Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-            target_devices: level_zero:gpu;opencl:gpu
+            target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
             reset_intel_gpu: true
             extra_lit_opts: --param matrix-xmx8=True
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
@@ -105,13 +106,12 @@ jobs:
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            # The new Xe kernel driver used by BMG doesn't support resetting.
-            reset_intel_gpu: false
+            reset_intel_gpu: true
           - name: SPIR-V Backend / Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            reset_intel_gpu: false
+            reset_intel_gpu: true
             extra_lit_opts: --param spirv-backend=True
             e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
     uses: ./.github/workflows/sycl-linux-run-tests.yml
@@ -123,7 +123,7 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      ref: ${{ github.sha }}
+      repo_ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
@@ -180,7 +180,7 @@ jobs:
       env: '{"LIT_FILTER":"PerformanceTests/"}'
       extra_lit_opts: -a -j 1 --param enable-perf-tests=True
 
-      ref: ${{ github.sha }}
+      repo_ref: ${{ github.sha }}
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}

@@ -291,8 +291,6 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_memory_scope_capability_flags_t>(
       hDevice, UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_BFLOAT16);
-  std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
@@ -332,6 +330,8 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(
       hDevice, UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS);
   std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USE_NATIVE_ASSERT);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
@@ -340,6 +340,9 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(
+      hDevice, UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP);
   std::cout << prefix;
@@ -422,5 +425,16 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
       hDevice, UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP);
 }
 } // namespace urinfo

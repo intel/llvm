@@ -21,6 +21,7 @@
 #include "ur/ur.hpp"
 
 #include "command_list_manager.hpp"
+#include "lockable.hpp"
 
 namespace v2 {
 
@@ -32,14 +33,16 @@ private:
   ur_device_handle_t hDevice;
   ur_queue_flags_t flags;
 
-  ur_command_list_manager commandListManager;
+  lockable<ur_command_list_manager> commandListManager;
   std::vector<ur_event_handle_t> deferredEvents;
   std::vector<ur_kernel_handle_t> submittedKernels;
 
-  wait_list_view getWaitListView(const ur_event_handle_t *phWaitEvents,
+  wait_list_view getWaitListView(locked<ur_command_list_manager> &commandList,
+                                 const ur_event_handle_t *phWaitEvents,
                                  uint32_t numWaitEvents);
 
-  ze_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
+  ze_event_handle_t getSignalEvent(locked<ur_command_list_manager> &commandList,
+                                   ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
 
   void deferEventFree(ur_event_handle_t hEvent) override;
@@ -264,6 +267,11 @@ public:
   enqueueTimestampRecordingExp(bool blocking, uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t *phEvent) override;
+  ur_result_t
+  enqueueCommandBufferExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+                          uint32_t numEventsInWaitList,
+                          const ur_event_handle_t *phEventWaitList,
+                          ur_event_handle_t *phEvent) override;
   ur_result_t enqueueKernelLaunchCustomExp(
       ur_kernel_handle_t hKernel, uint32_t workDim,
       const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
@@ -271,10 +279,6 @@ public:
       const ur_exp_launch_property_t *launchPropList,
       uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
-  ur_result_t
-  enqueueCommandBuffer(ze_command_list_handle_t commandBufferCommandList,
-                       ur_event_handle_t *phEvent, uint32_t numEventsInWaitList,
-                       const ur_event_handle_t *phEventWaitList) override;
   ur_result_t
   enqueueNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
                           uint32_t, const ur_mem_handle_t *,

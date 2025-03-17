@@ -103,8 +103,8 @@ getSortedImages(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
             [](const RTDeviceBinaryImage *A, const RTDeviceBinaryImage *B) {
               // All entry names are unique among these images, so comparing the
               // first ones is enough.
-              return std::strcmp(A->getRawData().EntriesBegin->name,
-                                 B->getRawData().EntriesBegin->name) < 0;
+              return std::strcmp(A->getRawData().EntriesBegin->GetName(),
+                                 B->getRawData().EntriesBegin->GetName()) < 0;
             });
   return SortedImgs;
 }

@@ -2316,7 +2316,8 @@ void SetArgBasedOnType(
     const AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex) {
+    const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
+    size_t NextTrueIndex) {
   switch (Arg.MType) {
   case kernel_param_kind_t::kind_work_group_memory:
     break;
@@ -2355,7 +2356,7 @@ void SetArgBasedOnType(
     sampler *SamplerPtr = (sampler *)Arg.MPtr;
     ur_sampler_handle_t Sampler =
         (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
-            ->getOrCreateSampler(Context);
+            ->getOrCreateSampler(ContextImpl);
     Adapter->call<UrApiKind::urKernelSetArgSampler>(Kernel, NextTrueIndex,
                                                     nullptr, Sampler);
     break;
@@ -2414,7 +2415,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   auto setFunc = [&Adapter, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
     SetArgBasedOnType(Adapter, Kernel, DeviceImageImpl, getMemAllocationFunc,
-                      Queue->get_context(), Arg, NextTrueIndex);
+                      Queue->getContextImplPtr(), Arg, NextTrueIndex);
   };
 
   applyFuncOnFilteredArgs(EliminatedArgMask, Args, setFunc);
@@ -2600,11 +2601,11 @@ ur_result_t enqueueImpCommandBufferKernel(
   }
 
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
-  auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &Ctx,
+  auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &ContextImpl,
                   &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
                                          size_t NextTrueIndex) {
     sycl::detail::SetArgBasedOnType(Adapter, UrKernel, DeviceImageImpl,
-                                    getMemAllocationFunc, Ctx, Arg,
+                                    getMemAllocationFunc, ContextImpl, Arg,
                                     NextTrueIndex);
   };
   // Copy args for modification
@@ -2684,8 +2685,8 @@ void enqueueImpKernel(
     const RTDeviceBinaryImage *BinImage) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
-  auto ContextImpl = Queue->getContextImplPtr();
-  auto DeviceImpl = Queue->getDeviceImplPtr();
+  auto &ContextImpl = Queue->getContextImplPtr();
+  auto &DeviceImpl = Queue->getDeviceImplPtr();
   ur_kernel_handle_t Kernel = nullptr;
   std::mutex *KernelMutex = nullptr;
   ur_program_handle_t Program = nullptr;
@@ -2785,8 +2786,7 @@ void enqueueImpKernel(
   if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
     // exception explaining what was wrong
-    const device_impl &DeviceImpl = *(Queue->getDeviceImplPtr());
-    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, *DeviceImpl,
                                                         Kernel, NDRDesc);
   }
 }
@@ -2844,6 +2844,18 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   }
   return Error;
 }
+
+namespace {
+struct CommandBufferNativeCommandData {
+  sycl::interop_handle ih;
+  std::function<void(interop_handle)> func;
+};
+
+void CommandBufferInteropFreeFunc(void *InteropData) {
+  auto *Data = reinterpret_cast<CommandBufferNativeCommandData *>(InteropData);
+  return Data->func(Data->ih);
+}
+} // namespace
 
 ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   assert(MQueue && "Command buffer enqueue should have an associated queue");
@@ -3007,6 +3019,107 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
             &OutSyncPoint);
         Result != UR_RESULT_SUCCESS)
       return Result;
+
+    MEvent->setSyncPoint(OutSyncPoint);
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::EnqueueNativeCommand: {
+    // Queue is created by graph_impl before creating command to submit to
+    // scheduler.
+    const AdapterPtr &Adapter = MQueue->getAdapter();
+    auto ContextImpl = MQueue->getContextImplPtr();
+    auto DeviceImpl = MQueue->getDeviceImplPtr();
+
+    // The CUDA & HIP backends don't have the equivalent of barrier
+    // commands that can be appended to the native UR command-buffer
+    // to enforce command-group predecessor and successor dependencies.
+    // Instead we create a new command-buffer to give to the user
+    // in the ext_codeplay_get_native_graph() call, which is then
+    // added to the main command-buffer in the UR cuda/hip adapter
+    // using cuGraphAddChildGraphNode/hipGraphAddChildGraphNode.
+    //
+    // As both the SYCL-RT and UR adapter need to have a handle
+    // to this child command-buffer, the SYCL-RT creates it and
+    // then passes the handle via a parameter to
+    // urCommandBufferAppendNativeCommandExp.
+    ur_bool_t DeviceHasSubgraphSupport = false;
+    Adapter->call<UrApiKind::urDeviceGetInfo>(
+        DeviceImpl->getHandleRef(),
+        UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP, sizeof(ur_bool_t),
+        &DeviceHasSubgraphSupport, nullptr);
+
+    ur_exp_command_buffer_handle_t ChildCommandBuffer = nullptr;
+    if (DeviceHasSubgraphSupport) {
+      ur_exp_command_buffer_desc_t Desc{
+          UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC /*stype*/,
+          nullptr /*pnext*/, false /* updatable */, false /* in-order */,
+          false /* profilable*/
+      };
+      Adapter->call<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
+          ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
+          &ChildCommandBuffer);
+    }
+
+    CGHostTask *HostTask = (CGHostTask *)MCommandGroup.get();
+
+    // Extract the Mem Objects for all Requirements, to ensure they are
+    // available if a user asks for them inside the interop task scope
+    std::vector<interop_handle::ReqToMem> ReqToMem;
+    const std::vector<Requirement *> &HandlerReq = HostTask->getRequirements();
+    auto ReqToMemConv = [&ReqToMem, ContextImpl](Requirement *Req) {
+      const std::vector<AllocaCommandBase *> &AllocaCmds =
+          Req->MSYCLMemObj->MRecord->MAllocaCommands;
+
+      for (AllocaCommandBase *AllocaCmd : AllocaCmds)
+        if (ContextImpl == getContext(AllocaCmd->getQueue())) {
+          auto MemArg =
+              reinterpret_cast<ur_mem_handle_t>(AllocaCmd->getMemAllocation());
+          ReqToMem.emplace_back(std::make_pair(Req, MemArg));
+          return;
+        }
+
+      assert(false && "Can't get memory object due to no allocation available");
+
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::runtime),
+          "Can't get memory object due to no allocation available " +
+              codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
+    };
+    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+
+    ur_exp_command_buffer_handle_t InteropCommandBuffer =
+        ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer;
+    interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl,
+                      InteropCommandBuffer};
+    CommandBufferNativeCommandData CustomOpData{
+        IH, HostTask->MHostTask->MInteropTask};
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    // CMPLRLLVM-66082
+    // The native command-buffer should be a member of the sycl::interop_handle
+    // class, but it is in an ABI breaking change to add it. So member lives in
+    // the queue as a intermediate workaround.
+    MQueue->setInteropGraph(InteropCommandBuffer);
+#endif
+
+    Adapter->call<UrApiKind::urCommandBufferAppendNativeCommandExp>(
+        MCommandBuffer, CommandBufferInteropFreeFunc, &CustomOpData,
+        ChildCommandBuffer, MSyncPointDeps.size(),
+        MSyncPointDeps.empty() ? nullptr : MSyncPointDeps.data(),
+        &OutSyncPoint);
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    // See CMPLRLLVM-66082
+    MQueue->setInteropGraph(nullptr);
+#endif
+
+    if (ChildCommandBuffer) {
+      ur_result_t Res = Adapter->call_nocheck<
+          sycl::detail::UrApiKind::urCommandBufferReleaseExp>(
+          ChildCommandBuffer);
+      (void)Res;
+      assert(Res == UR_RESULT_SUCCESS);
+    }
 
     MEvent->setSyncPoint(OutSyncPoint);
     return UR_RESULT_SUCCESS;
@@ -3567,8 +3680,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     if (auto Result =
             MQueue->getAdapter()
-                ->call_nocheck<UrApiKind::urCommandBufferEnqueueExp>(
-                    CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
+                ->call_nocheck<UrApiKind::urEnqueueCommandBufferExp>(
+                    MQueue->getHandleRef(), CmdBufferCG->MCommandBuffer,
                     RawEvents.size(),
                     RawEvents.empty() ? nullptr : &RawEvents[0], Event);
         Result != UR_RESULT_SUCCESS)
