@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/memory_pool_impl.hpp>
+#include <detail/queue_impl.hpp>
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 
 namespace sycl {
@@ -84,6 +85,27 @@ __SYCL_EXPORT memory_pool::memory_pool(const sycl::context &ctx,
         "Only device allocated memory pools are supported!");
 
   impl = std::make_shared<detail::memory_pool_impl>(ctx, dev, kind, props);
+}
+
+// NOT SUPPORTED: Host side pools unsupported.
+__SYCL_EXPORT memory_pool::memory_pool(const sycl::context &,
+                                       const property_list &) {
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Host allocated pools are unsupported!");
+}
+
+__SYCL_EXPORT
+memory_pool::memory_pool(const sycl::queue &q, const sycl::usm::alloc kind,
+                         const property_list &props)
+    : memory_pool(q.get_context(), q.get_device(), kind, props) {}
+
+// NOT SUPPORTED: Creating a pool from an existing allocation is unsupported.
+__SYCL_EXPORT memory_pool::memory_pool(const sycl::context &, const void *,
+                                       size_t, const property_list &) {
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Creating a pool from an existing allocation is unsupported!");
 }
 
 } // namespace ext::oneapi::experimental
