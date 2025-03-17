@@ -319,7 +319,7 @@ kernel make_kernel(const context &TargetContext,
                    backend Backend) {
   const auto &Adapter = getAdapter(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
-  const auto KernelBundleImpl = getSyclObjImpl(KernelBundle);
+  const auto &KernelBundleImpl = getSyclObjImpl(KernelBundle);
 
   // For Level-Zero expect exactly one device image in the bundle. This is
   // natural for interop kernel to get created out of a single native

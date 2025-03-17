@@ -843,7 +843,7 @@ protected:
         Handler.depends_on(Deps.LastBarrier);
 
       EventRet = Handler.finalize();
-      EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
+      const EventImplPtr &EventRetImpl = getSyclObjImpl(EventRet);
       if (Type == CGType::CodeplayHostTask)
         Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
