@@ -417,8 +417,6 @@ etors:
             available for this device.
     - name: KERNEL_SET_SPECIALIZATION_CONSTANTS
       desc: "[$x_bool_t] support the $xKernelSetSpecializationConstants entry point"
-    - name: BFLOAT16_CONVERSIONS_INTEL
-      desc: "[$x_bool_t] support for native bfloat16 conversions"
     - name: MEMORY_BUS_WIDTH
       desc: "[uint32_t][optional-query] return the width in bits of the memory bus interface of the device."
     - name: MAX_WORK_GROUPS_3D
@@ -451,6 +449,8 @@ etors:
       desc: "[$x_bool_t] support the $xProgramSetSpecializationConstants entry point"
     - name: USE_NATIVE_ASSERT
       desc: "[$x_bool_t] return true if the device has a native assert implementation."
+    - name: BFLOAT16_CONVERSIONS_INTEL
+      desc: "[$x_bool_t] support for native bfloat16 conversions"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
