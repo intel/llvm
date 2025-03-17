@@ -67,7 +67,7 @@ int main() {
   sycl::context Ctx = Q.get_context();
 
   if (!Q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl)) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
+    std::cout << "Apparently this device does not support `sycl` source "
                  "kernel bundle extension: "
               << Q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
