@@ -15,6 +15,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <stack>
 #include <sycl/detail/common.hpp>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
@@ -31,64 +32,46 @@ namespace experimental {
 namespace detail {
 
 namespace {
-/// Visits a node on the graph and it's successors recursively in a depth-first
-/// approach.
-/// @param[in] Node The current node being visited.
-/// @param[in,out] VisitedNodes A set of unique nodes which have already been
-/// visited.
-/// @param[in] NodeStack Stack of nodes which are currently being visited on the
-/// current path through the graph.
-/// @param[in] NodeFunc The function object to be run on each node. A return
-/// value of true indicates the search should be ended immediately and the
-/// function will return.
-/// @return True if the search should end immediately, false if not.
-bool visitNodeDepthFirst(
-    std::shared_ptr<node_impl> Node,
-    std::set<std::shared_ptr<node_impl>> &VisitedNodes,
-    std::deque<std::shared_ptr<node_impl>> &NodeStack,
-    std::function<bool(std::shared_ptr<node_impl> &,
-                       std::deque<std::shared_ptr<node_impl>> &)>
-        NodeFunc) {
-  auto EarlyReturn = NodeFunc(Node, NodeStack);
-  if (EarlyReturn) {
-    return true;
-  }
-  NodeStack.push_back(Node);
-  Node->MVisited = true;
-  VisitedNodes.emplace(Node);
-  for (auto &Successor : Node->MSuccessors) {
-    if (visitNodeDepthFirst(Successor.lock(), VisitedNodes, NodeStack,
-                            NodeFunc)) {
-      return true;
-    }
-  }
-  NodeStack.pop_back();
-  return false;
-}
-
-/// Recursively add nodes to execution stack.
-/// @param NodeImpl Node to schedule.
-/// @param Schedule Execution ordering to add node to.
-/// @param PartitionBounded If set to true, the topological sort is stopped at
-/// partition borders. Hence, nodes belonging to a partition different from the
-/// NodeImpl partition are not processed.
-void sortTopological(std::shared_ptr<node_impl> NodeImpl,
+/// Topologically sorts the graph in order to schedule nodes for execution.
+/// This is an iterative algorithm based on Kahn's algorithm.
+/// For performance reasons, this function uses the MTotalVisitedEdges
+/// member variable of the node_impl class. It's the caller responsibility to
+/// make sure that MTotalVisitedEdges is set to 0 for all nodes in the graph
+/// before calling this function.
+/// @param[in] Roots List of root nodes.
+/// @param[out] Schedule The scheduling order for nodes in this graph.
+/// @param[in] PartitionBounded If set to true, the topological sort is stopped
+/// at partition borders. Hence, nodes belonging to a partition different from
+/// the NodeImpl partition are not processed.
+void sortTopological(std::set<std::weak_ptr<node_impl>,
+                              std::owner_less<std::weak_ptr<node_impl>>> &Roots,
                      std::list<std::shared_ptr<node_impl>> &Schedule,
-                     bool PartitionBounded = false) {
-  for (auto &Succ : NodeImpl->MSuccessors) {
-    auto NextNode = Succ.lock();
-    if (PartitionBounded &&
-        (NextNode->MPartitionNum != NodeImpl->MPartitionNum)) {
-      continue;
-    }
-    // Check if we've already scheduled this node
-    if (std::find(Schedule.begin(), Schedule.end(), NextNode) ==
-        Schedule.end()) {
-      sortTopological(NextNode, Schedule, PartitionBounded);
-    }
+                     bool PartitionBounded) {
+  std::stack<std::weak_ptr<node_impl>> Stack;
+
+  for (auto &Node : Roots) {
+    Stack.push(Node);
   }
 
-  Schedule.push_front(NodeImpl);
+  while (!Stack.empty()) {
+    auto Node = Stack.top().lock();
+    Stack.pop();
+    Schedule.push_back(Node);
+
+    for (size_t i = 0; i < Node->MSuccessors.size(); ++i) {
+      auto Succ = Node->MSuccessors[i].lock();
+
+      if (PartitionBounded && (Succ->MPartitionNum != Node->MPartitionNum)) {
+        continue;
+      }
+
+      auto &TotalVisitedEdges = Succ->MTotalVisitedEdges;
+      ++TotalVisitedEdges;
+      if (TotalVisitedEdges == Succ->MPredecessors.size()) {
+        Stack.push(Succ);
+      }
+    }
+  }
 }
 
 /// Propagates the partition number `PartitionNum` to predecessors.
@@ -180,9 +163,9 @@ std::vector<node> createNodesFromImpls(
 
 void partition::schedule() {
   if (MSchedule.empty()) {
-    for (auto &Node : MRoots) {
-      sortTopological(Node.lock(), MSchedule, true);
-    }
+    // There is no need to reset MTotalVisitedEdges before calling
+    // sortTopological because this function is only called once per partition.
+    sortTopological(MRoots, MSchedule, true);
   }
 }
 
@@ -311,6 +294,7 @@ static void checkGraphPropertiesAndThrow(const property_list &Properties) {
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
     switch (PropertyKind) {
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.def>
+
     default:
       return false;
     }
@@ -627,44 +611,17 @@ bool graph_impl::clearQueues() {
   return AnyQueuesCleared;
 }
 
-void graph_impl::searchDepthFirst(
-    std::function<bool(std::shared_ptr<node_impl> &,
-                       std::deque<std::shared_ptr<node_impl>> &)>
-        NodeFunc) {
-  // Track nodes visited during the search which can be used by NodeFunc in
-  // depth first search queries. Currently unusued but is an
-  // integral part of depth first searches.
-  std::set<std::shared_ptr<node_impl>> VisitedNodes;
-
-  for (auto &Root : MRoots) {
-    std::deque<std::shared_ptr<node_impl>> NodeStack;
-    if (visitNodeDepthFirst(Root.lock(), VisitedNodes, NodeStack, NodeFunc)) {
-      break;
-    }
-  }
-
-  // Reset the visited status of all nodes encountered in the search.
-  for (auto &Node : VisitedNodes) {
-    Node->MVisited = false;
-  }
-}
-
 bool graph_impl::checkForCycles() {
-  // Using a depth-first search and checking if we vist a node more than once in
-  // the current path to identify if there are cycles.
-  bool CycleFound = false;
-  auto CheckFunc = [&](std::shared_ptr<node_impl> &Node,
-                       std::deque<std::shared_ptr<node_impl>> &NodeStack) {
-    // If the current node has previously been found in the current path through
-    // the graph then we have a cycle and we end the search early.
-    if (std::find(NodeStack.begin(), NodeStack.end(), Node) !=
-        NodeStack.end()) {
-      CycleFound = true;
-      return true;
-    }
-    return false;
-  };
-  searchDepthFirst(CheckFunc);
+  std::list<std::shared_ptr<node_impl>> MSchedule;
+  sortTopological(MRoots, MSchedule, false);
+
+  bool CycleFound = MSchedule.size() != MNodeStorage.size();
+
+  // Reset the MTotalVisitedEdges variable to prepare for the next cycle check.
+  for (size_t i = 0; i < MNodeStorage.size(); ++i) {
+    MNodeStorage[i]->MTotalVisitedEdges = 0;
+  }
+
   return CycleFound;
 }
 
@@ -701,6 +658,11 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   // We need to add the edges first before checking for cycles
   Src->registerSuccessor(Dest);
 
+  // Dest is no longer a Root node, so we need to remove it from MRoots.
+  if (Dest->MPredecessors.size() == 1) {
+    MRoots.erase(Dest);
+  }
+
   // We can skip cycle checks if either Dest has no successors (cycle not
   // possible) or cycle checks have been disabled with the no_cycle_check
   // property;
@@ -708,9 +670,11 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
     bool CycleFound = checkForCycles();
 
     if (CycleFound) {
-      // Remove the added successor and predecessor
+      // Remove the added successor and predecessor.
       Src->MSuccessors.pop_back();
       Dest->MPredecessors.pop_back();
+      // Add the Dest back into MRoots.
+      MRoots.insert(Dest);
 
       throw sycl::exception(make_error_code(sycl::errc::invalid),
                             "Command graphs cannot contain cycles.");
