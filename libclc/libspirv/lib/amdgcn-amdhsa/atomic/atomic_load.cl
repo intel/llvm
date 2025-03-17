@@ -12,7 +12,7 @@
 
 #define AMDGPU_ATOMIC_LOAD_IMPL(TYPE, AS)                                       \
   _CLC_OVERLOAD _CLC_DEF TYPE                                                   \
-      __spirv_AtomicLoad(const AS TYPE *p, int scope, int semantics) {          \
+      __spirv_AtomicLoad(AS TYPE *p, int scope, int semantics) {                \
     int atomic_scope = 0, memory_order = 0;                                     \
     GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)    \
     return __hip_atomic_load(p, memory_order, atomic_scope);                    \

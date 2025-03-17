@@ -41,7 +41,7 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
     ADDR_SPACE_NV)                                                             \
   __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE                  \
   __spirv_AtomicLoad(                                                          \
-      const ADDR_SPACE TYPE *pointer, int scope,                               \
+      ADDR_SPACE TYPE *pointer, int scope,                                     \
       int semantics) {                                                         \
     /* Semantics mask may include memory order, storage class and other info   \
 Memory order is stored in the lowest 5 bits */                                 \

@@ -16,7 +16,7 @@ TYPE __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_##MEM_ORDER(AS const TYPE
   FDECL(TYPE, PREFIX, AS, BYTE_SIZE, acquire)                              \
   FDECL(TYPE, PREFIX, AS, BYTE_SIZE, seq_cst)                              \
   _CLC_OVERLOAD _CLC_DECL TYPE                                             \
-      __spirv_AtomicLoad(AS const TYPE *p, int scope, int semantics) {     \
+      __spirv_AtomicLoad(AS TYPE *p, int scope, int semantics) {           \
     if (semantics & Acquire) {                                             \
       return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_acquire(p); \
     }                                                                      \

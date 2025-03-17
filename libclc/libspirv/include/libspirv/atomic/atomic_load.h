@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DECL(TYPE, AS)                                                         \
-  _CLC_OVERLOAD _CLC_DECL TYPE __spirv_AtomicLoad(AS const TYPE *, int, int);
+  _CLC_OVERLOAD _CLC_DECL TYPE __spirv_AtomicLoad(AS TYPE *, int, int);
 
 #define DECL_AS(TYPE)                                                          \
   DECL(TYPE, global)                                                           \
