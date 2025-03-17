@@ -8,17 +8,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "common.hpp"
+#include "adapters/level_zero/common.hpp"
+
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/context.hpp"
-#include "v2/memory.hpp"
+#include "../v2/context.hpp"
+#include "../v2/memory.hpp"
 #else
-#include "context.hpp"
-#include "memory.hpp"
+#include "../context.hpp"
+#include "../memory.hpp"
 #endif
 
-#include "helpers/image_helpers.hpp"
-#include "sampler.hpp"
+#include "image_helpers.hpp"
+#include "../sampler.hpp"
 
 #include <loader/ze_loader.h>
 #include <ze_api.h>

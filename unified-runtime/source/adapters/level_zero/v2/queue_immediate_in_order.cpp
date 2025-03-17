@@ -777,12 +777,13 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
   ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
   ur2zeImageDesc(pDstImageFormat, pDstImageDesc, zeDstImageDesc);
 
-  // ze_tracer shows a lot of events (eg. ~60) created here
-  auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_MEM_IMAGE_COPY);
-  auto waitListView = getWaitListView(phEventWaitList, numEventsInWaitList);
+  auto commandListMgr = commandListManager.lock();
 
-  ze_command_list_handle_t ZeCommandList =
-      commandListManager.getZeCommandList();
+  // ze_tracer shows a lot of events (eg. ~60) created here
+  auto zeSignalEvent =
+      getSignalEvent(commandListMgr, phEvent, UR_COMMAND_MEM_IMAGE_COPY);
+  auto waitListView =
+      getWaitListView(commandListMgr, phEventWaitList, numEventsInWaitList);
 
   if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
     uint32_t SrcRowPitch =
@@ -803,9 +804,9 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
           pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
 
       ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
-                 (ZeCommandList, urDstImg->getZeImage(), SrcPtr, &DstRegion,
-                  SrcRowPitch, SrcSlicePitch, zeSignalEvent, waitListView.num,
-                  waitListView.handles));
+                 (commandListMgr->getZeCommandList(), urDstImg->getZeImage(),
+                  SrcPtr, &DstRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
+                  waitListView.num, waitListView.handles));
     } else {
       // Copy to pitched USM memory
       uint32_t DstRowPitch = pDstImageDesc->rowPitch;
@@ -823,9 +824,10 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
-                  waitListView.num, waitListView.handles));
+                 (commandListMgr->getZeCommandList(), pDst, &ZeDstRegion,
+                  DstRowPitch, DstSlicePitch, pSrc, &ZeSrcRegion, SrcRowPitch,
+                  SrcSlicePitch, zeSignalEvent, waitListView.num,
+                  waitListView.handles));
     }
   } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
     uint32_t DstRowPitch =
@@ -844,8 +846,9 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
           pCopyRegion->dstOffset.y * DstRowPitch +
           pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
       ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
-                 (ZeCommandList, DstPtr, urSrcImg->getZeImage(), &SrcRegion,
-                  DstRowPitch, DstSlicePitch, zeSignalEvent, waitListView.num,
+                 (commandListMgr->getZeCommandList(), DstPtr,
+                  urSrcImg->getZeImage(), &SrcRegion, DstRowPitch,
+                  DstSlicePitch, zeSignalEvent, waitListView.num,
                   waitListView.handles));
     } else {
       // Copy from pitched USM memory to host
@@ -864,9 +867,10 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
                                       (uint32_t)pCopyRegion->copyExtent.depth};
       uint32_t SrcSlicePitch = 0;
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
-                  waitListView.num, waitListView.handles));
+                 (commandListMgr->getZeCommandList(), pDst, &ZeDstRegion,
+                  DstRowPitch, DstSlicePitch, pSrc, &ZeSrcRegion, SrcRowPitch,
+                  SrcSlicePitch, zeSignalEvent, waitListView.num,
+                  waitListView.handles));
     }
   } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) {
     ze_image_region_t DstRegion;
@@ -880,9 +884,9 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
     auto *urImgDst = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
 
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-               (ZeCommandList, urImgDst->getZeImage(), urImgSrc->getZeImage(),
-                &DstRegion, &SrcRegion, zeSignalEvent, waitListView.num,
-                waitListView.handles));
+               (commandListMgr->getZeCommandList(), urImgDst->getZeImage(),
+                urImgSrc->getZeImage(), &DstRegion, &SrcRegion, zeSignalEvent,
+                waitListView.num, waitListView.handles));
   } else {
     logger::error("ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp: "
                   "unexpected imageCopyFlags");

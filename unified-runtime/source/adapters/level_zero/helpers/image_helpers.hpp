@@ -13,6 +13,8 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
+#include "../v2/common.hpp"
+
 typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
     ze_image_handle_t hImage, uint64_t *pDeviceOffset);
 
@@ -24,24 +26,24 @@ struct ur_bindless_mem_handle_t {
 
   ur_bindless_mem_handle_t(ze_image_handle_t zeImage,
                            const ZeStruct<ze_image_desc_t> &zeImageDesc)
-      : zeImage(zeImage), zeImageDesc(zeImageDesc){};
+      : zeImage(zeImage), zeImageDesc(zeImageDesc) {};
 
-  ze_image_handle_t getZeImage() const { return zeImage; }
+  ze_image_handle_t getZeImage() const { return zeImage.get(); }
   ze_image_desc_t &getZeImageDesc() { return zeImageDesc; }
 
 private:
-  ::ze_image_handle_t zeImage;
+  v2::raii::ze_image_handle_t zeImage;
   ZeStruct<ze_image_desc_t> zeImageDesc;
 };
 
 /// Construct UR bindless image struct from ZE image handle and desc.
-template <typename T>
-ur_result_t createUrImgFromZeImage(ze_image_handle_t ZeImage,
+
+inline ur_result_t createUrImgFromZeImage(ze_image_handle_t ZeImage,
                                    const ZeStruct<ze_image_desc_t> &ZeImageDesc,
-                                   T *UrMem) {
+                                   ur_exp_image_mem_native_handle_t * pImg) {
   try {
-    auto urImg = new ur_bindless_mem_handle_t(ZeImage, ZeImageDesc);
-    *UrMem = reinterpret_cast<T>(urImg);
+    ur_bindless_mem_handle_t * UrImg = new ur_bindless_mem_handle_t(ZeImage, ZeImageDesc);
+    *pImg = reinterpret_cast<ur_exp_image_mem_native_handle_t>(UrImg);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {

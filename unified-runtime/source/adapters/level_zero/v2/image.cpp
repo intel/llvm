@@ -14,9 +14,9 @@
 #include "logger/ur_logger.hpp"
 #include "queue_api.hpp"
 #include "queue_handle.hpp"
-#include "ur_interface_loader.hpp"
-#include "v2/context.hpp"
-#include "v2/memory.hpp"
+#include "../ur_interface_loader.hpp"
+#include "../v2/context.hpp"
+#include "../v2/memory.hpp"
 
 namespace ur::level_zero {
 
@@ -28,24 +28,6 @@ urBindlessImagesImageFreeExp([[maybe_unused]] ur_context_handle_t hContext,
       reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
   ZE2UR_CALL(zeImageDestroy, (urImg->getZeImage()));
   return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urBindlessImagesImageCopyExp(
-    ur_queue_handle_t hQueue, const void *pSrc, void *pDst,
-    const ur_image_desc_t *pSrcImageDesc, const ur_image_desc_t *pDstImageDesc,
-    const ur_image_format_t *pSrcImageFormat,
-    const ur_image_format_t *pDstImageFormat,
-    ur_exp_image_copy_region_t *pCopyRegion,
-    ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-
-  ur_result_t res = hQueue->get().bindlessImagesImageCopyExp(
-      pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
-      pDstImageFormat, pCopyRegion, imageCopyFlags, numEventsInWaitList,
-      phEventWaitList, phEvent);
-  return res;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urBindlessImagesImportExternalMemoryExp(
@@ -125,25 +107,4 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
-    bool hasWaitValue, uint64_t waitValue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-  return hQueue->get().bindlessImagesWaitExternalSemaphoreExp(
-      hSemaphore, hasWaitValue, waitValue, numEventsInWaitList, phEventWaitList,
-      phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
-    bool hasSignalValue, uint64_t signalValue, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) try {
-  return hQueue->get().bindlessImagesSignalExternalSemaphoreExp(
-      hSemaphore, hasSignalValue, signalValue, numEventsInWaitList,
-      phEventWaitList, phEvent);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
 } // namespace ur::level_zero
