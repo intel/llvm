@@ -158,6 +158,8 @@ public:
     }
   }
 
+  const char *data() const { return reinterpret_cast<const char *>(&Val); }
+
 private:
   template <typename T> T &getValueRef();
   void copy(const PropertyValue &P);
@@ -218,6 +220,13 @@ public:
 
   static constexpr char PROPERTY_REQD_WORK_GROUP_SIZE[] =
       "reqd_work_group_size_uint64_t";
+
+  // SYCLBIN specific property sets.
+  static constexpr char SYCLBIN_GLOBAL_METADATA[] = "SYCLBIN/global metadata";
+  static constexpr char SYCLBIN_IR_MODULE_METADATA[] =
+      "SYCLBIN/ir module metadata";
+  static constexpr char SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA[] =
+      "SYCLBIN/native device code image metadata";
 
   /// Function for bulk addition of an entire property set in the given
   /// \p Category .
