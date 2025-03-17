@@ -13,7 +13,6 @@
 
 #include "common.hpp"
 #include "kernel.hpp"
-#include "memory.hpp"
 #include "program.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
