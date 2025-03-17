@@ -110,7 +110,7 @@ public:
     CudaAll = CudaDevice | CudaHost,
     /// SYCL specific diagnostic.
     Sycl = 1 << 4,
-    SyclCompat = Sycl | CudaAll,
+    SyclCudaCompat = Sycl | CudaAll,
     /// ESIMD specific diagnostic.
     Esimd = 1 << 5,
     /// A flag representing 'all'.  This can be used to avoid the check

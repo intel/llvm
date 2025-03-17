@@ -75,6 +75,11 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+static bool hasSYCLCudaCompatFlag(const ArgList &Args) {
+  return Args.hasFlag(options::OPT_fsycl_cuda_compat,
+                      options::OPT_fno_sycl_cuda_compat, false);
+}
+
 static void CheckPreprocessingOptions(const Driver &D, const ArgList &Args) {
   if (Arg *A = Args.getLastArg(clang::driver::options::OPT_C, options::OPT_CC,
                                options::OPT_fminimize_whitespace,
@@ -1176,9 +1181,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   if (JA.isOffloading(Action::OFK_SYCL)) {
     getToolChain().addSYCLIncludeArgs(Args, CmdArgs);
-    if (Inputs[0].getType() == types::TY_CUDA ||
-        Args.hasFlag(options::OPT_fsycl_cuda_compat,
-                     options::OPT_fno_sycl_cuda_compat, false)) {
+    if (Inputs[0].getType() == types::TY_CUDA || hasSYCLCudaCompatFlag(Args)) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
     }
@@ -5466,8 +5469,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsFPGASYCLOffloadDevice =
       IsSYCLDevice && Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
   const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
-  const bool IsSYCLCUDACompat = Args.hasFlag(
-      options::OPT_fsycl_cuda_compat, options::OPT_fno_sycl_cuda_compat, false);
+  const bool IsSYCLCUDACompat = hasSYCLCudaCompatFlag(Args);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -5919,7 +5921,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         // determines how we load and launch GPU kernels.
         auto *CTC = static_cast<const toolchains::CudaToolChain *>(TI->second);
         assert(CTC && "Expected valid CUDA Toolchain.");
-        if (CTC && CTC->CudaInstallation.version() != CudaVersion::UNKNOWN)
+        if (CTC->CudaInstallation.version() != CudaVersion::UNKNOWN)
           CmdArgs.push_back(Args.MakeArgString(
               Twine("-target-sdk-version=") +
               CudaVersionToString(CTC->CudaInstallation.version())));

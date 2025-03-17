@@ -20451,7 +20451,7 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
     return Sema::DeviceDiagnosticReason::Esimd;
   if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
     return getLangOpts().SYCLCUDACompat
-               ? Sema::DeviceDiagnosticReason::SyclCompat
+               ? Sema::DeviceDiagnosticReason::SyclCudaCompat
                : Sema::DeviceDiagnosticReason::Sycl;
   // FIXME: Refine the logic for CUDA and OpenMP.
   // In SYCL-CUDA compat mode, force All just like in normal SYCL
