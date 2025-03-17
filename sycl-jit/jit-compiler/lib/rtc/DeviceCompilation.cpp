@@ -751,7 +751,6 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   Arg *UnsupportedArg =
       AL.getLastArg(OPT_Action_Group,     // Actions like -c or -S
                     OPT_Link_Group,       // Linker flags
-                    OPT_DebugInfo_Group,  // Debugging
                     OPT_o,                // Output file
                     OPT_fsycl_targets_EQ, // AoT compilation
                     OPT_fsycl_link_EQ,    // SYCL linker
