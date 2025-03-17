@@ -8739,7 +8739,6 @@ def fsycl_std_layout_kernel_params: Flag<["-"], "fsycl-std-layout-kernel-params"
   HelpText<"Enable standard layout requirement for SYCL kernel parameters.">,
   MarshallingInfoFlag<LangOpts<"SYCLStdLayoutKernelParams">>;
 def fsycl_allow_func_ptr_EQ : Joined<["-"], "fsycl-allow-func-ptr=">,
-  Visibility<[ClangOption, CLOption, CC1Option]>,
   Values<"off,labeled,defined">,
   NormalizedValuesScope<"LangOptions::SYCLFuncPtrPreference">,
   NormalizedValues<["Off", "LabeledOnly", "DefinedOnly"]>,
