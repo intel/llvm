@@ -1,22 +1,12 @@
 // REQUIRES: cpu,windows
 //
 // RUN: %{build} -o %t.out
-//
-// MSVC implementation of assert does not call an unreachable built-in, so the
-// program doesn't terminate when fallback is used.
-//
-// FIXME: SPIR-V Unreachable should be called from the fallback
-// explicitly. Since the test is going to crash, we'll have to follow a similar
-// approach as on Linux - call the test in a subprocess.
-//
-// RUN: env SYCL_UR_TRACE=2 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-FALLBACK
-// RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-MESSAGE
+// RUN: not env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out 2>%t_stderr.txt
+// RUN: FileCheck %s --check-prefix=CHECK-MESSAGE --input-file %t_stderr.txt
 //
 // CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: (null): global id:
 // [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 &&
 // "Invalid value"` failed.
-//
-// CHECK-FALLBACK: <--- urProgramLink
 
 #include "../helpers.hpp"
 #include <array>
