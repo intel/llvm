@@ -17,6 +17,7 @@ add_adapter_test(cuda
         kernel_tests.cpp
         memory_tests.cpp
         event_tests.cpp
+        usm_tests.cpp
         #FIXME: make this cleaner
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../source/adapters/cuda/queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../source/adapters/cuda/common.cpp

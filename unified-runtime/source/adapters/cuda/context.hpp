@@ -19,8 +19,8 @@
 
 #include "common.hpp"
 #include "device.hpp"
-#include "umf_helpers.hpp"
 
+#include "flags_provider.hpp"
 #include <umf/memory_pool.h>
 
 typedef void (*ur_context_extended_deleter_t)(void *user_data);
@@ -76,38 +76,6 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 ///
 ///
 
-static ur_result_t
-CreateHostMemoryProviderPool(ur_device_handle_t_ *DeviceHandle,
-                             umf_memory_provider_handle_t *MemoryProviderHost,
-                             umf_memory_pool_handle_t *MemoryPoolHost) {
-
-  *MemoryProviderHost = nullptr;
-  CUcontext context = DeviceHandle->getNativeContext();
-
-  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
-  umf_result_t UmfResult =
-      umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams);
-  UMF_RETURN_UR_ERROR(UmfResult);
-  OnScopeExit Cleanup(
-      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
-
-  UmfResult = umf::setCUMemoryProviderParams(
-      CUMemoryProviderParams, 0 /* cuDevice */, context, UMF_MEMORY_TYPE_HOST);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  // create UMF CUDA memory provider and pool for the host memory
-  // (UMF_MEMORY_TYPE_HOST)
-  UmfResult = umfMemoryProviderCreate(
-      umfCUDAMemoryProviderOps(), CUMemoryProviderParams, MemoryProviderHost);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  UmfResult = umfPoolCreate(umfProxyPoolOps(), *MemoryProviderHost, nullptr, 0,
-                            MemoryPoolHost);
-  UMF_RETURN_UR_ERROR(UmfResult);
-
-  return UR_RESULT_SUCCESS;
-}
-
 struct ur_context_handle_t_ {
 
   struct deleter_data {
@@ -118,33 +86,27 @@ struct ur_context_handle_t_ {
   };
 
   std::vector<ur_device_handle_t> Devices;
+  CUDAFlagsUMFVendor MemProviders;
   std::atomic_uint32_t RefCount;
 
-  // UMF CUDA memory provider and pool for the host memory
-  // (UMF_MEMORY_TYPE_HOST)
-  umf_memory_provider_handle_t MemoryProviderHost = nullptr;
-  umf_memory_pool_handle_t MemoryPoolHost = nullptr;
+  // UMF CUDA memory provider for the host memory (UMF_MEMORY_TYPE_HOST)
+  umf_memory_pool_t *getMemoryPoolHost(unsigned Flags = 0) {
+    ur_result_t E = UR_RESULT_SUCCESS;
+    umf_memory_pool_t *Pool = MemProviders.getPoolForFlags(Flags, E);
+    assert(Pool && E == UR_RESULT_SUCCESS);
+    return Pool;
+  }
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Devices{Devs, Devs + NumDevices}, RefCount{1} {
+      : Devices{Devs, Devs + NumDevices},
+        MemProviders(Devices[0]->getNativeContext(), 0, UMF_MEMORY_TYPE_HOST),
+        RefCount{1} {
     for (auto &Dev : Devices) {
       urDeviceRetain(Dev);
     }
-
-    // Create UMF CUDA memory provider for the host memory
-    // (UMF_MEMORY_TYPE_HOST) from any device (Devices[0] is used here, because
-    // it is guaranteed to exist).
-    UR_CHECK_ERROR(CreateHostMemoryProviderPool(Devices[0], &MemoryProviderHost,
-                                                &MemoryPoolHost));
   };
 
   ~ur_context_handle_t_() {
-    if (MemoryPoolHost) {
-      umfPoolDestroy(MemoryPoolHost);
-    }
-    if (MemoryProviderHost) {
-      umfMemoryProviderDestroy(MemoryProviderHost);
-    }
     for (auto &Dev : Devices) {
       urDeviceRelease(Dev);
     }

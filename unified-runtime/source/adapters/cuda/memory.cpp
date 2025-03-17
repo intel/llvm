@@ -50,7 +50,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
           cuMemHostRegister(HostPtr, size, CU_MEMHOSTREGISTER_DEVICEMAP));
       AllocMode = BufferMem::AllocMode::UseHostPtr;
     } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
-      HostPtr = umfPoolMalloc(hContext->MemoryPoolHost, size);
+      HostPtr = umfPoolMalloc(hContext->getMemoryPoolHost(), size);
       UMF_CHECK_PTR(HostPtr);
       AllocMode = BufferMem::AllocMode::AllocHostPtr;
     } else if (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) {
@@ -442,7 +442,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
                                        CU_MEMHOSTALLOC_DEVICEMAP));
       UR_CHECK_ERROR(cuMemHostGetDevicePointer(&DevPtr, Buffer.HostPtr, 0));
     } else {
-      *(void **)&DevPtr = umfPoolMalloc(hDevice->MemoryPoolDevice, Buffer.Size);
+      *(void **)&DevPtr = umfPoolMalloc(hDevice->getMemoryPoolDevice(), Buffer.Size);
       UMF_CHECK_PTR(*(void **)&DevPtr);
     }
   } else {

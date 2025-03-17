@@ -42,7 +42,7 @@ deviceDescToClFlags(const ur_usm_device_desc_t &desc) {
   if (desc.flags & UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT) {
     allocFlags |= CL_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE_INTEL;
   }
-  if (desc.flags & UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED) {
+  if (desc.flags & UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE) {
     allocFlags |= CL_MEM_ALLOC_WRITE_COMBINED_INTEL;
   }
   return allocFlags;
