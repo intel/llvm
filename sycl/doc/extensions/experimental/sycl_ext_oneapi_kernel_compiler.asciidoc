@@ -958,13 +958,13 @@ this extension.
 The SYCL runtime compiler supports the following {dpcpp} options to be passed in
 the `build_options` property.
 
-[_Note:_  Some options have equivalent long (starting with `--`) and short
-(starting with `-`) option names. When using the long option name, an argument
-can be either separated by `=` in the same element of the `build_options`
-property, or given as a separate element. When using the short option name, an
-argument is either append directly after the option name, or given as a separate
-element in the `build_options` property. The following example shows how to
-construct the `build_options` property with each of the forms.
+Some options have equivalent long (starting with `--`) and short (starting with
+`-`) option names. When using the long option name, an argument can be either
+separated by `=` in the same element of the `build_options` property, or given
+as a separate element. When using the short option name, an argument is either
+appended directly after the option name, or given as a separate element in the
+`build_options` property. The following example shows how to construct the
+`build_options` property with each of the forms.
 
 [source,c++]
 ----
@@ -975,7 +975,6 @@ build_options{{
   {"-I"}, {"dir4"}
 }};
 ----
-_{endnote}_]
 
 ==== Preprocessor options
 
@@ -1032,11 +1031,9 @@ options and associated features.
 With the exception of the `-Xs` option, all other options to control
 ahead-of-time (AOT) compilation, such as `-fsycl-targets`, are unsupported.
 
-[_Note:_ 
 The kernels in a SYCL source string are compiled automatically to native code
 for all devices passed to the `build` function (see section "New free functions
 to create and build kernel bundles").
-_{endnote}_]
 
 ==== Other compiler actions
 
