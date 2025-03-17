@@ -37,7 +37,7 @@ public:
               const sycl::usm::alloc kind, const property_list &props = {});
 
   memory_pool(const sycl::queue &q, const sycl::usm::alloc kind,
-              const property_list &props)
+              const property_list &props = {})
       : memory_pool(q.get_context(), q.get_device(), kind, props) {}
 
   // NOT SUPPORTED: Creating a pool from an existing allocation is unsupported.
