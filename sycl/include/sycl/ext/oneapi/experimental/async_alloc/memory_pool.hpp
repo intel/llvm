@@ -7,8 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/context.hpp> // for context
-#include <sycl/device.hpp>  // for device
+#include <sycl/context.hpp>           // for context
+#include <sycl/detail/impl_utils.hpp> // for createSyclObjFromImpl
+#include <sycl/device.hpp>            // for device
 #include <sycl/ext/oneapi/experimental/async_alloc/memory_pool_properties.hpp>
 #include <sycl/queue.hpp>         // for queue
 #include <sycl/usm/usm_enums.hpp> // for usm::alloc
