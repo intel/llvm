@@ -2344,4 +2344,46 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
+
+ur_result_t urCommandBufferAppendNativeCommandExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    void *pData, ur_exp_command_buffer_handle_t,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  // Use Compute command-list as we don't know the types of commands the
+  // user will choose to append.
+  ze_command_list_handle_t ZeCommandList = hCommandBuffer->ZeComputeCommandList;
+
+  std::vector<ze_event_handle_t> ZeEventList;
+  ze_event_handle_t ZeLaunchEvent = nullptr;
+  UR_CALL(createSyncPointAndGetZeEvents(
+      UR_COMMAND_ENQUEUE_NATIVE_EXP, hCommandBuffer, ZeCommandList,
+      numSyncPointsInWaitList, pSyncPointWaitList, true, pSyncPoint,
+      ZeEventList, ZeLaunchEvent));
+
+  // Barrier on all commands before user defined commands.
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (ZeCommandList, nullptr, ZeEventList.size(),
+              getPointerFromVector(ZeEventList)));
+
+  // Call user-defined function immediately
+  pfnNativeCommand(pData);
+
+  // Barrier on all commands after user defined commands.
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (ZeCommandList, ZeLaunchEvent, 0, nullptr));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+                                  ur_native_handle_t *phNativeCommandBuffer) {
+  // Return Compute command-list as it is guaranteed to always exist
+  ze_command_list_handle_t ZeCommandList = hCommandBuffer->ZeComputeCommandList;
+  *phNativeCommandBuffer = reinterpret_cast<ur_native_handle_t>(ZeCommandList);
+  return UR_RESULT_SUCCESS;
+}
 } // namespace ur::level_zero
