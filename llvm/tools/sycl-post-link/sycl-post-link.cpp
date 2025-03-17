@@ -32,22 +32,18 @@
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
-#include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
-#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/SYCLLowerIR/SanitizerKernelMetadata.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
@@ -59,7 +55,6 @@
 #include "llvm/Transforms/Scalar/DCE.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/SROA.h"
-#include "llvm/Transforms/Utils/GlobalStatus.h"
 
 #include <algorithm>
 #include <memory>
@@ -581,114 +576,6 @@ void addTableRow(util::SimpleTable &Table,
   Table.addRow(Row);
 }
 
-// Removes the global variable "llvm.used" and returns true on success.
-// "llvm.used" is a global constant array containing references to kernels
-// available in the module and callable from host code. The elements of
-// the array are ConstantExpr bitcast to i8*.
-// The variable must be removed as it is a) has done the job to the moment
-// of this function call and b) the references to the kernels callable from
-// host must not have users.
-static bool removeSYCLKernelsConstRefArray(Module &M) {
-  GlobalVariable *GV = M.getGlobalVariable("llvm.used");
-
-  if (!GV) {
-    return false;
-  }
-  assert(GV->user_empty() && "Unexpected llvm.used users");
-  Constant *Initializer = GV->getInitializer();
-  GV->setInitializer(nullptr);
-  GV->eraseFromParent();
-
-  // Destroy the initializer and all operands of it.
-  SmallVector<Constant *, 8> IOperands;
-  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++)
-    IOperands.push_back(cast<Constant>(*It));
-  assert(llvm::isSafeToDestroyConstant(Initializer) &&
-         "Cannot remove initializer of llvm.used global");
-  Initializer->destroyConstant();
-  for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    auto Op = (*It)->stripPointerCasts();
-    auto *F = dyn_cast<Function>(Op);
-    if (llvm::isSafeToDestroyConstant(*It)) {
-      (*It)->destroyConstant();
-    } else if (F && F->getCallingConv() == CallingConv::SPIR_KERNEL &&
-               !F->use_empty()) {
-      // The element in "llvm.used" array has other users. That is Ok for
-      // specialization constants, but is wrong for kernels.
-      llvm::report_fatal_error("Unexpected usage of SYCL kernel");
-    }
-
-    // Remove unused kernel declarations to avoid LLVM IR check fails.
-    if (F && F->isDeclaration() && F->use_empty())
-      F->eraseFromParent();
-  }
-  return true;
-}
-
-// Removes all device_global variables from the llvm.compiler.used global
-// variable. A device_global with internal linkage will be in llvm.compiler.used
-// to avoid the compiler wrongfully removing it during optimizations. However,
-// as an effect the device_global variables will also be distributed across
-// binaries, even if llvm.compiler.used has served its purpose. To avoid
-// polluting other binaries with unused device_global variables, we remove them
-// from llvm.compiler.used and erase them if they have no further uses.
-static bool removeDeviceGlobalFromCompilerUsed(Module &M) {
-  GlobalVariable *GV = M.getGlobalVariable("llvm.compiler.used");
-  if (!GV)
-    return false;
-
-  // Erase the old llvm.compiler.used. A new one will be created at the end if
-  // there are other values in it (other than device_global).
-  assert(GV->user_empty() && "Unexpected llvm.compiler.used users");
-  Constant *Initializer = GV->getInitializer();
-  const auto *VAT = cast<ArrayType>(GV->getValueType());
-  GV->setInitializer(nullptr);
-  GV->eraseFromParent();
-
-  // Destroy the initializer. Keep the operands so we keep the ones we need.
-  SmallVector<Constant *, 8> IOperands;
-  for (auto It = Initializer->op_begin(); It != Initializer->op_end(); It++)
-    IOperands.push_back(cast<Constant>(*It));
-  assert(llvm::isSafeToDestroyConstant(Initializer) &&
-         "Cannot remove initializer of llvm.compiler.used global");
-  Initializer->destroyConstant();
-
-  // Iterate through all operands. If they are device_global then we drop them
-  // and erase them if they have no uses afterwards. All other values are kept.
-  SmallVector<Constant *, 8> NewOperands;
-  for (auto It = IOperands.begin(); It != IOperands.end(); It++) {
-    Constant *Op = *It;
-    auto *DG = dyn_cast<GlobalVariable>(Op->stripPointerCasts());
-
-    // If it is not a device_global we keep it.
-    if (!DG || !isDeviceGlobalVariable(*DG)) {
-      NewOperands.push_back(Op);
-      continue;
-    }
-
-    // Destroy the device_global operand.
-    if (llvm::isSafeToDestroyConstant(Op))
-      Op->destroyConstant();
-
-    // Remove device_global if it no longer has any uses.
-    if (!DG->isConstantUsed())
-      DG->eraseFromParent();
-  }
-
-  // If we have any operands left from the original llvm.compiler.used we create
-  // a new one with the new size.
-  if (!NewOperands.empty()) {
-    ArrayType *ATy = ArrayType::get(VAT->getElementType(), NewOperands.size());
-    GlobalVariable *NGV =
-        new GlobalVariable(M, ATy, false, GlobalValue::AppendingLinkage,
-                           ConstantArray::get(ATy, NewOperands), "");
-    NGV->setName("llvm.compiler.used");
-    NGV->setSection("llvm.metadata");
-  }
-
-  return true;
-}
-
 SmallVector<module_split::ModuleDesc, 2>
 handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
             bool &SplitOccurred) {
@@ -818,54 +705,16 @@ processInputModule(std::unique_ptr<Module> M) {
 
   // Used in output filenames generation.
   int ID = 0;
+  if (llvm::esimd::moduleContainsInvokeSimdBuiltin(*M) && SplitEsimd)
+    error("'invoke_simd' calls detected, '-" + SplitEsimd.ArgStr +
+          "' must not be specified");
 
   // Keeps track of any changes made to the input module and report to the user
   // if none were made.
-  bool Modified = false;
+  bool Modified = llvm::module_split::runPreSplitProcessingPipeline(*M);
 
   // Keeps track of whether any device image uses bf16 devicelib.
   bool IsBF16DeviceLibUsed = false;
-
-  // Propagate ESIMD attribute to wrapper functions to prevent
-  // spurious splits and kernel link errors.
-  Modified |= runModulePass<SYCLFixupESIMDKernelWrapperMDPass>(*M);
-
-  // After linking device bitcode "llvm.used" holds references to the kernels
-  // that are defined in the device image. But after splitting device image into
-  // separate kernels we may end up with having references to kernel declaration
-  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
-  // and these declarations cause an assertion in llvm-spirv. To workaround this
-  // issue remove "llvm.used" from the input module before performing any other
-  // actions.
-  Modified |= removeSYCLKernelsConstRefArray(*M.get());
-
-  // There may be device_global variables kept alive in "llvm.compiler.used"
-  // to keep the optimizer from wrongfully removing them. llvm.compiler.used
-  // symbols are usually removed at backend lowering, but this is handled here
-  // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
-  if (M->getTargetTriple().find("spir") != std::string::npos)
-    Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
-
-  // Sanitizer specific passes
-  if (isModuleUsingAsan(*M) || isModuleUsingMsan(*M) || isModuleUsingTsan(*M)) {
-    // Fix attributes and metadata of KernelMetadata
-    Modified |= runModulePass<SanitizerKernelMetadataPass>(*M);
-  }
-
-  // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
-  // LLVM IR specification.
-  Modified |= runModulePass<SYCLJointMatrixTransformPass>(*M);
-
-  // Do invoke_simd processing before splitting because this:
-  // - saves processing time (the pass is run once, even though on larger IR)
-  // - doing it before SYCL/ESIMD splitting is required for correctness
-  const bool InvokeSimdMet = runModulePass<SYCLLowerInvokeSimdPass>(*M);
-
-  if (InvokeSimdMet && SplitEsimd) {
-    error("'invoke_simd' calls detected, '-" + SplitEsimd.ArgStr +
-          "' must not be specified");
-  }
-  Modified |= InvokeSimdMet;
 
   DUMP_ENTRY_POINTS(*M, EmitOnlyKernelsAsEntryPoints, "Input");
 
