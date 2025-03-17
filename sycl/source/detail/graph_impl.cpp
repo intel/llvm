@@ -8,6 +8,7 @@
 
 #define __SYCL_GRAPH_IMPL_CPP
 
+#include <stack>
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -15,7 +16,6 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
-#include <stack>
 #include <sycl/detail/common.hpp>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
@@ -47,15 +47,15 @@ void sortTopological(std::set<std::weak_ptr<node_impl>,
                               std::owner_less<std::weak_ptr<node_impl>>> &Roots,
                      std::list<std::shared_ptr<node_impl>> &Schedule,
                      bool PartitionBounded) {
-  std::stack<std::weak_ptr<node_impl>> Stack;
+  std::stack<std::weak_ptr<node_impl>> Source;
 
   for (auto &Node : Roots) {
-    Stack.push(Node);
+    Source.push(Node);
   }
 
-  while (!Stack.empty()) {
-    auto Node = Stack.top().lock();
-    Stack.pop();
+  while (!Source.empty()) {
+    auto Node = Source.top().lock();
+    Source.pop();
     Schedule.push_back(Node);
 
     for (size_t i = 0; i < Node->MSuccessors.size(); ++i) {
@@ -68,7 +68,7 @@ void sortTopological(std::set<std::weak_ptr<node_impl>,
       auto &TotalVisitedEdges = Succ->MTotalVisitedEdges;
       ++TotalVisitedEdges;
       if (TotalVisitedEdges == Succ->MPredecessors.size()) {
-        Stack.push(Succ);
+        Source.push(Succ);
       }
     }
   }
