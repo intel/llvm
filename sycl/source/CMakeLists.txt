@@ -316,7 +316,7 @@ set(SYCL_COMMON_SOURCES
     "virtual_mem.cpp"
     "detail/memory_pool_impl.cpp"
     "detail/async_alloc.cpp"
-    "detail/memory_pool.cpp"
+    "memory_pool.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )
