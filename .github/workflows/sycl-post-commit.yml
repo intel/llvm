@@ -30,6 +30,7 @@ permissions: read-all
 
 jobs:
   detect_changes:
+    if: ${{ github.event_name == 'pull_request' }}
     uses: ./.github/workflows/sycl-detect-changes.yml
 
   build-lin:
@@ -99,6 +100,7 @@ jobs:
 
       # Do not install drivers on AMD and CUDA runners.
       install_igc_driver: >-
+        ${{ github.event_name == 'pull_request' }} &&
         ${{ !contains(matrix.target_devices, 'cuda') &&
         !contains(matrix.target_devices, 'hip') &&
         contains(needs.detect_changes.outputs.filters, 'drivers') }}
