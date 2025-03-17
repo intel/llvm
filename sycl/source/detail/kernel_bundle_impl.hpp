@@ -891,7 +891,7 @@ public:
                             "'device_image_scope' property");
     }
 
-    auto DeviceImpl = getSyclObjImpl(Dev);
+    const auto &DeviceImpl = getSyclObjImpl(Dev);
     bool SupportContextMemcpy = false;
     DeviceImpl->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
         DeviceImpl->getHandleRef(),
