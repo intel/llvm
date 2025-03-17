@@ -1,4 +1,4 @@
-//==- kernel_compiler_sycl_jit_cache.cpp --- persistent cache for SYCL-RTC -==//
+//==--- sycl_cache.cpp --- kernel_compiler extension tests -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -46,11 +46,6 @@ auto constexpr SYCLSourceWithInclude = R"""(
   }
   )""";
 
-static void dumpKernelIDs() {
-  for (auto &kernelID : sycl::get_kernel_ids())
-    std::cout << kernelID.get_name() << std::endl;
-}
-
 int test_persistent_cache() {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
@@ -60,34 +55,29 @@ int test_persistent_cache() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;
   }
 
   source_kb kbSrc1 = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSource);
+      ctx, syclex::source_language::sycl, SYCLSource);
 
   // Bundle is entered into cache on first build.
   // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY1:.*]]
   // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY1]]
   exe_kb kbExe1a = syclex::build(kbSrc1);
-  dumpKernelIDs();
-  // CHECK: rtc_0$__sycl_kernel_vec_add
 
   // Cache hit! We get independent bundles with their own version of the kernel.
   // CHECK: [kernel_compiler Persistent Cache]: using cached device code IR: {{.*}}/[[KEY1]]
   exe_kb kbExe1b = syclex::build(kbSrc1);
-  dumpKernelIDs();
-  // CHECK-DAG: rtc_0$__sycl_kernel_vec_add
-  // CHECK-DAG: rtc_1$__sycl_kernel_vec_add
 
   source_kb kbSrc2 = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSource);
+      ctx, syclex::source_language::sycl, SYCLSource);
 
   // Different source bundle, but identical source is a cache hit.
   // CHECK: [kernel_compiler Persistent Cache]: using cached device code IR: {{.*}}/[[KEY1]]
@@ -109,7 +99,7 @@ int test_persistent_cache() {
   exe_kb kbExe2b = syclex::build(kbSrc2);
 
   source_kb kbSrc3 = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSourceWithInclude,
+      ctx, syclex::source_language::sycl, SYCLSourceWithInclude,
       syclex::properties{
           syclex::include_files{"myheader.h", "#define KERNEL_NAME foo"}});
 
@@ -117,11 +107,9 @@ int test_persistent_cache() {
   // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY3:.*]]
   // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY3]]
   exe_kb kbExe3a = syclex::build(kbSrc3);
-  dumpKernelIDs();
-  // CHECK: rtc_5$__sycl_kernel_foo
 
   source_kb kbSrc4 = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, SYCLSourceWithInclude,
+      ctx, syclex::source_language::sycl, SYCLSourceWithInclude,
       syclex::properties{
           syclex::include_files{"myheader.h", "#define KERNEL_NAME bar"}});
 
@@ -129,8 +117,6 @@ int test_persistent_cache() {
   // CHECK: [kernel_compiler Persistent Cache]: cache miss: [[KEY4:.*]]
   // CHECK: [kernel_compiler Persistent Cache]: storing device code IR: {{.*}}/[[KEY4]]
   exe_kb kbExe4a = syclex::build(kbSrc4);
-  dumpKernelIDs();
-  // CHECK: rtc_6$__sycl_kernel_bar
 
   return 0;
 }

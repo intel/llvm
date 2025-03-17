@@ -232,17 +232,6 @@ def main():
                 input["meta"],
             )
 
-            # clang-format ur_api.h
-            proc = subprocess.run(
-                [args["clang_format"], "--style=file", "-i", "ur_api.h"],
-                stderr=subprocess.PIPE,
-                cwd=incpath,
-            )
-            if proc.returncode != 0:
-                print("-- clang-format failed with non-zero return code. --")
-                print(proc.stderr.decode())
-                raise Exception("Failed to format ur_api.h")
-
             if args["rst"]:
                 generate_docs.generate_rst(
                     docpath,
@@ -271,6 +260,8 @@ def main():
         if not build():
             print("\nBuild failed, stopping execution!")
             return
+
+    util.formatGeneratedFiles(args["clang_format"])
 
     # phase 5: prep for publication of html or pdf
     if args["html"] or args["pdf"]:
