@@ -121,6 +121,11 @@ struct ur_command_list_manager {
   ur_result_t appendUSMAdvise(const void *pMem, size_t size,
                               ur_usm_advice_flags_t advice,
                               ur_event_handle_t *phEvent);
+
+  ur_result_t appendBarrier(uint32_t numEventsInWaitList,
+                            const ur_event_handle_t *phEventWaitList,
+                            ur_event_handle_t *phEvent);
+
   ze_command_list_handle_t getZeCommandList();
 
   wait_list_view getWaitListView(const ur_event_handle_t *phWaitEvents,

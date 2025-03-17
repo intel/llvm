@@ -125,25 +125,28 @@ _CLC_DEF _CLC_OVERLOAD double __clc_exp10(double x) {
   int j = n & 0x3f;
   int m = n >> 6;
 
-  double r = R_LN10 * __clc_fma(-R_LOG10_2_BY_64_TL, dn,
-                                __clc_fma(-R_LOG10_2_BY_64_LD, dn, x));
+  double r =
+      R_LN10 * __spirv_ocl_fma(-R_LOG10_2_BY_64_TL, dn,
+                               __spirv_ocl_fma(-R_LOG10_2_BY_64_LD, dn, x));
 
   // 6 term tail of Taylor expansion of e^r
   double z2 =
-      r * __clc_fma(
+      r * __spirv_ocl_fma(
               r,
-              __clc_fma(r,
-                        __clc_fma(r,
-                                  __clc_fma(r,
-                                            __clc_fma(r, 0x1.6c16c16c16c17p-10,
+              __spirv_ocl_fma(
+                  r,
+                  __spirv_ocl_fma(
+                      r,
+                      __spirv_ocl_fma(r,
+                                      __spirv_ocl_fma(r, 0x1.6c16c16c16c17p-10,
                                                       0x1.1111111111111p-7),
-                                            0x1.5555555555555p-5),
-                                  0x1.5555555555555p-3),
-                        0x1.0000000000000p-1),
+                                      0x1.5555555555555p-5),
+                      0x1.5555555555555p-3),
+                  0x1.0000000000000p-1),
               1.0);
 
   double2 tv = USE_TABLE(two_to_jby64_ep_tbl, j);
-  z2 = __clc_fma(tv.s0 + tv.s1, z2, tv.s1) + tv.s0;
+  z2 = __spirv_ocl_fma(tv.s0 + tv.s1, z2, tv.s1) + tv.s0;
 
   int small_value = (m < -1022) || ((m == -1022) && (z2 < 1.0));
 
@@ -152,7 +155,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_exp10(double x) {
   double z3 = z2 * __clc_as_double(((long)n1 + 1023) << 52);
   z3 *= __clc_as_double(((long)n2 + 1023) << 52);
 
-  z2 = ldexp(z2, m);
+  z2 = __spirv_ocl_ldexp(z2, m);
   z2 = small_value ? z3 : z2;
 
   z2 = __clc_isnan(x) ? x : z2;
