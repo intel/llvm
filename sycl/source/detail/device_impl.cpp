@@ -476,6 +476,21 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
     return false;
+  case aspect::ext_intel_current_clock_throttle_reasons:
+    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS, 0,
+               nullptr, &return_size) == UR_RESULT_SUCCESS;
+  case aspect::ext_intel_fan_speed:
+    return getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+               MDevice, UR_DEVICE_INFO_FAN_SPEED, 0, nullptr, &return_size) ==
+           UR_RESULT_SUCCESS;
+  case aspect::ext_intel_power_limits:
+    return (getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+                MDevice, UR_DEVICE_INFO_MIN_POWER_LIMIT, 0, nullptr,
+                &return_size) == UR_RESULT_SUCCESS) &&
+           (getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+                MDevice, UR_DEVICE_INFO_MAX_POWER_LIMIT, 0, nullptr,
+                &return_size) == UR_RESULT_SUCCESS);
   case aspect::ext_oneapi_srgb:
     return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
