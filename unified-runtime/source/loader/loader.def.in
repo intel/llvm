@@ -259,6 +259,7 @@ EXPORTS
 	urPrintDeviceReleaseParams
 	urPrintDeviceRetainParams
 	urPrintDeviceSelectBinaryParams
+	urPrintDeviceThrottleReasonsFlags
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
 	urPrintEnqueueCommandBufferExpParams
