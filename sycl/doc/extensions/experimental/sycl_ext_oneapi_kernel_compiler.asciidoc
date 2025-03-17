@@ -994,16 +994,21 @@ Undefine macro `<name>`.
 
 ==== Diagnostic options
 
-The usual warning (starting with `-W`) and remark (starting with `-R`) emission
-options are supported. Note that the `save_log` property must be used to obtain
-detailed output from the compilation process.
+The `build_options` property accepts warning (`-W`) and remark (`-R`) emission
+options supported by the `clang` compiler. For an overview of these options, see
+https://clang.llvm.org/docs/DiagnosticsReference.html. The specific options
+available for SYCL runtime compilation depend on the version of the {dpcpp}
+compiler distributed with the SYCL runtime used by the application.
+
+Note: Use the `save_log` property to obtain detailed output from the compilation
+process.
 
 ==== SYCL-specific options
 
 ===== `-Xs<arg>`
 
-Pass `<arg>` to the target compiler. When using `-Xs<arg>`, a `-` is prepended
-to `<arg>` before handing it to the target compiler. Otherwise, `<arg>` is
+Pass `<arg>` to the backend of the device compiler. When using `-Xs<arg>`, a `-`
+is prepended to `<arg>` before handing it to the backend. Otherwise, `<arg>` is
 passed on unmodified.
 
 For example, the following forms are equivalent:
@@ -1041,12 +1046,6 @@ As the {dpcpp} frontend is integrated tightly in the runtime compilation
 pipeline, all options to change the compiler action (e.g. `-c`, `-S`) or output
 files (`-o`) are unsupported. Options related to linking (e.g. `-L`) are
 unsupported, including the SYCL-specific `-fsycl-link` action.
-
-==== Debug info
-
-Currently, debugging of runtime-compiled kernels is not supported. Hence, all
-options related to the generation and embedding of debug information (e.g. `-g`)
-are unsupported.
 
 ==== `invoke_simd`
 
