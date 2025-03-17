@@ -86,19 +86,18 @@ memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
   bool zeroInit = false;
 
   // Get properties.
-  if (props.has_property<property::maximum_size>()) {
+  if (props.has_property<property::maximum_size>())
     maxSize = props.get_property<property::maximum_size>().get_maximum_size();
-  }
-  if (props.has_property<property::initial_threshold>()) {
+
+  if (props.has_property<property::initial_threshold>())
     threshold = props.get_property<property::initial_threshold>()
                     .get_initial_threshold();
-  }
-  if (props.has_property<property::read_only>()) {
+
+  if (props.has_property<property::read_only>())
     readOnly = true;
-  }
-  if (props.has_property<property::zero_init>()) {
+
+  if (props.has_property<property::zero_init>())
     zeroInit = true;
-  }
 
   if (kind == sycl::usm::alloc::device)
     MPoolHandle = create_memory_pool_device(ctx, dev, threshold, maxSize,
@@ -122,9 +121,9 @@ memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
 memory_pool_impl::~memory_pool_impl() {
 
   // Default memory pools cannot be destroyed.
-  if (MIsDefaultPool) {
+  if (MIsDefaultPool)
     return;
-  }
+
   ur_usm_pool_handle_t handle = this->get_handle();
   sycl::context ctx = this->get_context();
   sycl::device dev = this->get_device();
