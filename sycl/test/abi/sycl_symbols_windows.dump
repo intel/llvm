@@ -4037,6 +4037,8 @@
 ?getNativeImpl@kernel@_V1@sycl@@AEBA_KXZ
 ?getNativeMem@interop_handle@_V1@sycl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?getNativeQueue@interop_handle@_V1@sycl@@AEBA_KAEAH@Z
+?getNativeGraph@interop_handle@_V1@sycl@@AEBA_KXZ
+?ext_codeplay_has_graph@interop_handle@_V1@sycl@@QEBA_NXZ
 ?getNativeVector@buffer_plain@detail@_V1@sycl@@IEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@W4backend@34@@Z
 ?getNativeVector@event@_V1@sycl@@AEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
 ?getNumOfDims@LocalAccessorBaseHost@detail@_V1@sycl@@QEAAHXZ

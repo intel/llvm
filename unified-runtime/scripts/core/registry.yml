@@ -634,9 +634,15 @@ etors:
 - name: USM_POOL_GET_INFO_EXP
   desc: Enumerator for $xUSMPoolGetInfoExp
   value: '262'
+- name: COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP
+  desc: Enumerator for $xCommandBufferAppendNativeCommandExp
+  value: '263'
+- name: COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP
+  desc: Enumerator for $xCommandBufferGetNativeHandleExp
+  value: '264'
 - name: USM_POOL_SET_INFO_EXP
   desc: Enumerator for $xUSMPoolSetInfoExp
-  value: '263'
+  value: '265'
 ---
 type: enum
 desc: Defines structure types

@@ -1939,9 +1939,6 @@ public:
                                               void(interop_handle)>::value>
   ext_codeplay_enqueue_native_command([[maybe_unused]] FuncT &&Func) {
 #ifndef __SYCL_DEVICE_ONLY__
-    throwIfGraphAssociated<
-        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_ext_codeplay_enqueue_native_command>();
     ext_codeplay_enqueue_native_command_impl(Func);
 #endif
   }
