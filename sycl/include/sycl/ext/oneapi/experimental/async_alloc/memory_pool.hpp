@@ -26,16 +26,27 @@ class memory_pool_impl;
 class __SYCL_EXPORT memory_pool {
 
 public:
-  memory_pool(const sycl::context &ctx, const property_list &props = {});
+  // NOT SUPPORTED: Host side pools unsupported.
+  memory_pool(const sycl::context &, const property_list &) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Host allocated pools are unsupported!");
+  }
 
   memory_pool(const sycl::context &ctx, const sycl::device &dev,
               const sycl::usm::alloc kind, const property_list &props = {});
 
   memory_pool(const sycl::queue &q, const sycl::usm::alloc kind,
-              const property_list &props = {});
+              const property_list &props)
+      : memory_pool(q.get_context(), q.get_device(), kind, props) {}
 
-  memory_pool(const sycl::context &ctx, const void *ptr, size_t size,
-              const property_list &props = {});
+  // NOT SUPPORTED: Creating a pool from an existing allocation is unsupported.
+  memory_pool(const sycl::context &, const void *, size_t,
+              const property_list &) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Creating a pool from an existing allocation is unsupported!");
+  }
 
   ~memory_pool() = default;
 

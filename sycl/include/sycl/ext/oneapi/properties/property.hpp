@@ -225,12 +225,8 @@ enum PropKind : uint32_t {
   Unaliased = 80,
   EventMode = 81,
   NativeLocalBlockIO = 82,
-  InitialThreshold = 83,
-  MaximumSize = 84,
-  ReadOnly = 85,
-  ZeroInit = 86,
   // PropKindSize must always be the last value.
-  PropKindSize = 87,
+  PropKindSize = 83,
 };
 
 template <typename PropertyT> struct PropertyToKind {

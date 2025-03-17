@@ -3824,6 +3824,7 @@
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$vector@Vqueue@_V1@sycl@@V?$allocator@Vqueue@_V1@sycl@@@std@@@std@@@Z
 ?end_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXXZ
 ?eventNeeded@handler@_V1@sycl@@AEBA_NXZ
+?ext_codeplay_has_graph@interop_handle@_V1@sycl@@QEBA_NXZ
 ?ext_codeplay_supports_fusion@queue@_V1@sycl@@QEBA_NXZ
 ?ext_intel_read_host_pipe@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAX_K_N@Z
 ?ext_intel_read_host_pipe@handler@_V1@sycl@@AEAAXVstring_view@detail@23@PEAX_K_N@Z
@@ -4034,11 +4035,10 @@
 ?getNative@queue@_V1@sycl@@QEBA_KAEAH@Z
 ?getNativeContext@interop_handle@_V1@sycl@@AEBA_KXZ
 ?getNativeDevice@interop_handle@_V1@sycl@@AEBA_KXZ
+?getNativeGraph@interop_handle@_V1@sycl@@AEBA_KXZ
 ?getNativeImpl@kernel@_V1@sycl@@AEBA_KXZ
 ?getNativeMem@interop_handle@_V1@sycl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?getNativeQueue@interop_handle@_V1@sycl@@AEBA_KAEAH@Z
-?getNativeGraph@interop_handle@_V1@sycl@@AEBA_KXZ
-?ext_codeplay_has_graph@interop_handle@_V1@sycl@@QEBA_NXZ
 ?getNativeVector@buffer_plain@detail@_V1@sycl@@IEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@W4backend@34@@Z
 ?getNativeVector@event@_V1@sycl@@AEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
 ?getNumOfDims@LocalAccessorBaseHost@detail@_V1@sycl@@QEAAHXZ
