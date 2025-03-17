@@ -270,6 +270,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
     return UR_RESULT_SUCCESS;
   }
 
+  hKernel->addArgReference(hArgValue);
   hKernel->addPtrArg(hArgValue->_mem, argIndex);
   return UR_RESULT_SUCCESS;
 }
