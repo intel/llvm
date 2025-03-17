@@ -1181,7 +1181,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   if (JA.isOffloading(Action::OFK_SYCL)) {
     getToolChain().addSYCLIncludeArgs(Args, CmdArgs);
-    if (Inputs[0].getType() == types::TY_CUDA || hasSYCLCudaCompatFlag(Args)) {
+    if (Inputs[0].getType() == types::TY_CUDA || isSYCLCudaCompatEnabled(Args)) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
     }
@@ -5469,7 +5469,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsFPGASYCLOffloadDevice =
       IsSYCLDevice && Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
   const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
-  const bool IsSYCLCUDACompat = hasSYCLCudaCompatFlag(Args);
+  const bool IsSYCLCUDACompat = isSYCLCudaCompatEnabled(Args);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
