@@ -202,3 +202,4 @@ llvm/test/Instrumentation/MemorySanitizer/ @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/ThreadSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/MemorySanitizer/ @intel/dpcpp-sanitizers-review
+sycl/test-e2e/ThreadSanitizer/ @intel/dpcpp-sanitizers-review

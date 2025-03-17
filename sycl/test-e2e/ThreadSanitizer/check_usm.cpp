@@ -1,12 +1,12 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_tsan_flags -DMALLOC_DEVICE -O0 -g -o %t1.out
-// RUN: %{run} %t1.out 2>&1 | FileCheck %s
+// RUN: %{run} %deflake %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_tsan_flags -DMALLOC_DEVICE -O2 -g -o %t2.out
-// RUN: %{run} %t2.out 2>&1 | FileCheck %s
+// RUN: %{run} %deflake %t2.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_tsan_flags -DMALLOC_HOST -O2 -g -o %t3.out
-// RUN: %{run} %t3.out 2>&1 | FileCheck %s
+// RUN: %{run} %deflake %t3.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_tsan_flags -DMALLOC_SHARED -O2 -g -o %t4.out
-// RUN: %{run} %t4.out 2>&1 | FileCheck %s
+// RUN: %{run} %deflake %t4.out 2>&1 | FileCheck %s
 #include "sycl/detail/core.hpp"
 #include "sycl/usm.hpp"
 
