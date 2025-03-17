@@ -29,6 +29,9 @@ concurrency:
 permissions: read-all
 
 jobs:
+  detect_changes:
+    uses: ./.github/workflows/sycl-detect-changes.yml
+
   build-lin:
     name: Linux (Self build + no-assertions)
     if: github.repository == 'intel/llvm'
@@ -40,7 +43,7 @@ jobs:
       build_configure_extra_args: --no-assertions --hip --cuda --native_cpu -DSYCL_ENABLE_STACK_PRINTING=ON -DSYCL_LIB_WITH_DEBUG_SYMBOL=ON
 
   e2e-lin:
-    needs: [build-lin]
+    needs: [detect_changes, build-lin]
     if: ${{ always() && !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -93,6 +96,12 @@ jobs:
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build-lin.outputs.artifact_decompress_command }}
+
+      # Do not install drivers on AMD and CUDA runners.
+      install_igc_driver: >-
+        ${{ !contains(matrix.target_devices, 'cuda') &&
+        !contains(matrix.target_devices, 'hip') &&
+        contains(needs.detect_changes.outputs.filters, 'drivers') }}
 
   build-win:
     if: |
