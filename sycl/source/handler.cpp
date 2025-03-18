@@ -97,6 +97,8 @@ fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
     UrDesc.type =
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+        : Desc.type == sycl::ext::oneapi::experimental::image_type::gather
+            ? UR_MEM_TYPE_IMAGE_GATHER_EXP
             : UrDesc.type;
 
     return Desc.array_size;

@@ -491,7 +491,6 @@ public:
     return detail::kernel_bundle_plain::ext_oneapi_has_kernel(name);
   }
 
-  // For free functions.
   template <auto *Func>
   std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>, bool>
   ext_oneapi_has_kernel() {
@@ -838,7 +837,6 @@ bool has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
   return has_kernel_bundle<State>(Ctx, Devs, {get_kernel_id<KernelName>()});
 }
 
-// For free functions.
 namespace ext::oneapi::experimental {
 template <auto *Func, bundle_state State>
 std::enable_if_t<is_kernel_v<Func>, bool>
@@ -866,7 +864,6 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
   return is_compatible({get_kernel_id<KernelName>()}, Dev);
 }
 
-// For free functions.
 namespace ext::oneapi::experimental {
 template <auto *Func>
 std::enable_if_t<is_kernel_v<Func>, bool> is_compatible(const device &Dev) {

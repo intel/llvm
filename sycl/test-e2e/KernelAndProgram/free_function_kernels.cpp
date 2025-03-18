@@ -10,6 +10,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -74,7 +75,6 @@ bool test_0(queue Queue) {
   std::cout << "Test 0a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<ff_0>();
@@ -91,7 +91,6 @@ bool test_0(queue Queue) {
   std::cout << "Test 0b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -123,7 +122,6 @@ bool test_1(queue Queue) {
   std::cout << "Test 1a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
@@ -141,7 +139,6 @@ bool test_1(queue Queue) {
   std::cout << "Test 1b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -178,7 +175,6 @@ bool test_2(queue Queue) {
   std::cout << "Test 2a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id =
@@ -195,7 +191,6 @@ bool test_2(queue Queue) {
   std::cout << "Test 2b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -236,7 +231,6 @@ bool test_3(queue Queue) {
   std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
@@ -253,7 +247,6 @@ bool test_3(queue Queue) {
   std::cout << "Test 3b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -295,7 +288,6 @@ bool test_4(queue Queue) {
   std::cout << "Test 4a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id =
@@ -311,7 +303,6 @@ bool test_4(queue Queue) {
   std::cout << "Test 4b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -351,7 +342,6 @@ bool test_5(queue Queue) {
   std::cout << "Test 5a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id =
@@ -367,14 +357,12 @@ bool test_5(queue Queue) {
   std::cout << "Test 5b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
 constexpr int TestArrSize = 3;
 
-template <int ArrSize>
-struct KArgWithPtrArray {
+template <int ArrSize> struct KArgWithPtrArray {
   int *data[ArrSize];
   int start[ArrSize];
   int end[ArrSize];
@@ -398,14 +386,13 @@ bool test_6(queue Queue) {
   for (int i = 0; i < TestArrSize; ++i) {
     KArg.data[i] = malloc_shared<int>(Range, Queue);
     memset(KArg.data[i], 0, Range * sizeof(int));
-    KArg.start[i]= 3;
+    KArg.start[i] = 3;
     KArg.end[i] = 5;
   }
   int Result[Range] = {0, 0, 0, 8, 8, 8, 0, 0, 0, 0};
   range<1> R1{Range};
 
   bool Pass = true;
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
@@ -423,7 +410,6 @@ bool test_6(queue Queue) {
     free(KArg.data[i], Queue);
   }
 
-#endif
   return Pass;
 }
 

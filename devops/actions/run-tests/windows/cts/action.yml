@@ -1,12 +1,10 @@
-name: 'Run SYCL CTS tests on Linux'
+name: 'Run SYCL CTS tests on Windows'
 
 inputs:
   ref:
     description: "Commit SHA or branch to checkout tests"
-    required: true
-  cts_exclude_ref:
-    description: "Commit SHA or branch to checkout the cts_exclude_filter dir"
-    required: true
+    required: false
+    default: "main"
   extra_cmake_args:
     required: false
   cts_testing_mode:
@@ -21,18 +19,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-  - name: Checkout cts_exclude_filter folder
-    uses: actions/checkout@v4
-    with:
-      ref: ${{ inputs.cts_exclude_ref }}
-      path: cts_exclude
-      sparse-checkout: |
-        sycl/cts_exclude_filter
-  - name: Move sycl to root
-    shell: bash
-    run: |
-      mv cts_exclude/sycl .
-      rm -rf cts_exclude
   - name: Checkout SYCL CTS tests
     if: inputs.cts_testing_mode != 'run-only'
     uses: ./devops/actions/cached_checkout
@@ -40,7 +26,7 @@ runs:
       path: khronos_sycl_cts
       repository: 'KhronosGroup/SYCL-CTS'
       ref: ${{ inputs.ref }}
-      cache_path: "/__w/repo_cache/"
+      cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
   - name: SYCL CTS GIT submodules init
     if: inputs.cts_testing_mode != 'run-only'
     shell: bash
@@ -56,11 +42,11 @@ runs:
       # If CTS_TESTS_TO_BUILD is null - use filter
       if [ -z "$CTS_TESTS_TO_BUILD" ]; then
         if [ "${{ contains(inputs.cts_testing_mode, 'build-only')  }}" = "true" ]; then
-          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/compfails
+          cts_exclude_filter=$PWD/devops/cts_exclude_filter_compfails
         elif [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
-          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/OCL_CPU
+          cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
         elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
-          cts_exclude_filter=$PWD/sycl/cts_exclude_filter/L0_GPU
+          cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
         fi
 
         # List excluded SYCL CTS categories:
@@ -71,11 +57,13 @@ runs:
         echo "::endgroup::"
       fi
 
-      cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
+      cmake -GNinja -B./build-cts -S./khronos_sycl_cts \
       -DSYCL_IMPLEMENTATION=DPCPP \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
       -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
       -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
+      -DCMAKE_CXX_COMPILER=cl \
+      -DCMAKE_BUILD_TYPE=Release \
       $CMAKE_EXTRA_ARGS
       # Ignore errors so that if one category build fails others still have a
       # chance to finish and be executed at the run stage. Note that
@@ -119,8 +107,8 @@ runs:
 
   # If the suite was built on another machine then the build contains the full
   # set of tests. We have special files to filter out some test categories,
-  # see "sycl/cts_exclude_filter/*". Each configuration has its own file, e.g.
-  # there is "cts_exclude_filter/OCL_CPU" for opencl:cpu device. Therefore,
+  # see "devops/cts_exclude_filter_*". Each configuration has its own file, e.g.
+  # there is "cts_exclude_filter_OCL_CPU" for opencl:cpu device. Therefore,
   # these files may differ from each other, so when there is a pre-built set of
   # tests, we need to filter it according to the filter-file.
   - name: Filter SYCL CTS test categories
@@ -129,9 +117,9 @@ runs:
     run: |
       cts_exclude_filter=""
       if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
-        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/OCL_CPU
+        cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
       elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
-        cts_exclude_filter=$PWD/sycl/cts_exclude_filter/L0_GPU
+        cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
       fi
 
       while IFS= read -r line; do
