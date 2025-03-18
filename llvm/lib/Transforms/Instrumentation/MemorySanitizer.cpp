@@ -392,6 +392,12 @@ static cl::opt<bool>
                           cl::desc("instrument private pointer"), cl::Hidden,
                           cl::init(true));
 
+// This flag is used to enhance debug for spirv (internal use only)
+//  - Add function name (not demangled for easily debug) on __msan_get_shadow
+//  (but not work on GPU)
+//  - Diable combination of origin and shadow propagation
+//  - The "origin" parameter of "__msan_maybe_warning_N" is the shadow address
+//  of UUM
 static cl::opt<bool> ClSpirOffloadDebug("msan-spir-debug",
                                         cl::desc("enhance debug for spirv"),
                                         cl::Hidden, cl::init(false));
@@ -3714,15 +3720,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// itself, instrumentation should be disabled with the no_sanitize attribute.
   void visitMemCpyInst(MemCpyInst &I) {
     if (SpirOrSpirv) {
-      // If the destination is a nosanitize value, we don't need to update its
-      // shadow memory
+      // Same as memmove
       if (isa<Instruction>(I.getArgOperand(0)) &&
           cast<Instruction>(I.getArgOperand(0))
               ->getMetadata(LLVMContext::MD_nosanitize))
         return;
 
-      // If we disable checking local/private memory, we needn't update its
-      // shadow memory, and treat its shadow value as zeros at rtl
       if (!ClSpirOffloadLocals &&
           I.getDestAddressSpace() == kSpirOffloadLocalAS)
         return;
@@ -3744,13 +3747,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   // Same as memcpy.
   void visitMemSetInst(MemSetInst &I) {
     if (SpirOrSpirv) {
+      // Same as memmove
       if (isa<Instruction>(I.getArgOperand(0)) &&
           cast<Instruction>(I.getArgOperand(0))
               ->getMetadata(LLVMContext::MD_nosanitize))
         return;
 
-      // If we disable checking local/private memory, we needn't update its
-      // shadow memory, and treat its shadow value as zeros at rtl
       if (!ClSpirOffloadLocals &&
           I.getDestAddressSpace() == kSpirOffloadLocalAS)
         return;
@@ -5900,6 +5902,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // Don't emit the epilogue for musttail call returns.
     if (isAMustTailRetVal(RetVal))
       return;
+    Value *ShadowPtr = !SpirOrSpirv ? getShadowPtrForRetval(IRB) : nullptr;
     bool HasNoUndef = F.hasRetAttribute(Attribute::NoUndef);
     bool StoreShadow = !(MS.EagerChecks && HasNoUndef);
     // FIXME: Consider using SpecialCaseList to specify a list of functions that
@@ -5917,7 +5920,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // The caller may still expect information passed over TLS if we pass our
     // check
     if (StoreShadow) {
-      Value *ShadowPtr = getShadowPtrForRetval(IRB);
       IRB.CreateAlignedStore(Shadow, ShadowPtr, kShadowTLSAlignment);
       if (MS.TrackOrigins && StoreOrigin)
         IRB.CreateStore(getOrigin(RetVal), getOriginPtrForRetval());
@@ -5954,6 +5956,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   void poisonAllocaUserspace(AllocaInst &I, IRBuilder<> &IRB, Value *Len) {
     if (PoisonStack && ClPoisonStackWithCall) {
+      // ".byval" alloca is updated by MsanUnpoisonStackFn
       if (SpirOrSpirv && !I.getName().ends_with(".byval"))
         IRB.CreateCall(MS.MsanPoisonStackFn, {&I, Len});
     } else {

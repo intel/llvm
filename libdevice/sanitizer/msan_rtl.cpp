@@ -9,7 +9,6 @@
 #include "include/msan_rtl.hpp"
 #include "atomic.hpp"
 #include "device.h"
-#include "include/sanitizer_defs.hpp"
 #include "msan/msan_libdevice.hpp"
 #include "spirv_vars.h"
 
