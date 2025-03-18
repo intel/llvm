@@ -37,7 +37,6 @@ int main() {
 
   nd_range<3> NDRange{GlobalWorkSize, LocalWorkSize};
 
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id_A = exp_ext::get_kernel_id<ff_3>();
   kernel Kernel_A = Bundle.get_kernel(Kernel_id_A);
@@ -79,7 +78,6 @@ int main() {
     assert(HostDataA[i] == Ref);
     assert(HostDataB[i] == Ref);
   }
-#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
 

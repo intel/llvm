@@ -37,7 +37,6 @@ template <typename T, typename... Ts> void test_marray() {
     expected = expected + buf[i];
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
-#ifndef __SYCL_DEVICE_ONLY__
   // Get the kernel object for the "mykernel" kernel.
   auto Bundle = get_kernel_bundle<sycl::bundle_state::executable>(ctx);
   kernel_id sum_id = ext::oneapi::experimental::get_kernel_id<sum_marray<T>>();
@@ -48,7 +47,6 @@ template <typename T, typename... Ts> void test_marray() {
      cgh.set_args(mem, buf, result, expected);
      cgh.parallel_for(ndr, k_sum);
    }).wait();
-#endif // __SYCL_DEVICE_ONLY
   free(buf, q);
   if constexpr (sizeof...(Ts))
     test_marray<Ts...>();
@@ -67,7 +65,6 @@ template <typename T, typename... Ts> void test_vec() {
     expected = expected + buf[i];
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
-#ifndef __SYCL_DEVICE_ONLY__
   // Get the kernel object for the "mykernel" kernel.
   auto Bundle = get_kernel_bundle<sycl::bundle_state::executable>(ctx);
   kernel_id sum_id = ext::oneapi::experimental::get_kernel_id<sum_vec<T>>();
@@ -78,7 +75,6 @@ template <typename T, typename... Ts> void test_vec() {
      cgh.set_args(mem, buf, result, expected);
      cgh.parallel_for(ndr, k_sum);
    }).wait();
-#endif // __SYCL_DEVICE_ONLY
   free(buf, q);
   if constexpr (sizeof...(Ts))
     test_vec<Ts...>();
@@ -97,11 +93,6 @@ void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
     expected = expected + buf[i];
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
-  // The following ifndef is required due to a number of limitations of free
-  // function kernels. See CMPLRLLVM-61498.
-  // TODO: Remove it once these limitations are no longer there.
-#ifndef __SYCL_DEVICE_ONLY__
-  // Get the kernel object for the "mykernel" kernel.
   auto Bundle = get_kernel_bundle<sycl::bundle_state::executable>(ctx);
   kernel_id sum_id = ext::oneapi::experimental::get_kernel_id<sum<T>>();
   kernel k_sum = Bundle.get_kernel(sum_id);
@@ -111,8 +102,6 @@ void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
      cgh.set_args(mem, buf, result, expected, WGSIZE, UseHelper);
      cgh.parallel_for(ndr, k_sum);
    }).wait();
-
-#endif // __SYCL_DEVICE_ONLY
   free(buf, q);
   if constexpr (sizeof...(Ts))
     test<Ts...>(SIZE, WGSIZE, UseHelper);
