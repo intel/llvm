@@ -1181,7 +1181,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   if (JA.isOffloading(Action::OFK_SYCL)) {
     getToolChain().addSYCLIncludeArgs(Args, CmdArgs);
-    if (Inputs[0].getType() == types::TY_CUDA || isSYCLCudaCompatEnabled(Args)) {
+    if (Inputs[0].getType() == types::TY_CUDA ||
+        isSYCLCudaCompatEnabled(Args)) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
     }
