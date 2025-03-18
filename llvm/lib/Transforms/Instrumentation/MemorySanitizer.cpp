@@ -5956,8 +5956,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   void poisonAllocaUserspace(AllocaInst &I, IRBuilder<> &IRB, Value *Len) {
     if (PoisonStack && ClPoisonStackWithCall) {
-      // ".byval" alloca is updated by MsanUnpoisonStackFn
-      if (SpirOrSpirv && !I.getName().ends_with(".byval"))
+      // SPIR-V: ".byval" alloca is updated by "__msan_unpoison_stack", so
+      // skiped here
+      if (!SpirOrSpirv || !I.getName().ends_with(".byval"))
         IRB.CreateCall(MS.MsanPoisonStackFn, {&I, Len});
     } else {
       Value *ShadowBase, *OriginBase;

@@ -146,6 +146,8 @@ private:
   ur_mutex VirtualMemMapsMutex;
 
   uptr LocalShadowOffset = 0;
+
+  uptr PrivateShadowOffset = 0;
 };
 
 // clang-format off
