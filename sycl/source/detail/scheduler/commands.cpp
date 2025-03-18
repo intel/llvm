@@ -1644,7 +1644,7 @@ ur_result_t UpdateHostRequirementCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue, EventImpls, UREvent);
-  assert((UREvent == nullptr) &&
+  assert((!!UREvent == producesPiEvent()) &&
          "UpdateHostRequirementCommand doesn't produce native event");
 
   assert(MSrcAllocaCmd && "Expected valid alloca command");
@@ -1754,7 +1754,8 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
           MDstReq.MElemSize, std::move(RawEvents), UREvent, MEvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
-
+  assert((!!UREvent == producesPiEvent()) &&
+         "MemCpyCommandHost must produce native event");
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
@@ -1767,7 +1768,8 @@ ur_result_t EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   ur_event_handle_t UREvent = nullptr;
   waitForEvents(MQueue, MPreparedDepsEvents, UREvent);
-  MEvent->setHandle(UREvent);
+  assert((!!UREvent == producesPiEvent()) &&
+         "EmptyCommand doesn't produce native event");
   return UR_RESULT_SUCCESS;
 }
 
@@ -3029,6 +3031,8 @@ ur_result_t ExecCGCommand::enqueueImp() {
   } else {
     return enqueueImpQueue();
   }
+  assert((!!MEvent->getHandle() == producesPiEvent()) &&
+         "ExecCGCommand must produce native event");
 }
 
 ur_result_t ExecCGCommand::enqueueImpQueue() {
@@ -3678,7 +3682,8 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue, EventImpls, UREvent);
-  MEvent->setHandle(UREvent);
+  assert((!!UREvent == producesPiEvent()) &&
+         "UpdateCommandBufferCommand doesn't produce native event");
 
   auto CheckAndFindAlloca = [](Requirement *Req, const DepDesc &Dep) {
     if (Dep.MDepRequirement == Req) {
