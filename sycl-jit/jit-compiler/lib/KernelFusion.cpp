@@ -45,11 +45,12 @@ static std::string formatError(llvm::Error &&Err, const std::string &Msg) {
   return ErrMsg.str();
 }
 
-template <typename ResultType>
-static ResultType errorTo(llvm::Error &&Err, const std::string &Msg) {
+template <typename ResultType, typename... ExtraArgTypes>
+static ResultType errorTo(llvm::Error &&Err, const std::string &Msg,
+                          ExtraArgTypes... ExtraArgs) {
   // Cannot throw an exception here if LLVM itself is compiled without exception
   // support.
-  return ResultType{formatError(std::move(Err), Msg).c_str()};
+  return ResultType{formatError(std::move(Err), Msg).c_str(), ExtraArgs...};
 }
 
 static std::vector<jit_compiler::NDRange>
@@ -288,7 +289,8 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   auto UserArgListOrErr = parseUserArgs(UserArgs);
   if (!UserArgListOrErr) {
     return errorTo<RTCResult>(UserArgListOrErr.takeError(),
-                              "Parsing of user arguments failed");
+                              "Parsing of user arguments failed",
+                              RTCErrorCode::INVALID);
   }
   llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 

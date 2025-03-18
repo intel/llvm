@@ -558,7 +558,7 @@ int test_unsupported_options() {
                       syclex::build_options{"-fsycl-targets=intel_gpu_pvc"}});
     assert(false && "unsupported option not detected");
   } catch (sycl::exception &e) {
-    assert(e.code() == sycl::errc::build);
+    assert(e.code() == sycl::errc::invalid);
     assert(std::string(e.what()).find("Parsing of user arguments failed") !=
            std::string::npos);
   }
