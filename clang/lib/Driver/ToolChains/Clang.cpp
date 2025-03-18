@@ -9924,7 +9924,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       T.setArchName(ArchName);
       Triples += T.normalize();
     } else {
-      Triples += CurTC->getTriple().normalize();
+      Triples += CurTC->getTriple().normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
     }
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
          CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
@@ -10153,9 +10153,11 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       StringRef Val(
           TCArgs.getLastArg(options::OPT_fsycl_force_target_EQ)->getValue());
       llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
-      Triples += TT.normalize();
+      Triples += TT.normalize(
+        llvm::Triple::CanonicalForm::FOUR_IDENT);
     } else
-      Triples += Dep.DependentToolChain->getTriple().normalize();
+      Triples += Dep.DependentToolChain->getTriple().normalize(
+        llvm::Triple::CanonicalForm::FOUR_IDENT);
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
          Dep.DependentOffloadKind == Action::OFK_Cuda ||
