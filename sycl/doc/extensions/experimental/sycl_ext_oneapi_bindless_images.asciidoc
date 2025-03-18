@@ -1234,13 +1234,11 @@ public:
 To enable the copying of images an `ext_oneapi_copy` function is proposed as a 
 method of the queue and handler. It can be used to copy image memory, whether 
 allocated through USM or using an `image_mem_handle`, from host to 
-device, or device to host. Device to device copies are currently supported only 
-through `image_mem_handle` allocations. 
-For the `ext_oneapi_copy` variants that do not take 
-offsets and extents, the image descriptor passed to the `ext_oneapi_copy` API 
-is used to determine the pixel size, dimensions, and extent in memory of the 
-image to copy. If performing sub-region copy, the size of the memory region is 
-also determined by the offsets and extent passed.
+device, device to host or device to device. For the `ext_oneapi_copy` variants
+that do not take  offsets and extents, the image descriptor passed to the
+`ext_oneapi_copy` API is used to determine the pixel size, dimensions, and
+extent in memory of the image to copy. If performing sub-region copy, the size
+of the memory region is also determined by the offsets and extent passed.
 
 For images allocated using USM, existing SYCL functionality can be used to 
 copy their memory, but we also provide `ext_oneapi_copy` functions that take 
