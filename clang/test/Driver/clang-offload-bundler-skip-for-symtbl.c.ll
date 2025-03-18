@@ -1,6 +1,3 @@
-target triple = "spir64_gen"
-target device_triples = "spir64_gen"
-
 @__AsanKernelMetadata = global i64 0
 ;CHECK-NOT: __AsanKernelMetadata
 @__MsanKernelMetadata = global i64 0
