@@ -1696,6 +1696,11 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
   emitInstrumentationDataProxy();
 }
 
+bool MemCpyCommandHost::producesPiEvent() const {
+  // Produces native event if it is not host to host copy.
+  return MSrcQueue || MQueue;
+}
+
 void MemCpyCommandHost::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
@@ -1732,11 +1737,11 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
-  ur_event_handle_t UREvent = nullptr;
   // Omit copying if mode is discard one.
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
-  if (MDstReq.MAccessMode == access::mode::discard_read_write ||
+  if (ur_event_handle_t UREvent = nullptr;
+      MDstReq.MAccessMode == access::mode::discard_read_write ||
       MDstReq.MAccessMode == access::mode::discard_write) {
     Command::waitForEvents(Queue, EventImpls, UREvent);
 
@@ -1744,7 +1749,7 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   }
 
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
-
+  ur_event_handle_t UREvent = nullptr;
   if (auto Result = callMemOpHelper(
           MemoryManager::copy, MSrcAllocaCmd->getSYCLMemObj(),
           MSrcAllocaCmd->getMemAllocation(), MSrcQueue, MSrcReq.MDims,

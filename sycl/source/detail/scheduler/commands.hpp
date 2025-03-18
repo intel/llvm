@@ -603,6 +603,7 @@ public:
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   ContextImplPtr getWorkerContext() const final;
+  bool producesPiEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
