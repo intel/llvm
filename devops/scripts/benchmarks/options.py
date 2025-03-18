@@ -45,5 +45,7 @@ class Options:
     preset: str = "Full"
     custom_results_dir = None
 
+    regression_threshold: float = 0.05
+
 
 options = Options()
