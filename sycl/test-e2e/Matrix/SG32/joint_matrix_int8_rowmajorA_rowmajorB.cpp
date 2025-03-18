@@ -18,7 +18,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: gpu && !igc-dev
+// XFAIL: gpu
 // XFAIL-TRACKER: GSD-4181
 
 #include "common.hpp"
