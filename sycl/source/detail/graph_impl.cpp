@@ -33,19 +33,20 @@ namespace detail {
 
 namespace {
 /// Topologically sorts the graph in order to schedule nodes for execution.
-/// This is an iterative algorithm based on Kahn's algorithm.
+/// This implementation is based on Kahn's algorithm which uses a Breadth-first
+/// search approach.
 /// For performance reasons, this function uses the MTotalVisitedEdges
 /// member variable of the node_impl class. It's the caller responsibility to
 /// make sure that MTotalVisitedEdges is set to 0 for all nodes in the graph
 /// before calling this function.
 /// @param[in] Roots List of root nodes.
-/// @param[out] Schedule The scheduling order for nodes in this graph.
+/// @param[out] SortedNodes The graph nodes sorted in topological order.
 /// @param[in] PartitionBounded If set to true, the topological sort is stopped
 /// at partition borders. Hence, nodes belonging to a partition different from
 /// the NodeImpl partition are not processed.
 void sortTopological(std::set<std::weak_ptr<node_impl>,
                               std::owner_less<std::weak_ptr<node_impl>>> &Roots,
-                     std::list<std::shared_ptr<node_impl>> &Schedule,
+                     std::list<std::shared_ptr<node_impl>> &SortedNodes,
                      bool PartitionBounded) {
   std::stack<std::weak_ptr<node_impl>> Source;
 
@@ -56,10 +57,10 @@ void sortTopological(std::set<std::weak_ptr<node_impl>,
   while (!Source.empty()) {
     auto Node = Source.top().lock();
     Source.pop();
-    Schedule.push_back(Node);
+    SortedNodes.push_back(Node);
 
-    for (size_t i = 0; i < Node->MSuccessors.size(); ++i) {
-      auto Succ = Node->MSuccessors[i].lock();
+    for (auto &SuccWP : Node->MSuccessors) {
+      auto Succ = SuccWP.lock();
 
       if (PartitionBounded && (Succ->MPartitionNum != Node->MPartitionNum)) {
         continue;
@@ -612,14 +613,17 @@ bool graph_impl::clearQueues() {
 }
 
 bool graph_impl::checkForCycles() {
-  std::list<std::shared_ptr<node_impl>> MSchedule;
-  sortTopological(MRoots, MSchedule, false);
+  std::list<std::shared_ptr<node_impl>> SortedNodes;
+  sortTopological(MRoots, SortedNodes, false);
 
-  bool CycleFound = MSchedule.size() != MNodeStorage.size();
+  // If after a topological sort, not all the nodes in the graph are sorted,
+  // then there must be at least one cycle in the graph. This is guaranteed
+  // by Kahn's algorithm, which sortTopological() implements.
+  bool CycleFound = SortedNodes.size() != MNodeStorage.size();
 
   // Reset the MTotalVisitedEdges variable to prepare for the next cycle check.
-  for (size_t i = 0; i < MNodeStorage.size(); ++i) {
-    MNodeStorage[i]->MTotalVisitedEdges = 0;
+  for (auto &Node : MNodeStorage) {
+    Node->MTotalVisitedEdges = 0;
   }
 
   return CycleFound;
@@ -655,11 +659,14 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
                           "Dest must be a node inside the graph.");
   }
 
+  bool DestWasGraphRoot = Dest->MPredecessors.size() == 0;
+
   // We need to add the edges first before checking for cycles
   Src->registerSuccessor(Dest);
 
-  // Dest is no longer a Root node, so we need to remove it from MRoots.
-  if (Dest->MPredecessors.size() == 1) {
+  bool DestLostRootStatus = DestWasGraphRoot && Dest->MPredecessors.size() == 1;
+  if (DestLostRootStatus) {
+    // Dest is no longer a Root node, so we need to remove it from MRoots.
     MRoots.erase(Dest);
   }
 
@@ -673,8 +680,10 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
       // Remove the added successor and predecessor.
       Src->MSuccessors.pop_back();
       Dest->MPredecessors.pop_back();
-      // Add the Dest back into MRoots.
-      MRoots.insert(Dest);
+      if (DestLostRootStatus) {
+        // Add Dest back into MRoots.
+        MRoots.insert(Dest);
+      }
 
       throw sycl::exception(make_error_code(sycl::errc::invalid),
                             "Command graphs cannot contain cycles.");

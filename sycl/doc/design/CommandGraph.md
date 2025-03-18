@@ -100,11 +100,15 @@ Edges are stored in each node as lists of predecessor and successor nodes.
 
 ## Execution Order
 
-The current way graph nodes are linearized into execution order is using a
-reversed depth-first sorting algorithm. Alternative algorithms, such as
-breadth-first, are possible and may give better performance on certain
-workloads/hardware. In the future there might be options for allowing the
-user to control this implementation detail.
+Graph nodes are currently linearized into execution order using a topological
+sort algorithm. This algorithm uses a breadth-first search approach
+and is an implementation of Kahn's algorithm. Alternative algorithms, such as
+depth-first search, are possible and may give better performance on certain
+workloads/hardware. However, depth first searches are usually implemented 
+using recursion, which can lead to stack overflow issues on large graphs.
+In the future, there might be options for allowing the user to control this
+implementation detail. It might also be possible to automatically change
+which algorithm is used based on characteristics such as the graph's size.
 
 ## Scheduler Integration
 

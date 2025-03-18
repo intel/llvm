@@ -113,9 +113,9 @@ TEST_F(CommandGraphTest, CheckTopologicalSort) {
   bool FoundMatchingSchedule = false;
   for (auto &AcceptableSchedule : ValidSchedules) {
 
-    auto out = std::mismatch(Schedule.begin(), Schedule.end(),
+    auto Out = std::mismatch(Schedule.begin(), Schedule.end(),
                              AcceptableSchedule.begin());
-    if (out.first == Schedule.end() && out.second == AcceptableSchedule.end()) {
+    if (Out.first == Schedule.end() && Out.second == AcceptableSchedule.end()) {
       FoundMatchingSchedule = true;
       break;
     }
