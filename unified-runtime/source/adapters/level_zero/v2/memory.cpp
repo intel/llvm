@@ -645,6 +645,7 @@ ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
 ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
   if (!hMem->getObject()->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
+
   delete hMem;
   return UR_RESULT_SUCCESS;
 } catch (...) {

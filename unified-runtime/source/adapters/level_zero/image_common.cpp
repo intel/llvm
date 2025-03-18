@@ -33,8 +33,6 @@ ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
                                  ur_usm_pool_handle_t pool, size_t widthInBytes,
                                  size_t height, size_t elementSizeBytes,
                                  void **ppMem, size_t *pResultPitch) {
-  std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
-
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(widthInBytes != 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
   UR_ASSERT(ppMem && pResultPitch, UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -75,8 +73,6 @@ ur_result_t urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_image_mem_native_handle_t *phImageMem) {
-  std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
-
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pImageFormat && pImageDesc && phImageMem,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);

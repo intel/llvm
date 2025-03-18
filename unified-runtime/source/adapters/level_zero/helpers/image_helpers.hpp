@@ -81,3 +81,15 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
                                      const ur_image_desc_t *pImageDesc,
                                      ur_sampler_handle_t hSampler,
                                      ur_exp_image_native_handle_t *phImage);
+
+ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst, 
+                                 const ur_image_desc_t *pSrcImageDesc,
+                                 const ur_image_desc_t *pDstImageDesc,
+                                 const ur_image_format_t *pSrcImageFormat,
+                                 const ur_image_format_t *pDstImageFormat,
+                                 ur_exp_image_copy_region_t *pCopyRegion,
+                                 ur_exp_image_copy_flags_t imageCopyFlags,
+                                 ze_command_list_handle_t ZeCommandList,
+                                 ze_event_handle_t zeSignalEvent, 
+                                uint32_t numWaitEvents, 
+                                ze_event_handle_t *phWaitEvents);                                     

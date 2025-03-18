@@ -51,9 +51,6 @@ ur_result_t urBindlessImagesImageCopyExp(
   UR_ASSERT(!(pSrcImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pSrcImageDesc->type),
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
 
-  ZeStruct<ze_image_desc_t> ZeImageDesc;
-  UR_CALL(ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, ZeImageDesc));
-
   bool UseCopyEngine = hQueue->useCopyEngine(/*PreferCopyEngine*/ true);
   // Due to the limitation of the copy engine, disable usage of Copy Engine
   // Given 3 channel image
@@ -92,109 +89,16 @@ ur_result_t urBindlessImagesImageCopyExp(
 
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
+  
+  auto res = handleImageCopyFlags(pSrc, pDst, pSrcImageDesc, pDstImageDesc, 
+                        pSrcImageFormat, pDstImageFormat, pCopyRegion,
+                        imageCopyFlags, ZeCommandList, ZeEvent, WaitList.Length,
+                        WaitList.ZeEventList);
 
-  if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    uint32_t SrcRowPitch =
-        pSrcImageDesc->width * getPixelSizeBytes(pSrcImageFormat);
-    uint32_t SrcSlicePitch = SrcRowPitch * pSrcImageDesc->height;
-    if (pDstImageDesc->rowPitch == 0) {
-      // Copy to Non-USM memory
-      ze_image_region_t DstRegion;
-      UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->dstOffset,
-                                   &pCopyRegion->copyExtent, DstRegion));
-      auto *UrImage = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
+  if (res == UR_RESULT_SUCCESS)
+    UR_CALL(hQueue->executeCommandList(CommandList, Blocking, OkToBatch));
 
-      const char *SrcPtr =
-          static_cast<const char *>(pSrc) +
-          pCopyRegion->srcOffset.z * SrcSlicePitch +
-          pCopyRegion->srcOffset.y * SrcRowPitch +
-          pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
-
-      ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
-                 (ZeCommandList, UrImage->getZeImage(), SrcPtr, &DstRegion,
-                  SrcRowPitch, SrcSlicePitch, ZeEvent, WaitList.Length,
-                  WaitList.ZeEventList));
-    } else {
-      // Copy to pitched USM memory
-      uint32_t DstRowPitch = pDstImageDesc->rowPitch;
-      ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
-                                      (uint32_t)pCopyRegion->dstOffset.y,
-                                      (uint32_t)pCopyRegion->dstOffset.z,
-                                      DstRowPitch,
-                                      (uint32_t)pCopyRegion->copyExtent.height,
-                                      (uint32_t)pCopyRegion->copyExtent.depth};
-      uint32_t DstSlicePitch = 0;
-      ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
-                                      (uint32_t)pCopyRegion->srcOffset.y,
-                                      (uint32_t)pCopyRegion->srcOffset.z,
-                                      SrcRowPitch,
-                                      (uint32_t)pCopyRegion->copyExtent.height,
-                                      (uint32_t)pCopyRegion->copyExtent.depth};
-      ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
-                  WaitList.Length, WaitList.ZeEventList));
-    }
-  } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    uint32_t DstRowPitch =
-        pDstImageDesc->width * getPixelSizeBytes(pDstImageFormat);
-    uint32_t DstSlicePitch = DstRowPitch * pDstImageDesc->height;
-    if (pSrcImageDesc->rowPitch == 0) {
-      // Copy from Non-USM memory to host
-      ze_image_region_t SrcRegion;
-      UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->srcOffset,
-                                   &pCopyRegion->copyExtent, SrcRegion));
-      auto *UrImage = static_cast<const ur_bindless_mem_handle_t *>(pSrc);
-      char *DstPtr =
-          static_cast<char *>(pDst) + pCopyRegion->dstOffset.z * DstSlicePitch +
-          pCopyRegion->dstOffset.y * DstRowPitch +
-          pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
-      ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
-                 (ZeCommandList, DstPtr, UrImage->getZeImage(), &SrcRegion,
-                  DstRowPitch, DstSlicePitch, ZeEvent, WaitList.Length,
-                  WaitList.ZeEventList));
-    } else {
-      // Copy from pitched USM memory to host
-      ze_copy_region_t ZeDstRegion = {(uint32_t)pCopyRegion->dstOffset.x,
-                                      (uint32_t)pCopyRegion->dstOffset.y,
-                                      (uint32_t)pCopyRegion->dstOffset.z,
-                                      DstRowPitch,
-                                      (uint32_t)pCopyRegion->copyExtent.height,
-                                      (uint32_t)pCopyRegion->copyExtent.depth};
-      uint32_t SrcRowPitch = pSrcImageDesc->rowPitch;
-      ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
-                                      (uint32_t)pCopyRegion->srcOffset.y,
-                                      (uint32_t)pCopyRegion->srcOffset.z,
-                                      SrcRowPitch,
-                                      (uint32_t)pCopyRegion->copyExtent.height,
-                                      (uint32_t)pCopyRegion->copyExtent.depth};
-      uint32_t SrcSlicePitch = 0;
-      ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
-                  WaitList.Length, WaitList.ZeEventList));
-    }
-  } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE) {
-    ze_image_region_t DstRegion;
-    UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->dstOffset,
-                                 &pCopyRegion->copyExtent, DstRegion));
-    ze_image_region_t SrcRegion;
-    UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->srcOffset,
-                                 &pCopyRegion->copyExtent, SrcRegion));
-    auto *UrImageDst = static_cast<ur_bindless_mem_handle_t *>(pDst);
-    auto *UrImageSrc = static_cast<const ur_bindless_mem_handle_t *>(pSrc);
-    ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-               (ZeCommandList, UrImageDst->getZeImage(),
-                UrImageSrc->getZeImage(), &DstRegion, &SrcRegion, ZeEvent,
-                WaitList.Length, WaitList.ZeEventList));
-  } else {
-    logger::error("urBindlessImagesImageCopyExp: unexpected imageCopyFlags");
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
-
-  UR_CALL(hQueue->executeCommandList(CommandList, Blocking, OkToBatch));
-
-  return UR_RESULT_SUCCESS;
+  return res;
 }
 
 ur_result_t urBindlessImagesImportExternalMemoryExp(
