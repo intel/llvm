@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <libspirv/spirv.h>
-#include <integer/popcount.h>
+#include <clc/integer/clc_popcount.h>
 
-#define __CLC_FUNC __spirv_ocl_popcount
-#define __CLC_IMPL_FUNC __clc_native_popcount
+#define FUNCTION __spirv_ocl_popcount
+#define __CLC_FUNCTION(x) __clc_popcount
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-#define __CLC_BODY "../../../../generic/lib/clc_unary.inc"
 #include <clc/integer/gentype.inc>

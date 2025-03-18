@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -27,7 +27,7 @@ class ComputeBench(Suite):
             self.directory,
             "compute-benchmarks-repo",
             "https://github.com/intel/compute-benchmarks.git",
-            "9369275026229b182bc4a555b73c2ec995a9e2b7",
+            "dfdbf2ff9437ee159627cc2cd9159c289da1a7ba",
         )
         build_path = create_build_path(self.directory, "compute-benchmarks-build")
 
@@ -58,6 +58,9 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return []
 
+        if options.ur_adapter == "cuda":
+            return []
+
         benches = [
             SubmitKernelL0(self, 0),
             SubmitKernelL0(self, 1),
@@ -71,14 +74,8 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 1, 1, "Device", "Host", 1024),
             VectorSum(self),
             MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 1, 1, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1, 1),
+            MemcpyExecute(self, 400, 8, 1024, 100, 1, 1, 1),
             MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 0, 1, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1, 1),
-            MemcpyExecute(self, 4096, 1, 1024, 10, 0, 1, 0),
             MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
             GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 0, 5),
             GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 1, 5),

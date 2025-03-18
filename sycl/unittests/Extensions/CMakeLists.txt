@@ -1,6 +1,7 @@
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_sycl_unittest(ExtensionsTests OBJECT
+  CurrentDevice.cpp
   DefaultContext.cpp
   FPGADeviceSelectors.cpp
   DeviceArchitecture.cpp
@@ -18,6 +19,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   WorkGroupMemoryBackendArgument.cpp
   GetLastEvent.cpp
   BFloat16.cpp
+  LaunchQueries.cpp
   EventMode.cpp
 )
 

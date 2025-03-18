@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 
-def do_configure(args):
+def do_configure(args, passthrough_args):
     # Get absolute path to source directory
     abs_src_dir = os.path.abspath(
         args.src_dir if args.src_dir else os.path.join(__file__, "../..")
@@ -65,9 +65,18 @@ def do_configure(args):
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
     llvm_enable_zstd = "ON"
+    spirv_enable_dis = "OFF"
 
     if sys.platform != "darwin":
-        sycl_enabled_backends.append("level_zero")
+        # For more info on the enablement of level_zero_v2 refer to this document:
+        # https://github.com/intel/llvm/blob/sycl/unified-runtime/source/adapters/level_zero/v2/README.md
+        if args.level_zero_adapter_version == "V1":
+            sycl_enabled_backends.append("level_zero")
+        if args.level_zero_adapter_version == "V2":
+            sycl_enabled_backends.append("level_zero_v2")
+        if args.level_zero_adapter_version == "ALL":
+            sycl_enabled_backends.append("level_zero")
+            sycl_enabled_backends.append("level_zero_v2")
 
     # lld is needed on Windows or for the HIP adapter on AMD
     if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
@@ -151,6 +160,7 @@ def do_configure(args):
             if libclc_nvidia_target_names not in libclc_targets_to_build:
                 libclc_targets_to_build += libclc_nvidia_target_names
             libclc_gen_remangled_variants = "ON"
+            spirv_enable_dis = "ON"
 
     if args.enable_backends:
         sycl_enabled_backends += args.enable_backends
@@ -188,6 +198,7 @@ def do_configure(args):
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
+        "-DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS={}".format(spirv_enable_dis),
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
         "-DSYCL_ENABLE_BACKENDS={}".format(";".join(set(sycl_enabled_backends))),
@@ -244,6 +255,7 @@ def do_configure(args):
             ]
         )
 
+    cmake_cmd += passthrough_args
     print("[Cmake Command]: {}".format(" ".join(map(shlex.quote, cmake_cmd))))
 
     try:
@@ -328,6 +340,13 @@ def main():
         help="choose hardware platform for HIP backend",
     )
     parser.add_argument(
+        "--level_zero_adapter_version",
+        type=str,
+        choices=["V1", "V2", "ALL"],
+        default="ALL",
+        help="Choose version of Level Zero adapter to build",
+    )
+    parser.add_argument(
         "--host-target",
         default="host",
         help="host LLVM target architecture, defaults to 'host', multiple targets may be provided as a semi-colon separated string",
@@ -398,11 +417,11 @@ def main():
         "--native-cpu-libclc-targets",
         help="Target triples for libclc, used by the Native CPU backend",
     )
-    args = parser.parse_args()
+    args, passthrough_args = parser.parse_known_intermixed_args()
 
     print("args:{}".format(args))
 
-    return do_configure(args)
+    return do_configure(args, passthrough_args)
 
 
 if __name__ == "__main__":

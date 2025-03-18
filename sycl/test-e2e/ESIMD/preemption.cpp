@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: linux
-// UNSUPPORTED: gpu-intel-dg2 || arch-intel_gpu_pvc
+// REQUIRES: arch-intel_gpu_bmg_g21 || arch-intel_gpu_lnl_m
 // RUN: %{build} -o %t.out
 // RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 %{run} %t.out
 // RUN: %{run-aux} grep enablePreemption %t.dump/*.asm

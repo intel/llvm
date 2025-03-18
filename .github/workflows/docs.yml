@@ -65,7 +65,7 @@ jobs:
           fetch-depth: 1
       - name: Get subprojects that have doc changes
         id: docs-changed-subprojects
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@v46
         with:
           files_yaml: |
             llvm:
@@ -102,7 +102,7 @@ jobs:
         with:
           fetch-depth: 1
       - name: Setup Python env
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.4.0
         with:
           python-version: '3.11'
           cache: 'pip'

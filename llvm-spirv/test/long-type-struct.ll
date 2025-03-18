@@ -1,8 +1,8 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite %t.bc -o %t.spv
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_composites %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite -spirv-text %t.rev.bc -o %t2.spt
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_composites -spirv-text %t.rev.bc -o %t2.spt
 ; RUN: FileCheck --input-file=%t2.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; TODO: run validator once it supports the extension
@@ -10,10 +10,10 @@
 
 ; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 
-; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite,+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_composites,+SPV_KHR_untyped_pointers %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite,+SPV_KHR_untyped_pointers -spirv-text %t.rev.bc -o %t2.spt
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_composites,+SPV_KHR_untyped_pointers -spirv-text %t.rev.bc -o %t2.spt
 ; RUN: FileCheck --input-file=%t2.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; TODO: run validator once it supports the extension
@@ -22,7 +22,7 @@
 ; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 
 ; CHECK-SPIRV: Capability LongCompositesINTEL
-; CHECK-SPIRV: Extension "SPV_INTEL_long_constant_composite"
+; CHECK-SPIRV: Extension "SPV_INTEL_long_composites"
 ; CHECK-SPIRV: TypeInt [[TInt:[0-9]+]] 8
 ; CHECK-SPIRV-TYPED-PTR: TypePointer [[TIntPtr:[0-9]+]] 8 [[TInt]]
 ; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[TIntPtr:[0-9]+]] 8
@@ -55,10 +55,10 @@ entry:
 }
 
 ; Function Attrs: argmemonly nofree nosync nounwind willreturn
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: argmemonly nofree nosync nounwind willreturn
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr captures(none)) #1
 
 ; Function Attrs: convergent
 declare dso_local spir_func void @_Z3foo1A(ptr byval(%struct._ZTS1A.A) align 8) local_unnamed_addr #2

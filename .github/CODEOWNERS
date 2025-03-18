@@ -63,12 +63,18 @@ sycl/test-e2e/Adapters/ @intel/unified-runtime-reviewers
 sycl/ur_win_proxy_loader @intel/llvm-reviewers-runtime
 sycl/test-e2e/Adapters/dll-detach-order.cpp @intel/llvm-reviewers-runtime
 
-# CUDA specific runtime implementations
+# CUDA and HIP
 sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
-
-# CUDA and HIP device code tests
 sycl/test/check_device_code/cuda/ @intel/llvm-reviewers-cuda
 sycl/test/check_device_code/hip/ @intel/llvm-reviewers-cuda
+llvm/include/llvm/SYCLLowerIR/GlobalOffset.h @intel/llvm-reviewers-cuda
+llvm/lib/SYCLLowerIR/GlobalOffset.cpp @intel/llvm-reviewers-cuda
+llvm/include/llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h @intel/llvm-reviewers-cuda
+llvm/lib/SYCLLowerIR/LocalAccessorToSharedMemory.cpp @intel/llvm-reviewers-cuda
+llvm/include/llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h @intel/llvm-reviewers-cuda
+llvm/lib/SYCLLowerIR/SYCLCreateNVVMAnnotations.cpp @intel/llvm-reviewers-cuda
+llvm/lib/Target/NVPTX @intel/llvm-reviewers-cuda
+llvm/lib/Target/AMDGPU @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
@@ -193,9 +199,12 @@ llvm/include/llvm/Transforms/Instrumentation/AddressSanitizer.h @intel/dpcpp-san
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/MemorySanitizer.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/ThreadSanitizer.h @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
 llvm/lib/Transforms/Instrumentation/MemorySanitizer.cpp @intel/dpcpp-sanitizers-review
+llvm/lib/Transforms/Instrumentation/ThreadSanitizer.cpp @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/MemorySanitizer/ @intel/dpcpp-sanitizers-review
+llvm/test/Instrumentation/ThreadSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/MemorySanitizer/ @intel/dpcpp-sanitizers-review

@@ -68,7 +68,7 @@ void AsanStats::UpdateUSMFreed(uptr FreedSize) {
 void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
   UsmMalloced -= FreedSize;
   UsmMallocedRedzones -= RedzoneSize;
-  if (getAsanInterceptor()->getOptions().MaxQuarantineSizeMB) {
+  if (getContext()->Options.MaxQuarantineSizeMB) {
     UsmFreed -= FreedSize;
   }
   getContext()->logger.debug(
@@ -137,7 +137,7 @@ void AsanStatsWrapper::Print(ur_context_handle_t Context) {
 }
 
 AsanStatsWrapper::AsanStatsWrapper() : Stat(nullptr) {
-  if (getAsanInterceptor()->getOptions().PrintStats) {
+  if (getContext()->Options.PrintStats) {
     Stat = new AsanStats;
   }
 }

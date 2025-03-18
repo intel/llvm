@@ -71,6 +71,8 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
     return node_type::host_task;
   case sycl::detail::CGType::ExecCommandBuffer:
     return node_type::subgraph;
+  case sycl::detail::CGType::EnqueueNativeCommand:
+    return node_type::native_command;
   default:
     assert(false && "Invalid Graph Node Type");
     return node_type::empty;
@@ -704,6 +706,9 @@ private:
     case sycl::detail::CGType::ExecCommandBuffer:
       Stream << "CGExecCommandBuffer \\n";
       break;
+    case sycl::detail::CGType::EnqueueNativeCommand:
+      Stream << "CGNativeCommand \\n";
+      break;
     default:
       Stream << "Other \\n";
       break;
@@ -865,7 +870,7 @@ public:
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (!(EventImpl->getCommandGraph()))
+    if (!(EventImpl->hasCommandGraph()))
       EventImpl->setCommandGraph(shared_from_this());
     MEventsMap[EventImpl] = NodeImpl;
   }
@@ -1303,7 +1308,30 @@ public:
   void update(std::shared_ptr<node_impl> Node);
   void update(const std::vector<std::shared_ptr<node_impl>> &Nodes);
 
-  void updateImpl(std::shared_ptr<node_impl> NodeImpl);
+  /// Calls UR entry-point to update nodes in command-buffer.
+  /// @param CommandBuffer The UR command-buffer to update commands in.
+  /// @param Nodes List of nodes to update. Only nodes which can be updated
+  /// through UR should be included in this list, currently this is only
+  /// nodes of kernel type.
+  void updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
+                    const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+
+  /// Update host-task nodes
+  /// @param Nodes List of nodes to update, any node that is not a host-task
+  /// will be ignored.
+  void updateHostTasksImpl(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+
+  /// Splits a list of nodes into separate lists of nodes for each
+  /// command-buffer partition.
+  ///
+  /// Only nodes that can be updated through the UR interface are included
+  /// in the list. Currently this is only kernel node types.
+  ///
+  /// @param Nodes List of nodes to split
+  /// @return Map of partition indexes to nodes
+  std::map<int, std::vector<std::shared_ptr<node_impl>>> getURUpdatableNodes(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
 
   unsigned long long getID() const { return MID; }
 
@@ -1372,6 +1400,34 @@ private:
 
     Stream.close();
   }
+
+  /// Determines if scheduler needs to be used for node update.
+  /// @param[in] Nodes List of nodes to be updated
+  /// @param[out] UpdateRequirements Accessor requirements found in /p Nodes.
+  /// return True if update should be done through the scheduler.
+  bool needsScheduledUpdate(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes,
+      std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements);
+
+  /// Sets the UR struct values required to update a graph node.
+  /// @param[in] Node The node to be updated.
+  /// @param[out] BundleObjs UR objects created from kernel bundle.
+  /// Responsibility of the caller to release.
+  /// @param[out] MemobjDescs Memory object arguments to update.
+  /// @param[out] MemobjProps Properties used in /p MemobjDescs structs.
+  /// @param[out] PtrDescs Pointer arguments to update.
+  /// @param[out] ValueDescs Value arguments to update.
+  /// @param[out] NDRDesc ND-Range to update.
+  /// @param[out] UpdateDesc Base struct in the pointer chain.
+  void populateURKernelUpdateStructs(
+      const std::shared_ptr<node_impl> &Node,
+      std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
+      std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
+      std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
+      std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
+      std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
+      sycl::detail::NDRDescT &NDRDesc,
+      ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const;
 
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;

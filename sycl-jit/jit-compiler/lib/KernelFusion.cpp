@@ -27,6 +27,7 @@
 
 #include <clang/Driver/Options.h>
 
+#include <chrono>
 #include <sstream>
 
 using namespace jit_compiler;
@@ -360,7 +361,8 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   }
   auto [BundleInfo, Modules] = std::move(*PostLinkResultOrError);
 
-  for (auto [DevImgInfo, Module] : llvm::zip_equal(BundleInfo, Modules)) {
+  for (auto [DevImgInfo, Module] :
+       llvm::zip_equal(BundleInfo.DevImgInfos, Modules)) {
     auto BinaryInfoOrError =
         translation::KernelTranslator::translateDevImgToSPIRV(
             *Module, JITContext::getInstance());
@@ -370,6 +372,8 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
     }
     DevImgInfo.BinaryInfo = std::move(*BinaryInfoOrError);
   }
+
+  encodeBuildOptions(BundleInfo, UserArgList);
 
   if (llvm::timeTraceProfilerEnabled()) {
     auto Error = llvm::timeTraceProfilerWrite(

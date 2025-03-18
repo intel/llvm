@@ -16,7 +16,7 @@ target triple = "spir-unknown-unknown"
 %opencl.image1d_ro_t.2 = type opaque
 
 ; Function Attrs: convergent nounwind writeonly
-define spir_kernel void @foo(ptr addrspace(1) %im, ptr addrspace(1) nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define spir_kernel void @foo(ptr addrspace(1) %im, ptr addrspace(1) captures(none) %res) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
   %call = tail call spir_func i32 @_Z15get_image_width14ocl_image1d_ro(ptr addrspace(1) %im) #2
   store i32 %call, ptr addrspace(1) %res, align 4, !tbaa !8
