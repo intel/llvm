@@ -5,26 +5,26 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-template <typename T, size_t TM, size_t TN, size_t TK> class mult;
+template <typename T, typename TAcc, typename TResult, size_t TM, size_t TN, size_t TK> class mult;
 
-template <typename TResult, typename T, size_t M, size_t N, size_t K, size_t TM,
+template <typename TResult, typename TAcc, typename T, size_t M, size_t N, size_t K, size_t TM,
           size_t TN, size_t TK, size_t VNNI>
-void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
+void matrix_multiply(big_matrix<TAcc, M, N> &C, big_matrix<T, M, K> &A,
                      big_matrix<T, K / VNNI, N * VNNI> &B) {
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
   buffer<T, 2> bufA(A.get_data(), range<2>(M, K));
   buffer<T, 2> bufB(B.get_data(), range<2>(K, N));
-  buffer<TResult, 2> bufC(C.get_data(), range<2>(M, N));
+  buffer<TAcc, 2> bufC(C.get_data(), range<2>(M, N));
 
   queue q;
-  size_t sg_size = get_sg_size<mult<TResult, TM, TN, TK>>(q);
+  size_t sg_size = get_sg_size<mult<T, TAcc, TResult, TM, TN, TK>>(q);
   q.submit([&](handler &cgh) {
      accessor accA{bufA, cgh};
      accessor accB{bufB, cgh};
      accessor accC{bufC, cgh};
 
-     cgh.parallel_for<mult<TResult, TM, TN, TK>>(
+     cgh.parallel_for<mult<T, TAcc, TResult, TM, TN, TK>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
@@ -44,7 +44,7 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
            // For B, we assume B has been already VNNIed.
            joint_matrix<sub_group, T, use::b, TK, TN, layout::ext_intel_packed>
                sub_b;
-           joint_matrix<sub_group, TResult, use::accumulator, TM, TN> sub_c;
+           joint_matrix<sub_group, TAcc, use::accumulator, TM, TN> sub_c;
 
            joint_matrix_load(
                sg, sub_c,
@@ -74,34 +74,35 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
    }).wait();
 }
 
-template <typename TResult, typename T, size_t VNNI, size_t TM, size_t TN,
+template <typename T, typename TAcc, typename TResult, size_t VNNI, size_t TM, size_t TN,
           size_t TK>
 void test() {
+  std::cout << "Testing: " << TM << " x " << TN << " x " << TK
+            << " [TM x TN x TK]" << std::endl;
+
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
   T A[MATRIX_M][MATRIX_K];
   T B[MATRIX_K / VNNI][MATRIX_N * VNNI];
-  TResult C[MATRIX_M][MATRIX_N];
+  TAcc C[MATRIX_M][MATRIX_N];
   TResult D[MATRIX_M][MATRIX_N];
 
-  matrix_fill(MATRIX_M, MATRIX_K, (T *)A,
-              [](int i, int j) { return i + 2 * j; });
-  matrix_fill(MATRIX_K / VNNI, MATRIX_N * VNNI, (T *)B,
-              [](int i, int j) { return i + j; });
-  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)C, TResult(1));
-  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)D, TResult(1));
+  matrix_rand<T>(MATRIX_M, MATRIX_K, (T*)A, T(1));
+  matrix_rand<T>(MATRIX_K, MATRIX_N, (T*)B, T(1));
+  matrix_fill(MATRIX_M, MATRIX_N, (TAcc *)C, TAcc(0));
+  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)D, TResult(0));
 
-  big_matrix<TResult, MATRIX_M, MATRIX_N> MC((TResult *)&C);
+  big_matrix<TAcc, MATRIX_M, MATRIX_N> MC((TAcc *)&C);
   big_matrix<TResult, MATRIX_M, MATRIX_N> MD((TResult *)&D);
   big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
   big_matrix<T, MATRIX_K / VNNI, MATRIX_N * VNNI> MB((T *)&B);
-  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK, VNNI>(
+  matrix_multiply<TResult, TAcc, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK, VNNI>(
       MC, MA, MB);
   matrix_multiply_ref<T, T, TResult, VNNI>((T *)A, (T *)B, (TResult *)D,
                                            MATRIX_M, MATRIX_N, MATRIX_K / VNNI);
 
-  assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
+  assert(matrix_compare(MATRIX_M, MATRIX_N, (TAcc *)C, (TResult *)D));
 }
 
 int main() {
@@ -116,33 +117,54 @@ int main() {
       continue;
 
     if (combinations[i].nsize == 0) { // Intel AMX
-      test<float, half, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32>();
+      test<half, float, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32>();
       break;
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
-      test<float, half, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      test<half, float, float, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
       // test<half, half, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
 
       // This combination is not currently supported for sub group size = 32 in
       // IGC
 #if (!defined(SG_SZ) || SG_SZ != 32)
-      // test<float, half, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
-      // test<half, half, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
-      // test<float, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
-      // test<half, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
-      // test<float, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-      // test<half, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-      // test<float, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
-      // test<half, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
-      // test<float, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
-      // test<half, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+#if (defined(ACC_BFLOAT16))
+      // 8x16x16
+      test<half, half, float, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      test<half, float, half, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      test<half, half, half,  2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+
+      //16x16x16
+      test<half, half,  float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      test<half, float, half,  2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>(); 
+      test<half, half,  half,  2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+
+      // 1x64x16
+      test<half, half,  float, 2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      test<half, float, half,  2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      test<half, half,  half,  2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+
+      // 1x64x32
+      test<half, half,  float, 2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>(); 
+      test<half, float, half,  2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      test<half, half,  half,  2, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+
+      // 32x64x16
+      test<half, half,  float, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>(); 
+      test<half, float, half,  2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      test<half, half,  half,  2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+
+      // 32x64x32
+      test<half, half, float, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      test<half, float, half, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      test<half, half, half,  2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+#endif
 #endif
       break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      test<float, half, 2, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();
+      test<half, float, float, 2, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();
       break;
     }
   }
