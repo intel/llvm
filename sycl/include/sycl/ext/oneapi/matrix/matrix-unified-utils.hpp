@@ -85,13 +85,18 @@ extern "C" constexpr __spv::MatrixLayout joint_matrix_layout_to_spv(
   }
 }
 
-template<typename Ta, typename Tb, typename Tc>
+template<typename Ta, typename Tb, typename Tc, typename Td>
 constexpr uint32_t CalculateMatrixOperand() {
   if constexpr (std::is_same<Ta, sycl::ext::oneapi::bfloat16>::value &&
-                std::is_same<Tb, sycl::ext::oneapi::bfloat16>::value &&
-                std::is_same<Tc, float>::value)
+                std::is_same<Tb, sycl::ext::oneapi::bfloat16>::value)
     return static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixAAndBBFloat16ComponentsINTEL);
+  if constexpr (std::is_same<Tc, sycl::ext::oneapi::bfloat16>::value)
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixCBFloat16ComponentsINTEL);
+  if constexpr (std::is_same<Td, sycl::ext::oneapi::bfloat16>::value)
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixResultBFloat16ComponentsINTEL);
   if constexpr (std::is_signed<Ta>::value && std::is_unsigned<Tb>::value)
     return static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixASignedComponentsKHR);
