@@ -61,103 +61,11 @@ struct pool_descriptor {
   bool operator==(const pool_descriptor &other) const;
   friend std::ostream &operator<<(std::ostream &os,
                                   const pool_descriptor &desc);
-  static std::pair<ur_result_t, std::vector<pool_descriptor>>
-  create(ur_usm_pool_handle_t poolHandle, ur_context_handle_t hContext);
+  static std::vector<pool_descriptor>
+  createFromDevices(ur_usm_pool_handle_t poolHandle,
+                    ur_context_handle_t hContext,
+                    const std::vector<ur_device_handle_t> &devices);
 };
-
-static inline std::pair<ur_result_t, std::vector<ur_device_handle_t>>
-urGetSubDevices(ur_device_handle_t hDevice) {
-  static detail::ddiTables ddi;
-
-  uint32_t nComputeUnits;
-  auto ret = ddi.deviceDdiTable.pfnGetInfo(
-      hDevice, UR_DEVICE_INFO_MAX_COMPUTE_UNITS, sizeof(nComputeUnits),
-      &nComputeUnits, nullptr);
-  if (ret != UR_RESULT_SUCCESS) {
-    return {ret, {}};
-  }
-
-  ur_device_partition_property_t prop;
-  prop.type = UR_DEVICE_PARTITION_BY_CSLICE;
-  prop.value.affinity_domain = 0;
-
-  ur_device_partition_properties_t properties{
-      UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
-      nullptr,
-      &prop,
-      1,
-  };
-
-  // Get the number of devices that will be created
-  uint32_t deviceCount;
-  ret = ddi.deviceDdiTable.pfnPartition(hDevice, &properties, 0, nullptr,
-                                        &deviceCount);
-  if (ret != UR_RESULT_SUCCESS) {
-    return {ret, {}};
-  }
-
-  std::vector<ur_device_handle_t> sub_devices(deviceCount);
-  ret = ddi.deviceDdiTable.pfnPartition(
-      hDevice, &properties, static_cast<uint32_t>(sub_devices.size()),
-      sub_devices.data(), nullptr);
-  if (ret != UR_RESULT_SUCCESS) {
-    return {ret, {}};
-  }
-
-  return {UR_RESULT_SUCCESS, sub_devices};
-}
-
-inline std::pair<ur_result_t, std::vector<ur_device_handle_t>>
-urGetAllDevicesAndSubDevices(ur_context_handle_t hContext) {
-  static detail::ddiTables ddi;
-
-  size_t deviceCount = 0;
-  auto ret = ddi.contextDdiTable.pfnGetInfo(
-      hContext, UR_CONTEXT_INFO_NUM_DEVICES, sizeof(deviceCount), &deviceCount,
-      nullptr);
-  if (ret != UR_RESULT_SUCCESS || deviceCount == 0) {
-    return {ret, {}};
-  }
-
-  std::vector<ur_device_handle_t> devices(deviceCount);
-  ret = ddi.contextDdiTable.pfnGetInfo(hContext, UR_CONTEXT_INFO_DEVICES,
-                                       sizeof(ur_device_handle_t) * deviceCount,
-                                       devices.data(), nullptr);
-  if (ret != UR_RESULT_SUCCESS) {
-    return {ret, {}};
-  }
-
-  std::vector<ur_device_handle_t> devicesAndSubDevices;
-  std::function<ur_result_t(ur_device_handle_t)> addPoolsForDevicesRec =
-      [&](ur_device_handle_t hDevice) {
-        devicesAndSubDevices.push_back(hDevice);
-        auto [ret, subDevices] = urGetSubDevices(hDevice);
-        if (ret != UR_RESULT_SUCCESS) {
-          return ret;
-        }
-        for (auto &subDevice : subDevices) {
-          ret = addPoolsForDevicesRec(subDevice);
-          if (ret != UR_RESULT_SUCCESS) {
-            return ret;
-          }
-        }
-        return UR_RESULT_SUCCESS;
-      };
-
-  for (size_t i = 0; i < deviceCount; i++) {
-    ret = addPoolsForDevicesRec(devices[i]);
-    if (ret != UR_RESULT_SUCCESS) {
-      if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-        // Return main devices when sub-devices are unsupported.
-        return {ret, std::move(devices)};
-      }
-
-      return {ret, {}};
-    }
-  }
-
-  return {UR_RESULT_SUCCESS, devicesAndSubDevices};
-}
 
 static inline bool
 isSharedAllocationReadOnlyOnDevice(const pool_descriptor &desc) {
@@ -205,14 +113,9 @@ inline std::ostream &operator<<(std::ostream &os, const pool_descriptor &desc) {
   return os;
 }
 
-inline std::pair<ur_result_t, std::vector<pool_descriptor>>
-pool_descriptor::create(ur_usm_pool_handle_t poolHandle,
-                        ur_context_handle_t hContext) {
-  auto [ret, devices] = urGetAllDevicesAndSubDevices(hContext);
-  if (ret != UR_RESULT_SUCCESS) {
-    return {ret, {}};
-  }
-
+inline std::vector<pool_descriptor> pool_descriptor::createFromDevices(
+    ur_usm_pool_handle_t poolHandle, ur_context_handle_t hContext,
+    const std::vector<ur_device_handle_t> &devices) {
   std::vector<pool_descriptor> descriptors;
   pool_descriptor &desc = descriptors.emplace_back();
   desc.poolHandle = poolHandle;
@@ -245,7 +148,7 @@ pool_descriptor::create(ur_usm_pool_handle_t poolHandle,
     }
   }
 
-  return {ret, descriptors};
+  return descriptors;
 }
 
 template <typename D> struct pool_manager {

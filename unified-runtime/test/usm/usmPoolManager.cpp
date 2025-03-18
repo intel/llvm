@@ -39,12 +39,22 @@ bool compareConfigs(const usm::DisjointPoolAllConfigs &left,
                        right.Configs[usm::DisjointPoolMemType::SharedReadOnly]);
 }
 
-TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
-  auto &devices = uur::DevicesEnvironment::instance->devices;
+static std::vector<ur_device_handle_t>
+collectDeviceHandles(const std::vector<uur::DeviceTuple> &testDevices) {
+  std::vector<ur_device_handle_t> devices(testDevices.size());
+  std::for_each(
+      testDevices.begin(), testDevices.end(),
+      [&devices](uur::DeviceTuple tuple) { devices.push_back(tuple.device); });
 
-  auto [ret, pool_descriptors] =
-      usm::pool_descriptor::create(nullptr, this->context);
-  ASSERT_EQ(ret, UR_RESULT_SUCCESS);
+  return devices;
+}
+
+TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
+  auto &testDevices = uur::DevicesEnvironment::instance->devices;
+
+  auto devices = collectDeviceHandles(testDevices);
+  auto pool_descriptors =
+      usm::pool_descriptor::createFromDevices(nullptr, this->context, devices);
 
   size_t hostPools = 0;
   size_t devicePools = 0;
@@ -77,9 +87,10 @@ TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
 struct urUsmPoolManagerTest : public uur::urContextTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
-    auto [ret, descs] = usm::pool_descriptor::create(nullptr, context);
-    ASSERT_EQ(ret, UR_RESULT_SUCCESS);
-    poolDescriptors = std::move(descs);
+    auto &testDevices = uur::DevicesEnvironment::instance->devices;
+    auto devices = collectDeviceHandles(testDevices);
+    poolDescriptors = usm::pool_descriptor::createFromDevices(
+        nullptr, this->context, devices);
   }
 
   std::vector<usm::pool_descriptor> poolDescriptors;

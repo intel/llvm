@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <set>
+#include <string_view>
 #include <vector>
 
 namespace sycl {
@@ -336,7 +337,18 @@ std::vector<sycl::device> find_device_intersection(
 //////////////////////////
 
 std::vector<kernel_id> get_kernel_ids() {
-  return detail::ProgramManager::getInstance().getAllSYCLKernelIDs();
+  std::vector<kernel_id> ids =
+      detail::ProgramManager::getInstance().getAllSYCLKernelIDs();
+  // Filter out kernel ids coming from RTC kernels in order to be
+  // spec-compliant. Kernel ids from RTC are prefixed with rtc_NUM$, so looking
+  // for '$' should be enough.
+  ids.erase(std::remove_if(ids.begin(), ids.end(),
+                           [](kernel_id id) {
+                             std::string_view sv(id.get_name());
+                             return sv.find('$') != std::string_view::npos;
+                           }),
+            ids.end());
+  return ids;
 }
 
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
@@ -428,7 +440,7 @@ make_kernel_bundle_from_source(const context &SyclContext,
   std::shared_ptr<kernel_bundle_impl> KBImpl =
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Source,
                                            IncludePairs);
-  return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
+  return sycl::detail::createSyclObjFromImpl<source_kb>(std::move(KBImpl));
 }
 
 source_kb make_kernel_bundle_from_source(const context &SyclContext,
@@ -443,7 +455,7 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
 
   std::shared_ptr<kernel_bundle_impl> KBImpl =
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Bytes);
-  return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
+  return sycl::detail::createSyclObjFromImpl<source_kb>(std::move(KBImpl));
 }
 
 /////////////////////////
@@ -472,7 +484,7 @@ exe_kb build_from_source(
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
       UniqueDevices, Options, LogPtr, KernelNames);
-  auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
+  auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(std::move(KBImpl));
   if (LogView)
     *LogView = Log;
   return result;
