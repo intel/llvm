@@ -308,42 +308,6 @@ static bool getStatic(const ArgList &Args) {
       !Args.hasArg(options::OPT_static_pie);
 }
 
-// Create an archive with llvm-ar.  This is used to create an archive that
-// contains host objects and the wrapped FPGA device binary
-void tools::gnutools::Linker::constructLLVMARCommand(
-    Compilation &C, const JobAction &JA, const InputInfo &Output,
-    const InputInfoList &Input, const ArgList &Args) const {
-  ArgStringList CmdArgs;
-  // Use 'cqL' to create the archive.  This allows for any fat archives that
-  // are passed on the command line to be added via contents instead of the
-  // full archive.  Any usage of the generated archive will then have full
-  // access to resolve any dependencies.
-  CmdArgs.push_back("cqL");
-  const char *OutputFilename = Output.getFilename();
-  if (llvm::sys::fs::exists(OutputFilename)) {
-    C.getDriver().Diag(clang::diag::warn_drv_existing_archive_append)
-        << OutputFilename;
-  }
-  CmdArgs.push_back(OutputFilename);
-  for (const auto &II : Input) {
-    if (II.getType() == types::TY_Tempfilelist) {
-      // Take the list file and pass it in with '@'.
-      std::string FileName(II.getFilename());
-      const char *ArgFile = Args.MakeArgString("@" + FileName);
-      CmdArgs.push_back(ArgFile);
-      continue;
-    }
-    if (II.isFilename())
-      CmdArgs.push_back(II.getFilename());
-  }
-
-  SmallString<128> LLVMARPath(C.getDriver().Dir);
-  llvm::sys::path::append(LLVMARPath, "llvm-ar");
-  const char *Exec = C.getArgs().MakeArgString(LLVMARPath);
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::None(), Exec, CmdArgs, std::nullopt));
-}
-
 void tools::gnutools::StaticLibTool::ConstructJob(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const InputInfoList &Inputs, const ArgList &Args,
@@ -413,12 +377,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       ToolChain.getTriple().hasEnvironment() ||
       (ToolChain.getTriple().getVendor() != llvm::Triple::MipsTechnologies);
 
-  // Use of -fsycl-link creates an archive.
-  if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
-      JA.getType() == types::TY_Archive) {
-    constructLLVMARCommand(C, JA, Output, Inputs, Args);
-    return;
-  }
   ArgStringList CmdArgs;
 
   // Silence warning for "clang -g foo.o -o foo"
@@ -739,10 +697,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         else
           CmdArgs.push_back("-lsycl");
         CmdArgs.push_back("-lsycl-devicelib-host");
-        // Use of -fintelfpga implies -lOpenCL.
-        // FIXME: Adjust to use plugin interface when available.
-        if (Args.hasArg(options::OPT_fintelfpga))
-          CmdArgs.push_back("-lOpenCL");
       }
 
       // LLVM support for atomics on 32-bit SPARC V8+ is incomplete, so
