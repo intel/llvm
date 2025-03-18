@@ -1,4 +1,9 @@
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: v2 adapter does not allow disabling caching
+
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
 
 // RUN: %{build}  -o %t.out
 

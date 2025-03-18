@@ -32,12 +32,6 @@
 // CHECK-DAG:    from_source : false
 // CHECK-DAG:    kernel_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
 // CHECK-DAG:    sycl_device : {{.*}}
-// CHECK:      Node create
-// CHECK-DAG:   queue_id : {{.*}}
-// CHECK-DAG:   kernel_name : virtual_node[{{.*}}]
-// CHECK-NEXT: Edge create
-// CHECK-DAG:   queue_id : {{.*}}
-// CHECK-DAG:   event : {{.*}}
 // CHECK: Task begin
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}

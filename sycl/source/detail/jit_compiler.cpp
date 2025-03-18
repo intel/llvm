@@ -1155,7 +1155,7 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
     const std::string &Prefix) {
   auto Collection = std::make_unique<DeviceBinariesCollection>();
 
-  for (const auto &DevImgInfo : BundleInfo) {
+  for (const auto &DevImgInfo : BundleInfo.DevImgInfos) {
     DeviceBinaryContainer Binary;
     for (const auto &Symbol : DevImgInfo.SymbolTable) {
       // Create an offload entry for each kernel. We prepend a unique prefix to
@@ -1170,18 +1170,24 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
     }
 
     for (const auto &FPS : DevImgInfo.Properties) {
+      bool IsDeviceGlobalsPropSet =
+          FPS.Name == __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS;
       PropertySetContainer PropSet{FPS.Name.c_str()};
       for (const auto &FPV : FPS.Values) {
         if (FPV.IsUIntValue) {
           PropSet.addProperty(
               PropertyContainer{FPV.Name.c_str(), FPV.UIntValue});
         } else {
+          std::string PrefixedName =
+              (IsDeviceGlobalsPropSet ? Prefix : "") + FPV.Name.c_str();
           PropSet.addProperty(PropertyContainer{
-              FPV.Name.c_str(), FPV.Bytes.begin(), FPV.Bytes.size(),
+              PrefixedName.c_str(), FPV.Bytes.begin(), FPV.Bytes.size(),
               sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY});
         }
       }
       Binary.addProperty(std::move(PropSet));
+
+      Binary.setCompileOptions(BundleInfo.CompileOptions.c_str());
     }
 
     Collection->addDeviceBinary(std::move(Binary),
