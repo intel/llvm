@@ -196,20 +196,36 @@ function(add_ur_library name)
         target_link_options(${name} PRIVATE
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
+        set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
     endif()
     if(UR_EXTERNAL_DEPENDENCIES)
         add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})
     endif()
+    add_dependencies(unified-runtime-libraries ${name})
 endfunction()
+
+if(NOT TARGET unified-runtime-libraries)
+    add_custom_target(unified-runtime-libraries)
+endif()
 
 function(install_ur_library name)
     install(TARGETS ${name}
+            COMPONENT unified-runtime
             EXPORT ${PROJECT_NAME}-targets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 endfunction()
+
+if(NOT TARGET install-unified-runtime-libraries)
+    add_custom_target(install-unified-runtime-libraries
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMPONENT=unified-runtime
+            -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+        DEPENDS unified-runtime-libraries
+    )
+endif()
 
 include(FetchContent)
 
