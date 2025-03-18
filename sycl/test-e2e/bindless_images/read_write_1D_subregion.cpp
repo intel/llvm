@@ -3,7 +3,7 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
 
-// Test flakily failing on Widnows + BMG
+// Test flakily failing on Windows+ BMG
 // UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17439
 
