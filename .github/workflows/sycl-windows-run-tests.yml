@@ -142,7 +142,7 @@ jobs:
         if [[ ${{inputs.compiler}} == 'icx' ]]; then
            export LIT_FILTER_OUT="compile_on_win_with_mdd"
         fi
-        export LIT_OPTS="--filter=Basic -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.testing_mode }} ${{ inputs.extra_lit_opts }}"
+        export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.testing_mode }} ${{ inputs.extra_lit_opts }}"
         cmake --build build-e2e --target check-sycl-e2e
 
     # This needs to be done because the absolute path of the build-e2e folder
