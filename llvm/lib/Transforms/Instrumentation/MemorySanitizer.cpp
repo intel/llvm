@@ -878,6 +878,7 @@ MemorySanitizerOnSpirv::getOrCreateGlobalString(StringRef Name, StringRef Value,
 // Initialize MSan runtime functions and globals
 void MemorySanitizerOnSpirv::initializeCallbacks() {
   IRBuilder<> IRB(C);
+  auto *PtrTy = IRB.getPtrTy();
 
   // __msan_set_shadow_static_local(
   //   uptr ptr,
@@ -917,7 +918,7 @@ void MemorySanitizerOnSpirv::initializeCallbacks() {
   //   size_t size
   // )
   MsanUnpoisonStackFunc = M.getOrInsertFunction(
-      "__msan_unpoison_stack", IRB.getVoidTy(), IntptrTy, IntptrTy);
+      "__msan_unpoison_stack", IRB.getVoidTy(), PtrTy, IntptrTy);
 }
 
 // Handle global variables:
@@ -1116,10 +1117,9 @@ void MemorySanitizerOnSpirv::instrumentPrivateArguments(
       AI->setAlignment(Alignment);
       Arg.replaceAllUsesWith(AI);
 
-      auto *UnpoisonStack =
-          IRB.CreateCall(MsanUnpoisonStackFunc,
-                         {IRB.CreatePointerCast(AI, IntptrTy),
-                          ConstantInt::get(IntptrTy, DL.getTypeAllocSize(Ty))});
+      auto *UnpoisonStack = IRB.CreateCall(
+          MsanUnpoisonStackFunc,
+          {AI, ConstantInt::get(IntptrTy, DL.getTypeAllocSize(Ty))});
       UnpoisonStack->setNoSanitizeMetadata();
 
       uint64_t AllocSize = DL.getTypeAllocSize(Ty);

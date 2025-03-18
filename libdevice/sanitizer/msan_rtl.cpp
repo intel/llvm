@@ -535,13 +535,14 @@ static __SYCL_CONSTANT__ const char __msan_print_set_shadow_private[] =
 
 // We outline the function of setting shadow memory of private memory, because
 // it may allocate failed on UR
-DEVICE_EXTERN_C_NOINLINE void __msan_poison_stack(uptr ptr, uptr size) {
+DEVICE_EXTERN_C_NOINLINE void __msan_poison_stack(__SYCL_PRIVATE__ void *ptr,
+                                                  uptr size) {
   if (!GetMsanLaunchInfo || GetMsanLaunchInfo->PrivateShadowOffset == 0)
     return;
 
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_beg, "__msan_poison_stack"));
 
-  auto shadow_address = __msan_get_shadow(ptr, ADDRESS_SPACE_PRIVATE);
+  auto shadow_address = __msan_get_shadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_private,
                                 (void *)shadow_address,
                                 (void *)(shadow_address + size), 0xff));
@@ -552,14 +553,15 @@ DEVICE_EXTERN_C_NOINLINE void __msan_poison_stack(uptr ptr, uptr size) {
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_func_end, "__msan_poison_stack"));
 }
 
-DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(uptr ptr, uptr size) {
+DEVICE_EXTERN_C_NOINLINE void __msan_unpoison_stack(__SYCL_PRIVATE__ void *ptr,
+                                                    uptr size) {
   if (!GetMsanLaunchInfo || GetMsanLaunchInfo->PrivateShadowOffset == 0)
     return;
 
   MSAN_DEBUG(
       __spirv_ocl_printf(__msan_print_func_beg, "__msan_unpoison_stack"));
 
-  auto shadow_address = __msan_get_shadow(ptr, ADDRESS_SPACE_PRIVATE);
+  auto shadow_address = __msan_get_shadow((uptr)ptr, ADDRESS_SPACE_PRIVATE);
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_set_shadow_private,
                                 (void *)shadow_address,
                                 (void *)(shadow_address + size), 0x0));
