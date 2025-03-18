@@ -14,7 +14,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: gpu && run-mode
+// XFAIL: !(linux && arch-intel_gpu_bmg_g21) && run-mode
 // XFAIL-TRACKER: GSD-5768
 
 #include "common.hpp"
