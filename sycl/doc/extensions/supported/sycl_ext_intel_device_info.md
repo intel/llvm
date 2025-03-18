@@ -567,7 +567,7 @@ The extension supports this query in version 7 and later.
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| `ext::intel::info::device::fan_speed` | `int32_t` | Returns the current speed of device's fan (as a percentage of the maximum speed of the fan). If device doesn't have a fan then returns 0. If fan speed can't be measured then returns -1. If there are multiple fans, then returns maximum value. |
+| `ext::intel::info::device::fan_speed` | `int32_t` | Returns the current speed of device's fan (as a percentage of the maximum speed of the fan). If fan speed can't be measured then returns -1. If there are multiple fans, then returns maximum value. |
 
 
 ## Aspects ##
@@ -601,8 +601,8 @@ The extension supports this query in version 7 and later.
 
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-|`ext::intel::info::device::min_power_limit` |`int32_t` | Returns the minimum power limit of the device in  milliwatts. |
-|`ext::intel::info::device::max_power_limit` |`int32_t` | Returns the maximum power limit of the device in  milliwatts. |
+|`ext::intel::info::device::min_power_limit` |`int32_t` | Returns the minimum power limit of the device in milliwatts. Returns -1 if the limit is not known. |
+|`ext::intel::info::device::max_power_limit` |`int32_t` | Returns the maximum power limit of the device in milliwatts. Returns -1 if the limit is not known. |
 
 
 ## Aspects ##
