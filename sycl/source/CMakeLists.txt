@@ -101,7 +101,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   endif()
 
   if (NOT LLVM_ENABLE_ZSTD)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAIABLE)
+    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAILABLE)
   else()
     target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
