@@ -497,6 +497,8 @@ private:
                   const int Size, const size_t Index, size_t &IndexShift,
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
+  void setKernelName();
+
   /// \return a string containing name of SYCL kernel.
   detail::string getKernelName();
 
@@ -1301,7 +1303,7 @@ private:
     processLaunchProperties<PropertiesT>(Props);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
+    setKernelName();
 #endif
   }
 
@@ -1326,7 +1328,7 @@ private:
     processLaunchProperties(Props);
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
+    setKernelName();
 #endif
   }
 
@@ -2034,7 +2036,7 @@ public:
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
+    setKernelName();
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
@@ -2072,7 +2074,7 @@ public:
     setNDRangeDescriptor(std::move(NumWorkItems), std::move(WorkItemOffset));
     setType(detail::CGType::Kernel);
     extractArgsAndReqs();
-    MKernelName = getKernelName();
+    setKernelName();
 #endif
   }
 
@@ -2114,7 +2116,7 @@ public:
     setType(detail::CGType::Kernel);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-      MKernelName = getKernelName();
+      setKernelName();
     } else
       StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
 #else
@@ -2151,7 +2153,7 @@ public:
     setType(detail::CGType::Kernel);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-      MKernelName = getKernelName();
+      setKernelName();
     } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
@@ -2191,7 +2193,7 @@ public:
     setType(detail::CGType::Kernel);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-      MKernelName = getKernelName();
+      setKernelName();
     } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
@@ -2230,7 +2232,7 @@ public:
     setType(detail::CGType::Kernel);
     if (!lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
-      MKernelName = getKernelName();
+      setKernelName();
     } else
       StoreLambda<NameT, KernelType, Dims, LambdaArgType>(
           std::move(KernelFunc));
@@ -3429,7 +3431,13 @@ private:
   std::shared_ptr<detail::queue_impl> MQueue;
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::string_view MKernelName;
+  detail::string MKernelNameStorage;
+#else
   detail::string MKernelName;
+#endif
+
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Pointer to the source host memory or accessor(depending on command type).
