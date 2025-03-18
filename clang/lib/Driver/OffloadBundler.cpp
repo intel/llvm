@@ -701,7 +701,9 @@ class ObjectFileHandler final : public FileHandler {
             (Name == "llvm.used" || Name == "llvm.compiler.used" ||
              Name == "__AsanDeviceGlobalMetadata" ||
              Name == "__MsanDeviceGlobalMetadata" ||
-             Name == "__AsanKernelMetadata" || Name == "__MsanKernelMetadata"))
+             Name == "__TsanDeviceGlobalMetadata" ||
+             Name == "__AsanKernelMetadata" || Name == "__MsanKernelMetadata" ||
+             Name == "__TsanKernelMetadata"))
           continue;
 
         // Add symbol name with the target prefix to the buffer.
