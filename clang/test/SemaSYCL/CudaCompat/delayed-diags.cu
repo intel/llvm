@@ -12,7 +12,7 @@
 // Check that delayed diagnostics are done
 // according to the SYCL logic and not the CUDA one.
 // fsycl-cuda-compatibility doesn't enable the CUDA device mode,
-// this leaves the diagnostic logic for CUDA it is processing the host side
+// this leaves the CUDA diagnostic logic think it is processing the host side
 // and triggers SYCL's delayed diagnostics.
 
 // expected-no-diagnostics
