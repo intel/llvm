@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#ifndef SYCL_RT_ZSTD_NOT_AVAILABLE
+#ifdef SYCL_RT_ZSTD_AVAILABLE
 
 #include <sycl/exception.hpp>
 
@@ -150,4 +150,4 @@ private:
 } // namespace _V1
 } // namespace sycl
 
-#endif // SYCL_RT_ZSTD_NOT_AVAILABLE
+#endif // SYCL_RT_ZSTD_AVAILABLE
