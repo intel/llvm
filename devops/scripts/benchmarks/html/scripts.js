@@ -105,7 +105,10 @@ function createChart(data, containerId, type) {
             }
         };
         options.scales.x = {
-            type: 'time',
+            type: 'timeseries',
+            time: {
+                unit: 'day'
+            },
             ticks: {
                 maxRotation: 45,
                 minRotation: 45,
