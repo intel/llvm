@@ -1221,6 +1221,11 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
+      return ReturnValue(ThrottleReasons);
+    }
     [[maybe_unused]] auto [ZesDevice, Ignored, Result] =
         getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
@@ -1278,8 +1283,15 @@ ur_result_t urDeviceGetInfo(
 
     uint32_t FanCount = 0;
     ZE2UR_CALL(zesDeviceEnumFans, (ZesDevice, &FanCount, nullptr));
+    // If there are no fans, then report speed query as unsupported.
     if (FanCount == 0)
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
       return ReturnValue(int32_t{0});
+    }
 
     std::vector<zes_fan_handle_t> ZeFanHandles(FanCount);
     ZE2UR_CALL(zesDeviceEnumFans, (ZesDevice, &FanCount, ZeFanHandles.data()));
@@ -1293,6 +1305,12 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
   case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
+      return ReturnValue(int32_t{0});
+    }
+
     [[maybe_unused]] auto [ZesDevice, Ignored, Result] =
         getZesDeviceData(Device);
     if (Result != UR_RESULT_SUCCESS)
