@@ -621,7 +621,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   // Not "standard" per se, but available even with the -undef flag.
   if (LangOpts.AsmPreprocessor)
     Builder.defineMacro("__ASSEMBLER__");
-  if (LangOpts.CUDA || LangOpts.SYCLCUDACompat) {
+  if (LangOpts.CUDA) {
     if (LangOpts.GPURelocatableDeviceCode)
       Builder.defineMacro("__CLANG_RDC__");
     if (!LangOpts.HIP)

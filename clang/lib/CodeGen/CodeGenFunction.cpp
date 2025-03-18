@@ -1877,7 +1877,13 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
       getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
       FD->hasAttr<CUDADeviceAttr>()) {
-    // Generate a dummy __host__ function for compiling CUDA sources in SYCL.
+    // SYCL host compilation with CUDA compatibility enabled requires
+    // the creation of a host stub function for functions declared with
+    // the __device__ specifier but without the __host__ specifier.
+    // This is caused by the fact that SYCL doesn't use specifier like CUDA and
+    // so may have what can appear to be call from host to device. As we can't
+    // prevent the emission of such call, we need to produce a symbol for
+    // function with the __device__.
     if (FD->getReturnType()->isVoidType())
       Builder.CreateRetVoid();
     else
