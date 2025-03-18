@@ -430,7 +430,7 @@ private:
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
+  handler(std::shared_ptr<detail::queue_impl> &Queue, bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
@@ -443,7 +443,7 @@ private:
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
   handler(detail::handler_impl *HandlerImpl,
-          std::shared_ptr<detail::queue_impl> Queue);
+          std::shared_ptr<detail::queue_impl> &Queue);
 
   /// Constructs SYCL handler from Graph.
   ///
@@ -3425,7 +3425,7 @@ public:
 private:
   std::unique_ptr<detail::handler_impl> MImplOwner;
   detail::handler_impl *impl;
-  std::shared_ptr<detail::queue_impl> MQueue;
+  std::shared_ptr<detail::queue_impl> &MQueue;
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::string MKernelName;

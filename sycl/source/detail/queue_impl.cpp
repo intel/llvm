@@ -364,8 +364,8 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
   detail::handler_impl HandlerImpl(
-      std::move(PrimaryQueue), std::move(SecondaryQueue), CallerNeedsEvent);
-  handler Handler(&HandlerImpl, Self);
+      PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent);
+  handler Handler(&HandlerImpl, const_cast<std::shared_ptr<queue_impl> &>(Self));
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
@@ -387,7 +387,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   addEvent(Event);
 
-  auto EventImpl = detail::getSyclObjImpl(Event);
+  auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel
