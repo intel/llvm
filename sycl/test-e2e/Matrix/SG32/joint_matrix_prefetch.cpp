@@ -14,7 +14,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: !(linux && arch-intel_gpu_bmg_g21)
+// XFAIL: gpu && !(linux && arch-intel_gpu_bmg_g21)
 // XFAIL-TRACKER: GSD-4181
 
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
