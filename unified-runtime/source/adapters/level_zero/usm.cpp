@@ -949,12 +949,9 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
   }
 
-  auto [Ret, Descriptors] = usm::pool_descriptor::create(this, Context);
-  if (Ret) {
-    logger::error("urUSMPoolCreate: failed to create pool descriptors");
-    throw UsmAllocationException(Ret);
-  }
-
+  auto DevicesAndSubDevices = CollectDevicesAndSubDevices(Context->Devices);
+  auto Descriptors = usm::pool_descriptor::createFromDevices(
+      this, Context, DevicesAndSubDevices);
   for (auto &Desc : Descriptors) {
     umf::pool_unique_handle_t Pool = nullptr;
     if (IsProxy) {
@@ -965,7 +962,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       Pool = usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig);
     }
 
-    Ret = PoolManager.addPool(Desc, std::move(Pool));
+    auto Ret = PoolManager.addPool(Desc, std::move(Pool));
     if (Ret) {
       logger::error("urUSMPoolCreate: failed to store UMF pool");
       throw UsmAllocationException(Ret);

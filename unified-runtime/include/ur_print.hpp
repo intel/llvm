@@ -1222,6 +1222,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_USM_POOL_GET_INFO_EXP:
     os << "UR_FUNCTION_USM_POOL_GET_INFO_EXP";
     break;
+  case UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP:
+    os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP";
+    break;
+  case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP:
+    os << "UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -2876,9 +2882,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
     os << "UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES";
     break;
-  case UR_DEVICE_INFO_BFLOAT16:
-    os << "UR_DEVICE_INFO_BFLOAT16";
-    break;
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
     os << "UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES";
     break;
@@ -2941,6 +2944,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
     os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP";
@@ -4372,19 +4378,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BFLOAT16: {
-    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-    if (sizeof(ur_bool_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_bool_t) << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
@@ -4650,6 +4643,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -10859,6 +10865,12 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
     os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE";
+    break;
+  case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD:
+    os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD";
+    break;
+  case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
+    os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT";
     break;
   default:
     os << "unknown enumerator";
@@ -19457,6 +19469,52 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
+/// ur_command_buffer_append_native_command_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_native_command_exp_params_t *params) {
+
+  os << ".hCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phCommandBuffer));
+
+  os << ", ";
+  os << ".pfnNativeCommand = ";
+
+  os << reinterpret_cast<void *>(*(params->ppfnNativeCommand));
+
+  os << ", ";
+  os << ".pData = ";
+
+  ur::details::printPtr(os, *(params->ppData));
+
+  os << ", ";
+  os << ".hChildCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phChildCommandBuffer));
+
+  os << ", ";
+  os << ".numSyncPointsInWaitList = ";
+
+  os << *(params->pnumSyncPointsInWaitList);
+
+  os << ", ";
+  os << ".pSyncPointWaitList = ";
+
+  ur::details::printPtr(os, *(params->ppSyncPointWaitList));
+
+  os << ", ";
+  os << ".pSyncPoint = ";
+
+  ur::details::printPtr(os, *(params->ppSyncPoint));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
 /// ur_command_buffer_update_kernel_launch_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -19582,6 +19640,27 @@ operator<<(std::ostream &os,
   os << ".pPropSizeRet = ";
 
   ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_command_buffer_get_native_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_get_native_handle_exp_params_t *params) {
+
+  os << ".hCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phCommandBuffer));
+
+  os << ", ";
+  os << ".phNativeCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->pphNativeCommandBuffer));
 
   return os;
 }
@@ -20893,6 +20972,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     os << (const struct ur_command_buffer_append_usm_advise_exp_params_t *)
             params;
   } break;
+  case UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP: {
+    os << (const struct ur_command_buffer_append_native_command_exp_params_t *)
+            params;
+  } break;
   case UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP: {
     os << (const struct ur_command_buffer_update_kernel_launch_exp_params_t *)
             params;
@@ -20907,6 +20990,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP: {
     os << (const struct ur_command_buffer_get_info_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP: {
+    os << (const struct ur_command_buffer_get_native_handle_exp_params_t *)
+            params;
   } break;
   case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP: {
     os << (const struct ur_usm_p2p_enable_peer_access_exp_params_t *)params;
