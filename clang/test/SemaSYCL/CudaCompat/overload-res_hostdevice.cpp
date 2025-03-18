@@ -43,7 +43,7 @@ __attribute__((host)) __attribute__((device)) void caller_hostdevice_overload_te
     // HOST: DeclRefExpr {{.*}} Function [[OVERLOAD_HOST]]
     // for SYCL and CUDA device
     // DEVICE: DeclRefExpr {{.*}} Function [[OVERLOAD_DEV]]
-    overload();
+    bar::overload();
 }
 
 #ifdef __SYCL_DEVICE_ONLY__

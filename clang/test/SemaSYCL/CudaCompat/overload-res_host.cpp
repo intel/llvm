@@ -38,5 +38,5 @@ __attribute__((host)) void caller_host_overload_test() {
   // HOST: DeclRefExpr {{.*}} Function [[OVERLOAD_HOST]]
   // for SYCL device
   // SYCL-DEV: DeclRefExpr {{.*}} Function [[OVERLOAD_DEV]]
-  overload();
+  bar::overload();
 }

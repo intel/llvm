@@ -61,7 +61,7 @@ DEVICE_ATTR void caller_device() {
 DEVICE_ATTR void caller_device_overload_test() {
   // CHECK: FunctionDecl {{.*}} caller_device_overload_test
   // CHECK: DeclRefExpr {{.*}} Function [[OVERLOAD_DEV]]
-  overload();
+  bar::overload();
 }
 
 #ifdef __SYCL_DEVICE_ONLY__

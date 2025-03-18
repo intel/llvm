@@ -5843,7 +5843,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (IsSYCLCUDACompat) {
       Args.addOptInFlag(CmdArgs, options::OPT_fsycl_cuda_compat,
                         options::OPT_fno_sycl_cuda_compat);
-      // clang's CUDA headers require this ...
+      // FIXME: clang's CUDA headers require this ...
+      // remove when clang/lib/Headers/__clang_cuda_builtin_vars.h no longer
+      // requires it.
       CmdArgs.push_back("-fdeclspec");
       // Note: assumes CUDA 9.0 or more (required by SYCL for CUDA)
       CmdArgs.push_back("-fcuda-allow-variadic-functions");
