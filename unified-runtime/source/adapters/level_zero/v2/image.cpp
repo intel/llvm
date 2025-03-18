@@ -11,12 +11,12 @@
 #include "common.hpp"
 
 #include "../helpers/image_helpers.hpp"
-#include "logger/ur_logger.hpp"
-#include "queue_api.hpp"
-#include "queue_handle.hpp"
 #include "../ur_interface_loader.hpp"
 #include "../v2/context.hpp"
 #include "../v2/memory.hpp"
+#include "logger/ur_logger.hpp"
+#include "queue_api.hpp"
+#include "queue_handle.hpp"
 
 namespace ur::level_zero {
 

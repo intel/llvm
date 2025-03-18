@@ -61,18 +61,11 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                            const ur_image_desc_t *ImageDesc,
                            ZeStruct<ze_image_desc_t> &ZeImageDesc);
 
-/// Return element size in bytes of a pixel.
-uint32_t getPixelSizeBytes(const ur_image_format_t *Format);
-
-bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder);
-
 ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
                                  ur_rect_offset_t *Origin,
                                  ur_rect_region_t *Region,
                                  ze_image_region_t &ZeRegion);
 
-std::pair<ze_image_format_type_t, size_t>
-getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat);
 
 ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
                                      ur_device_handle_t hDevice,

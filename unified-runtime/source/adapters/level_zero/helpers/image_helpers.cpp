@@ -26,6 +26,145 @@
 
 zeImageGetDeviceOffsetExp_pfn zeImageGetDeviceOffsetExpFunctionPtr = nullptr;
 
+namespace {
+
+/// Return element size in bytes of a pixel.
+uint32_t getPixelSizeBytes(const ur_image_format_t *Format) {
+  uint32_t NumChannels = 0;
+  switch (Format->channelOrder) {
+  case UR_IMAGE_CHANNEL_ORDER_A:
+  case UR_IMAGE_CHANNEL_ORDER_R:
+  case UR_IMAGE_CHANNEL_ORDER_INTENSITY:
+  case UR_IMAGE_CHANNEL_ORDER_LUMINANCE:
+  case UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32:
+    NumChannels = 1;
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RG:
+  case UR_IMAGE_CHANNEL_ORDER_RA:
+  case UR_IMAGE_CHANNEL_ORDER_RX:
+    NumChannels = 2;
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RGB:
+  case UR_IMAGE_CHANNEL_ORDER_RGX:
+    NumChannels = 3;
+    break;
+  case UR_IMAGE_CHANNEL_ORDER_RGBA:
+  case UR_IMAGE_CHANNEL_ORDER_BGRA:
+  case UR_IMAGE_CHANNEL_ORDER_ARGB:
+  case UR_IMAGE_CHANNEL_ORDER_ABGR:
+  case UR_IMAGE_CHANNEL_ORDER_RGBX:
+  case UR_IMAGE_CHANNEL_ORDER_SRGBA:
+    NumChannels = 4;
+    break;
+  default:
+    ur::unreachable();
+  }
+  uint32_t ChannelTypeSizeInBytes = 0;
+  switch (Format->channelType) {
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+    ChannelTypeSizeInBytes = 1;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555:
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
+    ChannelTypeSizeInBytes = 2;
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_INT_101010:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
+  case UR_IMAGE_CHANNEL_TYPE_FLOAT:
+  case UR_IMAGE_CHANNEL_TYPE_FORCE_UINT32:
+    ChannelTypeSizeInBytes = 4;
+    break;
+  default:
+    ur::unreachable();
+  }
+  return NumChannels * ChannelTypeSizeInBytes;
+}
+
+std::pair<ze_image_format_type_t, size_t>
+getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
+  ze_image_format_type_t ZeImageFormatType;
+  size_t ZeImageFormatTypeSize;
+  switch (ImageFormat->channelType) {
+  case UR_IMAGE_CHANNEL_TYPE_FLOAT: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FLOAT;
+    ZeImageFormatTypeSize = 32;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FLOAT;
+    ZeImageFormatTypeSize = 16;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
+    ZeImageFormatTypeSize = 32;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
+    ZeImageFormatTypeSize = 16;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
+    ZeImageFormatTypeSize = 8;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UNORM;
+    ZeImageFormatTypeSize = 16;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UNORM;
+    ZeImageFormatTypeSize = 8;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
+    ZeImageFormatTypeSize = 32;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
+    ZeImageFormatTypeSize = 16;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
+    ZeImageFormatTypeSize = 8;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SNORM;
+    ZeImageFormatTypeSize = 16;
+    break;
+  }
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8: {
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SNORM;
+    ZeImageFormatTypeSize = 8;
+    break;
+  }
+  default:
+    logger::error("ur2zeImageDesc: unsupported image data type: data type = {}",
+                  ImageFormat->channelType);
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FORCE_UINT32;
+    ZeImageFormatTypeSize = 0;
+  }
+  return {ZeImageFormatType, ZeImageFormatTypeSize};
+}
+
+} // namespace
+
 /// Construct UR image format from ZE image desc.
 ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
                              ur_image_format_t *UrImageFormat) {
@@ -260,16 +399,6 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
   return UR_RESULT_SUCCESS;
 }
 
-bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
-  switch (ChannelOrder) {
-  case UR_IMAGE_CHANNEL_ORDER_RGB:
-  case UR_IMAGE_CHANNEL_ORDER_RGX:
-    return true;
-  default:
-    return false;
-  }
-}
-
 /// Construct ZE image desc from UR image format and desc.
 ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                            const ur_image_desc_t *ImageDesc,
@@ -470,67 +599,6 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   return UR_RESULT_SUCCESS;
 }
 
-/// Return element size in bytes of a pixel.
-uint32_t getPixelSizeBytes(const ur_image_format_t *Format) {
-  uint32_t NumChannels = 0;
-  switch (Format->channelOrder) {
-  case UR_IMAGE_CHANNEL_ORDER_A:
-  case UR_IMAGE_CHANNEL_ORDER_R:
-  case UR_IMAGE_CHANNEL_ORDER_INTENSITY:
-  case UR_IMAGE_CHANNEL_ORDER_LUMINANCE:
-  case UR_IMAGE_CHANNEL_ORDER_FORCE_UINT32:
-    NumChannels = 1;
-    break;
-  case UR_IMAGE_CHANNEL_ORDER_RG:
-  case UR_IMAGE_CHANNEL_ORDER_RA:
-  case UR_IMAGE_CHANNEL_ORDER_RX:
-    NumChannels = 2;
-    break;
-  case UR_IMAGE_CHANNEL_ORDER_RGB:
-  case UR_IMAGE_CHANNEL_ORDER_RGX:
-    NumChannels = 3;
-    break;
-  case UR_IMAGE_CHANNEL_ORDER_RGBA:
-  case UR_IMAGE_CHANNEL_ORDER_BGRA:
-  case UR_IMAGE_CHANNEL_ORDER_ARGB:
-  case UR_IMAGE_CHANNEL_ORDER_ABGR:
-  case UR_IMAGE_CHANNEL_ORDER_RGBX:
-  case UR_IMAGE_CHANNEL_ORDER_SRGBA:
-    NumChannels = 4;
-    break;
-  default:
-    ur::unreachable();
-  }
-  uint32_t ChannelTypeSizeInBytes = 0;
-  switch (Format->channelType) {
-  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
-    ChannelTypeSizeInBytes = 1;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16:
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565:
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555:
-  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
-    ChannelTypeSizeInBytes = 2;
-    break;
-  case UR_IMAGE_CHANNEL_TYPE_INT_101010:
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
-  case UR_IMAGE_CHANNEL_TYPE_FLOAT:
-  case UR_IMAGE_CHANNEL_TYPE_FORCE_UINT32:
-    ChannelTypeSizeInBytes = 4;
-    break;
-  default:
-    ur::unreachable();
-  }
-  return NumChannels * ChannelTypeSizeInBytes;
-}
-
 ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
                                  ur_rect_offset_t *Origin,
                                  ur_rect_region_t *Region,
@@ -583,80 +651,6 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
   ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
 
   return UR_RESULT_SUCCESS;
-}
-
-std::pair<ze_image_format_type_t, size_t>
-getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
-  ze_image_format_type_t ZeImageFormatType;
-  size_t ZeImageFormatTypeSize;
-  switch (ImageFormat->channelType) {
-  case UR_IMAGE_CHANNEL_TYPE_FLOAT: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FLOAT;
-    ZeImageFormatTypeSize = 32;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FLOAT;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
-    ZeImageFormatTypeSize = 32;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
-    ZeImageFormatTypeSize = 8;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UNORM;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UNORM;
-    ZeImageFormatTypeSize = 8;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
-    ZeImageFormatTypeSize = 32;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
-    ZeImageFormatTypeSize = 8;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SNORM;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SNORM;
-    ZeImageFormatTypeSize = 8;
-    break;
-  }
-  default:
-    logger::error("ur2zeImageDesc: unsupported image data type: data type = {}",
-                  ImageFormat->channelType);
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FORCE_UINT32;
-    ZeImageFormatTypeSize = 0;
-  }
-  return {ZeImageFormatType, ZeImageFormatTypeSize};
 }
 
 ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
@@ -749,7 +743,7 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst, 
+ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst,
                                  const ur_image_desc_t *pSrcImageDesc,
                                  const ur_image_desc_t *pDstImageDesc,
                                  const ur_image_format_t *pSrcImageFormat,
@@ -757,8 +751,8 @@ ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst,
                                  ur_exp_image_copy_region_t *pCopyRegion,
                                  ur_exp_image_copy_flags_t imageCopyFlags,
                                  ze_command_list_handle_t ZeCommandList,
-                                 ze_event_handle_t zeSignalEvent, 
-                                 uint32_t numWaitEvents, 
+                                 ze_event_handle_t zeSignalEvent,
+                                 uint32_t numWaitEvents,
                                  ze_event_handle_t *phWaitEvents) {
 
   ZeStruct<ze_image_desc_t> zeSrcImageDesc;
@@ -784,8 +778,8 @@ ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst,
           pCopyRegion->srcOffset.x * getPixelSizeBytes(pSrcImageFormat);
 
       ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
-                 (ZeCommandList, urDstImg->getZeImage(), SrcPtr, &DstRegion, 
-                  SrcRowPitch, SrcSlicePitch, zeSignalEvent, numWaitEvents, 
+                 (ZeCommandList, urDstImg->getZeImage(), SrcPtr, &DstRegion,
+                  SrcRowPitch, SrcSlicePitch, zeSignalEvent, numWaitEvents,
                   phWaitEvents));
     } else {
       // Copy to pitched USM memory
@@ -804,8 +798,8 @@ ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst,
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                  (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch, 
-                   pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent, 
+                  (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                   pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
                    numWaitEvents, phWaitEvents));
     }
     return UR_RESULT_SUCCESS;
@@ -827,8 +821,8 @@ ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst,
           pCopyRegion->dstOffset.y * DstRowPitch +
           pCopyRegion->dstOffset.x * getPixelSizeBytes(pDstImageFormat);
       ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
-                 (ZeCommandList, DstPtr, urSrcImg->getZeImage(), &SrcRegion, 
-                  DstRowPitch, DstSlicePitch, zeSignalEvent, numWaitEvents, 
+                 (ZeCommandList, DstPtr, urSrcImg->getZeImage(), &SrcRegion,
+                  DstRowPitch, DstSlicePitch, zeSignalEvent, numWaitEvents,
                   phWaitEvents));
     } else {
       // Copy from pitched USM memory to host
@@ -848,7 +842,7 @@ ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst,
       uint32_t SrcSlicePitch = 0;
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
                  (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent, 
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
                   numWaitEvents, phWaitEvents));
     }
     return UR_RESULT_SUCCESS;
@@ -865,12 +859,12 @@ ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst,
     auto *urImgDst = reinterpret_cast<ur_bindless_mem_handle_t *>(pDst);
 
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-               (ZeCommandList, urImgDst->getZeImage(), urImgSrc->getZeImage(), 
-                &DstRegion, &SrcRegion, zeSignalEvent, numWaitEvents, 
+               (ZeCommandList, urImgDst->getZeImage(), urImgSrc->getZeImage(),
+                &DstRegion, &SrcRegion, zeSignalEvent, numWaitEvents,
                 phWaitEvents));
 
-    return UR_RESULT_SUCCESS;   
-  }; 
+    return UR_RESULT_SUCCESS;
+  };
   default:
     logger::error("ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp: "
                   "unexpected imageCopyFlags");

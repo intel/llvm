@@ -17,6 +17,21 @@
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
 
+
+namespace {
+
+bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
+  switch (ChannelOrder) {
+  case UR_IMAGE_CHANNEL_ORDER_RGB:
+  case UR_IMAGE_CHANNEL_ORDER_RGX:
+    return true;
+  default:
+    return false;
+  }
+}
+
+} // namespace
+
 namespace ur::level_zero {
 
 ur_result_t

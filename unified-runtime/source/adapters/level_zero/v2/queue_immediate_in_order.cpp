@@ -778,10 +778,10 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
   auto waitListView =
       getWaitListView(commandListMgr, phEventWaitList, numEventsInWaitList);
 
-  return handleImageCopyFlags(pSrc, pDst, pSrcImageDesc, pDstImageDesc, 
-                       pSrcImageFormat, pDstImageFormat, pCopyRegion,
-                       imageCopyFlags, commandListMgr->getZeCommandList(), 
-                       zeSignalEvent, waitListView.num, waitListView.handles);
+  return handleImageCopyFlags(pSrc, pDst, pSrcImageDesc, pDstImageDesc,
+                              pSrcImageFormat, pDstImageFormat, pCopyRegion,
+                              imageCopyFlags, commandListMgr->getZeCommandList(),
+                              zeSignalEvent, waitListView.num, waitListView.handles);
 }
 
 ur_result_t
