@@ -3,6 +3,10 @@
 // UNSUPPORTED: hip
 // UNSUPPORTED-INTENDED: Undetermined issue in 'create_image' in this test.
 
+// Test flakily failing on Widnows + BMG
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17439
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
