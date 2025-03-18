@@ -9,7 +9,6 @@
 // UNSUPPORTED: gpu-intel-dg2
 
 // REQUIRES: target-spir
-
 // REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
@@ -21,4 +20,30 @@
 
 #define SG_SZ 32
 
-#include "joint_matrix_half_impl.hpp"
+#include "joint_matrix_16bit_impl.hpp"
+
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<half, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16, layout::row_major, 1>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<half, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, layout::row_major, 1>();
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<half, float, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, layout::row_major, 1>();
+      break;
+    }
+  }
+  return 0;
+}
