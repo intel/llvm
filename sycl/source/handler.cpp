@@ -468,10 +468,8 @@ event handler::finalize() {
     if (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
         !MQueue->hasCommandGraph() && !impl->CGData.MRequirements.size() &&
         !MStreamStorage.size() &&
-        (!impl->CGData.MEvents.size() ||
-         (MQueue->isInOrder() &&
-          detail::Scheduler::areEventsSafeForSchedulerBypass(
-              impl->CGData.MEvents, MQueue->getContextImplPtr())))) {
+        detail::Scheduler::areEventsSafeForSchedulerBypass(
+            impl->CGData.MEvents, MQueue->getContextImplPtr())) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
@@ -544,6 +542,11 @@ event handler::finalize() {
 
         EnqueueKernel();
         NewEvent->setEnqueued();
+        // connect returned event with dependent events
+        if (!MQueue->isInOrder()) {
+          NewEvent->getPreparedDepsEvents() = impl->CGData.MEvents;
+          NewEvent->cleanDepEventsThroughOneLevel();
+        }
 
         MLastEvent = detail::createSyclObjFromImpl<event>(std::move(NewEvent));
       }
