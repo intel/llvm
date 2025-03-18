@@ -87,9 +87,10 @@ TEST_P(urProgramCreateWithILTest, SuccessWithProperties) {
 }
 
 TEST_P(urProgramCreateWithILTest, InvalidNullHandle) {
+  ur_program_handle_t program = nullptr;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urProgramCreateWithIL(nullptr, il_binary->data(),
-                                         il_binary->size(), nullptr, nullptr));
+                                         il_binary->size(), nullptr, &program));
 }
 
 TEST_P(urProgramCreateWithILTest, InvalidNullPointer) {

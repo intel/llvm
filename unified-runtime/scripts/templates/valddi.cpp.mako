@@ -33,7 +33,9 @@ namespace ur_validation_layer
 
         param_checks=th.make_param_checks(n, tags, obj, meta=meta).items()
         first_errors = [X + "_RESULT_ERROR_INVALID_NULL_POINTER", X + "_RESULT_ERROR_INVALID_NULL_HANDLE"]
-        sorted_param_checks = sorted(param_checks, key=lambda pair: False if pair[0] in first_errors else True)
+        # Sort param_checks such that anything in first_errors comes first while respecting the order of values in first_errors.
+        # It is possible to have a pointer to a struct with a handle member, so pointers should be checked first.
+        sorted_param_checks = sorted(param_checks, key=lambda pair: (0, first_errors.index(pair[0])) if pair[0] in first_errors else (1, 0))
 
         tracked_params = list(filter(lambda p: any(th.subt(n, tags, p['type']) in [hf['handle'], hf['handle'] + "*"] for hf in handle_create_get_retain_release_funcs), obj['params']))
     %>

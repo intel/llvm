@@ -1460,7 +1460,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
-
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     const cl_device_info info_name = CL_DEVICE_SUB_GROUP_SIZES_INTEL;
     bool isExtensionSupported;
@@ -1486,7 +1485,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
                                                      SubGroupSizes.size());
   }
-
   case UR_DEVICE_INFO_UUID: {
     // Use the cl_khr_device_uuid extension, if available.
     bool isKhrDeviceUuidSupported = false;
@@ -1541,6 +1539,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         ur::cl::getAdapter()->clSetProgramSpecializationConstant != nullptr);
   }
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice), {"cl_intel_devicelib_assert"},
+        Supported));
+    return ReturnValue(Supported);
+  }
   case UR_DEVICE_INFO_EXTENSIONS: {
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(
         cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_EXTENSIONS, propSize,
@@ -1558,10 +1563,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
-  case UR_DEVICE_INFO_BFLOAT16:
   case UR_DEVICE_INFO_ASYNC_BARRIER:
   case UR_DEVICE_INFO_USM_POOL_SUPPORT: // end of TODO
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
   case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
@@ -1723,7 +1728,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
   RetErr = cl_adapter::getPlatformVersion(Platform, PlatVer);
 
   if (PlatVer < oclv::V2_1 || DevVer < oclv::V2_1) {
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   if (pDeviceTimestamp) {

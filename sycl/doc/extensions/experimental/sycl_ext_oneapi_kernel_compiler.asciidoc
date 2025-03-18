@@ -285,7 +285,8 @@ Any remaining kernels (those that are not compatible with any of the devices in
 The new bundle has the same associated context as `sourceBundle`, and the new
 bundle's set of associated devices is `devs` (with duplicate devices removed).
 
-_Effects (2)_: Equivalent to `build(sourceBundle, ctxt.get_devices(), props)`.
+_Effects (2)_: Equivalent to
+`build(sourceBundle, sourceBundle.get_devices(), props)`.
 
 _Returns:_ The newly created kernel bundle, which has `executable` state.
 
@@ -363,20 +364,11 @@ whose _Name_ is `foo/bar.h`.
 If such an entry is found, the compiler uses the associated _Content_ as the
 content of the include file.
 
-When the source language is `source_language::sycl`, the following header files
-are implicitly available.
-Therefore, the source string may `#include` these even without defining their
-content via the `include_files` property:
-
-* `<sycl/sycl.hpp>`;
-* The {cpp} standard library headers;
-* The SYCL backend headers `"sycl/backend/<backend_name>.hpp"` for any backends
-  that the implementation supports; and
-* Any SYCL extension headers in "sycl/ext" for extensions that the
-  implementation supports.
-
-The include files defined via the `include_files` property are searched first,
-before these implicitly available headers.
+[_Note_: This property is only required if an `#include` statement references a
+file that is not already implicitly available.
+For more information about implicitly available headers, see the section
+"Including files when the language is ``sycl``".
+_{endnote}_]
 
 _Effects (1):_ Creates a new `include_files` property with no (_Name_,
 _Content_) pairs.
@@ -654,6 +646,27 @@ _Throws:_
 * An `exception` with the `errc::invalid` error code if
   `ext_oneapi_has_kernel(name)` returns `false`.
 |====
+
+=== Including files when the language is `sycl`
+
+When the source language is `source_language::sycl`, the compiler searches
+multiple locations to find files referenced by `#include` statements.
+Any include files defined via the `include_files` property are searched first,
+followed by the directories below, in order:
+
+1. The current working directory.
+2. Any directory added explicitly to the search list via the `build_options`
+   property.
+
+Finally, the compiler searches a set of implicitly available header files, which
+do not need to be specified via the `include_files` property:
+
+* `<sycl/sycl.hpp>`;
+* The {cpp} standard library headers;
+* The SYCL backend headers `"sycl/backend/<backend_name>.hpp"` for any backends
+  that the implementation supports; and
+* Any SYCL extension headers in `"sycl/ext"` for extensions that the
+  implementation supports.
 
 === Obtaining a kernel when the language is `sycl`
 
@@ -938,3 +951,25 @@ There is no inherent reason why this functionality needs to be built into
 However, we don't yet have a utility library where this would go, and it may be
 hard for customers to discover this functionality if it is defined outside of
 this extension.
+
+== Non-normative implementation notes for {dpcpp}
+
+=== Supported `build_options` when the language is `sycl`
+
+The SYCL runtime compiler supports the following {dpcpp} options to be passed in
+the `build_options` property.
+
+[%header,cols="1,3"]
+|===
+|Option
+|Notes
+
+|`-I<dir>` +
+`-I <dir>` +
+`--include-directory=<dir>` +
+`--include-directory <dir>`
+| Add `<dir>` to to the search list for include files (see section "Including
+files when the language is ``sycl``"). This is useful, for example, to compile
+kernels using external libraries. Note that for the second and fourth form,
+`dir` is a separate element in the `build_options` list.
+|===

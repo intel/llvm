@@ -265,7 +265,8 @@ template <typename Self> struct VecOperators {
           // ensure we generate 0/1 only (and not 2/-1/etc.).
 #if __clang_major__ >= 20
           // Not an integral constant expression prior to clang-20.
-          static_assert((ext_vector<int8_t, 2>{1, 0} == 0)[1] == -1);
+          static_assert(
+              static_cast<int8_t>((ext_vector<int8_t, 2>{1, 0} == 0)[1]) == -1);
 #endif
 
           tmp = reinterpret_cast<decltype(tmp)>((tmp != 0) * -1);

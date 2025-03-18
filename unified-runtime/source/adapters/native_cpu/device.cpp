@@ -344,8 +344,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(bool{0});
   case UR_DEVICE_INFO_ATOMIC_64:
     return ReturnValue(bool{1});
-  case UR_DEVICE_INFO_BFLOAT16:
-    return ReturnValue(bool{0});
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
     return ReturnValue(bool{0});
   case UR_DEVICE_INFO_IMAGE_SRGB:
@@ -414,7 +412,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_device_command_buffer_update_capability_flags_t>(0));
-
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(false);
 
@@ -425,6 +424,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(ur_bool_t{false});
 
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
 
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
