@@ -196,8 +196,7 @@ ur_result_t ur_command_list_manager::appendKernelLaunch(
 
   ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(device);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(this->Mutex,
-                                                          hKernel->Mutex);
+  std::scoped_lock<ur_shared_mutex> Lock(hKernel->Mutex);
 
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3]{};
@@ -235,8 +234,6 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMMemcpy");
 
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
-
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_MEMCPY);
 
   auto [pWaitEvents, numWaitEvents] =
@@ -262,8 +259,7 @@ ur_result_t ur_command_list_manager::appendMemBufferFill(
   auto hBuffer = hMem->getBuffer();
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->getMutex());
+  std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
   return appendGenericFillUnlocked(hBuffer, offset, patternSize, pPattern, size,
                                    numEventsInWaitList, phEventWaitList,
@@ -275,8 +271,6 @@ ur_result_t ur_command_list_manager::appendUSMFill(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMFill");
-
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   ur_usm_handle_t dstHandle(context, size, pMem);
   return appendGenericFillUnlocked(&dstHandle, 0, patternSize, pPattern, size,
@@ -291,8 +285,6 @@ ur_result_t ur_command_list_manager::appendUSMPrefetch(
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMPrefetch");
 
   std::ignore = flags;
-
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_PREFETCH);
 
@@ -320,8 +312,6 @@ ur_command_list_manager::appendUSMAdvise(const void *pMem, size_t size,
                                          ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMAdvise");
 
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
-
   auto zeAdvice = ur_cast<ze_memory_advice_t>(advice);
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_ADVISE);
@@ -343,6 +333,23 @@ ur_command_list_manager::appendUSMAdvise(const void *pMem, size_t size,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t
+ur_command_list_manager::appendBarrier(uint32_t numEventsInWaitList,
+                                       const ur_event_handle_t *phEventWaitList,
+                                       ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY("ur_command_list_manager::appendBarrier");
+
+  auto zeSignalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (zeCommandList.get(), zeSignalEvent, numWaitEvents, pWaitEvents));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_command_list_manager::appendMemBufferRead(
     ur_mem_handle_t hMem, bool blockingRead, size_t offset, size_t size,
     void *pDst, uint32_t numEventsInWaitList,
@@ -354,8 +361,7 @@ ur_result_t ur_command_list_manager::appendMemBufferRead(
 
   ur_usm_handle_t dstHandle(context, size, pDst);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->getMutex());
+  std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
   return appendGenericCopyUnlocked(hBuffer, &dstHandle, blockingRead, offset, 0,
                                    size, numEventsInWaitList, phEventWaitList,
@@ -373,8 +379,7 @@ ur_result_t ur_command_list_manager::appendMemBufferWrite(
 
   ur_usm_handle_t srcHandle(context, size, pSrc);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->getMutex());
+  std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
   return appendGenericCopyUnlocked(
       &srcHandle, hBuffer, blockingWrite, 0, offset, size, numEventsInWaitList,
@@ -395,8 +400,8 @@ ur_result_t ur_command_list_manager::appendMemBufferCopy(
   UR_ASSERT(dstOffset + size <= hBufferDst->getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> lock(
-      this->Mutex, hBufferSrc->getMutex(), hBufferDst->getMutex());
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(
+      hBufferSrc->getMutex(), hBufferDst->getMutex());
 
   return appendGenericCopyUnlocked(hBufferSrc, hBufferDst, false, srcOffset,
                                    dstOffset, size, numEventsInWaitList,
@@ -415,8 +420,7 @@ ur_result_t ur_command_list_manager::appendMemBufferReadRect(
   auto hBuffer = hMem->getBuffer();
   ur_usm_handle_t dstHandle(context, 0, pDst);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->getMutex());
+  std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
   return appendRegionCopyUnlocked(
       hBuffer, &dstHandle, blockingRead, bufferOrigin, hostOrigin, region,
@@ -436,8 +440,7 @@ ur_result_t ur_command_list_manager::appendMemBufferWriteRect(
   auto hBuffer = hMem->getBuffer();
   ur_usm_handle_t srcHandle(context, 0, pSrc);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->getMutex());
+  std::scoped_lock<ur_shared_mutex> lock(hBuffer->getMutex());
 
   return appendRegionCopyUnlocked(
       &srcHandle, hBuffer, blockingWrite, hostOrigin, bufferOrigin, region,
@@ -457,8 +460,8 @@ ur_result_t ur_command_list_manager::appendMemBufferCopyRect(
   auto hBufferSrc = hSrc->getBuffer();
   auto hBufferDst = hDst->getBuffer();
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> lock(
-      this->Mutex, hBufferSrc->getMutex(), hBufferDst->getMutex());
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(
+      hBufferSrc->getMutex(), hBufferDst->getMutex());
 
   return appendRegionCopyUnlocked(
       hBufferSrc, hBufferDst, false, srcOrigin, dstOrigin, region, srcRowPitch,
@@ -474,8 +477,6 @@ ur_result_t ur_command_list_manager::appendUSMMemcpy2D(
 
   ur_rect_offset_t zeroOffset{0, 0, 0};
   ur_rect_region_t region{width, height, 0};
-
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   ur_usm_handle_t srcHandle(context, 0, pSrc);
   ur_usm_handle_t dstHandle(context, 0, pDst);

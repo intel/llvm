@@ -171,6 +171,57 @@ In this case it may be necessary to first manually trigger the warmup by calling
 `Graph.begin_recording(Queue)` to prevent the warmup from being captured in a
 graph when recording.
 
+#### ext_codeplay_enqueue_native_command
+
+The SYCL-Graph extension is compatible with the
+[ext_codeplay_enqueue_native_command](../extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc)
+extension that can be used to capture asynchronous library commands as graph
+nodes. However, existing `ext_codeplay_enqueue_native_command` user code will
+need modifications to work correctly for submission to a sycl queue that can be
+in either the executable or recording state.
+
+Using the CUDA backend as an example, existing code which uses a
+native-command to invoke a library call:
+
+```c++
+q.submit([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+       auto NativeStream = IH.get_native_queue<cuda>();
+       myNativeLibraryCall(NativeStream);
+    });
+});
+```
+
+Can be ported as below to work with SYCL-Graph, where the queue may be in
+a recording state. If the code is not ported but the queue is in a recording
+state, then asynchronous work in `myNativeLibraryCall` will be scheduled
+immediately as part of graph finalize, rather than being added to the graph as
+a node, which is unlikely to be the desired user behavior.
+
+```c++
+q.submit([&](sycl::handler &CGH) {
+    CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {
+        auto NativeStream = h.get_native_queue<cuda>();
+        if (IH.ext_codeplay_has_graph())  {
+            auto NativeGraph =
+              IH.ext_codeplay_get_native_graph<sycl::backend::ext_oneapi_cuda>();
+
+            // Start capture stream calls into graph
+            cuStreamBeginCaptureToGraph(NativeStream, NativeGraph, nullptr,
+                                        nullptr, 0,
+                                        CU_STREAM_CAPTURE_MODE_GLOBAL);
+
+            myNativeLibraryCall(NativeStream);
+
+            // Stop capturing stream calls into graph
+            cuStreamEndCapture(NativeStream, &NativeGraph);
+        } else {
+            myNativeLibraryCall(NativeStream);
+        }
+    });
+});
+```
+
 ## Code Examples
 
 The examples below demonstrate intended usage of the extension, but may not be

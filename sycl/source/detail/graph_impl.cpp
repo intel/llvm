@@ -739,7 +739,7 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
 void graph_impl::beginRecording(
     std::shared_ptr<sycl::detail::queue_impl> Queue) {
   graph_impl::WriteLock Lock(MMutex);
-  if (Queue->getCommandGraph() == nullptr) {
+  if (!Queue->hasCommandGraph()) {
     Queue->setCommandGraph(shared_from_this());
     addQueue(Queue);
   }
@@ -828,6 +828,8 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
     std::shared_ptr<node_impl> Node) {
 
   // Queue which will be used for allocation operations for accessors.
+  // Will also be used in native commands to return to the user in
+  // `interop_handler::get_native_queue()` calls.
   auto AllocaQueue = std::make_shared<sycl::detail::queue_impl>(
       DeviceImpl, sycl::detail::getSyclObjImpl(Ctx), sycl::async_handler{},
       sycl::property_list{});
@@ -1873,8 +1875,7 @@ void modifiable_command_graph::begin_recording(
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   assert(QueueImpl);
 
-  auto QueueGraph = QueueImpl->getCommandGraph();
-  if (QueueGraph != nullptr) {
+  if (QueueImpl->hasCommandGraph()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording cannot be called for a queue which "
                           "is already in the recording state.");
@@ -1916,7 +1917,7 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
     graph_impl::WriteLock Lock(impl->MMutex);
     impl->removeQueue(QueueImpl);
   }
-  if (QueueImpl->getCommandGraph() != nullptr)
+  if (QueueImpl->hasCommandGraph())
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");

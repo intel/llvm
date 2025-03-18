@@ -194,3 +194,15 @@
 // Error handling when --linker-path is not provided for clang-linker-wrapper
 // RUN: not clang-linker-wrapper 2>&1 | FileCheck --check-prefix=LINKER-PATH-NOT-PROVIDED %s
 // LINKER-PATH-NOT-PROVIDED: linker path missing, must pass 'linker-path'
+
+/// check for --device-lib-dir options for sycl-post-link.
+// -------
+// Generate .o file as linker wrapper input.
+//
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t5.o
+//
+// RUN: clang-linker-wrapper -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t5.o -sycl-device-libraries=libsycl-crt.new.o -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEVICE-LIB-DIR %s
+// CHK-CMDS-DEVICE-LIB-DIR: "{{.*}}spirv-to-ir-wrapper" {{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: "{{.*}}llvm-link" {{.*}} --suppress-warnings
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: "{{.*}}llvm-link" -only-needed {{.*}} --suppress-warnings
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: "{{.*}}sycl-post-link"{{.*}} --device-lib-dir={{.*}}/Inputs/SYCL/lib {{.*}} SYCL_POST_LINK_OPTIONS {{.*}}
