@@ -55,7 +55,7 @@ jobs:
       name: Build Windows E2E tests
       runner: '["Windows", "build-e2e"]'
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      testing_mode: build-only
+      e2e_testing_mode: build-only
       extra_lit_opts: --param sycl_build_targets="spir"
 
   run-e2e:
@@ -78,4 +78,4 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      testing_mode: run-only
+      e2e_testing_mode: run-only
