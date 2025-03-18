@@ -17,9 +17,9 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<T2, 2> bufA(A.get_data(), range<2>(M, K));
   buffer<T2, 2> bufB(B.get_data(), range<2>(K, N));
   buffer<T1, 2> bufC((T1 *)C.get_data(), range<2>(M, N));
-
   queue q;
   size_t sg_size = get_sg_size<imatrix<T1, TM, TN, TK>>(q);
+
   q.submit([&](handler &cgh) {
      accessor accA{bufA, cgh};
      accessor accB{bufB, cgh};
@@ -52,7 +52,8 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                accC.template get_multi_ptr<access::decorated::no>() +
                    (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
-           for (int k = 0; k < K / TK; k += 1) { //
+
+           for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(
                  sg, sub_a,
                  accA.template get_multi_ptr<access::decorated::no>() +
@@ -63,6 +64,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK / 2) * (N * 2) + sg_starty / sg_size * TN * 2,
                  N * 2);
+
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
@@ -74,7 +76,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
    }).wait();
 }
 
-template <typename T, typename TResult, size_t TM, size_t TN, size_t TK>
+template <typename T, typename TAcc, typename TResult, size_t TM, size_t TN, size_t TK>
 void test() {
   std::cout << "Testing: " << TM << " x " << TN << " x " << TK
             << " [TM x TN x TK]" << std::endl;
@@ -87,24 +89,32 @@ void test() {
   TResult C[MATRIX_M][MATRIX_N];
   TResult D[MATRIX_M][MATRIX_N];
 
-  matrix_fill(MATRIX_M, MATRIX_K, (T *)A,
-              [](int i, int j) { return T(1) * (i + j); });
-  matrix_fill(MATRIX_K / 2, MATRIX_N * 2, (T *)B,
-              [](int i, int j) { return T(2) * i + T(3) * j; });
-  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)C, TResult(1));
-  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)D, TResult(1));
+  if((std::is_same_v<T, bfloat16> && (std::is_same_v<TAcc, bfloat16> || std::is_same_v<TResult, bfloat16>)))
+  {
+    matrix_rand<T>(MATRIX_M, MATRIX_K, (T*)A, T(1.5));
+    matrix_rand<T>(MATRIX_K / 2, MATRIX_N * 2, (T*)B, T(1.5));
+  }
+  else {
+    matrix_fill(MATRIX_M, MATRIX_K, (T *)A,
+                [](int i, int j) { return T(1) * (i + j); });
+    matrix_fill(MATRIX_K / 2, MATRIX_N * 2, (T *)B,
+                [](int i, int j) { return T(2) * i + T(3) * j; });
+  }
 
-  big_matrix<TResult, MATRIX_M, MATRIX_N> MC((TResult *)&C);
+  matrix_fill(MATRIX_M, MATRIX_N, (TAcc *)C, TAcc(0));
+  matrix_fill(MATRIX_M, MATRIX_N, (TResult *)D, TResult(0));
+
+  big_matrix<TAcc, MATRIX_M, MATRIX_N> MC((TAcc *)&C);
   big_matrix<TResult, MATRIX_M, MATRIX_N> MD((TResult *)&D);
   big_matrix<T, MATRIX_M, MATRIX_K> MA((T *)&A);
   big_matrix<T, MATRIX_K / 2, MATRIX_N * 2> MB((T *)&B);
-  matrix_multiply<TResult, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK>(MC, MA,
-                                                                        MB);
+  matrix_multiply<TAcc, T, MATRIX_M, MATRIX_N, MATRIX_K, TM, TN, TK>(MC, MA, MB);
   matrix_multiply_ref<T, T, TResult, 2>((T *)A, (T *)B, (TResult *)D, MATRIX_M,
                                         MATRIX_N, MATRIX_K / 2);
 
-  assert(matrix_compare(MATRIX_M, MATRIX_N, (TResult *)C, (TResult *)D));
+  assert(matrix_compare(MATRIX_M, MATRIX_N, (TAcc *)C, (TResult *)D));
 }
+
 int main() {
   queue q;
   std::vector<combination> combinations =
@@ -114,33 +124,60 @@ int main() {
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
-      test<bfloat16, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
       break;
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
-      test<bfloat16, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
-      // test<bfloat16, bfloat16, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
 
-      // This combination is not currently supported for sub group size = 32 in
+      // These combinations are not currently supported for sub group size = 32 in
       // IGC
 #if (!defined(SG_SZ) || SG_SZ != 32)
-      test<bfloat16, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
-      // test<bfloat16, bfloat16, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
-      test<bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
-      // test<bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
-      test<bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-      // test<bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-      // test<bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
-      // test<bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
-      // test<bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
-      // test<bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+  #if(!defined(ACC_BFLOAT16))
+      test<bfloat16, float, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      test<bfloat16, float, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      test<bfloat16, float, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      //test<bfloat16, float, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      //test<bfloat16, float, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+  #endif
+  #if (defined(ACC_BFLOAT16))
+      // 8x16x16
+      // PASS test<bfloat16, bfloat16, float, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      // PASS test<bfloat16, bfloat16, bfloat16, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      // PASS test<bfloat16, bfloat16, bfloat16, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+
+      // 16x16x16
+      // PASS test<bfloat16, bfloat16, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      // PASS test<bfloat16, float, bfloat16, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      // PASS test<bfloat16, bfloat16, bfloat16, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+
+      // 1x64x16
+      test<bfloat16, bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      // PASS test<bfloat16, float, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      // VISA test<bfloat16, bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+
+      // 1x64x32
+      // VISA test<bfloat16, bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      // VISA test<bfloat16, bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      // ?    test<bfloat16, float, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+
+      // 32x64x32
+      //test<bfloat16, bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      //test<bfloat16, bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      //test<bfloat16, float, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+
+      // 32x64x16
+      //test<bfloat16, bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      //test<bfloat16, bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      //test<bfloat16, float, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+  #endif
 #endif
       break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      test<bfloat16, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();
+      test<bfloat16, float, float, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16>();
       break;
     }
   }
