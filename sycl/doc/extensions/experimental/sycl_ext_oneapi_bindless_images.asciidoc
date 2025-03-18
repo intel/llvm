@@ -2631,4 +2631,6 @@ These features still need to be handled:
                    sub-copies.
                  - Add support for USM to USM copies and sub-copies.
                  - Add support for host to host copies and sub-copies.
+|6.8|2025-03-18| - Add new `gather` image type and the accompanying
+                   `gather_image` function.
 |======================
