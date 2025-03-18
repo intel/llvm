@@ -20,6 +20,13 @@ static bool QueueFlushed = false;
 static bool EventStatusQueried = false;
 static ur_event_status_t EventStatus = UR_EVENT_STATUS_QUEUED;
 
+static ur_result_t redefinedMemBufferReadRect(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_mem_buffer_read_rect_params_t *>(pParams);
+  **params.pphEvent = mock::createDummyHandle<ur_event_handle_t>();
+  return UR_RESULT_SUCCESS;
+}
+
 static ur_result_t redefinedQueueFlush(void *pParams) {
   auto params = *static_cast<ur_queue_flush_params_t *>(pParams);
   EXPECT_EQ(ExpectedDepQueue, *params.phQueue);
@@ -87,6 +94,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                            &redefinedQueueFlush);
   mock::getCallbacks().set_after_callback("urEventGetInfo",
                                           &redefinedEventGetInfoAfter);
+  mock::getCallbacks().set_after_callback("urEnqueueMemBufferReadRect",
+                                          &redefinedMemBufferReadRect);
 
   context Ctx{Plt};
   queue QueueA{Ctx, default_selector_v};

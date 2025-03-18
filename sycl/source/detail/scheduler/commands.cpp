@@ -1568,7 +1568,8 @@ ContextImplPtr MemCpyCommand::getWorkerContext() const {
 }
 
 bool MemCpyCommand::producesPiEvent() const {
-  return checkNativeEventForWA(MQueue, MEvent->getHandle());
+  return checkNativeEventForWA(MSrcQueue ? MSrcQueue : MQueue,
+                               MEvent->getHandle());
 }
 
 ur_result_t MemCpyCommand::enqueueImp() {
@@ -1590,7 +1591,8 @@ ur_result_t MemCpyCommand::enqueueImp() {
           MEvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
-  assert((!!UREvent == checkNativeEventForWA(MQueue, UREvent)) &&
+  assert((!!UREvent ==
+          checkNativeEventForWA(MSrcQueue ? MSrcQueue : MQueue, UREvent)) &&
          "MemCpyCommand must produce native event");
 
   MEvent->setHandle(UREvent);
