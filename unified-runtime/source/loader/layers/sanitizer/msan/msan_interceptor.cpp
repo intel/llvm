@@ -556,12 +556,12 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   getContext()->logger.info(
       "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateShadow={}, "
-      "CleanShadow={}, "
-      "Device={}, Debug={})",
+      "CleanShadow={}, LocalArgs={}, NumLocalArgs={}, Device={}, Debug={})",
       (void *)LaunchInfo.Data, (void *)LaunchInfo.Data->GlobalShadowOffset,
       (void *)LaunchInfo.Data->LocalShadowOffset,
       (void *)LaunchInfo.Data->PrivateShadowOffset,
-      (void *)LaunchInfo.Data->CleanShadow, ToString(LaunchInfo.Data->DeviceTy),
+      (void *)LaunchInfo.Data->CleanShadow, (void *)LaunchInfo.Data->LocalArgs,
+      LaunchInfo.Data->NumLocalArgs, ToString(LaunchInfo.Data->DeviceTy),
       LaunchInfo.Data->Debug);
 
   ur_result_t URes =
