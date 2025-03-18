@@ -1477,3 +1477,51 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    void *pData, ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  try {
+    // Call user-defined function immediately
+    pfnNativeCommand(pData);
+
+    // Cuda graph node returned by interop_handle::getNativeGraph() in callback
+    CUgraph ChildGraph = hChildCommandBuffer->CudaGraph;
+
+    // Dependencies of node
+    std::vector<CUgraphNode> DepsList;
+    UR_CHECK_ERROR(getNodesFromSyncPoints(
+        hCommandBuffer, numSyncPointsInWaitList, pSyncPointWaitList, DepsList));
+
+    // Add user defined node to graph as a subgraph
+    CUgraphNode GraphNode;
+    UR_CHECK_ERROR(
+        cuGraphAddChildGraphNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                 DepsList.data(), DepsList.size(), ChildGraph));
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
+
+    return UR_RESULT_SUCCESS;
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (CUresult CuErr) {
+    return mapErrorUR(CuErr);
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+                                  ur_native_handle_t *phNativeCommandBuffer) {
+
+  *phNativeCommandBuffer =
+      reinterpret_cast<ur_native_handle_t>(hCommandBuffer->CudaGraph);
+  return UR_RESULT_SUCCESS;
+}
