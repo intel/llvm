@@ -26,6 +26,10 @@ on:
         required: false
         type: string
         default: OFF
+      docker_image:
+        required: true
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       adapter_name:
@@ -51,6 +55,10 @@ on:
         required: false
         type: string
         default: OFF
+      docker_image:
+        required: true
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -66,7 +74,7 @@ jobs:
   adapter_build_hw:
     name: Build & CTS
     # run only on upstream; forks won't have the HW
-    if: github.repository == 'intel/llvm'
+    # if: github.repository == 'intel/llvm'
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +91,9 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
 
     runs-on: ${{inputs.runner_name}}
+    container:
+      image: ${{ inputs.docker_image }}
+      options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
 
     steps:
     # TODO:
@@ -140,6 +151,14 @@ jobs:
       # This is to check that install command does not fail
       run: cmake --install ${{github.workspace}}/build
 
+    - name: Check if GPU is avaliable 
+      run: |
+        ls -la /dev/dri/
+        id
+        dpkg -l | grep level-zero
+        ldconfig -p | grep libze
+        ls -la /dev/dri/
+
     - name: Test adapter specific
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
@@ -155,5 +174,5 @@ jobs:
       run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "conformance" --timeout 600 -VV
 
     - name: Get information about platform
-      if: ${{ always() }}
+      # if: ${{ always() }}
       run: ${{github.workspace}}/unified-runtime/.github/scripts/get_system_info.sh
