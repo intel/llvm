@@ -19,7 +19,7 @@ class memory_pool;
 
 // TODO: switch to sycl_ext_oneapi_properties properties when
 // https://github.com/intel/llvm/issues/17470 is fixed.
-namespace property {
+namespace property::memory_pool {
 
 // Property that determines the initial threshold of a memory pool.
 struct initial_threshold : public sycl::detail::PropertyWithData<
@@ -55,23 +55,27 @@ struct zero_init
     : public sycl::detail::DataLessProperty<sycl::detail::MemPoolZeroInit> {
   zero_init() = default;
 };
-} // namespace property
+} // namespace property::memory_pool
 } // namespace ext::oneapi::experimental
 
 template <>
-struct is_property<sycl::ext::oneapi::experimental::property::initial_threshold>
+struct is_property<
+    sycl::ext::oneapi::experimental::property::memory_pool::initial_threshold>
     : std::true_type {};
 
 template <>
-struct is_property<sycl::ext::oneapi::experimental::property::maximum_size>
+struct is_property<
+    sycl::ext::oneapi::experimental::property::memory_pool::maximum_size>
     : std::true_type {};
 
 template <>
-struct is_property<sycl::ext::oneapi::experimental::property::read_only>
+struct is_property<
+    sycl::ext::oneapi::experimental::property::memory_pool::read_only>
     : std::true_type {};
 
 template <>
-struct is_property<sycl::ext::oneapi::experimental::property::zero_init>
+struct is_property<
+    sycl::ext::oneapi::experimental::property::memory_pool::zero_init>
     : std::true_type {};
 
 } // namespace _V1

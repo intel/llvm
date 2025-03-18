@@ -27,7 +27,7 @@ __SYCL_EXPORT size_t memory_pool::get_threshold() const {
   return impl->get_threshold();
 }
 
-__SYCL_EXPORT const property_list &memory_pool::getPropList() const {
+const property_list &memory_pool::getPropList() const {
   return impl->getPropList();
 }
 
@@ -47,13 +47,10 @@ __SYCL_EXPORT size_t memory_pool::get_used_size_high() const {
   return impl->get_used_size_high();
 }
 
-__SYCL_EXPORT void memory_pool::set_new_threshold(size_t newThreshold) {
-
-  // Throw when threshold is being reduced.
-  if (newThreshold < get_threshold())
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Lowering the release threshold is disallowed!");
-  impl->set_new_threshold(newThreshold);
+__SYCL_EXPORT void memory_pool::increase_threshold_to(size_t newThreshold) {
+  // Only increase.
+  if (newThreshold > get_threshold())
+    impl->set_new_threshold(newThreshold);
 }
 
 __SYCL_EXPORT void memory_pool::reset_reserved_size_high() {
@@ -64,13 +61,9 @@ __SYCL_EXPORT void memory_pool::reset_used_size_high() {
   impl->reset_used_size_high();
 }
 
-__SYCL_EXPORT void memory_pool::trim_to(size_t minBytesToKeep) {
-  return impl->trim_to(minBytesToKeep);
-}
-
 __SYCL_EXPORT memory_pool::memory_pool(const sycl::context &ctx,
                                        const sycl::device &dev,
-                                       const sycl::usm::alloc kind,
+                                       sycl::usm::alloc kind,
                                        const property_list &props) {
 
   if (kind == sycl::usm::alloc::host)

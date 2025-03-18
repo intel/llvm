@@ -18,15 +18,14 @@ int main() {
   sycl::property_list QProp{sycl::property::queue::in_order()};
   sycl::queue Q(QProp);
   sycl::context Ctx = Q.get_context();
-  size_t Width = 8;
 
   try {
 
     // Pool properties
-    syclexp::property::initial_threshold InitialThreshold(1024);
-    syclexp::property::maximum_size MaximumSize(4096);
-    syclexp::property::read_only ReadOnly;
-    syclexp::property::zero_init ZeroInit;
+    syclexp::property::memory_pool::initial_threshold InitialThreshold(1024);
+    syclexp::property::memory_pool::maximum_size MaximumSize(4096);
+    syclexp::property::memory_pool::read_only ReadOnly;
+    syclexp::property::memory_pool::zero_init ZeroInit;
     sycl::property_list PoolProps{InitialThreshold, MaximumSize, ReadOnly,
                                   ZeroInit};
 
@@ -64,29 +63,35 @@ int main() {
            "Stored pool allocation kind is incorrect!");
 
     // Check property has-ers/getters
-    assert(MemPool1.has_property<syclexp::property::initial_threshold>() &&
+    assert(MemPool1.has_property<
+               syclexp::property::memory_pool::initial_threshold>() &&
            "Pool does not have property when it should!");
-    assert(MemPool1.has_property<syclexp::property::maximum_size>() &&
+    assert(
+        MemPool1.has_property<syclexp::property::memory_pool::maximum_size>() &&
+        "Pool does not have property when it should!");
+    assert(MemPool1.has_property<syclexp::property::memory_pool::read_only>() &&
            "Pool does not have property when it should!");
-    assert(MemPool1.has_property<syclexp::property::read_only>() &&
+    assert(MemPool1.has_property<syclexp::property::memory_pool::zero_init>() &&
            "Pool does not have property when it should!");
-    assert(MemPool1.has_property<syclexp::property::zero_init>() &&
-           "Pool does not have property when it should!");
+    assert(!MemPoolMoveAssign.has_property<
+               syclexp::property::memory_pool::initial_threshold>() &&
+           "Pool has property when it should not!");
     assert(!MemPoolMoveAssign
-                .has_property<syclexp::property::initial_threshold>() &&
+                .has_property<syclexp::property::memory_pool::maximum_size>() &&
            "Pool has property when it should not!");
-    assert(!MemPoolMoveAssign.has_property<syclexp::property::maximum_size>() &&
+    assert(!MemPoolMoveAssign
+                .has_property<syclexp::property::memory_pool::read_only>() &&
            "Pool has property when it should not!");
-    assert(!MemPoolMoveAssign.has_property<syclexp::property::read_only>() &&
-           "Pool has property when it should not!");
-    assert(!MemPoolMoveAssign.has_property<syclexp::property::zero_init>() &&
+    assert(!MemPoolMoveAssign
+                .has_property<syclexp::property::memory_pool::zero_init>() &&
            "Pool has property when it should not!");
 
-    assert(MemPool1.get_property<syclexp::property::initial_threshold>()
+    assert(MemPool1.get_property<
+                       syclexp::property::memory_pool::initial_threshold>()
                    .get_initial_threshold() ==
                InitialThreshold.get_initial_threshold() &&
            "Pool property values do not match!");
-    assert(MemPool1.get_property<syclexp::property::maximum_size>()
+    assert(MemPool1.get_property<syclexp::property::memory_pool::maximum_size>()
                    .get_maximum_size() == MaximumSize.get_maximum_size() &&
            "Pool property values do not match!");
 
@@ -109,29 +114,76 @@ int main() {
 
     // Set new threshold -- then check getter
     size_t NewThreshold = 2048;
-    MemPool1.set_new_threshold(NewThreshold);
+    MemPool1.increase_threshold_to(NewThreshold);
     ReleaseThresholdGet = MemPool1.get_threshold();
 #ifdef VERBOSE_PRINT
     std::cout << "Newly set memory pool release threshold: "
               << ReleaseThresholdGet << std::endl;
 #endif
 
-    // Reset high watermarks
+    // Allocate memory to check queries
+    void *dummyPtr = syclexp::async_malloc_from_pool(Q, 2048, MemPool1);
+
+    ReservedSizeCurrent = MemPool1.get_reserved_size_current();
+    ReservedSizeHigh = MemPool1.get_reserved_size_high();
+    UsedSizeCurrent = MemPool1.get_used_size_current();
+    UsedSizeHigh = MemPool1.get_used_size_high();
+#ifdef VERBOSE_PRINT
+    std::cout << "Memory pool current reserved size: " << ReservedSizeCurrent
+              << std::endl;
+    std::cout << "Memory pool high reserved size: " << ReservedSizeHigh
+              << std::endl;
+    std::cout << "Memory pool current used size: " << UsedSizeCurrent
+              << std::endl;
+    std::cout << "Memory pool high used size: " << UsedSizeHigh << std::endl;
+#endif
+
+    // We don't know what the exact sizes of each could be - but they must each
+    // be greater than 0
+    assert(ReservedSizeCurrent > 0 &&
+           "Pool reserved size has not increased despite allocating memory!");
+    assert(ReservedSizeHigh > 0 && "Pool reserved size high has not increased "
+                                   "despite allocating memory!");
+    assert(UsedSizeCurrent > 0 &&
+           "Pool used size has not increased despite allocating memory!");
+    assert(UsedSizeHigh > 0 &&
+           "Pool used size high has not increased despite allocating memory!");
+
+    // Reset high watermarks -- and free that allocation and wait to release
+    // back to OS
+    syclexp::async_free(Q, dummyPtr);
+    Q.wait_and_throw();
     MemPool1.reset_reserved_size_high();
     MemPool1.reset_used_size_high();
 
-    // Pool trimming
-    MemPool1.trim_to(1024);
+    // Check watermarks have been reset to zero
+    ReservedSizeHigh = MemPool1.get_reserved_size_high();
+    UsedSizeHigh = MemPool1.get_used_size_high();
+#ifdef VERBOSE_PRINT
+    std::cout << "Memory pool high reserved size: " << ReservedSizeHigh
+              << std::endl;
+    std::cout << "Memory pool high used size: " << UsedSizeHigh << std::endl;
+#endif
+    assert(ReservedSizeHigh == 0 &&
+           "Pool reserved size high not equal to zero despite resetting!");
+    assert(UsedSizeHigh == 0 &&
+           "Pool used size high not equal to zero despite resetting!");
 
     // Default memory pool
     syclexp::memory_pool DefaultPool =
         Ctx.ext_oneapi_get_default_memory_pool(Dev, sycl::usm::alloc::device);
+    DefaultPool.increase_threshold_to(1024);
 
     // Check default memory pool getter is equal
     syclexp::memory_pool DefaultPoolCopy =
         Ctx.ext_oneapi_get_default_memory_pool(Dev, sycl::usm::alloc::device);
     assert(DefaultPool == DefaultPoolCopy &&
            "Default pool is not equivalent between calls!");
+
+    // Check equivalent thresholds between the two copies
+    assert(DefaultPool.get_threshold() == DefaultPoolCopy.get_threshold() &&
+           "Default pool does not have equivalent thresholds between retrieved "
+           "copies!");
 
   } catch (sycl::exception &E) {
     std::cerr << "SYCL exception caught! : " << E.what() << "\n";

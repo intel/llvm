@@ -27,22 +27,31 @@ class __SYCL_EXPORT memory_pool {
 
 public:
   // NOT SUPPORTED: Host side pools unsupported.
-  memory_pool(const sycl::context &, const property_list &) {
+  memory_pool(const sycl::context &, sycl::usm::alloc kind,
+              const property_list & = {}) {
+    if (kind == sycl::usm::alloc::device || kind == sycl::usm::alloc::shared)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Device and shared allocation kinds are disallowed "
+                            "without specifying a device!");
+    if (kind == sycl::usm::alloc::unknown)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Unknown allocation kinds are disallowed!");
+
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Host allocated pools are unsupported!");
   }
 
   memory_pool(const sycl::context &ctx, const sycl::device &dev,
-              const sycl::usm::alloc kind, const property_list &props = {});
+              sycl::usm::alloc kind, const property_list &props = {});
 
-  memory_pool(const sycl::queue &q, const sycl::usm::alloc kind,
+  memory_pool(const sycl::queue &q, sycl::usm::alloc kind,
               const property_list &props = {})
       : memory_pool(q.get_context(), q.get_device(), kind, props) {}
 
   // NOT SUPPORTED: Creating a pool from an existing allocation is unsupported.
-  memory_pool(const sycl::context &, const void *, size_t,
-              const property_list &) {
+  memory_pool(const sycl::context &, void *, size_t,
+              const property_list & = {}) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Creating a pool from an existing allocation is unsupported!");
@@ -70,15 +79,14 @@ public:
   size_t get_used_size_current() const;
   size_t get_used_size_high() const;
 
-  void set_new_threshold(size_t newThreshold);
+  void increase_threshold_to(size_t newThreshold);
   void reset_reserved_size_high();
   void reset_used_size_high();
-  void trim_to(size_t minBytesToKeep);
 
   // Property getters.
   template <typename PropertyT> bool has_property() const noexcept {
     return getPropList().template has_property<PropertyT>();
-}
+  }
   template <typename PropertyT> PropertyT get_property() const {
     return getPropList().template get_property<PropertyT>();
   }

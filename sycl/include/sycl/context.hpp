@@ -255,14 +255,13 @@ public:
   /// \return a memory pool for a particular device and context.
   sycl::ext::oneapi::experimental::memory_pool
   ext_oneapi_get_default_memory_pool(const device &dev,
-                                     const sycl::usm::alloc &kind) const;
+                                     sycl::usm::alloc kind) const;
 
-  /// Gets default memory pool associated with the context -- with the
-  /// allocation kind usm::alloc::host.
+  /// Gets default memory pool associated with the context and allocation kind.
   ///
   /// \return a memory pool associated with this context.
   sycl::ext::oneapi::experimental::memory_pool
-  ext_oneapi_get_default_memory_pool() const;
+  ext_oneapi_get_default_memory_pool(sycl::usm::alloc kind) const;
 
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.

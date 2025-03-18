@@ -39,6 +39,7 @@ public:
   const property_list &getPropList() const { return MPropList; }
 
   // Returns backend specific values.
+  size_t get_allocation_chunk_size() const;
   size_t get_threshold() const;
   size_t get_reserved_size_current() const;
   size_t get_reserved_size_high() const;
@@ -48,7 +49,6 @@ public:
   void set_new_threshold(size_t newThreshold);
   void reset_reserved_size_high();
   void reset_used_size_high();
-  void trim_to(size_t minBytesToKeep);
 
 private:
   std::shared_ptr<sycl::detail::context_impl> MContextImplPtr;

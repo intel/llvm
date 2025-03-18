@@ -34,6 +34,10 @@ getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
 __SYCL_EXPORT
 void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
 
+  if (kind == sycl::usm::alloc::unknown)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Unknown allocation kinds are disallowed!");
+
   // Non-device allocations are unsupported.
   if (kind != sycl::usm::alloc::device)
     throw sycl::exception(

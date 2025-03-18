@@ -84,17 +84,18 @@ memory_pool_impl::memory_pool_impl(const sycl::context &ctx,
   bool zeroInit = false;
 
   // Get properties.
-  if (props.has_property<property::maximum_size>())
-    maxSize = props.get_property<property::maximum_size>().get_maximum_size();
+  if (props.has_property<property::memory_pool::maximum_size>())
+    maxSize = props.get_property<property::memory_pool::maximum_size>()
+                  .get_maximum_size();
 
-  if (props.has_property<property::initial_threshold>())
-    threshold = props.get_property<property::initial_threshold>()
+  if (props.has_property<property::memory_pool::initial_threshold>())
+    threshold = props.get_property<property::memory_pool::initial_threshold>()
                     .get_initial_threshold();
 
-  if (props.has_property<property::read_only>())
+  if (props.has_property<property::memory_pool::read_only>())
     readOnly = true;
 
-  if (props.has_property<property::zero_init>())
+  if (props.has_property<property::memory_pool::zero_init>())
     zeroInit = true;
 
   if (kind == sycl::usm::alloc::device)
@@ -214,18 +215,6 @@ void memory_pool_impl::reset_used_size_high() {
       ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolSetInfoExp>(
           MPoolHandle, UR_USM_POOL_INFO_USED_HIGH_EXP,
           static_cast<void *>(&resetVal), 8 /*uint64_t*/);
-}
-
-void memory_pool_impl::trim_to(size_t minBytesToKeep) {
-  ur_context_handle_t C = MContextImplPtr->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(MDevice);
-  ur_device_handle_t Device = DevImpl->getHandleRef();
-  const sycl::detail::AdapterPtr &Adapter = MContextImplPtr->getAdapter();
-
-  Adapter
-      ->call<sycl::errc::runtime, sycl::detail::UrApiKind::urUSMPoolTrimToExp>(
-          C, Device, MPoolHandle, minBytesToKeep);
 }
 
 } // namespace detail

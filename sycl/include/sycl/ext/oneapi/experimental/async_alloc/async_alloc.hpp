@@ -42,7 +42,7 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
  *
  * @return Generic pointer to allocated USM memory.
  */
-__SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
+__SYCL_EXPORT void *async_malloc(const sycl::handler &h, sycl::usm::alloc kind,
                                  size_t size);
 
 /**
@@ -68,7 +68,7 @@ async_malloc_from_pool(const sycl::queue &q, size_t size, memory_pool &pool,
  *
  * @return Generic pointer to allocated USM memory.
  */
-__SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
+__SYCL_EXPORT void *async_malloc_from_pool(const sycl::handler &h, size_t size,
                                            memory_pool &pool);
 
 /**
@@ -87,7 +87,7 @@ __SYCL_EXPORT void async_free(const sycl::queue &q, void *ptr,
  * @param  h The handler with which to enqueue the asynchronous free.
  * @param  ptr The generic pointer to be freed.
  */
-__SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
+__SYCL_EXPORT void async_free(const sycl::handler &h, void *ptr);
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

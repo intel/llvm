@@ -152,10 +152,9 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
-template <typename, typename>
-class work_group_memory;
+template <typename, typename> class work_group_memory;
 struct image_descriptor;
-__SYCL_EXPORT void async_free(handler &h, void *ptr);
+__SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
 __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
                                  size_t size);
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
