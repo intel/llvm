@@ -119,7 +119,7 @@ jobs:
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
-      ref: sycl-rel-6_0_0
+      repo_ref: sycl-rel-6_0_0
       devops_ref: sycl
 
   cuda-aws-start:
