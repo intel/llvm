@@ -842,11 +842,11 @@ bool ext_oneapi_has_device_global(const std::string &name)
 _Constraints:_ This function is not available when `State` is
 `bundle_state::ext_oneapi_source`.
 
-_Returns:_ The value `true` only if
+_Returns:_ `true` if and only if all of the following conditions hold:
 
 * the kernel bundle was created from a bundle of state
   `bundle_state::ext_oneapi_source` in the language `source_language::sycl`, and
-* it defines a device global whose name is `name`.
+* the kernel bundle defines a device global whose name is `name`.
 
 a|
 [frame=all,grid=none]
