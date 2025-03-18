@@ -1405,6 +1405,7 @@ ur_result_t MapMemObject::enqueueImp() {
           MSrcReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
+  assert(UREvent && "MapMemObject command must produce native event");
 
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
@@ -1453,7 +1454,8 @@ void UnMapMemObject::emitInstrumentationData() {
 #endif
 }
 
-bool UnMapMemObject::producesPiEvent() const {
+static bool checkNativeEventForWA(const QueueImplPtr &Queue,
+                                  const ur_event_handle_t &NativeEvent) {
   // TODO remove this workaround once the batching issue is addressed in Level
   // Zero adapter.
   // Consider the following scenario on Level Zero:
@@ -1469,9 +1471,13 @@ bool UnMapMemObject::producesPiEvent() const {
   // an event waitlist and Level Zero adapter attempts to batch these commands,
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
-  return MQueue && (MQueue->getDeviceImplPtr()->getBackend() !=
-                        backend::ext_oneapi_level_zero ||
-                    MEvent->getHandle() != nullptr);
+  return Queue && (Queue->getDeviceImplPtr()->getBackend() !=
+                       backend::ext_oneapi_level_zero ||
+                   NativeEvent != nullptr);
+}
+
+bool UnMapMemObject::producesPiEvent() const {
+  return checkNativeEventForWA(MQueue, MEvent->getHandle());
 }
 
 ur_result_t UnMapMemObject::enqueueImp() {
@@ -1488,6 +1494,8 @@ ur_result_t UnMapMemObject::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
+  assert((!!UREvent == checkNativeEventForWA(MQueue, UREvent)) &&
+         "UnMapMemObject command must produce native event");
   MEvent->setHandle(UREvent);
 
   return UR_RESULT_SUCCESS;
@@ -1560,25 +1568,7 @@ ContextImplPtr MemCpyCommand::getWorkerContext() const {
 }
 
 bool MemCpyCommand::producesPiEvent() const {
-  // TODO remove this workaround once the batching issue is addressed in Level
-  // Zero adapter.
-  // Consider the following scenario on Level Zero:
-  // 1. Kernel A, which uses buffer A, is submitted to queue A.
-  // 2. Kernel B, which uses buffer B, is submitted to queue B.
-  // 3. queueA.wait().
-  // 4. queueB.wait().
-  // DPCPP runtime used to treat unmap/write commands for buffer A/B as host
-  // dependencies (i.e. they were waited for prior to enqueueing any command
-  // that's dependent on them). This allowed Level Zero adapter to detect that
-  // each queue is idle on steps 1/2 and submit the command list right away.
-  // This is no longer the case since we started passing these dependencies in
-  // an event waitlist and Level Zero adapter attempts to batch these commands,
-  // so the execution of kernel B starts only on step 4. This workaround
-  // restores the old behavior in this case until this is resolved.
-  return !MQueue ||
-         MQueue->getDeviceImplPtr()->getBackend() !=
-             backend::ext_oneapi_level_zero ||
-         MEvent->getHandle() != nullptr;
+  return checkNativeEventForWA(MQueue, MEvent->getHandle());
 }
 
 ur_result_t MemCpyCommand::enqueueImp() {
@@ -1600,6 +1590,8 @@ ur_result_t MemCpyCommand::enqueueImp() {
           MEvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
+  assert((!!UREvent == checkNativeEventForWA(MQueue, UREvent)) &&
+         "MemCpyCommand must produce native event");
 
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
@@ -1652,7 +1644,8 @@ ur_result_t UpdateHostRequirementCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue, EventImpls, UREvent);
-  MEvent->setHandle(UREvent);
+  assert((UREvent == nullptr) &&
+         "UpdateHostRequirementCommand doesn't produce native event");
 
   assert(MSrcAllocaCmd && "Expected valid alloca command");
   assert(MSrcAllocaCmd->getMemAllocation() && "Expected valid source pointer");
@@ -1857,9 +1850,8 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
 }
 
 UpdateHostRequirementCommand::UpdateHostRequirementCommand(
-    QueueImplPtr Queue, Requirement Req, AllocaCommandBase *SrcAllocaCmd,
-    void **DstPtr)
-    : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
+    Requirement Req, AllocaCommandBase *SrcAllocaCmd, void **DstPtr)
+    : Command(CommandType::UPDATE_REQUIREMENT, nullptr),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {
 
   emitInstrumentationDataProxy();
