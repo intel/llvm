@@ -160,6 +160,7 @@ For a description of parallel for range rounding in DPC++ see
 | `SYCL_ENABLE_PCI` (Deprecated) | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 1. This option is kept for compatibility reasons and is immediately deprecated. |
 | `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero adapter (each memory request will go directly to Level Zero runtime) |
 | `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero adapter. |
+| `SYCL_UR_USE_LEVEL_ZERO_V2` | Integer | Enable ('1') or disable ('0') the use of a preview version of the Level Zero adapter, which features a redesigned architecture aimed at optimizing performance for different queue modes (immediate/batched, in-order/out-of-order). This version is expected to reduce runtime overhead and currently only support immediate, in-order mode. If you experience any performance or functional issues with this adapter enabled, please report them on GitHub, specifying the adapter used. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 

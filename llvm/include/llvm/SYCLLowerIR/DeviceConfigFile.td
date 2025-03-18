@@ -87,9 +87,11 @@ def AspectExt_intel_fpga_task_sequence : Aspect<"ext_intel_fpga_task_sequence">;
 def AspectExt_oneapi_atomic16 : Aspect<"ext_oneapi_atomic16">;
 def AspectExt_oneapi_virtual_functions : Aspect<"ext_oneapi_virtual_functions">;
 def AspectExt_intel_spill_memory_size : Aspect<"ext_intel_spill_memory_size">;
+def AspectExt_oneapi_bindless_images_gather : Aspect<"ext_oneapi_bindless_images_gather">;
 def AspectExt_intel_current_clock_throttle_reasons : Aspect<"ext_intel_current_clock_throttle_reasons">;
 def AspectExt_intel_fan_speed : Aspect<"ext_intel_fan_speed">;
 def AspectExt_intel_power_limits : Aspect<"ext_intel_power_limits">;
+
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
@@ -147,6 +149,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_bindless_sampled_image_fetch_1d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_1d,
     AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_2d,
     AspectExt_oneapi_bindless_sampled_image_fetch_3d,
+    AspectExt_oneapi_bindless_images_gather,
     AspectExt_intel_esimd,
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
