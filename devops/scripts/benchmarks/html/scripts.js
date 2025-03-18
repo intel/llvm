@@ -12,10 +12,6 @@ let timeseriesData, barChartsData, allRunNames;
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer;
 
-// Add this at the top of the file with the other variable declarations
-let showNotes = true;
-let showUnstable = false;
-
 // Run selector functions
 function updateSelectedRuns(forceUpdate = true) {
     selectedRunsDiv.innerHTML = '';
@@ -215,7 +211,7 @@ function createChartContainer(data, canvasId, type) {
         const unstableWarning = document.createElement('div');
         unstableWarning.className = 'benchmark-unstable';
         unstableWarning.textContent = metadata.unstable;
-        unstableWarning.style.display = showUnstable ? 'block' : 'none';
+        unstableWarning.style.display = isUnstableEnabled() ? 'block' : 'none';
         container.appendChild(unstableWarning);
     }
 
@@ -224,7 +220,7 @@ function createChartContainer(data, canvasId, type) {
         const noteElement = document.createElement('div');
         noteElement.className = 'benchmark-note';
         noteElement.textContent = metadata.notes;
-        noteElement.style.display = showNotes ? 'block' : 'none';
+        noteElement.style.display = isNotesEnabled() ? 'block' : 'none';
         container.appendChild(noteElement);
     }
 
@@ -390,8 +386,8 @@ function updateURL() {
     }
 
     // Add toggle states to URL
-    url.searchParams.set('notes', showNotes);
-    url.searchParams.set('unstable', showUnstable);
+    url.searchParams.set('notes', isNotesEnabled());
+    url.searchParams.set('unstable', isUnstableEnabled());
 
     history.replaceState(null, '', url);
 }
@@ -409,14 +405,9 @@ function filterCharts() {
         // Hide unstable benchmarks if showUnstable is false
         const shouldShow = regex.test(label) &&
             activeSuites.includes(suite) &&
-            (showUnstable || !isUnstable);
+            (isUnstableEnabled() || !isUnstable);
 
         container.style.display = shouldShow ? '' : 'none';
-    });
-
-    // Update notes visibility
-    document.querySelectorAll('.benchmark-note').forEach(note => {
-        note.style.display = showNotes ? 'block' : 'none';
     });
 
     updateURL();
@@ -464,7 +455,7 @@ function processTimeseriesData(benchmarkRuns) {
 function processBarChartsData(benchmarkRuns) {
     const groupedResults = {};
 
-    benchmarkRuns.forEach(run => {
+    benchmarkRuns.reverse().forEach(run => {
         run.results.forEach(result => {
             if (!result.explicit_group) return;
 
@@ -547,24 +538,31 @@ function setupSuiteFilters() {
     });
 }
 
+function isNotesEnabled() {
+    const notesToggle = document.getElementById('show-notes');
+    return notesToggle.checked;
+}
+
+function isUnstableEnabled() {
+    const unstableToggle = document.getElementById('show-unstable');
+    return unstableToggle.checked;
+}
+
 function setupToggles() {
     const notesToggle = document.getElementById('show-notes');
     const unstableToggle = document.getElementById('show-unstable');
 
     notesToggle.addEventListener('change', function() {
-        showNotes = this.checked;
         // Update all note elements visibility
         document.querySelectorAll('.benchmark-note').forEach(note => {
-            note.style.display = showNotes ? 'block' : 'none';
+            note.style.display = isNotesEnabled() ? 'block' : 'none';
         });
-        filterCharts();
     });
 
     unstableToggle.addEventListener('change', function() {
-        showUnstable = this.checked;
         // Update all unstable warning elements visibility
         document.querySelectorAll('.benchmark-unstable').forEach(warning => {
-            warning.style.display = showUnstable ? 'block' : 'none';
+            warning.style.display = isUnstableEnabled() ? 'block' : 'none';
         });
         filterCharts();
     });
@@ -574,12 +572,12 @@ function setupToggles() {
     const unstableParam = getQueryParam('unstable');
 
     if (notesParam !== null) {
-        showNotes = notesParam === 'true';
+        let showNotes = notesParam === 'true';
         notesToggle.checked = showNotes;
     }
 
     if (unstableParam !== null) {
-        showUnstable = unstableParam === 'true';
+        let showUnstable = unstableParam === 'true';
         unstableToggle.checked = showUnstable;
     }
 }
