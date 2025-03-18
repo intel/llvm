@@ -1,16 +1,18 @@
-import os
-import sys
-import json
-from pathlib import Path
-from dataclasses import dataclass, asdict
-
 from utils.aggregate import SimpleMedian
 from utils.validate import Validate
 from utils.result import Result, BenchmarkRun
 from options import options
 
+import os
+import sys
+import json
+import argparse
+from pathlib import Path
+from dataclasses import dataclass, asdict
+
 @dataclass
 class BenchmarkHistoricAverage:
+    """Contains historic average information for 1 benchmark"""
     # Name of benchmark as defined in Benchmark class definition
     name: str
 
@@ -32,14 +34,32 @@ class BenchmarkHistoricAverage:
     command_args: set[str] 
     # TODO Ensure ONEAPI_DEVICE_SELECTOR? GPU name itself?
 
-class Compare:
 
+class Compare:
+    """Class containing logic for comparisons between results"""
     @staticmethod
     def get_hist_avg(
         result_name: str, result_dir: str, cutoff: str, aggregator=SimpleMedian,
         exclude: list[str] = []
     ) -> dict[str, BenchmarkHistoricAverage]:
+        """
+        Create a historic average for results named result_name in result_dir
+        using the specified aggregator
 
+        Args:
+            result_name (str): Name of benchmarking result to obtain average for 
+            result_dir (str): Path to folder containing benchmark results
+            cutoff (str): Timestamp in YYYYMMDD_HHMMSS of oldest results used in
+            average calcultaion
+            aggregator (Aggregator): The aggregator to use for calculating the
+            historic average
+            exclude (list[str]): List of filenames (only the stem) to exclude
+            from average calculation
+
+        Returns:
+            A dictionary mapping benchmark names to BenchmarkHistoricAverage
+            objects
+        """
         def get_timestamp(f: str) -> str:
             """Extract timestamp from result filename"""
             return str(f)[-len("YYYYMMDD_HHMMSS.json") : -len(".json")]
@@ -121,6 +141,17 @@ class Compare:
     def to_hist_avg(
         hist_avg: dict[str, BenchmarkHistoricAverage], compare_file: str
     ) -> tuple:
+        """
+        Compare results in compare_file to a pre-existing map of historic
+        averages
+
+        Args:
+            hist_avg (dict): A historic average map generated from get_hist_avg
+            compare_file (str): Full filepath of result to compare against
+
+        Returns:
+            A tuple returning (list of improved tests, list of regressed tests).
+        """
         with open(compare_file, 'r') as compare_f:
             compare_result = BenchmarkRun.from_json(json.load(compare_f))
 
@@ -153,19 +184,18 @@ class Compare:
                 regression.append(perf_diff_entry())
 
         return improvement, regression
-            
 
 
 
     def to_hist(
-        avg_type: str, result_name: str, compare_name: str, result_dir: str, cutoff: str,
+        avg_type: str, result_name: str, compare_file: str, result_dir: str, cutoff: str,
         
     ) -> tuple:
         """
-        This function generates a historic average from results named result_name
-        in result_dir and compares it to the results in compare_file
+        Pregenerate a historic average from results named result_name in
+        result_dir, and compares the results in compare_file to it
 
-        Parameters:
+        Args:
             result_name (str): Save name of the result
             compare_name (str): Result file name to compare historic average against
             result_dir (str): Directory to look for results in
@@ -173,6 +203,13 @@ class Compare:
             result included in the historic average calculation
             avg_type (str): Type of "average" (measure of central tendency) to 
             use in historic "average" calculation
+
+        Returns:
+            A tuple returning (list of improved tests, list of regressed tests).
+            Each element in each list is a BenchmarkRun object with a hist_avg,
+            avg_type, and delta field added, indicating the historic average,
+            type of central tendency used for historic average, and the delta
+            from the average for this benchmark run.
         """ 
 
         if avg_type != "median":
@@ -180,9 +217,81 @@ class Compare:
             exit(1)
 
         # TODO call validator on cutoff timestamp
-        hist_avg = Compare.get_hist_avg(result_name, result_dir, cutoff, exclude=[compare_name])
-        return Compare.to_hist_avg(hist_avg, f"{result_dir}/{compare_name}.json")
+        hist_avg = Compare.get_hist_avg(
+            result_name,
+            result_dir,
+            cutoff,
+            exclude=[Path(compare_file).stem]
+        )
+        return Compare.to_hist_avg(hist_avg, compare_file)
 
 
-res = Compare.to_hist("median", "Baseline_PVC_L0", "Baseline_PVC_L0_20250314_170754", "./", "00000000_000000")
-print(res)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Compare benchmark results")
+    subparsers = parser.add_subparsers(dest="operation", required=True)
+    parser_avg = subparsers.add_parser("to_hist", help="Compare a benchmark result to historic average")
+    parser_avg.add_argument(
+        "--avg_type",
+        type=str,
+        help="Measure of central tendency to use when computing historic average",
+        default="median"
+    )
+    parser_avg.add_argument(
+        "--name",
+        type=str,
+        required=True,
+        help="Save name of the benchmark results to compare to"
+    )
+    parser_avg.add_argument(
+        "--compare_file",
+        type=str,
+        required=True,
+        help="Result file to compare against te historic average"
+    )
+    parser_avg.add_argument(
+        "--results_dir",
+        type=str,
+        required=True,
+        help="Directory storing results"
+    )
+    parser_avg.add_argument(
+        "--cutoff",
+        type=str,
+        help="Timestamp (in YYYYMMDD_HHMMSS) of oldest result to include in historic average calculation",
+        default="20000101_010101"
+    )
+
+    args = parser.parse_args()
+
+    if args.operation == "to_hist":
+        if args.avg_type != "median":
+            print("Only median is currently supported: exiting.")
+            exit(1)
+        if not Validate.timestamp(args.cutoff):
+            raise ValueError("Timestamp must be provided as YYYYMMDD_HHMMSS.")
+
+        improvements, regressions = Compare.to_hist(
+            "median",
+            args.name,
+            args.compare_file,
+            args.results_dir,
+            args.cutoff
+        )
+
+        def print_regression(entry: dict):
+            """Print an entry outputted from Compare.to_hist"""
+            print(f"Test: {entry['name']}")
+            print(f"-- Historic {entry['avg_type']}: {entry['hist_avg']}")
+            print(f"-- Run result: {test['value']}")
+            print(f"-- Delta: {test['delta']}")
+            print("")
+
+        if improvements:
+            print("#\n# Improvements:\n#\n")
+            for test in improvements: print_regression(test)
+        if regressions:
+            print("#\n# Regressions:\n#\n")
+            for test in regressions: print_regression(test)
+    else:
+        print("Unsupported operation: exiting.")
+        exit(1)
