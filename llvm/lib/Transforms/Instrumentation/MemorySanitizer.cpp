@@ -2809,7 +2809,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
             std::tie(CpShadowPtr, CpOriginPtr) =
                 getShadowOriginPtr(V, EntryIRB, EntryIRB.getInt8Ty(), ArgAlign,
                                    /*isStore*/ true);
-            // Spirv needn't to consider overflow since it doesn't use TLS
             if (!PropagateShadow || Overflow) {
               // ParamTLS overflow.
               EntryIRB.CreateMemSet(
@@ -2908,10 +2907,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     }
 #ifndef NDEBUG
     Type *ShadowTy = Shadow->getType();
-    if (!(isa<IntegerType>(ShadowTy) || isa<VectorType>(ShadowTy) ||
-          isa<StructType>(ShadowTy) || isa<ArrayType>(ShadowTy))) {
-      ShadowTy->dump();
-    }
     assert((isa<IntegerType>(ShadowTy) || isa<VectorType>(ShadowTy) ||
             isa<StructType>(ShadowTy) || isa<ArrayType>(ShadowTy)) &&
            "Can only insert checks for integer, vector, and aggregate shadow "
@@ -3675,22 +3670,23 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   ///
   /// Similar situation exists for memcpy and memset.
   void visitMemMoveInst(MemMoveInst &I) {
-    if (SpirOrSpirv && ((isa<Instruction>(I.getArgOperand(0)) &&
-                         cast<Instruction>(I.getArgOperand(0))
-                             ->getMetadata(LLVMContext::MD_nosanitize)) ||
-                        (isa<Instruction>(I.getArgOperand(1)) &&
-                         cast<Instruction>(I.getArgOperand(1))
-                             ->getMetadata(LLVMContext::MD_nosanitize))))
-      return;
+    if (SpirOrSpirv) {
+      // If the destination is a nosanitize value, we don't need to update its
+      // shadow memory
+      if (isa<Instruction>(I.getArgOperand(0)) &&
+          cast<Instruction>(I.getArgOperand(0))
+              ->getMetadata(LLVMContext::MD_nosanitize))
+        return;
 
-    if (SpirOrSpirv && !ClSpirOffloadLocals &&
-        (I.getSourceAddressSpace() == kSpirOffloadLocalAS ||
-         I.getDestAddressSpace() == kSpirOffloadLocalAS))
-      return;
-    if (SpirOrSpirv && !ClSpirOffloadPrivates &&
-        (I.getSourceAddressSpace() == kSpirOffloadPrivateAS ||
-         I.getDestAddressSpace() == kSpirOffloadPrivateAS))
-      return;
+      // If we disable checking local/private memory, we needn't update its
+      // shadow memory
+      if (!ClSpirOffloadLocals &&
+          I.getDestAddressSpace() == kSpirOffloadLocalAS)
+        return;
+      if (!ClSpirOffloadPrivates &&
+          I.getDestAddressSpace() == kSpirOffloadPrivateAS)
+        return;
+    }
 
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
@@ -3718,12 +3714,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// itself, instrumentation should be disabled with the no_sanitize attribute.
   void visitMemCpyInst(MemCpyInst &I) {
     if (SpirOrSpirv) {
-      if ((isa<Instruction>(I.getArgOperand(0)) &&
-           cast<Instruction>(I.getArgOperand(0))
-               ->getMetadata(LLVMContext::MD_nosanitize)) ||
-          (isa<Instruction>(I.getArgOperand(1)) &&
-           cast<Instruction>(I.getArgOperand(1))
-               ->getMetadata(LLVMContext::MD_nosanitize)))
+      // If the destination is a nosanitize value, we don't need to update its
+      // shadow memory
+      if (isa<Instruction>(I.getArgOperand(0)) &&
+          cast<Instruction>(I.getArgOperand(0))
+              ->getMetadata(LLVMContext::MD_nosanitize))
         return;
 
       // If we disable checking local/private memory, we needn't update its
@@ -3748,17 +3743,21 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   // Same as memcpy.
   void visitMemSetInst(MemSetInst &I) {
-    if (SpirOrSpirv && isa<Instruction>(I.getArgOperand(0)) &&
-        cast<Instruction>(I.getArgOperand(0))
-            ->getMetadata(LLVMContext::MD_nosanitize))
-      return;
+    if (SpirOrSpirv) {
+      if (isa<Instruction>(I.getArgOperand(0)) &&
+          cast<Instruction>(I.getArgOperand(0))
+              ->getMetadata(LLVMContext::MD_nosanitize))
+        return;
 
-    if (SpirOrSpirv && !ClSpirOffloadLocals &&
-        I.getDestAddressSpace() == kSpirOffloadLocalAS)
-      return;
-    if (SpirOrSpirv && !ClSpirOffloadPrivates &&
-        I.getDestAddressSpace() == kSpirOffloadPrivateAS)
-      return;
+      // If we disable checking local/private memory, we needn't update its
+      // shadow memory, and treat its shadow value as zeros at rtl
+      if (!ClSpirOffloadLocals &&
+          I.getDestAddressSpace() == kSpirOffloadLocalAS)
+        return;
+      if (!ClSpirOffloadPrivates &&
+          I.getDestAddressSpace() == kSpirOffloadPrivateAS)
+        return;
+    }
 
     IRBuilder<> IRB(&I);
     IRB.CreateCall(
