@@ -315,7 +315,7 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(Graph)) {}
+    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -466,12 +466,10 @@ event handler::finalize() {
     }
 
     if (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-        !MQueue->getCommandGraph() && !impl->CGData.MRequirements.size() &&
+        !MQueue->hasCommandGraph() && !impl->CGData.MRequirements.size() &&
         !MStreamStorage.size() &&
-        (!impl->CGData.MEvents.size() ||
-         (MQueue->isInOrder() &&
-          detail::Scheduler::areEventsSafeForSchedulerBypass(
-              impl->CGData.MEvents, MQueue->getContextImplPtr())))) {
+        detail::Scheduler::areEventsSafeForSchedulerBypass(
+            impl->CGData.MEvents, MQueue->getContextImplPtr())) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
@@ -534,7 +532,7 @@ event handler::finalize() {
         EnqueueKernel();
         auto EventImpl = std::make_shared<detail::event_impl>(
             detail::event_impl::HES_Discarded);
-        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
+        MLastEvent = detail::createSyclObjFromImpl<event>(std::move(EventImpl));
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setWorkerQueue(MQueue);
@@ -544,8 +542,13 @@ event handler::finalize() {
 
         EnqueueKernel();
         NewEvent->setEnqueued();
+        // connect returned event with dependent events
+        if (!MQueue->isInOrder()) {
+          NewEvent->getPreparedDepsEvents() = impl->CGData.MEvents;
+          NewEvent->cleanDepEventsThroughOneLevel();
+        }
 
-        MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+        MLastEvent = detail::createSyclObjFromImpl<event>(std::move(NewEvent));
       }
       return MLastEvent;
     }
@@ -2036,7 +2039,7 @@ void handler::setNDRangeUsed(bool Value) { (void)Value; }
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
     int ArgIndex) {
-  if (MQueue && MQueue->getCommandGraph()) {
+  if (MQueue && MQueue->hasCommandGraph()) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Dynamic Parameters cannot be used with Graph Queue recording.");
