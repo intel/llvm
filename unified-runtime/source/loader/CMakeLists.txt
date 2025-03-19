@@ -21,6 +21,10 @@ add_ur_library(ur_loader
 )
 install_ur_library(ur_loader)
 
+target_compile_definitions(ur_loader PRIVATE
+    UR_USE_DEBUG_POSTFIX=$<BOOL:${UR_USE_DEBUG_POSTFIX}>
+)
+
 if (MSVC)
     set(TARGET_LIBNAME ur_loader)
     string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
