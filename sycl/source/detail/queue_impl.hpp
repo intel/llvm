@@ -368,7 +368,7 @@ public:
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
     if (SubmitInfo.SecondaryQueue()) {
       event ResEvent;
-      const std::shared_ptr<queue_impl> SecondQueue =
+      const std::shared_ptr<queue_impl> &SecondQueue =
           SubmitInfo.SecondaryQueue();
       try {
         ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
@@ -703,6 +703,8 @@ public:
     return MGraph.lock();
   }
 
+  bool hasCommandGraph() const { return !MGraph.expired(); }
+
   unsigned long long getQueueID() { return MQueueID; }
 
   void *getTraceEvent() { return MTraceEvent; }
@@ -753,6 +755,19 @@ public:
     return ResEvent;
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // CMPLRLLVM-66082
+  // These methods are for accessing a member that should live in the
+  // sycl::interop_handle class and will be moved on next ABI breaking window.
+  ur_exp_command_buffer_handle_t getInteropGraph() const {
+    return MInteropGraph;
+  }
+
+  void setInteropGraph(ur_exp_command_buffer_handle_t Graph) {
+    MInteropGraph = Graph;
+  }
+#endif
+
 protected:
   event discard_or_return(const event &Event);
 
@@ -766,79 +781,121 @@ protected:
     return ResEvent;
   }
 
+  template <typename HandlerType = handler>
+  event finalizeHandlerInOrder(HandlerType &Handler) {
+    // Accessing and changing of an event isn't atomic operation.
+    // Hence, here is the lock for thread-safety.
+    std::lock_guard<std::mutex> Lock{MMutex};
+
+    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                              : MExtGraphDeps.LastEventPtr;
+
+    // This dependency is needed for the following purposes:
+    //    - host tasks are handled by the runtime and cannot be implicitly
+    //    synchronized by the backend.
+    //    - to prevent the 2nd kernel enqueue when the 1st kernel is blocked
+    //    by a host task. This dependency allows to build the enqueue order in
+    //    the RT but will not be passed to the backend. See getPIEvents in
+    //    Command.
+    if (EventToBuildDeps) {
+      // In the case where the last event was discarded and we are to run a
+      // host_task, we insert a barrier into the queue and use the resulting
+      // event as the dependency for the host_task.
+      // Note that host_task events can never be discarded, so this will not
+      // insert barriers between host_task enqueues.
+      if (EventToBuildDeps->isDiscarded() &&
+          getSyclObjImpl(Handler)->MCGType == CGType::CodeplayHostTask)
+        EventToBuildDeps = insertHelperBarrier(Handler);
+
+      if (!EventToBuildDeps->isDiscarded())
+        Handler.depends_on(EventToBuildDeps);
+    }
+
+    // If there is an external event set, add it as a dependency and clear it.
+    // We do not need to hold the lock as MLastEventMtx will ensure the last
+    // event reflects the corresponding external event dependence as well.
+    std::optional<event> ExternalEvent = popExternalEvent();
+    if (ExternalEvent)
+      Handler.depends_on(*ExternalEvent);
+
+    auto EventRet = Handler.finalize();
+    EventToBuildDeps = getSyclObjImpl(EventRet);
+
+    return EventRet;
+  }
+
+  template <typename HandlerType = handler>
+  event finalizeHandlerOutOfOrder(HandlerType &Handler) {
+    const CGType Type = getSyclObjImpl(Handler)->MCGType;
+    std::lock_guard<std::mutex> Lock{MMutex};
+    // The following code supports barrier synchronization if host task is
+    // involved in the scenario. Native barriers cannot handle host task
+    // dependency so in the case where some commands were not enqueued
+    // (blocked), we track them to prevent barrier from being enqueued
+    // earlier.
+    {
+      std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+      for (auto &UpdatedGraph : MMissedCleanupRequests)
+        doUnenqueuedCommandCleanup(UpdatedGraph);
+      MMissedCleanupRequests.clear();
+    }
+    auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
+    if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
+      Handler.depends_on(Deps.UnenqueuedCmdEvents);
+    }
+    if (Deps.LastBarrier &&
+        (Type == CGType::CodeplayHostTask || (!Deps.LastBarrier->isEnqueued())))
+      Handler.depends_on(Deps.LastBarrier);
+
+    auto EventRet = Handler.finalize();
+    EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
+    if (Type == CGType::CodeplayHostTask)
+      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+    else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
+      Deps.LastBarrier = EventRetImpl;
+      Deps.UnenqueuedCmdEvents.clear();
+    } else if (!EventRetImpl->isEnqueued()) {
+      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+    }
+
+    return EventRet;
+  }
+
+  template <typename HandlerType = handler>
+  event finalizeHandlerPostProcess(
+      HandlerType &Handler,
+      const optional<SubmitPostProcessF> &PostProcessorFunc) {
+    auto HandlerImpl = detail::getSyclObjImpl(Handler);
+    const CGType Type = HandlerImpl->MCGType;
+
+    bool IsKernel = Type == CGType::Kernel;
+    bool KernelUsesAssert = false;
+
+    if (IsKernel)
+      // Kernel only uses assert if it's non interop one
+      KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                         ProgramManager::getInstance().kernelUsesAssert(
+                             Handler.MKernelName.c_str());
+
+    auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
+                            : finalizeHandlerOutOfOrder(Handler);
+
+    auto &PostProcess = *PostProcessorFunc;
+
+    PostProcess(IsKernel, KernelUsesAssert, Event);
+
+    return Event;
+  }
+
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
-  void finalizeHandler(HandlerType &Handler, event &EventRet) {
-    if (MIsInorder) {
-      // Accessing and changing of an event isn't atomic operation.
-      // Hence, here is the lock for thread-safety.
-      std::lock_guard<std::mutex> Lock{MMutex};
-
-      auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                                : MExtGraphDeps.LastEventPtr;
-
-      // This dependency is needed for the following purposes:
-      //    - host tasks are handled by the runtime and cannot be implicitly
-      //    synchronized by the backend.
-      //    - to prevent the 2nd kernel enqueue when the 1st kernel is blocked
-      //    by a host task. This dependency allows to build the enqueue order in
-      //    the RT but will not be passed to the backend. See getPIEvents in
-      //    Command.
-      if (EventToBuildDeps) {
-        // In the case where the last event was discarded and we are to run a
-        // host_task, we insert a barrier into the queue and use the resulting
-        // event as the dependency for the host_task.
-        // Note that host_task events can never be discarded, so this will not
-        // insert barriers between host_task enqueues.
-        if (EventToBuildDeps->isDiscarded() &&
-            getSyclObjImpl(Handler)->MCGType == CGType::CodeplayHostTask)
-          EventToBuildDeps = insertHelperBarrier(Handler);
-
-        if (!EventToBuildDeps->isDiscarded())
-          Handler.depends_on(EventToBuildDeps);
-      }
-
-      // If there is an external event set, add it as a dependency and clear it.
-      // We do not need to hold the lock as MLastEventMtx will ensure the last
-      // event reflects the corresponding external event dependence as well.
-      std::optional<event> ExternalEvent = popExternalEvent();
-      if (ExternalEvent)
-        Handler.depends_on(*ExternalEvent);
-
-      EventRet = Handler.finalize();
-      EventToBuildDeps = getSyclObjImpl(EventRet);
+  event finalizeHandler(HandlerType &Handler,
+                        const optional<SubmitPostProcessF> &PostProcessorFunc) {
+    if (PostProcessorFunc) {
+      return finalizeHandlerPostProcess(Handler, PostProcessorFunc);
     } else {
-      const CGType Type = getSyclObjImpl(Handler)->MCGType;
-      std::lock_guard<std::mutex> Lock{MMutex};
-      // The following code supports barrier synchronization if host task is
-      // involved in the scenario. Native barriers cannot handle host task
-      // dependency so in the case where some commands were not enqueued
-      // (blocked), we track them to prevent barrier from being enqueued
-      // earlier.
-      {
-        std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
-        for (auto &UpdatedGraph : MMissedCleanupRequests)
-          doUnenqueuedCommandCleanup(UpdatedGraph);
-        MMissedCleanupRequests.clear();
-      }
-      auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
-      if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
-        Handler.depends_on(Deps.UnenqueuedCmdEvents);
-      }
-      if (Deps.LastBarrier && (Type == CGType::CodeplayHostTask ||
-                               (!Deps.LastBarrier->isEnqueued())))
-        Handler.depends_on(Deps.LastBarrier);
-
-      EventRet = Handler.finalize();
-      EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
-      if (Type == CGType::CodeplayHostTask)
-        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
-      else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-        Deps.LastBarrier = EventRetImpl;
-        Deps.UnenqueuedCmdEvents.clear();
-      } else if (!EventRetImpl->isEnqueued()) {
-        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
-      }
+      return MIsInorder ? finalizeHandlerInOrder(Handler)
+                        : finalizeHandlerOutOfOrder(Handler);
     }
   }
 
@@ -999,6 +1056,14 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // CMPLRLLVM-66082
+  // This member should be part of the sycl::interop_handle class, but it
+  // is an API breaking change. So member lives here temporarily where it can
+  // be accessed through the queue member of the interop_handle
+  ur_exp_command_buffer_handle_t MInteropGraph{};
+#endif
 
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;

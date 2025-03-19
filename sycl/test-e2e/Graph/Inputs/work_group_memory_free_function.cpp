@@ -27,7 +27,6 @@ int main() {
 
   const size_t LocalSize = 128;
 
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_local_mem>();
@@ -57,7 +56,6 @@ int main() {
     int Ref = 10 + i + (Iterations * (i * 2));
     assert(check_value(i, Ref, HostData[i], "Ptr"));
   }
-#endif
 
   free(Ptr, Queue);
   return 0;

@@ -8879,12 +8879,69 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferEnqueueExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+/// @brief Intercept function for urCommandBufferAppendNativeCommandExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
     /// [in] Handle of the command-buffer object.
     ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->dditable;
+  auto pfnAppendNativeCommandExp =
+      dditable->ur.CommandBufferExp.pfnAppendNativeCommandExp;
+  if (nullptr == pfnAppendNativeCommandExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->handle;
+
+  // convert loader handle to platform handle
+  hChildCommandBuffer =
+      (hChildCommandBuffer)
+          ? reinterpret_cast<ur_exp_command_buffer_object_t *>(
+                hChildCommandBuffer)
+                ->handle
+          : nullptr;
+
+  // forward to device-platform
+  result = pfnAppendNativeCommandExp(
+      hCommandBuffer, pfnNativeCommand, pData, hChildCommandBuffer,
+      numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueCommandBufferExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -8902,20 +8959,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   [[maybe_unused]] auto context = getContext();
 
   // extract platform's function pointer table
-  auto dditable =
-      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
-          ->dditable;
-  auto pfnEnqueueExp = dditable->ur.CommandBufferExp.pfnEnqueueExp;
-  if (nullptr == pfnEnqueueExp)
+  auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+  auto pfnCommandBufferExp = dditable->ur.EnqueueExp.pfnCommandBufferExp;
+  if (nullptr == pfnCommandBufferExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
   // convert loader handle to platform handle
   hCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
           ->handle;
-
-  // convert loader handle to platform handle
-  hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
 
   // convert loader handles to platform handles
   auto phEventWaitListLocal =
@@ -8925,12 +8980,13 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
         reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
 
   // forward to device-platform
-  result = pfnEnqueueExp(hCommandBuffer, hQueue, numEventsInWaitList,
-                         phEventWaitListLocal.data(), phEvent);
+  result = pfnCommandBufferExp(hQueue, hCommandBuffer, numEventsInWaitList,
+                               phEventWaitListLocal.data(), phEvent);
 
-  if (UR_RESULT_SUCCESS != result)
+  // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any
+  // output handles below.
+  if (UR_RESULT_SUCCESS != result && UR_RESULT_ERROR_ADAPTER_SPECIFIC != result)
     return result;
-
   try {
     // convert platform handle to loader handle
     if (nullptr != phEvent)
@@ -9139,6 +9195,40 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   // forward to device-platform
   result = pfnGetInfoExp(hCommandBuffer, propName, propSize, pPropValue,
                          pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->dditable;
+  auto pfnGetNativeHandleExp =
+      dditable->ur.CommandBufferExp.pfnGetNativeHandleExp;
+  if (nullptr == pfnGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->handle;
+
+  // forward to device-platform
+  result = pfnGetNativeHandleExp(hCommandBuffer, phNativeCommandBuffer);
+
+  if (UR_RESULT_SUCCESS != result)
+    return result;
 
   return result;
 }
@@ -10071,7 +10161,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
           ur_loader::urCommandBufferAppendUSMPrefetchExp;
       pDdiTable->pfnAppendUSMAdviseExp =
           ur_loader::urCommandBufferAppendUSMAdviseExp;
-      pDdiTable->pfnEnqueueExp = ur_loader::urCommandBufferEnqueueExp;
+      pDdiTable->pfnAppendNativeCommandExp =
+          ur_loader::urCommandBufferAppendNativeCommandExp;
       pDdiTable->pfnUpdateKernelLaunchExp =
           ur_loader::urCommandBufferUpdateKernelLaunchExp;
       pDdiTable->pfnUpdateSignalEventExp =
@@ -10079,6 +10170,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       pDdiTable->pfnUpdateWaitEventsExp =
           ur_loader::urCommandBufferUpdateWaitEventsExp;
       pDdiTable->pfnGetInfoExp = ur_loader::urCommandBufferGetInfoExp;
+      pDdiTable->pfnGetNativeHandleExp =
+          ur_loader::urCommandBufferGetNativeHandleExp;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()
@@ -10280,6 +10373,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
       pDdiTable->pfnUSMSharedAllocExp = ur_loader::urEnqueueUSMSharedAllocExp;
       pDdiTable->pfnUSMHostAllocExp = ur_loader::urEnqueueUSMHostAllocExp;
       pDdiTable->pfnUSMFreeExp = ur_loader::urEnqueueUSMFreeExp;
+      pDdiTable->pfnCommandBufferExp = ur_loader::urEnqueueCommandBufferExp;
       pDdiTable->pfnCooperativeKernelLaunchExp =
           ur_loader::urEnqueueCooperativeKernelLaunchExp;
       pDdiTable->pfnTimestampRecordingExp =

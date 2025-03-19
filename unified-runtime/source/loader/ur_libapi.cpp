@@ -869,7 +869,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP < propName`
+///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1179,6 +1179,8 @@ ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     /// [in] handle of the device instance
     ur_device_handle_t hDevice,
@@ -1331,7 +1333,7 @@ ur_result_t UR_APICALL urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName`
+///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1475,6 +1477,8 @@ ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnDeleter`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 ur_result_t UR_APICALL urContextSetExtendedDeleter(
     /// [in] handle of the context.
     ur_context_handle_t hContext,
@@ -7928,7 +7932,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`
@@ -9201,7 +9205,7 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Submit a command-buffer for execution on a queue.
+/// @brief Append nodes to the command-buffer through a native backend API
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -9210,7 +9214,61 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeCommand`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) try {
+  auto pfnAppendNativeCommandExp =
+      ur_lib::getContext()
+          ->urDdiTable.CommandBufferExp.pfnAppendNativeCommandExp;
+  if (nullptr == pfnAppendNativeCommandExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnAppendNativeCommandExp(hCommandBuffer, pfnNativeCommand, pData,
+                                   hChildCommandBuffer, numSyncPointsInWaitList,
+                                   pSyncPointWaitList, pSyncPoint);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Submit a command-buffer for execution on a queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
+///         + `NULL == hCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -9220,11 +9278,11 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    /// [in] Handle of the command-buffer object.
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -9237,13 +9295,13 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// phEvent are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
-  auto pfnEnqueueExp =
-      ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
-  if (nullptr == pfnEnqueueExp)
+  auto pfnCommandBufferExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnCommandBufferExp;
+  if (nullptr == pfnCommandBufferExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnEnqueueExp(hCommandBuffer, hQueue, numEventsInWaitList,
-                       phEventWaitList, phEvent);
+  return pfnCommandBufferExp(hQueue, hCommandBuffer, numEventsInWaitList,
+                             phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -9481,6 +9539,39 @@ ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   return pfnGetInfoExp(hCommandBuffer, propName, propSize, pPropValue,
                        pPropSizeRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native command-buffer handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeCommandBuffer`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer) try {
+  auto pfnGetNativeHandleExp =
+      ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnGetNativeHandleExp;
+  if (nullptr == pfnGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetNativeHandleExp(hCommandBuffer, phNativeCommandBuffer);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }

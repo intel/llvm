@@ -24,7 +24,7 @@ endif()
 # If SYCL_ENABLE_BACKENDS is undefined, we default to enabling OpenCL and Level
 # Zero backends.
 if (NOT DEFINED SYCL_ENABLE_BACKENDS)
-  set(SYCL_ENABLE_BACKENDS "opencl;level_zero")
+  set(SYCL_ENABLE_BACKENDS "opencl;level_zero;level_zero_v2")
 endif()
 
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
@@ -200,6 +200,8 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/device_aspect_macros_generator.py ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp
   COMMENT "Generating device_aspect_macros.hpp"
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl/info/aspects.def
+          ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl/info/aspects_deprecated.def
 )
 
 add_custom_target(sycl-device-aspect-macros-header

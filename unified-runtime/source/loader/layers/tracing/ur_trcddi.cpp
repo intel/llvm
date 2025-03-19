@@ -8681,12 +8681,72 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferEnqueueExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
+/// @brief Intercept function for urCommandBufferAppendNativeCommandExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
     /// [in] Handle of the command-buffer object.
     ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  auto pfnAppendNativeCommandExp =
+      getContext()->urDdiTable.CommandBufferExp.pfnAppendNativeCommandExp;
+
+  if (nullptr == pfnAppendNativeCommandExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_command_buffer_append_native_command_exp_params_t params = {
+      &hCommandBuffer,      &pfnNativeCommand,        &pData,
+      &hChildCommandBuffer, &numSyncPointsInWaitList, &pSyncPointWaitList,
+      &pSyncPoint};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP,
+      "urCommandBufferAppendNativeCommandExp", &params);
+
+  auto &logger = getContext()->logger;
+  logger.info("   ---> urCommandBufferAppendNativeCommandExp\n");
+
+  ur_result_t result = pfnAppendNativeCommandExp(
+      hCommandBuffer, pfnNativeCommand, pData, hChildCommandBuffer,
+      numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+  getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP,
+                           "urCommandBufferAppendNativeCommandExp", &params,
+                           &result, instance);
+
+  if (logger.getLevel() <= logger::Level::INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP,
+        &params);
+    logger.info("   <--- urCommandBufferAppendNativeCommandExp({}) -> {};\n",
+                args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueCommandBufferExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -8699,33 +8759,34 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// phEvent are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) {
-  auto pfnEnqueueExp = getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
+  auto pfnCommandBufferExp =
+      getContext()->urDdiTable.EnqueueExp.pfnCommandBufferExp;
 
-  if (nullptr == pfnEnqueueExp)
+  if (nullptr == pfnCommandBufferExp)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_command_buffer_enqueue_exp_params_t params = {&hCommandBuffer, &hQueue,
+  ur_enqueue_command_buffer_exp_params_t params = {&hQueue, &hCommandBuffer,
                                                    &numEventsInWaitList,
                                                    &phEventWaitList, &phEvent};
   uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
-                                 "urCommandBufferEnqueueExp", &params);
+      getContext()->notify_begin(UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP,
+                                 "urEnqueueCommandBufferExp", &params);
 
   auto &logger = getContext()->logger;
-  logger.info("   ---> urCommandBufferEnqueueExp\n");
+  logger.info("   ---> urEnqueueCommandBufferExp\n");
 
-  ur_result_t result = pfnEnqueueExp(
-      hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+  ur_result_t result = pfnCommandBufferExp(
+      hQueue, hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
 
-  getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP,
-                           "urCommandBufferEnqueueExp", &params, &result,
+  getContext()->notify_end(UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP,
+                           "urEnqueueCommandBufferExp", &params, &result,
                            instance);
 
   if (logger.getLevel() <= logger::Level::INFO) {
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP, &params);
-    logger.info("   <--- urCommandBufferEnqueueExp({}) -> {};\n",
+        args_str, UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP, &params);
+    logger.info("   <--- urEnqueueCommandBufferExp({}) -> {};\n",
                 args_str.str(), result);
   }
 
@@ -8899,6 +8960,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     ur::extras::printFunctionParams(
         args_str, UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP, &params);
     logger.info("   <--- urCommandBufferGetInfoExp({}) -> {};\n",
+                args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer) {
+  auto pfnGetNativeHandleExp =
+      getContext()->urDdiTable.CommandBufferExp.pfnGetNativeHandleExp;
+
+  if (nullptr == pfnGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_command_buffer_get_native_handle_exp_params_t params = {
+      &hCommandBuffer, &phNativeCommandBuffer};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP,
+      "urCommandBufferGetNativeHandleExp", &params);
+
+  auto &logger = getContext()->logger;
+  logger.info("   ---> urCommandBufferGetNativeHandleExp\n");
+
+  ur_result_t result =
+      pfnGetNativeHandleExp(hCommandBuffer, phNativeCommandBuffer);
+
+  getContext()->notify_end(UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP,
+                           "urCommandBufferGetNativeHandleExp", &params,
+                           &result, instance);
+
+  if (logger.getLevel() <= logger::Level::INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP, &params);
+    logger.info("   <--- urCommandBufferGetNativeHandleExp({}) -> {};\n",
                 args_str.str(), result);
   }
 
@@ -9878,8 +9979,9 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnAppendUSMAdviseExp =
       ur_tracing_layer::urCommandBufferAppendUSMAdviseExp;
 
-  dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
-  pDdiTable->pfnEnqueueExp = ur_tracing_layer::urCommandBufferEnqueueExp;
+  dditable.pfnAppendNativeCommandExp = pDdiTable->pfnAppendNativeCommandExp;
+  pDdiTable->pfnAppendNativeCommandExp =
+      ur_tracing_layer::urCommandBufferAppendNativeCommandExp;
 
   dditable.pfnUpdateKernelLaunchExp = pDdiTable->pfnUpdateKernelLaunchExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
@@ -9895,6 +9997,10 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
   dditable.pfnGetInfoExp = pDdiTable->pfnGetInfoExp;
   pDdiTable->pfnGetInfoExp = ur_tracing_layer::urCommandBufferGetInfoExp;
+
+  dditable.pfnGetNativeHandleExp = pDdiTable->pfnGetNativeHandleExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur_tracing_layer::urCommandBufferGetNativeHandleExp;
 
   return result;
 }
@@ -10106,6 +10212,9 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   dditable.pfnUSMFreeExp = pDdiTable->pfnUSMFreeExp;
   pDdiTable->pfnUSMFreeExp = ur_tracing_layer::urEnqueueUSMFreeExp;
+
+  dditable.pfnCommandBufferExp = pDdiTable->pfnCommandBufferExp;
+  pDdiTable->pfnCommandBufferExp = ur_tracing_layer::urEnqueueCommandBufferExp;
 
   dditable.pfnCooperativeKernelLaunchExp =
       pDdiTable->pfnCooperativeKernelLaunchExp;

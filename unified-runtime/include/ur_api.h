@@ -417,8 +417,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 240,
   /// Enumerator for ::urCommandBufferAppendUSMAdviseExp
   UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 241,
-  /// Enumerator for ::urCommandBufferEnqueueExp
-  UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 242,
+  /// Enumerator for ::urEnqueueCommandBufferExp
+  UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP = 242,
   /// Enumerator for ::urCommandBufferUpdateSignalEventExp
   UR_FUNCTION_COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP = 243,
   /// Enumerator for ::urCommandBufferUpdateWaitEventsExp
@@ -453,6 +453,10 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_POOL_TRIM_TO_EXP = 261,
   /// Enumerator for ::urUSMPoolGetInfoExp
   UR_FUNCTION_USM_POOL_GET_INFO_EXP = 262,
+  /// Enumerator for ::urCommandBufferAppendNativeCommandExp
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP = 263,
+  /// Enumerator for ::urCommandBufferGetNativeHandleExp
+  UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP = 264,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2087,8 +2091,9 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_VERSION = 70,
   /// [char[]] null-terminated version of backend runtime
   UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,
-  /// [char[]] Return a null-terminated space separated list of extension
-  /// names
+  /// [char[]] Return a null-terminated string representing any backend
+  /// extensions supported by the adapter. Format and content is entirely
+  /// adapter defined.
   UR_DEVICE_INFO_EXTENSIONS = 72,
   /// [size_t] Maximum size in bytes of internal printf buffer
   UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,
@@ -2170,8 +2175,8 @@ typedef enum ur_device_info_t {
   /// [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
   /// memory fence scope capabilities
   UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 103,
-  /// [::ur_bool_t] support for bfloat16
-  UR_DEVICE_INFO_BFLOAT16 = 104,
+  /// [::ur_bool_t][deprecated-value] support for bfloat16
+  UR_DEVICE_INFO_BFLOAT16 [[deprecated]] = 104,
   /// [uint32_t] Returns 1 if the device doesn't have a notion of a
   /// queue index. Otherwise, returns the number of queue indices that are
   /// available for this device.
@@ -2221,6 +2226,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] support the ::urProgramSetSpecializationConstants entry
   /// point
   UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 121,
+  /// [::ur_bool_t] return true if the device has a native assert
+  /// implementation.
+  UR_DEVICE_INFO_USE_NATIVE_ASSERT = 122,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2230,6 +2238,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] Returns true if the device supports using event objects
   /// for command synchronization outside of a command-buffer.
   UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP = 0x1002,
+  /// [::ur_bool_t] Returns true if the device supports appending a
+  /// command-buffer as a command inside another command-buffer.
+  UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP = 0x1003,
   /// [::ur_bool_t] return true if enqueue Cluster Launch is supported
   UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP = 0x1111,
   /// [::ur_bool_t] returns true if the device supports the creation of
@@ -2309,6 +2320,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 2D sampled image data.
   UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,
+  /// [::ur_bool_t] returns true if the device supports sampled image
+  /// gather.
+  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP = 0x201D,
   /// [::ur_bool_t] returns true if the device supports enqueueing of native
   /// work
   UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,
@@ -2320,6 +2334,17 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
   UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP = 0x2050,
+  /// [::ur_bool_t] Returns true if the device supports the use of kernel
+  /// launch properties.
+  UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP = 0x3000,
+  /// [::ur_bool_t] Returns true if the device supports the USM P2P
+  /// experimental feature.
+  UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
+  /// [::ur_bool_t] Returns true if the device supports cooperative kernels.
+  UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP = 0x5000,
+  /// [::ur_bool_t] Returns true if the device supports the multi device
+  /// compile experimental feature.
+  UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP = 0x6000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2345,7 +2370,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP < propName`
+///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2778,6 +2803,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     /// [in] handle of the device instance
     ur_device_handle_t hDevice,
@@ -2972,20 +2999,6 @@ typedef enum ur_context_info_t {
   /// [::ur_bool_t] to indicate if the ::urEnqueueUSMFill2D entrypoint is
   /// supported.
   UR_CONTEXT_INFO_USM_FILL2D_SUPPORT = 4,
-  /// [::ur_memory_order_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory order capabilities.
-  UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 5,
-  /// [::ur_memory_scope_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory scope capabilities.
-  UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 6,
-  /// [::ur_memory_order_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory fence order capabilities.
-  /// Zero is returned if the backend does not support context-level fences.
-  UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 7,
-  /// [::ur_memory_scope_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory fence scope capabilities.
-  /// Zero is returned if the backend does not support context-level fences.
-  UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 8,
   /// @cond
   UR_CONTEXT_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -3034,7 +3047,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName`
+///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -3172,6 +3185,8 @@ typedef void (*ur_context_extended_deleter_t)(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnDeleter`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     /// [in] handle of the context.
     ur_context_handle_t hContext,
@@ -3228,6 +3243,8 @@ typedef enum ur_mem_type_t {
   UR_MEM_TYPE_IMAGE1D_ARRAY = 4,
   /// Experimental cubemap image object
   UR_MEM_TYPE_IMAGE_CUBEMAP_EXP = 0x2000,
+  /// Experimental gather image object
+  UR_MEM_TYPE_IMAGE_GATHER_EXP = 0x2001,
   /// @cond
   UR_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -7095,8 +7112,8 @@ typedef enum ur_command_t {
   UR_COMMAND_READ_HOST_PIPE = 25,
   /// Event created by ::urEnqueueWriteHostPipe
   UR_COMMAND_WRITE_HOST_PIPE = 26,
-  /// Event created by ::urCommandBufferEnqueueExp
-  UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 0x1000,
+  /// Event created by ::urEnqueueCommandBufferExp
+  UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP = 0x1000,
   /// Event created by ::urBindlessImagesWaitExternalSemaphoreExp
   UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP = 0x2000,
   /// Event created by ::urBindlessImagesSignalExternalSemaphoreExp
@@ -9507,12 +9524,16 @@ typedef enum ur_exp_external_mem_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Dictates the type of external semaphore handle.
 typedef enum ur_exp_external_semaphore_type_t {
-  /// Opaque file descriptor
+  /// Binary semaphore opaque file descriptor
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD = 0,
-  /// Win32 NT handle
+  /// Binary semaphore Win32 NT handle
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT = 1,
-  /// Win32 NT DirectX 12 fence handle
+  /// Fence semaphore Win32 NT DirectX 12 handle
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE = 2,
+  /// Timeline semaphore opaque file descriptor
+  UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD = 3,
+  /// Timeline semaphore Win32 NT handle
+  UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT = 4,
   /// @cond
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -10220,7 +10241,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`
@@ -10420,13 +10441,6 @@ typedef enum ur_exp_command_buffer_command_info_t {
   /// @endcond
 
 } ur_exp_command_buffer_command_info_t;
-
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for command-buffers which
-///        is returned when querying device extensions.
-#define UR_COMMAND_BUFFER_EXTENSION_STRING_EXP "ur_exp_command_buffer"
-#endif // UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-Buffer Descriptor Type
@@ -11480,7 +11494,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Submit a command-buffer for execution on a queue.
+/// @brief Function adding work through the native API to be executed
+///        immediately.
+typedef void (*ur_exp_command_buffer_native_command_function_t)(
+    /// [in][out] Pointer to data to be passed to callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append nodes to the command-buffer through a native backend API
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -11489,7 +11510,49 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeCommand`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Submit a command-buffer for execution on a queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
+///         + `NULL == hCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -11499,11 +11562,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    /// [in] Handle of the command-buffer object.
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -11715,6 +11778,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     /// [out][optional] bytes returned in command-buffer property
     size_t *pPropSizeRet);
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native command-buffer handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeCommandBuffer`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -11722,13 +11809,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 #if !defined(__GNUC__)
 #pragma region cooperative_kernels_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for cooperative-kernels
-///        which is returned when querying device extensions.
-#define UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP "ur_exp_cooperative_kernels"
-#endif // UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to execute a cooperative kernel
 ///
@@ -11879,13 +11959,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 #pragma region launch_properties_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
-/// @brief The extension string that defines support for the Launch Properties
-///        extension, which is returned when querying device extensions.
-#define UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP "ur_exp_launch_properties"
-#endif // UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Specifies a launch property id
 ///
 /// @remarks
@@ -12031,14 +12104,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 #if !defined(__GNUC__)
 #pragma region multi_device_compile_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for test
-///        which is returned when querying device extensions.
-#define UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP                           \
-  "ur_exp_multi_device_compile"
-#endif // UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Produces an executable program from one program, negates need for the
 ///        linking step.
@@ -12226,13 +12291,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(
 #if !defined(__GNUC__)
 #pragma region usm_p2p_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_USM_P2P_EXTENSION_STRING_EXP
-/// @brief The extension string that defines support for USM P2P which is
-///        returned when querying device extensions.
-#define UR_USM_P2P_EXTENSION_STRING_EXP "ur_exp_usm_p2p"
-#endif // UR_USM_P2P_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported peer info
 typedef enum ur_exp_peer_info_t {
@@ -14053,6 +14111,18 @@ typedef struct ur_enqueue_usm_free_exp_params_t {
 } ur_enqueue_usm_free_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueCommandBufferExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_command_buffer_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_command_buffer_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueCooperativeKernelLaunchExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14816,16 +14886,18 @@ typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
 } ur_command_buffer_append_usm_advise_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferEnqueueExp
+/// @brief Function parameters for urCommandBufferAppendNativeCommandExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_enqueue_exp_params_t {
+typedef struct ur_command_buffer_append_native_command_exp_params_t {
   ur_exp_command_buffer_handle_t *phCommandBuffer;
-  ur_queue_handle_t *phQueue;
-  uint32_t *pnumEventsInWaitList;
-  const ur_event_handle_t **pphEventWaitList;
-  ur_event_handle_t **pphEvent;
-} ur_command_buffer_enqueue_exp_params_t;
+  ur_exp_command_buffer_native_command_function_t *ppfnNativeCommand;
+  void **ppData;
+  ur_exp_command_buffer_handle_t *phChildCommandBuffer;
+  uint32_t *pnumSyncPointsInWaitList;
+  const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+  ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_native_command_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferUpdateKernelLaunchExp
@@ -14868,6 +14940,15 @@ typedef struct ur_command_buffer_get_info_exp_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_command_buffer_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferGetNativeHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_get_native_handle_exp_params_t {
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  ur_native_handle_t **pphNativeCommandBuffer;
+} ur_command_buffer_get_native_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUsmP2PEnablePeerAccessExp

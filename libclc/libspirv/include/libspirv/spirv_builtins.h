@@ -176,7 +176,7 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_uint64_t
     __spirv_BitCount(__clc_vec16_uint64_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONVERGENT void
-    __spirv_ControlBarrier(__clc_uint32_t, __clc_uint32_t, __clc_uint32_t);
+    __spirv_ControlBarrier(__clc_int32_t, __clc_int32_t, __clc_int32_t);
 
 _CLC_OVERLOAD
 _CLC_DECL _CLC_CONSTFN __clc_int8_t __spirv_ConvertFToS_Rchar(__clc_fp32_t);
@@ -10622,8 +10622,8 @@ _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_vec16_int8_t
     __spirv_LessOrGreater(__clc_vec16_fp16_t, __clc_vec16_fp16_t);
 #endif
 
-_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(__clc_uint32_t,
-                                                   __clc_uint32_t);
+_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(__clc_int32_t,
+                                                   __clc_int32_t);
 
 _CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_bool_t __spirv_Ordered(__clc_fp32_t,
                                                                   __clc_fp32_t);
