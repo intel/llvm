@@ -126,16 +126,6 @@ inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
       return Result;                                                           \
   }
 
-#define UR_CALL_RESULT(Call)                                                   \
-  [&]() {                                                                      \
-    if (PrintTrace)                                                            \
-      getContext()->logger.debug("UR ---> {}", #Call);                         \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
-      getContext()->logger.debug("UR <--- {}({})", #Call, Result);             \
-    return Result;                                                             \
-  }()
-
 using BacktraceFrame = void *;
 using BacktraceInfo = std::string;
 
