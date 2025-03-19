@@ -129,9 +129,8 @@ int main(int argc, char *argv[]) {
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource);
 
-  // Flags with and without space, inner quotes.
-  std::vector<std::string> flags{"-Xs '-doubleGRF'",
-                                 "-Xs'-Xfinalizer \"-printregusage\"'"};
+  std::vector<std::string> flags{"-Xs", "-doubleGRF",
+                                 "-XsXfinalizer \"-printregusage\""};
   exe_kb kbExe =
       syclex::build(kbSrc, syclex::properties{syclex::build_options{flags}});
 

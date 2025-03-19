@@ -10,6 +10,7 @@ add_sycl_unittest(CommandGraphExtensionTests OBJECT
   Queries.cpp
   Regressions.cpp
   Subgraph.cpp
+  TopologicalSort.cpp
   Update.cpp
   Properties.cpp
 )

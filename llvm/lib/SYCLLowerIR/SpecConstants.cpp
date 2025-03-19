@@ -639,7 +639,7 @@ Instruction *emitSpecConstantRecursiveImpl(
           ElTy, InsertBefore, IDs, Index, ElOffset, DefinedElements));
   };
 
-  auto DL = M.getDataLayout();
+  const auto &DL = M.getDataLayout();
   if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
     uint64_t ElSize = DL.getTypeAllocSize(ArrTy->getElementType());
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I)

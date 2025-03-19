@@ -360,7 +360,16 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
     while (Used->getAlias())
       Used = Used->getAlias();
     if (Used->getOption().hasFlag(options::Deprecated)) {
-      Diag(diag::warn_drv_deprecated_option_release) << Used->getAsString(Args);
+      // Some deprecated options have a replacement option.  In these cases,
+      // add the replacement option string to the diagnostic.
+      SmallString<128> AliasOpt;
+      if (Used != A) {
+        AliasOpt = A->getSpelling();
+        if (A->getNumValues())
+          AliasOpt += A->getValue();
+      }
+      Diag(diag::warn_drv_deprecated_option_release)
+          << Used->getAsString(Args) << !AliasOpt.empty() << AliasOpt;
       ContainsError |= Diags.getDiagnosticLevel(
                            diag::warn_drv_deprecated_option_release,
                            SourceLocation()) > DiagnosticsEngine::Warning;
