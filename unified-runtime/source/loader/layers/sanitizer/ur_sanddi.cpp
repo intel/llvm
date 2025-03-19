@@ -13,6 +13,7 @@
 
 #include "asan/asan_ddi.hpp"
 #include "msan/msan_ddi.hpp"
+#include "tsan/tsan_ddi.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
@@ -22,16 +23,19 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
                             [[maybe_unused]] codeloc_data codelocData) {
   bool asanEnabled = enabledLayerNames.count("UR_LAYER_ASAN");
   bool msanEnabled = enabledLayerNames.count("UR_LAYER_MSAN");
+  bool tsanEnabled = enabledLayerNames.count("UR_LAYER_TSAN");
 
-  if (asanEnabled && msanEnabled) {
+  if ((asanEnabled + msanEnabled + tsanEnabled) >= 2) {
     getContext()->logger.warning(
-        "Enabling ASAN and MSAN at the same time is not "
+        "Enabling ASAN or MSAN or TSAN at the same time is not "
         "supported.");
     return UR_RESULT_SUCCESS;
   } else if (asanEnabled) {
     enabledType = SanitizerType::AddressSanitizer;
   } else if (msanEnabled) {
     enabledType = SanitizerType::MemorySanitizer;
+  } else if (tsanEnabled) {
+    enabledType = SanitizerType::ThreadSanitizer;
   } else {
     return UR_RESULT_SUCCESS;
   }
@@ -47,6 +51,10 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     getContext()->Options.Init("UR_LAYER_MSAN_OPTIONS", getContext()->logger);
     initMsanInterceptor();
     return initMsanDDITable(dditable);
+  case SanitizerType::ThreadSanitizer:
+    getContext()->Options.Init("UR_LAYER_TSAN_OPTIONS", getContext()->logger);
+    initTsanInterceptor();
+    return initTsanDDITable(dditable);
   default:
     break;
   }

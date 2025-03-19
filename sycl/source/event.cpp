@@ -64,7 +64,7 @@ std::vector<event> event::get_wait_list() {
 }
 
 event::event(std::shared_ptr<detail::event_impl> event_impl)
-    : impl(event_impl) {}
+    : impl(std::move(event_impl)) {}
 
 template <typename Param>
 typename detail::is_event_info_desc<Param>::return_type
@@ -81,7 +81,7 @@ event::get_backend_info() const {
 template <typename Param>
 typename detail::is_event_profiling_info_desc<Param>::return_type
 event::get_profiling_info() const {
-  if (impl->getCommandGraph()) {
+  if (impl->hasCommandGraph()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Profiling information is unavailable for events "
                           "returned from a submission to a queue in the "

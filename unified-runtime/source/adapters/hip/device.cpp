@@ -561,11 +561,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("");
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
-    // TODO: Remove comment when HIP support native asserts.
-    // DEVICELIB_ASSERT extension is set so fallback assert
-    // postprocessing is NOP. HIP 4.3 docs indicate support for
-    // native asserts are in progress
-    return ReturnValue("cl_intel_devicelib_assert");
+    return ReturnValue("");
   }
   case UR_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
@@ -898,7 +894,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
-
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP: {
+    // HIP doesn't support sampled image gather.
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
     return ReturnValue(ur_bool_t{false});
   }
@@ -1026,8 +1025,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 #else
     return ReturnValue(ur_bool_t{false});
 #endif
-  case UR_DEVICE_INFO_BFLOAT16:
-    return ReturnValue(true);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IL_VERSION:
@@ -1079,9 +1076,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP: {
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:

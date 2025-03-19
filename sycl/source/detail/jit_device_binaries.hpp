@@ -13,6 +13,7 @@
 
 #include <cstring>
 #include <memory>
+#include <string_view>
 
 namespace sycl {
 inline namespace _V1 {
@@ -113,6 +114,8 @@ public:
 
   void addProperty(PropertySetContainer &&Cont);
 
+  void setCompileOptions(std::string_view CompileOpts);
+
   sycl_device_binary_struct getPIDeviceBinary(const unsigned char *BinaryStart,
                                               size_t BinarySize,
                                               const char *TargetSpec,
@@ -124,6 +127,7 @@ private:
   std::vector<_sycl_offload_entry_struct> PIOffloadEntries;
   std::vector<PropertySetContainer> PropertySets;
   std::vector<_sycl_device_binary_property_set_struct> PIPropertySets;
+  std::unique_ptr<char[]> CompileOptions;
 };
 
 /// Representation of sycl_device_binaries_struct for creation of JIT device

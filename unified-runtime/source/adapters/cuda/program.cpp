@@ -98,6 +98,9 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
     } else if (Tag ==
                __SYCL_UR_PROGRAM_METADATA_TAG_MAX_LINEAR_WORK_GROUP_SIZE) {
       KernelMaxLinearWorkGroupSizeMD[Prefix] = MetadataElement.value.data64;
+    } else if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_SUB_GROUP_SIZE) {
+      assert(MetadataElement.type == UR_PROGRAM_METADATA_TYPE_UINT32);
+      KernelReqdSubGroupSizeMD[Prefix] = MetadataElement.value.data32;
     }
   }
   return UR_RESULT_SUCCESS;
