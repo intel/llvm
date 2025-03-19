@@ -333,6 +333,23 @@ ur_command_list_manager::appendUSMAdvise(const void *pMem, size_t size,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t
+ur_command_list_manager::appendBarrier(uint32_t numEventsInWaitList,
+                                       const ur_event_handle_t *phEventWaitList,
+                                       ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY("ur_command_list_manager::appendBarrier");
+
+  auto zeSignalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (zeCommandList.get(), zeSignalEvent, numWaitEvents, pWaitEvents));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_command_list_manager::appendMemBufferRead(
     ur_mem_handle_t hMem, bool blockingRead, size_t offset, size_t size,
     void *pDst, uint32_t numEventsInWaitList,

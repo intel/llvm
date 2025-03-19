@@ -23,10 +23,15 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PassManagerImpl.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
+#include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
+#include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
+#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
+#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SanitizerKernelMetadata.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -1418,6 +1423,47 @@ Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
   }
 
   return Modules;
+}
+
+bool runPreSplitProcessingPipeline(Module &M) {
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+
+  // Propagate ESIMD attribute to wrapper functions to prevent
+  // spurious splits and kernel link errors.
+  MPM.addPass(SYCLFixupESIMDKernelWrapperMDPass());
+
+  // After linking device bitcode "llvm.used" holds references to the kernels
+  // that are defined in the device image. But after splitting device image into
+  // separate kernels we may end up with having references to kernel declaration
+  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
+  // and these declarations cause an assertion in llvm-spirv. To workaround this
+  // issue remove "llvm.used" from the input module before performing any other
+  // actions.
+  MPM.addPass(CleanupSYCLMetadataFromLLVMUsed());
+
+  // There may be device_global variables kept alive in "llvm.compiler.used"
+  // to keep the optimizer from wrongfully removing them. llvm.compiler.used
+  // symbols are usually removed at backend lowering, but this is handled here
+  // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
+  if (M.getTargetTriple().find("spir") != std::string::npos)
+    MPM.addPass(RemoveDeviceGlobalFromLLVMCompilerUsed());
+
+  // Sanitizer specific passes.
+  if (sycl::isModuleUsingAsan(M) || sycl::isModuleUsingMsan(M) ||
+      sycl::isModuleUsingTsan(M))
+    MPM.addPass(SanitizerKernelMetadataPass());
+
+  // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
+  // LLVM IR specification.
+  MPM.addPass(SYCLJointMatrixTransformPass());
+
+  // Do invoke_simd processing before splitting because this:
+  // - saves processing time (the pass is run once, even though on larger IR)
+  // - doing it before SYCL/ESIMD splitting is required for correctness
+  MPM.addPass(SYCLLowerInvokeSimdPass());
+  return !MPM.run(M, MAM).areAllPreserved();
 }
 
 Expected<std::vector<SplitModule>>

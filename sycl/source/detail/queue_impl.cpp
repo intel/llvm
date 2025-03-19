@@ -364,7 +364,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  auto HandlerImpl = detail::getSyclObjImpl(Handler);
+  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
@@ -376,30 +376,13 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
   const CGType Type = HandlerImpl->MCGType;
-  event Event = detail::createSyclObjFromImpl<event>(
-      std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
   HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
-  if (SubmitInfo.PostProcessorFunc()) {
-    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
-
-    bool IsKernel = Type == CGType::Kernel;
-    bool KernelUsesAssert = false;
-
-    if (IsKernel)
-      // Kernel only uses assert if it's non interop one
-      KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                         ProgramManager::getInstance().kernelUsesAssert(
-                             Handler.MKernelName.c_str());
-    finalizeHandler(Handler, Event);
-
-    PostProcess(IsKernel, KernelUsesAssert, Event);
-  } else
-    finalizeHandler(Handler, Event);
+  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
 
   addEvent(Event);
 
@@ -481,7 +464,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
-      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      const auto &EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
         ur_event_handle_t UREvent = nullptr;
@@ -489,6 +472,17 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                   EventImpl);
         EventImpl->setHandle(UREvent);
         EventImpl->setEnqueued();
+        // connect returned event with dependent events
+        if (!isInOrder()) {
+          std::vector<EventImplPtr> &ExpandedDepEventImplPtrs =
+              EventImpl->getPreparedDepsEvents();
+          ExpandedDepEventImplPtrs.reserve(ExpandedDepEvents.size());
+          for (const event &DepEvent : ExpandedDepEvents)
+            ExpandedDepEventImplPtrs.push_back(
+                detail::getSyclObjImpl(DepEvent));
+
+          EventImpl->cleanDepEventsThroughOneLevel();
+        }
       }
 
       if (isInOrder()) {

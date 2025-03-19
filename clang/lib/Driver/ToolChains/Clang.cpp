@@ -3144,17 +3144,18 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back(A->getValue());
   }
 
-  auto addSPIRVArgs = [&](StringRef SPIRVArg) {
+  auto addSPIRVArgs = [&](const Arg *PrecArg) {
     if (IsFp32PrecDivSqrtAllowed) {
+      OptSpecifier Opt(PrecArg->getOption().getID());
       if (!FPAccuracy.empty())
-        EmitAccuracyDiag(D, JA, FPAccuracy, SPIRVArg);
-      if (SPIRVArg == "-fno-offload-fp32-prec-div")
+        EmitAccuracyDiag(D, JA, FPAccuracy, PrecArg->getSpelling());
+      if (Opt == options::OPT_fno_offload_fp32_prec_div)
         NoOffloadFP32PrecDiv = true;
-      else if (SPIRVArg == "-fno-offload-fp32-prec-sqrt")
+      else if (Opt == options::OPT_fno_offload_fp32_prec_sqrt)
         NoOffloadFP32PrecSqrt = true;
-      else if (SPIRVArg == "-foffload-fp32-prec-sqrt")
+      else if (Opt == options::OPT_foffload_fp32_prec_sqrt)
         NoOffloadFP32PrecSqrt = false;
-      else if (SPIRVArg == "-foffload-fp32-prec-div")
+      else if (Opt == options::OPT_foffload_fp32_prec_div)
         NoOffloadFP32PrecDiv = false;
     }
   };
@@ -3181,17 +3182,15 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     default: continue;
 
     case options::OPT_foffload_fp32_prec_div:
-      addSPIRVArgs("-foffload-fp32-prec-div");
-      break;
     case options::OPT_foffload_fp32_prec_sqrt:
-      addSPIRVArgs("-foffload-fp32-prec-sqrt");
-      break;
     case options::OPT_fno_offload_fp32_prec_div:
-      addSPIRVArgs("-fno-offload-fp32-prec-div");
-      break;
     case options::OPT_fno_offload_fp32_prec_sqrt:
-      addSPIRVArgs("-fno-offload-fp32-prec-sqrt");
-      break;
+      if (IsFp32PrecDivSqrtAllowed) {
+        addSPIRVArgs(A);
+        break;
+      }
+      // Skip claim, as we didn't use the option.
+      continue;
     case options::OPT_fcx_limited_range:
       if (GccRangeComplexOption.empty()) {
         if (Range != LangOptions::ComplexRangeKind::CX_Basic)
