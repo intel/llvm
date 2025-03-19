@@ -17,8 +17,6 @@ namespace ext::oneapi::experimental {
 // Forward declare memory_pool.
 class memory_pool;
 
-// TODO: switch to sycl_ext_oneapi_properties properties when
-// https://github.com/intel/llvm/issues/17470 is fixed.
 namespace property::memory_pool {
 
 // Property that determines the initial threshold of a memory pool.
