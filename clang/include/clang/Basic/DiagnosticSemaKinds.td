@@ -659,6 +659,8 @@ def err_decomp_decl_std_tuple_size_not_constant : Error<
   "is not a valid integral constant expression">;
 def note_in_binding_decl_init : Note<
   "in implicit initialization of binding declaration %0">;
+def err_arg_is_not_destructurable : Error<
+  "type %0 cannot be decomposed">;
 
 def err_std_type_trait_not_class_template : Error<
   "unsupported standard library implementation: "
@@ -5786,6 +5788,8 @@ def warn_func_template_missing : Warning<"instantiation of function %q0 "
   InGroup<UndefinedFuncTemplate>, DefaultIgnore;
 def note_forward_template_decl : Note<
   "forward declaration of template entity is here">;
+def note_unreachable_template_decl
+    : Note<"unreachable declaration of template entity is here">;
 def note_inst_declaration_hint : Note<"add an explicit instantiation "
   "declaration to suppress this warning if %q0 is explicitly instantiated in "
   "another translation unit">;

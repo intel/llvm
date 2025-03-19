@@ -4004,8 +4004,7 @@ def ReqdWorkGroupSize : InheritableAttr, LanguageOptionsSpecificAttr {
   let Spellings = [GNU<"reqd_work_group_size">,
                    CXX11<"cl", "reqd_work_group_size">,
                    CXX11<"sycl", "reqd_work_group_size">];
-  let Args = [UnsignedArgument<"XDim">, UnsignedArgument<"YDim">,
-              UnsignedArgument<"ZDim">];
+  let Args = [ExprArgument<"XDim">, ExprArgument<"YDim">, ExprArgument<"ZDim">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let LangOpts = [NotSYCL];
   let Documentation = [ReqdWorkGroupSizeAttrDocs];
@@ -4052,9 +4051,7 @@ def SYCLReqdWorkGroupSize : InheritableAttr, LanguageOptionsSpecificAttr {
 def WorkGroupSizeHint :  InheritableAttr, LanguageOptionsSpecificAttr {
   let Spellings = [GNU<"work_group_size_hint">,
                    CXX11<"sycl", "work_group_size_hint">];
-  let Args = [UnsignedArgument<"XDim">,
-              UnsignedArgument<"YDim">,
-              UnsignedArgument<"ZDim">];
+  let Args = [ExprArgument<"XDim">, ExprArgument<"YDim">, ExprArgument<"ZDim">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
   let Documentation = [WorkGroupSizeHintAttrDocs];
   let LangOpts = [NotSYCL];
