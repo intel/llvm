@@ -543,7 +543,8 @@ event handler::finalize() {
         NewEvent->setEnqueued();
         // connect returned event with dependent events
         if (!MQueue->isInOrder()) {
-          NewEvent->getPreparedDepsEvents() = impl->CGData.MEvents;
+          NewEvent->getPreparedDepsEvents().assign(impl->CGData.MEvents.begin(),
+                                                   impl->CGData.MEvents.end());
           NewEvent->cleanDepEventsThroughOneLevel();
         }
       }
