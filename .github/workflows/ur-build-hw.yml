@@ -112,6 +112,19 @@ jobs:
     - name: Set working directory as environment variable
       run: echo "CURRENT_DIR=$(pwd)" >> $GITHUB_ENV
 
+    - name: placeholder
+      working-directory: ${{ env.CURRENT_DIR }}
+      run: |
+        pwd
+        ls
+        cd ..
+        ls 
+        cd ..
+        ls
+        cd ..
+        ls
+        cd ..
+
     # Latest distros do not allow global pip installation
     - name: Install UR python dependencies in venv
       working-directory: ${{ env.CURRENT_DIR }}/unified-runtime
@@ -137,8 +150,7 @@ jobs:
         cd level-zero-master
         
         mkdir build && cd build
-        ldd lib/libur_*
-        cmake .. -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/usr/install
+        cmake .. -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/usr/local/install
         cmake --build . --target package
         cmake --build . --target install
 
@@ -183,6 +195,14 @@ jobs:
         -DCMAKE_INSTALL_PREFIX=${{ env.CURRENT_DIR }}/install
         ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
+
+    - name: Run ldd on libur_* libraries
+      run: |
+        cd ${{ env.CURRENT_DIR }}
+        ls 
+        cd unified-runtime 
+        ls
+        ldd lib/libur_*
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
