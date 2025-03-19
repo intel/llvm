@@ -959,17 +959,117 @@ this extension.
 The SYCL runtime compiler supports the following {dpcpp} options to be passed in
 the `build_options` property.
 
-[%header,cols="1,3"]
-|===
-|Option
-|Notes
+Some options have equivalent long (starting with `--`) and short (starting with
+`-`) option names. When using the long option name, an argument can be either
+separated by `=` in the same element of the `build_options` property, or given
+as a separate element. When using the short option name, an argument is either
+appended directly after the option name, or given as a separate element in the
+`build_options` property. The following example shows how to construct the
+`build_options` property with each of the forms.
 
-|`-I<dir>` +
-`-I <dir>` +
-`--include-directory=<dir>` +
-`--include-directory <dir>`
-| Add `<dir>` to to the search list for include files (see section "Including
+[source,c++]
+----
+build_options{{
+  {"--include-directory=dir1"},
+  {"--include-directory"}, {"dir2"},
+  {"-Idir3"},
+  {"-I"}, {"dir4"}
+}};
+----
+
+==== Preprocessor options
+
+===== `--include-directory=<dir>` (`-I<dir>`)
+
+Add `<dir>` to to the search list for include files (see section "Including
 files when the language is ``sycl``"). This is useful, for example, to compile
-kernels using external libraries. Note that for the second and fourth form,
-`dir` is a separate element in the `build_options` list.
-|===
+kernels using external libraries.
+
+===== `--define-macro=<name>[=<value>]` (`-D<name>[=<value>]`)
+
+Define macro `<name>`, optionally to the given `<value>`.
+
+===== `--undefine-macro=<name>` (`-U<name>`)
+
+Undefine macro `<name>`.
+
+==== Diagnostic options
+
+The `build_options` property accepts warning (`-W`) and remark (`-R`) emission
+options supported by the `clang` compiler. For an overview of these options, see
+https://clang.llvm.org/docs/DiagnosticsReference.html. The specific options
+available for SYCL runtime compilation depend on the version of the {dpcpp}
+compiler distributed with the SYCL runtime used by the application.
+
+Note: Use the `save_log` property to obtain detailed output from the compilation
+process.
+
+==== SYCL-specific options
+
+===== `-Xs<arg>`
+
+Pass `<arg>` to the backend of the device compiler. When using `-Xs<arg>`, a `-`
+is prepended to `<arg>` before handing it to the backend. Otherwise, `<arg>` is
+passed on unmodified.
+
+For example, the following forms are equivalent:
+
+[source,c++]
+----
+build_options{{
+  {"-XsDFOO=bar"},
+  {"-Xs"}, {"-DFOO=bar"}
+}};
+----
+
+===== `-fsycl-rtc-mode`
+
+Relax the requirement that parameter types for free-function kernels must be
+forward-declarable.
+
+=== Known issues and limitations when the language is `sycl`
+
+==== Changing the compiler action or output
+
+As the {dpcpp} frontend is integrated tightly in the runtime compilation
+pipeline, the application cannot change the runtime compiler's action (e.g.
+`-c`, `-S`) or output file (`-o`). Similarly, options related to linking (e.g.
+`-L`) are incompatible, including the SYCL-specific `-fsycl-link` action. The
+implementation throws an `exception` with the `errc::invalid` error code when it
+detects an option that conflicts with the runtime compilation pipeline.
+
+==== Ahead-of-time compilation
+
+The kernels in a SYCL source string are compiled automatically to native code
+for all devices passed to the `build` function (see section "New free functions
+to create and build kernel bundles"). The implementation rejects the use of the
+`-fsycl-targets=` options to request ahead-of-time (AOT) compilation, and throws
+an `exception` with the `errc::invalid` error code when this option is detected.
+The application can use the `-Xs` option described above to pass options to the
+backend of the device compiler, but all other options to control AOT compilation
+are ignored.
+
+==== `invoke_simd`
+
+The SYCL runtime compiler currently does not implement the logic required to
+support the `-fno-sycl-device-code-split-esimd` option, and throws an
+`exception` with the `errc::invalid` error code when this option is detected. As
+a consequence, the `invoke_simd` functionality is unavailable. However, the SYCL
+runtime compiler supports ESIMD kernels and source strings containing a mix of
+SYCL and ESIMD kernels.
+
+==== Sanitizers
+
+The implementation currently lacks the necessary linking of device libraries to
+support device, memory and thread sanitizers for runtime-compiled code. If the
+`-fsanitize=` option is detected, an `exception` with the `errc::invalid` error
+code is thrown. Other means of activating the sanitizer (e.g. via
+`-Xsycl-device-frontend`) may cause the runtime compilation to fail.
+
+=== Caching
+
+The `kernel_compiler` implementation in {dpcpp} supports persistent caching. To
+enable it, set the the environment variable `SYCL_CACHE_PERSISTENT=1`. The
+location of the cache can be changed by setting `SYCL_CACHE_DIR`. Refer to
+https://intel.github.io/llvm/design/KernelProgramCache.html#persistent-cache for
+more details on how to control the cache.
