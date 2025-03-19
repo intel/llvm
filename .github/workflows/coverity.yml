@@ -1,6 +1,18 @@
 name: Coverity
 on:
   workflow_dispatch:
+    inputs:
+      description:
+        description: 'Custom build description'
+        required: true
+        type: string
+        default: 'Out-of-order Coverity scan'
+      ref:
+        description: 'Git ref to checkout and scan'
+        required: true
+        type: string
+        default: 'sycl'
+
   schedule:
     - cron: '0 0 * * 0'
 
@@ -27,7 +39,7 @@ jobs:
     - uses: ./devops/actions/cached_checkout
       with:
         path: src
-        ref: ${{ github.sha }}
+        ref: ${{ inputs.ref || github.sha }}
         cache_path: "/__w/repo_cache/"
 
     - name: Get coverity tool
@@ -59,8 +71,8 @@ jobs:
       run: |
         # Initialize a build. Fetch a cloud upload url.
         curl -X POST \
-        -d version="sycl: ${{ github.sha }}" \
-        -d description="Regular build" \
+        -d version="sycl: ${{ inputs.ref || github.sha }}" \
+        -d description="${{ inputs.description || "Regular build" }}" \
         -d email=${{ secrets.COVERITY_EMAIL }} \
         -d token=${{ secrets.COVERITY_TOKEN }} \
         -d file_name="intel_llvm.tgz" \
