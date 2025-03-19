@@ -329,6 +329,11 @@ void context_impl::addAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
   MAssociatedDeviceGlobals.insert(DeviceGlobalPtr);
 }
 
+void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
+  std::lock_guard<std::mutex> Lock{MAssociatedDeviceGlobalsMutex};
+  MAssociatedDeviceGlobals.erase(DeviceGlobalPtr);
+}
+
 void context_impl::addDeviceGlobalInitializer(
     ur_program_handle_t Program, const std::vector<device> &Devs,
     const RTDeviceBinaryImage *BinImage) {
@@ -407,6 +412,9 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     // Device global map entry pointers will not die before the end of the
     // program and the pointers will stay the same, so we do not need
     // m_DeviceGlobalsMutex here.
+    // The lifetimes of device global map entries representing globals in
+    // runtime-compiled code will be tied to the kernel bundle, so the
+    // assumption holds in that setting as well.
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =

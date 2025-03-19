@@ -195,6 +195,11 @@ struct ur_device_handle_t_ : _ur_object {
             ZeDeviceIpVersionExt->ipVersion >= 0x030dc000);
   }
 
+  bool isNewerThanIntelDG2() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x030f0000);
+  }
+
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
   }
@@ -238,3 +243,19 @@ struct ur_device_handle_t_ : _ur_object {
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
 };
+
+inline std::vector<ur_device_handle_t>
+CollectDevicesAndSubDevices(const std::vector<ur_device_handle_t> &Devices) {
+  std::vector<ur_device_handle_t> DevicesAndSubDevices;
+  std::function<void(const std::vector<ur_device_handle_t> &)>
+      CollectDevicesAndSubDevicesRec =
+          [&](const std::vector<ur_device_handle_t> &Devices) {
+            for (auto &Device : Devices) {
+              DevicesAndSubDevices.push_back(Device);
+              CollectDevicesAndSubDevicesRec(Device->SubDevices);
+            }
+          };
+  CollectDevicesAndSubDevicesRec(Devices);
+
+  return DevicesAndSubDevices;
+}
