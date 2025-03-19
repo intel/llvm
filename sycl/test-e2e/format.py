@@ -75,6 +75,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         test.requires += parsed["REQUIRES:"] or []
         test.unsupported += test.config.unsupported_features
         test.unsupported += parsed["UNSUPPORTED:"] or []
+        if parsed["ALLOW_RETRIES:"]:
+            test.allowed_retries = parsed["ALLOW_RETRIES:"][0]
 
         test.intel_driver_req = parsed["REQUIRES-INTEL-DRIVER:"]
 
