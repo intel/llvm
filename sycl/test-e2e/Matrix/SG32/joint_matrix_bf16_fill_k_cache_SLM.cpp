@@ -5,9 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: windows && !(build-mode && run-mode)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17516
-
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 

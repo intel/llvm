@@ -5,9 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: windows && !(build-mode && run-mode)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17516
-
 // UNSUPPORTED: target-nvidia, target-amd
 // UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
 // other triples
