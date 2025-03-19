@@ -60,8 +60,7 @@ on:
         type: string
         default: ""
 
-permissions:
-  contents: read
+permissions: read-all
 
 env:
   UR_LOG_CUDA: "level:error;flush:error"
@@ -69,6 +68,7 @@ env:
   UR_LOG_LEVEL_ZERO: "level:error;flush:error"
   UR_LOG_NATIVE_CPU: "level:error;flush:error"
   UR_LOG_OPENCL: "level:error;flush:error"
+  CURRENT_DIR: $(pwd)
 
 jobs:
   adapter_build_hw:
@@ -105,27 +105,32 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
+    - name: Set working directory as environment variable
+      run: echo "CURRENT_DIR=$(pwd)" >> $GITHUB_ENV
+
     # Latest distros do not allow global pip installation
     - name: Install UR python dependencies in venv
-      working-directory: ${{github.workspace}}/unified-runtime
+      working-directory: ${{ env.CURRENT_DIR }}/unified-runtime
       run: |
+        sudo apt update
+        sudo apt install -y python3-venv
         python3 -m venv .venv
         . .venv/bin/activate
-        echo "$PATH" >> $GITHUB_PATH
+        echo "${PWD}/.venv/bin" >> $GITHUB_PATH
         pip install -r third_party/requirements.txt
 
     - name: Download DPC++
       run: |
-        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-12-12/sycl_linux.tar.gz
-        mkdir dpcpp_compiler
-        tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
+        wget -O ${{ env.CURRENT_DIR }}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-12-12/sycl_linux.tar.gz
+        mkdir -p ${{ env.CURRENT_DIR }}/dpcpp_compiler
+        tar -xvf ${{ env.CURRENT_DIR }}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 
     - name: Configure Unified Runtime project
-      working-directory: ${{github.workspace}}/unified-runtime
+      working-directory: ${{ env.CURRENT_DIR }}/unified-runtime
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
         cmake
-        -B${{github.workspace}}/build
+        -B${{ env.CURRENT_DIR }}/build
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
@@ -137,33 +142,47 @@ jobs:
         ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
-        -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
-        -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
-        -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+        -DUR_DPCXX=${{ env.CURRENT_DIR }}/dpcpp_compiler/bin/clang++
+        -DUR_SYCL_LIBRARY_DIR=${{ env.CURRENT_DIR }}/dpcpp_compiler/lib
+        -DCMAKE_INSTALL_PREFIX=${{ env.CURRENT_DIR }}/install
         ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
-      run: cmake --build ${{github.workspace}}/build -j $(nproc)
+      run: cmake --build ${{ env.CURRENT_DIR }}/build -j $(nproc)
 
     - name: Install
       # This is to check that install command does not fail
-      run: cmake --install ${{github.workspace}}/build
+      run: cmake --install ${{ env.CURRENT_DIR }}/build
 
-    - name: Check if GPU is avaliable 
+    - name: Install Intel Level Zero GPU
       run: |
-        ls -la /dev/dri/
-        id
-        dpkg -l | grep level-zero
-        ldconfig -p | grep libze
-        ls -la /dev/dri/
+        sudo apt-get update
+        sudo apt-get install -y gnupg2 gpg-agent curl
+        curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | sudo gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy/lts/2350 unified" | sudo tee /etc/apt/sources.list.d/intel-gpu-jammy.list
+        sudo apt update
+        sudo apt install -y \
+          intel-opencl-icd intel-level-zero-gpu level-zero level-zero-dev \
+          intel-media-va-driver-non-free libmfx1 libmfxgen1 libvpl2 \
+          libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri \
+          libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers \
+          mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all vainfo hwinfo clinfo
+
+    # - name: Check if GPU is avaliable 
+    #   run: |
+    #     ls -la /dev/dri/
+    #     id
+    #     dpkg -l | grep level-zero
+    #     ldconfig -p | grep libze
+    #     ls -la /dev/dri/
 
     - name: Test adapter specific
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
-      run: ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
+      run: ctest -C ${{matrix.build_type}} --test-dir ${{ env.CURRENT_DIR }}/build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
@@ -171,8 +190,8 @@ jobs:
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
-      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "conformance" --timeout 600 -VV
+      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{ env.CURRENT_DIR }}/build --output-on-failure -L "conformance" --timeout 600 -VV
 
     - name: Get information about platform
       # if: ${{ always() }}
-      run: ${{github.workspace}}/unified-runtime/.github/scripts/get_system_info.sh
+      run: ${{ env.CURRENT_DIR }}/unified-runtime/.github/scripts/get_system_info.sh
