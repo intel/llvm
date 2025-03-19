@@ -897,15 +897,15 @@ foreach name = ["BitCount"] in {
 // 3.32.20. Barrier Instructions
 
 foreach name = ["ControlBarrier"] in {
-  // TODO: Allow enum flags instead of UInt ?
-  // TODO: We should enforce that the UInt must be a literal.
-  def : SPVBuiltin<name, [Void, UInt, UInt, UInt], Attr.Convergent>;
+  // TODO: Allow enum flags instead of Int ?
+  // TODO: We should enforce that the Int must be a literal.
+  def : SPVBuiltin<name, [Void, Int, Int, Int], Attr.Convergent>;
 }
 
 foreach name = ["MemoryBarrier"] in {
-  // TODO: Allow enum flags instead of UInt ?
-  // TODO: We should enforce that the UInt must be a literal.
-  def : SPVBuiltin<name, [Void, UInt, UInt]>;
+  // TODO: Allow enum flags instead of Int ?
+  // TODO: We should enforce that the Int must be a literal.
+  def : SPVBuiltin<name, [Void, Int, Int]>;
 }
 
 // 3.32.21. Group and Subgroup Instructions
