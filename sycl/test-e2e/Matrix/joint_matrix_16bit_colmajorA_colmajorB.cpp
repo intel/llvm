@@ -20,9 +20,6 @@
 // RUN: %{build} -o %t32.out -DSG_SZ=32
 // RUN: %{run} %t32.out
 
-// XFAIL: gpu && !(linux && arch-intel_gpu_bmg_g21)
-// XFAIL-TRACKER: GSD-5768
-
 // Only transpose on half data type
 // XFAIL: arch-intel_cpu_gnr
 // XFAIL-TRACKER: CMPLRLLVM-65499

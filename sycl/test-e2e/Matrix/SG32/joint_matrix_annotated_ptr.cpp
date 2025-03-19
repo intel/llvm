@@ -15,10 +15,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Currently row major B fails when annotated_ptr is used
-// XFAIL: gpu && !(linux && arch-intel_gpu_bmg_g21)
-// XFAIL-TRACKER: GSD-4181
-
 #include "common.hpp"
 
 #define SG_SZ 32
