@@ -6943,9 +6943,9 @@ def fsycl_device_lib_jit_link : Flag<["-"], "fsycl-device-lib-jit-link">,
 def fno_sycl_device_lib_jit_link : Flag<["-"], "fno-sycl-device-lib-jit-link">,
   HelpText<"Disables sycl device library jit link (experimental)">;
 def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">,
+  Alias<foffload_fp32_prec_sqrt>, Flags<[Deprecated]>,
   Visibility<[ClangOption, CC1Option]>, HelpText<"SYCL only. Specify that "
-  "single precision floating-point sqrt is correctly rounded.">,
-  MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
+  "single precision floating-point sqrt is correctly rounded. (deprecated)">;
 def fsycl_default_sub_group_size
     : Separate<["-"], "fsycl-default-sub-group-size">,
       HelpText<"Set the default sub group size for SYCL kernels">,
