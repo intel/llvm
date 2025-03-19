@@ -6454,6 +6454,7 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 
 static bool insertFreeFunctionDeclaration(const PrintingPolicy &Policy,
                                           const FunctionDecl *FD,
+                                          const std::string& Args,
                                           raw_ostream &O) {
   const auto *DC = FD->getDeclContext();
   bool NSInserted{false};
@@ -6462,26 +6463,11 @@ static bool insertFreeFunctionDeclaration(const PrintingPolicy &Policy,
       PrintNamespaces(O, FD);
       NSInserted = true;
     }
-    std::string args;
-    llvm::raw_string_ostream Args{args};
-    for (unsigned i = 0; i < FD->getNumParams(); i++) {
-      FD->getParamDecl(i)->getType().print(Args, Policy);
-      Args << " " << FD->getParamDecl(i)->getNameAsString();
-
-      if (i < FD->getNumParams() - 1) {
-        Args << ", ";
-      }
-    }
-    O << FD->getReturnType().getAsString();
-    O << " ";
-    O << FD->getNameAsString();
-    O << "(";
-    O << args;
-    O << ");";
+    O << FD->getReturnType().getAsString() << " ";
+    O << FD->getNameAsString() << "(" << Args << ");";
     if (NSInserted) {
       PrintNSClosingBraces(O, FD);
     }
-    Args.flush();
   }
   return NSInserted;
 }
@@ -6774,16 +6760,24 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
     std::string ParmList;
+    std::string ParmListWithNames;
     bool FirstParam = true;
     Policy.SuppressDefaultTemplateArgs = false;
     Policy.PrintCanonicalTypes = true;
+    llvm::raw_string_ostream ParmListWithNamesOstream{ParmListWithNames};
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (FirstParam)
         FirstParam = false;
       else
+      {
         ParmList += ", ";
+        ParmListWithNamesOstream << ", "; 
+      }
+      Param->getType().print(ParmListWithNamesOstream, Policy);
+      ParmListWithNamesOstream << " " << Param->getNameAsString();
       ParmList += Param->getType().getCanonicalType().getAsString(Policy);
     }
+    ParmListWithNamesOstream.flush();
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintCanonicalTypes = false;
     Policy.SuppressDefinition = true;
@@ -6822,7 +6816,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       FTD->print(O, Policy);
       O << ";\n";
     } else {
-      NSInserted = insertFreeFunctionDeclaration(Policy, K.SyclKernel, O);
+      NSInserted = insertFreeFunctionDeclaration(Policy, K.SyclKernel, ParmListWithNames, O);
       O << "\n";
     }
 
@@ -6912,6 +6906,11 @@ bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   }
   llvm::raw_fd_ostream Out(IntHeaderFD, true /*close in destructor*/);
   emit(Out);
+  int IntHeaderFD1 = 0;
+  std::string S{"/tmp/my-files/header.h"};
+  llvm::sys::fs::openFileForWrite(S, IntHeaderFD1);
+  llvm::raw_fd_ostream Out1(IntHeaderFD1, true /*close in destructor*/);
+  emit(Out1);
   return true;
 }
 
