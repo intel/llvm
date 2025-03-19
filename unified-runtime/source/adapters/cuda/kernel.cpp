@@ -339,10 +339,15 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(0);
   }
   case UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL: {
-    // Return value of 0 => unspecified or "auto" sub-group size
-    // Correct for now, since warp size may be read from special register
-    // TODO: Return warp size once default is primary sub-group size
-    // TODO: Revisit if we can recover [[sub_group_size]] attribute from PTX
+    const auto &KernelReqdSubGroupSizeMap =
+        hKernel->getProgram()->KernelReqdSubGroupSizeMD;
+    // If present, return the value of intel_reqd_sub_group_size metadata, if
+    // not: 0, which stands for unspecified or auto sub-group size.
+    if (auto KernelReqdSubGroupSize =
+            KernelReqdSubGroupSizeMap.find(hKernel->getName());
+        KernelReqdSubGroupSize != KernelReqdSubGroupSizeMap.end())
+      return ReturnValue(KernelReqdSubGroupSize->second);
+
     return ReturnValue(0);
   }
   default:

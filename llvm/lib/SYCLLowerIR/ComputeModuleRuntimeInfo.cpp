@@ -159,6 +159,35 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
   return std::nullopt;
 }
 
+PropSetRegTy computeDeviceLibProperties(const Module &M,
+                                        const std::string &DeviceLibName) {
+  PropSetRegTy PropSet;
+
+  {
+    for (const auto &F : M.functions()) {
+      if (F.isDeclaration() || !F.getName().starts_with("__devicelib_"))
+        continue;
+      if (F.getCallingConv() == CallingConv::SPIR_FUNC) {
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F.getName(),
+                    /*PropVal=*/true);
+      }
+    }
+  }
+
+  {
+    // Currently, only bfloat16 conversion devicelib is supported, the
+    // metadata value '0' means fallback version and '1' means native version.
+    uint32_t IsNativeBF16DeviceLib = 0;
+    if (DeviceLibName.find("native") != std::string::npos)
+      IsNativeBF16DeviceLib = 1;
+    std::map<StringRef, uint32_t> BF16DeviceLibMeta = {
+        {"bfloat16", IsNativeBF16DeviceLib}};
+    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_METADATA, BF16DeviceLibMeta);
+  }
+
+  return PropSet;
+}
+
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
                                      const GlobalBinImageProps &GlobProps) {
@@ -283,6 +312,14 @@ PropSetRegTy computeModuleProperties(const Module &M,
         MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
         PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
                     KernelReqdWorkGroupSize);
+      }
+
+      if (auto ReqdSubGroupSize = getKernelSingleEltMetadata<uint32_t>(
+              Func, "intel_reqd_sub_group_size")) {
+        // intel_reqd_sub_group_size is stored as i32.
+        MetadataNames.push_back(Func.getName().str() + "@reqd_sub_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    *ReqdSubGroupSize);
       }
 
       if (auto WorkGroupNumDim = getKernelSingleEltMetadata<uint32_t>(
@@ -473,7 +510,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
 
       PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
-                   "uses-virtual-functions-set", AllSets);
+                  "uses-virtual-functions-set", AllSets);
     }
   }
 

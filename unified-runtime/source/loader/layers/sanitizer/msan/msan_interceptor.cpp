@@ -517,19 +517,51 @@ ur_result_t MsanInterceptor::prepareLaunch(
       getContext()->logger.warning("Skip checking local memory of kernel <{}> ",
                                    GetKernelName(Kernel));
     } else {
-      getContext()->logger.info("ShadowMemory(Local, WorkGroup={}, {} - {})",
-                                NumWG,
-                                (void *)LaunchInfo.Data->LocalShadowOffset,
-                                (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+      getContext()->logger.debug("ShadowMemory(Local, WorkGroup={}, {} - {})",
+                                 NumWG,
+                                 (void *)LaunchInfo.Data->LocalShadowOffset,
+                                 (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+    }
+  }
+
+  // Write shadow memory offset for private memory
+  if (KernelInfo.IsCheckPrivates) {
+    if (DeviceInfo->Shadow->AllocPrivateShadow(
+            Queue, NumWG, LaunchInfo.Data->PrivateShadowOffset,
+            LaunchInfo.Data->PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+      getContext()->logger.warning(
+          "Failed to allocate shadow memory for private "
+          "memory, maybe the number of workgroup ({}) is too "
+          "large",
+          NumWG);
+      getContext()->logger.warning(
+          "Skip checking private memory of kernel <{}>", GetKernelName(Kernel));
+    } else {
+      getContext()->logger.debug(
+          "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,
+          (void *)LaunchInfo.Data->PrivateShadowOffset,
+          (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
+    }
+    // Write local arguments info
+    if (!KernelInfo.LocalArgs.empty()) {
+      std::vector<MsanLocalArgsInfo> LocalArgsInfo;
+      for (auto [ArgIndex, ArgInfo] : KernelInfo.LocalArgs) {
+        LocalArgsInfo.push_back(ArgInfo);
+        getContext()->logger.debug("LocalArgs (argIndex={}, size={})", ArgIndex,
+                                   ArgInfo.Size);
+      }
+      UR_CALL(LaunchInfo.importLocalArgsInfo(Queue, LocalArgsInfo));
     }
   }
 
   getContext()->logger.info(
-      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, CleanShadow={}, "
-      "Device={}, Debug={})",
+      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateShadow={}, "
+      "CleanShadow={}, LocalArgs={}, NumLocalArgs={}, Device={}, Debug={})",
       (void *)LaunchInfo.Data, (void *)LaunchInfo.Data->GlobalShadowOffset,
       (void *)LaunchInfo.Data->LocalShadowOffset,
-      (void *)LaunchInfo.Data->CleanShadow, ToString(LaunchInfo.Data->DeviceTy),
+      (void *)LaunchInfo.Data->PrivateShadowOffset,
+      (void *)LaunchInfo.Data->CleanShadow, (void *)LaunchInfo.Data->LocalArgs,
+      LaunchInfo.Data->NumLocalArgs, ToString(LaunchInfo.Data->DeviceTy),
       LaunchInfo.Data->Debug);
 
   ur_result_t URes =
@@ -628,6 +660,23 @@ USMLaunchInfo::~USMLaunchInfo() {
   assert(Result == UR_RESULT_SUCCESS);
   Result = getContext()->urDdiTable.Device.pfnRelease(Device);
   assert(Result == UR_RESULT_SUCCESS);
+}
+
+ur_result_t USMLaunchInfo::importLocalArgsInfo(
+    ur_queue_handle_t Queue, const std::vector<MsanLocalArgsInfo> &LocalArgs) {
+  assert(!LocalArgs.empty());
+
+  Data->NumLocalArgs = LocalArgs.size();
+  const size_t LocalArgsInfoSize = sizeof(MsanLocalArgsInfo) * LocalArgs.size();
+  UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
+      Context, Device, nullptr, nullptr, LocalArgsInfoSize,
+      ur_cast<void **>(&Data->LocalArgs)));
+
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+      Queue, true, Data->LocalArgs, LocalArgs.data(), LocalArgsInfoSize, 0,
+      nullptr, nullptr));
+
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace msan

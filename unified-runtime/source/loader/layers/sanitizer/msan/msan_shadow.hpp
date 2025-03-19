@@ -46,6 +46,10 @@ struct MsanShadowMemory {
   virtual ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                        uptr &Begin, uptr &End) = 0;
 
+  virtual ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue,
+                                         uint32_t NumWG, uptr &Begin,
+                                         uptr &End) = 0;
+
   ur_context_handle_t Context{};
 
   ur_device_handle_t Device{};
@@ -55,6 +59,7 @@ struct MsanShadowMemory {
   uptr ShadowEnd = 0;
 };
 
+// clang-format off
 /// Shadow Memory layout of CPU device
 ///
 /// 0x000000000000 ~ 0x010000000000 "app-1"
@@ -71,6 +76,7 @@ struct MsanShadowMemory {
 /// 0x700000000000 ~ 0x740000000000 "allocator"
 /// 0x740000000000 ~ 0x800000000000 "app-3"
 ///
+// clang-format on
 struct MsanShadowMemoryCPU final : public MsanShadowMemory {
   MsanShadowMemoryCPU(ur_context_handle_t Context, ur_device_handle_t Device)
       : MsanShadowMemory(Context, Device) {}
@@ -89,6 +95,13 @@ struct MsanShadowMemoryCPU final : public MsanShadowMemory {
 
   ur_result_t AllocLocalShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
                                uptr &End) override {
+    Begin = ShadowBegin;
+    End = ShadowEnd;
+    return UR_RESULT_SUCCESS;
+  }
+
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t, uint32_t, uptr &Begin,
+                                 uptr &End) override {
     Begin = ShadowBegin;
     End = ShadowEnd;
     return UR_RESULT_SUCCESS;
@@ -114,6 +127,9 @@ struct MsanShadowMemoryGPU : public MsanShadowMemory {
   ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                uptr &Begin, uptr &End) override final;
 
+  ur_result_t AllocPrivateShadow(ur_queue_handle_t Queue, uint32_t NumWG,
+                                 uptr &Begin, uptr &End) override final;
+
   virtual size_t GetShadowSize() = 0;
 
   virtual uptr GetStartAddress() { return 0; }
@@ -134,6 +150,7 @@ private:
   uptr PrivateShadowOffset = 0;
 };
 
+// clang-format off
 /// Shadow Memory layout of GPU PVC device
 ///
 /// USM Allocation Range (56 bits)
@@ -141,11 +158,14 @@ private:
 ///   Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
 ///   Device USM : 0xff00_0000_0000_0000 ~ 0xff00_ffff_ffff_ffff
 ///
-/// USM Allocation Range (AllocateHostAllocationsInHeapExtendedHost=0)
-///   Host   USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
-///   Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
-///   Device USM : 0xff00_0000_0000_0000 ~ 0xff00_ffff_ffff_ffff
-///
+/// Shadow Memory Mapping
+///   We support device USM only, because it's hard to do shadow propagation on host/shared USM which can be accessed by host code.
+///   MSan needs to reserve half of device USM as shadow memory and does 1:1 mapping.
+///     0xff00_0000_0000_0000 - MSAN_SHADOW_BASE      : "app-1"
+///     MSAN_SHADOW_BASE      - MSAN_SHADOW_END1      : "shadow-1" (MSAN_SHADOW_END1 - MSAN_SHADOW_BASE == MSAN_SHADOW_BASE - 0xff00_0000_0000_0000)
+///     MSAN_SHADOW_END1      - MSAN_SHADOW_END2      : "shadow-2" (MSAN_SHADOW_END2 - MSAN_SHADOW_END1 == 0xff01_0000_0000_0000 - MSAN_SHADOW_END2)
+///     MSAN_SHADOW_END2      - 0xff01_0000_0000_0000 : "app-2"
+// clang-format on
 struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
   MsanShadowMemoryPVC(ur_context_handle_t Context, ur_device_handle_t Device)
       : MsanShadowMemoryGPU(Context, Device) {}
@@ -159,12 +179,16 @@ struct MsanShadowMemoryPVC final : public MsanShadowMemoryGPU {
   uptr GetStartAddress() override { return 0x100'0000'0000'0000ULL; }
 };
 
+// clang-format off
 /// Shadow Memory layout of GPU DG2 device
 ///
 /// USM Allocation Range (48 bits)
 ///   Host/Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
 ///   Device      USM : 0xffff_8000_0000_0000 ~ 0xffff_ffff_ffff_ffff
 ///
+/// Shadow Memory Mapping is similar to PVC
+///
+// clang-format on
 struct MsanShadowMemoryDG2 final : public MsanShadowMemoryGPU {
   MsanShadowMemoryDG2(ur_context_handle_t Context, ur_device_handle_t Device)
       : MsanShadowMemoryGPU(Context, Device) {}
