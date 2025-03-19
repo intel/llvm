@@ -1,8 +1,11 @@
-// REQUIRES: cpu,windows
+// REQUIRES: windows
+// XFAIL: opencl && gpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17541
 //
-// RUN: %{build} -o %t.out
-// RUN: not env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out 2>%t_stderr.txt
-// RUN: FileCheck %s --check-prefix=CHECK-MESSAGE --input-file %t_stderr.txt
+// RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
+//
+// RUN: not env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False \
+// RUN: %{run} %t.out 2>&1 >/dev/null | FileCheck %s --check-prefix=CHECK-MESSAGE
 //
 // CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: (null): global id:
 // [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 &&
