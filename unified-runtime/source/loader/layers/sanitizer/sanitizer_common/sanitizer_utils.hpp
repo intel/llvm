@@ -65,4 +65,7 @@ EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr, char Value,
                       const ur_event_handle_t *EventWaitList = nullptr,
                       ur_event_handle_t *OutEvent = nullptr);
 
+void PrintUrBuildLog(ur_program_handle_t hProgram,
+                     ur_device_handle_t *phDevices, size_t numDevices);
+
 } // namespace ur_sanitizer_layer
