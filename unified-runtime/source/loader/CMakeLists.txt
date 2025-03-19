@@ -43,11 +43,6 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_options(ur_loader PRIVATE "-Wl,--version-script=${LOADER_VERSION_SCRIPT}")
 endif()
 
-set_target_properties(ur_loader PROPERTIES
-    LIBRARY_OUTPUT_NAME ur_loader
-    RUNTIME_OUTPUT_NAME ur_loader
-)
-
 add_library(${PROJECT_NAME}::loader ALIAS ur_loader)
 
 target_include_directories(ur_loader PRIVATE
