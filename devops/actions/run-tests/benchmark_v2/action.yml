@@ -112,13 +112,13 @@ runs:
         --output-html remote \
         --results-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
         --output-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
-        --preset Minimal
+        --preset Minimal \
         --timestamp-override "$SAVE_TIMESTAMP"
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --name Baseline_PVC_L0 \
-        --compare_file "./llvm-ci-perf-results/$RUNNER_NAME/results/$SAVE_NAME_$SAVE_TIMESTAMP.json"
-        --results_dir "./llvm-ci-perf-results/$RUNNER_NAME/results/"
+        --compare-file "./llvm-ci-perf-results/$RUNNER_NAME/results/$SAVE_NAME_$SAVE_TIMESTAMP.json"
+        --results-dir "./llvm-ci-perf-results/$RUNNER_NAME/results/"
 
   - name: Push compute-benchmarks results
     if: inputs.upload_results == 'true' && always()

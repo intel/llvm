@@ -231,7 +231,7 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="operation", required=True)
     parser_avg = subparsers.add_parser("to_hist", help="Compare a benchmark result to historic average")
     parser_avg.add_argument(
-        "--avg_type",
+        "--avg-type",
         type=str,
         help="Measure of central tendency to use when computing historic average",
         default="median"
@@ -243,13 +243,13 @@ if __name__ == "__main__":
         help="Save name of the benchmark results to compare to"
     )
     parser_avg.add_argument(
-        "--compare_file",
+        "--compare-file",
         type=str,
         required=True,
         help="Result file to compare against te historic average"
     )
     parser_avg.add_argument(
-        "--results_dir",
+        "--results-dir",
         type=str,
         required=True,
         help="Directory storing results"
