@@ -708,23 +708,6 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       if (isSpecialDeviceImage(Img) &&
           !isSpecialDeviceImageShouldBeUsed(Img, Dev))
         continue;
-      {
-        // m_ExportedSymbolImages is multimap, one symbol may be mapped to
-        // multiple RTDeviceBianryImage *, this can happen if multiple
-        // sycl_device_binaries include device image exporting same symbol.
-        // When resolving imported symbols, we must guarantee that the device
-        // image to link to solve the imported symbols is from the same
-        // sycl_device_binaries. Otherwise, we may link a device image from
-        // another sycl_device_binaries and it may be removed in another thread
-        // is removeImages is called in another thread.
-        std::lock_guard<std::mutex> ImgStart2DeviceBinsGuard(
-            m_ImgStart2DeviceBinsMutex);
-        const unsigned char *MainImgStart = MainImg.getRawData().BinaryStart;
-        const unsigned char *DepImgStart = Img->getRawData().BinaryStart;
-        if (m_ImgStart2DeviceBins[MainImgStart] !=
-            m_ImgStart2DeviceBins[DepImgStart])
-          continue;
-      }
       DeviceImagesToLink.insert(Img);
       Found = true;
       for (const sycl_device_binary_property &ISProp :
@@ -1906,13 +1889,6 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     // Fill maps for kernel bundles
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
-    {
-      std::lock_guard<std::mutex> ImgStart2DeviceBinsGuard(
-          m_ImgStart2DeviceBinsMutex);
-      m_ImgStart2DeviceBins.insert(
-          {Img->getRawData().BinaryStart, DeviceBinary});
-    }
-
     // For bfloat16 device library image, it doesn't include any kernel, device
     // global, virtual function, so just skip adding it to any related maps.
     // We only need to: 1). add exported symbols to m_ExportedSymbolImages. 2).
@@ -2111,12 +2087,6 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
     // Acquire lock to modify maps for kernel bundles
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-
-    {
-      std::lock_guard<std::mutex> ImgStart2DeviceBinsGuard(
-          m_ImgStart2DeviceBinsMutex);
-      m_ImgStart2DeviceBins.erase(Img->getRawData().BinaryStart);
-    }
 
     {
       // Clean up Bfloat16 device library image, unregister exported symbols

@@ -498,10 +498,6 @@ protected:
       std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
   std::unordered_map<std::string, MaterializedEntries> m_MaterializedKernels;
 
-  // Maps between device image binary and sycl_device_binaries it belongs to.
-  std::mutex m_ImgStart2DeviceBinsMutex;
-  std::unordered_map<const unsigned char *, sycl_device_binaries>
-      m_ImgStart2DeviceBins;
   friend class ::ProgramManagerTest;
 };
 } // namespace detail
