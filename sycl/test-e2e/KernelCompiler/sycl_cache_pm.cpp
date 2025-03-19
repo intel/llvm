@@ -1,4 +1,4 @@
-//==- sycl_and_cache.cpp - cache works with kernel_compiler sycl  ----------==//
+//==--- sycl_cache_pm.cpp --- kernel_compiler extension tests --------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,7 +15,8 @@
 // -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out
 
-// -- Run with caching.
+// -- Run with caching, and test that the program manager's persistent caching
+//    works with runtime-compiled kernels.
 
 // DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
 // RUN: %{run-aux} rm -rf %t/cache_dir
@@ -23,12 +24,12 @@
 // RUN: %{cache_vars} %{run} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
-// CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
-// CHECK-WRITTEN-TO-CACHE: [kernel_compiler Persistent Cache]: binary has been cached
+// CHECK-WRITTEN-TO-CACHE-NOT: [Persistent Cache]: using cached device binary
+// CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: device binary has been cached
 
 // CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
-// CHECK-READ-FROM-CACHE-NOT: [kernel_compiler Persistent Cache]: binary has been cached
-// CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
+// CHECK-READ-FROM-CACHE-NOT: [Persistent Cache]: device binary has been cached
+// CHECK-READ-FROM-CACHE: [Persistent Cache]: using cached device binary
 
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>

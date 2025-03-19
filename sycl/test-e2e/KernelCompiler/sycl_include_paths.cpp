@@ -1,4 +1,4 @@
-//==- kernel_compiler_sycl_jit_include_paths.cpp --- Include path handling -==//
+//==--- sycl_include_paths.cpp --- kernel_compiler extension tests ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -57,7 +57,7 @@ void test_compilation(sycl::context &ctx, SourcePropertiesT srcProps,
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, IncludePathsSource, srcProps);
+      ctx, syclex::source_language::sycl, IncludePathsSource, srcProps);
   exe_kb kbExe = syclex::build(kbSrc, buildProps);
 
   std::cout << "bundle " << bundleCounter++ << std::endl;
@@ -74,10 +74,10 @@ int test_include_paths(const std::string &baseDir) {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;

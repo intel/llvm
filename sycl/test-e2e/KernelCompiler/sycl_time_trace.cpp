@@ -1,4 +1,4 @@
-//==----- kernel_compiler_sycl_jit_time_trace.cpp --- time-tracing test ----==//
+//==--- sycl_time_trace.cpp --- kernel_compiler extension tests ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -24,17 +24,17 @@ int test_tracing() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
   if (!ok) {
-    std::cout << "Apparently this device does not support `sycl_jit` source "
-                 "kernel bundle extension: "
+    std::cout << "Apparently this device does not support `sycl` source kernel "
+                 "bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
     return -1;
   }
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycl_jit, "");
+      ctx, syclex::source_language::sycl, "");
 
   auto props = syclex::properties{
       syclex::build_options{std::vector<std::string>{

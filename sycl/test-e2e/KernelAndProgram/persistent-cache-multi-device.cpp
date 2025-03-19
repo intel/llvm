@@ -9,6 +9,9 @@
 // XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
+// XFAIL: linux && arch-intel_gpu_bmg_g21 && !igc-dev && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17453
+
 // Test checks that persistent cache works correctly with multiple devices.
 
 #include <sycl/detail/core.hpp>
