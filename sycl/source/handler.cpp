@@ -317,7 +317,7 @@ handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))), MQueue(nullptr) {}
+    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -2149,10 +2149,12 @@ void handler::reset(const std::shared_ptr<detail::queue_impl> &Queue,
                     detail::queue_impl *SecondaryQueue,
                     bool CallerNeedsEvent) {
   impl->reset(PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  MQueue = Queue;
 
-  // do cleanup on exit from submit_impl
-  if (!Queue) {
+  if (Queue) {
+    MQueue = Queue;
+  } else {
+    // do cleanup on exit from submit_impl
+    MQueue.reset();
     MLocalAccStorage.clear();
     MStreamStorage.clear();
     MKernelName = detail::string();
@@ -2167,9 +2169,7 @@ void handler::reset(const std::shared_ptr<detail::queue_impl> &Queue,
     MCodeLoc = {};
 
     MIsFinalized = false;
-    // creation of empty event::impl is too time-consuming, so reset impl to
-    // empty state
-    MLastEvent.make_empty();
+    MLastEvent = event();
   }
 }
 
