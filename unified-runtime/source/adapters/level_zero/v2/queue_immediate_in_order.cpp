@@ -772,16 +772,16 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
 
   auto commandListMgr = commandListManager.lock();
 
-  // ze_tracer shows a lot of events (eg. ~60) created here
   auto zeSignalEvent =
       getSignalEvent(commandListMgr, phEvent, UR_COMMAND_MEM_IMAGE_COPY);
   auto waitListView =
       getWaitListView(commandListMgr, phEventWaitList, numEventsInWaitList);
 
-  return handleImageCopyFlags(pSrc, pDst, pSrcImageDesc, pDstImageDesc,
-                              pSrcImageFormat, pDstImageFormat, pCopyRegion,
-                              imageCopyFlags, commandListMgr->getZeCommandList(),
-                              zeSignalEvent, waitListView.num, waitListView.handles);
+  return bindlessImagesHandleCopyFlags(
+      pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
+      pDstImageFormat, pCopyRegion, imageCopyFlags,
+      commandListMgr->getZeCommandList(),zeSignalEvent, waitListView.num, 
+      waitListView.handles);
 }
 
 ur_result_t

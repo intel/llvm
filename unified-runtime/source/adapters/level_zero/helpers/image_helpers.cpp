@@ -24,6 +24,9 @@
 #include <loader/ze_loader.h>
 #include <ze_api.h>
 
+typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
+    ze_image_handle_t hImage, uint64_t *pDeviceOffset);
+
 zeImageGetDeviceOffsetExp_pfn zeImageGetDeviceOffsetExpFunctionPtr = nullptr;
 
 namespace {
@@ -743,17 +746,15 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst,
-                                 const ur_image_desc_t *pSrcImageDesc,
-                                 const ur_image_desc_t *pDstImageDesc,
-                                 const ur_image_format_t *pSrcImageFormat,
-                                 const ur_image_format_t *pDstImageFormat,
-                                 ur_exp_image_copy_region_t *pCopyRegion,
-                                 ur_exp_image_copy_flags_t imageCopyFlags,
-                                 ze_command_list_handle_t ZeCommandList,
-                                 ze_event_handle_t zeSignalEvent,
-                                 uint32_t numWaitEvents,
-                                 ze_event_handle_t *phWaitEvents) {
+ur_result_t bindlessImagesHandleCopyFlags(
+    const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
+    const ur_image_desc_t *pDstImageDesc,
+    const ur_image_format_t *pSrcImageFormat,
+    const ur_image_format_t *pDstImageFormat,
+    ur_exp_image_copy_region_t *pCopyRegion,
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ze_command_list_handle_t ZeCommandList, ze_event_handle_t zeSignalEvent,
+    uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents) {
 
   ZeStruct<ze_image_desc_t> zeSrcImageDesc;
   ur2zeImageDesc(pSrcImageFormat, pSrcImageDesc, zeSrcImageDesc);
@@ -798,9 +799,9 @@ ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst,
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                  (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
-                   pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
-                   numWaitEvents, phWaitEvents));
+                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, zeSignalEvent,
+                  numWaitEvents, phWaitEvents));
     }
     return UR_RESULT_SUCCESS;
   };

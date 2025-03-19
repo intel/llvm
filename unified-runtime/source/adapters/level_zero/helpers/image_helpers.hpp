@@ -15,13 +15,6 @@
 
 #include "../v2/common.hpp"
 
-typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
-    ze_image_handle_t hImage, uint64_t *pDeviceOffset);
-
-typedef ze_result_t(ZE_APICALL *zeMemGetPitchFor2dImage_pfn)(
-    ze_context_handle_t hContext, ze_device_handle_t hDevice, size_t imageWidth,
-    size_t imageHeight, unsigned int elementSizeInBytes, size_t *rowPitch);
-
 struct ur_bindless_mem_handle_t {
 
   ur_bindless_mem_handle_t(ze_image_handle_t zeImage,
@@ -75,14 +68,14 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
                                      ur_sampler_handle_t hSampler,
                                      ur_exp_image_native_handle_t *phImage);
 
-ur_result_t handleImageCopyFlags(const void *pSrc, void *pDst, 
-                                 const ur_image_desc_t *pSrcImageDesc,
-                                 const ur_image_desc_t *pDstImageDesc,
-                                 const ur_image_format_t *pSrcImageFormat,
-                                 const ur_image_format_t *pDstImageFormat,
-                                 ur_exp_image_copy_region_t *pCopyRegion,
-                                 ur_exp_image_copy_flags_t imageCopyFlags,
-                                 ze_command_list_handle_t ZeCommandList,
-                                 ze_event_handle_t zeSignalEvent, 
-                                uint32_t numWaitEvents, 
-                                ze_event_handle_t *phWaitEvents);                                     
+ur_result_t bindlessImagesHandleCopyFlags(const void *pSrc, void *pDst,
+                                          const ur_image_desc_t *pSrcImageDesc,
+                                          const ur_image_desc_t *pDstImageDesc,
+                                          const ur_image_format_t *pSrcImageFormat,
+                                          const ur_image_format_t *pDstImageFormat,
+                                          ur_exp_image_copy_region_t *pCopyRegion,
+                                          ur_exp_image_copy_flags_t imageCopyFlags,
+                                          ze_command_list_handle_t ZeCommandList,
+                                          ze_event_handle_t zeSignalEvent,
+                                          uint32_t numWaitEvents,
+                                          ze_event_handle_t *phWaitEvents);

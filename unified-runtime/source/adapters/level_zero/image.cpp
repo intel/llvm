@@ -105,10 +105,11 @@ ur_result_t urBindlessImagesImageCopyExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
   
-  auto res = handleImageCopyFlags(pSrc, pDst, pSrcImageDesc, pDstImageDesc, 
-                        pSrcImageFormat, pDstImageFormat, pCopyRegion,
-                        imageCopyFlags, ZeCommandList, ZeEvent, WaitList.Length,
-                        WaitList.ZeEventList);
+  auto res =
+      bindlessImagesHandleCopyFlags(pSrc, pDst, pSrcImageDesc, pDstImageDesc,
+                                    pSrcImageFormat, pDstImageFormat, pCopyRegion,
+                                    imageCopyFlags, ZeCommandList, ZeEvent,
+                                    WaitList.Length, WaitList.ZeEventList);
 
   if (res == UR_RESULT_SUCCESS)
     UR_CALL(hQueue->executeCommandList(CommandList, Blocking, OkToBatch));

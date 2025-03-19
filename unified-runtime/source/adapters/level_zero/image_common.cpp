@@ -15,13 +15,12 @@
 #include "event.hpp"
 #include "helpers/image_helpers.hpp"
 #include "logger/ur_logger.hpp"
-#ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "v2/memory.hpp"
-#else
-#include "memory.hpp"
-#endif
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
+
+typedef ze_result_t(ZE_APICALL *zeMemGetPitchFor2dImage_pfn)(
+    ze_context_handle_t hContext, ze_device_handle_t hDevice, size_t imageWidth,
+    size_t imageHeight, unsigned int elementSizeInBytes, size_t *rowPitch);
 
 zeMemGetPitchFor2dImage_pfn zeMemGetPitchFor2dImageFunctionPtr = nullptr;
 
