@@ -97,6 +97,8 @@ fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
     UrDesc.type =
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+        : Desc.type == sycl::ext::oneapi::experimental::image_type::gather
+            ? UR_MEM_TYPE_IMAGE_GATHER_EXP
             : UrDesc.type;
 
     return Desc.array_size;
@@ -530,11 +532,11 @@ event handler::finalize() {
 
       if (DiscardEvent) {
         EnqueueKernel();
-        auto EventImpl = std::make_shared<detail::event_impl>(
-            detail::event_impl::HES_Discarded);
-        MLastEvent = detail::createSyclObjFromImpl<event>(std::move(EventImpl));
+        const auto &EventImpl = detail::getSyclObjImpl(MLastEvent);
+        EventImpl->setStateDiscarded();
       } else {
-        NewEvent = std::make_shared<detail::event_impl>(MQueue);
+        NewEvent = detail::getSyclObjImpl(MLastEvent);
+        NewEvent->setQueue(MQueue);
         NewEvent->setWorkerQueue(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
@@ -547,8 +549,6 @@ event handler::finalize() {
           NewEvent->getPreparedDepsEvents() = impl->CGData.MEvents;
           NewEvent->cleanDepEventsThroughOneLevel();
         }
-
-        MLastEvent = detail::createSyclObjFromImpl<event>(std::move(NewEvent));
       }
       return MLastEvent;
     }

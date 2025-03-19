@@ -58,6 +58,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     return Err;
   } catch (hipError_t hipErr) {
     return mapErrorUR(hipErr);
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
 }
