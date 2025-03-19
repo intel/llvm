@@ -69,10 +69,12 @@ jobs:
 
     - name: Submit build
       run: |
+        default_description="Regular build"
+
         # Initialize a build. Fetch a cloud upload url.
         curl -X POST \
         -d version="sycl: ${{ inputs.ref || github.sha }}" \
-        -d description="${{ inputs.description || "Regular build" }}" \
+        -d description="${{ inputs.description || default_description }}" \
         -d email=${{ secrets.COVERITY_EMAIL }} \
         -d token=${{ secrets.COVERITY_TOKEN }} \
         -d file_name="intel_llvm.tgz" \
