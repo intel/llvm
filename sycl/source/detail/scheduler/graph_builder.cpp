@@ -472,18 +472,21 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
   AllocaCommandBase *SrcAllocaCmd =
       findAllocaForReq(Record, Req, Record->MCurContext);
 
-  auto MemCpyCmdUniquePtr = std::make_unique<MemCpyCommandHost>(
+  auto MemCpyCmdUniquePtr = std::make_unique<MemCpyToHostCommand>(
       *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
-      SrcAllocaCmd->getQueue(), nullptr);
+      SrcAllocaCmd->getQueue());
 
   if (!MemCpyCmdUniquePtr)
     throw exception(make_error_code(errc::memory_allocation),
                     "Out of host memory");
 
-  MemCpyCommandHost *MemCpyCmd = MemCpyCmdUniquePtr.release();
+  MemCpyToHostCommand *MemCpyCmd = MemCpyCmdUniquePtr.release();
 
   std::vector<Command *> ToCleanUp;
   for (Command *Dep : Deps) {
+    if (Dep->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     Command *ConnCmd = MemCpyCmd->addDep(
         DepDesc{Dep, MemCpyCmd->getRequirement(), SrcAllocaCmd}, ToCleanUp);
     if (ConnCmd)

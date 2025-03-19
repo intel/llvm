@@ -13,12 +13,12 @@
 
 using namespace sycl;
 
-class MemObjMock : public sycl::detail::SYCLMemObjI {
+class MemObjMock : public sycl::detail::SYCLMemObjT {
 public:
   using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
   MemObjMock(const std::shared_ptr<sycl::detail::MemObjRecord> &Record)
-      : SYCLMemObjI() {
+      : SYCLMemObjT({}, nullptr) {
     MRecord = Record;
   }
 
@@ -38,6 +38,7 @@ public:
   bool hasUserDataPtr() const override { return false; }
   bool isHostPointerReadOnly() const override { return false; }
   bool usesPinnedHostMemory() const override { return false; }
+  bool hasInteropEvent() const { return false; }
 
   detail::ContextImplPtr getInteropContext() const override { return nullptr; }
 };

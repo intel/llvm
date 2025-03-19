@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 // L0 adapter incorrectly reports memory leaks because it doesn't take into
 // account direct calls to L0 API.
-// UNSUPPORTED: ze_debug
+// UNSUPPORTED: ze_debug, level_zero_v2_adapter
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
@@ -18,8 +18,16 @@
 // Keep ownership
 // CHECK: zeMemFree
 
-// Account for zeMemFree used to query page sizes by the UMF
-// CHECK-COUNT-8: zeMemFree
+// Account for zeMemFree used to query page sizes by the UMF (only affects v2 L0
+// adapter)
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
+// CHECK-OPT: zeMemFree
 
 // Transfer ownership
 // CHECK: zeMemFree

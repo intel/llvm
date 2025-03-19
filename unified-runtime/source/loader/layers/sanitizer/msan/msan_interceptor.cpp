@@ -522,14 +522,26 @@ ur_result_t MsanInterceptor::prepareLaunch(
                                 (void *)LaunchInfo.Data->LocalShadowOffset,
                                 (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
     }
+    // Write local arguments info
+    if (!KernelInfo.LocalArgs.empty()) {
+      std::vector<MsanLocalArgsInfo> LocalArgsInfo;
+      for (auto [ArgIndex, ArgInfo] : KernelInfo.LocalArgs) {
+        LocalArgsInfo.push_back(ArgInfo);
+        getContext()->logger.debug("LocalArgs (argIndex={}, size={})", ArgIndex,
+                                   ArgInfo.Size);
+      }
+      UR_CALL(LaunchInfo.importLocalArgsInfo(Queue, LocalArgsInfo));
+    }
   }
 
   getContext()->logger.info(
       "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, CleanShadow={}, "
+      "LocalArgs={}, NumLocalArgs={}, "
       "Device={}, Debug={})",
       (void *)LaunchInfo.Data, (void *)LaunchInfo.Data->GlobalShadowOffset,
       (void *)LaunchInfo.Data->LocalShadowOffset,
-      (void *)LaunchInfo.Data->CleanShadow, ToString(LaunchInfo.Data->DeviceTy),
+      (void *)LaunchInfo.Data->CleanShadow, (void *)LaunchInfo.Data->LocalArgs,
+      LaunchInfo.Data->NumLocalArgs, ToString(LaunchInfo.Data->DeviceTy),
       LaunchInfo.Data->Debug);
 
   ur_result_t URes =
@@ -628,6 +640,23 @@ USMLaunchInfo::~USMLaunchInfo() {
   assert(Result == UR_RESULT_SUCCESS);
   Result = getContext()->urDdiTable.Device.pfnRelease(Device);
   assert(Result == UR_RESULT_SUCCESS);
+}
+
+ur_result_t USMLaunchInfo::importLocalArgsInfo(
+    ur_queue_handle_t Queue, const std::vector<MsanLocalArgsInfo> &LocalArgs) {
+  assert(!LocalArgs.empty());
+
+  Data->NumLocalArgs = LocalArgs.size();
+  const size_t LocalArgsInfoSize = sizeof(MsanLocalArgsInfo) * LocalArgs.size();
+  UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
+      Context, Device, nullptr, nullptr, LocalArgsInfoSize,
+      ur_cast<void **>(&Data->LocalArgs)));
+
+  UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+      Queue, true, Data->LocalArgs, LocalArgs.data(), LocalArgsInfoSize, 0,
+      nullptr, nullptr));
+
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace msan
