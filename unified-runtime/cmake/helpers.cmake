@@ -196,7 +196,9 @@ function(add_ur_library name)
         target_link_options(${name} PRIVATE
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
-        set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
+    endif()
+    if(UR_USE_DEBUG_POSTFIX)
+        set_target_properties(${name} PROPERTIES OUTPUT_NAME ${name}d)
     endif()
     if(UR_EXTERNAL_DEPENDENCIES)
         add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})
