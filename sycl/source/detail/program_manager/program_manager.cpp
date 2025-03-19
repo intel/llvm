@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include <detail/compiler.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
@@ -707,6 +708,23 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       if (isSpecialDeviceImage(Img) &&
           !isSpecialDeviceImageShouldBeUsed(Img, Dev))
         continue;
+      {
+        // m_ExportedSymbolImages is multimap, one symbol may be mapped to
+        // multiple RTDeviceBianryImage *, this can happen if multiple
+        // sycl_device_binaries include device image exporting same symbol.
+        // When resolving imported symbols, we must guarantee that the device
+        // image to link to solve the imported symbols is from the same
+        // sycl_device_binaries. Otherwise, we may link a device image from
+        // another sycl_device_binaries and it may be removed in another thread
+        // is removeImages is called in another thread.
+        std::lock_guard<std::mutex> ImgStart2DeviceBinsGuard(
+            m_ImgStart2DeviceBinsMutex);
+        const unsigned char *MainImgStart = MainImg.getRawData().BinaryStart;
+        const unsigned char *DepImgStart = Img->getRawData().BinaryStart;
+        if (m_ImgStart2DeviceBins[MainImgStart] !=
+            m_ImgStart2DeviceBins[DepImgStart])
+          continue;
+      }
       DeviceImagesToLink.insert(Img);
       Found = true;
       for (const sycl_device_binary_property &ISProp :
@@ -1888,28 +1906,26 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     // Fill maps for kernel bundles
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
+    {
+      std::lock_guard<std::mutex> ImgStart2DeviceBinsGuard(
+          m_ImgStart2DeviceBinsMutex);
+      m_ImgStart2DeviceBins.insert(
+          {Img->getRawData().BinaryStart, DeviceBinary});
+    }
+
     // For bfloat16 device library image, it doesn't include any kernel, device
     // global, virtual function, so just skip adding it to any related maps.
     // We only need to: 1). add exported symbols to m_ExportedSymbolImages. 2).
     // add the device image to m_DeviceImages used for future clean up when
-    // removeImage is called. RefCount is used to keep how many user device
-    // images are depending on native/fallback bfloat16 device library image,
-    // the corresponding image will be added to m_ExportedSymbolImages and
-    // m_DeviceImages only when RefCount is 0. These RefCount are used when
-    // KernelIDsGuard is acquired by current thread.
+    // removeImage is called.
     {
       auto Bfloat16DeviceLibProp = Img->getDeviceLibMetadata();
       if (Bfloat16DeviceLibProp.isAvailable()) {
-        uint32_t IsNative =
-            DeviceBinaryProperty(*(Bfloat16DeviceLibProp.begin())).asUint32();
-        if (!m_Bfloat16DeviceLibRefCount[IsNative]) {
-          for (const sycl_device_binary_property &ESProp :
-               Img->getExportedSymbols()) {
-            m_ExportedSymbolImages.insert({ESProp->Name, Img.get()});
-          }
-          m_DeviceImages.insert({RawImg, std::move(Img)});
+        for (const sycl_device_binary_property &ESProp :
+             Img->getExportedSymbols()) {
+          m_ExportedSymbolImages.insert({ESProp->Name, Img.get()});
         }
-        m_Bfloat16DeviceLibRefCount[IsNative] += 1;
+        m_DeviceImages.insert({RawImg, std::move(Img)});
         continue;
       }
     }
@@ -2097,23 +2113,27 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
     {
+      std::lock_guard<std::mutex> ImgStart2DeviceBinsGuard(
+          m_ImgStart2DeviceBinsMutex);
+      m_ImgStart2DeviceBins.erase(Img->getRawData().BinaryStart);
+    }
+
+    {
       // Clean up Bfloat16 device library image, unregister exported symbols
       // and remove the device image only when RefCount is 0.
       auto Bfloat16DeviceLibProp = Img->getDeviceLibMetadata();
       if (Bfloat16DeviceLibProp.isAvailable()) {
-        uint32_t IsNative =
-            DeviceBinaryProperty(*(Bfloat16DeviceLibProp.begin())).asUint32();
-        if (m_Bfloat16DeviceLibRefCount[IsNative] != 0)
-          m_Bfloat16DeviceLibRefCount[IsNative] -= 1;
-        if (!m_Bfloat16DeviceLibRefCount[IsNative]) {
-          for (const sycl_device_binary_property &ESProp :
-               Img->getExportedSymbols()) {
-            m_ExportedSymbolImages.erase(ESProp->Name);
+        for (const sycl_device_binary_property &ESProp :
+             Img->getExportedSymbols()) {
+          auto Range = m_ExportedSymbolImages.equal_range(ESProp->Name);
+          for (auto It = Range.first; It != Range.second; ++It) {
+            if (It->second == Img) {
+              m_ExportedSymbolImages.erase(It);
+              break;
+            }
           }
-
-          m_DeviceImages.erase(DevImgIt);
         }
-
+        m_DeviceImages.erase(DevImgIt);
         continue;
       }
     }
@@ -2636,7 +2656,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
       {
         std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
         // For device library images, they are not in m_BinImg2KernelIDs since
-        // no kernel is included. 
+        // no kernel is included.
         if (m_BinImg2KernelIDs.find(Dep) != m_BinImg2KernelIDs.end())
           DepKernelIDs = m_BinImg2KernelIDs[Dep];
       }
