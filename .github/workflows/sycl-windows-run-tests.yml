@@ -10,6 +10,18 @@ on:
         type: string
         required: True
 
+      target_devices:
+        type: string
+        required: False
+      extra_cmake_args:
+        type: string
+        required: False
+      tests_selector:
+        description: |
+          Two possible options: "e2e" and "cts".
+        type: string
+        default: "e2e"
+
       extra_lit_opts:
         description: |
           Extra options to be added to LIT_OPTS.
@@ -28,6 +40,10 @@ on:
           Note: it doesn't affect ./devops/actions/run-tests/* as these actions
           call checkout again and therefore override the devops directory, so
           configs/dependecies from input.ref are used.
+      tests_ref:
+        type: string
+        required: False
+        description: Commit SHA or branch to checkout e2e/cts tests.
 
       sycl_toolchain_artifact:
         type: string
@@ -47,6 +63,23 @@ on:
         type: string
         required: false
         default: "cl"
+
+      cts_testing_mode:
+        description: |
+          Testing mode to run SYCL-CTS in, can be either `full`, `build-only`
+          or `run-only`. In `build-only` mode an artifact of the CTS binaries
+          will be uploaded.
+        type: string
+        default: 'full'
+
+      sycl_cts_artifact:
+        type: string
+        default: ''
+        required: False
+      artifact_retention_days:
+        description: 'E2E/SYCL-CTS binaries artifact retention period.'
+        type: string
+        default: 1
 
 permissions: read-all
 
@@ -86,6 +119,7 @@ jobs:
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - uses: ./devops/actions/cached_checkout
+      if: inputs.tests_selector == 'e2e'
       with:
         path: llvm
         ref: ${{ inputs.ref || github.sha }}
@@ -103,16 +137,19 @@ jobs:
     - name: Setup SYCL toolchain
       run: |
         echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "LIB=$env:GITHUB_WORKSPACE\\install\\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - run: |
         sycl-ls
     - run: |
         sycl-ls --verbose
     - name: Configure E2E with Level Zero target
+      if: inputs.tests_selector == 'e2e'
       shell: cmd
       run: |
         mkdir build-e2e
         cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py"
     - name: Run End-to-End tests
+      if: inputs.tests_selector == 'e2e'
       shell: bash
       run: |
         # Run E2E tests.
@@ -121,6 +158,18 @@ jobs:
         fi
         export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
         cmake --build build-e2e --target check-sycl-e2e
+
+    - name: Run SYCL CTS Tests
+      if: inputs.tests_selector == 'cts'
+      uses: ./devops/actions/run-tests/windows/cts
+      with:
+        ref: ${{ inputs.tests_ref || 'main' }}
+        extra_cmake_args: ${{ inputs.extra_cmake_args }}
+        cts_testing_mode: ${{ inputs.cts_testing_mode }}
+        sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}
+        target_devices: ${{ inputs.target_devices }}
+        retention-days: ${{ inputs.artifact_retention_days }}
+
     - name:  Detect hung tests
       if: always()
       shell: powershell
@@ -135,4 +184,4 @@ jobs:
       if: always()
       run: |
         rmdir /q /s install
-        rmdir /q /s build-e2e
+        if exist build-e2e rmdir /q /s build-e2e

@@ -29,7 +29,6 @@ int main() {
 
   exp_ext::dynamic_parameter InputParam(Graph, ScalarValue);
 
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_6>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
@@ -58,7 +57,6 @@ int main() {
   for (size_t i = 0; i < Size; i++) {
     assert(HostData[i] == 99);
   }
-#endif
   sycl::free(DeviceData, Queue);
 
   return 0;

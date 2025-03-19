@@ -40,7 +40,6 @@ int main() {
 
   exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_2>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
@@ -75,7 +74,6 @@ int main() {
     assert(HostDataA[i] == i * NumKernelLoops * NumSubmitLoops);
     assert(HostDataB[i] == i * NumKernelLoops * NumSubmitLoops);
   }
-#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
 
