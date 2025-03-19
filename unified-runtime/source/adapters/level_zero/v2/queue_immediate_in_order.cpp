@@ -83,7 +83,9 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
               reinterpret_cast<ze_command_list_handle_t>(hNativeHandle),
               [ownZeQueue](ze_command_list_handle_t hZeCommandList) {
                 if (ownZeQueue) {
-                  ZE_CALL_NOCHECK(zeCommandListDestroy, (hZeCommandList));
+                  if (!this->IsInteropNativeHandle || (this->IsInteropNativeHandle && this->Context->getPlatform()->allowInteropTeardown)) {
+                    ZE_CALL_NOCHECK(zeCommandListDestroy, (hZeCommandList));
+                  }
                 }
               }),
           eventFlagsFromQueueFlags(flags)) {}

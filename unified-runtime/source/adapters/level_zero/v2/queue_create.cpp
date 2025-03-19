@@ -60,6 +60,7 @@ ur_result_t urQueueCreateWithNativeHandle(
 
   *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
       hContext, hDevice, hNativeQueue, flags, ownNativeHandle);
+  (*phQueue)->IsInteropNativeHandle = true;
 
   return UR_RESULT_SUCCESS;
 } catch (...) {

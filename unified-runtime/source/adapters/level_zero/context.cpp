@@ -151,6 +151,7 @@ ur_result_t urContextCreateWithNativeHandle(
     ur_context_handle_t_ *UrContext = new ur_context_handle_t_(
         ZeContext, NumDevices, Devices, OwnNativeHandle);
     UrContext->initialize();
+    UrContext->IsInteropNativeHandle = true;
     *Context = reinterpret_cast<ur_context_handle_t>(UrContext);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;

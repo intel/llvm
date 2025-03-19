@@ -592,6 +592,7 @@ ur_result_t urMemBufferCreateWithNativeHandle(
           hContext, hDevice, ptr, size, accessMode, nullptr, ownNativeHandle);
     }
   }
+  (*phMem)->IsInteropNativeHandle = true;
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -700,6 +701,7 @@ ur_result_t urMemImageCreateWithNativeHandle(
 
   *phMem = ur_mem_handle_t_::create<ur_mem_image_t>(
       hContext, pImageFormat, pImageDesc, zeImage, ownNativeHandle);
+  (*phMem)->IsInteropNativeHandle = true;
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

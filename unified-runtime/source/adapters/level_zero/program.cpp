@@ -966,6 +966,7 @@ ur_result_t urProgramCreateWithNativeHandle(
         ur_program_handle_t_::Exe, Context, ZeModule,
         Properties ? Properties->isNativeHandleOwned : false);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
+    (*Program)->IsInteropNativeHandle = true;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1082,7 +1083,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
     }
 
     // interop api
-    if (InteropZeModule && OwnZeModule)
+    if (InteropZeModule && OwnZeModule && this->Context->getPlatform()->allowInteropTeardown)
       ZE_CALL_NOCHECK(zeModuleDestroy, (InteropZeModule));
 
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap)

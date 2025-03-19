@@ -435,6 +435,9 @@ struct _ur_object {
   // Indicates if we own the native handle or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnNativeHandle = false;
+
+  // Indicates if this object is an interop handle. 
+  bool IsInteropNativeHandle = false;
 };
 
 // Record for a memory allocation. This structure is used to keep information

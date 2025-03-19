@@ -940,7 +940,10 @@ ur_result_t urKernelRelease(
   auto KernelProgram = Kernel->Program;
   if (Kernel->OwnNativeHandle) {
     for (auto &ZeKernel : Kernel->ZeKernels) {
-      auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernel));
+      ze_result_t ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+      if (!Kernel->IsInteropNativeHandle || (Kernel->IsInteropNativeHandle && Kernel->Context->getPlatform()->allowInteropTeardown)) {
+        ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernel));
+      }
       // Gracefully handle the case that L0 was already unloaded.
       if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
         return ze2urResult(ZeResult);
@@ -1154,6 +1157,7 @@ ur_result_t urKernelCreateWithNativeHandle(
   }
 
   Kernel->Program = Program;
+  Kernel->IsInteropNativeHandle = true;
 
   UR_CALL(Kernel->initialize());
 
