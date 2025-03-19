@@ -2120,7 +2120,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
     {
       // Clean up Bfloat16 device library image, unregister exported symbols
-      // and remove the device image only when RefCount is 0.
+      // from current device image.
       auto Bfloat16DeviceLibProp = Img->getDeviceLibMetadata();
       if (Bfloat16DeviceLibProp.isAvailable()) {
         for (const sycl_device_binary_property &ESProp :
