@@ -148,18 +148,6 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 0, 1, "Device", "Device", 1024),
             ExecImmediateCopyQueue(self, 1, 1, "Device", "Host", 1024),
             VectorSum(self),
-            MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
-            MemcpyExecute(self, 400, 8, 1024, 100, 1, 1, 1),
-            MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
-            MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
-            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 0, 5),
-            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 1, 5),
-            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 0, 100),
-            GraphApiSinKernelGraph(self, RUNTIMES.SYCL, 1, 100),
-            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 0, 5),
-            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 5),
-            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 0, 100),
-            GraphApiSinKernelGraph(self, RUNTIMES.LEVEL_ZERO, 1, 100),
         ]
 
         # Add UR-specific benchmarks
