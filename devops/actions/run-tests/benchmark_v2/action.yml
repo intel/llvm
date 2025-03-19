@@ -117,7 +117,7 @@ runs:
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --name Baseline_PVC_L0 \
-        --compare-file "./llvm-ci-perf-results/$RUNNER_NAME/results/$SAVE_NAME_$SAVE_TIMESTAMP.json" \
+        --compare-file "./llvm-ci-perf-results/$RUNNER_NAME/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/$RUNNER_NAME/results/"
 
   - name: Push compute-benchmarks results
