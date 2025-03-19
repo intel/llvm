@@ -881,6 +881,8 @@ static __SYCL_CONSTANT__ const char __mem_set_shadow_private_end[] =
 static __SYCL_CONSTANT__ const char __mem_set_shadow_private[] =
     "[kernel] set_shadow_private(beg=%p, end=%p, val:%02X)\n";
 
+// We outline the function of setting shadow memory of private memory, because
+// it may allocate failed on UR
 DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr begin, uptr size,
                                                         char val) {
   if (!__AsanLaunchInfo)
