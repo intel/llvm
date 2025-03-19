@@ -213,7 +213,7 @@ public:
         {Attribute::get(LLVMMod->getContext(), Attribute::AttrKind::Convergent),
          Attribute::get(LLVMMod->getContext(), Attribute::AttrKind::NoUnwind)});
 
-    static constexpr StringLiteral N{"_Z22__spirv_ControlBarrierjjj"};
+    static constexpr StringLiteral N{"_Z22__spirv_ControlBarrieriii"};
 
     Function *F = LLVMMod->getFunction(N);
     if (!F) {

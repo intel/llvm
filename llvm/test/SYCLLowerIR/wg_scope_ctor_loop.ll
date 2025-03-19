@@ -17,7 +17,7 @@ define internal spir_func void @spam(ptr addrspace(4) %arg, ptr byval(%struct.sn
 ; CHECK:       arrayctor.loop:
 ; CHECK-NEXT:    [[ARRAYCTOR_CUR:%.*]] = phi ptr addrspace(4) [ addrspacecast (ptr addrspace(3) @global to ptr addrspace(4)), [[WG_CF:%.*]] ], [ [[WG_VAL_ARRAYCTOR_NEXT:%.*]], [[WG_CF2:%.*]] ]
 ; CHECK-NEXT:    [[TMP4:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272)
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272)
 ; CHECK-NEXT:    [[CMPZ3:%.*]] = icmp eq i64 [[TMP4]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ3]], label [[WG_LEADER1:%.*]], label [[WG_CF2]]
 ; CHECK:       wg_leader1:
@@ -28,7 +28,7 @@ define internal spir_func void @spam(ptr addrspace(4) %arg, ptr byval(%struct.sn
 ; CHECK-NEXT:    store i1 [[ARRAYCTOR_DONE]], ptr addrspace(3) @[[WG_DONE]], align 1
 ; CHECK-NEXT:    br label [[WG_CF2]]
 ; CHECK:       wg_cf2:
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #0
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #0
 ; CHECK-NEXT:    [[WG_VAL_ARRAYCTOR_DONE:%.*]] = load i1, ptr addrspace(3) @[[WG_DONE]], align 1
 ; CHECK-NEXT:    [[WG_VAL_ARRAYCTOR_NEXT]] = load ptr addrspace(4), ptr addrspace(3) @[[WG_NEXT]], align 8
 ; CHECK-NEXT:    br i1 [[WG_VAL_ARRAYCTOR_DONE]], label [[ARRAYCTOR_CONT:%.*]], label [[ARRAYCTOR_LOOP:%.*]]

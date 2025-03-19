@@ -13,6 +13,7 @@
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
@@ -78,8 +79,6 @@ bool test_0(queue Queue) {
   std::cout << "Test 0a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<ff_0>();
@@ -97,7 +96,6 @@ bool test_0(queue Queue) {
   std::cout << "Test 0b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -130,8 +128,6 @@ bool test_1(queue Queue) {
   std::cout << "Test 1a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
@@ -150,7 +146,6 @@ bool test_1(queue Queue) {
   std::cout << "Test 1b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -188,8 +183,6 @@ bool test_2(queue Queue) {
   std::cout << "Test 2a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id =
@@ -207,7 +200,6 @@ bool test_2(queue Queue) {
   std::cout << "Test 2b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -249,8 +241,6 @@ bool test_3(queue Queue) {
   std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
-  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
@@ -268,7 +258,6 @@ bool test_3(queue Queue) {
   std::cout << "Test 3b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
