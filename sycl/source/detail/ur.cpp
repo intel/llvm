@@ -77,6 +77,11 @@ void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
 
 ur_code_location_t codeLocationCallback(void *);
 
+void receiveLoggerMessages([[maybe_unused]] ur_logger_level_t level,
+                           const char *msg, void *userData) {
+  // Do something with a message sent from a UR adapter
+}
+
 namespace ur {
 bool trace(TraceLevel Level) {
   auto TraceLevelMask = SYCLConfig<SYCL_UR_TRACE>::get();
@@ -219,6 +224,9 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
     Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
+
+    urAdapterSetLoggerCallback(UrAdapter, receiveLoggerMessages, nullptr,
+                               UR_LOGGER_LEVEL_INFO);
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

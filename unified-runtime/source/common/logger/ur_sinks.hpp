@@ -234,11 +234,13 @@ public:
   }
 
 private:
-  ur_logger_callback_t callback;
-  void *userData;
+  ur_logger_callback_t callback = nullptr;
+  void *userData = nullptr;
 
   virtual void print(ur_logger_level_t level, const std::string &msg) override {
-    callback(level, msg.c_str(), userData);
+    if (callback) {
+      callback(level, msg.c_str(), userData);
+    } 
   }
 };
 
