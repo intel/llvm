@@ -163,7 +163,7 @@ void ff_8(sycl::work_group_memory<int>) {
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_2Piii as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: void ff_2(int *ptr, int start, int end);
+// CHECK: void ff_2(int * ptr, int start, int end);
 // CHECK-NEXT: static constexpr auto __sycl_shim1() {
 // CHECK-NEXT:   return (void (*)(int *, int, int))ff_2;
 // CHECK-NEXT: }
@@ -180,7 +180,7 @@ void ff_8(sycl::work_group_memory<int>) {
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_2Piiii as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: void ff_2(int *ptr, int start, int end, int value);
+// CHECK: void ff_2(int * ptr, int start, int end, int value);
 // CHECK-NEXT: static constexpr auto __sycl_shim2() {
 // CHECK-NEXT:   return (void (*)(int *, int, int, int))ff_2;
 // CHECK-NEXT: }
@@ -309,7 +309,7 @@ void ff_8(sycl::work_group_memory<int>) {
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: template <typename DataT> class work_group_memory;
 
-// CHECK: void ff_8(sycl::work_group_memory<int>);
+// CHECK: void ff_8(sycl::work_group_memory<int> );
 // CHECK-NEXT: static constexpr auto __sycl_shim9() {
 // CHECK-NEXT: return (void (*)(class sycl::work_group_memory<int>))ff_8;
 // CHECK-NEXT: }
