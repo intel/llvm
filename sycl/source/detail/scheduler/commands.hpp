@@ -593,22 +593,20 @@ private:
 
 /// The mem copy host command enqueues memory copy between two instances of
 /// memory object.
-class MemCpyCommandHost : public Command {
+class MemCpyToHostCommand : public Command {
 public:
-  MemCpyCommandHost(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
-                    Requirement DstReq, void **DstPtr, QueueImplPtr SrcQueue,
-                    QueueImplPtr DstQueue);
+  MemCpyToHostCommand(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
+                      Requirement DstReq, void **DstPtr, QueueImplPtr SrcQueue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   ContextImplPtr getWorkerContext() const final;
-  bool producesPiEvent() const final;
+  bool producesPiEvent() const final { return !!MQueue; }
 
 private:
   ur_result_t enqueueImp() final;
 
-  QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;

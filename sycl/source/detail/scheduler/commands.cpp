@@ -1680,30 +1680,17 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
-                                     AllocaCommandBase *SrcAllocaCmd,
-                                     Requirement DstReq, void **DstPtr,
-                                     QueueImplPtr SrcQueue,
-                                     QueueImplPtr DstQueue)
-    : Command(CommandType::COPY_MEMORY, std::move(DstQueue)),
-      MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
-      MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
-  if (MSrcQueue) {
-    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
-  }
-
-  MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
-  MEvent->setWorkerQueue(MWorkerQueue);
-
+MemCpyToHostCommand::MemCpyToHostCommand(Requirement SrcReq,
+                                         AllocaCommandBase *SrcAllocaCmd,
+                                         Requirement DstReq, void **DstPtr,
+                                         QueueImplPtr SrcQueue)
+    : Command(CommandType::COPY_MEMORY, std::move(SrcQueue)),
+      MSrcReq(std::move(SrcReq)), MSrcAllocaCmd(SrcAllocaCmd),
+      MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
   emitInstrumentationDataProxy();
 }
 
-bool MemCpyCommandHost::producesPiEvent() const {
-  // Produces native event if it is not host to host copy.
-  return MSrcQueue || MQueue;
-}
-
-void MemCpyCommandHost::emitInstrumentationData() {
+void MemCpyToHostCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1717,9 +1704,8 @@ void MemCpyCommandHost::emitInstrumentationData() {
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
   xpti::addMetadata(CmdTraceEvent, "copy_from",
-                    MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
-  xpti::addMetadata(CmdTraceEvent, "copy_to",
                     MQueue ? deviceToID(MQueue->get_device()) : 0);
+  xpti::addMetadata(CmdTraceEvent, "copy_to", 0);
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
@@ -1727,13 +1713,13 @@ void MemCpyCommandHost::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommandHost::getWorkerContext() const {
+ContextImplPtr MemCpyToHostCommand::getWorkerContext() const {
   if (!MWorkerQueue)
     return nullptr;
   return MWorkerQueue->getContextImplPtr();
 }
 
-ur_result_t MemCpyCommandHost::enqueueImp() {
+ur_result_t MemCpyToHostCommand::enqueueImp() {
   const QueueImplPtr &Queue = MWorkerQueue;
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1754,9 +1740,9 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   ur_event_handle_t UREvent = nullptr;
   if (auto Result = callMemOpHelper(
           MemoryManager::copy, MSrcAllocaCmd->getSYCLMemObj(),
-          MSrcAllocaCmd->getMemAllocation(), MSrcQueue, MSrcReq.MDims,
+          MSrcAllocaCmd->getMemAllocation(), MQueue, MSrcReq.MDims,
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
-          MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
+          MSrcReq.MElemSize, *MDstPtr, nullptr, MDstReq.MDims,
           MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
           MDstReq.MElemSize, std::move(RawEvents), UREvent, MEvent);
       Result != UR_RESULT_SUCCESS)
@@ -1841,7 +1827,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
 
 bool EmptyCommand::producesPiEvent() const { return false; }
 
-void MemCpyCommandHost::printDot(std::ostream &Stream) const {
+void MemCpyToHostCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
 
   Stream << "ID = " << this << "\\n";

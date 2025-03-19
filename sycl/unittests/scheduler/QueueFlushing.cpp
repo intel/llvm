@@ -133,8 +133,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                     &HostAllocaCmd, QueueImplA, nullptr};
     testCommandEnqueue(&MemCpyCmd, QueueImplB, MockReq);
 
-    detail::MemCpyCommandHost MemCpyCmdHost{MockReq,      &AllocaCmd, MockReq,
-                                            &MockHostPtr, QueueImplA, nullptr};
+    detail::MemCpyToHostCommand MemCpyCmdHost{MockReq, &AllocaCmd, MockReq,
+                                              &MockHostPtr, QueueImplA};
     testCommandEnqueue(&MemCpyCmdHost, QueueImplB, MockReq);
 
     std::unique_ptr<detail::CG> CG{
