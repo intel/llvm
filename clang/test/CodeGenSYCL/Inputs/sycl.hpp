@@ -19,11 +19,7 @@ extern "C" int printf(const char* fmt, ...);
 
 #ifdef __SYCL_DEVICE_ONLY__
 __attribute__((convergent)) extern __attribute__((sycl_device)) void
-<<<<<<< HEAD
-__spirv_ControlBarrier(unsigned int, unsigned int, unsigned int) noexcept;
-=======
-__spirv_ControlBarrier(int, int, int);
->>>>>>> sycl
+__spirv_ControlBarrier(int, int, int) noexcept;
 #endif
 
 // Dummy runtime classes to model SYCL API.
