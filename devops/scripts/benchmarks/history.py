@@ -11,6 +11,7 @@ from utils.result import Result, BenchmarkRun
 from options import Compare, options
 from datetime import datetime, timezone
 from utils.utils import run
+from utils.validate import Validate
 
 
 class BenchmarkHistory:
@@ -30,7 +31,8 @@ class BenchmarkHistory:
     def load(self, n: int):
         results_dir = Path(self.dir) / "results"
         if not results_dir.exists() or not results_dir.is_dir():
-            return []
+            print(f"Warning: {results_dir} is not a valid directory: no historic results loaded.")
+            return
 
         # Get all JSON files in the results directory
         benchmark_files = list(results_dir.glob("*.json"))
@@ -38,7 +40,9 @@ class BenchmarkHistory:
         # Extract timestamp and sort files by it
         def extract_timestamp(file_path: Path) -> str:
             try:
-                return file_path.stem.split("_")[-1]
+                # Assumes results are stored as <name>_YYYYMMDD_HHMMSS.json 
+                ts = file_path.stem[-len("YYYYMMDD_HHMMSS"):]
+                return ts if Validate.timestamp(ts) else ""
             except IndexError:
                 return ""
 
@@ -98,7 +102,11 @@ class BenchmarkHistory:
         os.makedirs(results_dir, exist_ok=True)
 
         # Use formatted timestamp for the filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = (
+            datetime.now().strftime("%Y%m%d_%H%M%S")
+            if options.timestamp_override is None else 
+            options.timestamp_override
+        )
         file_path = Path(os.path.join(results_dir, f"{save_name}_{timestamp}.json"))
         with file_path.open("w") as file:
             json.dump(serialized, file, indent=4)

@@ -292,6 +292,7 @@ if __name__ == "__main__":
         if regressions:
             print("#\n# Regressions:\n#\n")
             for test in regressions: print_regression(test)
+            exit(1)  # Exit 1 to trigger github test failure
     else:
         print("Unsupported operation: exiting.")
         exit(1)

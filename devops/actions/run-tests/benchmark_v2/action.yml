@@ -100,6 +100,7 @@ runs:
 
       # TODO accomodate for different GPUs and backends
       SAVE_NAME="Baseline_PVC_L0"
+      SAVE_TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
       if [ -n "$BUILD_HASH" ]; then
           SAVE_NAME="Commit_PVC_$BUILD_HASH"
       fi
@@ -112,14 +113,17 @@ runs:
         --results-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
         --output-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
         --preset Minimal
+        --timestamp-override "$SAVE_TIMESTAMP"
       echo "-----"
+      python3 ./devops/scripts/benchmarks/compare.py to_hist \
+        --name Baseline_PVC_L0 \
+        --compare_file "./llvm-ci-perf-results/$RUNNER_NAME/results/$SAVE_NAME_$SAVE_TIMESTAMP.json"
+        --results_dir "./llvm-ci-perf-results/$RUNNER_NAME/results/"
+
   - name: Push compute-benchmarks results
     if: inputs.upload_results == 'true' && always()
     shell: bash
     run: |
-      # TODO redo configuration
-      # $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
-
       cd "./llvm-ci-perf-results"
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
