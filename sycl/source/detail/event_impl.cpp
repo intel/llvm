@@ -178,6 +178,17 @@ event_impl::event_impl(const QueueImplPtr &Queue)
   MState.store(HES_Complete);
 }
 
+void event_impl::setQueue(const QueueImplPtr &Queue) {
+  MQueue = Queue;
+  MIsProfilingEnabled = Queue->MIsProfilingEnabled;
+  MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
+
+  // TODO After setting the queue, the event is no longer default
+  // constructed. Consider a design change which would allow
+  // for such a change regardless of the construction method.
+  MIsDefaultConstructed = false;
+}
+
 void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;

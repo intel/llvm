@@ -33,20 +33,33 @@ using __nativecpu_state = native_cpu::state;
 #define OCL_GLOBAL __attribute__((opencl_global))
 #define OCL_PRIVATE __attribute__((opencl_private))
 
+<<<<<<< HEAD
 DEVICE_EXTERN_C void __mux_work_group_barrier(uint32_t id, uint32_t scope,
                                               uint32_t semantics) noexcept;
 __SYCL_CONVERGENT__ DEVICE_EXTERNAL void
 __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
                        uint32_t Semantics) noexcept {
+=======
+DEVICE_EXTERN_C void __mux_work_group_barrier(int32_t id, int32_t scope,
+                                              int32_t semantics);
+__SYCL_CONVERGENT__ DEVICE_EXTERNAL void
+__spirv_ControlBarrier(int32_t Execution, int32_t Memory, int32_t Semantics) {
+>>>>>>> sycl
   if (__spv::Scope::Flag::Workgroup == Execution)
     // todo: check id and args; use mux constants
     __mux_work_group_barrier(0, Execution, Semantics);
 }
 
+<<<<<<< HEAD
 DEVICE_EXTERN_C void __mux_mem_barrier(uint32_t scope,
                                        uint32_t semantics) noexcept;
 __SYCL_CONVERGENT__ DEVICE_EXTERNAL void
 __spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) noexcept {
+=======
+DEVICE_EXTERN_C void __mux_mem_barrier(int32_t scope, int32_t semantics);
+__SYCL_CONVERGENT__ DEVICE_EXTERNAL void
+__spirv_MemoryBarrier(int32_t Memory, int32_t Semantics) {
+>>>>>>> sycl
   __mux_mem_barrier(Memory, Semantics);
 }
 

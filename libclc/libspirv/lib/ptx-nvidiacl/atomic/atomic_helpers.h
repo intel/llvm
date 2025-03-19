@@ -13,7 +13,7 @@
 #include <libspirv/spirv_types.h>
 
 extern int __clc_nvvm_reflect_arch();
-_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
+_CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(int, int);
 
 #define __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,       \
                                      ADDR_SPACE, ADDR_SPACE_NV, ORDER)         \

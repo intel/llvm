@@ -362,7 +362,7 @@ public:
 
 private:
   std::shared_ptr<detail::device_impl> impl;
-  device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
+  device(std::shared_ptr<detail::device_impl> Impl) : impl(std::move(Impl)) {}
 
   ur_native_handle_t getNative() const;
 
@@ -371,7 +371,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

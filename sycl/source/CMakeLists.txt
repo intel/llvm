@@ -21,6 +21,34 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
+
+  # Common compilation step setup
+
+  target_compile_definitions(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      __SYCL_INTERNAL_API
+      SYCL2020_DISABLE_DEPRECATION_WARNINGS
+      $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
+  )
+
+  target_include_directories(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}
+      ${sycl_inc_dir}
+      ${BOOST_UNORDERED_INCLUDE_DIRS}
+  )
+
+  # Object libraries are not linked, so these "libraries" are in fact include
+  # directories
+  target_link_libraries(${LIB_OBJ_NAME}
+    PRIVATE
+      UnifiedRuntime-Headers
+      # TODO: Remove dependency on opencl headers.
+      OpenCL-Headers
+  )
+
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
@@ -40,6 +68,17 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if (NOT MSVC AND SYCL_LIB_WITH_DEBUG_SYMBOLS)
     separate_arguments(CMAKE_CXX_FLAGS_DEBUG_SEPARATED UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
     target_compile_options(${LIB_NAME} PRIVATE ${CMAKE_CXX_FLAGS_DEBUG_SEPARATED})
+  endif()
+
+  # To facilitate better tracing and profiling except on release builds.
+  check_cxx_compiler_flag("-fno-omit-frame-pointer" CXX_HAS_NO_OMIT_FRAME_POINTER)
+  if (CXX_HAS_NO_OMIT_FRAME_POINTER)
+    target_compile_options(${LIB_NAME} PUBLIC
+      $<$<CONFIG:Debug,RelWithDebInfo>:-fno-omit-frame-pointer>
+      )
+    target_compile_options(${LIB_OBJ_NAME} PUBLIC
+      $<$<CONFIG:Debug,RelWithDebInfo>:-fno-omit-frame-pointer>
+      )
   endif()
 
   if (SYCL_ENABLE_COVERAGE)
@@ -76,8 +115,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
   endif()
 
-  target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
-
   # ur_win_proxy_loader
   if (WIN32)
     include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/ur_win_proxy_loader)
@@ -94,10 +131,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_options(${LIB_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000" "LINKER:/MANIFEST:NO" "LINKER:/MANIFEST:EMBED" "LINKER:/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME}")
   endif()
 
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
-
   if (WIN32)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
     if (ARG_IMPLIB_NAME)
       add_custom_command(
@@ -134,19 +168,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     endif()
   endif()
 
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
-
-  target_include_directories(
-    ${LIB_OBJ_NAME}
-    PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}
-      "${sycl_inc_dir}"
-  )
-  #TODO: Remove dependency on opencl headers.
-  target_link_libraries(${LIB_OBJ_NAME}
-    PRIVATE OpenCL-Headers
-  )
-
   if(SYCL_ENABLE_EXTENSION_JIT)
     if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)
       message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR variable: Must be set when extension to JIT SYCL kernels is enabled")
@@ -156,7 +177,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
         ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
     add_dependencies(${LIB_NAME} sycl-jit)
     add_dependencies(${LIB_OBJ_NAME} sycl-jit)
-    target_include_directories(${LIB_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
        sycl-jit)
@@ -172,19 +192,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       ${CMAKE_THREAD_LIBS_INIT}
   )
 
-  # Link and include UR
-  target_link_libraries(${LIB_OBJ_NAME}
-    PRIVATE
-      UnifiedRuntime-Headers
-      UnifiedRuntimeCommon
-  )
-
-  target_include_directories(${LIB_OBJ_NAME}
-    PRIVATE
-      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
-      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
-  )
-
+  # Link UR
   target_link_libraries(${LIB_NAME}
     PRIVATE
       UnifiedRuntime-Headers
@@ -197,12 +205,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       UnifiedRuntimeLoader
     )
   endif()
-
-  target_include_directories(${LIB_NAME}
-    PRIVATE
-      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
-      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
-  )
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 

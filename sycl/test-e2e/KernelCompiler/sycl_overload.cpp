@@ -1,4 +1,4 @@
-//==- kernel_compiler_namespaces.cpp --- kernel_compiler extension tests ---==//
+//==--- sycl_overload.cpp --- kernel_compiler extension tests --------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -26,37 +26,39 @@ static constexpr size_t WGSIZE = 16;
 int main() {
   sycl::queue q;
 
-  // The source code for two kernels defined in different namespaces
+  // The source code for two kernels defined as overloaded functions.
   std::string source = R"""(
     #include <sycl/sycl.hpp>
     namespace syclext = sycl::ext::oneapi;
     namespace syclexp = sycl::ext::oneapi::experimental;
 
     SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-    void iota(int start, int *ptr) {
+    void iota(float start, float *ptr) {
       size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
-      ptr[id] = start + static_cast<int>(id);
+      ptr[id] = start + static_cast<float>(id);
     }
 
-    namespace mykernels {
     SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
     void iota(int start, int *ptr) {
       size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
       ptr[id] = start + static_cast<int>(id);
     }
-    } // namespace mykernels
   )""";
 
   // Create a kernel bundle in "source" state.
   sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
       syclexp::create_kernel_bundle_from_source(
-          q.get_context(), syclexp::source_language::sycl_jit, source);
+          q.get_context(), syclexp::source_language::sycl, source);
 
-  // Compile the kernel. Select kernel from the mykernels namespace
-  std::string iota_name{"mykernels::iota"};
+  // Compile the kernel.  Because there are two overloads of "iota", we need to
+  // use a C++ cast to disambiguate between them.  Here, we are selecting the
+  // "int" overload.
+  std::string iota_name{"(void(*)(int, int*))iota"};
   sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe = syclexp::build(
       kb_src, syclexp::properties{syclexp::registered_names{iota_name}});
 
+  // Get the kernel by passing the same string we used to construct the
+  // "registered_names" property.
   sycl::kernel iota = kb_exe.ext_oneapi_get_kernel(iota_name);
 
   int *ptr = sycl::malloc_shared<int>(NUM, q);

@@ -49,8 +49,12 @@ extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(void *, int) noexcept;
 
 extern SYCL_EXTERNAL __attribute__((convergent)) void
+<<<<<<< HEAD
 __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
                        uint32_t Semantics) noexcept;
+=======
+__spirv_ControlBarrier(int32_t Execution, int32_t Memory, int32_t Semantics);
+>>>>>>> sycl
 
 extern "C" SYCL_EXTERNAL void __devicelib_exit();
 
