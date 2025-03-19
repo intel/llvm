@@ -194,13 +194,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     // All fp types are supported, return minimum flags to indicate support.
-    // TODO: look at this in more detail.
+    // TODO: these should be influenced by fp related flags, see
+    // https://github.com/intel/llvm/issues/17530
     ur_device_fp_capability_flags_t SupportedFlags =
-        UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
         UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
-        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
-        UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
-    ;
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST;
     return ReturnValue(SupportedFlags);
   }
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
