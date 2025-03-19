@@ -7126,7 +7126,7 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
 
   // Diagnose function pointers in SYCL.
   if (!FDecl &&
-      SemaSYCLRef.getLangOpts().getSYCLAllowFuncPtr() ==
+      getLangOpts().getSYCLAllowFuncPtr() ==
           LangOptions::SYCLFuncPtrPreference::Off &&
       getLangOpts().SYCLIsDevice && !isUnevaluatedContext()) {
     bool MaybeConstantExpr = false;
