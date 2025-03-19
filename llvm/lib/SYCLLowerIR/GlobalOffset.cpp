@@ -93,7 +93,8 @@ static void validateKernels(Module &M, TargetHelpers::KernelCache &KCache) {
 }
 
 void GlobalOffsetPass::createClonesAndPopulateVMap(
-    TargetHelpers::KernelCache &KCache, Function *ImplicitOffsetIntrinsic) {
+    const TargetHelpers::KernelCache &KCache,
+    Function *ImplicitOffsetIntrinsic) {
   std::deque<User *> WorkList;
   for (auto *U : ImplicitOffsetIntrinsic->users())
     WorkList.emplace_back(U);
@@ -125,7 +126,8 @@ void GlobalOffsetPass::createClonesAndPopulateVMap(
     Arguments.push_back(ImplicitArgumentType);
 
     // Build the new function.
-    assert(!FuncTy->isVarArg() && "Variadic arguments prohibited in SYCL");
+    if (FuncTy->isVarArg())
+      llvm_unreachable("Variadic arguments prohibited in SYCL");
     FunctionType *NewFuncTy = FunctionType::get(FuncTy->getReturnType(),
                                                 Arguments, FuncTy->isVarArg());
     Function *NewFunc = Function::Create(NewFuncTy, Func->getLinkage(),

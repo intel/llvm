@@ -39,7 +39,7 @@ private:
   /// \param KCache Kernel bookkeeping helper.
   /// \param ImplicitOffsetIntrinsic Implicit offset intrinsic, provides a
   /// starting point in search for all the functions that need to be clone.
-  void createClonesAndPopulateVMap(TargetHelpers::KernelCache &KCache,
+  void createClonesAndPopulateVMap(const TargetHelpers::KernelCache &KCache,
                                    Function *ImplicitOffsetIntrinsic);
 
   /// After the execution of this function, the module to which the kernel
