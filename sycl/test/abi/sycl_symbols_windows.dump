@@ -430,8 +430,8 @@
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV012345@@Z
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@45@AEBVdevice@45@W4alloc@usm@45@AEBVproperty_list@45@@Z
-??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@45@AEBVproperty_list@45@@Z
-??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@45@PEBX_KAEBVproperty_list@45@@Z
+??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@45@PEAX_KAEBVproperty_list@45@@Z
+??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@45@W4alloc@usm@45@AEBVproperty_list@45@@Z
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVqueue@45@W4alloc@usm@45@AEBVproperty_list@45@@Z
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAA@AEBV?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@@Z
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
@@ -3902,8 +3902,8 @@
 ?ext_oneapi_get_backend_impl@device_image_plain@detail@_V1@sycl@@IEBA?AW4backend@34@XZ
 ?ext_oneapi_get_composite_devices@platform@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ?ext_oneapi_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
-?ext_oneapi_get_default_memory_pool@context@_V1@sycl@@QEBA?AVmemory_pool@experimental@oneapi@ext@23@AEBVdevice@23@AEBW4alloc@usm@23@@Z
-?ext_oneapi_get_default_memory_pool@context@_V1@sycl@@QEBA?AVmemory_pool@experimental@oneapi@ext@23@XZ
+?ext_oneapi_get_default_memory_pool@context@_V1@sycl@@QEBA?AVmemory_pool@experimental@oneapi@ext@23@AEBVdevice@23@W4alloc@usm@23@@Z
+?ext_oneapi_get_default_memory_pool@context@_V1@sycl@@QEBA?AVmemory_pool@experimental@oneapi@ext@23@W4alloc@usm@23@@Z
 ?ext_oneapi_get_device_global_address@kernel_bundle_plain@detail@_V1@sycl@@AEAAPEAXVstring_view@234@AEBVdevice@34@@Z
 ?ext_oneapi_get_device_global_address@kernel_bundle_plain@detail@_V1@sycl@@QEAAPEAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEBVdevice@34@@Z
 ?ext_oneapi_get_device_global_size@kernel_bundle_plain@detail@_V1@sycl@@AEAA_KVstring_view@234@@Z
@@ -4195,6 +4195,7 @@
 ?has_kernel_bundle_impl@detail@_V1@sycl@@YA_NAEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@Vkernel_id@_V1@sycl@@V?$allocator@Vkernel_id@_V1@sycl@@@std@@@6@W4bundle_state@23@@Z
 ?has_kernel_bundle_impl@detail@_V1@sycl@@YA_NAEBVcontext@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4bundle_state@23@@Z
 ?has_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NPEBD@Z
+?increase_threshold_to@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAAX_K@Z
 ?internalProfilingTagImpl@handler@_V1@sycl@@AEAAXXZ
 ?isBackendSupportedFillSize@handler@_V1@sycl@@CA_N_K@Z
 ?isConstOrGlobal@handler@_V1@sycl@@CA_NW4target@access@23@@Z
@@ -4365,7 +4366,6 @@
 ?set_flag@stream@_V1@sycl@@AEBAXI@Z
 ?set_flag@stream@_V1@sycl@@AEBAXII@Z
 ?set_manipulator@stream@_V1@sycl@@AEBAXW4stream_manipulator@23@@Z
-?set_new_threshold@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAAX_K@Z
 ?set_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEAAXPEBDPEAX_K@Z
 ?set_write_back@buffer_plain@detail@_V1@sycl@@IEAAX_N@Z
 ?set_write_back@image_plain@detail@_V1@sycl@@IEAAX_N@Z
@@ -4401,7 +4401,6 @@
 ?sycl_category@_V1@sycl@@YAAEBVerror_category@std@@XZ
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
-?trim_to@memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAAX_K@Z
 ?unmap@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVcontext@45@@Z
 ?unsampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0AEBV?$optional@W4image_target@_V1@sycl@@@std@@W4mode@access@23@PEBXIAEBUcode_location@123@@Z
 ?unsampledImageConstructorNotification@image_plain@detail@_V1@sycl@@IEAAXAEBUcode_location@234@PEAXPEBXIQEA_KW4image_format@34@@Z

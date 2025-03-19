@@ -2320,6 +2320,9 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 2D sampled image data.
   UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,
+  /// [::ur_bool_t] returns true if the device supports sampled image
+  /// gather.
+  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP = 0x201D,
   /// [::ur_bool_t] returns true if the device supports enqueueing of native
   /// work
   UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,
@@ -3240,6 +3243,8 @@ typedef enum ur_mem_type_t {
   UR_MEM_TYPE_IMAGE1D_ARRAY = 4,
   /// Experimental cubemap image object
   UR_MEM_TYPE_IMAGE_CUBEMAP_EXP = 0x2000,
+  /// Experimental gather image object
+  UR_MEM_TYPE_IMAGE_GATHER_EXP = 0x2001,
   /// @cond
   UR_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond

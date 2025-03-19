@@ -24,6 +24,14 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Common compilation step setup
 
+  target_compile_definitions(
+    ${LIB_OBJ_NAME}
+    PRIVATE
+      __SYCL_INTERNAL_API
+      SYCL2020_DISABLE_DEPRECATION_WARNINGS
+      $<$<BOOL:${MSVC}>:__SYCL_BUILD_SYCL_DLL>
+  )
+
   target_include_directories(
     ${LIB_OBJ_NAME}
     PRIVATE
@@ -123,10 +131,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_options(${LIB_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000" "LINKER:/MANIFEST:NO" "LINKER:/MANIFEST:EMBED" "LINKER:/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME}")
   endif()
 
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
-
   if (WIN32)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
     if (ARG_IMPLIB_NAME)
       add_custom_command(
@@ -162,8 +167,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
   endif()
-
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
 
   if(SYCL_ENABLE_EXTENSION_JIT)
     if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)
