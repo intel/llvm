@@ -37,6 +37,7 @@ struct MsanErrorReport {
 
   uint32_t AccessSize = 0;
   ErrorType ErrorTy = ErrorType::UNKNOWN;
+  uintptr_t Origin;
 };
 
 struct MsanLocalArgsInfo {
@@ -49,6 +50,9 @@ struct MsanLaunchInfo {
 
   uintptr_t LocalShadowOffset = 0;
   uintptr_t LocalShadowOffsetEnd = 0;
+
+  uintptr_t PrivateShadowOffset = 0;
+  uintptr_t PrivateShadowOffsetEnd = 0;
 
   uintptr_t CleanShadow = 0;
 

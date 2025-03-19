@@ -54,9 +54,7 @@ SYCL Native CPU uses [libclc](https://github.com/intel/llvm/tree/sycl/libclc) to
 SYCL Native CPU uses the [oneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (OCK) in order to support some core SYCL functionalities and improve performances, the OCK is fetched by default when SYCL Native CPU is enabled, and can optionally be disabled using the `NATIVECPU_USE_OCK` CMake variable (please note that disabling the OCK will result in limited functionalities and performances on the SYCL Native CPU backend):
 
 ```
-python3 buildbot/configure.py \
-  --native_cpu \
-  --cmake-opt=-DNATIVECPU_USE_OCK=Off
+python3 buildbot/configure.py --native_cpu -DNATIVECPU_USE_OCK=Off
 ```
 
 By default the oneAPI Construction Kit is pulled at the project's configure time using CMake `FetchContent`. This behaviour can be overridden by setting `NATIVECPU_OCK_USE_FETCHCONTENT=Off` and `OCK_SOURCE_DIR=<path>`

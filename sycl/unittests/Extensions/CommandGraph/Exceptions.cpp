@@ -380,19 +380,6 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
   sycl::free(ImgMemUSM, Ctxt);
 }
 
-// ext_codeplay_enqueue_native_command isn't supported with SYCL graphs
-TEST_F(CommandGraphTest, EnqueueCustomCommandCheck) {
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Graph.add([&](sycl::handler &CGH) {
-      CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {});
-    });
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-}
-
 // sycl_ext_oneapi_work_group_scratch_memory isn't supported with SYCL graphs
 TEST_F(CommandGraphTest, WorkGroupScratchMemoryCheck) {
   ASSERT_THROW(

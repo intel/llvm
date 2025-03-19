@@ -55,6 +55,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     return Err;
   } catch (CUresult CuErr) {
     return mapErrorUR(CuErr);
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
 }
