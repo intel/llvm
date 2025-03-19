@@ -26,18 +26,3 @@ BinaryFormat KernelBinary::format() const { return Format; }
 JITContext::JITContext() : LLVMCtx{new llvm::LLVMContext}, Binaries{} {}
 
 llvm::LLVMContext *JITContext::getLLVMContext() { return LLVMCtx.get(); }
-
-std::optional<SYCLKernelInfo>
-JITContext::getCacheEntry(CacheKeyT &Identifier) const {
-  ReadLockT ReadLock{CacheMutex};
-  auto Entry = Cache.find(Identifier);
-  if (Entry != Cache.end()) {
-    return Entry->second;
-  }
-  return {};
-}
-
-void JITContext::addCacheEntry(CacheKeyT &Identifier, SYCLKernelInfo &Kernel) {
-  WriteLockT WriteLock{CacheMutex};
-  Cache.emplace(Identifier, Kernel);
-}

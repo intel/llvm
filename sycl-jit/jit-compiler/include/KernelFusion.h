@@ -28,15 +28,12 @@ namespace jit_compiler {
 class JITResult {
 public:
   explicit JITResult(const char *ErrorMessage)
-      : Type{JITResultType::FAILED}, KernelInfo{}, ErrorMessage{ErrorMessage} {}
+      : Failed{true}, KernelInfo{}, ErrorMessage{ErrorMessage} {}
 
-  explicit JITResult(const SYCLKernelInfo &KernelInfo, bool Cached = false)
-      : Type{(Cached) ? JITResultType::CACHED : JITResultType::NEW},
-        KernelInfo(KernelInfo), ErrorMessage{} {}
+  explicit JITResult(const SYCLKernelInfo &KernelInfo)
+      : Failed{false}, KernelInfo(KernelInfo), ErrorMessage{} {}
 
-  bool failed() const { return Type == JITResultType::FAILED; }
-
-  bool cached() const { return Type == JITResultType::CACHED; }
+  bool failed() const { return Failed; }
 
   const char *getErrorMessage() const {
     assert(failed() && "No error message present");
@@ -49,9 +46,7 @@ public:
   }
 
 private:
-  enum class JITResultType { FAILED, CACHED, NEW };
-
-  JITResultType Type;
+  bool Failed;
   SYCLKernelInfo KernelInfo;
   sycl::detail::string ErrorMessage;
 };

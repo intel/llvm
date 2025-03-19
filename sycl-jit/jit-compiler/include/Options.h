@@ -86,11 +86,6 @@ struct JITEnableVerbose
   using OptionBase::OptionBase;
 };
 
-struct JITEnableCaching
-    : public OptionBase<JITEnableCaching, OptionID::EnableCaching, bool> {
-  using OptionBase::OptionBase;
-};
-
 struct JITTargetInfo
     : public OptionBase<JITTargetInfo, OptionID::TargetDeviceInfo, TargetInfo> {
   using OptionBase::OptionBase;

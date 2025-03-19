@@ -13,11 +13,8 @@
 #include <mutex>
 #include <shared_mutex>
 #include <string>
-#include <tuple>
 #include <unordered_map>
-#include <vector>
 
-#include "Hashing.h"
 #include "Kernel.h"
 #include "Options.h"
 #include "Parameter.h"
@@ -27,15 +24,6 @@ class LLVMContext;
 } // namespace llvm
 
 namespace jit_compiler {
-
-using CacheKeyT =
-    std::tuple<DeviceArchitecture, std::vector<std::string>,
-               std::vector<ParameterIdentity>, BarrierFlags,
-               std::vector<ParameterInternalization>, std::vector<JITConstant>,
-               // This field of the cache is optional because, if all of the
-               // ranges are equal, we will perform no remapping, so that fused
-               // kernels can be reused with different lists of equal nd-ranges.
-               std::optional<std::vector<NDRange>>>;
 
 ///
 /// Wrapper around a kernel binary.
@@ -81,10 +69,6 @@ public:
     Binaries.erase(Addr);
   }
 
-  std::optional<SYCLKernelInfo> getCacheEntry(CacheKeyT &Identifier) const;
-
-  void addCacheEntry(CacheKeyT &Identifier, SYCLKernelInfo &Kernel);
-
 private:
   JITContext();
   ~JITContext() = default;
@@ -105,10 +89,6 @@ private:
   MutexT BinariesMutex;
 
   std::unordered_map<BinaryAddress, std::unique_ptr<KernelBinary>> Binaries;
-
-  mutable MutexT CacheMutex;
-
-  std::unordered_map<CacheKeyT, SYCLKernelInfo> Cache;
 };
 } // namespace jit_compiler
 

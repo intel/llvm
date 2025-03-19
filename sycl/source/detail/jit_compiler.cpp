@@ -980,8 +980,6 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
   AddToConfigHandle(
       ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
-  AddToConfigHandle(::jit_compiler::option::JITEnableCaching::set(
-      detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get()));
 
   ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
   ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
@@ -1002,7 +1000,6 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }
 
   auto &FusedKernelInfo = FusionResult.getKernelInfo();
-  std::string FusedOrCachedKernelName{FusedKernelInfo.Name.c_str()};
 
   std::vector<ArgDesc> FusedArgs;
   int FusedArgIndex = 0;
@@ -1027,19 +1024,13 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }(FusedKernelInfo.NDR);
   updatePromotedArgs(FusedKernelInfo, NDRDesc, FusedArgs, ArgsStorage);
 
-  if (!FusionResult.cached()) {
-    auto PIDeviceBinaries = createPIDeviceBinary(FusedKernelInfo, TargetFormat);
-    detail::ProgramManager::getInstance().addImages(PIDeviceBinaries);
-  } else {
-    if (DebugEnabled) {
-      std::cerr << "INFO: Re-using existing device binary for fused kernel\n";
-    }
-  }
+  auto PIDeviceBinaries = createPIDeviceBinary(FusedKernelInfo, TargetFormat);
+  detail::ProgramManager::getInstance().addImages(PIDeviceBinaries);
 
   // Create a kernel bundle for the fused kernel.
   // Kernel bundles are stored in the CG as one of the "extended" members.
-  auto FusedKernelId = detail::ProgramManager::getInstance().getSYCLKernelID(
-      FusedOrCachedKernelName);
+  auto FusedKernelId =
+      detail::ProgramManager::getInstance().getSYCLKernelID(FusedKernelName);
 
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
   if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
@@ -1050,7 +1041,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
+      std::move(CGData), std::move(FusedArgs), FusedKernelName, {}, {},
       CGType::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
       false /* KernelUsesClusterLaunch*/, 0 /* KernelWorkGroupMemorySize */));
   return FusedCG;

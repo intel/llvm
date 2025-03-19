@@ -142,7 +142,6 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
 
   TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
   BinaryFormat TargetFormat = TargetInfo.getFormat();
-  DeviceArchitecture TargetArch = TargetInfo.getArch();
 
   llvm::Expected<jit_compiler::FusedNDRange> FusedNDR =
       jit_compiler::FusedNDRange::get(NDRanges);
@@ -152,32 +151,6 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
 
   if (!isTargetFormatSupported(TargetFormat)) {
     return JITResult("Fusion output target format not supported by this build");
-  }
-
-  auto &JITCtx = JITContext::getInstance();
-  bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
-  CacheKeyT CacheKey{TargetArch,
-                     KernelsToFuse,
-                     Identities.to<std::vector>(),
-                     BarriersFlags,
-                     Internalization.to<std::vector>(),
-                     Constants.to<std::vector>(),
-                     FusedNDR->isHeterogeneousList()
-                         ? std::optional<std::vector<NDRange>>{NDRanges}
-                         : std::optional<std::vector<NDRange>>{std::nullopt}};
-  if (CachingEnabled) {
-    std::optional<SYCLKernelInfo> CachedKernel = JITCtx.getCacheEntry(CacheKey);
-    if (CachedKernel) {
-      helper::printDebugMessage("Re-using cached JIT kernel");
-      if (!FusedNDR->isHeterogeneousList()) {
-        // If the cache query didn't include the ranges, update the fused range
-        // before returning the kernel info to the runtime.
-        CachedKernel->NDR = FusedNDR->getNDR();
-      }
-      return JITResult{*CachedKernel, /*Cached*/ true};
-    }
-    helper::printDebugMessage(
-        "Compiling new kernel, no suitable cached kernel found");
   }
 
   SYCLModuleInfo ModuleInfo;
@@ -190,6 +163,7 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
                               KernelInformation.end());
   // Load all input kernels from their respective SPIR-V modules into a single
   // LLVM IR module.
+  auto &JITCtx = JITContext::getInstance();
   llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
       translation::KernelTranslator::loadKernels(*JITCtx.getLLVMContext(),
                                                  ModuleInfo.kernels());
@@ -240,10 +214,6 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
   }
 
   FusedKernelInfo.NDR = FusedNDR->getNDR();
-
-  if (CachingEnabled) {
-    JITCtx.addCacheEntry(CacheKey, FusedKernelInfo);
-  }
 
   return JITResult{FusedKernelInfo};
 }
