@@ -308,11 +308,22 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
   if (UrL0Debug & UR_L0_DEBUG_BASIC) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    setEnvVar("ZEL_ENABLE_LOADER_LOGGING", "1");
+    setEnvVar("ZEL_LOADER_LOGGING_LEVEL", "trace");
+    setEnvVar("ZEL_LOADER_LOG_CONSOLE", "1");
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+#endif
   };
 
   if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
     setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
+  }
+
+  if (UrL0LeaksDebug) {
+    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+    setEnvVar("ZEL_ENABLE_BASIC_LEAK_CHECKER", "1");
   }
 
   PlatformCache.Compute = [](Result<PlatformVec> &result) {
@@ -405,6 +416,16 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
              loader_version.patch >= 2)) {
           useInitDrivers = true;
         }
+
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+        if ((loader_version.major == 1 && loader_version.minor < 21) ||
+            (loader_version.major == 1 && loader_version.minor == 21 &&
+             loader_version.patch < 2)) {
+          logger::warning(
+              "WARNING: Level Zero Loader version is older than 1.21.2. "
+              "Please update to the latest version for API logging support.\n");
+        }
+#endif
       }
 
       if (useInitDrivers) {

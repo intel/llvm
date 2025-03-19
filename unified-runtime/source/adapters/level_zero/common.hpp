@@ -70,19 +70,10 @@ const int UrL0Debug = [] {
   return DebugMode;
 }();
 
-// This function will ensure compatibility with both Linux and Windows for
-// setting environment variables.
-bool setEnvVar(const char *name, const char *value);
-
 const int UrL0LeaksDebug = [] {
   const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
   if (!UrRet)
     return 0;
-
-  if (std::atoi(UrRet)) {
-    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
-    setEnvVar("ZEL_ENABLE_BASIC_LEAK_CHECKER", "1");
-  }
 
   return std::atoi(UrRet);
 }();
@@ -163,6 +154,10 @@ public:
   ze_result_t doCall(ze_result_t ZeResult, const char *ZeName,
                      const char *ZeArgs, bool TraceError = true);
 };
+
+// This function will ensure compatibility with both Linux and Windows for
+// setting environment variables.
+bool setEnvVar(const char *name, const char *value);
 
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
