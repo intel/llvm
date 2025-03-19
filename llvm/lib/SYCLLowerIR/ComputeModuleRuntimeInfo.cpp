@@ -314,6 +314,14 @@ PropSetRegTy computeModuleProperties(const Module &M,
                     KernelReqdWorkGroupSize);
       }
 
+      if (auto ReqdSubGroupSize = getKernelSingleEltMetadata<uint32_t>(
+              Func, "intel_reqd_sub_group_size")) {
+        // intel_reqd_sub_group_size is stored as i32.
+        MetadataNames.push_back(Func.getName().str() + "@reqd_sub_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    *ReqdSubGroupSize);
+      }
+
       if (auto WorkGroupNumDim = getKernelSingleEltMetadata<uint32_t>(
               Func, "work_group_num_dim")) {
         MetadataNames.push_back(Func.getName().str() + "@work_group_num_dim");
