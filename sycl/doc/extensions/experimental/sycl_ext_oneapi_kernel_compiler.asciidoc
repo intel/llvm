@@ -48,6 +48,8 @@ This extension also depends on the following other SYCL extensions:
   sycl_ext_oneapi_properties]
 * link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[
   sycl_ext_oneapi_free_function_kernels]
+* link:../experimental/sycl_ext_oneapi_device_global.asciidoc[
+  sycl_ext_oneapi_device_global]
 
 
 == Status
@@ -573,6 +575,8 @@ class kernel_bundle {
   bool ext_oneapi_has_kernel(const std::string &name);
   kernel ext_oneapi_get_kernel(const std::string &name);
   std::string ext_oneapi_get_raw_kernel_name(const std::string &name);
+
+  // Continued below in "New kernel bundle member functions for device globals"
 };
 
 } // namespace sycl
@@ -801,6 +805,102 @@ sycl::kernel k_float = kb.ext_oneapi_get_kernel("bartmpl<float>");
 sycl::kernel k_int = kb.ext_oneapi_get_kernel("bartmpl<int>");
 ----
 
+=== New kernel bundle member functions for device globals
+
+This extensions adds the following new `kernel_bundle` member functions to let
+the host application interact with device globals defined in runtime-compiled
+code. Device globals are only supported for the `source_language::sycl`
+language.
+
+[source,c++]
+----
+namespace sycl {
+
+template <bundle_state State>
+class kernel_bundle {
+  // Continued from "New kernel bundle member functions"
+
+  bool ext_oneapi_has_device_global(const std::string &name);
+  void *ext_oneapi_get_device_global_address(const std::string &name,
+                                             const device &dev);
+  size_t ext_oneapi_get_device_global_size(const std::string &name);
+};
+
+} // namespace sycl
+----
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+bool ext_oneapi_has_device_global(const std::string &name)
+----
+!====
+
+_Constraints:_ This function is not available when `State` is
+`bundle_state::ext_oneapi_source`.
+
+_Returns:_ `true` if and only if all of the following conditions hold:
+
+* the kernel bundle was created from a bundle of state
+  `bundle_state::ext_oneapi_source` in the language `source_language::sycl`, and
+* the kernel bundle defines a device global whose name is `name`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+void *ext_oneapi_get_device_global_address(const std::string &name,
+                                           const device &dev)
+----
+!====
+
+_Constraints:_ This function is not available when `State` is
+`bundle_state::ext_oneapi_source`.
+
+_Returns:_ A device USM pointer to the storage for the device global `name` on
+device `dev`.
+
+_Remarks:_ The contents of the device global may be read or written from the
+host by reading from or writing to this address. If the address is read before
+any kernel writes to the device global, the read operation returns the device
+global's initial value.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if
+  `ext_oneapi_has_device_global(name)` returns `false`.
+* An `exception` with the `errc::invalid` error code if the bundle was not built
+  for device `dev`.
+* An `exception` with the `errc::memory_allocation` error code if the allocation
+  or initialization of the device global's storage fails.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+size_t ext_oneapi_get_device_global_size(const std::string &name)
+----
+!====
+
+_Constraints:_ This function is not available when `State` is
+`bundle_state::ext_oneapi_source`.
+
+_Returns:_ The size in bytes of the USM storage for device global `name`.
+
+_Throws:_
+
+* An `exception` with the `errc::invalid` error code if
+  `ext_oneapi_has_device_global(name)` returns `false`.
+|====
+  
 
 == Examples
 
@@ -928,6 +1028,71 @@ int main() {
 }
 ----
 
+=== Using device globals
+
+This examples demonstrates how a device global defined in runtime-compiled code
+can be accessed from the host and the device.
+
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+static constexpr size_t NUM = 1024;
+static constexpr size_t WGSIZE = 16;
+
+int main() {
+  sycl::queue q;
+
+  // The source code for a kernel, defined as a SYCL "free function kernel".
+  std::string source = R"""(
+    #include <sycl/sycl.hpp>
+    namespace syclext = sycl::ext::oneapi;
+    namespace syclexp = sycl::ext::oneapi::experimental;
+
+    syclexp::device_global<float> scale;
+
+    extern "C"
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+    void scaled_iota(float start, float *ptr) {
+      size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+      ptr[id] = start + scale * static_cast<float>(id);
+    }
+  )""";
+
+  // Create a kernel bundle in "source" state.
+  sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
+    syclexp::create_kernel_bundle_from_source(
+      q.get_context(),
+      syclexp::source_language::sycl,
+      source);
+
+  // Compile the kernel.
+  sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe = syclexp::build(kb_src);
+
+  // Initialize the device global.
+  float scale = 0.1f;
+  void *scale_addr =
+    kb_exe.ext_oneapi_get_device_global_address("scale", q.get_device());
+  size_t scale_size = kb_exe.ext_oneapi_get_device_global_size("scale");
+  q.memcpy(scale_addr, &scale, scale_size).wait();
+
+  // Get the kernel via its compiler-generated name, and launch it as before.
+  sycl::kernel scaled_iota = kb_exe.ext_oneapi_get_kernel("scaled_iota");
+
+  float *ptr = sycl::malloc_shared<float>(NUM, q);
+  q.submit([&](sycl::handler &cgh) {
+    // Set the values of the kernel arguments.
+    cgh.set_args(3.14f, ptr);
+
+    // Launch the kernel according to its type, in this case an nd-range kernel.
+    sycl::nd_range ndr{{NUM}, {WGSIZE}};
+    cgh.parallel_for(ndr, scaled_iota);
+  }).wait();
+
+  sycl::free(ptr, q);
+}
+----
 
 == Issues
 
@@ -952,6 +1117,12 @@ However, we don't yet have a utility library where this would go, and it may be
 hard for customers to discover this functionality if it is defined outside of
 this extension.
 
+* The specification of the _name_ of a device global needs to be refined. If
+  device globals declared in namespaces or as static class member should be
+  supported, we have to extend the `registered_names` property to also accept
+  their qualified source code names. Should device globals declared at global
+  scope be registered implicitly, similar to `extern "C"` kernels?
+
 == Non-normative implementation notes for {dpcpp}
 
 === Supported `build_options` when the language is `sycl`
@@ -973,3 +1144,16 @@ files when the language is ``sycl``"). This is useful, for example, to compile
 kernels using external libraries. Note that for the second and fourth form,
 `dir` is a separate element in the `build_options` list.
 |===
+
+=== Limitations
+
+==== Device globals
+
+* Device globals must be declared at global scope. Device globals declared in a
+  namespace or as a static class member will be reported as not being present in
+  the kernel bundle.
+* Device globals declared with the `device_image_scope` property can be used in
+  the runtime-compiled device code, but cannot be accessed from the host.
+  Calling `kernel_bundle::ext_oneapi_get_device_global_address` for a device
+  global with `device_image_scope` will throw an `exception` with the
+  `errc::invalid` error code.
