@@ -34,7 +34,7 @@ using __nativecpu_state = native_cpu::state;
 #define OCL_PRIVATE __attribute__((opencl_private))
 
 DEVICE_EXTERN_C void __mux_work_group_barrier(uint32_t id, uint32_t scope,
-                                              uint32_t semantics);
+                                              uint32_t semantics) noexcept;
 __SYCL_CONVERGENT__ DEVICE_EXTERNAL void
 __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
                        uint32_t Semantics) noexcept {
@@ -43,7 +43,8 @@ __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
     __mux_work_group_barrier(0, Execution, Semantics);
 }
 
-DEVICE_EXTERN_C void __mux_mem_barrier(uint32_t scope, uint32_t semantics);
+DEVICE_EXTERN_C void __mux_mem_barrier(uint32_t scope,
+                                       uint32_t semantics) noexcept;
 __SYCL_CONVERGENT__ DEVICE_EXTERNAL void
 __spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) noexcept {
   __mux_mem_barrier(Memory, Semantics);
@@ -101,8 +102,8 @@ DefSubgroupBlockINTEL(uint32_t) DefSubgroupBlockINTEL(uint64_t)
 DefSubgroupBlockINTEL(uint8_t) DefSubgroupBlockINTEL(uint16_t)
 
 #define DefineGOp1(spir_sfx, name)\
-DEVICE_EXTERN_C bool __mux_sub_group_##name##_i1(bool);\
-DEVICE_EXTERN_C bool __mux_work_group_##name##_i1(uint32_t id, bool val);\
+DEVICE_EXTERN_C bool __mux_sub_group_##name##_i1(bool) noexcept;\
+DEVICE_EXTERN_C bool __mux_work_group_##name##_i1(uint32_t id, bool val) noexcept;\
 DEVICE_EXTERNAL bool __spirv_Group ## spir_sfx(unsigned g, bool val) noexcept {\
   if (__spv::Scope::Flag::Subgroup == g)\
     return __mux_sub_group_##name##_i1(val);\
@@ -116,14 +117,14 @@ DefineGOp1(All, all)
 
 
 #define DefineGOp(Type, MuxType, spir_sfx, mux_sfx)                            \
-  DEVICE_EXTERN_C MuxType __mux_sub_group_scan_inclusive_##mux_sfx(MuxType);   \
-  DEVICE_EXTERN_C MuxType __mux_sub_group_scan_exclusive_##mux_sfx(MuxType);   \
-  DEVICE_EXTERN_C MuxType __mux_sub_group_reduce_##mux_sfx(MuxType);           \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_scan_inclusive_##mux_sfx(MuxType) noexcept;   \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_scan_exclusive_##mux_sfx(MuxType) noexcept;   \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_reduce_##mux_sfx(MuxType) noexcept;           \
   DEVICE_EXTERN_C MuxType __mux_work_group_scan_exclusive_##mux_sfx(uint32_t,  \
-                                                                    MuxType);  \
+                                                                    MuxType) noexcept;  \
   DEVICE_EXTERN_C MuxType __mux_work_group_scan_inclusive_##mux_sfx(uint32_t,  \
-                                                                    MuxType);  \
-  DEVICE_EXTERN_C MuxType __mux_work_group_reduce_##mux_sfx(uint32_t, MuxType);\
+                                                                    MuxType) noexcept;  \
+  DEVICE_EXTERN_C MuxType __mux_work_group_reduce_##mux_sfx(uint32_t, MuxType) noexcept;\
   DEVICE_EXTERNAL Type __spirv_Group##spir_sfx(uint32_t g, uint32_t id,        \
                                                Type v) noexcept {              \
     if (__spv::Scope::Flag::Subgroup == g) {                                   \
@@ -197,9 +198,9 @@ DefineLogicalGroupOp(bool, bool, i1)
 
 #define DefineBroadcastMuxType(Type, Sfx, MuxType, IDType)                    \
   DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                   \
-      int32_t id, MuxType val, uint64_t lidx, uint64_t lidy, uint64_t lidz);  \
+      int32_t id, MuxType val, uint64_t lidx, uint64_t lidy, uint64_t lidz) noexcept; \
   DEVICE_EXTERN_C MuxType __mux_sub_group_broadcast_##Sfx(MuxType val,        \
-                                                          int32_t sg_lid);
+                                                          int32_t sg_lid) noexcept;
 
 #define DefineBroadCastImpl(Type, Sfx, MuxType, IDType)                       \
   DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
@@ -242,7 +243,7 @@ DefineBroadCast(int64_t, i64, int64_t)
 
 #define DefShuffleINTEL(Type, Sfx, MuxType)                                    \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_##Sfx(MuxType val,           \
-                                                        int32_t lid);          \
+                                                        int32_t lid) noexcept; \
   template <>                                                                  \
   DEVICE_EXTERNAL Type __spirv_SubgroupShuffleINTEL<Type>(                     \
       Type val, unsigned id) noexcept {                                        \
@@ -251,7 +252,7 @@ DefineBroadCast(int64_t, i64, int64_t)
 
 #define DefShuffleUpINTEL(Type, Sfx, MuxType)                                  \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_up_##Sfx(                    \
-      MuxType prev, MuxType curr, int32_t delta);                              \
+      MuxType prev, MuxType curr, int32_t delta) noexcept;                     \
   template <>                                                                  \
   DEVICE_EXTERNAL Type __spirv_SubgroupShuffleUpINTEL<Type>(                   \
       Type prev, Type curr, unsigned delta) noexcept {                         \
@@ -261,7 +262,7 @@ DefineBroadCast(int64_t, i64, int64_t)
 
 #define DefShuffleDownINTEL(Type, Sfx, MuxType)                                \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_down_##Sfx(                  \
-      MuxType curr, MuxType next, int32_t delta);                              \
+      MuxType curr, MuxType next, int32_t delta) noexcept;                     \
   template <>                                                                  \
   DEVICE_EXTERNAL Type __spirv_SubgroupShuffleDownINTEL<Type>(                 \
       Type curr, Type next, unsigned delta) noexcept {                         \
