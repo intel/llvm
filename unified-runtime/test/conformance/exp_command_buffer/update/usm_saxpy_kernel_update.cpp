@@ -94,7 +94,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMSaxpyKernelTest);
 
 TEST_P(USMSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -139,6 +139,7 @@ TEST_P(USMSaxpyKernelTest, UpdateParameters) {
   ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
       nullptr,                                                        // pNext
+      command_handle,  // hCommand
       kernel,          // hNewKernel
       0,               // numNewMemObjArgs
       2,               // numNewPointerArgs
@@ -153,9 +154,9 @@ TEST_P(USMSaxpyKernelTest, UpdateParameters) {
   };
 
   // Update kernel and enqueue command-buffer again
-  ASSERT_SUCCESS(
-      urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(updatable_cmd_buf_handle,
+                                                      1, &update_desc));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -191,7 +192,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(USMMultiSaxpyKernelTest);
 
 TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
   // Run command-buffer prior to update an verify output
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -232,28 +233,34 @@ TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
       &new_A,                                                     // hArgValue
   };
 
-  // Update kernel inputs
-  ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
-      nullptr,                                                        // pNext
-      kernel,          // hNewKernel
-      0,               // numNewMemObjArgs
-      2,               // numNewPointerArgs
-      1,               // numNewValueArgs
-      n_dimensions,    // newWorkDim
-      nullptr,         // pNewMemObjArgList
-      new_input_descs, // pNewPointerArgList
-      &new_A_desc,     // pNewValueArgList
-      nullptr,         // pNewGlobalWorkOffset
-      nullptr,         // pNewGlobalWorkSize
-      nullptr,         // pNewLocalWorkSize
-  };
+  std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> update_descs;
+  for (auto &handle : command_handles) {
+    // Update kernel inputs
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        handle,          // hCommand
+        kernel,          // hNewKernel
+        0,               // numNewMemObjArgs
+        2,               // numNewPointerArgs
+        1,               // numNewValueArgs
+        n_dimensions,    // newWorkDim
+        nullptr,         // pNewMemObjArgList
+        new_input_descs, // pNewPointerArgList
+        &new_A_desc,     // pNewValueArgList
+        nullptr,         // pNewGlobalWorkOffset
+        nullptr,         // pNewGlobalWorkSize
+        nullptr,         // pNewLocalWorkSize
+    };
+
+    update_descs.push_back(update_desc);
+  }
 
   // Update kernel and enqueue command-buffer again
-  for (auto &handle : command_handles) {
-    ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
-  }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, update_descs.size(), update_descs.data()));
+
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -267,7 +274,7 @@ TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
 // Checks that passing nullptr to hNewKernel even when kernel binary updates
 // is not supported by the adapter.
 TEST_P(USMMultiSaxpyKernelTest, UpdateNullptrKernel) {
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -287,27 +294,32 @@ TEST_P(USMMultiSaxpyKernelTest, UpdateNullptrKernel) {
       &new_A,                                                     // hArgValue
   };
 
-  // Update kernel inputs
-  ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
-      nullptr,                                                        // pNext
-      nullptr,      // hNewKernel
-      0,            // numNewMemObjArgs
-      0,            // numNewPointerArgs
-      1,            // numNewValueArgs
-      n_dimensions, // newWorkDim
-      nullptr,      // pNewMemObjArgList
-      nullptr,      // pNewPointerArgList
-      &new_A_desc,  // pNewValueArgList
-      nullptr,      // pNewGlobalWorkOffset
-      nullptr,      // pNewGlobalWorkSize
-      nullptr,      // pNewLocalWorkSize
-  };
-
+  std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> update_descs;
   for (auto &handle : command_handles) {
-    ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
+    // Update kernel inputs
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        handle,       // hCommand
+        nullptr,      // hNewKernel
+        0,            // numNewMemObjArgs
+        0,            // numNewPointerArgs
+        1,            // numNewValueArgs
+        n_dimensions, // newWorkDim
+        nullptr,      // pNewMemObjArgList
+        nullptr,      // pNewPointerArgList
+        &new_A_desc,  // pNewValueArgList
+        nullptr,      // pNewGlobalWorkOffset
+        nullptr,      // pNewGlobalWorkSize
+        nullptr,      // pNewLocalWorkSize
+    };
+
+    update_descs.push_back(update_desc);
   }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, update_descs.size(), update_descs.data()));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
@@ -349,32 +361,36 @@ TEST_P(USMMultiSaxpyKernelTest, UpdateWithoutBlocking) {
       &new_A,                                                     // hArgValue
   };
 
-  // Update kernel inputs
-  ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
-      UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
-      nullptr,                                                        // pNext
-      kernel,          // hNewKernel
-      0,               // numNewMemObjArgs
-      2,               // numNewPointerArgs
-      1,               // numNewValueArgs
-      n_dimensions,    // newWorkDim
-      nullptr,         // pNewMemObjArgList
-      new_input_descs, // pNewPointerArgList
-      &new_A_desc,     // pNewValueArgList
-      nullptr,         // pNewGlobalWorkOffset
-      nullptr,         // pNewGlobalWorkSize
-      nullptr,         // pNewLocalWorkSize
-  };
-
   // Run command-buffer prior to update without doing a blocking wait after
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
 
-  // Update kernel and enqueue command-buffer again
+  std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> update_descs;
   for (auto &handle : command_handles) {
-    ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
+    // Update kernel inputs
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        handle,          // hCommand
+        kernel,          // hNewKernel
+        0,               // numNewMemObjArgs
+        2,               // numNewPointerArgs
+        1,               // numNewValueArgs
+        n_dimensions,    // newWorkDim
+        nullptr,         // pNewMemObjArgList
+        new_input_descs, // pNewPointerArgList
+        &new_A_desc,     // pNewValueArgList
+        nullptr,         // pNewGlobalWorkOffset
+        nullptr,         // pNewGlobalWorkSize
+        nullptr,         // pNewLocalWorkSize
+    };
+    update_descs.push_back(update_desc);
   }
-  ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+
+  // Update kernel and enqueue command-buffer again
+  ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
+      updatable_cmd_buf_handle, update_descs.size(), update_descs.data()));
+  ASSERT_SUCCESS(urEnqueueCommandBufferExp(queue, updatable_cmd_buf_handle, 0,
                                            nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 

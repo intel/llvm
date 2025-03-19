@@ -85,7 +85,7 @@ target triple = "spir64"
 ; SPV-DAG: FunctionParameter {{[0-9]+}} [[i1v:[0-9]+]]
 
 ; Function Attrs: nofree norecurse nounwind writeonly
-define dso_local spir_kernel void @K(ptr addrspace(1) nocapture %A, i32 %B, i1 %i1s, <2 x i1> %i1v) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define dso_local spir_kernel void @K(ptr addrspace(1) captures(none) %A, i32 %B, i1 %i1s, <2 x i1> %i1v) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
 
 

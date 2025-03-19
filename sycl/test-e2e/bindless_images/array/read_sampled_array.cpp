@@ -1,7 +1,5 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
-
-// UNSUPPORTED: hip
-// UNSUPPORTED-INTENDED: Image arrays are unimplemented in the HIP adapter.
+// REQUIRES: aspect-ext_oneapi_image_array
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

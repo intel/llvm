@@ -50,19 +50,6 @@ template <> inline bool isQueryOptional(ur_device_info_t query) {
                    query) != optional_ur_device_info_t.end();
 }
 
-constexpr std::array optional_ur_context_info_t = {
-    UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
-    UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
-    UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES,
-    UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES,
-};
-
-template <> inline bool isQueryOptional(ur_context_info_t query) {
-  return std::find(optional_ur_context_info_t.begin(),
-                   optional_ur_context_info_t.end(),
-                   query) != optional_ur_context_info_t.end();
-}
-
 constexpr std::array optional_ur_usm_alloc_info_t = {
     UR_USM_ALLOC_INFO_POOL,
 };

@@ -2,6 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17236
+
 #include <algorithm>
 #include <cstdio>
 #include <numeric>

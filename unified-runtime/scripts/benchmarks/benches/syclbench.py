@@ -45,6 +45,11 @@ class SyclBench(Suite):
             f"-DSYCL_IMPL=dpcpp",
         ]
 
+        if options.ur_adapter == "cuda":
+            configure_command += [
+                f"-DCMAKE_CXX_FLAGS=-fsycl -fsycl-targets=nvptx64-nvidia-cuda"
+            ]
+
         run(configure_command, add_sycl=True)
         run(f"cmake --build {build_path} -j", add_sycl=True)
 

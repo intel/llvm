@@ -20,9 +20,12 @@ def run(
     cwd=None,
     add_sycl=False,
     ld_library=[],
-    timeout=options.timeout,
+    timeout=None,
 ):
     try:
+        if timeout is None:
+            timeout = options.timeout
+
         if isinstance(command, str):
             command = command.split()
 

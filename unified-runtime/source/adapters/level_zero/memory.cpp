@@ -1515,9 +1515,7 @@ ur_result_t urMemImageCreate(
   // own the image.
   // TODO: Implement explicit copying for acessing the image from other devices
   // in the context.
-  ur_device_handle_t Device = Context->SingleRootDevice
-                                  ? Context->SingleRootDevice
-                                  : Context->Devices[0];
+  ur_device_handle_t Device = Context->Devices[0];
   ze_image_handle_t ZeImage;
   ZE2UR_CALL(zeImageCreate,
              (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeImage));
@@ -2079,58 +2077,22 @@ ur_result_t _ur_buffer::getBufferZeHandle(char *&ZeHandle,
     LastDeviceWithValidAllocation = Device;
     return UR_RESULT_SUCCESS;
   }
-  // Reads user setting on how to deal with buffers in contexts where
-  // all devices have the same root-device. Returns "true" if the
-  // preference is to have allocate on each [sub-]device and migrate
-  // normally (copy) to other sub-devices as needed. Returns "false"
-  // if the preference is to have single root-device allocations
-  // serve the needs of all [sub-]devices, meaning potentially more
-  // cross-tile traffic.
-  //
-  static const bool SingleRootDeviceBufferMigration = [] {
-    const char *UrRet =
-        std::getenv("UR_L0_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION");
-    const char *PiRet =
-        std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_ROOT_DEVICE_BUFFER_MIGRATION");
-    const char *EnvStr = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
-    if (EnvStr)
-      return (std::stoi(EnvStr) != 0);
-    // The default is to migrate normally, which may not always be the
-    // best option (depends on buffer access patterns), but is an
-    // overall win on the set of the available benchmarks.
-    return true;
-  }();
 
   // Peform actual device allocation as needed.
   if (!Allocation.ZeHandle) {
-    if (!SingleRootDeviceBufferMigration && UrContext->SingleRootDevice &&
-        UrContext->SingleRootDevice != Device) {
-      // If all devices in the context are sub-devices of the same device
-      // then we reuse root-device allocation by all sub-devices in the
-      // context.
-      // TODO: we can probably generalize this and share root-device
-      //       allocations by its own sub-devices even if not all other
-      //       devices in the context have the same root.
-      UR_CALL(getZeHandle(ZeHandle, AccessMode, UrContext->SingleRootDevice,
-                          phWaitEvents, numWaitEvents));
-      Allocation.ReleaseAction = allocation_t::keep;
-      Allocation.ZeHandle = ZeHandle;
-      Allocation.Valid = true;
-      return UR_RESULT_SUCCESS;
-    } else { // Create device allocation
-      if (DisjointPoolConfigInstance.EnableBuffers) {
-        Allocation.ReleaseAction = allocation_t::free;
-        ur_usm_desc_t USMDesc{};
-        USMDesc.align = getAlignment();
-        ur_usm_pool_handle_t Pool{};
-        UR_CALL(ur::level_zero::urUSMDeviceAlloc(
-            UrContext, Device, &USMDesc, Pool, Size,
-            reinterpret_cast<void **>(&ZeHandle)));
-      } else {
-        Allocation.ReleaseAction = allocation_t::free_native;
-        UR_CALL(ZeDeviceMemAllocHelper(reinterpret_cast<void **>(&ZeHandle),
-                                       UrContext, Device, Size));
-      }
+    // Create device allocation
+    if (DisjointPoolConfigInstance.EnableBuffers) {
+      Allocation.ReleaseAction = allocation_t::free;
+      ur_usm_desc_t USMDesc{};
+      USMDesc.align = getAlignment();
+      ur_usm_pool_handle_t Pool{};
+      UR_CALL(ur::level_zero::urUSMDeviceAlloc(
+          UrContext, Device, &USMDesc, Pool, Size,
+          reinterpret_cast<void **>(&ZeHandle)));
+    } else {
+      Allocation.ReleaseAction = allocation_t::free_native;
+      UR_CALL(ZeDeviceMemAllocHelper(reinterpret_cast<void **>(&ZeHandle),
+                                     UrContext, Device, Size));
     }
     Allocation.ZeHandle = ZeHandle;
   } else {

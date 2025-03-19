@@ -1,0 +1,40 @@
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime adapter manifests"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: manifest
+name: opencl
+backend: $X_ADAPTER_BACKEND_OPENCL
+device_types:
+    - $X_DEVICE_TYPE_ALL
+--- #--------------------------------------------------------------------------
+type: manifest
+name: cuda
+backend: $X_ADAPTER_BACKEND_CUDA
+device_types:
+    - $X_DEVICE_TYPE_GPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: hip
+backend: $X_ADAPTER_BACKEND_HIP
+device_types:
+    - $X_DEVICE_TYPE_GPU
+--- #--------------------------------------------------------------------------
+type: manifest
+name: level_zero
+backend: $X_ADAPTER_BACKEND_LEVEL_ZERO
+device_types:
+    - $X_DEVICE_TYPE_ALL
+--- #--------------------------------------------------------------------------
+type: manifest
+name: level_zero_v2
+backend: $X_ADAPTER_BACKEND_LEVEL_ZERO
+device_types:
+    - $X_DEVICE_TYPE_ALL
+--- #--------------------------------------------------------------------------
+type: manifest
+name: native_cpu
+backend: $X_ADAPTER_BACKEND_NATIVE_CPU
+device_types:
+    - $X_DEVICE_TYPE_CPU

@@ -33,8 +33,14 @@ set(UR_BUILD_XPTI_LIBS OFF)
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
+set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE LIST
+  "List of external CMake targets for executables/libraries to depend on" FORCE)
+
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_L0 ON)
+endif()
+if("level_zero_v2" IN_LIST SYCL_ENABLE_BACKENDS)
+  set(UR_BUILD_ADAPTER_L0_V2 ON)
 endif()
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_CUDA ON)
@@ -282,6 +288,10 @@ if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
 
   # TODO: L0 adapter does other... things in its cmake - make sure they get
   # added to the new build system
+endif()
+
+if("level_zero_v2" IN_LIST SYCL_ENABLE_BACKENDS)
+  add_sycl_ur_adapter(level_zero_v2)
 endif()
 
 if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)

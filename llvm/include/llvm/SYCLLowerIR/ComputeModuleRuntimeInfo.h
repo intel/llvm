@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/Support/PropertySetIO.h"
 #include <string>
 namespace llvm {
@@ -30,8 +31,12 @@ struct GlobalBinImageProps {
 };
 bool isModuleUsingAsan(const Module &M);
 bool isModuleUsingMsan(const Module &M);
+bool isModuleUsingTsan(const Module &M);
 using PropSetRegTy = llvm::util::PropertySetRegistry;
 using EntryPointSet = SetVector<Function *>;
+
+PropSetRegTy computeDeviceLibProperties(const Module &M,
+                                        const std::string &SYCLDeviceLibName);
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,

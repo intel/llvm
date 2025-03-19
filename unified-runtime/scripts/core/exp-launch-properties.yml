@@ -12,10 +12,15 @@ type: header
 desc: "Intel $OneApi Unified Runtime Experimental APIs for (kernel) Launch Properties"
 ordinal: "99"
 --- #--------------------------------------------------------------------------
-type: macro
-desc: "The extension string that defines support for the Launch Properties extension, which is returned when querying device extensions."
-name: $X_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
-value: "\"$x_exp_launch_properties\""
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums for $x_device_info_t to support launch properties."
+name: $x_device_info_t
+etors:
+    - name: LAUNCH_PROPERTIES_SUPPORT_EXP
+      value: "0x3000"
+      desc: "[$x_bool_t] Returns true if the device supports the use of kernel launch properties."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Specifies a launch property id"

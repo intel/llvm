@@ -120,21 +120,6 @@ ur_result_t urContextGetInfo(
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
     return ReturnValue(uint8_t{false});
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-
-    ur_memory_order_capability_flags_t Capabilities =
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
-    return ReturnValue(Capabilities);
-  }
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
 
   default:
     // TODO: implement other parameters
@@ -192,115 +177,6 @@ ur_result_t urContextSetExtendedDeleter(
 } // namespace ur::level_zero
 
 ur_result_t ur_context_handle_t_::initialize() {
-
-  // Helper lambda to create various USM allocators for a device.
-  // Note that the CCS devices and their respective subdevices share a
-  // common ze_device_handle and therefore, also share USM allocators.
-  auto createUSMAllocators = [this](ur_device_handle_t Device) {
-    auto MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
-                           reinterpret_cast<ur_context_handle_t>(this), Device)
-                           .second;
-    auto UmfDeviceParamsHandle = getUmfParamsHandle(
-        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Device]);
-    DeviceMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
-                                                   std::move(MemProvider),
-                                                   UmfDeviceParamsHandle.get())
-                            .second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-
-    auto UmfSharedParamsHandle = getUmfParamsHandle(
-        DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Shared]);
-    SharedMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(umfDisjointPoolOps(),
-                                                   std::move(MemProvider),
-                                                   UmfSharedParamsHandle.get())
-                            .second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-
-    auto UmfSharedROParamsHandle = getUmfParamsHandle(
-        DisjointPoolConfigInstance
-            .Configs[usm::DisjointPoolMemType::SharedReadOnly]);
-    SharedReadOnlyMemPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUniqueFromOps(
-                            umfDisjointPoolOps(), std::move(MemProvider),
-                            UmfSharedROParamsHandle.get())
-                            .second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    DeviceMemProxyPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    SharedMemProxyPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second));
-
-    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
-                      reinterpret_cast<ur_context_handle_t>(this), Device)
-                      .second;
-    SharedReadOnlyMemProxyPools.emplace(
-        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second));
-  };
-
-  // Recursive helper to call createUSMAllocators for all sub-devices
-  std::function<void(ur_device_handle_t)> createUSMAllocatorsRecursive;
-  createUSMAllocatorsRecursive =
-      [createUSMAllocators,
-       &createUSMAllocatorsRecursive](ur_device_handle_t Device) -> void {
-    createUSMAllocators(Device);
-    for (auto &SubDevice : Device->SubDevices)
-      createUSMAllocatorsRecursive(SubDevice);
-  };
-
-  // Create USM pool for each pair (device, context).
-  //
-  for (auto &Device : Devices) {
-    createUSMAllocatorsRecursive(Device);
-  }
-  // Create USM pool for host. Device and Shared USM allocations
-  // are device-specific. Host allocations are not device-dependent therefore
-  // we don't need a map with device as key.
-  auto MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
-                         reinterpret_cast<ur_context_handle_t>(this), nullptr)
-                         .second;
-  auto UmfHostParamsHandle = getUmfParamsHandle(
-      DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host]);
-  HostMemPool =
-      umf::poolMakeUniqueFromOps(umfDisjointPoolOps(), std::move(MemProvider),
-                                 UmfHostParamsHandle.get())
-          .second;
-
-  MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
-                    reinterpret_cast<ur_context_handle_t>(this), nullptr)
-                    .second;
-  HostMemProxyPool =
-      umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second;
-
-  // We may allocate memory to this root device so create allocators.
-  if (SingleRootDevice &&
-      DeviceMemPools.find(SingleRootDevice->ZeDevice) == DeviceMemPools.end()) {
-    createUSMAllocators(SingleRootDevice);
-  }
-
   // Create the immediate command list to be used for initializations.
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
@@ -311,7 +187,7 @@ ur_result_t ur_context_handle_t_::initialize() {
   // D2D migartion, if no P2P, is broken since it should use
   // immediate command-list for the specfic devices, and this single one.
   //
-  ur_device_handle_t Device = SingleRootDevice ? SingleRootDevice : Devices[0];
+  ur_device_handle_t Device = Devices[0];
 
   // Prefer to use copy engine for initialization copies,
   // if available and allowed (main copy engine with index 0).
@@ -333,7 +209,7 @@ ur_result_t ur_context_handle_t_::initialize() {
       Device->useDriverCounterBasedEvents()) {
     logger::debug(
         "L0 Synchronous Immediate Command List needed with In Order property.");
-    ZeCommandQueueDesc.flags |= ZE_COMMAND_LIST_FLAG_IN_ORDER;
+    ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
   }
   ZE2UR_CALL(
       zeCommandListCreateImmediate,

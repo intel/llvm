@@ -213,9 +213,9 @@ ur_result_t GetDeviceMaxMemAllocSize(ur_device_handle_t device,
 }
 
 ur_result_t GetDeviceImageSupport(ur_device_handle_t device,
-                                  bool &image_support) {
+                                  bool &image_supported) {
   return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
-                             image_support);
+                             image_supported);
 }
 
 ur_result_t GetDeviceMaxReadImageArgs(ur_device_handle_t device,
@@ -623,10 +623,6 @@ GetDeviceMemoryScopeCapabilities(ur_device_handle_t device,
                                  ur_memory_scope_capability_flags_t &flags) {
   return GetDeviceInfo<ur_memory_scope_capability_flags_t>(
       device, UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES, flags);
-}
-
-ur_result_t GetDeviceBFloat16Support(ur_device_handle_t device, bool &support) {
-  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_BFLOAT16, support);
 }
 
 ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,

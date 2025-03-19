@@ -64,8 +64,7 @@ inline constexpr uptr RZSize2Log(uptr rz_size) {
   return res;
 }
 
-inline constexpr uptr ComputeRZLog(uptr user_requested_size, uptr min_size,
-                                   uptr max_size) {
+inline constexpr uptr ComputeRZLog(uptr user_requested_size, uptr min_size) {
   uptr rz_log = user_requested_size <= 64 - 16            ? 0
                 : user_requested_size <= 128 - 32         ? 1
                 : user_requested_size <= 512 - 64         ? 2
@@ -75,8 +74,7 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size, uptr min_size,
                 : user_requested_size <= (1 << 16) - 1024 ? 6
                                                           : 7;
   uptr min_log = RZSize2Log(min_size);
-  uptr max_log = RZSize2Log(max_size);
-  return std::min(std::max(rz_log, min_log), max_log);
+  return std::max(rz_log, min_log);
 }
 
 /// Returns the next integer (mod 2**64) that is greater than or equal to

@@ -19,12 +19,19 @@
 #include <unordered_set>
 #include <vector>
 
-struct CommandListCacheTest : public uur::urContextTest {};
+struct CommandListCacheTest : public uur::urContextTest {
+  void SetUp() override {
+    // Initialize Level Zero driver is required if this test is linked
+    // statically with Level Zero loader, the driver will not be init otherwise.
+    zeInit(ZE_INIT_FLAG_GPU_ONLY);
+    urContextTest::SetUp();
+  }
+};
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(CommandListCacheTest);
 
 TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
-  v2::command_list_cache_t cache(context->getZeHandle());
+  v2::command_list_cache_t cache(context->getZeHandle(), false);
 
   bool IsInOrder = false;
   uint32_t Ordinal = 0;
@@ -76,7 +83,7 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
-  v2::command_list_cache_t cache(context->getZeHandle());
+  v2::command_list_cache_t cache(context->getZeHandle(), false);
 
   uint32_t numQueueGroups = 0;
   ASSERT_EQ(zeDeviceGetCommandQueueGroupProperties(device->ZeDevice,

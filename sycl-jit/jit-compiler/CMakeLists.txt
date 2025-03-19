@@ -18,6 +18,7 @@ add_llvm_library(sycl-jit
 
    LINK_COMPONENTS
    BitReader
+   BitWriter
    Core
    Support
    Option

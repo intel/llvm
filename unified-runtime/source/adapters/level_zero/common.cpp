@@ -11,7 +11,6 @@
 #include "common.hpp"
 #include "logger/ur_logger.hpp"
 #include "usm.hpp"
-#include <level_zero/include/ze_intel_gpu.h>
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)

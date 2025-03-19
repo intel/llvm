@@ -381,11 +381,11 @@ etors:
           [$x_device_handle_t[]] Return list of devices associated with a program.
           This is either the list of devices associated with the context or a subset of those devices when the program is created using $xProgramCreateWithBinary.
     - name: IL
-      desc: "[char[]] Return program IL if the program was created with $xProgramCreateWithIL, otherwise return size will be set to 0 and nothing will be returned."
+      desc: "[char[]] Return program IL if the program was created with $xProgramCreateWithIL, otherwise return size will be set to 0 and nothing will be returned. This is not null-terminated."
     - name: BINARY_SIZES
       desc: "[size_t[]] Return program binary sizes for each device."
     - name: BINARIES
-      desc: "[unsigned char[]] Return program binaries for all devices for this Program."
+      desc: "[unsigned char[]] Return program binaries for all devices for this Program. These are not null-terminated."
     - name: NUM_KERNELS
       desc: "[size_t][optional-query] Number of kernels in Program, return type size_t."
     - name: KERNEL_NAMES

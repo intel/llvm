@@ -27,17 +27,17 @@
 #include "common.hpp"
 #include <sycl/usm.hpp>
 
-template <typename T, size_t TileRows, size_t TileCols> class MT;
+template <typename T, size_t TileRows, size_t TileCols, use Use> class MT;
 
 template <size_t TR, size_t TC, typename T, size_t NR, size_t NC, use Use>
 void matrix_transpose(T *in, T *out, queue q) {
   static_assert((NR % TR) == 0);
   static_assert((NC % TC) == 0);
-  size_t sg_size = get_sg_size<class MT<T, TR, TC>>(q);
+  size_t sg_size = get_sg_size<class MT<T, TR, TC, Use>>(q);
   std::cout << "SG size " << sg_size << " ";
 
   q.submit([&](handler &cgh) {
-     cgh.parallel_for<class MT<T, TR, TC>>(
+     cgh.parallel_for<class MT<T, TR, TC, Use>>(
          nd_range<2>({NR / TR, NC / TC * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
@@ -112,6 +112,15 @@ int main() {
       std::cout << "bf16:\n";
       test<bfloat16, 8, 16, use::a>();
       test<bfloat16, 16, 16, use::b>();
+#ifdef MORE_SHAPES
+      test<bfloat16, 1, 16, use::a>();
+      test<bfloat16, 1, 32, use::a>();
+      test<bfloat16, 16, 16, use::a>();
+      test<bfloat16, 32, 16, use::a>();
+      test<bfloat16, 32, 32, use::a>();
+      test<bfloat16, 16, 64, use::b>();
+      test<bfloat16, 32, 64, use::b>();
+#endif
       bf16_run = true;
     }
 
@@ -119,6 +128,15 @@ int main() {
       std::cout << "half:\n";
       test<half, 8, 16, use::a>();
       test<half, 16, 16, use::b>();
+#ifdef MORE_SHAPES
+      test<half, 1, 16, use::a>();
+      test<half, 1, 32, use::a>();
+      test<half, 16, 16, use::a>();
+      test<half, 32, 16, use::a>();
+      test<half, 32, 32, use::a>();
+      test<half, 16, 64, use::b>();
+      test<half, 32, 64, use::b>();
+#endif
       half_run = true;
     }
 
