@@ -11,18 +11,25 @@ from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
 
-benchmark_tags = [BenchmarkTag('sycl', 'Benchmark uses SYCL RT'),
-                  BenchmarkTag('ur', 'Benchmark uses Unified Runtime'),
-                  BenchmarkTag('L0', 'Benchmark uses L0 directly'),
-                  BenchmarkTag('umf', 'Benchmark uses UMF directly'),
-                  BenchmarkTag('micro', 'Microbenchmark focusing on a specific niche'),
-                  BenchmarkTag('application', 'Real application-based performance test'),
-                  BenchmarkTag('proxy', 'Benchmark that tries to implement a real application use-case'),
-                  BenchmarkTag('submit', 'Benchmark tests the kernel submit path'),
-                  BenchmarkTag('math', 'Benchmark tests math compute performance'),
-                  BenchmarkTag('memory', 'Benchmark tests memory transfer performance'),
-                  BenchmarkTag('allocation', 'Benchmark tests memory allocation performance'),
-                  BenchmarkTag('graph', 'Benchmark tests graph performance'),]
+benchmark_tags = [
+    BenchmarkTag('SYCL', 'Benchmark uses SYCL runtime'),
+    BenchmarkTag('UR', 'Benchmark uses Unified Runtime API'),
+    BenchmarkTag('L0', 'Benchmark uses Level Zero API directly'),
+    BenchmarkTag('UMF', 'Benchmark uses Unified Memory Framework directly'),
+    BenchmarkTag('micro', 'Microbenchmark focusing on a specific functionality'),
+    BenchmarkTag('application', 'Real application-based performance test'),
+    BenchmarkTag('proxy', 'Benchmark that simulates real application use-cases'),
+    BenchmarkTag('submit', 'Tests kernel submission performance'),
+    BenchmarkTag('math', 'Tests math computation performance'),
+    BenchmarkTag('memory', 'Tests memory transfer or bandwidth performance'),
+    BenchmarkTag('allocation', 'Tests memory allocation performance'),
+    BenchmarkTag('graph', 'Tests graph-based execution performance'),
+    BenchmarkTag('latency', 'Measures operation latency'),
+    BenchmarkTag('throughput', 'Measures operation throughput'),
+    BenchmarkTag('inference', 'Tests ML/AI inference performance'),
+    BenchmarkTag('image', 'Image processing benchmark'),
+    BenchmarkTag('simulation', 'Physics or scientific simulation benchmark'),
+]
 
 benchmark_tags_dict = {tag.name: tag for tag in benchmark_tags}
 
