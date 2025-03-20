@@ -64,7 +64,7 @@ class ComputeBench(Suite):
 
         run(configure_command, add_sycl=True)
 
-        run(f"cmake --build {build_path} -j", add_sycl=True)
+        run(f"cmake --build {build_path} -j {options.build_jobs}", add_sycl=True)
 
         self.built = True
 

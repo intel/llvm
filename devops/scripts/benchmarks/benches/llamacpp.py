@@ -67,7 +67,7 @@ class LlamaCppBench(Suite):
         run(configure_command, add_sycl=True)
 
         run(
-            f"cmake --build {self.build_path} -j",
+            f"cmake --build {self.build_path} -j {options.build_jobs}",
             add_sycl=True,
             ld_library=self.oneapi.ld_libraries(),
         )

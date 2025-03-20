@@ -101,7 +101,7 @@ class VelocityBase(Benchmark):
 
         run(configure_command, {"CC": "clang", "CXX": "clang++"}, add_sycl=True)
         run(
-            f"cmake --build {build_path} -j",
+            f"cmake --build {build_path} -j {options.build_jobs}",
             add_sycl=True,
             ld_library=self.ld_libraries(),
         )

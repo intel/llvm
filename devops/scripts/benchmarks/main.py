@@ -481,6 +481,12 @@ if __name__ == "__main__":
         help="Specify a custom results directory",
         default=options.custom_results_dir,
     )
+    parser.add_argument(
+        "--build-jobs",
+        type=int,
+        help="Number of build jobs to run simultaneously",
+        default=options.build_jobs,
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -508,6 +514,7 @@ if __name__ == "__main__":
     options.cublas_directory = args.cublas_directory
     options.preset = args.preset
     options.custom_results_dir = args.results_dir
+    options.build_jobs = args.build_jobs
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
