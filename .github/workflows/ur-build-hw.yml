@@ -112,18 +112,36 @@ jobs:
     - name: Set working directory as environment variable
       run: echo "CURRENT_DIR=$(pwd)" >> $GITHUB_ENV
 
-    - name: placeholder
-      working-directory: ${{ env.CURRENT_DIR }}
-      run: |
-        pwd
-        ls
-        cd ..
-        ls 
-        cd ..
-        ls
-        cd ..
-        ls
-        cd ..
+    # - name: placeholder
+    #   working-directory: ${{ env.CURRENT_DIR }}
+    #   run: |
+    #     pwd
+    #     ls -la
+    #     cd ..
+    #     pwd
+    #     ls -la
+    #     cd ..
+    #     ls -la
+    #     pwd
+    #     cd ..
+    #     pwd
+    #     ls
+    #     cd usr
+    #     pwd
+    #     ls -la
+    #     cd local
+    #     ls -la
+    #     cd man
+
+    # - name: Add hwloc variables to PATH
+    #   run: |
+    #     echo "CPLUS_INCLUDE_PATH=/home/linuxbrew/.linuxbrew/Cellar/hwloc/2.10.0/include:$CPLUS_INCLUDE_PATH" >> $GITHUB_ENV
+    #     echo "LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/hwloc/2.10.0/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+    #     echo "LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/hwloc/2.10.0/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+    #     echo "export CPLUS_INCLUDE_PATH=/home/linuxbrew/.linuxbrew/Cellar/hwloc/2.10.0/include:$CPLUS_INCLUDE_PATH" >> ~/.bashrc
+    #     echo "export LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/hwloc/2.10.0/lib:$LIBRARY_PATH" >> ~/.bashrc
+    #     echo "export LD_LIBRARY_PATH=/home/linuxbrew/.linuxbrew/Cellar/hwloc/2.10.0/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
 
     # Latest distros do not allow global pip installation
     - name: Install UR python dependencies in venv
@@ -150,9 +168,10 @@ jobs:
         cd level-zero-master
         
         mkdir build && cd build
-        cmake .. -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=/usr/local/install
+        cmake .. -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=usr/local/install
         cmake --build . --target package
-        cmake --build . --target install
+        sudo cmake --install .
+        # cmake --build . --target install
 
     - name: Install Intel Level Zero GPU
       run: |
@@ -170,8 +189,8 @@ jobs:
 
     - name: Add L0 to PATH
       run: |
-        echo "${{ env.CURRENT_DIR }}/install/bin" >> $GITHUB_PATH
-        export PATH="${{ env.CURRENT_DIR }}/install/bin:$PATH"
+        echo "${{ env.CURRENT_DIR }}/install" >> $GITHUB_PATH
+        export PATH="${{ env.CURRENT_DIR }}/install:$PATH"
 
     - name: Configure Unified Runtime project
       working-directory: ${{ env.CURRENT_DIR }}/unified-runtime
@@ -196,14 +215,6 @@ jobs:
         ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
-    - name: Run ldd on libur_* libraries
-      run: |
-        cd ${{ env.CURRENT_DIR }}
-        ls 
-        cd unified-runtime 
-        ls
-        ldd lib/libur_*
-
     - name: Build
       # This is so that device binaries can find the sycl runtime library
       run: cmake --build ${{ env.CURRENT_DIR }}/build -j $(nproc)
@@ -211,6 +222,16 @@ jobs:
     - name: Install
       # This is to check that install command does not fail
       run: cmake --install ${{ env.CURRENT_DIR }}/build
+
+    # - name: Run ldd on libur_* libraries
+    #   run: |
+    #     cd ${{ env.CURRENT_DIR }}
+    #     pwd
+    #     ls 
+    #     cd build
+    #     pwd
+    #     ls
+    #     ldd lib/libur_*
 
     # - name: Check if GPU is avaliable 
     #   run: |
