@@ -2560,6 +2560,74 @@ TEST_P(urDeviceGetInfoTest, SuccessUseNativeAssert) {
                              property_value);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS;
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
+  ASSERT_EQ(property_size, sizeof(ur_device_throttle_reasons_flag_t));
+
+  ur_device_throttle_reasons_flag_t property_value =
+      UR_DEVICE_THROTTLE_REASONS_FLAG_FORCE_UINT32;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+
+  ASSERT_EQ(property_value & UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK, 0);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_FAN_SPEED;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+
+  ASSERT_EQ(property_size, sizeof(int32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_POWER_LIMIT;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+
+  ASSERT_EQ(property_size, sizeof(int32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_MIN_POWER_LIMIT;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+
+  ASSERT_EQ(property_size, sizeof(int32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
 TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
   ur_device_type_t device_type;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
