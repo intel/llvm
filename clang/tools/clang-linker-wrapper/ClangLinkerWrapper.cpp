@@ -1083,9 +1083,9 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     if (!OffloadImageDumpDir.empty()) {
       StringRef CopyFrom = SI.ModuleFilePath;
       SmallString<128> CopyTo = OffloadImageDumpDir;
-      StringRef Filename = llvm::sys::path::filename(CopyFrom);
+      StringRef Filename = sys::path::filename(CopyFrom);
       CopyTo.append(Filename);
-      std::error_code EC = llvm::sys::fs::copy_file(CopyFrom, CopyTo);
+      std::error_code EC = sys::fs::copy_file(CopyFrom, CopyTo);
       if (EC)
         return createStringError(EC, formatv("failed to copy file. From: "
                                              "{0} to: {1}, error_code: {2}",
@@ -2609,19 +2609,22 @@ int main(int Argc, char **Argv) {
     Arg *A = Args.getLastArg(OPT_sycl_dump_device_code_EQ);
     SmallString<128> Dir(A->getValue());
     if (Dir.empty())
-      llvm::sys::path::native(Dir = "./");
+      sys::path::native(Dir = "./");
     else
-      Dir.append(llvm::sys::path::get_separator());
+      Dir.append(sys::path::get_separator());
 
     OffloadImageDumpDir = Dir;
 
-    std::error_code EC = llvm::sys::fs::create_directory(
-        OffloadImageDumpDir, /*IgnoreExisting*/ true);
-    if (EC)
-      reportError(createStringError(
-          EC,
-          formatv("failed to create dump directory. path: {0}, error_code: {1}",
-                  OffloadImageDumpDir, EC.value())));
+    if (!DryRun) {
+      std::error_code EC = sys::fs::create_directory(OffloadImageDumpDir,
+                                                     /*IgnoreExisting*/ true);
+      if (EC)
+        reportError(createStringError(
+            EC,
+            formatv(
+                "failed to create dump directory. path: {0}, error_code: {1}",
+                OffloadImageDumpDir, EC.value())));
+    }
   }
 
   {
