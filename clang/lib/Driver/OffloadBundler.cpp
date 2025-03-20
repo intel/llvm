@@ -142,7 +142,6 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
 
       this->TargetID = "";
     }
-    return;
   }
 }
 
