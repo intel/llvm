@@ -182,19 +182,11 @@ struct ur_mem_image_t : _ur_object {
   ur_mem_image_t(ur_context_handle_t hContext, ur_mem_flags_t flags,
                  const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, void *pHost);
-  ur_mem_image_t(ur_context_handle_t hContext,
-                 const ur_image_format_t *pImageFormat,
+  ur_mem_image_t(ur_context_handle_t, const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, ze_image_handle_t zeImage,
                  bool ownZeImage);
-  ur_mem_image_t(ur_context_handle_t hContext,
-                 ZeStruct<ze_image_desc_t> &zeImageDesc,
-                 ze_image_handle_t zeImage, bool ownZeImage)
-      : hContext(hContext), zeImage(zeImage, ownZeImage),
-        zeImageDesc(zeImageDesc) {};
 
   ze_image_handle_t getZeImage() const { return zeImage.get(); }
-
-  ze_image_desc_t &getZeImageDesc() { return zeImageDesc; }
 
   std::pair<ze_image_handle_t, ze_image_region_t>
   getRWRegion(ur_rect_offset_t &origin, ur_rect_region_t &region,

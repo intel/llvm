@@ -628,7 +628,6 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFill2D(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -641,7 +640,6 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy2D(
   UR_CALL(commandListLocked->appendUSMMemcpy2D(
       blocking, pDst, dstPitch, pSrc, srcPitch, width, height,
       numEventsInWaitList, phEventWaitList, phEvent));
-  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
   return UR_RESULT_SUCCESS;
 }
 
@@ -714,7 +712,6 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueReadHostPipe(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -730,7 +727,6 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueWriteHostPipe(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  std::cerr << " *** " << __FUNCTION__ << " not implemented" << std::endl;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -780,7 +776,7 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
   return bindlessImagesHandleCopyFlags(
       pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
       pDstImageFormat, pCopyRegion, imageCopyFlags,
-      commandListMgr->getZeCommandList(),zeSignalEvent, waitListView.num, 
+      commandListMgr->getZeCommandList(), zeSignalEvent, waitListView.num,
       waitListView.handles);
 }
 

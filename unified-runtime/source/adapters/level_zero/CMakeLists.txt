@@ -122,6 +122,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
     add_ur_adapter(ur_adapter_level_zero_v2
         SHARED
         # sources shared with legacy adapter
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/device.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp

@@ -23,7 +23,10 @@ namespace ur::level_zero {
 ur_result_t
 urBindlessImagesImageFreeExp([[maybe_unused]] ur_context_handle_t hContext,
                              [[maybe_unused]] ur_device_handle_t hDevice,
-                             [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem) {
+                             ur_exp_image_mem_native_handle_t hImageMem) {
+  ur_bindless_mem_handle_t *urImg =
+      reinterpret_cast<ur_bindless_mem_handle_t *>(hImageMem);
+  delete urImg;
   return UR_RESULT_SUCCESS;
 }
 
