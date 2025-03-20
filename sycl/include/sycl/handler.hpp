@@ -2384,15 +2384,7 @@ public:
       PropertiesT>::value> parallel_for(nd_range<Dims> Range,
                                         PropertiesT Properties,
                                         _KERNELFUNCPARAM(KernelFunc)) {
-    if constexpr (ext::oneapi::experimental::detail::
-                      HasKernelPropertiesGetMethod<
-                          _KERNELFUNCPARAMTYPE>::value) {
-      parallel_for_impl<KernelName>(
-          Range, KernelFunc.get(ext::oneapi::experimental::properties_tag{}),
-          std::move(KernelFunc));
-    } else {
-      parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
-    }
+    parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 
   /// Reductions @{
@@ -2506,7 +2498,8 @@ public:
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
   parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
-                             ext::oneapi::experimental::empty_properties_t{},
+                             ext::oneapi::experimental::properties{
+                                 ext::oneapi::experimental::use_root_sync},
                              std::forward<RestT>(Rest)...);
   }
 
