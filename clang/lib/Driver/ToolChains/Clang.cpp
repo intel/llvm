@@ -3144,17 +3144,18 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back(A->getValue());
   }
 
-  auto addSPIRVArgs = [&](StringRef SPIRVArg) {
+  auto addSPIRVArgs = [&](const Arg *PrecArg) {
     if (IsFp32PrecDivSqrtAllowed) {
+      OptSpecifier Opt(PrecArg->getOption().getID());
       if (!FPAccuracy.empty())
-        EmitAccuracyDiag(D, JA, FPAccuracy, SPIRVArg);
-      if (SPIRVArg == "-fno-offload-fp32-prec-div")
+        EmitAccuracyDiag(D, JA, FPAccuracy, PrecArg->getSpelling());
+      if (Opt == options::OPT_fno_offload_fp32_prec_div)
         NoOffloadFP32PrecDiv = true;
-      else if (SPIRVArg == "-fno-offload-fp32-prec-sqrt")
+      else if (Opt == options::OPT_fno_offload_fp32_prec_sqrt)
         NoOffloadFP32PrecSqrt = true;
-      else if (SPIRVArg == "-foffload-fp32-prec-sqrt")
+      else if (Opt == options::OPT_foffload_fp32_prec_sqrt)
         NoOffloadFP32PrecSqrt = false;
-      else if (SPIRVArg == "-foffload-fp32-prec-div")
+      else if (Opt == options::OPT_foffload_fp32_prec_div)
         NoOffloadFP32PrecDiv = false;
     }
   };
@@ -3181,17 +3182,15 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     default: continue;
 
     case options::OPT_foffload_fp32_prec_div:
-      addSPIRVArgs("-foffload-fp32-prec-div");
-      break;
     case options::OPT_foffload_fp32_prec_sqrt:
-      addSPIRVArgs("-foffload-fp32-prec-sqrt");
-      break;
     case options::OPT_fno_offload_fp32_prec_div:
-      addSPIRVArgs("-fno-offload-fp32-prec-div");
-      break;
     case options::OPT_fno_offload_fp32_prec_sqrt:
-      addSPIRVArgs("-fno-offload-fp32-prec-sqrt");
-      break;
+      if (IsFp32PrecDivSqrtAllowed) {
+        addSPIRVArgs(A);
+        break;
+      }
+      // Skip claim, as we didn't use the option.
+      continue;
     case options::OPT_fcx_limited_range:
       if (GccRangeComplexOption.empty()) {
         if (Range != LangOptions::ComplexRangeKind::CX_Basic)
@@ -10769,6 +10768,8 @@ static void getNonTripleBasedSPIRVTransOpts(Compilation &C,
 // to user supplied options.
 // NOTE: Any changes made here should be reflected in the similarly named
 // function in clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp.
+// NOTE2: JIT related changes made here should be reflected in 'translatorOpts'
+// from sycl-jit/jit-compiler/lib/translation/SPIRVLLVMTranslation.cpp.
 static void getTripleBasedSPIRVTransOpts(Compilation &C,
                                          const llvm::opt::ArgList &TCArgs,
                                          llvm::Triple Triple,
@@ -11020,6 +11021,7 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                               const JobAction &JA,
                                               const llvm::opt::ArgList &TCArgs,
                                               ArgStringList &PostLinkArgs) {
+
   // See if device code splitting is requested
   if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_device_code_split_EQ)) {
     auto CodeSplitValue = StringRef(A->getValue());
@@ -11045,6 +11047,25 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
 
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
+
+  // For bfloat16 conversions LLVM IR devicelib, we only need to embed it
+  // when non-AOT compilation is used.
+  if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT()) {
+    SYCLInstallationDetector SYCLInstall(TC.getDriver());
+    SmallVector<SmallString<128>, 4> DeviceLibLocCandidates;
+    SmallString<128> NativeBfloat16Name("libsycl-native-bfloat16.bc");
+    SYCLInstall.getSYCLDeviceLibPath(DeviceLibLocCandidates);
+    for (const auto &DeviceLibLoc : DeviceLibLocCandidates) {
+      SmallString<128> FullLibName(DeviceLibLoc);
+      llvm::sys::path::append(FullLibName, NativeBfloat16Name);
+      if (llvm::sys::fs::exists(FullLibName)) {
+        SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
+        SYCLDeviceLibDir += DeviceLibLoc.str();
+        addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
+        break;
+      }
+    }
+  }
 }
 
 // On Intel targets we don't need non-kernel functions as entry points,

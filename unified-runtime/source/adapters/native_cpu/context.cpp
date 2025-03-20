@@ -60,12 +60,6 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
     // case UR_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
     // 2D USM operations currently not supported.
     return returnValue(false);
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }

@@ -284,11 +284,11 @@ ur_result_t urDeviceGetInfo(
       // Supports reading and writing of images.
       SupportedExtensions += ("cl_khr_3d_image_writes ");
 
-    // L0 does not tell us if bfloat16 is supported.
-    // For now, assume ATS and PVC support it.
-    // TODO: change the way we detect bfloat16 support.
-    if ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
-        (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
+    if (Device->Platform->zeDriverExtensionMap.count(
+            ZE_BFLOAT16_CONVERSIONS_EXT_NAME))
+      SupportedExtensions += ("cl_intel_bfloat16_conversions ");
+    else if ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
+             (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0)
       SupportedExtensions += ("cl_intel_bfloat16_conversions ");
 
     return ReturnValue(SupportedExtensions.c_str());
@@ -897,10 +897,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numEUsPerSubslice});
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
-  case UR_DEVICE_INFO_BFLOAT16: {
-    // bfloat16 math functions are not yet supported on Intel GPUs.
-    return ReturnValue(ur_bool_t{false});
-  }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // There are no explicit restrictions in L0 programming guide, so assume all
     // are supported
@@ -1075,6 +1071,8 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
     return ReturnValue(Device->isIntelDG2OrNewer() &&
                        Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&
@@ -1167,6 +1165,10 @@ ur_result_t urDeviceGetInfo(
     // L0 does not support sampling 2D USM sampled image data.
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP: {
+    // L0 doesn't support sampled image gather.
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(true);
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
@@ -1202,6 +1204,8 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
     return ReturnValue(true);
@@ -1512,12 +1516,23 @@ ur_device_handle_t_::useImmediateCommandLists() {
     bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
-    if ((isDG2SupportedDriver && isDG2OrNewer) || isPVC()) {
+    // Disable immediate command lists for DG2 devices on Windows due to driver
+    // limitations.
+    bool isLinux = true;
+#ifdef _WIN32
+    isLinux = false;
+#endif
+    if ((isDG2SupportedDriver && isDG2OrNewer && isLinux) || isPVC() ||
+        isNewerThanIntelDG2()) {
       return PerQueue;
     } else {
       return NotUsed;
     }
   }
+
+  logger::info("NOTE: L0 Immediate CommandList Setting: {}",
+               ImmediateCommandlistsSetting);
+
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
