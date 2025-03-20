@@ -31,6 +31,8 @@
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fcs-profile-generate \
 // RUN:    -DOPT_CC1=-fprofile-instrument=csllvm \
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
+// RUN: %clangxx -fsycl -forder-file-instrumentation -### %s 2>&1 \
+// RUN: | FileCheck %s -DARCH=spir64 -DOPT=-forder-file-instrumentation
 // RUN: %clangxx -fsycl --coverage -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=--coverage \
 // RUN:    -DOPT_CC1=-coverage-notes-file \
