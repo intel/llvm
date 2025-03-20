@@ -2384,7 +2384,15 @@ public:
       PropertiesT>::value> parallel_for(nd_range<Dims> Range,
                                         PropertiesT Properties,
                                         _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
+    if constexpr (ext::oneapi::experimental::detail::
+                      HasKernelPropertiesGetMethod<
+                          _KERNELFUNCPARAMTYPE>::value) {
+      parallel_for_impl<KernelName>(
+          Range, KernelFunc.get(ext::oneapi::experimental::properties_tag{}),
+          std::move(KernelFunc));
+    } else {
+      parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
+    }
   }
 
   /// Reductions @{
