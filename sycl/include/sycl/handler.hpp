@@ -3423,7 +3423,7 @@ public:
       uint64_t SignalValue);
 
 private:
-  std::unique_ptr<detail::handler_impl> MImplOwner;
+  std::shared_ptr<detail::handler_impl> MImplOwner;
   detail::handler_impl *impl;
   std::shared_ptr<detail::queue_impl> &MQueue;
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;

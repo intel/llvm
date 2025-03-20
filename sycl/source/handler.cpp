@@ -304,7 +304,7 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : MImplOwner(std::make_unique<detail::handler_impl>(Queue.get(), nullptr,
+    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
                                                         CallerNeedsEvent)),
       impl(MImplOwner.get()), MQueue(Queue) {}
 
