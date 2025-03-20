@@ -8,9 +8,10 @@ let activeRuns = new Set(defaultCompareNames);
 let chartInstances = new Map();
 let suiteNames = new Set();
 let timeseriesData, barChartsData, allRunNames;
+let activeTags = new Set();
 
 // DOM Elements
-let runSelect, selectedRunsDiv, suiteFiltersContainer;
+let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
 
 // Run selector functions
 function updateSelectedRuns(forceUpdate = true) {
@@ -218,6 +219,14 @@ function createChartContainer(data, canvasId, type) {
         container.appendChild(unstableWarning);
     }
 
+    // Add description if present in metadata (moved outside of details)
+    if (metadata && metadata.description) {
+        const descElement = document.createElement('div');
+        descElement.className = 'benchmark-description';
+        descElement.textContent = metadata.description;
+        container.appendChild(descElement);
+    }
+
     // Add notes if present
     if (metadata && metadata.notes) {
         const noteElement = document.createElement('div');
@@ -227,12 +236,29 @@ function createChartContainer(data, canvasId, type) {
         container.appendChild(noteElement);
     }
 
-    // Add description if present in metadata, but only for groups
-    if (metadata && metadata.description && metadata.type === "group") {
-        const descElement = document.createElement('div');
-        descElement.className = 'benchmark-description';
-        descElement.textContent = metadata.description;
-        container.appendChild(descElement);
+    // Add tags if present
+    if (metadata && metadata.tags) {
+        container.setAttribute('data-tags', metadata.tags.join(','));
+        
+        // Add tags display
+        const tagsContainer = document.createElement('div');
+        tagsContainer.className = 'benchmark-tags';
+        
+        metadata.tags.forEach(tag => {
+            const tagElement = document.createElement('span');
+            tagElement.className = 'tag';
+            tagElement.textContent = tag;
+            tagElement.setAttribute('data-tag', tag);
+            
+            // Add tooltip with tag description
+            if (benchmarkTags[tag]) {
+                tagElement.setAttribute('title', benchmarkTags[tag].description);
+            }
+            
+            tagsContainer.appendChild(tagElement);
+        });
+        
+        container.appendChild(tagsContainer);
     }
 
     const canvas = document.createElement('canvas');
@@ -358,6 +384,7 @@ function updateURL() {
     const regex = document.getElementById('bench-filter').value;
     const activeSuites = getActiveSuites();
     const activeRunsList = Array.from(activeRuns);
+    const activeTagsList = Array.from(activeTags);
 
     if (regex) {
         url.searchParams.set('regex', regex);
@@ -369,6 +396,13 @@ function updateURL() {
         url.searchParams.set('suites', activeSuites.join(','));
     } else {
         url.searchParams.delete('suites');
+    }
+
+    // Add tags to URL
+    if (activeTagsList.length > 0) {
+        url.searchParams.set('tags', activeTagsList.join(','));
+    } else {
+        url.searchParams.delete('tags');
     }
 
     // Handle the runs parameter
@@ -404,11 +438,18 @@ function filterCharts() {
         const label = container.getAttribute('data-label');
         const suite = container.getAttribute('data-suite');
         const isUnstable = container.getAttribute('data-unstable') === 'true';
+        const tags = container.getAttribute('data-tags') ? 
+                    container.getAttribute('data-tags').split(',') : [];
+
+        // Check if benchmark has all active tags (if any are selected)
+        const hasAllActiveTags = activeTags.size === 0 || 
+                               Array.from(activeTags).every(tag => tags.includes(tag));
 
         // Hide unstable benchmarks if showUnstable is false
         const shouldShow = regex.test(label) &&
             activeSuites.includes(suite) &&
-            (isUnstableEnabled() || !isUnstable);
+            (isUnstableEnabled() || !isUnstable) &&
+            hasAllActiveTags;
 
         container.style.display = shouldShow ? '' : 'none';
     });
@@ -585,6 +626,77 @@ function setupToggles() {
     }
 }
 
+function setupTagFilters() {
+    tagFiltersContainer = document.getElementById('tag-filters');
+    
+    // Get all unique tags from benchmark metadata
+    const allTags = new Set();
+    
+    for (const [key, metadata] of Object.entries(benchmarkMetadata)) {
+        if (metadata.tags) {
+            metadata.tags.forEach(tag => allTags.add(tag));
+        }
+    }
+    
+    // Sort tags alphabetically
+    const sortedTags = Array.from(allTags).sort();
+    
+    // Create tag filter elements
+    sortedTags.forEach(tag => {
+        const tagContainer = document.createElement('div');
+        tagContainer.className = 'tag-filter';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `tag-${tag}`;
+        checkbox.className = 'tag-checkbox';
+        checkbox.dataset.tag = tag;
+        
+        const label = document.createElement('label');
+        label.htmlFor = `tag-${tag}`;
+        label.textContent = tag;
+        
+        // Add info icon with tooltip if tag description exists
+        if (benchmarkTags[tag]) {
+            const infoIcon = document.createElement('span');
+            infoIcon.className = 'tag-info';
+            infoIcon.textContent = 'ⓘ';
+            infoIcon.title = benchmarkTags[tag].description;
+            label.appendChild(infoIcon);
+        }
+        
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                activeTags.add(tag);
+            } else {
+                activeTags.delete(tag);
+            }
+            filterCharts();
+        });
+        
+        tagContainer.appendChild(checkbox);
+        tagContainer.appendChild(label);
+        tagFiltersContainer.appendChild(tagContainer);
+    });
+}
+
+function toggleAllTags(select) {
+    const checkboxes = document.querySelectorAll('.tag-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = select;
+        const tag = checkbox.dataset.tag;
+        
+        if (select) {
+            activeTags.add(tag);
+        } else {
+            activeTags.delete(tag);
+        }
+    });
+    
+    filterCharts();
+}
+
 function initializeCharts() {
     // Process raw data
     timeseriesData = processTimeseriesData(benchmarkRuns);
@@ -621,11 +733,13 @@ function initializeCharts() {
     // Setup UI components
     setupRunSelector();
     setupSuiteFilters();
+    setupTagFilters();
     setupToggles();
 
     // Apply URL parameters
     const regexParam = getQueryParam('regex');
     const suitesParam = getQueryParam('suites');
+    const tagsParam = getQueryParam('tags');
 
     if (regexParam) {
         document.getElementById('bench-filter').value = regexParam;
@@ -635,6 +749,18 @@ function initializeCharts() {
         const suites = suitesParam.split(',');
         document.querySelectorAll('.suite-checkbox').forEach(checkbox => {
             checkbox.checked = suites.includes(checkbox.getAttribute('data-suite'));
+        });
+    }
+
+    // Apply tag filters from URL
+    if (tagsParam) {
+        const tags = tagsParam.split(',');
+        tags.forEach(tag => {
+            const checkbox = document.querySelector(`.tag-checkbox[data-tag="${tag}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+                activeTags.add(tag);
+            }
         });
     }
 
@@ -651,6 +777,7 @@ function initializeCharts() {
 // Make functions available globally for onclick handlers
 window.addSelectedRun = addSelectedRun;
 window.removeRun = removeRun;
+window.toggleAllTags = toggleAllTags;
 
 // Load data based on configuration
 function loadData() {

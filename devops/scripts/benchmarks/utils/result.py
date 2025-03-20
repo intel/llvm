@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Dict, List, Any
 from dataclasses_json import config, dataclass_json
 from datetime import datetime
 
@@ -57,4 +57,13 @@ class BenchmarkMetadata:
     description: Optional[str] = None
     notes: Optional[str] = None
     unstable: Optional[str] = None
-    tags: list[BenchmarkTag] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)  # Changed to list of tag names
+
+
+@dataclass_json
+@dataclass
+class BenchmarkOutput:
+    runs: list[BenchmarkRun]
+    metadata: Dict[str, BenchmarkMetadata]
+    tags: Dict[str, BenchmarkTag]
+    default_compare_names: List[str] = field(default_factory=list)

@@ -24,15 +24,7 @@ benchmark_tags = [BenchmarkTag('sycl', 'Benchmark uses SYCL RT'),
                   BenchmarkTag('allocation', 'Benchmark tests memory allocation performance'),
                   BenchmarkTag('graph', 'Benchmark tests graph performance'),]
 
-def translate_tags(tag_names: list[str]) -> list[BenchmarkTag]:
-    tags = []
-    for tag_name in tag_names:
-        for tag in benchmark_tags:
-            if tag.name == tag_name:
-                tags.append(tag)
-                break
-
-    return tags
+benchmark_tags_dict = {tag.name: tag for tag in benchmark_tags}
 
 class Benchmark:
     def __init__(self, directory, suite):
@@ -135,7 +127,7 @@ class Benchmark:
             description=self.description(),
             notes=self.notes(),
             unstable=self.unstable(),
-            tags=translate_tags(self.get_tags())
+            tags=self.get_tags()
         )
 
 class Suite:

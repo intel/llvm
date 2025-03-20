@@ -7,7 +7,7 @@ import os
 import csv
 import io
 from utils.utils import run, git_clone, create_build_path
-from .base import Benchmark, Suite, translate_tags
+from .base import Benchmark, Suite
 from utils.result import BenchmarkMetadata, Result
 from options import options
 from enum import Enum
@@ -84,12 +84,16 @@ class ComputeBench(Suite):
                 "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
                 "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
                 "Work is ongoing to reduce the overhead of the SYCL API\n",
-                tags=translate_tags(['submit', 'micro'])
+                tags=['submit', 'micro', 'sycl', 'ur', 'l0']
             ),
             "SinKernelGraph": BenchmarkMetadata(
                 type="group",
                 unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
-                tags=translate_tags(['submit', 'micro'])
+                tags=['submit', 'micro', 'sycl', 'ur', 'L0']
+            ),
+            "SubmitGraph": BenchmarkMetadata(
+                type="group",
+                tags=['submit', 'micro', 'sycl', 'ur', 'L0', 'graph']
             ),
         }
 
