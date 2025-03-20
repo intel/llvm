@@ -95,26 +95,11 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
                                      const OffloadBundlerConfig &BC)
     : BundlerConfig(BC) {
 
+  // <kind>-<triple>[-<target id>[:target features]]
+  // <triple> := <arch>-<vendor>-<os>-<env>
   SmallVector<StringRef, 6> Components;
   Target.split(Components, '-', /*MaxSplit=*/5);
-  if (Components.size() == 5 || Components.size() == 6) {
-    // <kind>-<triple>[-<target id>[:target features]]
-    // <triple> := <arch>-<vendor>-<os>-<env>
-    StringRef TargetIdWithFeature =
-        Components.size() == 6 ? Components.back() : "";
-    StringRef TargetId = TargetIdWithFeature.split(':').first;
-    if (!TargetId.empty() &&
-        clang::StringToOffloadArch(TargetId) != clang::OffloadArch::UNKNOWN)
-      this->TargetID = TargetIdWithFeature;
-    else
-      this->TargetID = "";
-
-    this->OffloadKind = Components.front();
-    ArrayRef<StringRef> TripleSlice{&Components[1], /*length=*/4};
-    llvm::Triple T = llvm::Triple(llvm::join(TripleSlice, "-"));
-    this->Triple = llvm::Triple(T.getArchName(), T.getVendorName(),
-                                T.getOSName(), T.getEnvironmentName());
-  } else {
+  if (Components.size() < 5) {
     // Handle target inputs that do not fit the <arch>-<vendor>-<os>-<env>
     // triple format.
     auto TargetFeatures = Target.split(':');
@@ -142,7 +127,25 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
 
       this->TargetID = "";
     }
+    return;
   }
+  assert((Components.size() == 5 || Components.size() == 6) &&
+         "malformed target string");
+
+  StringRef TargetIdWithFeature =
+      Components.size() == 6 ? Components.back() : "";
+  StringRef TargetId = TargetIdWithFeature.split(':').first;
+  if (!TargetId.empty() &&
+      clang::StringToOffloadArch(TargetId) != clang::OffloadArch::UNKNOWN)
+    this->TargetID = TargetIdWithFeature;
+  else
+    this->TargetID = "";
+
+  this->OffloadKind = Components.front();
+  ArrayRef<StringRef> TripleSlice{&Components[1], /*length=*/4};
+  llvm::Triple T = llvm::Triple(llvm::join(TripleSlice, "-"));
+  this->Triple = llvm::Triple(T.getArchName(), T.getVendorName(),
+                              T.getOSName(), T.getEnvironmentName());
 }
 
 bool OffloadTargetInfo::hasHostKind() const {
