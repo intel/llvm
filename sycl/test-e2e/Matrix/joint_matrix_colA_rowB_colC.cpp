@@ -11,6 +11,9 @@
 
 // REQUIRES: aspect-ext_intel_matrix
 
+// XFAIL: run-mode && gpu-intel-dg2
+// XFAIL-TRACKER: GSD-5768
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

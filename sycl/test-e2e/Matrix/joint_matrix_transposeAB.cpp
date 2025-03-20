@@ -18,6 +18,9 @@
 // RUN: %if !arch-intel_gpu_dg2 %{ %{build} -o %t_sg32.out -DSG_SZ=32 %}
 // RUN: %if !arch-intel_gpu_dg2 %{ %{run} %t_sg32.out %}
 
+// XFAIL: run-mode && gpu-intel-dg2
+// XFAIL-TRACKER: GSD-5768
+
 // XFAIL: cpu
 // XFAIL-TRACKER: CMPLRLLVM-52693
 
