@@ -31,15 +31,15 @@ ur_result_t redefinedDeviceGetInfo(void *pParams) {
       int32_t *FanSpeed = reinterpret_cast<int32_t *>(*params.ppPropValue);
       *FanSpeed = 75;
     }
-  } else if (*params.ppropName == UR_DEVICE_INFO_MAX_POWER_LIMIT) {
-    if (*params.ppPropValue) {
-      int32_t *MaxPowerLimit = reinterpret_cast<int32_t *>(*params.ppPropValue);
-      *MaxPowerLimit = 150;
-    }
   } else if (*params.ppropName == UR_DEVICE_INFO_MIN_POWER_LIMIT) {
     if (*params.ppPropValue) {
       int32_t *MinPowerLimit = reinterpret_cast<int32_t *>(*params.ppPropValue);
       *MinPowerLimit = 50;
+    }
+  } else if (*params.ppropName == UR_DEVICE_INFO_MAX_POWER_LIMIT) {
+    if (*params.ppPropValue) {
+      int32_t *MaxPowerLimit = reinterpret_cast<int32_t *>(*params.ppPropValue);
+      *MaxPowerLimit = 150;
     }
   }
   return UR_RESULT_SUCCESS;
