@@ -137,7 +137,7 @@ void test_kernel_launch() {
   args[2] = &d_C;
   args[3] = &N;
 
-  syclcompat::kernel_launcher::launch(fp, 1, 10, args, 0, 0);
+  syclcompat::kernel_launcher::launch(kernel_func, 1, 10, args, 0, 0);
 
   q_ct1.memcpy(h_C, d_C, size).wait();
 
