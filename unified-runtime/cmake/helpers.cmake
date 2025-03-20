@@ -225,7 +225,9 @@ if(NOT TARGET install-unified-runtime-libraries)
         COMMAND ${CMAKE_COMMAND}
             -DCOMPONENT=unified-runtime
             -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+        # TODO: Also install debug UMF runtime libraries component
         DEPENDS unified-runtime-libraries
+        # TODO: Add dependency on building debug UMF libraries
     )
 endif()
 
