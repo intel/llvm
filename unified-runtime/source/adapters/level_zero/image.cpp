@@ -560,25 +560,9 @@ ur_result_t urBindlessImagesImageCopyExp(
                  (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
                   pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
                   WaitList.Length, WaitList.ZeEventList));
-    } else if (pSrcImageDesc->rowPitch == 0 && pDstImageDesc->rowPitch == 0) {
-      // Copy from Non-USM memory to Non-USM memory
-      ze_image_region_t DstRegion;
-      UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->dstOffset,
-                                   &pCopyRegion->copyExtent, DstRegion));
-      ze_image_region_t SrcRegion;
-      UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->srcOffset,
-                                   &pCopyRegion->copyExtent, SrcRegion));
-      auto *UrImageDst = static_cast<_ur_image *>(pDst);
-      auto *UrImageSrc = static_cast<const _ur_image *>(pSrc);
-      ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
-                 (ZeCommandList, UrImageDst->ZeImage, UrImageSrc->ZeImage,
-                  &DstRegion, &SrcRegion, ZeEvent, WaitList.Length,
-                  WaitList.ZeEventList));
-
     } else {
+      // Copy from Non-USM memory to Non-USM memory
       // Copy from Non-USM/pitched USM memory to pitched USM/Non-USM memory
-      // Note: This might be the same procedure as pitched USM to
-      // pitched USM. Need further testing.
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &pCopyRegion->dstOffset,
                                    &pCopyRegion->copyExtent, DstRegion));
