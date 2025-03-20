@@ -1600,13 +1600,12 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
       for (auto &QueueGroup : QueueMap)
         for (auto &ZeQueue : QueueGroup.second.ZeQueues)
           if (ZeQueue) {
-            ze_result_t ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
-            if (!Queue->IsInteropNativeHandle || (Queue->IsInteropNativeHandle && Queue->Context->getPlatform()->allowInteropTeardown)) {
-              ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
+            if (!Queue->IsInteropNativeHandle) {
+              auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
+              // Gracefully handle the case that L0 was already unloaded.
+              if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+                return ze2urResult(ZeResult);
             }
-            // Gracefully handle the case that L0 was already unloaded.
-            if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-              return ze2urResult(ZeResult);
           }
   }
 

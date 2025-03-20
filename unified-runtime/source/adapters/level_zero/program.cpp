@@ -1037,15 +1037,15 @@ ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Context)
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      AssociatedDevices({Context->getDevices()[0]}),
-      InteropZeModule{InteropZeModule} {}
+      AssociatedDevices({Context->getDevices()[0]}), InteropZeModule{
+                                                         InteropZeModule} {}
 
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule,
                                            bool OwnZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{OwnZeModule},
-      AssociatedDevices({Context->getDevices()[0]}),
-      InteropZeModule{InteropZeModule} {
+      AssociatedDevices({Context->getDevices()[0]}), InteropZeModule{
+                                                         InteropZeModule} {
   // TODO: Currently it is not possible to understand the device associated
   // with provided ZeModule. So we can't set the state on that device to Exe.
 }
@@ -1081,10 +1081,10 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
       if (DeviceData.ZeBuildLog)
         ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (DeviceData.ZeBuildLog));
     }
-
     // interop api
-    if (InteropZeModule && OwnZeModule && this->Context->getPlatform()->allowInteropTeardown)
-      ZE_CALL_NOCHECK(zeModuleDestroy, (InteropZeModule));
+    if (InteropZeModule && OwnZeModule) {
+      InteropZeModule = nullptr;
+    }
 
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap)
       if (DeviceData.ZeModule)

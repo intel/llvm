@@ -940,13 +940,12 @@ ur_result_t urKernelRelease(
   auto KernelProgram = Kernel->Program;
   if (Kernel->OwnNativeHandle) {
     for (auto &ZeKernel : Kernel->ZeKernels) {
-      ze_result_t ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
-      if (!Kernel->IsInteropNativeHandle || (Kernel->IsInteropNativeHandle && Kernel->Context->getPlatform()->allowInteropTeardown)) {
-        ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernel));
+      if (!Kernel->IsInteropNativeHandle) {
+        auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernel));
+        // Gracefully handle the case that L0 was already unloaded.
+        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+          return ze2urResult(ZeResult);
       }
-      // Gracefully handle the case that L0 was already unloaded.
-      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-        return ze2urResult(ZeResult);
     }
   }
   Kernel->ZeKernelMap.clear();

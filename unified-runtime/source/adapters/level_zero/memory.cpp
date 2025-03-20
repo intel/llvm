@@ -1663,14 +1663,13 @@ ur_result_t urMemRelease(
     if (Image->OwnNativeHandle) {
       UR_CALL(Mem->getZeHandle(ZeHandleImage, ur_mem_handle_t_::write_only,
                                nullptr, nullptr, 0u));
-      ze_result_t ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
-      if (!Image->IsInteropNativeHandle || (Image->IsInteropNativeHandle && Image->UrContext->getPlatform()->allowInteropTeardown)) {
-          ZeResult = ZE_CALL_NOCHECK(
-          zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
+      if (!Image->IsInteropNativeHandle) {
+        auto ZeResult = ZE_CALL_NOCHECK(
+            zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
+        // Gracefully handle the case that L0 was already unloaded.
+        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+          return ze2urResult(ZeResult);
       }
-      // Gracefully handle the case that L0 was already unloaded.
-      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-        return ze2urResult(ZeResult);
     }
     delete Image;
   } else {

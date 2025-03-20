@@ -1117,14 +1117,13 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
   if (Event->OwnNativeHandle) {
     if (DisableEventsCaching) {
-      ze_result_t ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
-      if (!Event->IsInteropNativeHandle || (Event->IsInteropNativeHandle && Event->Context->getPlatform()->allowInteropTeardown)) {
-        ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+      if (!Event->IsInteropNativeHandle) {
+        auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+        // Gracefully handle the case that L0 was already unloaded.
+        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+          return ze2urResult(ZeResult);
       }
       Event->ZeEvent = nullptr;
-      // Gracefully handle the case that L0 was already unloaded.
-      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-        return ze2urResult(ZeResult);
       auto Context = Event->Context;
       if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
         return Res;

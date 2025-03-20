@@ -436,7 +436,7 @@ struct _ur_object {
   // asked to not transfer the ownership to SYCL RT.
   bool OwnNativeHandle = false;
 
-  // Indicates if this object is an interop handle. 
+  // Indicates if this object is an interop handle.
   bool IsInteropNativeHandle = false;
 };
 

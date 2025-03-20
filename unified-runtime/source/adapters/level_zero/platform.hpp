@@ -92,11 +92,6 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // in the driver.
   std::list<ur_context_handle_t> Contexts;
   ur_shared_mutex ContextsMutex;
-  #ifdef UR_STATIC_LEVEL_ZERO
-  bool allowInteropTeardown = false;
-  #else
-  bool allowInteropTeardown = true;
-  #endif
 
   // Structure with function pointers for mutable command list extension.
   // Not all drivers may support it, so considering that the platform object is

@@ -263,7 +263,9 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
       Contexts.erase(It);
   }
   ze_context_handle_t DestroyZeContext =
-      Context->OwnNativeHandle ? Context->ZeContext : nullptr;
+      (Context->OwnNativeHandle || !Context->IsInteropNativeHandle)
+          ? Context->ZeContext
+          : nullptr;
 
   // Clean up any live memory associated with Context
   ur_result_t Result = Context->finalize();
@@ -300,11 +302,13 @@ ur_result_t ur_context_handle_t_::finalize() {
     std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
     for (auto &EventCache : EventCaches) {
       for (auto &Event : EventCache) {
-        auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+        if (!Event->IsInteropNativeHandle) {
+          auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+          // Gracefully handle the case that L0 was already unloaded.
+          if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+            return ze2urResult(ZeResult);
+        }
         Event->ZeEvent = nullptr;
-        // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-          return ze2urResult(ZeResult);
         delete Event;
       }
       EventCache.clear();
