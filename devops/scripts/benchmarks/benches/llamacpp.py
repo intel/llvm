@@ -101,6 +101,9 @@ class LlamaBench(Benchmark):
             "quantized model and leverages SYCL with oneDNN for acceleration."
         )
 
+    def get_tags(self):
+        return ['sycl', 'application']
+
     def lower_is_better(self):
         return False
 

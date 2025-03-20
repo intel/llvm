@@ -118,6 +118,9 @@ class VelocityBase(Benchmark):
     def description(self) -> str:
         return ""
 
+    def get_tags(self):
+        return ['sycl', 'application']
+
     def run(self, env_vars) -> list[Result]:
         env_vars.update(self.extra_env_vars())
 

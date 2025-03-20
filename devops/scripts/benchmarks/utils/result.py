@@ -27,7 +27,6 @@ class Result:
     name: str = ""
     lower_is_better: bool = True
     suite: str = "Unknown"
-    description: str = "No description provided."
 
 
 @dataclass_json
@@ -46,8 +45,16 @@ class BenchmarkRun:
 
 @dataclass_json
 @dataclass
+class BenchmarkTag:
+    name: str
+    description: str = ""
+
+
+@dataclass_json
+@dataclass
 class BenchmarkMetadata:
     type: str = "benchmark"  # or 'group'
     description: Optional[str] = None
     notes: Optional[str] = None
     unstable: Optional[str] = None
+    tags: list[BenchmarkTag] = field(default_factory=list)

@@ -3,15 +3,36 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from dataclasses import dataclass
 import os
 import shutil
 from pathlib import Path
-from utils.result import BenchmarkMetadata, Result
+from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
-import urllib.request
-import tarfile
 
+benchmark_tags = [BenchmarkTag('sycl', 'Benchmark uses SYCL RT'),
+                  BenchmarkTag('ur', 'Benchmark uses Unified Runtime'),
+                  BenchmarkTag('L0', 'Benchmark uses L0 directly'),
+                  BenchmarkTag('umf', 'Benchmark uses UMF directly'),
+                  BenchmarkTag('micro', 'Microbenchmark focusing on a specific niche'),
+                  BenchmarkTag('application', 'Real application-based performance test'),
+                  BenchmarkTag('proxy', 'Benchmark that tries to implement a real application use-case'),
+                  BenchmarkTag('submit', 'Benchmark tests the kernel submit path'),
+                  BenchmarkTag('math', 'Benchmark tests math compute performance'),
+                  BenchmarkTag('memory', 'Benchmark tests memory transfer performance'),
+                  BenchmarkTag('allocation', 'Benchmark tests memory allocation performance'),
+                  BenchmarkTag('graph', 'Benchmark tests graph performance'),]
+
+def translate_tags(tag_names: list[str]) -> list[BenchmarkTag]:
+    tags = []
+    for tag_name in tag_names:
+        for tag in benchmark_tags:
+            if tag.name == tag_name:
+                tags.append(tag)
+                break
+
+    return tags
 
 class Benchmark:
     def __init__(self, directory, suite):
@@ -105,14 +126,17 @@ class Benchmark:
     def unstable(self) -> str:
         return None
 
+    def get_tags(self) -> list[str]:
+        return []
+
     def get_metadata(self) -> BenchmarkMetadata:
         return BenchmarkMetadata(
             type="benchmark",
             description=self.description(),
             notes=self.notes(),
             unstable=self.unstable(),
+            tags=translate_tags(self.get_tags())
         )
-
 
 class Suite:
     def benchmarks(self) -> list[Benchmark]:

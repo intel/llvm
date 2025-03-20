@@ -112,6 +112,9 @@ class SyclBenchmark(Benchmark):
     def extra_env_vars(self) -> dict:
         return {}
 
+    def get_tags(self):
+        return ['sycl', 'micro']
+
     def setup(self):
         self.benchmark_bin = os.path.join(
             self.directory, "sycl-bench-build", self.bench_name
