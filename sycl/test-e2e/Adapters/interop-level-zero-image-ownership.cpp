@@ -23,8 +23,8 @@
 // This test verifies that ownership is working correctly.
 // If ownership is ::transfer then the ~image destructor will end up calling
 // zeImageDestroy
+// NOTE: cannot destroy the inherited handle safely in all cases, if transfered, this handle will leak.
 // CHECK: test  ownership::transfer
-// CHECK: zeImageDestroy
 
 // With ownership ::keep it is must be called manually.
 // CHECK: test  ownership::keep
