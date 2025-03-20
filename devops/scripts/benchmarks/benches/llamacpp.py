@@ -148,8 +148,8 @@ class LlamaBench(Benchmark):
                     env=env_vars,
                     stdout=result,
                     unit="token/s",
-                    git_url=self.git_url(),
-                    git_hash=self.git_hash(),
+                    git_url=self.bench.git_url(),
+                    git_hash=self.bench.git_hash(),
                 )
             )
         return results

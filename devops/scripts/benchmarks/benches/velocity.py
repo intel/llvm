@@ -145,8 +145,8 @@ class VelocityBase(Benchmark):
                 env=env_vars,
                 stdout=result,
                 unit=self.unit,
-                git_url=self.git_url(),
-                git_hash=self.git_hash(),
+                git_url=self.vb.git_url(),
+                git_hash=self.vb.git_hash(),
             )
         ]
 
