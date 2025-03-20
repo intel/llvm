@@ -99,6 +99,36 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
   // <triple> := <arch>-<vendor>-<os>-<env>
   SmallVector<StringRef, 6> Components;
   Target.split(Components, '-', /*MaxSplit=*/5);
+  if (Components.size() < 5) {
+    // Handle target inputs that do not fit the <arch>-<vendor>-<os>-<env>
+    // triple format.
+    auto TargetFeatures = Target.split(':');
+    auto TripleOrGPU = TargetFeatures.first.rsplit('-');
+
+    if (clang::StringToOffloadArch(TripleOrGPU.second) !=
+        clang::OffloadArch::UNKNOWN) {
+      auto KindTriple = TripleOrGPU.first.split('-');
+      this->OffloadKind = KindTriple.first;
+
+      // Enforce optional env field to standardize bundles
+      llvm::Triple t = llvm::Triple(KindTriple.second);
+      this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                  t.getOSName(), t.getEnvironmentName());
+
+      this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
+    } else {
+      auto KindTriple = TargetFeatures.first.split('-');
+      this->OffloadKind = KindTriple.first;
+
+      // Enforce optional env field to standardize bundles
+      llvm::Triple t = llvm::Triple(KindTriple.second);
+      this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                  t.getOSName(), t.getEnvironmentName());
+
+      this->TargetID = "";
+    }
+    return;
+  }
   assert((Components.size() == 5 || Components.size() == 6) &&
          "malformed target string");
 
@@ -2527,7 +2557,10 @@ Error OffloadBundler::UnbundleArchive() {
 bool clang::checkOffloadBundleID(const llvm::StringRef Str) {
   // <kind>-<triple>[-<target id>[:target features]]
   // <triple> := <arch>-<vendor>-<os>-<env>
-  SmallVector<StringRef, 6> Components;
-  Str.split(Components, '-', /*MaxSplit=*/5);
-  return Components.size() == 5 || Components.size() == 6;
+  // FIXME: The Intel Compiler does not currently adhere to the strict
+  // component size.  Consider all checks valid.
+  // SmallVector<StringRef, 6> Components;
+  // Str.split(Components, '-', /*MaxSplit=*/5);
+  // return Components.size() == 5 || Components.size() == 6;
+  return true;
 }
