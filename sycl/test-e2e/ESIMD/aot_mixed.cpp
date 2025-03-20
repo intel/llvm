@@ -7,6 +7,10 @@
 //===----------------------------------------------------------------------===//
 // TODO: Enable on other GPUs once internal ticket is fixed
 // REQUIRES: ocloc && gpu-intel-gen12
+
+// XFAIL: windows && !(build-mode && run-mode)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
+
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device tgllp" -o %t.sycl.out -DENABLE_SYCL=0 %s
 // RUN: %{run} %t.sycl.out
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device tgllp" -o %t.out %s

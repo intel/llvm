@@ -6,6 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: ocloc && arch-intel_gpu_tgllp
+
+// XFAIL: windows && !(build-mode && run-mode)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
+
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp %s -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 

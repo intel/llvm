@@ -13,6 +13,9 @@
 // UNSUPPORTED-INTENDED: kernel_compiler is not available for accelerator
 // devices.
 
+// XFAIL: windows && !(build-mode && run-mode)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
+
 // -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out
 

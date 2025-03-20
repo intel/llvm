@@ -4,6 +4,9 @@
 
 // REQUIRES: opencl-aot, ocloc, target-spir
 
+// XFAIL: windows && !(build-mode && run-mode)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
+
 // RUN: %{build} -DJIT -o %t1.out
 // RUN: %{run} %t1.out
 

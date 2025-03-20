@@ -10,6 +10,9 @@
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 
+// XFAIL: windows && !(build-mode && run-mode)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
+
 // -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

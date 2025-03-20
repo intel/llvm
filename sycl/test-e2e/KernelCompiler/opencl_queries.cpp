@@ -8,6 +8,9 @@
 
 // REQUIRES: ocloc && (opencl || level_zero)
 
+// XFAIL: windows && !(build-mode && run-mode)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

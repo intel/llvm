@@ -1,5 +1,8 @@
 // REQUIRES: (opencl || level_zero) && gpu && ocloc
 
+// XFAIL: windows && !(build-mode && run-mode)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
+
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17305
 
