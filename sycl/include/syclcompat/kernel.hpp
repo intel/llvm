@@ -570,8 +570,12 @@ public:
   static void launch(const void *func, dim3 group_range, dim3 local_range,
                      void **args, unsigned int local_mem_size, queue_ptr que) {
     std::lock_guard<std::mutex> lock(kernel_function_ptr_map_mutex);
-    kernel_function_ptr_map[func](group_range, local_range, args,
-                                  local_mem_size, que);
+    auto Iter = kernel_function_ptr_map.find(func);
+    if (Iter == kernel_function_ptr_map.end()) {
+      throw std::runtime_error(
+          "launch: no registered kernrl function wrapper found.");
+    }
+    (Iter->second)(group_range, local_range, args, local_mem_size, que);
   }
   /// Launches a kernel function with packed arguments through kernel
   /// function wrapper.
