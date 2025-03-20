@@ -23,6 +23,12 @@ class SyclBench(Suite):
     def name(self) -> str:
         return "SYCL-Bench"
 
+    def git_url(self) -> str:
+        return "https://github.com/unisa-hpc/sycl-bench.git"
+
+    def git_hash(self) -> str:
+        return "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -31,8 +37,8 @@ class SyclBench(Suite):
         repo_path = git_clone(
             self.directory,
             "sycl-bench-repo",
-            "https://github.com/unisa-hpc/sycl-bench.git",
-            "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b",
+            self.git_url(),
+            self.git_hash(),
         )
 
         configure_command = [
@@ -159,6 +165,8 @@ class SyclBenchmark(Benchmark):
                             env=env_vars,
                             stdout=row,
                             unit="ms",
+                            git_url=self.git_url(),
+                            git_hash=self.git_hash(),
                         )
                     )
 

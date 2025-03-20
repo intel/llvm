@@ -26,6 +26,12 @@ class VelocityBench(Suite):
     def name(self) -> str:
         return "Velocity Bench"
 
+    def git_url(self) -> str:
+        return "https://github.com/oneapi-src/Velocity-Bench/"
+
+    def git_hash(self) -> str:
+        return "b22215c16f789100449c34bf4eaa3fb178983d69"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -33,8 +39,8 @@ class VelocityBench(Suite):
         self.repo_path = git_clone(
             self.directory,
             "velocity-bench-repo",
-            "https://github.com/oneapi-src/Velocity-Bench/",
-            "b22215c16f789100449c34bf4eaa3fb178983d69",
+            self.git_url(),
+            self.git_hash(),
         )
 
     def benchmarks(self) -> list[Benchmark]:
@@ -139,7 +145,8 @@ class VelocityBase(Benchmark):
                 env=env_vars,
                 stdout=result,
                 unit=self.unit,
-                description=self.description(),
+                git_url=self.git_url(),
+                git_hash=self.git_hash(),
             )
         ]
 

@@ -25,6 +25,12 @@ class LlamaCppBench(Suite):
     def name(self) -> str:
         return "llama.cpp bench"
 
+    def git_url(self) -> str:
+        return "https://github.com/ggerganov/llama.cpp"
+
+    def git_hash(self) -> str:
+        return "1ee9eea094fe5846c7d8d770aa7caa749d246b23"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -32,8 +38,8 @@ class LlamaCppBench(Suite):
         repo_path = git_clone(
             self.directory,
             "llamacpp-repo",
-            "https://github.com/ggerganov/llama.cpp",
-            "1ee9eea094fe5846c7d8d770aa7caa749d246b23",
+            self.git_url(),
+            self.git_hash(),
         )
 
         self.models_dir = os.path.join(self.directory, "models")
@@ -142,7 +148,8 @@ class LlamaBench(Benchmark):
                     env=env_vars,
                     stdout=result,
                     unit="token/s",
-                    description=self.description(),
+                    git_url=self.git_url(),
+                    git_hash=self.git_hash(),
                 )
             )
         return results

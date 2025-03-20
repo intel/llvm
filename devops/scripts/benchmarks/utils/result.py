@@ -27,7 +27,8 @@ class Result:
     name: str = ""
     lower_is_better: bool = True
     suite: str = "Unknown"
-
+    git_url: str = ""
+    git_hash: str = ""
 
 @dataclass_json
 @dataclass

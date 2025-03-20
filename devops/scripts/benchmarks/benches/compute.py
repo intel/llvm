@@ -42,6 +42,12 @@ class ComputeBench(Suite):
     def name(self) -> str:
         return "Compute Benchmarks"
 
+    def git_url(self) -> str:
+        return "https://github.com/intel/compute-benchmarks.git"
+
+    def git_hash(self) -> str:
+        return "b5cc46acf61766ab00da04e85bd4da4f7591eb21"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -49,8 +55,8 @@ class ComputeBench(Suite):
         repo_path = git_clone(
             self.directory,
             "compute-benchmarks-repo",
-            "https://github.com/intel/compute-benchmarks.git",
-            "b5cc46acf61766ab00da04e85bd4da4f7591eb21",
+            self.git_url(),
+            self.git_hash(),
         )
         build_path = create_build_path(self.directory, "compute-benchmarks-build")
 
@@ -237,7 +243,8 @@ class ComputeBenchmark(Benchmark):
                     env=env_vars,
                     stdout=result,
                     unit=parse_unit_type(unit),
-                    description=self.description(),
+                    git_url=self.git_url(),
+                    git_hash=self.git_hash(),
                 )
             )
         return ret
