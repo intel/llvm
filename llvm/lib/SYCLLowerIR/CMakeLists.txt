@@ -47,7 +47,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   RecordSYCLAspectNames.cpp
   CleanupSYCLMetadata.cpp
   CompileTimePropertiesPass.cpp
-  ComputeModuleRuntimeInfo.cpp
   DeviceGlobals.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
@@ -55,7 +54,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
-  ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
   SpecConstants.cpp
   SYCLAddOptLevelAttribute.cpp

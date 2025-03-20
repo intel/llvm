@@ -324,13 +324,15 @@ private:
       // Skip legacy L0 adapter if the v2 adapter is requested, and vice versa.
       if (std::string(adapterName).find("level_zero") != std::string::npos) {
         auto v2Requested = getenv_tobool("UR_LOADER_USE_LEVEL_ZERO_V2", false);
+        v2Requested |= getenv_tobool("SYCL_UR_USE_LEVEL_ZERO_V2", false);
         auto v2Adapter =
             std::string(adapterName).find("v2") != std::string::npos;
 
         if (v2Requested != v2Adapter) {
-          logger::info("The adapter '{}' is skipped because {} {}.",
-                       adapterName, "UR_LOADER_USE_LEVEL_ZERO_V2",
-                       v2Requested ? "is set" : "is not set");
+          logger::info(
+              "The adapter '{}' is skipped because {} {}.", adapterName,
+              "UR_LOADER_USE_LEVEL_ZERO_V2 or SYCL_UR_USE_LEVEL_ZERO_V2",
+              v2Requested ? "is set" : "is not set");
           continue;
         }
       }

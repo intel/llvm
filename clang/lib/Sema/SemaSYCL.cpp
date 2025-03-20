@@ -397,6 +397,12 @@ bool SemaSYCL::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
          FD->getBuiltinID() == Builtin::BI__builtin_printf))
       return true;
 
+    // Allow to use `::printf` only for CUDA.
+    if (getLangOpts().SYCLCUDACompat) {
+      if (FD->getBuiltinID() == Builtin::BIprintf)
+        return true;
+    }
+
     const DeclContext *DC = FD->getDeclContext();
     if (II && II->isStr("__spirv_ocl_printf") &&
         !FD->isDefined() &&
@@ -687,17 +693,6 @@ public:
         SemaSYCLRef.Diag(e->getExprLoc(), diag::err_builtin_target_unsupported)
             << Name << "SYCL device";
       }
-    } else if (!SemaSYCLRef.getLangOpts().SYCLAllowFuncPtr &&
-               !e->isTypeDependent() &&
-               !isa<CXXPseudoDestructorExpr>(e->getCallee())) {
-      bool MaybeConstantExpr = false;
-      Expr *NonDirectCallee = e->getCallee();
-      if (!NonDirectCallee->isValueDependent())
-        MaybeConstantExpr =
-            NonDirectCallee->isCXX11ConstantExpr(SemaSYCLRef.getASTContext());
-      if (!MaybeConstantExpr)
-        SemaSYCLRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-            << SemaSYCL::KernelCallFunctionPointer;
     }
     return true;
   }

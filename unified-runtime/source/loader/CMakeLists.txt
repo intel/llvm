@@ -163,6 +163,15 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_report.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_shadow.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_shadow.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_ddi.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_ddi.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_interceptor.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_interceptor.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_libdevice.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_report.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_report.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_shadow.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_shadow.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/backtrace.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/linux/sanitizer_utils.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/sanitizer_common/sanitizer_allocator.hpp
