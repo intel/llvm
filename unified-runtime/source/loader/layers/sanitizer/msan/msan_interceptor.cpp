@@ -517,10 +517,30 @@ ur_result_t MsanInterceptor::prepareLaunch(
       getContext()->logger.warning("Skip checking local memory of kernel <{}> ",
                                    GetKernelName(Kernel));
     } else {
-      getContext()->logger.info("ShadowMemory(Local, WorkGroup={}, {} - {})",
-                                NumWG,
-                                (void *)LaunchInfo.Data->LocalShadowOffset,
-                                (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+      getContext()->logger.debug("ShadowMemory(Local, WorkGroup={}, {} - {})",
+                                 NumWG,
+                                 (void *)LaunchInfo.Data->LocalShadowOffset,
+                                 (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+    }
+  }
+
+  // Write shadow memory offset for private memory
+  if (KernelInfo.IsCheckPrivates) {
+    if (DeviceInfo->Shadow->AllocPrivateShadow(
+            Queue, NumWG, LaunchInfo.Data->PrivateShadowOffset,
+            LaunchInfo.Data->PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+      getContext()->logger.warning(
+          "Failed to allocate shadow memory for private "
+          "memory, maybe the number of workgroup ({}) is too "
+          "large",
+          NumWG);
+      getContext()->logger.warning(
+          "Skip checking private memory of kernel <{}>", GetKernelName(Kernel));
+    } else {
+      getContext()->logger.debug(
+          "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,
+          (void *)LaunchInfo.Data->PrivateShadowOffset,
+          (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
     }
     // Write local arguments info
     if (!KernelInfo.LocalArgs.empty()) {
@@ -535,11 +555,11 @@ ur_result_t MsanInterceptor::prepareLaunch(
   }
 
   getContext()->logger.info(
-      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, CleanShadow={}, "
-      "LocalArgs={}, NumLocalArgs={}, "
-      "Device={}, Debug={})",
+      "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateShadow={}, "
+      "CleanShadow={}, LocalArgs={}, NumLocalArgs={}, Device={}, Debug={})",
       (void *)LaunchInfo.Data, (void *)LaunchInfo.Data->GlobalShadowOffset,
       (void *)LaunchInfo.Data->LocalShadowOffset,
+      (void *)LaunchInfo.Data->PrivateShadowOffset,
       (void *)LaunchInfo.Data->CleanShadow, (void *)LaunchInfo.Data->LocalArgs,
       LaunchInfo.Data->NumLocalArgs, ToString(LaunchInfo.Data->DeviceTy),
       LaunchInfo.Data->Debug);

@@ -119,6 +119,9 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
       KernelReqdWorkGroupSizeMD[Prefix] =
           std::make_tuple(ReqdWorkGroupElements[0], ReqdWorkGroupElements[1],
                           ReqdWorkGroupElements[2]);
+    } else if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_SUB_GROUP_SIZE) {
+      assert(MetadataElement.type == UR_PROGRAM_METADATA_TYPE_UINT32);
+      KernelReqdSubGroupSizeMD[Prefix] = MetadataElement.value.data32;
     }
   }
 
