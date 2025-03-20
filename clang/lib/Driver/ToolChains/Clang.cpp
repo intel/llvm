@@ -75,6 +75,11 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+static bool isSYCLCudaCompatEnabled(const ArgList &Args) {
+  return Args.hasFlag(options::OPT_fsycl_cuda_compat,
+                      options::OPT_fno_sycl_cuda_compat, false);
+}
+
 static void CheckPreprocessingOptions(const Driver &D, const ArgList &Args) {
   if (Arg *A = Args.getLastArg(clang::driver::options::OPT_C, options::OPT_CC,
                                options::OPT_fminimize_whitespace,
@@ -1176,7 +1181,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   if (JA.isOffloading(Action::OFK_SYCL)) {
     getToolChain().addSYCLIncludeArgs(Args, CmdArgs);
-    if (Inputs[0].getType() == types::TY_CUDA) {
+    if (Inputs[0].getType() == types::TY_CUDA ||
+        isSYCLCudaCompatEnabled(Args)) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
     }
@@ -3144,17 +3150,18 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back(A->getValue());
   }
 
-  auto addSPIRVArgs = [&](StringRef SPIRVArg) {
+  auto addSPIRVArgs = [&](const Arg *PrecArg) {
     if (IsFp32PrecDivSqrtAllowed) {
+      OptSpecifier Opt(PrecArg->getOption().getID());
       if (!FPAccuracy.empty())
-        EmitAccuracyDiag(D, JA, FPAccuracy, SPIRVArg);
-      if (SPIRVArg == "-fno-offload-fp32-prec-div")
+        EmitAccuracyDiag(D, JA, FPAccuracy, PrecArg->getSpelling());
+      if (Opt == options::OPT_fno_offload_fp32_prec_div)
         NoOffloadFP32PrecDiv = true;
-      else if (SPIRVArg == "-fno-offload-fp32-prec-sqrt")
+      else if (Opt == options::OPT_fno_offload_fp32_prec_sqrt)
         NoOffloadFP32PrecSqrt = true;
-      else if (SPIRVArg == "-foffload-fp32-prec-sqrt")
+      else if (Opt == options::OPT_foffload_fp32_prec_sqrt)
         NoOffloadFP32PrecSqrt = false;
-      else if (SPIRVArg == "-foffload-fp32-prec-div")
+      else if (Opt == options::OPT_foffload_fp32_prec_div)
         NoOffloadFP32PrecDiv = false;
     }
   };
@@ -3181,17 +3188,15 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     default: continue;
 
     case options::OPT_foffload_fp32_prec_div:
-      addSPIRVArgs("-foffload-fp32-prec-div");
-      break;
     case options::OPT_foffload_fp32_prec_sqrt:
-      addSPIRVArgs("-foffload-fp32-prec-sqrt");
-      break;
     case options::OPT_fno_offload_fp32_prec_div:
-      addSPIRVArgs("-fno-offload-fp32-prec-div");
-      break;
     case options::OPT_fno_offload_fp32_prec_sqrt:
-      addSPIRVArgs("-fno-offload-fp32-prec-sqrt");
-      break;
+      if (IsFp32PrecDivSqrtAllowed) {
+        addSPIRVArgs(A);
+        break;
+      }
+      // Skip claim, as we didn't use the option.
+      continue;
     case options::OPT_fcx_limited_range:
       if (GccRangeComplexOption.empty()) {
         if (Range != LangOptions::ComplexRangeKind::CX_Basic)
@@ -5464,6 +5469,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsFPGASYCLOffloadDevice =
       IsSYCLDevice && Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
   const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
+  const bool IsSYCLCUDACompat = isSYCLCudaCompatEnabled(Args);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -5833,6 +5839,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
 
+    if (IsSYCLCUDACompat) {
+      Args.addOptInFlag(CmdArgs, options::OPT_fsycl_cuda_compat,
+                        options::OPT_fno_sycl_cuda_compat);
+      // FIXME: clang's CUDA headers require this ...
+      // remove when clang/lib/Headers/__clang_cuda_builtin_vars.h no longer
+      // requires it.
+      CmdArgs.push_back("-fdeclspec");
+      // Note: assumes CUDA 9.0 or more (required by SYCL for CUDA)
+      CmdArgs.push_back("-fcuda-allow-variadic-functions");
+    }
+
     // Set options for both host and device
     if (SYCLStdArg) {
       SYCLStdArg->render(Args, CmdArgs);
@@ -5899,6 +5916,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     bool HasFPGA = false;
     for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
       llvm::Triple SYCLTriple = TI->second->getTriple();
+      if (SYCLTriple.isNVPTX() && IsSYCLCUDACompat && !IsSYCLDevice) {
+        CmdArgs.push_back("-aux-triple");
+        CmdArgs.push_back(Args.MakeArgString(SYCLTriple.normalize()));
+        // We need to figure out which CUDA version we're compiling for, as that
+        // determines how we load and launch GPU kernels.
+        auto *CTC = static_cast<const toolchains::CudaToolChain *>(TI->second);
+        assert(CTC && "Expected valid CUDA Toolchain.");
+        if (CTC->CudaInstallation.version() != CudaVersion::UNKNOWN)
+          CmdArgs.push_back(Args.MakeArgString(
+              Twine("-target-sdk-version=") +
+              CudaVersionToString(CTC->CudaInstallation.version())));
+        break;
+      }
       if (SYCLTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
         HasFPGA = true;
         if (!IsSYCLDevice) {

@@ -370,6 +370,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     array_desc.Depth = pImageDesc->arraySize; // Should be 6 ONLY
     array_desc.Flags |= CUDA_ARRAY3D_CUBEMAP;
     break;
+  case UR_MEM_TYPE_IMAGE_GATHER_EXP:
+    array_desc.Height = pImageDesc->height;
+    array_desc.Depth = pImageDesc->arraySize;
+    array_desc.Flags |= CUDA_ARRAY3D_TEXTURE_GATHER;
+    break;
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
