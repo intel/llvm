@@ -15,6 +15,7 @@ TEST_P(hipKernelTest, URKernelArgumentLarge) {
   // The HIP adapter can't do proper argument validation so any kernel will
   // work for this test.
   std::array<uint8_t, 4004> data;
+  data.fill(0);
   ASSERT_EQ_RESULT(urKernelSetArgValue(kernel, 0, 4004, nullptr, data.data()),
                    UR_RESULT_ERROR_OUT_OF_RESOURCES);
 }
