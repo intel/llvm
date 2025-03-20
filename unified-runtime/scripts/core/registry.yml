@@ -619,9 +619,6 @@ etors:
 - name: USM_POOL_DESTROY_EXP
   desc: Enumerator for $xUSMPoolDestroyExp
   value: '255'
-- name: USM_POOL_SET_THRESHOLD_EXP
-  desc: Enumerator for $xUSMPoolSetThresholdExp
-  value: '256'
 - name: USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP
   desc: Enumerator for $xUSMPoolGetDefaultDevicePoolExp
   value: '257'
@@ -643,6 +640,9 @@ etors:
 - name: COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP
   desc: Enumerator for $xCommandBufferGetNativeHandleExp
   value: '264'
+- name: USM_POOL_SET_INFO_EXP
+  desc: Enumerator for $xUSMPoolSetInfoExp
+  value: '265'
 ---
 type: enum
 desc: Defines structure types

@@ -508,7 +508,7 @@ EXPORTS
 	urPrintUsmPoolReleaseParams
 	urPrintUsmPoolRetainParams
 	urPrintUsmPoolSetDevicePoolExpParams
-	urPrintUsmPoolSetThresholdExpParams
+	urPrintUsmPoolSetInfoExpParams
 	urPrintUsmPoolTrimToExpParams
 	urPrintUsmReleaseExpParams
 	urPrintUsmSharedAllocParams
@@ -570,7 +570,7 @@ EXPORTS
 	urUSMPoolRelease
 	urUSMPoolRetain
 	urUSMPoolSetDevicePoolExp
-	urUSMPoolSetThresholdExp
+	urUSMPoolSetInfoExp
 	urUSMPoolTrimToExp
 	urUSMReleaseExp
 	urUSMSharedAlloc

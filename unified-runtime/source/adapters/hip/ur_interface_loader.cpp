@@ -362,7 +362,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPoolCreateExp = urUSMPoolCreateExp;
   pDdiTable->pfnPoolDestroyExp = urUSMPoolDestroyExp;
   pDdiTable->pfnPoolGetDefaultDevicePoolExp = urUSMPoolGetDefaultDevicePoolExp;
-  pDdiTable->pfnPoolSetThresholdExp = urUSMPoolSetThresholdExp;
+  pDdiTable->pfnPoolSetInfoExp = urUSMPoolSetInfoExp;
   pDdiTable->pfnPoolGetInfoExp = urUSMPoolGetInfoExp;
   pDdiTable->pfnPoolSetDevicePoolExp = urUSMPoolSetDevicePoolExp;
   pDdiTable->pfnPoolGetDevicePoolExp = urUSMPoolGetDevicePoolExp;

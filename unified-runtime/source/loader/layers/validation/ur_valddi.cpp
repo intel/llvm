@@ -6929,56 +6929,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolSetThresholdExp
-__urdlllocal ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold) {
-  auto pfnPoolSetThresholdExp =
-      getContext()->urDdiTable.USMExp.pfnPoolSetThresholdExp;
-
-  if (nullptr == pfnPoolSetThresholdExp) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hDevice)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (NULL == hPool)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hDevice)) {
-    getContext()->refCountContext->logInvalidReference(hDevice);
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hPool)) {
-    getContext()->refCountContext->logInvalidReference(hPool);
-  }
-
-  ur_result_t result =
-      pfnPoolSetThresholdExp(hContext, hDevice, hPool, newThreshold);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolGetDefaultDevicePoolExp
 __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
     /// [in] handle of the context object
@@ -7055,6 +7005,47 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
 
   ur_result_t result =
       pfnPoolGetInfoExp(hPool, propName, pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) {
+  auto pfnPoolSetInfoExp = getContext()->urDdiTable.USMExp.pfnPoolSetInfoExp;
+
+  if (nullptr == pfnPoolSetInfoExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pPropValue)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (pPropValue == NULL)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hPool)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_USM_POOL_INFO_USED_HIGH_EXP < propName)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hPool)) {
+    getContext()->refCountContext->logInvalidReference(hPool);
+  }
+
+  ur_result_t result = pfnPoolSetInfoExp(hPool, propName, pPropValue, propSize);
 
   return result;
 }
@@ -11579,10 +11570,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   dditable.pfnPoolDestroyExp = pDdiTable->pfnPoolDestroyExp;
   pDdiTable->pfnPoolDestroyExp = ur_validation_layer::urUSMPoolDestroyExp;
 
-  dditable.pfnPoolSetThresholdExp = pDdiTable->pfnPoolSetThresholdExp;
-  pDdiTable->pfnPoolSetThresholdExp =
-      ur_validation_layer::urUSMPoolSetThresholdExp;
-
   dditable.pfnPoolGetDefaultDevicePoolExp =
       pDdiTable->pfnPoolGetDefaultDevicePoolExp;
   pDdiTable->pfnPoolGetDefaultDevicePoolExp =
@@ -11590,6 +11577,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnPoolGetInfoExp = pDdiTable->pfnPoolGetInfoExp;
   pDdiTable->pfnPoolGetInfoExp = ur_validation_layer::urUSMPoolGetInfoExp;
+
+  dditable.pfnPoolSetInfoExp = pDdiTable->pfnPoolSetInfoExp;
+  pDdiTable->pfnPoolSetInfoExp = ur_validation_layer::urUSMPoolSetInfoExp;
 
   dditable.pfnPoolSetDevicePoolExp = pDdiTable->pfnPoolSetDevicePoolExp;
   pDdiTable->pfnPoolSetDevicePoolExp =
