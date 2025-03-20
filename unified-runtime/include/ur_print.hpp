@@ -2882,9 +2882,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
     os << "UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES";
     break;
-  case UR_DEVICE_INFO_BFLOAT16:
-    os << "UR_DEVICE_INFO_BFLOAT16";
-    break;
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
     os << "UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES";
     break;
@@ -3031,6 +3028,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP:
     os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP";
+    break;
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP";
     break;
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP";
@@ -4378,19 +4378,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BFLOAT16: {
-    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-    if (sizeof(ur_bool_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_bool_t) << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
@@ -5020,6 +5007,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -6306,6 +6306,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
     break;
   case UR_MEM_TYPE_IMAGE_CUBEMAP_EXP:
     os << "UR_MEM_TYPE_IMAGE_CUBEMAP_EXP";
+    break;
+  case UR_MEM_TYPE_IMAGE_GATHER_EXP:
+    os << "UR_MEM_TYPE_IMAGE_GATHER_EXP";
     break;
   default:
     os << "unknown enumerator";
