@@ -63,7 +63,9 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   // Commands are linked only if the device supports host unified memory.
 
   sycl::queue Queue1{Dev};
+  sycl::queue Queue2{Dev};
   sycl::detail::QueueImplPtr Q1 = sycl::detail::getSyclObjImpl(Queue1);
+  sycl::detail::QueueImplPtr Q2 = sycl::detail::getSyclObjImpl(Queue2);
 
   auto AllocaDep = [](sycl::detail::Command *, sycl::detail::Command *,
                       sycl::detail::MemObjRecord *,
@@ -78,8 +80,8 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   sycl::detail::AllocaCommand AllocaCmd1(nullptr, Req, false);
   Record->MAllocaCommands.push_back(&AllocaCmd1);
 
-  MockCommand DepCmd(nullptr, Req);
-  MockCommand DepDepCmd(nullptr, Req);
+  MockCommand DepCmd(Q2, Req);
+  MockCommand DepDepCmd(Q2, Req);
   DepCmd.MDeps.push_back({&DepDepCmd, DepDepCmd.getRequirement(), &AllocaCmd1});
   DepDepCmd.MUsers.insert(&DepCmd);
   std::vector<sycl::detail::Command *> ToEnqueue;
@@ -88,7 +90,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   MockScheduler MS;
   sycl::detail::Command *AllocaCmd2 =
       MS.getOrCreateAllocaForReq(Record.get(), &Req, Q1, ToEnqueue);
-
+  ASSERT_NE(AllocaCmd2, &AllocaCmd1);
   ASSERT_TRUE(!!AllocaCmd1.MLinkedAllocaCmd)
       << "No link appeared in existing command";
   ASSERT_EQ(AllocaCmd1.MLinkedAllocaCmd, AllocaCmd2) << "Invalid link appeared";

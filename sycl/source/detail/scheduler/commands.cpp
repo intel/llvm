@@ -762,6 +762,8 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   bool PiEventExpected = !DepEvent->isDefaultConstructed();
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
+  else
+    PiEventExpected &= DepEvent->getHandle() != nullptr;
 
   if (!PiEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
@@ -773,7 +775,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   Command *ConnectionCmd = nullptr;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
-  // If contexts don't match we'll connect them using host task
+  // If contexts don't match we'll connect them using host task.
   if (DepEventContext != WorkerContext && WorkerContext) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
@@ -927,7 +929,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   else {
     MEvent->setEnqueued();
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
-        (MEvent->isHost() || MEvent->getHandle() == nullptr))
+        (MEvent->getHandle() == nullptr))
       MEvent->setComplete();
 
     // Consider the command is successfully enqueued if return code is
