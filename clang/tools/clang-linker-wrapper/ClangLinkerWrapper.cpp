@@ -151,7 +151,7 @@ static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
 static bool UseSYCLPostLinkTool;
 
-static SmallString<128> SPIRVDumpDir;
+static SmallString<128> OffloadImageDumpDir;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
@@ -923,29 +923,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   if (Error Err = executeCommands(*LLVMToSPIRVPath, CmdArgs))
     return std::move(Err);
 
-  if (!SPIRVDumpDir.empty()) {
-    std::error_code EC =
-        llvm::sys::fs::create_directory(SPIRVDumpDir, /*IgnoreExisting*/ true);
-    if (EC)
-      return createStringError(
-          EC,
-          formatv("failed to create dump directory. path: {0}, error_code: {1}",
-                  SPIRVDumpDir, EC.value()));
-
-    StringRef Sep = llvm::sys::path::get_separator();
-    StringRef Path = *TempFileOrErr;
-    StringRef Filename = Path.rsplit(Sep).second;
-    SmallString<128> CopyPath = SPIRVDumpDir;
-    CopyPath.append(Filename);
-    EC = llvm::sys::fs::copy_file(Path, CopyPath);
-    if (EC)
-      return createStringError(
-          EC,
-          formatv(
-              "failed to copy file. original: {0}, copy: {1}, error_code: {2}",
-              Path, CopyPath, EC.value()));
-  }
-
   return *TempFileOrErr;
 }
 
@@ -1103,6 +1080,27 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     RegularTarget = "spir64";
 
   for (auto &SI : SplitModules) {
+    if (!OffloadImageDumpDir.empty()) {
+      std::error_code EC = llvm::sys::fs::create_directory(
+          OffloadImageDumpDir, /*IgnoreExisting*/ true);
+      if (EC)
+        return createStringError(
+            EC,
+            formatv(
+                "failed to create dump directory. path: {0}, error_code: {1}",
+                OffloadImageDumpDir, EC.value()));
+
+      StringRef CopyFrom = SI.ModuleFilePath;
+      SmallString<128> CopyTo = OffloadImageDumpDir;
+      StringRef Filename = llvm::sys::path::filename(CopyFrom);
+      CopyTo.append(Filename);
+      EC = llvm::sys::fs::copy_file(CopyFrom, CopyTo);
+      if (EC)
+        return createStringError(EC, formatv("failed to copy file. From: "
+                                             "{0} to: {1}, error_code: {2}",
+                                             CopyFrom, CopyTo, EC.value()));
+    }
+
     auto MBOrDesc = MemoryBuffer::getFile(SI.ModuleFilePath);
     if (!MBOrDesc)
       return createFileError(SI.ModuleFilePath, MBOrDesc.getError());
@@ -2624,7 +2622,7 @@ int main(int Argc, char **Argv) {
     else
       Dir.append(llvm::sys::path::get_separator());
 
-    SPIRVDumpDir = Dir;
+    OffloadImageDumpDir = Dir;
   }
 
   {
