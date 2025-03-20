@@ -25,14 +25,14 @@ extern thread_local char ErrorMessage[MaxMessageSize];
                   __FUNCTION__, __FILE__, __LINE__);                           \
                                                                                \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;                                \
-  } while (false);
+  } while (false)
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   do {                                                                         \
     logger::warning("Not Implemented : {} - File : {} / Line : {}",            \
                     __FUNCTION__, __FILE__, __LINE__);                         \
     return UR_RESULT_SUCCESS;                                                  \
-  } while (false);
+  } while (false)
 
 #define CASE_UR_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
