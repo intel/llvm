@@ -18,9 +18,13 @@
 //    they currently do.
 //  * Determine what else should be included here.
 
+// TODO: Consider removing buffer/accessor from "core".
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
+#include <sycl/properties/queue_properties.hpp>
 #include <sycl/queue.hpp>
+#include <sycl/usm.hpp>
 
 // TODO: We assume that this is the property of a vendor's implementation and
 // can define feature macros even if the particular header file implementing it

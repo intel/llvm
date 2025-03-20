@@ -34,10 +34,10 @@ public:
     const auto &device{queue.get_device()};
     const auto &context{queue.get_context()};
 
-    auto deleter = [=](T *ptr) { sycl::free(ptr, context); };
+    using sycl::ext::oneapi::experimental::usm_deleter;
 
-    m_allocated_data = std::unique_ptr<T, decltype(deleter)>(
-        sycl::malloc_shared<T>(1, device, context), deleter);
+    m_allocated_data = std::unique_ptr<T, usm_deleter>(
+        sycl::malloc_shared<T>(1, device, context), {context});
 
     assert(m_allocated_data && "USM memory allocation failed");
     *m_allocated_data = initial_value;

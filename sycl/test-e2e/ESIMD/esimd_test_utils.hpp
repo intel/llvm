@@ -27,6 +27,7 @@
 #include <vector>
 
 using namespace sycl;
+using ext::oneapi::experimental::usm_deleter;
 
 namespace esimd_test {
 
@@ -557,19 +558,9 @@ inline void iterate_ops(OpSeq<OpClass, Ops...> ops, F f) {
   ConstexprForLoop<0, sizeof...(Ops)>::unroll(act);
 }
 
-struct USMDeleter {
-  queue Q;
-  void operator()(void *Ptr) {
-    if (Ptr) {
-      sycl::free(Ptr, Q);
-    }
-  }
-};
-
 template <class T>
-std::unique_ptr<T, USMDeleter> usm_malloc_shared(queue q, int n) {
-  std::unique_ptr<T, USMDeleter> res(sycl::malloc_shared<T>(n, q),
-                                     USMDeleter{q});
+std::unique_ptr<T, usm_deleter> usm_malloc_shared(queue q, int n) {
+  std::unique_ptr<T, usm_deleter> res(sycl::malloc_shared<T>(n, q), {q});
   return std::move(res);
 }
 

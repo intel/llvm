@@ -1066,9 +1066,9 @@ public:
   auto getGroupsCounterAccDiscrete(handler &CGH) {
     queue q = createSyclObjFromImpl<queue>(CGH.MQueue);
     device Dev = q.get_device();
-    auto Deleter = [=](auto *Ptr) { free(Ptr, q); };
+    using ext::oneapi::experimental::usm_deleter;
 
-    std::shared_ptr<int> Counter(malloc_device<int>(1, q), Deleter);
+    std::shared_ptr<int> Counter(malloc_device<int>(1, q), usm_deleter{q});
     CGH.addReduction(Counter);
 
     addCounterInit(CGH, CGH.MQueue, Counter);
