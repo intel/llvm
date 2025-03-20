@@ -166,7 +166,8 @@ jobs:
         echo 'export LD_LIBRARY_PATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
         echo 'export CPATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/include:$CPATH' >> ~/.bashrc
         echo 'export LIBRARY_PATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/lib:$LIBRARY_PATH' >> ~/.bashrc
-        source ~/.bashrc
+        . ~/.bashrc
+      shell: bash
 
     - name: Check PATH
       run: | 
