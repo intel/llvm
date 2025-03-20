@@ -305,11 +305,14 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       }
       llvm_unreachable("unhandled OffloadArch");
     }();
-    if (Opts.SYCLIsDevice) {
+
+    if (Opts.SYCLIsDevice)
       Builder.defineMacro("__SYCL_CUDA_ARCH__", CUDAArchCode);
-    } else {
+    // Don't define __CUDA_ARCH__ if in SYCL device mode unless we are in
+    // SYCL-CUDA compatibility mode.
+    // For all other cases, define the macro.
+    if (!Opts.SYCLIsDevice || Opts.SYCLCUDACompat)
       Builder.defineMacro("__CUDA_ARCH__", CUDAArchCode);
-    }
     switch(GPU) {
       case OffloadArch::SM_90a:
       case OffloadArch::SM_100a:
@@ -321,6 +324,10 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
         // Do nothing if this is not an enhanced architecture.
         break;
     }
+    if (GPU == OffloadArch::SM_90a)
+      Builder.defineMacro("__CUDA_ARCH_FEAT_SM90_ALL", "1");
+    if (GPU == OffloadArch::SM_100a)
+      Builder.defineMacro("__CUDA_ARCH_FEAT_SM100_ALL", "1");
   }
 }
 
