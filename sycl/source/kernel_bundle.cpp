@@ -440,7 +440,7 @@ make_kernel_bundle_from_source(const context &SyclContext,
   std::shared_ptr<kernel_bundle_impl> KBImpl =
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Source,
                                            IncludePairs);
-  return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
+  return sycl::detail::createSyclObjFromImpl<source_kb>(std::move(KBImpl));
 }
 
 source_kb make_kernel_bundle_from_source(const context &SyclContext,
@@ -455,7 +455,7 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
 
   std::shared_ptr<kernel_bundle_impl> KBImpl =
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Bytes);
-  return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
+  return sycl::detail::createSyclObjFromImpl<source_kb>(std::move(KBImpl));
 }
 
 /////////////////////////
@@ -485,7 +485,7 @@ exe_kb build_from_source(
       getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
       UniqueDevices, Options, LogPtr, KernelNames);
-  auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
+  auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(std::move(KBImpl));
   if (LogView)
     *LogView = Log;
   return result;
