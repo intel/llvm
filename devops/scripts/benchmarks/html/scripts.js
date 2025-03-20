@@ -628,21 +628,19 @@ function setupToggles() {
 
 function setupTagFilters() {
     tagFiltersContainer = document.getElementById('tag-filters');
+
+    const allTags = [];
     
-    // Get all unique tags from benchmark metadata
-    const allTags = new Set();
-    
-    for (const [key, metadata] of Object.entries(benchmarkMetadata)) {
-        if (metadata.tags) {
-            metadata.tags.forEach(tag => allTags.add(tag));
+    if (benchmarkTags) {
+        for (const tag in benchmarkTags) {
+            if (!allTags.includes(tag)) {
+                allTags.push(tag);
+            }
         }
     }
-    
-    // Sort tags alphabetically
-    const sortedTags = Array.from(allTags).sort();
-    
+
     // Create tag filter elements
-    sortedTags.forEach(tag => {
+    allTags.forEach(tag => {
         const tagContainer = document.createElement('div');
         tagContainer.className = 'tag-filter';
         

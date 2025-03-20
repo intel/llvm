@@ -110,7 +110,7 @@ class Benchmark:
         raise NotImplementedError()
 
     def description(self):
-        return "No description provided."
+        return ""
 
     def notes(self) -> str:
         return None
