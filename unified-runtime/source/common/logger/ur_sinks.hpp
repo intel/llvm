@@ -240,7 +240,7 @@ private:
   virtual void print(ur_logger_level_t level, const std::string &msg) override {
     if (callback) {
       callback(level, msg.c_str(), userData);
-    } 
+    }
   }
 };
 

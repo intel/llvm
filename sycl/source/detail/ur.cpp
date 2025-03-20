@@ -77,9 +77,9 @@ void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
 
 ur_code_location_t codeLocationCallback(void *);
 
-void receiveLoggerMessages([[maybe_unused]] ur_logger_level_t level,
-                           const char *msg, void *userData) {
-  // Do something with a message sent from a UR adapter
+void urLoggerCallback([[maybe_unused]] ur_logger_level_t level, const char *msg,
+                      [[maybe_unused]] void *userData) {
+  std::cout << msg << std::endl;
 }
 
 namespace ur {
@@ -143,6 +143,11 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   UrFuncInfo<UrApiKind::urAdapterGetInfo> adapterGetInfoInfo;
   auto adapterGetInfo =
       adapterGetInfoInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterSetLoggerCallback>
+      adapterSetLoggerCallbackInfo;
+  auto adapterSetLoggerCallback =
+      adapterSetLoggerCallbackInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
@@ -225,8 +230,8 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
     auto syclBackend = UrToSyclBackend(adapterBackend);
     Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
 
-    urAdapterSetLoggerCallback(UrAdapter, receiveLoggerMessages, nullptr,
-                               UR_LOGGER_LEVEL_INFO);
+    CHECK_UR_SUCCESS(adapterSetLoggerCallback(UrAdapter, urLoggerCallback,
+                                              nullptr, UR_LOGGER_LEVEL_INFO));
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
