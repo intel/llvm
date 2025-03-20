@@ -405,14 +405,16 @@ namespace ext::oneapi::experimental {
 
 class memory_pool {
 
-  memory_pool(context ctx, usm::alloc kind, const property_list& propList = {});
-
-  memory_pool(context ctx, device dev, usm::alloc kind,
+  memory_pool(const context &ctx, usm::alloc kind,
     const property_list& propList = {});
 
-  memory_pool(queue q, usm::alloc kind, const property_list& propList = {});
+  memory_pool(const context &ctx, const device &dev, usm::alloc kind,
+    const property_list& propList = {});
 
-  memory_pool(context ctx, void *ptr, size_t size,
+  memory_pool(const queue &que, usm::alloc kind,
+    const property_list& propList = {});
+
+  memory_pool(const context &ctx, void *ptr, size_t size,
     const property_list& propList = {});
 
   ~memory_pool();
@@ -422,8 +424,6 @@ class memory_pool {
   device get_device() const;
 
   usm::alloc get_alloc_kind() const;
-
-  size_t get_allocation_chunk_size() const;
 
   size_t get_threshold() const;
 
@@ -442,7 +442,8 @@ class memory_pool {
 
 [source, c++]
 ----
-memory_pool(context ctx, usm::alloc kind, const property_list& propList = {});
+memory_pool(const context &ctx, usm::alloc kind,
+  const property_list& propList = {});
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context `ctx`
@@ -454,7 +455,7 @@ _Throws_: An exception with the `errc::invalid` error code if `kind` is
 
 [source, c++]
 ----
-memory_pool(context ctx, device dev, usm::alloc kind,
+memory_pool(const context &ctx, const device &dev, usm::alloc kind,
   const property_list& propList = {});
 ----
 
@@ -467,7 +468,8 @@ _Throws_: An exception with the `errc::invalid` error code if `kind` is
 
 [source, c++]
 ----
-memory_pool(queue q, usm::alloc kind, const property_list& propList = {});
+memory_pool(const queue &que, usm::alloc kind,
+  const property_list& propList = {});
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context and
@@ -482,7 +484,7 @@ _Throws_: An exception with the `errc::invalid` error code if `kind` is
 
 [source, c++]
 ----
-memory_pool(context ctx, void *ptr, size_t size,
+memory_pool(const context &ctx, void *ptr, size_t size,
   const property_list& propList = {});
 ----
 
@@ -539,14 +541,6 @@ _Returns_: The memory allocation kind of the memory pool.
 
 [source, c++]
 ----
-size_t get_allocation_chunk_size() const;
-----
-
-_Returns_: The allocation chunk size of the device associated with the memory
-pool.
-
-[source, c++]
-----
 size_t get_threshold() const;
 ----
 
@@ -589,6 +583,8 @@ object.
 ----
 namespace ext::oneapi::experimental {
 
+namespace property::memory_pool {
+
 struct initial_threshold {
   initial_threshold(size_t initialThreshold);
 };
@@ -604,6 +600,8 @@ struct read_only {
 struct zero_init {
   zero_init();
 };
+
+}  // property::memory_pool
 
 }  // ext::oneapi::experimental
 ----
@@ -664,7 +662,7 @@ class context {
   memory_pool context::ext_oneapi_get_default_memory_pool(usm::alloc kind)
     const;
 
-  memory_pool context::ext_oneapi_get_default_memory_pool(device dev,
+  memory_pool context::ext_oneapi_get_default_memory_pool(const device &dev,
     usm::alloc kind) const;
 
 }; // context
@@ -683,7 +681,7 @@ _Throws_: An exception with the `errc::invalid` error code if `kind` is
 
 [source, c++]
 ----
-memory_pool context::ext_oneapi_get_default_memory_pool(device dev,
+memory_pool context::ext_oneapi_get_default_memory_pool(const device &dev,
   usm::alloc kind) const;
 ----
 
@@ -714,30 +712,34 @@ functions.
 ----
 namespace ext::oneapi::experimental {
 
-void *async_malloc(queue q, usm::alloc kind, size_t size);
+void *async_malloc(const queue &que, usm::alloc kind, size_t size);
 
-void *async_malloc(handler h, usm::alloc kind, size_t size);
+void *async_malloc(handler &cgh, usm::alloc kind, size_t size);
 
-void *async_malloc_from_pool(queue q, size_t size, memory_pool pool);
+void *async_malloc_from_pool(const queue &que, size_t size,
+  const memory_pool &pool);
 
-void *async_malloc_from_pool(handler h, size_t size, memory_pool pool);
+void *async_malloc_from_pool(handler &cgh, size_t size,
+  const memory_pool &pool);
 
-void async_free(queue q, void *ptr);
+void async_free(const queue &que, void *ptr);
 
-void async_free(handler h, void *ptr);
+void async_free(handler &cgh, void *ptr);
 
 }  // ext::oneapi::experimental
 ----
 
 [source, c++]
 ----
-void *async_malloc(queue q, usm::alloc kind, size_t size);
+void *async_malloc(const queue &que, usm::alloc kind, size_t size);
 
-void *async_malloc(handler h, usm::alloc kind, size_t size);
+void *async_malloc(handler &cgh, usm::alloc kind, size_t size);
 
-void *async_malloc_from_pool(queue q, size_t size, memory_pool pool);
+void *async_malloc_from_pool(const queue &que, size_t size,
+  const smemory_pool &pool);
 
-void *async_malloc_from_pool(handler h, size_t size, memory_pool pool);
+void *async_malloc_from_pool(handler &cgh, size_t size,
+  const memory_pool &pool);
 ----
 
 _Effects_: Enqueues a command to `q` or the SYCL queue associated with `h` which
@@ -767,9 +769,9 @@ thrown asynchronously. An exception with the `errc::invalid` error code if
 
 [source, c++]
 ----
-void async_free(queue q, void *ptr);
+void async_free(const queue &que, void *ptr);
 
-void async_free(handler h, void *ptr);
+void async_free(handler &cgh, void *ptr);
 ----
 
 _Effects_: Enqueues a command to `q` or the SYCL queue associated with `h` which
