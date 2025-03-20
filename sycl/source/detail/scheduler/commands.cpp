@@ -784,9 +784,9 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
 }
 
 ContextImplPtr Command::getWorkerContext() const {
-  if (!MQueue)
+  if (!MWorkerQueue)
     return nullptr;
-  return MQueue->getContextImplPtr();
+  return MWorkerQueue->getContextImplPtr();
 }
 
 bool Command::producesPiEvent() const { return true; }
@@ -1560,12 +1560,6 @@ void MemCpyCommand::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommand::getWorkerContext() const {
-  if (!MWorkerQueue)
-    return nullptr;
-  return MWorkerQueue->getContextImplPtr();
-}
-
 bool MemCpyCommand::producesPiEvent() const {
   return checkNativeEventForWA(MSrcQueue ? MSrcQueue : MQueue,
                                MEvent->getHandle());
@@ -1710,12 +1704,6 @@ void MemCpyToHostCommand::emitInstrumentationData() {
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
   makeTraceEventEpilog();
 #endif
-}
-
-ContextImplPtr MemCpyToHostCommand::getWorkerContext() const {
-  if (!MWorkerQueue)
-    return nullptr;
-  return MWorkerQueue->getContextImplPtr();
 }
 
 ur_result_t MemCpyToHostCommand::enqueueImp() {
@@ -1950,12 +1938,13 @@ ExecCGCommand::ExecCGCommand(
   if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
+    MWorkerQueue = nullptr;
+    MEvent->setWorkerQueue(MWorkerQueue);
+    MEvent->markAsHost();
   }
+
   if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
     MEvent->markAsProfilingTagEvent();
-
-  if (isHostTask())
-    MEvent->markAsHost();
 
   emitInstrumentationDataProxy();
 }
