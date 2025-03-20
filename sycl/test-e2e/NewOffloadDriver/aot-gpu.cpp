@@ -1,9 +1,6 @@
 // REQUIRES: ocloc, gpu, target-spir
 // Test with `--offload-new-driver`
-
-// XFAIL: windows && !(build-mode && run-mode)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
-
+//
 // RUN: %clangxx -fsycl -fsycl-device-code-split=per_source \
 // RUN:   -fsycl-targets=spir64_gen \
 // RUN:   -Xsycl-target-backend=spir64_gen \

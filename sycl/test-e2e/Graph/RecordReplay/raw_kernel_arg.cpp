@@ -7,9 +7,6 @@
 
 // REQUIRES: ocloc && level_zero
 
-// XFAIL: windows && !(build-mode && run-mode)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
-
 #define GRAPH_E2E_RECORD_REPLAY
 
 #include "../Inputs/raw_kernel_arg.cpp"

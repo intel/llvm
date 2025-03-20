@@ -5,9 +5,6 @@
 
 // REQUIRES: opencl-aot, ocloc, gpu-intel-gen12, any-device-is-gpu
 
-// XFAIL: windows && !(build-mode && run-mode)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17553
-
 // XFAIL: linux
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/17305
 
