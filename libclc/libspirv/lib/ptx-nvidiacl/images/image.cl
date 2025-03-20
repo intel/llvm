@@ -2727,6 +2727,69 @@ _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 1, Dv4_DF16_, v4f16, i, i
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_i, int2 coord, coord.x, coord.y)
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv3_i, int4 coord, coord.x, coord.y, coord.z)
 
+float4
+__nvvm_tld4_r_2d_v4f32_f32(long, float,
+                           float) __asm("__clc_llvm_nvvm_tld4_r_2d_v4f32_f32");
+float4
+__nvvm_tld4_g_2d_v4f32_f32(long, float,
+                           float) __asm("__clc_llvm_nvvm_tld4_g_2d_v4f32_f32");
+float4
+__nvvm_tld4_b_2d_v4f32_f32(long, float,
+                           float) __asm("__clc_llvm_nvvm_tld4_b_2d_v4f32_f32");
+float4
+__nvvm_tld4_a_2d_v4f32_f32(long, float,
+                           float) __asm("__clc_llvm_nvvm_tld4_a_2d_v4f32_f32");
+
+int4 __nvvm_tld4_r_2d_v4s32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_r_2d_v4s32_f32");
+int4 __nvvm_tld4_g_2d_v4s32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_g_2d_v4s32_f32");
+int4 __nvvm_tld4_b_2d_v4s32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_b_2d_v4s32_f32");
+int4 __nvvm_tld4_a_2d_v4s32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_a_2d_v4s32_f32");
+
+uint4 __nvvm_tld4_r_2d_v4u32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_r_2d_v4u32_f32");
+uint4 __nvvm_tld4_g_2d_v4u32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_g_2d_v4u32_f32");
+uint4 __nvvm_tld4_b_2d_v4u32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_b_2d_v4u32_f32");
+uint4 __nvvm_tld4_a_2d_v4u32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_a_2d_v4u32_f32");
+
+#define _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(                      \
+    elem_t, elem_t_mangled, vec_size, type)                                    \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      26, __spirv_SampledImageGather, I##elem_t_mangled,                       \
+      Dv2_f##ET_T0_T1_j)(ulong imageHandle, float2 coord, unsigned i) {        \
+    elem_t result;                                                             \
+    switch (i) {                                                               \
+    case 0:                                                                    \
+      result = __nvvm_tld4_r_2d_v4##type##_f32(imageHandle, coord.x, coord.y); \
+      break;                                                                   \
+    case 1:                                                                    \
+      result = __nvvm_tld4_g_2d_v4##type##_f32(imageHandle, coord.x, coord.y); \
+      break;                                                                   \
+    case 2:                                                                    \
+      result = __nvvm_tld4_b_2d_v4##type##_f32(imageHandle, coord.x, coord.y); \
+      break;                                                                   \
+    case 3:                                                                    \
+      result = __nvvm_tld4_a_2d_v4##type##_f32(imageHandle, coord.x, coord.y); \
+      break;                                                                   \
+    default:                                                                   \
+      __builtin_trap();                                                        \
+      __builtin_unreachable();                                                 \
+    }                                                                          \
+    return result;                                                             \
+  }
+
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(float4, Dv4_f, v4f32, f32)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(int4, Dv4_i, v4i32, s32)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(uint4, Dv4_j, v4j32, u32)
+
+#undef _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN
+
 // <--- MIPMAP --->
 
 // Define functions to call intrinsic

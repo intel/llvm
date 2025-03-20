@@ -9,7 +9,7 @@
 #ifndef SYCL_JIT_COMPILER_RTC_ESIMD_H
 #define SYCL_JIT_COMPILER_RTC_ESIMD_H
 
-#include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/ModuleSplitter.h"
 
 namespace jit_compiler {
 
