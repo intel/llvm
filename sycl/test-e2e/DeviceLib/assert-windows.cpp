@@ -1,6 +1,6 @@
 // REQUIRES: windows
 // XFAIL: opencl && gpu
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17541
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 //
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 //
