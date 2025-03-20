@@ -789,6 +789,7 @@ function loadData() {
             .then(data => {
                 benchmarkRuns = data.runs || data;
                 benchmarkMetadata = data.metadata || benchmarkMetadata || {};
+                benchmarkTags = data.tags || benchmarkTags || {};
                 initializeCharts();
             })
             .catch(error => {
