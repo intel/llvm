@@ -17,13 +17,13 @@ def generate_html(
     metadata: dict[str, BenchmarkMetadata],
 ):
     benchmark_runs.sort(key=lambda run: run.date, reverse=True)
-    
+
     # Create the comprehensive output object
     output = BenchmarkOutput(
         runs=benchmark_runs,
         metadata=metadata,
         tags=benchmark_tags_dict,
-        default_compare_names=compare_names
+        default_compare_names=compare_names,
     )
 
     if options.output_html == "local":
@@ -37,7 +37,7 @@ def generate_html(
             f.write("benchmarkMetadata = ")
             json.dump(json.loads(output.to_json())["metadata"], f, indent=2)
             f.write(";\n\n")
-            
+
             f.write("benchmarkTags = ")
             json.dump(json.loads(output.to_json())["tags"], f, indent=2)
             f.write(";\n\n")

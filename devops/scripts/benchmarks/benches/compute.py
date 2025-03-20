@@ -26,6 +26,7 @@ def runtime_to_name(runtime: RUNTIMES) -> str:
         RUNTIMES.UR: "Unified Runtime",
     }[runtime]
 
+
 def runtime_to_tag_name(runtime: RUNTIMES) -> str:
     return {
         RUNTIMES.SYCL: "SYCL",
@@ -84,16 +85,15 @@ class ComputeBench(Suite):
                 "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
                 "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
                 "Work is ongoing to reduce the overhead of the SYCL API\n",
-                tags=['submit', 'micro', 'SYCL', 'UR', 'L0']
+                tags=["submit", "micro", "SYCL", "UR", "L0"],
             ),
             "SinKernelGraph": BenchmarkMetadata(
                 type="group",
                 unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
-                    tags=['submit', 'memory', 'proxy', 'SYCL', 'UR', 'L0', 'graph']
+                tags=["submit", "memory", "proxy", "SYCL", "UR", "L0", "graph"],
             ),
             "SubmitGraph": BenchmarkMetadata(
-                type="group",
-                tags=['submit', 'micro', 'SYCL', 'UR', 'L0', 'graph']
+                type="group", tags=["submit", "micro", "SYCL", "UR", "L0", "graph"]
             ),
         }
 
@@ -279,7 +279,7 @@ class SubmitKernel(ComputeBenchmark):
         )
 
     def get_tags(self):
-        return ['submit', 'latency', runtime_to_tag_name(self.runtime), 'micro']
+        return ["submit", "latency", runtime_to_tag_name(self.runtime), "micro"]
 
     def name(self):
         order = "in order" if self.ioq else "out of order"
@@ -344,7 +344,7 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
         )
 
     def get_tags(self):
-        return ['memory', 'submit', 'latency', 'SYCL', 'micro']
+        return ["memory", "submit", "latency", "SYCL", "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -377,7 +377,7 @@ class QueueInOrderMemcpy(ComputeBenchmark):
         )
 
     def get_tags(self):
-        return ['memory', 'latency', 'SYCL', 'micro']
+        return ["memory", "latency", "SYCL", "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -407,7 +407,7 @@ class QueueMemcpy(ComputeBenchmark):
         )
 
     def get_tags(self):
-        return ['memory', 'latency', 'SYCL', 'micro']
+        return ["memory", "latency", "SYCL", "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -439,7 +439,7 @@ class StreamMemory(ComputeBenchmark):
         return False
 
     def get_tags(self):
-        return ['memory', 'throughput', 'SYCL', 'micro']
+        return ["memory", "throughput", "SYCL", "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -468,7 +468,7 @@ class VectorSum(ComputeBenchmark):
         )
 
     def get_tags(self):
-        return ['math', 'throughput', 'SYCL', 'micro']
+        return ["math", "throughput", "SYCL", "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -517,7 +517,7 @@ class MemcpyExecute(ComputeBenchmark):
         )
 
     def get_tags(self):
-        return ['memory', 'latency', 'UR', 'micro']
+        return ["memory", "latency", "UR", "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -560,7 +560,14 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
         return "This benchmark combines both eager and graph execution, and may not be representative of real use cases."
 
     def get_tags(self):
-        return ['graph', runtime_to_tag_name(self.runtime), 'proxy', 'submit', 'memory', 'latency']
+        return [
+            "graph",
+            runtime_to_tag_name(self.runtime),
+            "proxy",
+            "submit",
+            "memory",
+            "latency",
+        ]
 
     def bin_args(self) -> list[str]:
         return [
@@ -595,7 +602,13 @@ class GraphApiSubmitGraph(ComputeBenchmark):
         return f"graph_api_benchmark_{self.runtime.value} SubmitGraph numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
 
     def get_tags(self):
-        return ['graph', runtime_to_tag_name(self.runtime), 'micro', 'submit', 'latency']
+        return [
+            "graph",
+            runtime_to_tag_name(self.runtime),
+            "micro",
+            "submit",
+            "latency",
+        ]
 
     def bin_args(self) -> list[str]:
         return [
@@ -625,7 +638,7 @@ class UllsEmptyKernel(ComputeBenchmark):
         return f"ulls_benchmark_{self.runtime.value} EmptyKernel wgc:{self.wgc}, wgs:{self.wgs}"
 
     def get_tags(self):
-        return [runtime_to_tag_name(self.runtime), 'micro', 'latency', 'submit']
+        return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -666,7 +679,7 @@ class UllsKernelSwitch(ComputeBenchmark):
         return f"ulls_benchmark_{self.runtime.value} KernelSwitch count {self.count} kernelTime {self.kernelTime}"
 
     def get_tags(self):
-        return [runtime_to_tag_name(self.runtime), 'micro', 'latency', 'submit']
+        return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
 
     def bin_args(self) -> list[str]:
         return [

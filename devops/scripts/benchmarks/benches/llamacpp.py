@@ -102,7 +102,7 @@ class LlamaBench(Benchmark):
         )
 
     def get_tags(self):
-        return ['SYCL', 'application', 'inference', 'throughput']
+        return ["SYCL", "application", "inference", "throughput"]
 
     def lower_is_better(self):
         return False

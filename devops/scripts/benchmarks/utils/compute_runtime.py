@@ -143,7 +143,10 @@ class ComputeRuntime:
         run(configure_command)
 
         # set timeout to 2h. IGC takes A LONG time to build if building from scratch.
-        run(f"cmake --build {self.igc_build} -j {options.build_jobs}", timeout=60 * 60 * 2)
+        run(
+            f"cmake --build {self.igc_build} -j {options.build_jobs}",
+            timeout=60 * 60 * 2,
+        )
         # cmake --install doesn't work...
         run("make install", cwd=self.igc_build)
         return self.igc_install

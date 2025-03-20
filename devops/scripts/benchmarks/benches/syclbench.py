@@ -113,15 +113,15 @@ class SyclBenchmark(Benchmark):
         return {}
 
     def get_tags(self):
-        base_tags = ['SYCL', 'micro']
+        base_tags = ["SYCL", "micro"]
         if "Memory" in self.bench_name or "mem" in self.bench_name.lower():
-            base_tags.append('memory')
+            base_tags.append("memory")
         if "Reduction" in self.bench_name:
-            base_tags.append('math')
+            base_tags.append("math")
         if "Bandwidth" in self.bench_name:
-            base_tags.append('throughput')
+            base_tags.append("throughput")
         if "Latency" in self.bench_name:
-            base_tags.append('latency')
+            base_tags.append("latency")
         return base_tags
 
     def setup(self):

@@ -242,11 +242,18 @@ details[open] summary::after {
     font-size: 18px;
     font-weight: 500;
     text-align: left;
+    display: flex;
+    align-items: center;
 }
 #suite-filters {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 8px;
+    background-color: #f8f9fa;
 }
 .display-options {
     display: flex;
@@ -286,7 +293,7 @@ details[open] summary::after {
     padding: 2px 8px;
     border-radius: 12px;
     font-size: 12px;
-    cursor: default;
+    cursor: help;
 }
 
 .tag-filter {
@@ -320,42 +327,19 @@ details[open] summary::after {
     background-color: #f8f9fa;
 }
 
-.tag-filter-actions {
-    margin-bottom: 8px;
-    display: flex;
-    gap: 8px;
-}
-
-.tag-filter-actions button {
-    padding: 4px 8px;
+.tag-action-button {
+    padding: 2px 8px;
     background: #e2e6ea;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 12px;
+    margin-left: 8px;
+    vertical-align: middle;
 }
 
-.tag-filter-actions button:hover {
+.tag-action-button:hover {
     background: #ced4da;
-}
-
-#active-tags {
-    display: none;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-    padding: 8px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-}
-
-.active-tag {
-    display: flex;
-    align-items: center;
-    background-color: #0068B5;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 14px;
 }
 
 .remove-tag {

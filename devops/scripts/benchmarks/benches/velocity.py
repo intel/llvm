@@ -119,7 +119,7 @@ class VelocityBase(Benchmark):
         return ""
 
     def get_tags(self):
-        return ['SYCL', 'application']
+        return ["SYCL", "application"]
 
     def run(self, env_vars) -> list[Result]:
         env_vars.update(self.extra_env_vars())
@@ -176,7 +176,7 @@ class Hashtable(VelocityBase):
             )
 
     def get_tags(self):
-        return ['SYCL', 'application', 'throughput']
+        return ["SYCL", "application", "throughput"]
 
 
 class Bitcracker(VelocityBase):
@@ -217,7 +217,7 @@ class Bitcracker(VelocityBase):
             )
 
     def get_tags(self):
-        return ['SYCL', 'application', 'throughput']
+        return ["SYCL", "application", "throughput"]
 
 
 class SobelFilter(VelocityBase):
@@ -266,7 +266,7 @@ class SobelFilter(VelocityBase):
             )
 
     def get_tags(self):
-        return ['SYCL', 'application', 'image', 'throughput']
+        return ["SYCL", "application", "image", "throughput"]
 
 
 class QuickSilver(VelocityBase):
@@ -316,7 +316,7 @@ class QuickSilver(VelocityBase):
             )
 
     def get_tags(self):
-        return ['SYCL', 'application', 'simulation', 'throughput']
+        return ["SYCL", "application", "simulation", "throughput"]
 
 
 class Easywave(VelocityBase):
@@ -383,7 +383,7 @@ class Easywave(VelocityBase):
         )
 
     def get_tags(self):
-        return ['SYCL', 'application', 'simulation']
+        return ["SYCL", "application", "simulation"]
 
 
 class CudaSift(VelocityBase):
@@ -414,7 +414,7 @@ class CudaSift(VelocityBase):
             raise ValueError("Failed to parse benchmark output.")
 
     def get_tags(self):
-        return ['SYCL', 'application', 'image']
+        return ["SYCL", "application", "image"]
 
 
 class DLCifar(VelocityBase):
@@ -468,7 +468,7 @@ class DLCifar(VelocityBase):
             raise ValueError("Failed to parse benchmark output.")
 
     def get_tags(self):
-        return ['SYCL', 'application', 'inference', 'image']
+        return ["SYCL", "application", "inference", "image"]
 
 
 class DLMnist(VelocityBase):
@@ -556,7 +556,7 @@ class DLMnist(VelocityBase):
             raise ValueError("Failed to parse benchmark output.")
 
     def get_tags(self):
-        return ['SYCL', 'application', 'inference', 'image']
+        return ["SYCL", "application", "inference", "image"]
 
 
 class SVM(VelocityBase):
@@ -602,4 +602,4 @@ class SVM(VelocityBase):
             raise ValueError("Failed to parse benchmark output.")
 
     def get_tags(self):
-        return ['SYCL', 'application', 'inference']
+        return ["SYCL", "application", "inference"]

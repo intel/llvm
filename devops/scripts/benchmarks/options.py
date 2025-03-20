@@ -47,4 +47,5 @@ class Options:
     custom_results_dir = None
     build_jobs: int = multiprocessing.cpu_count()
 
+
 options = Options()
