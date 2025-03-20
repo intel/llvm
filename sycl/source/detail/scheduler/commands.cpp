@@ -3676,7 +3676,8 @@ ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue, EventImpls, UREvent);
   assert((!!UREvent == producesPiEvent()) &&
-         "UpdateCommandBufferCommand doesn't produce native event");
+         "UpdateCommandBufferCommand produces native event");
+  MEvent->setHandle(UREvent);
 
   auto CheckAndFindAlloca = [](Requirement *Req, const DepDesc &Dep) {
     if (Dep.MDepRequirement == Req) {
@@ -3745,7 +3746,6 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
 }
 
 void UpdateCommandBufferCommand::emitInstrumentationData() {}
-bool UpdateCommandBufferCommand::producesPiEvent() const { return false; }
 
 } // namespace detail
 } // namespace _V1

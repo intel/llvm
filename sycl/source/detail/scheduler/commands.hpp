@@ -720,7 +720,6 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
-  bool producesPiEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
