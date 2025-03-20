@@ -2554,10 +2554,10 @@ Error OffloadBundler::UnbundleArchive() {
 bool clang::checkOffloadBundleID(const llvm::StringRef Str) {
   // <kind>-<triple>[-<target id>[:target features]]
   // <triple> := <arch>-<vendor>-<os>-<env>
-  SmallVector<StringRef, 6> Components;
-  Str.split(Components, '-', /*MaxSplit=*/5);
   // FIXME: The Intel Compiler does not currently adhere to the strict
   // component size.  Consider all checks valid.
+  // SmallVector<StringRef, 6> Components;
+  // Str.split(Components, '-', /*MaxSplit=*/5);
   // return Components.size() == 5 || Components.size() == 6;
   return true;
 }
