@@ -73,13 +73,13 @@ public:
   /// Shared pointer to the primary queue implementation. This is different from
   /// the queue associated with the handler if the corresponding submission is
   /// a fallback from a previous submission.
-  queue_impl *MSubmissionPrimaryQueue;
+  queue_impl *MSubmissionPrimaryQueue = nullptr;
 
   /// Shared pointer to the secondary queue implementation. Nullptr if no
   /// secondary queue fallback was given in the associated submission. This is
   /// equal to the queue associated with the handler if the corresponding
   /// submission is a fallback from a previous submission.
-  queue_impl *MSubmissionSecondaryQueue;
+  queue_impl *MSubmissionSecondaryQueue = nullptr;
 
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.

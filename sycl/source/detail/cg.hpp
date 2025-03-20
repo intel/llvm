@@ -184,7 +184,7 @@ public:
           MSharedPtrStorage(SIH.MSharedPtrStorage),
           MRequirements(SIH.MRequirements),
           MEvents(SIH.MEvents.begin(), SIH.MEvents.end()) {}
-// The following storages are needed to ensure that arguments won't die
+    // The following storages are needed to ensure that arguments won't die
     // while we are using them.
     /// Storage for standard layout arguments.
     std::vector<std::vector<char>> MArgsStorage;
