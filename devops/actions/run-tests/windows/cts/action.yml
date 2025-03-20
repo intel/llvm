@@ -82,7 +82,7 @@ runs:
       # Ignore errors so that if one category build fails others still have a
       # chance to finish and be executed at the run stage. Note that
       # "test_conformance" target skips building "test_all" executable.
-      ninja -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
+      ninja -j$(($(nproc) / 2)) -C build-cts -k0 $( [ -n "$CTS_TESTS_TO_BUILD" ] && echo "$CTS_TESTS_TO_BUILD" || echo "test_conformance")
 
   - name: Pack SYCL-CTS binaries
     if: always() && !cancelled() && inputs.cts_testing_mode == 'build-only'
