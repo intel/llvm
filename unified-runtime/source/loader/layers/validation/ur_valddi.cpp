@@ -215,11 +215,11 @@ __urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallback(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hAdapter)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
     if (NULL == pfnLoggerCallback)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (UR_LOGGER_LEVEL_QUIET < level)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
