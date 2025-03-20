@@ -9959,7 +9959,15 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       T.setArchName(ArchName);
       Triples += T.normalize();
     } else {
-      Triples += CurTC->getTriple().normalize(llvm::Triple::CanonicalForm::FOUR_IDENT);
+      // Use of the 4-field triple will be done for HIP only, with other
+      // offload targets not being modified.
+      // TODO: All targets should use the 4-field triple, which can be done
+      //       during an ABI breaking juncture.
+      if (CurKind == Action::OFK_HIP)
+        Triples += CurTC->getTriple().normalize(
+            llvm::Triple::CanonicalForm::FOUR_IDENT);
+      else
+        Triples += CurTC->getTriple().normalize();
     }
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
          CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
@@ -10188,11 +10196,18 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       StringRef Val(
           TCArgs.getLastArg(options::OPT_fsycl_force_target_EQ)->getValue());
       llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
-      Triples += TT.normalize(
-        llvm::Triple::CanonicalForm::FOUR_IDENT);
-    } else
-      Triples += Dep.DependentToolChain->getTriple().normalize(
-        llvm::Triple::CanonicalForm::FOUR_IDENT);
+      Triples += TT.normalize();
+    } else {
+      // Use of the 4-field triple will be done for HIP only, with other
+      // offload targets not being modified.
+      // TODO: All targets should use the 4-field triple, which can be done
+      //       during an ABI breaking juncture.
+      if (Dep.DependentOffloadKind == Action::OFK_HIP)
+        Triples += Dep.DependentToolChain->getTriple().normalize(
+          llvm::Triple::CanonicalForm::FOUR_IDENT);
+      else
+        Triples += Dep.DependentToolChain->getTriple().normalize();
+    }
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
          Dep.DependentOffloadKind == Action::OFK_Cuda ||
