@@ -159,7 +159,7 @@ jobs:
         tar -xf e2e_bin.tar.gz -C build-e2e
 
     - name: Configure E2E with Level Zero target
-      if: ${{ inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode != 'run-only' }}
+      if: inputs.tests_selector == 'e2e'
       shell: cmd
       run: |
         mkdir build-e2e
