@@ -25,10 +25,12 @@ set(SYCL_UR_SOURCE_DIR
 
 option(SYCL_UMF_DISABLE_HWLOC
   "Disable hwloc support in UMF" ON)
+option(SYCL_UR_BUILD_TESTS "Build tests for UR" OFF)
+set(UR_BUILD_TESTS "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
+# UR tests require the examples to be built
+set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 
-# Here we override the defaults to disable building tests from unified-runtime
-set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
-set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
+# Here we override the defaults to unified-runtime
 set(UR_BUILD_XPTI_LIBS OFF)
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
