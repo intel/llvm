@@ -1098,7 +1098,7 @@ class ArchiveFileHandler final : public FileHandler {
   };
   const OutputType Mode =
       StringSwitch<OutputType>(BundlerConfig.FilesType)
-          .Cases("aoo", "aocx", "aocr", OutputType::FileList)
+          .Case("aoo", OutputType::FileList)
           .Case("ao", OutputType::Object)
           .Case("a", OutputType::Archive)
           .Default(OutputType::Unknown);
@@ -1224,9 +1224,6 @@ public:
       std::unique_ptr<FileHandler> FH{nullptr};
       std::unique_ptr<MemoryBuffer> Buf{nullptr};
       StringRef Ext("o");
-      if (BundlerConfig.FilesType == "aocr" ||
-          BundlerConfig.FilesType == "aocx")
-        Ext = BundlerConfig.FilesType;
 
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
@@ -1425,8 +1422,7 @@ CreateObjectFileHandler(MemoryBuffer &FirstInput,
 }
 
 static bool FilesTypeIsArchiveToList(const std::string& FilesType) {
-  return FilesType == "ao" || FilesType == "aoo" || FilesType == "aocr" ||
-         FilesType == "aocx";
+  return FilesType == "ao" || FilesType == "aoo";
 }
 
 static bool FilesTypeIsArchive(const std::string& FilesType) {
