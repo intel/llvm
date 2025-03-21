@@ -7125,8 +7125,10 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   }
 
   // Diagnose function pointers in SYCL.
-  if (!FDecl && !getLangOpts().SYCLAllowFuncPtr && getLangOpts().SYCLIsDevice &&
-      !isUnevaluatedContext()) {
+  if (!FDecl &&
+      getLangOpts().getSYCLAllowFuncPtr() ==
+          LangOptions::SYCLFuncPtrPreference::Off &&
+      getLangOpts().SYCLIsDevice && !isUnevaluatedContext()) {
     bool MaybeConstantExpr = false;
     Expr *NonDirectCallee = TheCall->getCallee();
     if (!NonDirectCallee->isValueDependent())
