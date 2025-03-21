@@ -9,7 +9,10 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "device.hpp"
 #include <ur/ur.hpp>
+
+#include <memory>
 #include <vector>
 
 struct ur_platform_handle_t_ {

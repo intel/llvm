@@ -1216,7 +1216,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;
-  ur_adapter_handle_t AdapterHandle = &adapter;
+  ur_adapter_handle_t AdapterHandle = ur::cuda::adapter.get();
   ur_result_t Result =
       urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
   if (Result != UR_RESULT_SUCCESS)

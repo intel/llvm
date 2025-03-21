@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cuda.h>
+#include <memory>
 #include <ur_api.h>
 
 #include <atomic>
@@ -17,6 +18,7 @@
 #include <set>
 #include <vector>
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "device.hpp"
 #include "umf_helpers.hpp"
@@ -117,6 +119,10 @@ struct ur_context_handle_t_ {
     void operator()() { Function(UserData); }
   };
 
+  // Retain an additional reference to the adapter as it keeps the devices
+  // alive, which end up being used (indirectly) by our destructor.
+  std::shared_ptr<ur_adapter_handle_t_> Adapter;
+
   std::vector<ur_device_handle_t> Devices;
   std::atomic_uint32_t RefCount;
 
@@ -126,11 +132,8 @@ struct ur_context_handle_t_ {
   umf_memory_pool_handle_t MemoryPoolHost = nullptr;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Devices{Devs, Devs + NumDevices}, RefCount{1} {
-    for (auto &Dev : Devices) {
-      urDeviceRetain(Dev);
-    }
-
+      : Adapter(ur::cuda::adapter), Devices{Devs, Devs + NumDevices},
+        RefCount{1} {
     // Create UMF CUDA memory provider for the host memory
     // (UMF_MEMORY_TYPE_HOST) from any device (Devices[0] is used here, because
     // it is guaranteed to exist).
@@ -144,9 +147,6 @@ struct ur_context_handle_t_ {
     }
     if (MemoryProviderHost) {
       umfMemoryProviderDestroy(MemoryProviderHost);
-    }
-    for (auto &Dev : Devices) {
-      urDeviceRelease(Dev);
     }
   }
 
