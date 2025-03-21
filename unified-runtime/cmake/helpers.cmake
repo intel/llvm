@@ -206,19 +206,39 @@ function(add_ur_library name)
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
+    if(UR_USE_DEBUG_POSTFIX)
+        set_target_properties(${name} PROPERTIES DEBUG_POSTFIX d)
+    endif()
     if(UR_EXTERNAL_DEPENDENCIES)
         add_dependencies(${name} ${UR_EXTERNAL_DEPENDENCIES})
     endif()
+    add_dependencies(unified-runtime-libraries ${name})
 endfunction()
+
+if(NOT TARGET unified-runtime-libraries)
+    add_custom_target(unified-runtime-libraries)
+endif()
 
 function(install_ur_library name)
     install(TARGETS ${name}
+            COMPONENT unified-runtime
             EXPORT ${PROJECT_NAME}-targets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 endfunction()
+
+if(NOT TARGET install-unified-runtime-libraries)
+    add_custom_target(install-unified-runtime-libraries
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMPONENT=unified-runtime
+            -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+        # TODO: Also install debug UMF runtime libraries component
+        DEPENDS unified-runtime-libraries
+        # TODO: Add dependency on building debug UMF libraries
+    )
+endif()
 
 include(FetchContent)
 
