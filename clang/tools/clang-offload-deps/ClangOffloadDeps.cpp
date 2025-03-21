@@ -120,7 +120,8 @@ int main(int argc, const char **argv) {
                            .Case("fpga", true)
                            .Default(false);
 
-    bool TripleIsValid = Triple(Triples[I]).getArch() != Triple::UnknownArch;
+    bool TripleIsValid = Triple(Triples[I]).getArch() != Triple::UnknownArch ||
+                         Triples[I] == "native_cpu";
 
     if (!KindIsValid || !TripleIsValid) {
       SmallVector<char, 128u> Buf;
@@ -211,7 +212,9 @@ int main(int argc, const char **argv) {
       // global variable llvm.used to represent a reference to a symbol. But for
       // other targets we have to create a real reference since llvm.used may
       // not be representable in the object file.
-      if (Kinds[I] == "sycl" || Triple(Triples[I]).isSPIR()) {
+      if (Triples[I] == "native_cpu") {
+        // SYCL Native CPU doesn't need deps from clang-offload-deps.
+      } else if (Kinds[I] == "sycl" || Triple(Triples[I]).isSPIR()) {
         auto *GV = new GlobalVariable(
             Mod, ArrayTy, false, GlobalValue::AppendingLinkage,
             ConstantArray::get(ArrayTy, Used), "llvm.used");
