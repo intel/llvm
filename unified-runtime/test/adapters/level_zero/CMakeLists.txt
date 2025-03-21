@@ -96,6 +96,18 @@ function(add_adapter_tests adapter)
         target_link_libraries(test-adapter-${adapter}_ipc PRIVATE
             ur_umf
         )
+
+        add_adapter_test(${adapter}_buffer_pool
+            FIXTURE DEVICES
+            SOURCES
+                buffer_pool_tests.cpp
+            ENVIRONMENT
+                "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_${adapter}>\""
+        )
+
+        target_link_libraries(test-adapter-${adapter}_buffer_pool PRIVATE
+            ur_umf
+        )
     endif()
 
     add_adapter_test(${adapter}_mem_buffer_map
