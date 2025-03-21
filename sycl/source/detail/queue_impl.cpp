@@ -386,7 +386,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   addEvent(Event);
 
-  auto EventImpl = detail::getSyclObjImpl(Event);
+  const auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel

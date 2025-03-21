@@ -369,7 +369,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
 
   appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
-  const auto PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
+  const auto &PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
 
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
@@ -945,7 +945,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     }
 
     std::vector<ur_device_handle_t> URDevices;
-    for (auto Dev : Devs)
+    for (auto &Dev : Devs)
       URDevices.push_back(getSyclObjImpl(Dev).get()->getHandleRef());
 
     ProgramPtr BuiltProgram =
