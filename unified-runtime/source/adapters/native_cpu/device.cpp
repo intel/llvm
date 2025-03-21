@@ -491,7 +491,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
   std::ignore = hDevice;
   std::ignore = phNativeDevice;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
