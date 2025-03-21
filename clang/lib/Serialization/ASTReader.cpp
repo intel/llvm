@@ -11765,6 +11765,12 @@ void OMPClauseReader::VisitOMPReductionClause(OMPReductionClause *C) {
       Vars.push_back(Record.readSubExpr());
     C->setInscanCopyArrayElems(Vars);
   }
+  unsigned NumFlags = Record.readInt();
+  SmallVector<bool, 16> Flags;
+  Flags.reserve(NumFlags);
+  for ([[maybe_unused]] unsigned I : llvm::seq<unsigned>(NumFlags))
+    Flags.push_back(Record.readInt());
+  C->setPrivateVariableReductionFlags(Flags);
 }
 
 void OMPClauseReader::VisitOMPTaskReductionClause(OMPTaskReductionClause *C) {
@@ -12870,6 +12876,12 @@ void ASTRecordReader::readOpenACCClauseList(
     MutableArrayRef<const OpenACCClause *> Clauses) {
   for (unsigned I = 0; I < Clauses.size(); ++I)
     Clauses[I] = readOpenACCClause();
+}
+
+void ASTRecordReader::readOpenACCRoutineDeclAttr(OpenACCRoutineDeclAttr *A) {
+  unsigned NumVars = readInt();
+  A->Clauses.resize(NumVars);
+  readOpenACCClauseList(A->Clauses);
 }
 
 static unsigned getStableHashForModuleName(StringRef PrimaryModuleName) {

@@ -1208,13 +1208,12 @@ def fno_bundle_offload_arch : Flag<["-"], "fno-bundle-offload-arch">,
             "This allows .o files to contain .bc bundles that are unspecific "
             "to a particular arch version.">;
 def offload_arch_EQ : Joined<["--"], "offload-arch=">,
-  Visibility<[ClangOption, FlangOption]>, Flags<[NoXarchOption]>,
+  Visibility<[ClangOption, FlangOption]>,
   HelpText<"Specify an offloading device architecture for CUDA, HIP, or OpenMP. (e.g. sm_35). "
            "If 'native' is used the compiler will detect locally installed architectures. "
            "For HIP offloading, the device architecture can be followed by target ID features "
            "delimited by a colon (e.g. gfx908:xnack+:sramecc-). May be specified more than once.">;
 def no_offload_arch_EQ : Joined<["--"], "no-offload-arch=">,
-  Flags<[NoXarchOption]>,
   Visibility<[ClangOption, FlangOption]>,
   HelpText<"Remove CUDA/HIP offloading device architecture (e.g. sm_35, gfx906) from the list of devices to compile for. "
            "'all' resets the list to its default value.">;

@@ -1159,6 +1159,7 @@ unsigned StringLiteral::mapCharByteWidth(TargetInfo const &Target,
   switch (SK) {
   case StringLiteralKind::Ordinary:
   case StringLiteralKind::UTF8:
+  case StringLiteralKind::Binary:
     CharByteWidth = Target.getCharWidth();
     break;
   case StringLiteralKind::Wide:
@@ -1271,6 +1272,7 @@ void StringLiteral::outputString(raw_ostream &OS) const {
   switch (getKind()) {
   case StringLiteralKind::Unevaluated:
   case StringLiteralKind::Ordinary:
+  case StringLiteralKind::Binary:
     break; // no prefix.
   case StringLiteralKind::Wide:
     OS << 'L';
@@ -1387,6 +1389,11 @@ StringLiteral::getLocationOfByte(unsigned ByteNo, const SourceManager &SM,
                                  const LangOptions &Features,
                                  const TargetInfo &Target, unsigned *StartToken,
                                  unsigned *StartTokenByteOffset) const {
+  // No source location of bytes for binary literals since they don't come from
+  // source.
+  if (getKind() == StringLiteralKind::Binary)
+    return getStrTokenLoc(0);
+
   assert((getKind() == StringLiteralKind::Ordinary ||
           getKind() == StringLiteralKind::UTF8 ||
           getKind() == StringLiteralKind::Unevaluated) &&
