@@ -49,4 +49,6 @@ struct ur_queue_handle_t_ {
         },
         queue_data);
   }
+  // Indicates if this object is an interop handle.
+  bool IsInteropNativeHandle = false;
 };

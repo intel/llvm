@@ -79,7 +79,8 @@ struct ze_handle_wrapper {
       return;
     }
 
-    if (ownZeHandle) {
+    if ((ownZeHandle && !IsInteropNativeHandle) ||
+        (ownZeHandle && IsInteropNativeHandle && checkL0LoaderTeardown())) {
       auto zeResult = destroy(handle);
       // Gracefully handle the case that L0 was already unloaded.
       if (zeResult && zeResult != ZE_RESULT_ERROR_UNINITIALIZED)
@@ -102,6 +103,7 @@ struct ze_handle_wrapper {
 private:
   ZeHandleT handle;
   bool ownZeHandle;
+  bool IsInteropNativeHandle = false;
 };
 
 using ze_kernel_handle_t = HANDLE_WRAPPER_TYPE(::ze_kernel_handle_t,

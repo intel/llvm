@@ -160,6 +160,27 @@ TEST_P(cudaKernelTest, URKernelArgumentSimple) {
   ASSERT_EQ(storedValue, number);
 }
 
+TEST_P(cudaKernelTest, URKernelArgumentLarge) {
+  uur::raii::Program program = nullptr;
+  auto Length = std::strlen(ptxSource);
+  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &Length,
+                                           (const uint8_t **)(&ptxSource),
+                                           nullptr, program.ptr()));
+  ASSERT_NE(program, nullptr);
+  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+
+  uur::raii::Kernel kernel = nullptr;
+  ASSERT_SUCCESS(urKernelCreate(program, "_Z8myKernelPi", kernel.ptr()));
+  ASSERT_NE(kernel, nullptr);
+
+  // The CUDA adapter can't do proper argument validation so any kernel will
+  // work for this test.
+  std::array<uint8_t, 4004> data;
+  data.fill(0);
+  ASSERT_EQ_RESULT(urKernelSetArgValue(kernel, 0, 4004, nullptr, data.data()),
+                   UR_RESULT_ERROR_OUT_OF_RESOURCES);
+}
+
 TEST_P(cudaKernelTest, URKernelArgumentSetTwice) {
   uur::raii::Program program = nullptr;
   auto Length = std::strlen(ptxSource);

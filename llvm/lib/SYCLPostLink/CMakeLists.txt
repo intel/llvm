@@ -14,6 +14,7 @@ add_llvm_component_library(LLVMSYCLPostLink
   LLVMDemangle
   LLVMTargetParser
   LLVMTransformUtils
+  LLVMSYCLLowerIR
 
   LINK_COMPONENTS
   Analysis

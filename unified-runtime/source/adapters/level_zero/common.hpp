@@ -18,6 +18,13 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef _WIN32
+#include "windows.h"
+#else
+#include <dlfcn.h>
+#include <unistd.h>
+#endif
+
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
@@ -29,6 +36,68 @@
 #include "logger/ur_logger.hpp"
 
 struct _ur_platform_handle_t;
+
+[[maybe_unused]] static bool checkL0LoaderTeardown() {
+  bool loaderStable = true;
+#ifdef _WIN32
+  uint32_t ZeDriverCount = 0;
+  HMODULE zeLoader = LoadLibrary("ze_loader.dll");
+  if (zeLoader) {
+    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
+    zeDriverGet_t zeDriverGetLoader =
+        (zeDriverGet_t)GetProcAddress(zeLoader, "zeDriverGet");
+    if (zeDriverGetLoader) {
+      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
+      logger::debug(
+          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
+          ZeDriverCount);
+      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
+        loaderStable = false;
+      }
+    } else {
+      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
+                    "zeDriverGet");
+      loaderStable = false;
+    }
+    FreeLibrary(zeLoader);
+  } else {
+    logger::debug(
+        "ZE ---> checkL0LoaderTeardown: Failed to load ze_loader.dll");
+    loaderStable = false;
+  }
+#else
+  uint32_t ZeDriverCount = 0;
+  void *zeLoader = dlopen("libze_loader.so.1", RTLD_LAZY);
+  if (zeLoader) {
+    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
+    zeDriverGet_t zeDriverGetLoader =
+        (zeDriverGet_t)dlsym(zeLoader, "zeDriverGet");
+    if (zeDriverGetLoader) {
+      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
+      logger::debug(
+          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
+          ZeDriverCount);
+      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
+        loaderStable = false;
+      }
+    } else {
+      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
+                    "zeDriverGet");
+      loaderStable = false;
+    }
+    dlclose(zeLoader);
+  } else {
+    logger::debug(
+        "ZE ---> checkL0LoaderTeardown: Failed to load libze_loader.so.1");
+    loaderStable = false;
+  }
+#endif
+  if (!loaderStable) {
+    logger::debug(
+        "ZE ---> checkL0LoaderTeardown: Loader is not stable, returning false");
+  }
+  return loaderStable;
+}
 
 static auto getUrResultString = [](ur_result_t Result) {
   switch (Result) {
@@ -435,6 +504,9 @@ struct _ur_object {
   // Indicates if we own the native handle or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnNativeHandle = false;
+
+  // Indicates if this object is an interop handle.
+  bool IsInteropNativeHandle = false;
 };
 
 // Record for a memory allocation. This structure is used to keep information

@@ -40,6 +40,17 @@ function(add_adapter_tests adapter)
 
         add_dependencies(test-adapter-${adapter}
             generate_device_binaries kernel_names_header)
+
+
+        if("${adapter}" STREQUAL "level_zero")
+            add_adapter_test(level_zero_enqueue_alloc
+                FIXTURE KERNELS
+                SOURCES
+                    enqueue_alloc.cpp
+                ENVIRONMENT
+                    "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
+            )
+        endif()
     endif()
 
     if(NOT WIN32 AND NOT UR_STATIC_ADAPTER_L0)

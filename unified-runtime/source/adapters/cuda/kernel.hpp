@@ -117,6 +117,9 @@ struct ur_kernel_handle_t_ {
 
       // Copy new argument to storage if it hasn't been added before.
       if (ParamSizes[Index] == 0) {
+        if ((InsertPos + Size) > MaxParamBytes) {
+          throw UR_RESULT_ERROR_OUT_OF_RESOURCES;
+        }
         ParamSizes[Index] = Size;
         std::memcpy(&Storage[InsertPos], Arg, Size);
         ArgPointers[Index] = &Storage[InsertPos];

@@ -4,6 +4,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "umf_helpers.hpp"
 #include "umf_pools/disjoint_pool_config_parser.hpp"
 #include "ur_pool_manager.hpp"
 
@@ -97,7 +98,8 @@ struct urUsmPoolManagerTest : public uur::urContextTest {
 };
 
 TEST_P(urUsmPoolManagerTest, poolManagerPopulate) {
-  auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
+  auto [ret, manager] =
+      usm::pool_manager<usm::pool_descriptor, umf_memory_pool_t>::create();
   ASSERT_EQ(ret, UR_RESULT_SUCCESS);
 
   for (auto &desc : poolDescriptors) {
@@ -117,7 +119,8 @@ TEST_P(urUsmPoolManagerTest, poolManagerPopulate) {
 }
 
 TEST_P(urUsmPoolManagerTest, poolManagerInsertExisting) {
-  auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
+  auto [ret, manager] =
+      usm::pool_manager<usm::pool_descriptor, umf_memory_pool_t>::create();
   ASSERT_EQ(ret, UR_RESULT_SUCCESS);
 
   const auto &desc = poolDescriptors[0];
@@ -134,7 +137,8 @@ TEST_P(urUsmPoolManagerTest, poolManagerInsertExisting) {
 }
 
 TEST_P(urUsmPoolManagerTest, poolManagerGetNonexistant) {
-  auto [ret, manager] = usm::pool_manager<usm::pool_descriptor>::create();
+  auto [ret, manager] =
+      usm::pool_manager<usm::pool_descriptor, umf_memory_pool_t>::create();
   ASSERT_EQ(ret, UR_RESULT_SUCCESS);
 
   for (auto &desc : poolDescriptors) {

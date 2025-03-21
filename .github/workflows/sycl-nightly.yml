@@ -257,7 +257,7 @@ jobs:
       runner: '["Windows", "build-e2e"]'
       cts_testing_mode: 'build-only'
       tests_selector: cts
-      ref: ${{ github.sha }}
+      repo_ref: ${{ github.sha }}
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       sycl_cts_artifact: sycl_cts_bin_win
 
@@ -278,7 +278,7 @@ jobs:
       cts_testing_mode: 'run-only'
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
-      ref: ${{ github.sha }}
+      repo_ref: ${{ github.sha }}
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       sycl_cts_artifact: sycl_cts_bin_win
 

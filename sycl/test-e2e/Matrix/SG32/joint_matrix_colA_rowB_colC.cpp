@@ -12,11 +12,11 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
+// XFAIL: run-mode && gpu-intel-dg2
+// XFAIL-TRACKER: GSD-5768
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// XFAIL: gpu && run-mode
-// XFAIL-TRACKER: GSD-5768
 
 #include "common.hpp"
 #define SG_SZ 32

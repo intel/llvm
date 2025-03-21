@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 add_adapter_test(hip
-    FIXTURE DEVICES
+    FIXTURE KERNELS
     SOURCES
         fixtures.h
         urContextGetNativeHandle.cpp
@@ -12,6 +12,7 @@ add_adapter_test(hip
         urEventGetNativeHandle.cpp
         test_context.cpp
         test_event.cpp
+        kernel_tests.cpp
     ENVIRONMENT
         "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_hip>\""
 )
