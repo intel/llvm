@@ -18,7 +18,7 @@
 // XFAIL: !igc-dev && run-mode
 // XFAIL-TRACKER: GSD-6376
 
-// XFAIL: arch-intel_gpu_pvc
+// XFAIL: arch-intel_gpu_pvc && !igc-dev
 // XFAIL-TRACKER: GSD-10524
 
 // RUN: %{build} -o %t.out
