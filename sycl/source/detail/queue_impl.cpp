@@ -126,7 +126,7 @@ static event prepareSYCLEventAssociatedWithQueue(
 static event createDiscardedEvent() {
   EventImplPtr EventImpl =
       std::make_shared<event_impl>(event_impl::HES_Discarded);
-  return createSyclObjFromImpl<event>(EventImpl);
+  return createSyclObjFromImpl<event>(std::move(EventImpl));
 }
 
 const std::vector<event> &
