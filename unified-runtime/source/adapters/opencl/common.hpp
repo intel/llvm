@@ -153,10 +153,6 @@ constexpr size_t MaxMessageSize = 256;
 extern thread_local int32_t ErrorMessageCode;
 extern thread_local char ErrorMessage[MaxMessageSize];
 
-// Utility function for setting a message and warning
-[[maybe_unused]] void setErrorMessage(const char *Message,
-                                      ur_result_t ErrorCode);
-
 [[noreturn]] void die(const char *Message);
 
 template <class To, class From> To cast(From Value) {
