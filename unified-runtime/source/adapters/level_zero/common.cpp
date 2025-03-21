@@ -136,16 +136,15 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   } // switch
 }
 
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *, const char *,
+                           bool) {
+  return ZeResult;
+}
+#else
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
   logger::debug("ZE ---> {}{}", ZeName, ZeArgs);
-
-  if (ZeResult == ZE_RESULT_SUCCESS) {
-    if (UrL0LeaksDebug) {
-      ++(*ZeCallCount)[ZeName];
-    }
-    return ZE_RESULT_SUCCESS;
-  }
 
   if (TraceError) {
     const char *ErrorString = "Unknown";
@@ -154,6 +153,7 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   }
   return ZeResult;
 }
+#endif
 
 // Specializations for various L0 structures
 template <> ze_structure_type_t getZeStructureType<ze_event_pool_desc_t>() {
