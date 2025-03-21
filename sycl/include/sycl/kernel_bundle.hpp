@@ -26,22 +26,20 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // build_options
 #include <sycl/ext/oneapi/properties/property_value.hpp> // and log
 
-#include <algorithm> // for copy
 #include <array>      // for array
 #include <cstddef>    // for std::byte
 #include <cstring>    // for size_t, memcpy
 #include <functional> // for function
-#include <iterator>   // for distance, back_inserter
+#include <iterator>   // for distance
 #include <memory>     // for shared_ptr, operator==, hash
 #if __has_include(<span>)
 #include <span>
 #endif
-#include <string>        // for string
-#include <type_traits>   // for enable_if_t, remove_refer...
-#include <unordered_map> // for unordered_map
-#include <utility>       // for move
-#include <variant>       // for hash
-#include <vector>        // for vector
+#include <string>      // for string
+#include <type_traits> // for enable_if_t, remove_refer...
+#include <utility>     // for move
+#include <variant>     // for hash
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -493,7 +491,6 @@ public:
     return detail::kernel_bundle_plain::ext_oneapi_has_kernel(name);
   }
 
-  // For free functions.
   template <auto *Func>
   std::enable_if_t<ext::oneapi::experimental::is_kernel_v<Func>, bool>
   ext_oneapi_has_kernel() {
@@ -840,7 +837,6 @@ bool has_kernel_bundle(const context &Ctx, const std::vector<device> &Devs) {
   return has_kernel_bundle<State>(Ctx, Devs, {get_kernel_id<KernelName>()});
 }
 
-// For free functions.
 namespace ext::oneapi::experimental {
 template <auto *Func, bundle_state State>
 std::enable_if_t<is_kernel_v<Func>, bool>
@@ -868,7 +864,6 @@ template <typename KernelName> bool is_compatible(const device &Dev) {
   return is_compatible({get_kernel_id<KernelName>()}, Dev);
 }
 
-// For free functions.
 namespace ext::oneapi::experimental {
 template <auto *Func>
 std::enable_if_t<is_kernel_v<Func>, bool> is_compatible(const device &Dev) {
@@ -1032,17 +1027,19 @@ struct include_files
                                     detail::PropKind::IncludeFiles> {
   include_files() {}
   include_files(const std::string &name, const std::string &content) {
-    record.emplace(name, content);
+    record.emplace_back(name, content);
   }
   void add(const std::string &name, const std::string &content) {
-    bool inserted = record.try_emplace(name, content).second;
-    if (!inserted) {
+    if (std::find_if(record.begin(), record.end(), [&name](auto &p) {
+          return p.first == name;
+        }) != record.end()) {
       throw sycl::exception(make_error_code(errc::invalid),
                             "Include file '" + name +
                                 "' is already registered");
     }
+    record.emplace_back(name, content);
   }
-  std::unordered_map<std::string, std::string> record;
+  std::vector<std::pair<std::string, std::string>> record;
 };
 using include_files_key = include_files;
 
@@ -1199,10 +1196,7 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const std::string &Source, PropertyListT props = {}) {
   std::vector<std::pair<std::string, std::string>> IncludePairsVec;
   if constexpr (props.template has_property<include_files>()) {
-    const std::unordered_map<std::string, std::string> &IncludePairs =
-        props.template get_property<include_files>().record;
-    std::copy(IncludePairs.begin(), IncludePairs.end(),
-              std::back_inserter(IncludePairsVec));
+    IncludePairsVec = props.template get_property<include_files>().record;
   }
 
   return detail::make_kernel_bundle_from_source(SyclContext, Language, Source,
@@ -1218,10 +1212,7 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const std::vector<std::byte> &Bytes, PropertyListT props = {}) {
   std::vector<std::pair<std::string, std::string>> IncludePairsVec;
   if constexpr (props.template has_property<include_files>()) {
-    const std::unordered_map<std::string, std::string> &IncludePairs =
-        props.template get_property<include_files>().record;
-    std::copy(IncludePairs.begin(), IncludePairs.end(),
-              std::back_inserter(IncludePairsVec));
+    IncludePairsVec = props.template get_property<include_files>().record;
   }
 
   return detail::make_kernel_bundle_from_source(SyclContext, Language, Bytes,

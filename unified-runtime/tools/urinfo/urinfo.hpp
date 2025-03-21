@@ -332,6 +332,15 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USE_NATIVE_ASSERT);
   std::cout << prefix;
+  printDeviceInfo<ur_device_throttle_reasons_flags_t>(
+      hDevice, UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_FAN_SPEED);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_MIN_POWER_LIMIT);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_MAX_POWER_LIMIT);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
@@ -415,6 +424,9 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP);

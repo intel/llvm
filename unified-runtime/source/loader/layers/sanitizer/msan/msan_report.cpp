@@ -30,8 +30,15 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
   // Try to demangle the kernel name
   KernelName = DemangleName(KernelName);
 
-  getContext()->logger.always(
-      "====WARNING: DeviceSanitizer: use-of-uninitialized-value");
+  if (Report.Origin) {
+    getContext()->logger.always(
+        "====WARNING: DeviceSanitizer: use-of-uninitialized-value (shadow: {})",
+        (void *)Report.Origin);
+  } else {
+    getContext()->logger.always(
+        "====WARNING: DeviceSanitizer: use-of-uninitialized-value)");
+  }
+
   getContext()->logger.always(
       "use of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
       "{}, {})",

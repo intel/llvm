@@ -891,7 +891,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
-
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP: {
+    // HIP doesn't support sampled image gather.
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
     return ReturnValue(ur_bool_t{false});
   }
@@ -1036,6 +1039,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
   case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
+  case UR_DEVICE_INFO_FAN_SPEED:
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT:
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
