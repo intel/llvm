@@ -5,7 +5,7 @@
 // UNSUPPORTED: ze_debug && windows
 
 // UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
-// UNSUPPORTED-INTENDED: This is hanging when splitting tests
+// UNSUPPORTED-INTENDED: https://github.com/intel/llvm/issues/17582
 
 // This performs basic checks such as reduction creation, identity methods,
 // and the combine() method of the aux class 'reducer'.
