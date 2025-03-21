@@ -1233,6 +1233,7 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP:
     os << "UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP";
+    break;
   case UR_FUNCTION_EVENT_HOST_SIGNAL:
     os << "UR_FUNCTION_EVENT_HOST_SIGNAL";
     break;
