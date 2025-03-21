@@ -956,7 +956,6 @@ ur_result_t urProgramCreateWithNativeHandle(
   UR_ASSERT(Context && NativeProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   auto ZeModule = ur_cast<ze_module_handle_t>(NativeProgram);
-
   // We assume here that programs created from a native handle always
   // represent a fully linked executable (state Exe) and not an unlinked
   // executable (state Object).
@@ -1082,8 +1081,8 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
         ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (DeviceData.ZeBuildLog));
     }
     // interop api
-    if (InteropZeModule && OwnZeModule) {
-      InteropZeModule = nullptr;
+    if (InteropZeModule && OwnZeModule && checkL0LoaderTeardown()) {
+      ZE_CALL_NOCHECK(zeModuleDestroy, (InteropZeModule));
     }
 
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap)

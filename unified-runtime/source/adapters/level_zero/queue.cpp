@@ -1600,7 +1600,8 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
       for (auto &QueueGroup : QueueMap)
         for (auto &ZeQueue : QueueGroup.second.ZeQueues)
           if (ZeQueue) {
-            if (!Queue->IsInteropNativeHandle) {
+            if (!Queue->IsInteropNativeHandle ||
+                (Queue->IsInteropNativeHandle && checkL0LoaderTeardown())) {
               auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
               // Gracefully handle the case that L0 was already unloaded.
               if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
