@@ -22,6 +22,7 @@
 #include "logger/ur_logger.hpp"
 
 #include <array>
+#include <cassert>
 #include <functional>
 #include <memory>
 #include <stdexcept>

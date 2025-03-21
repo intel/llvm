@@ -15,11 +15,73 @@
 #include "context.hpp"
 #include <cstdlib>
 
+#ifdef __unix__
+#include <sys/mman.h>
+#endif
+
 namespace umf {
 ur_result_t getProviderNativeError(const char *, int32_t) {
   return UR_RESULT_ERROR_UNKNOWN;
 }
 } // namespace umf
+
+// Device flags are merged with host flags for native CPU since they are the
+// same target. If flags conflict, e.g. WRITE_ONLY | READ_ONLY, the behaviour is
+// unspecified.
+static inline ur_usm_host_mem_flags_t
+merge_flags(ur_usm_host_mem_flags_t HF, ur_usm_device_mem_flags_t DF) {
+  HF |= UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT *
+        !!(UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_HOST_READ_ONLY *
+        !!(UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_HOST_WRITE_ONLY *
+        !!(UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_ONLY & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_HOST_COHERENT *
+        !!(UR_USM_DEVICE_MEM_FLAG_DEVICE_COHERENT & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT *
+        !!(UR_USM_DEVICE_MEM_FLAG_DEVICE_NON_COHERENT & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM *
+        !!(UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_RANDOM & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL *
+        !!(UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_SEQUENTIAL & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT *
+        !!(UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_HOT & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD *
+        !!(UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_COLD & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_HOST_UNCACHED *
+        !!(UR_USM_DEVICE_MEM_FLAG_DEVICE_UNCACHED & DF);
+  HF |= UR_USM_HOST_MEM_FLAG_WRITE_COMBINE *
+        !!(UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE & DF);
+  return HF;
+}
+
+static void advise_host_flags(ur_usm_host_mem_flags_t URF, void *P,
+                              size_t Size) {
+  static_assert(std::is_unsigned_v<ur_usm_host_mem_flags_t>,
+                "UB in left shift on signed type");
+  for (ur_usm_host_mem_flags_t F = 1; F; F <<= 1) {
+    switch (URF & F) {
+    case 0:
+      continue;
+#ifndef _WIN32 // Assume POSIX if not Windows
+    case UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL:
+      posix_madvise(P, Size, POSIX_MADV_SEQUENTIAL);
+      continue;
+    case UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM:
+      posix_madvise(P, Size, POSIX_MADV_RANDOM);
+      continue;
+#ifdef __linux__
+    // These advice are Linux-specific and are not part of POSIX. Thus we
+    // use `madvise` instead of the generic `posix_memadvise`
+    case UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT:
+      madvise(P, Size, MADV_WILLNEED);
+    case UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD:
+      madvise(P, Size, MADV_COLD);
+    }
+  }
+#endif
+#endif
+}
 
 static ur_result_t alloc_helper(ur_context_handle_t hContext,
                                 const ur_usm_desc_t *pUSMDesc, size_t size,
@@ -29,11 +91,22 @@ static ur_result_t alloc_helper(ur_context_handle_t hContext,
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   // TODO: Check Max size when UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE is implemented
   UR_ASSERT(size > 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
+  ur_usm_host_mem_flags_t HostFlags{};
+  ur_usm_device_mem_flags_t DeviceFlags{};
 
   auto *ptr = hContext->add_alloc(alignment, type, size, nullptr);
   UR_ASSERT(ptr != nullptr, UR_RESULT_ERROR_OUT_OF_RESOURCES);
-  *ppMem = ptr;
 
+  if (const auto *HD = find_stype_node<ur_usm_host_desc_t>(pUSMDesc)) {
+    HostFlags = HD->flags;
+  }
+  if (const auto *DD = find_stype_node<ur_usm_device_desc_t>(pUSMDesc)) {
+    DeviceFlags = DD->flags;
+  }
+  if (auto Flags = merge_flags(HostFlags, DeviceFlags)) {
+    advise_host_flags(Flags, ptr, size);
+  }
+  *ppMem = ptr;
   return UR_RESULT_SUCCESS;
 }
 

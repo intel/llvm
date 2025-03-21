@@ -17,6 +17,7 @@
 #include <sycl/detail/iostream_proxy.hpp>
 
 #include <atomic>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 

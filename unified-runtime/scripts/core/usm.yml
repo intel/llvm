@@ -20,21 +20,75 @@ etors:
     - name: INITIAL_PLACEMENT
       value: "$X_BIT(0)"
       desc: "Optimize shared allocation for first access on the host"
+    - name: HOST_READ_ONLY
+      value: "$X_BIT(2)"
+      desc: "Memory is only possibly modified from the host, but read-only in all device code"
+    - name: HOST_WRITE_ONLY
+      value: "$X_BIT(3)"
+      desc: "Memory is written to from the device, but possibly read-write in host code"
+    - name: HOST_COHERENT
+      value: "$X_BIT(4)"
+      desc: "Reads and writes between host and devices have full cache coherence, and support atomic operations"
+    - name: HOST_NON_COHERENT
+      value: "$X_BIT(5)"
+      desc: "Reads and writes between host and device are possibly cached such that updates are not guaranteed to be visible to the device until a synchronization point. Use of atomic operations on memory so-allocated is undefined"
+    - name: HOST_ACCESS_RANDOM
+      value: "$X_BIT(6)"
+      desc: "Memory access characteristics are likely to be unpredictable such that read-ahead optimizations are unlikely to be profitable"
+    - name: HOST_ACCESS_SEQUENTIAL
+      value: "$X_BIT(7)"
+      desc: "Memory access characteristics are likely to be sequential such that page read-ahead is likely to be profitable"
+    - name: HOST_ACCESS_HOT
+      value: "$X_BIT(8)"
+      desc: "This memory is used in a hot region of the code, and would benefit from being placed in the fastest memory bank available on the host"
+    - name: HOST_ACCESS_COLD
+      value: "$X_BIT(9)"
+      desc: "This memory is little used on the host, and can be placed in slower memory banks where they can be distinguished"
+    - name: HOST_UNCACHED
+      value: "$X_BIT(10)"
+      desc: "Disable caching on the host"
+    - name: WRITE_COMBINE
+      value: "$X_BIT(11)"
+      desc: "Memory should be allocated such that writes are combined wherever possible"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "USM device memory property flags"
 class: $xUSM
 name: $x_usm_device_mem_flags_t
 etors:
-    - name: WRITE_COMBINED
+    - name: WRITE_COMBINE
       value: "$X_BIT(0)"
-      desc: "Memory should be allocated write-combined (WC)"
+      desc: "Memory should be allocated such that writes are combined wherever possible"
     - name: INITIAL_PLACEMENT
       value: "$X_BIT(1)"
       desc: "Optimize shared allocation for first access on the device"
     - name: DEVICE_READ_ONLY
       value: "$X_BIT(2)"
       desc: "Memory is only possibly modified from the host, but read-only in all device code"
+    - name: DEVICE_WRITE_ONLY
+      value: "$X_BIT(3)"
+      desc: "Memory is written to from the device, but possibly read-write in host code"
+    - name: DEVICE_COHERENT
+      value: "$X_BIT(4)"
+      desc: "Reads and write between host and devices have full cache coherence"
+    - name: DEVICE_NON_COHERENT
+      value: "$X_BIT(5)"
+      desc: "Reads and write between host are possibly cached such that updates are not guaranteed to be visible to the host until a synchronization point"
+    - name: DEVICE_ACCESS_RANDOM
+      value: "$X_BIT(6)"
+      desc: "Memory access characteristics are likely to be unpredictable"
+    - name: DEVICE_ACCESS_SEQUENTIAL
+      value: "$X_BIT(7)"
+      desc: "Memory access characteristics are likely to be sequential such that page read-ahead is likely to be profitable"
+    - name: DEVICE_ACCESS_HOT
+      value: "$X_BIT(8)"
+      desc: "This memory is used in a hot region of the code, and would benefit from being placed in the fastest memory bank available on the device"
+    - name: DEVICE_ACCESS_COLD
+      value: "$X_BIT(9)"
+      desc: "This memory is little used, and can be placed in slower memory banks where they can be distinguished"
+    - name: DEVICE_UNCACHED
+      value: "$X_BIT(10)"
+      desc: "Disable caching on the device"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "USM memory property flags"

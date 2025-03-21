@@ -1,0 +1,758 @@
+= sycl_ext_codeplay_usm_props
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes. This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) Codeplay Software Limited.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of
+The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please contact:
+Luke Drummond, Codeplay (luke 'dot' drummond 'at' codeplay 'dot' com)
+
+or alternatively open an issue at:
+
+https://github.com/intel/llvm/issues
+
+== Contributors
+
+Luke Drummond, Codeplay +
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension depends on and extends unified shared memory support (USM) from
+the core specification.
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
+"SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",  "MAY", and "OPTIONAL" in this
+document are to be interpreted as described in RFC 2119.
+
+
+== Status
+Proposed
+
+This is a proposed extension specification, intended to gather community
+feedback. Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state. The specification itself may also change in
+incompatible ways before it is finalized. *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+[NOTE]
+====
+In this document, we use the shorthand `usm_props` to indicate the proposed
+`sycl::ext::codeplay::usm_props` namespace.
+====
+
+The purpose of this document is to clearly describe and specify `usm_props` and
+related concepts, types, and mechanisms; and to give examples and context for
+their usage.
+
+=== Motivation
+This section is non-normative.
+
+Better control of caching policy, data locality information, access pattern
+hints, and access frequency hints may may enable interested users of SYCL to
+improve performance of their programs.
+
+Their specification here is meant to codify common practise from existing
+general purpose OS allocation (e.g. `mmap(2)` and `madvise(2)` flags from POSIX
+or Win32's `VirtualAlloc()`), as well as those from existing accelerator target
+runtimes or driver support infrastructure (e.g. AMD HIP, NVIDIA CUDA, Linux HMM
+etc). In combination these distinct systems all provide some control over the
+handling of cache coherency, eviction strategy, and migration strategy.
+
+When used judiciously, and on a supported target, proper control of the cache
+policies or memory access patterns can have a profound effect on the performance
+of certain algorithms, and may not affect correctness when the programmer is
+aware of host and accelerator semantics.
+
+Additionally, more deeply embedded uses of SYCL such as on DSP or FPGA-based
+systems may expose more diverse memory configurations to the SYCL runtime that
+may again improve performance by better control of the memory subsystems.
+
+Since memory allocation, migration, and occupancy is still diversely
+implemented among various accelerators, these properties are to be considered
+*best-effort* hints to be handled by the implementation. Implementations that
+support any of these flags SHOULD document that support, and include any notable
+implementation-defined behaviour that may affect program semantics. Otherwise
+any flag here may be ignored by the implementation. Unless otherwise specified
+this MUST NOT affect program semantics.
+
+As a concrete example of the motivation, consider the following trivial SYCL
+program.
+
+[NOTE]
+====
+All following examples omit error / bounds checking for brevity of exposition.
+Allocation functions are assumed to return successfully in all cases unless
+otherwise noted. This is to keep the code samples short and to the point.
+====
+
+==== Example 1
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+#include <sycl/ext/codeplay/usm_props.hpp>
+
+#define N (4096 / sizeof (int))
+int main() {
+  sycl::queue q /* = ... */;
+
+  using namespace sycl::ext::codeplay::usm_props;
+  int *vals = sycl::malloc_host<int>(N, q, {
+      device_cache_non_coherent(),
+      device_cache_write_combine(),
+  });
+  assert(vals && "allocation failed");
+
+  q.parallel_for(sycl::range{N}, [=] (sycl::id<1> idx) {
+    vals[idx] = idx;
+  }).wait();
+
+  // Check our resulting linear sequence
+  for (int i = 0; i < N; ++i)
+    assert(vals[i] == i);
+}
+----
+
+The above example queues a simple kernel in which each work-item invocation
+simply writes its linear id into an array of `N` ints, such that the result is
+an ordered sequence of integers `[0, N)` stored in the `vals` allocation.
+
+The pointer `val`, here is assigned allocated device memory from a call to
+`sycl::malloc_device`. The flags shown are used to indicate useful information
+to the implementation:
+
+  - `write_only`: The kernel never actually makes semantic reads through
+    the `vals` pointer; it only ever stores a result there. This may relax
+    ordering constraints and improve throughput among work-item invocations in
+    some configurations.
+  - `non_coherent`: The host and accelerator are not required to have a coherent
+    view of the shared data at any time. This enables the device to agressively
+    cache writes. Since the `host` code calls `.wait()` on the queue operation
+    (a common and idiomatic pattern in synchronous SYCL offloads)
+    there is no need for the intra host/device ordering guarantees otherwise
+    required. This allows more efficient hardware-accelerated batch copying on
+    kernel completion on many architectures.
+  - `write_combine`: writes may be delayed and written in bursts.
+
+On a typical workstation-class GPU implementation with 4k pages, taking the
+above hints into account may reduce the invocation to a single page migration
+from device to host, _after_ the kernel has executed. With no such flags, it's
+quite possible that a cross-bus transition may take place for every single store
+into the output `vals` array.
+
+On an embedded implementation however, with memory banks of different
+capabilities, a good implementation may be able to select a more optimal code
+sequence for the stores by ensuring input and output data are accessed via
+different memory banks.
+
+Notice that such aggressive optimizations may break the semantics of atomic
+operations. Details of such deviation from the standard behaviour are discussed
+in more detail in the normative specification of each flag, below.
+
+=== Example 2
+[source,c++]
+----
+#include <sycl/sycl.hpp>
+#include <sycl/ext/codeplay/usm_props.hpp>
+
+#include <algorithm>
+
+#define N (4096 / sizeof (int))
+
+int main() {
+  sycl::queue q /* = ... */;
+
+  using namespace sycl::ext::codeplay::usm_props;
+  int *vals = sycl::malloc_host<int>(N, q, {
+  //      device_write_only(),
+      device_access_random(),
+  });
+  assert(vals && "allocation failed");
+  int *indexes = sycl::malloc_host<int>(N, q, {
+      device_read_only(),
+      device_cache_non_coherent(),
+      device_access_sequential(),
+  });
+
+  for (int i = 0; i < N; ++i)
+    vals[i] = i;
+
+  std::random_shuffle(indexes, indexes + N);
+
+  q.parallel_for(sycl::range{N}, [=] (sycl::id<1> id) {
+    vals[indexes[id]] = id;
+  }).wait();
+
+  // Check our resulting linear sequence
+  for (int i = 0; i < N; ++i)
+    printf("%d\n", vals[i]);
+}
+----
+In this contrived example, we linearly access a large array containing random
+indexes which are then used to assign our linear `id`. The result is an
+unpredictable access pattern, and any attempts to optimize memory access by
+read-ahead paging or predictive prefetching are likely to be pointless at best,
+and a pessimization at worst.
+
+The flags here hint that no such read-ahead should be performed.
+
+
+The other flags detailed below are similar in principle; their semantics are
+detailed in <<_interface_and_semantics>>
+
+== Specification
+
+This section is normative.
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification (6.3.3). An implementation supporting this extension MUST
+predefine the macro `SYCL_EXT_CODEPLAY_USM_PROPS` to one of the values defined
+in the table below. Applications can test for the existence of this macro to
+determine if the implementation supports this feature - or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+
+[%header,cols="1,1,5"]
+|===
+|Name
+|Value
+|Description
+
+|`SYCL_EXT_CODEPLAY_USM_PROPS`
+|`1`
+|The initial version of this extension has version 1. Subsequent versions may
+add to the list of supported properties and each change therein should increment
+this value by 1. Each version change MUST be accompanied with documentation on
+which properties are newly defined, removed/deprecated or other semantic changes
+that may be required.
+
+|===
+
+=== Namespace and class definitions
+
+`sycl::ext::codeplay::usm_props` is a namespace containing the following class
+definitions, instances of which are compatible with the `sycl::property`, and
+`sycl::property_list` interface defined in 4.5.4 and 4.5.3.1 of the core SYCL
+specification respectively. The semantics of using an instance of one of these
+classes as a member of a `sycl::property_list` when passed to any of the core
+SYCL USM allocation functions or allocator classes are detailed below in
+<<_interface_and_semantics>>).
+
+[source, c++]
+----
+
+class host_hot;
+class device_hot;
+class host_cold;
+class device_cold;
+class host_cache_non_coherent;
+class device_cache_non_coherent;
+class host_cache_write_combine;
+class device_cache_write_combine;
+class host_access_sequential;
+class device_access_sequential;
+class host_access_random;
+class device_access_random;
+class host_read_only;
+class device_read_only;
+class host_write_only;
+class device_write_only;
+
+
+----
+
+=== Interface and Semantics
+The interfaces to use these new types already exist in the core spec.
+Properties described herein adhere to the semantics of `sycl::property`.
+That is, they all:
+
+1. have a corresponding `sycl::is_property<>` class template specialization
+   inheriting from `std::true_type`
+2. define an `is_property_v<> constexpr inline` global,
+   a 'la https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.propertyinterface
+3. must be trivially copyable, destructible, nothrow-move destructible and
+   nothrow-move-constructible.
+
+As mentioned in <<_namespace_and_class_definitions>>, the properties defined
+here are intended to be passed as members of the `propList` argument to all the
+USM allocator APIs including the `sycl::usm_allocator`. The backend may use
+these properties as hints to better service the application's memory access
+patterns - or as a quality of implementation consideration, the compiler may use
+these hints to generate better code at translation time.
+
+The table following describes the public constructors and member functions for
+the `usm_props` classes. Implementation internals are not documented here.
+Class members not documented here MUST be of `private` or `protected` visibility.
+
+[frame="topbot",options="header"]
+|===
+|Property |Description
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class host_hot {
+public:
+  host_hot() = default;
+};
+----
+|
+This allocation is very popular and is regularly accessed by the host.
+Allocating it with preferential locality compared to other allocations
+without the same property is likely to be beneficial since it is so
+often acessed. Also see note for host_cold.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class device_hot {
+public:
+  device_hot() = default;
+};
+----
+|
+This allocation is very popular and is regularly accessed by the
+device. Allocating it with preferential locality compared to other
+allocations without the same property is likely to be beneficial since
+it is so often acessed. Also see note for device_cold.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class host_cold {
+public:
+  host_cold() = default;
+};
+----
+|
+Antonymous with `host_hot`: The host rarely accesses this memory and
+it is not likely beneficial to ensure good locality to the host.  is
+seldom used. For example it may be used to store the result of a
+computation once but is not used in the critical path of the host
+execution. Therefore if there are other allocations that may be more
+often used, it may make sense for the allocator to favourably localize
+_other_ allocations.  Note: that it is not incorrect to mark both host
+and device as `hot`, since that could be true, and there may be a
+performance "middle-ground". Whether it makes sense in practise
+remains to be seen.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class device_cold {
+public:
+  device_cold() = default;
+};
+----
+|
+Antonymous with `device_hot`: The device rarely accesses this memory
+and it is not likely beneficial to ensure good locality to the device.
+is seldom used. For example it may be used to store the result of a
+computation once but is not used in the critical path of the device
+execution. Therefore if there are other allocations that may be more
+often used, it may make sense for the allocator to favourably localize
+_other_ allocations.  Note: that it is not incorrect to mark both host
+and device as `hot`, since that could be true, and there may be a
+performance "middle-ground". Whether it makes sense in practise
+remains to be seen.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class host_cache_non_coherent {
+public:
+  host_cache_non_coherent() = default;
+};
+----
+|
+Relax intra-host/device memory coherency guarantees to optimize local
+throughput. In many SYCL programs it is enough for the host to queue
+work to a device, and then synchronously wait on the device to
+complete immediately after submitting the kernel. In such cases a
+globally coherent view of this memory allocation is not required
+during kernel execution - including across NUMA domains. This may
+allow aggressive local caching on host without synchronization with
+the other components. Stores by host may not be visible to device
+until the queued event has successfully completed via `queue.wait()`.
+Thus: use of `sycl::atomic_ref` on so-decorated allocations is
+undefined and temporal guarantees provided by the default memory
+ordering semantics of the associated backend are no longer valid for
+the present allocation.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class device_cache_non_coherent {
+public:
+  device_cache_non_coherent() = default;
+};
+----
+|
+Relax intra-device/host memory coherency guarantees to optimize local
+throughput. In many SYCL programs it is enough for the host to queue
+work to a device, and then synchronously wait on the device to
+complete immediately after submitting the kernel. In such cases a
+globally coherent view of this memory allocation is not required
+during kernel execution - including across NUMA domains. This may
+allow aggressive local caching on device without synchronization with
+the other components. Stores by device may not be visible to host
+until the queued event has successfully completed via `queue.wait()`.
+Thus: use of `sycl::atomic_ref` on so-decorated allocations is
+undefined and temporal guarantees provided by the default memory
+ordering semantics of the associated backend are no longer valid for
+the present allocation.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class host_cache_write_combine {
+public:
+  host_cache_write_combine() = default;
+};
+----
+|
+Enable write-combining on the host. Partial or multiple stores to
+allocations in the global address space may be internally buffered and
+then written in a single burst or batch operation by the host. This
+may force a weak order on the data so-written. Thus, fences may be
+required to ensure correct behaviour across the host/device divide.
+Atomic read-modify-write operations to such a buffer are undefined.
+This may significantly improve the performance of multi-operation
+cross-bus data transfers without polluting the local data cache e.g.
+on x86 family processors. The size of the write-combining buffer is
+unspecified.  - https://developer.download.nvidia.com/assets/cuda/file
+s/CUDA2.2PinnedMemoryAPIs.pdf -
+https://download.intel.com/design/PentiumII/applnots/24442201.pdf The
+intra-device coherence of write-combining stores across is
+implementation defined.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class device_cache_write_combine {
+public:
+  device_cache_write_combine() = default;
+};
+----
+|
+Enable write-combining on the device. Partial or multiple stores to
+allocations in the global address space may be internally buffered and
+then written in a single burst or batch operation by the device. This
+may force a weak order on the data so-written. Thus, fences may be
+required to ensure correct behaviour across the device/host divide.
+Atomic read-modify-write operations to such a buffer are undefined.
+This may significantly improve the performance of multi-operation
+cross-bus data transfers without polluting the local data cache e.g.
+on x86 family processors. The size of the write-combining buffer is
+unspecified.  - https://developer.download.nvidia.com/assets/cuda/file
+s/CUDA2.2PinnedMemoryAPIs.pdf -
+https://download.intel.com/design/PentiumII/applnots/24442201.pdf The
+intra-device coherence of write-combining stores across is
+implementation defined.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class host_access_sequential {
+public:
+  host_access_sequential() = default;
+};
+----
+|
+Access to this allocation by the host is likely to proceed
+sequentially. Virtual memory subsystems may aggressively page-in
+subsequent regions of accessed memory ahead of their access in order
+that page faults are minimized due to a predictable future read
+occuring. See example 2. An alternative implementation might be able
+to generate prefetch instructions during translation such as x86's
+`PREFETCHNTA` which hints to speculatively bring data into the
+processor's cache that it is then already available when it is needed.
+This property does not affect correctness in all cases.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class device_access_sequential {
+public:
+  device_access_sequential() = default;
+};
+----
+|
+Access to this allocation by the device is likely to proceed
+sequentially. Virtual memory subsystems may aggressively page-in
+subsequent regions of accessed memory ahead of their access in order
+that page faults are minimized due to a predictable future read
+occuring. See example 2. An alternative implementation might be able
+to generate prefetch instructions during translation such as x86's
+`PREFETCHNTA` which hints to speculatively bring data into the
+processor's cache that it is then already available when it is needed.
+This property does not affect correctness in all cases.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class host_access_random {
+public:
+  host_access_random() = default;
+};
+----
+|
+Access patterns are likely to be less-than-sequential and thus
+prefetching of pages into the host's scope is almost certainly a
+pessimization; not to be bothered with.  See example 2 This property
+does not affect correctness in all cases.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class device_access_random {
+public:
+  device_access_random() = default;
+};
+----
+|
+Access patterns are likely to be less-than-sequential and thus
+prefetching of pages into the device's scope is almost certainly a
+pessimization; not to be bothered with.  See example 2 This property
+does not affect correctness in all cases.
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class host_read_only {
+public:
+  host_read_only() = default;
+};
+----
+|
+The host only reads from this allocation. This may be useful in cases
+where results are communicated one-way from the executing kernel
+context the kernel builds a result in an allocation piecemeal, which
+is then only on read by the host.  Note that this is already present
+in other extensions but is added here for completeness
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class device_read_only {
+public:
+  device_read_only() = default;
+};
+----
+|
+The device only reads from this allocation. This may be useful in
+cases where results are communicated one-way from the executing kernel
+context the kernel builds a result in an allocation piecemeal, which
+is then only on read by the host.  Note that this is already present
+in other extensions but is added here for completeness
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class host_write_only {
+public:
+  host_write_only() = default;
+};
+----
+|
+The host will only write to this allocation. n.b this is not a
+permissions bit, but a hint to the optimizer or the runtime. For
+example, an allocation marked with the `host_write_only` property may
+allow an implementation to simplify the cache control protocol to
+avoid local caching of stores through the given pointer by writing
+them directly to main memory. Combined with a non-coherent property it
+may enable bypass of low-level caches and write around into a higher
+level etc.  Hint only. No semantic changes for conforming programs
+
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+class device_write_only {
+public:
+  device_write_only() = default;
+};
+----
+|
+The device will only write to this allocation. n.b this is not a
+permissions bit, but a hint to the optimizer or the runtime. For
+example, an allocation marked with the `device_write_only` property
+may allow an implementation to simplify the cache control protocol to
+avoid local caching of stores through the given pointer by writing
+them directly to main memory. Combined with a non-coherent property it
+may enable bypass of low-level caches and write around into a higher
+level etc.  Hint only. No semantic changes for conforming programs
+
+
+-
+|===
+
+These properties are applicable to the following SYCL allocation functions - as
+members of the listed function's `sycl::property_list` argument (referred to in
+as `propList` in the 9th edition of the SYCL specification).
+
+- `sycl::malloc_host()`: All overloads
+- `sycl::malloc_shared()`: All overloads
+- `sycl::malloc_device()`: All overloads
+- `sycl::usm_allocator::usm_allocator()`: All overloads with a
+  `sycl::property_list` formal parameter.
+- `sycl::malloc()`: All USM overloads i.e. those with a `sycl::usm::alloc`
+  formal parameter as listed in 4.8.3.5 table 103
+- `sycl::aligned_alloc()`: All USM overloads i.e. those with a
+  `sycl::usm::alloc` formal parameter as listed in 4.8.3.5 table 103.
+
+Other functions exposed by the SYCL runtime taking a `sycl::property_list`
+formal argument SHOULD ignore these properties.
+
+==  Context
+
+This section is non-normative
+
+=== Similar functionality
+
+This section is non-normative
+
+* `sycl::queue::mem_advise()`:
+  `sycl::queue::mem_advise()` provides an alternative interface to similar
+  functionality. However, these interfaces differ in the following ways:
+    `sycl::queue::mem_advise()` is a two step operation, providing hints about
+    the uses of an allocation *after* the implementation has serviced the
+    request. This has at least two disadvantages compared with the present
+    proposal:
+
+    1. It may be costly to update the location of the underlying allocation
+       after it has been made. On common implementations this might require page
+       migrations, or page table updates with extra system call overhead to the
+       OS.
+    2. It requires two or more steps for the user of the API: allocation _and_
+       advice (along with a queue event that may need handling). This can lead
+       to more complicated user code.
+    3. Some advice such as coherence controls introduced here are not supported
+       by the `mem_advise` interface - nor by as many underlying platform APIs.
+
++
+Advantages of the `sycl::queue::mem_advise` interface over the present
+proposal:
+
+    1. The `sycl::property_list` implementation has a higher overhead in terms
+       of implementation since the `mem_advise` interface takes a simple integer
+       advice value rather than a `prop_list`.
+    2. The two-step `mem_advise()` is more familiar to veteran UNIX programmers,
+       though they'll probably be tripped up by that underscore.
+
+* Buffer interface:
+  `sycl::buffer`'s constructors also take a default-empty `property_list`. It
+  may be reasonable to extend parts of this interface to the buffer
+  implementation as well - though such semantics have not been considered here
+  and it is to be determined whether this would be valuable.
+
+=== Prior art
+
+- Intel OpenCL `CL_MEM_ALLOC_WRITE_COMBINED_INTEL` flag
+- HSA/HIP `hipHostMallocNonCoherent` flag to `hipMallocHost`
+- CUDA `CU_MEMHOSTALLOC_WRITECOMBINED` flags to `cuMemAllocHost`
+- SYSV/POSIX `madvise`/`posix_memadvise`
+- Win32 `VirtualAlloc` flags
+
+=== Implementation Notes
+
+These interfaces encode essentially static information that on many platforms'
+native level are handled as traditional C-style bit-flags passed to the host or
+accelerator's low-level allocator. The simple, obvious
+implementation of these hints may map directly to such an implementation. Thus,
+in such cases it makes sense to keep these classes as simple wrappers around
+such a type. e.g. On an imaginary POSIX-backed implementation all host code may
+simply define properties in a manner similar to the following:
+
+
+[code,c++]
+----
+#include <sys/mman.h>
+class host_access_sequential {
+protected:
+  static int advice = MADV_SEQUENTIAL;
+public:
+  host_access_sequential() = default;
+};
+----
+
+[code,c++]
+----
+int advice = 0;
+for (auto prop : propList) {
+  advice |= prop.advice;
+  void *p = malloc(size);
+  madvise(p, size, advice);
+}
+----
+
+Alternatively, a SYCL implementation may elect to handle the property list
+lowering during compilation in certain circumstances. For example where the
+property list is a constant expression. By tracking pointer providence
+information such an implementation may elect to generate more optimal loads and
+stores for the target architecture given the allocation hints - if such a target
+is amenable to this treatment.

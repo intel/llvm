@@ -26,6 +26,16 @@ int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   return value;
 }
 
+umf_memory_pool_t *ur_device_handle_t_::getMemoryPoolDevice(unsigned flags) {
+  ur_result_t E;
+  return this->MemProvidersDevice.getPoolForFlags(flags, E);
+}
+
+umf_memory_pool_t *ur_device_handle_t_::getMemoryPoolShared(unsigned flags) {
+  ur_result_t E;
+  return this->MemProvidersShared.getPoolForFlags(flags, E);
+}
+
 uint64_t ur_device_handle_t_::getElapsedTime(CUevent ev) const {
   float Milliseconds = 0.0f;
 

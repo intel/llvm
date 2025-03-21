@@ -16,9 +16,10 @@ namespace detail {
 // All properties are split here to dataless properties and properties with
 // data. A dataless property is one which has no data stored in it. A property
 // with data is one which has data stored in it and usually provides and access
-// to it. For dataless property we just store a bool which indicates if a
-// property is set or not. For properties with data we store a pointer to the
-// base class because we do not know the size of such properties beforehand.
+// to it. All dataless properties can then be folded into a bitset tracking
+// which dataless properties are active. For properties with data we store a
+// pointer to the base class because we do not know the size of such properties
+// beforehand.
 
 // List of all dataless properties' IDs
 enum DataLessPropKind {
@@ -51,11 +52,34 @@ enum DataLessPropKind {
   GraphDependOnAllLeaves = 24,
   GraphUpdatable = 25,
   GraphEnableProfiling = 26,
-  // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 26,
-  // Exceeding 32 may cause ABI breaking change on some of OSes.
-  DataLessPropKindSize = 32
+  DeviceHot = 27,
+  DeviceCold = 28,
+  DeviceWriteOnly = 30,
+  DeviceAccessSequential = 31,
+  DeviceAccessRandom = 32,
+  DeviceCacheNonCoherent = 33,
+  DeviceCacheCoherent = 34,
+  DeviceCacheWriteThrough = 35,
+  DeviceCacheWriteBack = 36,
+  DeviceCacheWriteCombine = 37,
+  HostHot = 38,
+  HostCold = 39,
+  HostAccessSequential = 40,
+  HostAccessRandom = 41,
+  HostReadOnly = 42,
+  HostWriteOnly = 43,
+  HostCacheNonCoherent = 44,
+  HostCacheWriteThrough = 45,
+  HostCacheWriteBack = 46,
+  HostCacheWriteCombine = 47,
+  DataLessPropKindSize,
+  // Exceeding this value may cause ABI breaking change on some ABIs since the
+  // std::bitset holding dataless properties grows with the number of properties
+  // defined
+  DataLessPropABISentinel_ = 64
 };
+static_assert(DataLessPropKindSize <= DataLessPropABISentinel_,
+              "MAINTAINERS: ABI break");
 
 // List of all properties with data IDs
 enum PropWithDataKind {
@@ -67,7 +91,8 @@ enum PropWithDataKind {
   AccPropBufferLocation = 5,
   QueueComputeIndex = 6,
   GraphNodeDependencies = 7,
-  PropWithDataKindSize = 8
+  USMPropWithData = 8,
+  PropWithDataKindSize
 };
 
 // Base class for dataless properties, needed to check that the type of an

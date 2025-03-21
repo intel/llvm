@@ -4240,32 +4240,85 @@ typedef uint32_t ur_usm_host_mem_flags_t;
 typedef enum ur_usm_host_mem_flag_t {
   /// Optimize shared allocation for first access on the host
   UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT = UR_BIT(0),
+  /// Memory is only possibly modified from the host, but read-only in all
+  /// device code
+  UR_USM_HOST_MEM_FLAG_HOST_READ_ONLY = UR_BIT(2),
+  /// Memory is written to from the device, but possibly read-write in host
+  /// code
+  UR_USM_HOST_MEM_FLAG_HOST_WRITE_ONLY = UR_BIT(3),
+  /// Reads and writes between host and devices have full cache coherence,
+  /// and support atomic operations
+  UR_USM_HOST_MEM_FLAG_HOST_COHERENT = UR_BIT(4),
+  /// Reads and writes between host and device are possibly cached such that
+  /// updates are not guaranteed to be visible to the device until a
+  /// synchronization point. Use of atomic operations on memory so-allocated
+  /// is undefined
+  UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT = UR_BIT(5),
+  /// Memory access characteristics are likely to be unpredictable such that
+  /// read-ahead optimizations are unlikely to be profitable
+  UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM = UR_BIT(6),
+  /// Memory access characteristics are likely to be sequential such that
+  /// page read-ahead is likely to be profitable
+  UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL = UR_BIT(7),
+  /// This memory is used in a hot region of the code, and would benefit
+  /// from being placed in the fastest memory bank available on the host
+  UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT = UR_BIT(8),
+  /// This memory is little used on the host, and can be placed in slower
+  /// memory banks where they can be distinguished
+  UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD = UR_BIT(9),
+  /// Disable caching on the host
+  UR_USM_HOST_MEM_FLAG_HOST_UNCACHED = UR_BIT(10),
+  /// Memory should be allocated such that writes are combined wherever
+  /// possible
+  UR_USM_HOST_MEM_FLAG_WRITE_COMBINE = UR_BIT(11),
   /// @cond
   UR_USM_HOST_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_usm_host_mem_flag_t;
 /// @brief Bit Mask for validating ur_usm_host_mem_flags_t
-#define UR_USM_HOST_MEM_FLAGS_MASK 0xfffffffe
+#define UR_USM_HOST_MEM_FLAGS_MASK 0xfffff002
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM device memory property flags
 typedef uint32_t ur_usm_device_mem_flags_t;
 typedef enum ur_usm_device_mem_flag_t {
-  /// Memory should be allocated write-combined (WC)
-  UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED = UR_BIT(0),
+  /// Memory should be allocated such that writes are combined wherever
+  /// possible
+  UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE = UR_BIT(0),
   /// Optimize shared allocation for first access on the device
   UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT = UR_BIT(1),
   /// Memory is only possibly modified from the host, but read-only in all
   /// device code
   UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY = UR_BIT(2),
+  /// Memory is written to from the device, but possibly read-write in host
+  /// code
+  UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_ONLY = UR_BIT(3),
+  /// Reads and write between host and devices have full cache coherence
+  UR_USM_DEVICE_MEM_FLAG_DEVICE_COHERENT = UR_BIT(4),
+  /// Reads and write between host are possibly cached such that updates are
+  /// not guaranteed to be visible to the host until a synchronization point
+  UR_USM_DEVICE_MEM_FLAG_DEVICE_NON_COHERENT = UR_BIT(5),
+  /// Memory access characteristics are likely to be unpredictable
+  UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_RANDOM = UR_BIT(6),
+  /// Memory access characteristics are likely to be sequential such that
+  /// page read-ahead is likely to be profitable
+  UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_SEQUENTIAL = UR_BIT(7),
+  /// This memory is used in a hot region of the code, and would benefit
+  /// from being placed in the fastest memory bank available on the device
+  UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_HOT = UR_BIT(8),
+  /// This memory is little used, and can be placed in slower memory banks
+  /// where they can be distinguished
+  UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_COLD = UR_BIT(9),
+  /// Disable caching on the device
+  UR_USM_DEVICE_MEM_FLAG_DEVICE_UNCACHED = UR_BIT(10),
   /// @cond
   UR_USM_DEVICE_MEM_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_usm_device_mem_flag_t;
 /// @brief Bit Mask for validating ur_usm_device_mem_flags_t
-#define UR_USM_DEVICE_MEM_FLAGS_MASK 0xfffffff8
+#define UR_USM_DEVICE_MEM_FLAGS_MASK 0xfffff800
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM memory property flags

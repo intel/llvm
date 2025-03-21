@@ -13,10 +13,8 @@
 #include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
-#include "device.hpp"
-#include "event.hpp"
+#include "logger/ur_logger.hpp"
 #include "platform.hpp"
-#include "queue.hpp"
 #include "ur_util.hpp"
 #include "usm.hpp"
 
@@ -40,7 +38,13 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
             UR_RESULT_ERROR_INVALID_VALUE);
 
   if (!hPool) {
-    return USMHostAllocImpl(ppMem, hContext, /* flags */ 0, size, alignment);
+    ur_usm_host_mem_flags_t flags = 0;
+    if (pUSMDesc) {
+      if (const auto *p = find_stype_node<ur_usm_host_desc_t>(pUSMDesc)) {
+        flags = p->flags;
+      }
+    }
+    return USMHostAllocImpl(ppMem, hContext, flags, size, alignment);
   }
 
   auto UMFPool = hPool->HostMemPool.get();
@@ -64,8 +68,13 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
             UR_RESULT_ERROR_INVALID_VALUE);
 
   if (!hPool) {
-    return USMDeviceAllocImpl(ppMem, hContext, hDevice, /* flags */ 0, size,
-                              alignment);
+    ur_usm_device_mem_flags_t flags = 0;
+    if (pUSMDesc) {
+      if (const auto *p = find_stype_node<ur_usm_device_desc_t>(pUSMDesc)) {
+        flags = p->flags;
+      }
+    }
+    return USMDeviceAllocImpl(ppMem, hContext, hDevice, flags, size, alignment);
   }
 
   auto UMFPool = hPool->DeviceMemPool.get();
@@ -116,7 +125,7 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
                                uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
-    *ResultPtr = umfPoolMalloc(Device->MemoryPoolDevice, Size);
+    *ResultPtr = umfPoolMalloc(Device->getMemoryPoolDevice(), Size);
     UMF_CHECK_PTR(*ResultPtr);
   } catch (ur_result_t Err) {
     return Err;
@@ -138,7 +147,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
                                uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
-    *ResultPtr = umfPoolMalloc(Device->MemoryPoolShared, Size);
+    *ResultPtr = umfPoolMalloc(Device->getMemoryPoolShared(), Size);
     UMF_CHECK_PTR(*ResultPtr);
   } catch (ur_result_t Err) {
     return Err;
@@ -154,11 +163,115 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
 }
 
 ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t hContext,
-                             ur_usm_host_mem_flags_t, size_t Size,
+                             ur_usm_host_mem_flags_t Flags, size_t Size,
                              uint32_t Alignment) {
   try {
-    *ResultPtr = umfPoolMalloc(hContext->MemoryPoolHost, Size);
-    UMF_CHECK_PTR(*ResultPtr);
+    unsigned CF = 0;
+    // HEREBEDRAGONS The various extant CUDA docs are a contradictory mess
+    // regarding the how flags behave and on which kind of hardware the
+    // documented functionality is available.
+    //
+    // First:
+    //
+    // `CU_MEMHOSTALLOC_PORTABLE`:
+    //
+    // https://developer.download.nvidia.cn/compute/DevZone/docs/html/C/doc/html/group__CUDA__UNIFIED.html
+    // says the following:
+    //
+    // > All host memory allocated in all contexts using cuMemAllocHost() and
+    // > cuMemHostAlloc() is always directly accessible from all contexts on all
+    // > devices that support unified addressing. This is the case regardless of
+    // > whether or not the flags CU_MEMHOSTALLOC_PORTABLE and
+    // > CU_MEMHOSTALLOC_DEVICEMAP are specified.
+    //
+    // If it's always available in all contexts, then Why does this flag exist
+    // as a valid option for `cuMemHostAlloc`, at all? Is this a legacy thing?
+    //
+    // In any case we don't define an equivalent at this time, so we don't
+    // bother setting the `CU_MEMHOSTALLOC_PORTABLE` bit.
+
+    // Next we've got the lovely
+    //
+    // `CU_MEMHOSTALLOC_DEVICEMAP`.
+    //
+    // > CU_MEMHOSTALLOC_DEVICEMAP: Maps the allocation into the CUDA address
+    // > space. The device pointer to the memory may be obtained by calling
+    // > ::cuMemHostGetDevicePointer().
+    //
+    //  Not sure what "maps the allocation into the CUDA address space" means
+    //  since the documentation linked above reports that it's always directly
+    //  accessible from all contexts on all devices that support unified
+    //  addressing. If that's the case, then do we need it? The memory is
+    //  "always accessible from all devices and contexts"! As far as I can
+    //  understand: no; not needed. Perhaps this is a legacy thing from
+    //  pre-pascal era cards?
+    //
+    //  However, after all that nonsense, some features actually seem to require
+    //  it such as for example Bindless images features fail in certain
+    //  circumstances without it being set...Thus to make our default
+    //  implementation generally usabable we actually need to set this by
+    //  default, seeing as it apparently corrects some edge cases which show
+    //  that the "accessible from all contexts and devices" wording is untrue in
+    //  practise.
+    CF |= CU_MEMHOSTALLOC_DEVICEMAP;
+
+    // https://developer.download.nvidia.cn/compute/DevZone/docs/html/C/doc/html/group__CUDA__MEM_g572ca4011bfcb25034888a14d4e035b9.html
+    //
+    // > If the flag CU_MEMHOSTALLOC_WRITECOMBINED is specified, then the
+    // > function cuMemHostGetDevicePointer() must be used to query the device
+    // > pointer, even if the context supports unified addressing. See Unified
+    // > Addressing for additional details.
+    //
+    // and from the CUDA header:
+    //
+    // > CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING
+    // > Note all host memory allocated using ::cuMemHostAlloc() will
+    // > automatically be immediately accessible to all contexts on all devices
+    // > which support unified addressing (as may be queried using
+    // > ::CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING). Unless the flag
+    // > ::CU_MEMHOSTALLOC_WRITECOMBINED is specified, the device pointer that
+    // > may be used to access this host memory from those contexts is always
+    // > equal to the returned host pointer \p *pp.  If the flag
+    // > ::CU_MEMHOSTALLOC_WRITECOMBINED is specified, then the function
+    // > ::cuMemHostGetDevicePointer() must be used to query the device pointer,
+    // > even if the context supports unified addressing. See \ref CUDA_UNIFIED
+    // > for additional details.
+    //
+    // Since our version of USM requires the same value for host and device
+    // pointers we need to catch this case and rollback if it's not supported.
+    // There appears to be no way to query this ahead of time since - as
+    // mentioned above - checking for `Unified Addressing` via the
+    // `CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING` attribute is not sufficient when
+    // write-combining is enabled.
+    CF |= CU_MEMHOSTALLOC_WRITECOMBINED *
+          !!(Flags & UR_USM_HOST_MEM_FLAG_WRITE_COMBINE);
+    umf_memory_pool_t *Pool = hContext->getMemoryPoolHost(CF);
+    *ResultPtr = umfPoolAlignedMalloc(Pool, Size, Alignment);
+    if (!*ResultPtr) {
+      auto E = umfPoolGetLastAllocationError(Pool);
+      return umf::umf2urResult(E);
+    }
+    // Then check the pointers' have the same value or roll back the flag and
+    // return a normal allocation
+    if (CF & UR_USM_HOST_MEM_FLAG_WRITE_COMBINE) {
+      CUdeviceptr DevPtr;
+      if (cuMemHostGetDevicePointer(&DevPtr, ResultPtr,
+                                    /*Flags must be 0*/ 0) != CUDA_SUCCESS ||
+          ((void *)DevPtr != *ResultPtr)) {
+
+        // This is allowed because the flags are optional
+        logger::warning(
+            "got different host and device pointers for "
+            "write-combining host allocation:(host:%p, device %p). Masking",
+            *ResultPtr, DevPtr);
+        CF &= ~CU_MEMHOSTALLOC_WRITECOMBINED;
+        Pool = hContext->getMemoryPoolHost(CF);
+        if (!*ResultPtr) {
+          auto E = umfPoolGetLastAllocationError(Pool);
+          return umf::umf2urResult(E);
+        }
+      }
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -307,25 +420,32 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     pNext = BaseDesc->pNext;
   }
 
+
+  umf_memory_provider_t *HostProvider = nullptr;
+  umfPoolGetMemoryProvider(Context->getMemoryPoolHost(), &HostProvider);
   auto UmfHostParamsHandle = getUmfParamsHandle(
       DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host]);
   HostMemPool = umf::poolMakeUniqueFromOpsProviderHandle(
-                    umfDisjointPoolOps(), Context->MemoryProviderHost,
+                    umfDisjointPoolOps(), HostProvider,
                     UmfHostParamsHandle.get())
                     .second;
 
   for (const auto &Device : Context->getDevices()) {
+    umf_memory_provider_t *DeviceProvider = nullptr;
+    umfPoolGetMemoryProvider(Device->getMemoryPoolDevice(), &DeviceProvider);
     auto UmfDeviceParamsHandle = getUmfParamsHandle(
         DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Device]);
     DeviceMemPool = umf::poolMakeUniqueFromOpsProviderHandle(
-                        umfDisjointPoolOps(), Device->MemoryProviderDevice,
+                        umfDisjointPoolOps(), DeviceProvider,
                         UmfDeviceParamsHandle.get())
                         .second;
 
+    umf_memory_provider_t *SharedProvider = nullptr;
+    umfPoolGetMemoryProvider(Device->getMemoryPoolShared(), &SharedProvider);
     auto UmfSharedParamsHandle = getUmfParamsHandle(
         DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Shared]);
     SharedMemPool = umf::poolMakeUniqueFromOpsProviderHandle(
-                        umfDisjointPoolOps(), Device->MemoryProviderShared,
+                        umfDisjointPoolOps(), SharedProvider,
                         UmfSharedParamsHandle.get())
                         .second;
 

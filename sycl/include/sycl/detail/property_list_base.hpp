@@ -62,7 +62,7 @@ protected:
                             bool>
   has_property_helper() const noexcept {
     const int PropKind = static_cast<int>(PropT::getKind());
-    if (PropKind > detail::DataLessPropKind::LastKnownDataLessPropKind)
+    if (PropKind > detail::DataLessPropKind::DataLessPropKindSize)
       return false;
     return MDataLessProps[PropKind];
   }

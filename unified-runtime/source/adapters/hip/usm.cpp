@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
+#include <limits>
 
 #include "adapter.hpp"
 #include "common.hpp"
@@ -33,11 +34,16 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
   UR_ASSERT(checkUSMAlignment(alignment, pUSMDesc),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (!hPool) {
-    return USMHostAllocImpl(ppMem, hContext, /* flags */ 0, size, alignment);
+  if (hPool) {
+    return umfPoolMallocHelper(hPool, ppMem, size, alignment);
   }
-
-  return umfPoolMallocHelper(hPool, ppMem, size, alignment);
+  ur_usm_host_mem_flags_t flags = 0;
+  if (pUSMDesc) {
+    if (const auto *p = find_stype_node<ur_usm_host_desc_t>(pUSMDesc)) {
+      flags = p->flags;
+    }
+  }
+  return USMHostAllocImpl(ppMem, hContext, flags, size, alignment);
 }
 
 /// USM: Implements USM device allocations using a normal HIP device pointer
@@ -49,12 +55,16 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   UR_ASSERT(checkUSMAlignment(alignment, pUSMDesc),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (!hPool) {
-    return USMDeviceAllocImpl(ppMem, hContext, hDevice, /* flags */ 0, size,
-                              alignment);
+  if (hPool) {
+    return umfPoolMallocHelper(hPool, ppMem, size, alignment);
   }
-
-  return umfPoolMallocHelper(hPool, ppMem, size, alignment);
+  ur_usm_device_mem_flags_t flags = 0;
+  if (pUSMDesc) {
+    if (const auto *p = find_stype_node<ur_usm_device_desc_t>(pUSMDesc)) {
+      flags = p->flags;
+    }
+  }
+  return USMDeviceAllocImpl(ppMem, hContext, hDevice, flags, size, alignment);
 }
 
 /// USM: Implements USM Shared allocations using HIP Managed Memory
@@ -66,12 +76,20 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   UR_ASSERT(checkUSMAlignment(alignment, pUSMDesc),
             UR_RESULT_ERROR_INVALID_VALUE);
 
-  if (!hPool) {
-    return USMSharedAllocImpl(ppMem, hContext, hDevice, /*host flags*/ 0,
-                              /*device flags*/ 0, size, alignment);
+  if (hPool) {
+    return umfPoolMallocHelper(hPool, ppMem, size, alignment);
   }
-
-  return umfPoolMallocHelper(hPool, ppMem, size, alignment);
+  ur_usm_host_mem_flags_t hf = 0;
+  ur_usm_device_mem_flags_t df = 0;
+  if (pUSMDesc) {
+    if (const auto *d = find_stype_node<ur_usm_device_desc_t>(pUSMDesc)) {
+      df = d->flags;
+    }
+    if (const auto *d = find_stype_node<ur_usm_host_desc_t>(pUSMDesc)) {
+      hf = d->flags;
+    }
+  }
+  return USMSharedAllocImpl(ppMem, hContext, hDevice, hf, df, size, alignment);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -112,11 +130,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
 
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_device_handle_t Device,
-                               ur_usm_device_mem_flags_t, size_t Size,
+                               ur_usm_device_mem_flags_t Flags, size_t Size,
                                [[maybe_unused]] uint32_t Alignment) {
   try {
     ScopedDevice Active(Device);
-    UR_CHECK_ERROR(hipMalloc(ResultPtr, Size));
+    // XXX Device allocations and shared allocations are described as taking
+    // "flags", but they're not bitflags in the traditional sense since they
+    // cannot be combined. However - `hipMallocHost` *does* take real flags.
+    // This means that the flags parameter for `hipExtMallocWithFlags`,
+    // `hipMallocManaged`, and `hipMallocHost` are *not* consistent and need
+    // careful mental gymnastics to avoid doing the wrong thing.
+    unsigned HF = hipDeviceMallocDefault;
+    HF |= hipDeviceMallocFinegrained * !!(Flags & 0);
+    HF |= hipMallocSignalMemory * !!(Flags & 0);
+    HF |= hipDeviceMallocUncached * !!(Flags & 0);
+    UR_CHECK_ERROR(hipExtMallocWithFlags(ResultPtr, Size, HF));
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -127,12 +155,18 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
 
 ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_device_handle_t Device,
-                               ur_usm_host_mem_flags_t,
+                               ur_usm_host_mem_flags_t HostFlags,
                                ur_usm_device_mem_flags_t, size_t Size,
                                [[maybe_unused]] uint32_t Alignment) {
   try {
     ScopedDevice Active(Device);
-    UR_CHECK_ERROR(hipMallocManaged(ResultPtr, Size, hipMemAttachGlobal));
+    // At the time of writing (rocm6), hip *rejects* anything but
+    // `hipMemAttachGlobal` or `hipMemAttachHost`, both of which are mutually
+    // exclusive
+    unsigned Flags = (HostFlags & UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT)
+                         ? hipMemAttachHost
+                         : hipMemAttachGlobal;
+    UR_CHECK_ERROR(hipMallocManaged(ResultPtr, Size, Flags));
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -143,10 +177,58 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
 
 ur_result_t USMHostAllocImpl(void **ResultPtr,
                              [[maybe_unused]] ur_context_handle_t Context,
-                             ur_usm_host_mem_flags_t, size_t Size,
+                             ur_usm_host_mem_flags_t Flags, size_t Size,
                              [[maybe_unused]] uint32_t Alignment) {
   try {
-    UR_CHECK_ERROR(hipHostMalloc(ResultPtr, Size));
+    unsigned HF = hipHostMallocDefault;
+    //
+    // hipHostMalloc documents the following flags for the allocation
+    //
+    // - hipHostMallocPortable
+    //   For `hipHostMallocPortable`: The documentation for hipHostMalloc [1]
+    //   says that the host memory is mapped into all GPUs anyway. I think this
+    //   flag is only here for CUDA-on-AMD compatibility. Indeed it appears to
+    //   be completely dropped by the rocclr [2][3]
+    //   Looking through the
+    //   rocm/hipSee the mess in our
+    //   cuda implementation to understand some of the reasoning there
+    // - hipHostMallocMapped
+    //   This again seems to be here for CUDA compatibility. Its effect in the
+    //   rocm runtime is to allocate memory suitable for atomics (which is the
+    //   default except in the presence of the "noncoherent" flag. [2][3].
+    //   Thus, we can ignore this one too, I think
+    // - hipHostMallocNumaUser
+    //   We don't support NUMA policy for allocation directly in UR at present
+    //   so we can ignore that for now.
+    // - hipHostMallocWriteCombined
+    //   Apparently similar to the CUDA namesake, this is documented as this may
+    //   improve cross-bus writes from the GPU to main memory, but it appears to
+    //   be ignored by the rocclr [4]
+    //   GPU in some circumstances
+    //
+    // - hipHostMallocCoherent
+    // - hipHostMallocNonCoherent
+    //   These two both do something and are useful. They determine whether the
+    //   GPU and CPU must have a coherent view of memory. Unless CPU/GPU are
+    //   doing atomic operations on this memory at the same time it's generally
+    //   beneficial for this memory to be marked as non-coherent since it can
+    //   drastically improve performance for many workloads.
+    //
+    // [1]
+    // https://rocm.docs.amd.com/projects/HIP/en/latest/reference/hip_runtime_api/modules/memory_management.html#_CPPv413hipHostMallocPPv6size_tj
+    // [2] https://github.com/ROCm/clr/blob/23c21/hipamd/src/hip_memory.cpp#L372
+    // [3]
+    // https://github.com/ROCm/clr/blob/23c21/rocclr/platform/memory.hpp#L156 ^
+    // These flags are not used by the runtime for `hipHostMalloc`, but merely
+    //   stored for later querying by the user to find out the flags of a
+    //   particular allocation.
+    // [4] https://github.com/ROCm/clr/issues/114
+    //
+    HF |=
+        hipHostMallocCoherent * !!(Flags & UR_USM_HOST_MEM_FLAG_HOST_COHERENT);
+    HF |= hipHostMallocNonCoherent *
+          !!(Flags & UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT);
+    UR_CHECK_ERROR(hipHostMalloc(ResultPtr, Size, HF));
   } catch (ur_result_t Err) {
     return Err;
   }
