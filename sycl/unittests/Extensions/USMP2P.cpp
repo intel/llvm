@@ -42,9 +42,9 @@ ur_result_t redefinedPeerAccessGetInfo(void *pParams) {
   if (*params.ppPropSizeRet)
     **params.ppPropSizeRet = sizeof(int32_t);
 
-  if (*params.ppropName == UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED) {
+  if (*params.ppropName == UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT) {
     check = 1;
-  } else if (*params.ppropName == UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED) {
+  } else if (*params.ppropName == UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT) {
     check = 2;
   }
   return UR_RESULT_SUCCESS;

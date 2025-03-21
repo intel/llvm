@@ -224,7 +224,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(uint64_t{MaxAlloc});
   }
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
+  case UR_DEVICE_INFO_IMAGE_SUPPORT: {
     // Legacy images are not supported, bindless images should be used instead.
     return ReturnValue(ur_bool_t{false});
   }
@@ -846,26 +846,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP: {
     // HIP supports fetching 1D USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
     // HIP does not support fetching 1D non-USM sampled image data.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     // HIP supports fetching 2D USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP: {
     // HIP supports fetching 2D non-USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP: {
     // HIP supports fetching 3D non-USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
@@ -877,21 +877,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // feature is marked unsupported until those issues are resolved.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP: {
     // HIP does not support unique addressing per dimension
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP: {
     // HIP supports sampling 1D USM sampled image data.
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP: {
     // HIP supports sampling 2D USM sampled image data.
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
-  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP: {
     // HIP doesn't support sampled image gather.
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
@@ -1001,7 +1001,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(AddressBuffer,
                        strnlen(AddressBuffer, AddressBufferSize - 1) + 1);
   }
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
     return ReturnValue(ur_bool_t{false});
@@ -1038,7 +1038,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
   case UR_DEVICE_INFO_FAN_SPEED:
   case UR_DEVICE_INFO_MIN_POWER_LIMIT:
@@ -1079,7 +1079,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP: {
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP: {
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
