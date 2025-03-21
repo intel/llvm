@@ -423,6 +423,12 @@ if __name__ == "__main__":
         help="Directory for cublas library",
         default=None,
     )
+    parser.add_argument(
+        "--hip_arch",
+        type=str,
+        help="HIP device architecture",
+        default=None,
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -448,6 +454,7 @@ if __name__ == "__main__":
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
+    options.hip_arch = args.hip_arch
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
