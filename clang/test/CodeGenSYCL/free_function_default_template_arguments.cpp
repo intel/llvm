@@ -86,18 +86,19 @@ foo(Arg1<int> arg) {
 // CHECK-NEXT: template <typename T, typename, int a, typename, typename ...TS> struct Arg;
 // CHECK-NEXT: }
 
-// CHECK: void ns::simple(ns::Arg<char, int, 12, ns::notatuple>);
-// CHECK-NEXT: static constexpr auto __sycl_shim1() {
-// CHECK-NEXT:   return (void (*)(struct ns::Arg<char, int, 12, struct ns::notatuple>))simple;
+// CHECK: namespace ns {
+// CHECK-NEXT: void simple(ns::Arg<char, int, 12, ns::notatuple> );} // namespace ns
+// CHECK: static constexpr auto __sycl_shim1() {
+// CHECK-NEXT:   return (void (*)(struct ns::Arg<char, int, 12, struct ns::notatuple>))ns::simple;
 // CHECK-NEXT: }
 
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: namespace ns {
 // CHECK: namespace ns1 {
 // CHECK-NEXT: template <typename A> class hasDefaultArg;
-// CHECK-NEXT: }
+// CHECK-NEXT: }}
 
-// CHECK: void simple1(ns::Arg<ns::ns1::hasDefaultArg<ns::notatuple>, int, 12, ns::notatuple>);
+// CHECK: void simple1(ns::Arg<ns::ns1::hasDefaultArg<ns::notatuple>, int, 12, ns::notatuple> );
 // CHECK-NEXT: static constexpr auto __sycl_shim2() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<class ns::ns1::hasDefaultArg<struct ns::notatuple>, int, 12, struct ns::notatuple>))simple1;
 // CHECK-NEXT: }
