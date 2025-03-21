@@ -64,6 +64,10 @@ struct ContextInfo {
     assert(Result == UR_RESULT_SUCCESS);
   }
 
+  ContextInfo(const ContextInfo &) = delete;
+
+  ContextInfo &operator=(const ContextInfo &) = delete;
+
   void insertAllocInfo(ur_device_handle_t Device,
                        std::shared_ptr<TsanAllocInfo> &AI);
 };
@@ -81,6 +85,10 @@ struct TsanRuntimeDataWrapper {
       : Context(Context), Device(Device) {}
 
   ~TsanRuntimeDataWrapper();
+
+  TsanRuntimeDataWrapper(const TsanRuntimeDataWrapper &) = delete;
+
+  TsanRuntimeDataWrapper &operator=(const TsanRuntimeDataWrapper &) = delete;
 
   TsanRuntimeData *getDevicePtr();
 
@@ -110,6 +118,10 @@ struct LaunchInfo {
     Result = getContext()->urDdiTable.Device.pfnRelease(Device);
     assert(Result == UR_RESULT_SUCCESS);
   }
+
+  LaunchInfo(const LaunchInfo &) = delete;
+
+  LaunchInfo &operator=(const LaunchInfo &) = delete;
 };
 
 class TsanInterceptor {
