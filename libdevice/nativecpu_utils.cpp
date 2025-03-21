@@ -124,7 +124,7 @@ DefineGOp1(All, all)
                                                                     MuxType) noexcept;  \
   DEVICE_EXTERN_C MuxType __mux_work_group_scan_inclusive_##mux_sfx(uint32_t,  \
                                                                     MuxType) noexcept;  \
-  DEVICE_EXTERN_C MuxType __mux_work_group_reduce_##mux_sfx(uint32_t, MuxType); noexcept\
+  DEVICE_EXTERN_C MuxType __mux_work_group_reduce_##mux_sfx(uint32_t, MuxType) noexcept;\
   DEVICE_EXTERNAL Type __spirv_Group##spir_sfx(int32_t g, int32_t id,          \
                                                Type v) noexcept {              \
     if (__spv::Scope::Flag::Subgroup == g) {                                   \
@@ -212,7 +212,7 @@ DefineLogicalGroupOp(bool, bool, i1)
   }                                                                           \
                                                                               \
   DEVICE_EXTERNAL Type __spirv_GroupBroadcast(int32_t g, Type v,              \
-                                         sycl::vec<IDType, 2>::vector_t l) noexcept {  \
+                                sycl::vec<IDType, 2>::vector_t l) noexcept {  \
     if (__spv::Scope::Flag::Subgroup == g)                                    \
       return __mux_sub_group_broadcast_##Sfx(v, l[0]);                        \
     else                                                                      \
@@ -220,7 +220,7 @@ DefineLogicalGroupOp(bool, bool, i1)
   }                                                                           \
                                                                               \
   DEVICE_EXTERNAL Type __spirv_GroupBroadcast(int32_t g, Type v,              \
-                                          sycl::vec<IDType, 3>::vector_t l) noexcept { \
+                                 sycl::vec<IDType, 3>::vector_t l) noexcept { \
     if (__spv::Scope::Flag::Subgroup == g)                                    \
       return __mux_sub_group_broadcast_##Sfx(v, l[0]);                        \
     else                                                                      \
