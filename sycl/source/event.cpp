@@ -29,9 +29,7 @@ event::event(cl_event ClEvent, const context &SyclContext)
           detail::ur::cast<ur_event_handle_t>(ClEvent), SyclContext)) {
   // This is a special interop constructor for OpenCL, so the event must be
   // retained.
-  // TODO(pi2ur): Don't just cast from cl_event above
-  impl->getAdapter()->call<detail::UrApiKind::urEventRetain>(
-      detail::ur::cast<ur_event_handle_t>(ClEvent));
+  __SYCL_OCL_CALL(clRetainEvent, ClEvent);
 }
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }

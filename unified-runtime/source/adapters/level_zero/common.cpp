@@ -325,6 +325,14 @@ template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
   return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
 }
 
+template <> zes_structure_type_t getZesStructureType<zes_freq_properties_t>() {
+  return ZES_STRUCTURE_TYPE_FREQ_PROPERTIES;
+}
+
+template <> zes_structure_type_t getZesStructureType<zes_power_properties_t>() {
+  return ZES_STRUCTURE_TYPE_POWER_PROPERTIES;
+}
+
 #ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 template <>
 ze_structure_type_t
