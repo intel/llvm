@@ -4,6 +4,9 @@
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-INTENDED: This is hanging when splitting tests
+
 // This performs basic checks such as reduction creation, identity methods,
 // and the combine() method of the aux class 'reducer'.
 // Note: This test relies on non-standard implementation details.
