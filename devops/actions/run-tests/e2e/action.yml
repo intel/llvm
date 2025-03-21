@@ -17,7 +17,12 @@ inputs:
     required: false
   cxx_compiler:
     required: false
-
+  build_cache_root:
+    required: false
+  build_cache_suffix:
+    type: string
+    required: false
+    default: "default"
 
 runs:
   using: "composite"
@@ -48,18 +53,38 @@ runs:
     env:
       CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
     run: |
+      CMPLR="${{ inputs.cxx_compiler || '$(which clang++)'}}"
       if [ -n "$CMAKE_EXTRA_ARGS" ]; then
         echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
       fi
+      if [ -n "${{ inputs.build_cache_root }}" ]; then
+       CCACHE_PATH="$(dirname $CMPLR)"
+       echo "CCACHE_COMPILER=clang++" >> $GITHUB_ENV
+       echo "CCACHE_PATH=$CCACHE_PATH/real" >> $GITHUB_ENV
+       echo "CCACHE_DIR=${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}" >> $GITHUB_ENV
+       echo "CCACHE_MAXSIZE=5G" >> $GITHUB_ENV
+       if [ ! -f "$CCACHE_PATH/real/clang++" ]; then
+        # sudo ln -s "$(which ccache)" "$CMPLR"
+        mkdir -p "$CCACHE_PATH/real"
+        ln -s "$CCACHE_PATH/clang" "$CCACHE_PATH/real/clang++"
+        rm "$CMPLR"
+        ln -s "$(which ccache)" "$CMPLR"
+       fi
+       DPCPP_PATH="$(dirname $CCACHE_PATH)"
+       echo "dpcpp_path=$DPCPP_PATH" >> $GITHUB_OUTPUT
+       mkdir -p $CCACHE_DIR
+      fi
+      #todo fix dpcpp_path when not using ccache
+      echo "CMPLR=$CMPLR" >> $GITHUB_ENV
   - name: Configure E2E tests
     if: inputs.testing_mode != 'run-only'
     shell: bash
     run: |
-      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="${{ inputs.cxx_compiler || '$(which clang++)'}}" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
+      ls -la /__w/llvm/llvm/toolchain/bin/real  
+      cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DCMAKE_CXX_COMPILER="$CMPLR" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
+      echo "LIT_OPTS=-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} --param dpcpp_path=${{ steps.cmake_opts.outputs.dpcpp_path }}" >> $GITHUB_ENV
   - name: SYCL End-to-end tests
     shell: bash {0}
-    env:
-      LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True --param test-mode=${{ inputs.testing_mode }} --param sycl_devices=${{ inputs.target_devices }} ${{ inputs.extra_lit_opts }}
     run: |
       ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
       exit_code=$?

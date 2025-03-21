@@ -536,6 +536,8 @@ if config.dump_ir_supported:
 lit_config.note("Targeted devices: {}".format(", ".join(config.sycl_devices)))
 
 sycl_ls = FindTool("sycl-ls").resolve(llvm_config, config.llvm_tools_dir)
+print(llvm_config.__dict__)
+print(config.__dict__)
 if not sycl_ls:
     lit_config.fatal("can't find `sycl-ls`")
 
