@@ -6,6 +6,7 @@ on:
       name:
         type: string
         required: True
+
       runner:
         type: string
         required: True
@@ -27,19 +28,17 @@ on:
           Extra options to be added to LIT_OPTS.
         type: string
         default: ''
-      ref:
+
+      repo_ref:
         type: string
         required: False
+        description: |
+          Commit SHA or branch to checkout the intel/llvm repo.
       devops_ref:
         type: string
         required: False
         description: |
-          By default we checkout the devops directory from "inputs.ref" branch.
-          devops_ref may be specified to checkout the devops dir from different
-          branch.
-          Note: it doesn't affect ./devops/actions/run-tests/* as these actions
-          call checkout again and therefore override the devops directory, so
-          configs/dependecies from input.ref are used.
+          Commit SHA or branch to checkout the devops directory.
       tests_ref:
         type: string
         required: False
@@ -104,7 +103,7 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.devops_ref|| inputs.ref || github.sha }}
+        ref: ${{ inputs.devops_ref|| inputs.repo_ref || github.sha }}
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
@@ -122,7 +121,7 @@ jobs:
       if: inputs.tests_selector == 'e2e'
       with:
         path: llvm
-        ref: ${{ inputs.ref || github.sha }}
+        ref: ${{ inputs.repo_ref || github.sha }}
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Download compiler toolchain
       uses: actions/download-artifact@v4
