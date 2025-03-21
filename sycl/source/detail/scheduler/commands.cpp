@@ -243,8 +243,26 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
 }
 
 std::vector<ur_event_handle_t>
-Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
-  return getUrEvents(EventImpls, MWorkerQueue, isHostTask());
+Command::getUrEvents(const std::pmr::vector<EventImplPtr> &EventImpls,
+                     const QueueImplPtr &CommandQueue, bool IsHostTaskCommand) {
+  std::vector<ur_event_handle_t> RetUrEvents;
+  for (auto &EventImpl : EventImpls) {
+    auto Handle = EventImpl->getHandle();
+    if (Handle == nullptr)
+      continue;
+
+    // Do not add redundant event dependencies for in-order queues.
+    // At this stage dependency is definitely ur task and need to check if
+    // current one is a host task. In this case we should not skip ur event due
+    // to different sync mechanisms for different task types on in-order queue.
+    if (CommandQueue && EventImpl->getWorkerQueue() == CommandQueue &&
+        CommandQueue->isInOrder() && !IsHostTaskCommand)
+      continue;
+
+    RetUrEvents.push_back(Handle);
+  }
+
+  return RetUrEvents;
 }
 
 // This function is implemented (duplicating getUrEvents a lot) as short term

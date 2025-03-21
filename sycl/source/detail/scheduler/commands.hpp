@@ -238,12 +238,19 @@ public:
 
   /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue
+  template <typename ContT>
   std::vector<ur_event_handle_t>
-  getUrEvents(const std::vector<EventImplPtr> &EventImpls) const;
-
+  getUrEvents(const ContT &EventImpls) const {
+    return getUrEvents(EventImpls, MWorkerQueue, isHostTask());
+  }
+  
   static std::vector<ur_event_handle_t>
   getUrEvents(const std::vector<EventImplPtr> &EventImpls,
               const QueueImplPtr &CommandQueue, bool IsHostTaskCommand);
+  static std::vector<ur_event_handle_t>
+  getUrEvents(const std::pmr::vector<EventImplPtr> &EventImpls,
+              const QueueImplPtr &CommandQueue, bool IsHostTaskCommand);
+              
   /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.

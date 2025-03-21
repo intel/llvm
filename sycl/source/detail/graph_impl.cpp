@@ -468,7 +468,8 @@ graph_impl::add(std::function<void(handler &)> CGF,
                 const std::vector<sycl::detail::ArgDesc> &Args,
                 std::vector<std::shared_ptr<node_impl>> &Deps) {
   (void)Args;
-  sycl::handler Handler{shared_from_this()};
+  detail::handler_impl HandlerImpl{shared_from_this()};
+  sycl::handler Handler{&HandlerImpl};
 
   // save code location if one was set in TLS.
   // idealy it would be nice to capture user's call code location
@@ -955,14 +956,14 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
   sycl::detail::EventImplPtr NewEvent;
   std::vector<sycl::detail::EventImplPtr> BackupCGDataMEvents;
   if (MPartitions.size() > 1) {
-    BackupCGDataMEvents = CGData.MEvents;
+    BackupCGDataMEvents.assign(CGData.MEvents.begin(), CGData.MEvents.end());
   }
   for (uint32_t currentPartitionsNum = 0;
        currentPartitionsNum < MPartitions.size(); currentPartitionsNum++) {
     auto CurrentPartition = MPartitions[currentPartitionsNum];
     // restore initial MEvents to add only needed additional depenencies
     if (currentPartitionsNum > 0) {
-      CGData.MEvents = BackupCGDataMEvents;
+      CGData.MEvents.assign(BackupCGDataMEvents.begin(), BackupCGDataMEvents.end());
     }
 
     for (auto const &DepPartition : CurrentPartition->MPredecessors) {
@@ -2145,7 +2146,8 @@ void dynamic_command_group_impl::finalizeCGFList(
     const auto &CGF = CGFList[CGFIndex];
     // Handler defined inside the loop so it doesn't appear to the runtime
     // as a single command-group with multiple commands inside.
-    sycl::handler Handler{MGraph};
+    detail::handler_impl HandlerImpl{MGraph};
+    sycl::handler Handler{&HandlerImpl};
     CGF(Handler);
 
     if (Handler.getType() != sycl::detail::CGType::Kernel &&
