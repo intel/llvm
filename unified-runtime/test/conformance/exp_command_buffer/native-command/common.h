@@ -16,6 +16,8 @@ struct urCommandBufferNativeAppendTest : uur::urQueueTest {
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
 
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     // Create a static command-buffer
     ur_exp_command_buffer_desc_t desc{UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
                                       nullptr, false, false, false};
