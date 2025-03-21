@@ -20,10 +20,7 @@ device getDeviceFromHandler(handler &cgh) {
   if (cgh.MQueue)
     return cgh.MQueue->get_device();
 
-  const auto &HandlerImpl = getSyclObjImpl(cgh);
-  const auto &GraphImpl = HandlerImpl->MGraph;
-
-  return GraphImpl->getDevice();
+  return getSyclObjImpl(cgh)->MGraph->getDevice();
 }
 
 // property::no_init is supported now for
