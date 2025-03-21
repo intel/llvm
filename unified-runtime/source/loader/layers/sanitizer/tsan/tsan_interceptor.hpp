@@ -68,6 +68,11 @@ struct ContextInfo {
                        std::shared_ptr<TsanAllocInfo> &AI);
 };
 
+struct DeviceGlobalInfo {
+  uptr Size;
+  uptr Addr;
+};
+
 struct TsanRuntimeDataWrapper {
   TsanRuntimeData Host{};
 
@@ -120,6 +125,8 @@ public:
                              ur_usm_pool_handle_t Pool, size_t Size,
                              AllocType Type, void **ResultPtr);
 
+  ur_result_t registerProgram(ur_program_handle_t Program);
+
   ur_result_t insertContext(ur_context_handle_t Context,
                             std::shared_ptr<ContextInfo> &CI);
 
@@ -155,6 +162,8 @@ private:
                             std::shared_ptr<DeviceInfo> &DI,
                             ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
                             LaunchInfo &LaunchInfo);
+
+  ur_result_t registerDeviceGlobals(ur_program_handle_t Program);
 
 private:
   std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>

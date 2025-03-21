@@ -131,6 +131,95 @@ ur_result_t urContextRelease(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuild
+ur_result_t urProgramBuild(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the program object
+    ur_program_handle_t hProgram,
+    /// [in] string of build options
+    const char *pOptions) {
+  getContext()->logger.debug("==== urProgramBuild");
+
+  UR_CALL(
+      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions));
+
+  UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuildExp
+ur_result_t urProgramBuildExp(
+    /// [in] Handle of the program to build.
+    ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in][optional] pointer to build options null-terminated string.
+    const char *pOptions) {
+  getContext()->logger.debug("==== urProgramBuildExp");
+
+  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnBuildExp(hProgram, numDevices,
+                                                          phDevices, pOptions));
+  UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLink
+ur_result_t urProgramLink(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms,
+    /// [in][optional] pointer to linker options null-terminated string.
+    const char *pOptions,
+    /// [out] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
+  getContext()->logger.debug("==== urProgramLink");
+
+  UR_CALL(getContext()->urDdiTable.Program.pfnLink(hContext, count, phPrograms,
+                                                   pOptions, phProgram));
+
+  UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLinkExp
+ur_result_t urProgramLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms,
+    /// [in][optional] pointer to linker options null-terminated string.
+    const char *pOptions,
+    /// [out] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
+  getContext()->logger.debug("==== urProgramLinkExp");
+
+  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnLinkExp(
+      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram));
+
+  UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMDeviceAlloc
 __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     /// [in] handle of the context object
@@ -284,6 +373,39 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Program table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetProgramProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_program_dditable_t *pDdiTable) {
+  pDdiTable->pfnBuild = ur_sanitizer_layer::tsan::urProgramBuild;
+  pDdiTable->pfnLink = ur_sanitizer_layer::tsan::urProgramLink;
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// @brief Exported function for filling application's ProgramExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetProgramExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_program_exp_dditable_t *pDdiTable) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  pDdiTable->pfnBuildExp = ur_sanitizer_layer::tsan::urProgramBuildExp;
+  pDdiTable->pfnLinkExp = ur_sanitizer_layer::tsan::urProgramLinkExp;
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's USM table
 ///        with current process' addresses
 ///
@@ -361,6 +483,16 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urGetContextProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Context);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::tsan::urGetProgramProcAddrTable(&dditable->Program);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::tsan::urGetProgramExpProcAddrTable(
+        &dditable->ProgramExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

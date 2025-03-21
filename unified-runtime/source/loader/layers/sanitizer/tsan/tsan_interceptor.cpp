@@ -113,6 +113,56 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t TsanInterceptor::registerProgram(ur_program_handle_t Program) {
+  getContext()->logger.info("registerDeviceGlobals");
+  UR_CALL(registerDeviceGlobals(Program));
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
+  std::vector<ur_device_handle_t> Devices = GetDevices(Program);
+  assert(Devices.size() != 0 && "No devices in registerDeviceGlobals");
+  auto Context = GetContext(Program);
+  auto ContextInfo = getContextInfo(Context);
+
+  for (auto Device : Devices) {
+    ManagedQueue Queue(Context, Device);
+
+    size_t MetadataSize;
+    void *MetadataPtr;
+    auto Result = getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
+        Device, Program, kSPIR_TsanDeviceGlobalMetadata, &MetadataSize,
+        &MetadataPtr);
+    if (Result != UR_RESULT_SUCCESS) {
+      getContext()->logger.info("No device globals");
+      continue;
+    }
+
+    const uint64_t NumOfDeviceGlobal = MetadataSize / sizeof(DeviceGlobalInfo);
+    assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
+           "DeviceGlobal metadata size is not correct");
+    std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
+    Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, &GVInfos[0], MetadataPtr,
+        sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
+    if (Result != UR_RESULT_SUCCESS) {
+      getContext()->logger.error("Device Global[{}] Read Failed: {}",
+                                 kSPIR_TsanDeviceGlobalMetadata, Result);
+      return Result;
+    }
+
+    for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
+      const auto &GVInfo = GVInfos[i];
+      auto AI = std::make_shared<TsanAllocInfo>(
+          TsanAllocInfo{GVInfo.Addr, GVInfo.Size});
+
+      ContextInfo->insertAllocInfo(Device, AI);
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t TsanInterceptor::insertContext(ur_context_handle_t Context,
                                            std::shared_ptr<ContextInfo> &CI) {
   std::scoped_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
