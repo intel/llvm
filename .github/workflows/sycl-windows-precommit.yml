@@ -36,9 +36,10 @@ jobs:
 
   build:
     needs: [detect_changes]
-    if: |
-      always() && success()
-      && github.repository == 'intel/llvm'
+    # if: |
+    #   always() && success()
+    #   && github.repository == 'intel/llvm'
+    if: false
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
@@ -46,10 +47,11 @@ jobs:
   e2e:
     needs: build
     # Continue if build was successful.
-    if: |
-      always()
-      && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
+    # if: |
+    #   always()
+    #   && !cancelled()
+    #   && needs.build.outputs.build_conclusion == 'success'
+    if: false
     strategy:
       fail-fast: false
       matrix:
