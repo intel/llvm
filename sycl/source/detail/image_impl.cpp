@@ -259,7 +259,7 @@ image_channel_type convertChannelType(ur_image_channel_type_t Type) {
 }
 
 template <typename T>
-static void getImageInfo(const ContextImplPtr Context, ur_image_info_t Info,
+static void getImageInfo(const ContextImplPtr &Context, ur_image_info_t Info,
                          T &Dest, ur_mem_handle_t InteropMemObject) {
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urMemImageGetInfo>(InteropMemObject, Info, sizeof(T),
@@ -274,7 +274,7 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
             std::move(Allocator)),
       MDimensions(Dimensions), MRange({0, 0, 0}) {
   ur_mem_handle_t Mem = ur::cast<ur_mem_handle_t>(BaseT::MInteropMemObject);
-  const ContextImplPtr Context = getSyclObjImpl(SyclContext);
+  const ContextImplPtr &Context = getSyclObjImpl(SyclContext);
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urMemGetInfo>(Mem, UR_MEM_INFO_SIZE, sizeof(size_t),
                                          &(BaseT::MSizeInBytes), nullptr);
