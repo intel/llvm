@@ -7,7 +7,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#pragma once
+
+#ifndef UR_CUDA_PLATFORM_HPP_INCLUDED
+#define UR_CUDA_PLATFORM_HPP_INCLUDED
 
 #include "device.hpp"
 #include <ur/ur.hpp>
@@ -18,3 +20,5 @@
 struct ur_platform_handle_t_ {
   std::vector<std::unique_ptr<ur_device_handle_t_>> Devices;
 };
+
+#endif // UR_CUDA_PLATFORM_HPP_INCLUDED

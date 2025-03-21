@@ -8,6 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef UR_CUDA_ADAPTER_HPP_INCLUDED
+#define UR_CUDA_ADAPTER_HPP_INCLUDED
+
 #include "logger/ur_logger.hpp"
 #include "platform.hpp"
 #include "tracing.hpp"
@@ -16,9 +19,6 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
-
-// should maybe be an ifdef
-#pragma once
 
 struct ur_platform_handle_t_;
 
@@ -35,3 +35,5 @@ struct ur_adapter_handle_t_ {
 namespace ur::cuda {
 extern std::shared_ptr<ur_adapter_handle_t_> adapter;
 } // namespace ur::cuda
+
+#endif // UR_CUDA_ADAPTER_HPP_INCLUDED
