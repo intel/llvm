@@ -13,6 +13,7 @@
 #include <mutex>
 #include <string.h>
 
+#include "adapters/level_zero/usm.hpp"
 #include "context.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
@@ -299,6 +300,8 @@ ur_result_t ur_context_handle_t_::finalize() {
   // This function is called when ur_context_handle_t is deallocated,
   // urContextRelease. There could be some memory that may have not been
   // deallocated. For example, event and event pool caches would be still alive.
+
+  AsyncPool.cleanupPools();
 
   if (!DisableEventsCaching) {
     std::scoped_lock<ur_mutex> Lock(EventCacheMutex);

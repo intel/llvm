@@ -52,6 +52,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/enqueued_pool.cpp
     )
     install_ur_library(ur_adapter_level_zero)
 

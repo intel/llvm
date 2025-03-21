@@ -1111,6 +1111,10 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   if (!Event->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  if (Event->OriginAllocEvent) {
+    urEventReleaseInternal(Event->OriginAllocEvent);
+  }
+
   if (Event->CommandType == UR_COMMAND_MEM_UNMAP && Event->CommandData) {
     // Free the memory allocated in the urEnqueueMemBufferMap.
     if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
@@ -1445,6 +1449,7 @@ ur_result_t ur_event_handle_t_::reset() {
   RefCount.reset();
   CommandList = std::nullopt;
   completionBatch = std::nullopt;
+  OriginAllocEvent = nullptr;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;

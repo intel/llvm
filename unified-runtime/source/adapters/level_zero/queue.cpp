@@ -612,6 +612,8 @@ ur_result_t urQueueRelease(
       return UR_RESULT_SUCCESS;
     }
 
+    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+
     // When external reference count goes to zero it is still possible
     // that internal references still exists, e.g. command-lists that
     // are not yet completed. So do full queue synchronization here
@@ -903,6 +905,9 @@ ur_result_t urQueueFinish(
     std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
   }
+
+  Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+
   return UR_RESULT_SUCCESS;
 }
 
