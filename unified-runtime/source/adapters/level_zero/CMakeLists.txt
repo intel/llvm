@@ -48,6 +48,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/image_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
@@ -133,6 +134,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
@@ -172,6 +174,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_counter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp

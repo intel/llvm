@@ -15,7 +15,9 @@
 #include "ur.hpp"
 
 #include "../common/latency_tracker.hpp"
+#include "../helpers/image_helpers.hpp"
 #include "../helpers/kernel_helpers.hpp"
+
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
 
@@ -763,18 +765,19 @@ ur_result_t ur_queue_immediate_in_order_t::bindlessImagesImageCopyExp(
     ur_exp_image_copy_region_t *pCopyRegion,
     ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = pDst;
-  std::ignore = pSrc;
-  std::ignore = pSrcImageDesc;
-  std::ignore = pDstImageDesc;
-  std::ignore = imageCopyFlags;
-  std::ignore = pSrcImageFormat;
-  std::ignore = pDstImageFormat;
-  std::ignore = pCopyRegion;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  auto commandListMgr = commandListManager.lock();
+
+  auto zeSignalEvent =
+      getSignalEvent(commandListMgr, phEvent, UR_COMMAND_MEM_IMAGE_COPY);
+  auto waitListView =
+      getWaitListView(commandListMgr, phEventWaitList, numEventsInWaitList);
+
+  return bindlessImagesHandleCopyFlags(
+      pSrc, pDst, pSrcImageDesc, pDstImageDesc, pSrcImageFormat,
+      pDstImageFormat, pCopyRegion, imageCopyFlags,
+      commandListMgr->getZeCommandList(), zeSignalEvent, waitListView.num,
+      waitListView.handles);
 }
 
 ur_result_t
@@ -788,6 +791,10 @@ ur_queue_immediate_in_order_t::bindlessImagesWaitExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -802,6 +809,10 @@ ur_queue_immediate_in_order_t::bindlessImagesSignalExternalSemaphoreExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -946,6 +957,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
+  logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -953,6 +968,10 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueNativeCommandExp(
     ur_exp_enqueue_native_command_function_t, void *, uint32_t,
     const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
+  logger::error(
+      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
+      "{} function not implemented!", __FUNCTION__);
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 } // namespace v2
