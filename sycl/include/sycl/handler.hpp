@@ -707,22 +707,16 @@ private:
     verifyUsedKernelBundleInternal(detail::string_view{KernelName});
   }
 
-  /// Stores lambda to the template-free object
-  ///
-  /// Also initializes kernel name, list of arguments and requirements using
-  /// information from the integration header/built-ins.
-  ///
-  /// \param KernelFunc is a SYCL kernel function
-  /// \param ParamDescs is the vector of kernel parameter descriptors.
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType>
-  void StoreLambda(KernelType KernelFunc) {
+  void StoreLambdaImpl(
+      std::unique_ptr<detail::HostKernel<KernelType, LambdaArgType, Dims>>
+          HostKernelUniqPtr) {
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    MHostKernel = std::move(HostKernelUniqPtr);
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -736,7 +730,7 @@ private:
 #ifdef __INTEL_SYCL_USE_INTEGRATION_HEADERS
     static_assert(
         !KernelHasName ||
-            sizeof(KernelFunc) == detail::getKernelSize<KernelName>(),
+            sizeof(KernelType) == detail::getKernelSize<KernelName>(),
         "Unexpected kernel lambda size. This can be caused by an "
         "external host compiler producing a lambda with an "
         "unexpected layout. This is a limitation of the compiler."
@@ -770,6 +764,28 @@ private:
     if (IsCallableWithKernelHandler) {
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
     }
+  }
+
+  /// Stores lambda to the template-free object
+  ///
+  /// Also initializes kernel name, list of arguments and requirements using
+  /// information from the integration header/built-ins.
+  ///
+  /// \param KernelFunc is a SYCL kernel function
+  /// \param ParamDescs is the vector of kernel parameter descriptors.
+  template <typename KernelName, typename KernelType, int Dims,
+            typename LambdaArgType>
+  void StoreLambda(KernelType &&KernelFunc) {
+    StoreLambdaImpl<KernelName, KernelType, Dims, LambdaArgType>(
+        std::make_unique<detail::HostKernel<KernelType, LambdaArgType, Dims>>(
+            std::forward<KernelType>(KernelFunc)));
+  }
+  template <typename KernelName, typename KernelType, int Dims,
+            typename LambdaArgType>
+  void StoreLambda(const KernelType &KernelFunc) {
+    StoreLambdaImpl<KernelName, KernelType, Dims, LambdaArgType>(
+        std::make_unique<detail::HostKernel<KernelType, LambdaArgType, Dims>>(
+            KernelFunc));
   }
 
   void verifyDeviceHasProgressGuarantee(
@@ -1130,7 +1146,7 @@ private:
       typename KernelName, typename KernelType, int Dims,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
-                                KernelType KernelFunc) {
+                                const KernelType &KernelFunc) {
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     throwOnKernelParameterMisuse<KernelName, KernelType>();
@@ -1542,19 +1558,21 @@ private:
     // methods side.
 
     template <typename... TypesToForward, typename... ArgsTy>
-    static void kernel_single_task_unpack(handler *h, ArgsTy... Args) {
-      h->kernel_single_task<TypesToForward..., Props...>(Args...);
+    static void kernel_single_task_unpack(handler *h, ArgsTy&&... Args) {
+      h->kernel_single_task<TypesToForward..., Props...>(std::forward<ArgsTy>(Args)...);
     }
 
     template <typename... TypesToForward, typename... ArgsTy>
-    static void kernel_parallel_for_unpack(handler *h, ArgsTy... Args) {
-      h->kernel_parallel_for<TypesToForward..., Props...>(Args...);
+    static void kernel_parallel_for_unpack(handler *h, ArgsTy &&...Args) {
+      h->kernel_parallel_for<TypesToForward..., Props...>(
+          std::forward<ArgsTy>(Args)...);
     }
 
     template <typename... TypesToForward, typename... ArgsTy>
     static void kernel_parallel_for_work_group_unpack(handler *h,
-                                                      ArgsTy... Args) {
-      h->kernel_parallel_for_work_group<TypesToForward..., Props...>(Args...);
+                                                      ArgsTy &&...Args) {
+      h->kernel_parallel_for_work_group<TypesToForward..., Props...>(
+          std::forward<ArgsTy>(Args)...);
     }
   };
 
@@ -1619,9 +1637,9 @@ private:
   void kernel_single_task_wrapper(const KernelType &KernelFunc) {
     unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>(
-        KernelFunc, [&](auto Unpacker, auto... args) {
+        KernelFunc, [&](auto Unpacker, auto &&...args) {
           Unpacker.template kernel_single_task_unpack<KernelName, KernelType>(
-              args...);
+              std::forward<decltype(args)>(args)...);
         });
   }
 
@@ -1632,9 +1650,10 @@ private:
     unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
-        KernelFunc, [&](auto Unpacker, auto... args) {
+        KernelFunc, [&](auto Unpacker, auto &&...args) {
           Unpacker.template kernel_parallel_for_unpack<KernelName, ElementType,
-                                                       KernelType>(args...);
+                                                       KernelType>(
+              std::forward<decltype(args)>(args)...);
         });
   }
 
@@ -1645,9 +1664,10 @@ private:
     unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
-        KernelFunc, [&](auto Unpacker, auto... args) {
+        KernelFunc, [&](auto Unpacker, auto &&...args) {
           Unpacker.template kernel_parallel_for_work_group_unpack<
-              KernelName, ElementType, KernelType>(args...);
+              KernelName, ElementType, KernelType>(
+              std::forward<decltype(args)>(args)...);
         });
   }
 
