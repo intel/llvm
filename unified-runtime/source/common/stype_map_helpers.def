@@ -107,6 +107,9 @@ template <>
 struct stype_map<ur_usm_alloc_location_desc_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC> {};
 template <>
+struct stype_map<ur_usm_pool_buffer_desc_t>
+    : stype_map_impl<UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC> {};
+template <>
 struct stype_map<ur_exp_command_buffer_desc_t>
     : stype_map_impl<UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC> {};
 template <>
