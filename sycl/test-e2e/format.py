@@ -373,10 +373,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             conditions,
             recursion_limit=test.config.recursiveExpansionLimit,
         )
-
         if len(script) == 0:
             return lit.Test.Result(lit.Test.UNSUPPORTED, "Lit script is empty")
 
+        # FIXME: will hang if trying to execute non-existant binary in our containers
         result = lit.TestRunner._runShTest(
             test, litConfig, False, script, tmpBase
         )
