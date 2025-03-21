@@ -63,6 +63,10 @@ on:
         required: false
         default: "cl"
 
+      e2e_testing_mode:
+        type: string
+        default: "full"
+
       cts_testing_mode:
         description: |
           Testing mode to run SYCL-CTS in, can be either `full`, `build-only`
@@ -141,12 +145,26 @@ jobs:
         sycl-ls
     - run: |
         sycl-ls --verbose
+
+    - name: Download E2E Binaries
+      if: ${{ inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'run-only' }}
+      uses: actions/download-artifact@v4
+      with:
+        name: sycl_windows_e2ebin
+    - name: Extract E2E Binaries
+      if: ${{ inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'run-only' }}
+      shell: bash
+      run: |
+        mkdir build-e2e
+        tar -xf e2e_bin.tar.gz -C build-e2e
+
     - name: Configure E2E with Level Zero target
       if: inputs.tests_selector == 'e2e'
       shell: cmd
       run: |
         mkdir build-e2e
         cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py"
+
     - name: Run End-to-End tests
       if: inputs.tests_selector == 'e2e'
       shell: bash
@@ -155,8 +173,21 @@ jobs:
         if [[ ${{inputs.compiler}} == 'icx' ]]; then
            export LIT_FILTER_OUT="compile_on_win_with_mdd"
         fi
-        export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
+        export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} ${{ inputs.extra_lit_opts }}"
         cmake --build build-e2e --target check-sycl-e2e
+
+    - name: Pack E2E test binaries
+      if: ${{ always() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
+      shell: bash
+      run: |
+        tar -czf e2e_bin.tar.gz -C build-e2e .
+    - name: Upload E2E test binaries
+      if: ${{ always() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_windows_e2ebin
+        path: e2e_bin.tar.gz
+        retention-days: 3
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'

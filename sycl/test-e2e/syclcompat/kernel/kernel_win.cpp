@@ -1,4 +1,6 @@
 // REQUIRES: windows
+// XFAIL: run-mode && !build-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17561
 
 // DEFINE: %{sharedflag} = %if cl_options %{/clang:-shared%} %else %{-shared%}
 

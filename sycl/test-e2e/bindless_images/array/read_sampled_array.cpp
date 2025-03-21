@@ -1,6 +1,9 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_image_array
 
+// XFAIL: windows && arch-intel_gpu_bmg_g21
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/00000
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
