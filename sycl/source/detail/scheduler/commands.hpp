@@ -168,7 +168,9 @@ public:
   }
   // Shows that command could be enqueued, but is blocking enqueue of all
   // commands depending on it. Regular usage - host task.
-  bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
+  bool isBlocking() const {
+    return isHostTask() && !producesPiEvent() && !MEvent->isCompleted();
+  }
 
   void addBlockedUserUnique(const EventImplPtr &NewUser) {
     if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
@@ -225,7 +227,7 @@ public:
 
   /// Get the context of the queue this command will be submitted to. Could
   /// differ from the context of MQueue for memory copy commands.
-  virtual ContextImplPtr getWorkerContext() const;
+  ContextImplPtr getWorkerContext() const;
 
   /// Returns true iff the command produces a UR event on non-host devices.
   virtual bool producesPiEvent() const;
@@ -265,6 +267,7 @@ protected:
   std::vector<EventImplPtr> &MPreparedDepsEvents;
   std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
+  // Event is nullptr when Queue == nullptr too
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      ur_event_handle_t &Event);
 
@@ -460,8 +463,6 @@ public:
 
   void emitInstrumentationData() override;
 
-  bool producesPiEvent() const final;
-
   bool supportsPostEnqueueCleanup() const final;
 
   bool readyForCleanup() const final;
@@ -500,6 +501,7 @@ public:
   void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
+  bool producesPiEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -521,6 +523,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
   void emitInstrumentationData() override;
+  bool producesPiEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -577,7 +580,6 @@ public:
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getWorkerContext() const final;
   bool producesPiEvent() const final;
 
 private:
@@ -592,21 +594,19 @@ private:
 
 /// The mem copy host command enqueues memory copy between two instances of
 /// memory object.
-class MemCpyCommandHost : public Command {
+class MemCpyToHostCommand : public Command {
 public:
-  MemCpyCommandHost(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
-                    Requirement DstReq, void **DstPtr, QueueImplPtr SrcQueue,
-                    QueueImplPtr DstQueue);
+  MemCpyToHostCommand(Requirement SrcReq, AllocaCommandBase *SrcAllocaCmd,
+                      Requirement DstReq, void **DstPtr, QueueImplPtr SrcQueue);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
-  ContextImplPtr getWorkerContext() const final;
+  bool producesPiEvent() const final { return !!MQueue; }
 
 private:
   ur_result_t enqueueImp() final;
 
-  QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
@@ -694,12 +694,13 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
 class UpdateHostRequirementCommand : public Command {
 public:
-  UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,
-                               AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
+  UpdateHostRequirementCommand(Requirement Req, AllocaCommandBase *SrcAllocaCmd,
+                               void **DstPtr);
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
+  bool producesPiEvent() const final { return false; }
 
 private:
   ur_result_t enqueueImp() final;

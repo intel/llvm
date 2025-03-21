@@ -101,6 +101,7 @@ EXPORTS
 	urEventGetInfo
 	urEventGetNativeHandle
 	urEventGetProfilingInfo
+	urEventHostSignal
 	urEventRelease
 	urEventRetain
 	urEventSetCallback
@@ -305,6 +306,7 @@ EXPORTS
 	urPrintEventGetInfoParams
 	urPrintEventGetNativeHandleParams
 	urPrintEventGetProfilingInfoParams
+	urPrintEventHostSignalParams
 	urPrintEventInfo
 	urPrintEventNativeProperties
 	urPrintEventReleaseParams

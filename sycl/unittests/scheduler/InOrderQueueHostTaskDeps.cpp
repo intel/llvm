@@ -9,6 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
+#include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
 
@@ -23,19 +24,55 @@ using namespace sycl;
 
 size_t GEventsWaitCounter = 0;
 
+auto DummyHostTaskEvent = mock::createDummyHandle<ur_event_handle_t>();
+bool HostTaskReady = false;
+std::mutex HostTaskMutex;
+std::condition_variable HostTaskCV;
+
+size_t EventSignaled = 0;
+size_t EventCreated = 0;
+
 inline ur_result_t redefinedEventsWait(void *pParams) {
   auto params = *static_cast<ur_event_wait_params_t *>(pParams);
   if (*params.pnumEvents > 0) {
     GEventsWaitCounter++;
+
+    if (**params.pphEventWaitList == DummyHostTaskEvent) {
+      std::unique_lock lk(HostTaskMutex);
+      HostTaskCV.wait(lk, [] { return HostTaskReady; });
+    }
   }
+
   return UR_RESULT_SUCCESS;
 }
 
-TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
+inline ur_result_t redefinedEventHostSignal(void *pParams) {
+  EventSignaled = true;
+  {
+    std::lock_guard lk(HostTaskMutex);
+    HostTaskReady = true;
+  }
+  HostTaskCV.notify_one();
+  return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t redefinedEventCreateWithNativeHandle(void *pParams) {
+  EventCreated = true;
+  auto params =
+      *static_cast<ur_event_create_with_native_handle_params_t *>(pParams);
+  **params.pphEvent = DummyHostTaskEvent;
+  return UR_RESULT_SUCCESS;
+}
+
+template <sycl::backend Backend> void InOrderQueueHostTaskDepsTestBody() {
   GEventsWaitCounter = 0;
-  sycl::unittest::UrMock<> Mock;
+  sycl::unittest::UrMock<Backend> Mock;
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_before_callback("urEventWait", &redefinedEventsWait);
+  mock::getCallbacks().set_replace_callback("urEventHostSignal",
+                                            &redefinedEventHostSignal);
+  mock::getCallbacks().set_replace_callback(
+      "urEventCreateWithNativeHandle", &redefinedEventCreateWithNativeHandle);
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
@@ -45,8 +82,21 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
       [&](sycl::handler &CGH) { CGH.memset(buf, 0, sizeof(buf[0])); });
   InOrderQueue.submit([&](sycl::handler &CGH) { CGH.host_task([=] {}); })
       .wait();
+  EXPECT_EQ(EventCreated, Backend == sycl::backend::ext_oneapi_level_zero);
+  EXPECT_EQ(GEventsWaitCounter,
+            1u + size_t(Backend == sycl::backend::ext_oneapi_level_zero));
+  EXPECT_EQ(EventSignaled, Backend == sycl::backend::ext_oneapi_level_zero);
+}
 
-  EXPECT_EQ(GEventsWaitCounter, 1u);
+TEST_F(SchedulerTest, InOrderQueueHostTaskDepsOCL) {
+  InOrderQueueHostTaskDepsTestBody<sycl::backend::opencl>();
+}
+
+TEST_F(SchedulerTest, InOrderQueueHostTaskDepsL0) {
+  std::function<void()> DoNothing = [] {};
+  unittest::ScopedEnvVar HostTaskViaNativeEvent{"SYCL_ENABLE_USER_EVENTS_PATH",
+                                                "1", DoNothing};
+  InOrderQueueHostTaskDepsTestBody<sycl::backend::ext_oneapi_level_zero>();
 }
 
 enum class CommandType { KERNEL = 1, MEMSET = 2 };
