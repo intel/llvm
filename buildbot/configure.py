@@ -70,13 +70,13 @@ def do_configure(args, passthrough_args):
     if sys.platform != "darwin":
         # For more info on the enablement of level_zero_v2 refer to this document:
         # https://github.com/intel/llvm/blob/sycl/unified-runtime/source/adapters/level_zero/v2/README.md
-        if args.level_zero_v2:
+        if args.level_zero_adapter_version == "V1":
+            sycl_enabled_backends.append("level_zero")
+        if args.level_zero_adapter_version == "V2":
             sycl_enabled_backends.append("level_zero_v2")
-        elif args.level_zero_v1_and_v2:
+        if args.level_zero_adapter_version == "ALL":
             sycl_enabled_backends.append("level_zero")
             sycl_enabled_backends.append("level_zero_v2")
-        else:
-            sycl_enabled_backends.append("level_zero")
 
     # lld is needed on Windows or for the HIP adapter on AMD
     if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
@@ -340,12 +340,11 @@ def main():
         help="choose hardware platform for HIP backend",
     )
     parser.add_argument(
-        "--level_zero_v2", action="store_true", help="Enable SYCL Level Zero V2"
-    )
-    parser.add_argument(
-        "--level_zero_v1_and_v2",
-        action="store_true",
-        help="Enable SYCL Level Zero Legacy and V2",
+        "--level_zero_adapter_version",
+        type=str,
+        choices=["V1", "V2", "ALL"],
+        default="ALL",
+        help="Choose version of Level Zero adapter to build",
     )
     parser.add_argument(
         "--host-target",
