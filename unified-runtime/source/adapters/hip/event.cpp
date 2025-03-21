@@ -107,8 +107,7 @@ ur_result_t ur_event_handle_t_::record() {
   try {
     EventId = Queue->getNextEventId();
     if (EventId == 0) {
-      detail::ur::die(
-          "Unrecoverable program state reached in event identifier overflow");
+      die("Unrecoverable program state reached in event identifier overflow");
     }
     UR_CHECK_ERROR(hipEventRecord(EvEnd, Stream));
     Result = UR_RESULT_SUCCESS;

@@ -92,11 +92,6 @@ std::string getCudaVersionString() {
   return stream.str();
 }
 
-void detail::ur::die(const char *Message) {
-  logger::always("ur_die:{}", Message);
-  std::terminate();
-}
-
 void detail::ur::assertion(bool Condition, const char *Message) {
   if (!Condition)
     die(Message);

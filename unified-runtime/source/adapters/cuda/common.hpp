@@ -57,12 +57,6 @@ void setPluginSpecificMessage(CUresult cu_res);
 namespace detail {
 namespace ur {
 
-// Report error and no return (keeps compiler from printing warnings).
-// TODO: Probably change that to throw a catchable exception,
-//       but for now it is useful to see every failure.
-//
-[[noreturn]] void die(const char *Message);
-
 // Reports error messages
 void cuPrint(const char *Message);
 

@@ -1104,7 +1104,7 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
   case CU_AD_FORMAT_FLOAT:
     return 4;
   default:
-    detail::ur::die("Invalid image format.");
+    die("Invalid image format.");
     return 0;
   }
 }
