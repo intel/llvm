@@ -81,6 +81,11 @@ else()
     set(OpenCLICDLoaderLibrary OpenCL::OpenCL)
 endif()
 
+# Make interface library use within the project.
+add_library(OpenCLICDLoader INTERFACE)
+target_link_libraries(OpenCLICDLoader INTERFACE "${OpenCLICDLoaderLibrary}")
+target_include_directories(OpenCLICDLoader INTERFACE ${OpenCLIncludeDirectory})
+
 message(STATUS "OpenCL Include Directory: ${OpenCLIncludeDirectory}")
 message(STATUS "OpenCL ICD Loader Library: ${OpenCLICDLoaderLibrary}")
 
