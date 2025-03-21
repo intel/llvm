@@ -149,13 +149,15 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
-template <typename, typename>
-class work_group_memory;
+template <typename, typename> class work_group_memory;
+template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
+class dynamic_parameter_base;
+class dynamic_work_group_memory_base;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
@@ -675,6 +677,12 @@ private:
     // with the node being added
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
+
+  // setArgHelper for graph dynamic_work_group_memory
+  void
+  setArgHelper(int ArgIndex,
+               ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+                   &DynWorkGroupBase);
 
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
@@ -1865,6 +1873,18 @@ public:
   void set_arg(int argIndex,
                ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
     setArgHelper(argIndex, dynamicParam);
+  }
+
+  // set_arg for graph dynamic_work_group_memory
+  template <typename DataT, typename PropertyListT =
+                                ext::oneapi::experimental::empty_properties_t>
+  void set_arg(
+      int argIndex,
+      ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
+          &dynWorkGroupMem) {
+    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+        &dynWorkGroupBase = dynWorkGroupMem;
+    setArgHelper(argIndex, dynWorkGroupBase);
   }
 
   // set_arg for the raw_kernel_arg extension type.
@@ -3759,7 +3779,8 @@ private:
             "A local accessor must not be used in a SYCL kernel function "
             "that is invoked via single_task or via the simple form of "
             "parallel_for that takes a range parameter.");
-      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
+      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory ||
+          Kind == detail::kernel_param_kind_t::kind_dynamic_work_group_memory)
         throw sycl::exception(
             make_error_code(errc::kernel_argument),
             "A work group memory object must not be used in a SYCL kernel "
