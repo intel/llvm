@@ -449,6 +449,14 @@ etors:
       desc: "[$x_bool_t] support the $xProgramSetSpecializationConstants entry point"
     - name: USE_NATIVE_ASSERT
       desc: "[$x_bool_t] return true if the device has a native assert implementation."
+    - name: CURRENT_CLOCK_THROTTLE_REASONS
+      desc: "[$x_device_throttle_reasons_flags_t][optional-query] return current clock throttle reasons."
+    - name: FAN_SPEED
+      desc: "[int32_t][optional-query] return the current speed of fan as a percentage of the maximum speed."
+    - name: MIN_POWER_LIMIT
+      desc: "[int32_t][optional-query] return min power limit in milliwatts."
+    - name: MAX_POWER_LIMIT
+      desc: "[int32_t][optional-query] return max power limit in milliwatts."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -929,3 +937,30 @@ etors:
     - name: ATOMIC_CONCURRENT_ACCESS
       desc: "Memory can be accessed atomically and concurrently"
       value: "$X_BIT(3)"
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Clock throttle reasons"
+class: $xDevice
+name: $x_device_throttle_reasons_flags_t
+etors:
+    - name: POWER_CAP
+      desc: "The clock frequency is throttled due to hitting the power limit."
+      value: "$X_BIT(0)"
+    - name: CURRENT_LIMIT
+      desc: "The clock frequency is throttled due to hitting the current limit."
+      value: "$X_BIT(1)"
+    - name: THERMAL_LIMIT
+      desc: "The clock frequency is throttled due to hitting the thermal limit."
+      value: "$X_BIT(2)"
+    - name: PSU_ALERT
+      desc: "The clock frequency is throttled due to power supply assertion."
+      value: "$X_BIT(3)"
+    - name: SW_RANGE
+      desc: "The clock frequency is throttled due to software supplied frequency range."
+      value: "$X_BIT(4)"
+    - name: HW_RANGE
+      desc: "The clock frequency is throttled because there is a sub block that has a lower frequency when it receives clocks."
+      value: "$X_BIT(5)"
+    - name: OTHER
+      desc: "The clock frequency is throttled due to other reason."
+      value: "$X_BIT(6)"

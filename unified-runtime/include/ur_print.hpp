@@ -103,6 +103,10 @@ printFlag<ur_device_usm_access_capability_flag_t>(std::ostream &os,
                                                   uint32_t flag);
 
 template <>
+inline ur_result_t
+printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
 inline ur_result_t printFlag<ur_context_flag_t>(std::ostream &os,
                                                 uint32_t flag);
 
@@ -331,6 +335,8 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_memory_scope_capability_flag_t value);
 inline std::ostream &
 operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_throttle_reasons_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
@@ -2936,6 +2942,18 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     os << "UR_DEVICE_INFO_USE_NATIVE_ASSERT";
     break;
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
+    os << "UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS";
+    break;
+  case UR_DEVICE_INFO_FAN_SPEED:
+    os << "UR_DEVICE_INFO_FAN_SPEED";
+    break;
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT:
+    os << "UR_DEVICE_INFO_MIN_POWER_LIMIT";
+    break;
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT:
+    os << "UR_DEVICE_INFO_MAX_POWER_LIMIT";
+    break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
     break;
@@ -4614,6 +4632,60 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
+    const ur_device_throttle_reasons_flags_t *tptr =
+        (const ur_device_throttle_reasons_flags_t *)ptr;
+    if (sizeof(ur_device_throttle_reasons_flags_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_device_throttle_reasons_flags_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    ur::details::printFlag<ur_device_throttle_reasons_flag_t>(os, *tptr);
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_FAN_SPEED: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
@@ -5946,6 +6018,138 @@ printFlag<ur_device_usm_access_capability_flag_t>(std::ostream &os,
       first = false;
     }
     os << UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_device_throttle_reasons_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_throttle_reasons_flag_t value) {
+  switch (value) {
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_device_throttle_reasons_flag_t flag
+template <>
+inline ur_result_t
+printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
   }
   if (val != 0) {
     std::bitset<32> bits(val);

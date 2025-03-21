@@ -70,8 +70,11 @@ def find_shlibpath_var():
 for shlibpath_var in find_shlibpath_var():
     # in stand-alone builds, shlibdir is clang's build tree
     # while llvm_libs_dir is installed LLVM (and possibly older clang)
+    # For unit tests, we have a "mock" OpenCL which needs to have
+    # priority and so is at the start of the shlibpath list
     shlibpath = os.path.pathsep.join(
         (
+            os.path.join(config.test_exec_root, "lib"),
             config.shlibdir,
             config.llvm_libs_dir,
             config.environment.get(shlibpath_var, ""),

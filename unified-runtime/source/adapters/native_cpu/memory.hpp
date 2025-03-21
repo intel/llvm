@@ -38,14 +38,11 @@ struct ur_mem_handle_t_ : _ur_object {
     }
   }
 
-  void decrementRefCount() noexcept { _refCount--; }
-
   // Method to get type of the derived object (image or buffer)
   bool isImage() const { return this->IsImage; }
 
   char *_mem;
   bool _ownsMem;
-  std::atomic_uint32_t _refCount = {1};
 
 private:
   const bool IsImage;
