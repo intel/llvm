@@ -26,7 +26,7 @@
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
 
-#include <tuple>
+#include <umf/providers/provider_fixed_memory.h>
 #include <umf_helpers.hpp>
 
 namespace umf {
@@ -626,16 +626,14 @@ ur_result_t UR_APICALL urUSMPoolCreateExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t Context,
-                                           ur_device_handle_t Device,
+ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t,
+                                           ur_device_handle_t,
                                            ur_usm_pool_handle_t Pool) {
-  std::ignore = Context;
-  std::ignore = Device;
-
-  std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
-  Pool->Context->UsmPoolHandles.remove(Pool);
-  delete Pool;
-
+  if (Pool->RefCount.decrementAndTest()) {
+    std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
+    Pool->Context->UsmPoolHandles.remove(Pool);
+    delete Pool;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -975,6 +973,44 @@ MakeProvider(ProviderParams *Params = nullptr) {
     }
 
     return std::move(L0Provider);
+  } else if constexpr (std::is_same_v<
+                           ProviderParams,
+                           umf_fixed_memory_provider_params_handle_t>) {
+    auto [Ret, FixedProvider] =
+        umf::providerMakeUniqueFromOps(umfFixedMemoryProviderOps(), *Params);
+    if (Ret) {
+      logger::error("urUSMPoolCreate: failed to create UMF fixed provider");
+      throw UsmAllocationException(umf::umf2urResult(Ret));
+    }
+
+    return std::move(FixedProvider);
+  }
+
+  return nullptr;
+}
+
+template <typename PoolParams = std::nullptr_t>
+static umf::pool_unique_handle_t
+MakePool(umf::provider_unique_handle_t &Provider,
+         PoolParams *Params = nullptr) {
+  if constexpr (std::is_same_v<PoolParams, usm::umf_disjoint_pool_config_t>) {
+    auto UmfParamsHandle = usm::getUmfParamsHandle(*Params);
+    auto [Ret, Pool] = umf::poolMakeUniqueFromOps(
+        umfDisjointPoolOps(), std::move(Provider), UmfParamsHandle.get());
+    if (Ret != UMF_RESULT_SUCCESS) {
+      logger::error("urUSMPoolCreate: failed to create UMF pool");
+      throw UsmAllocationException(umf::umf2urResult(Ret));
+    }
+
+    return std::move(Pool);
+  } else if constexpr (std::is_same_v<PoolParams, std::nullptr_t>) {
+    auto [Ret, Pool] = umf::poolMakeUnique<USMProxyPool>(std::move(Provider));
+    if (Ret != UMF_RESULT_SUCCESS) {
+      logger::error("urUSMPoolCreate: failed to create UMF pool");
+      throw UsmAllocationException(umf::umf2urResult(Ret));
+    }
+
+    return std::move(Pool);
   }
 
   return nullptr;
@@ -993,6 +1029,43 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     }
   }
 
+  // Create a native pool from user provided buffer.
+  if (auto NativeDesc = find_stype_node<ur_usm_pool_native_desc_t>(PoolDesc)) {
+    auto Desc = usm::pool_descriptor{this, Context, NativeDesc->device,
+                                     NativeDesc->memType, false};
+
+    umf_fixed_memory_provider_params_handle_t FixedProviderParams = nullptr;
+    auto umfRet = umfFixedMemoryProviderParamsCreate(
+        &FixedProviderParams, NativeDesc->pMem, NativeDesc->size);
+    if (umfRet) {
+      logger::error(
+          "urUSMPoolCreate: failed to create UMF fixed provider params");
+      throw UsmAllocationException(umf::umf2urResult(umfRet));
+    }
+
+    // auto Pool = usm::makeProxyPool(MakeProvider(&FixedProviderParams));
+    auto &PoolConfig =
+        DisjointPoolConfigs.Configs[DescToDisjointPoolMemType(Desc)];
+    auto Pool =
+        usm::makeDisjointPool(MakeProvider(&FixedProviderParams), PoolConfig);
+
+    std::unique_ptr<UsmPool> usmPool =
+        std::make_unique<UsmPool>(std::move(Pool));
+    auto Ret = umf::umf2urResult(
+        umfPoolSetTag(usmPool->UmfPool.get(), usmPool.get(), nullptr));
+    if (Ret) {
+      logger::error("urUSMPoolCreate: failed to store USM pool tag");
+      throw UsmAllocationException(Ret);
+    }
+
+    Ret = PoolManager.addPool(Desc, std::move(usmPool));
+    if (Ret) {
+      logger::error("urUSMPoolCreate: failed to store UMF pool");
+      throw UsmAllocationException(Ret);
+    }
+    return; // Skip the default pool initialization.
+  }
+
   auto DevicesAndSubDevices = CollectDevicesAndSubDevices(Context->Devices);
   auto Descriptors = usm::pool_descriptor::createFromDevices(
       this, Context, DevicesAndSubDevices);
@@ -1001,6 +1074,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     if (IsProxy) {
       Pool = usm::makeProxyPool(MakeProvider(&Desc));
     } else {
+      auto Provider = MakeProvider(&Desc);
       auto &PoolConfig =
           DisjointPoolConfigs.Configs[DescToDisjointPoolMemType(Desc)];
       Pool = usm::makeDisjointPool(MakeProvider(&Desc), PoolConfig);
