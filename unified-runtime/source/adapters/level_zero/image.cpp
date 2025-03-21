@@ -738,21 +738,14 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
   UR_ASSERT(externalMemoryData && externalMemoryData->importExtensionDesc,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  struct ur_ze_external_memory_data *mappedMemory =
-      new struct ur_ze_external_memory_data;
-
-  mappedMemory->importExtensionDesc = externalMemoryData->importExtensionDesc;
-  mappedMemory->type = externalMemoryData->type;
-  mappedMemory->size = size;
-
   ze_device_mem_alloc_desc_t allocDesc = {};
   allocDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
   allocDesc.flags = 0;
-  allocDesc.ordinal = 0;
+  allocDesc.pNext = externalMemoryData->importExtensionDesc;
+  void *mappedMemory;
 
-  ze_result_t zeResult =
-      zeMemAllocDevice(hContext->ZeContext, &allocDesc, size, 1,
-                       hDevice->ZeDevice, &(mappedMemory->importExtensionDesc));
+  ze_result_t zeResult = zeMemAllocDevice(hContext->ZeContext, &allocDesc, size,
+                                          1, hDevice->ZeDevice, &mappedMemory);
   if (zeResult != ZE_RESULT_SUCCESS) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
