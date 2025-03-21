@@ -2229,6 +2229,16 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] return true if the device has a native assert
   /// implementation.
   UR_DEVICE_INFO_USE_NATIVE_ASSERT = 122,
+  /// [::ur_device_throttle_reasons_flags_t][optional-query] return current
+  /// clock throttle reasons.
+  UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS = 123,
+  /// [int32_t][optional-query] return the current speed of fan as a
+  /// percentage of the maximum speed.
+  UR_DEVICE_INFO_FAN_SPEED = 124,
+  /// [int32_t][optional-query] return min power limit in milliwatts.
+  UR_DEVICE_INFO_MIN_POWER_LIMIT = 125,
+  /// [int32_t][optional-query] return max power limit in milliwatts.
+  UR_DEVICE_INFO_MAX_POWER_LIMIT = 126,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2878,6 +2888,34 @@ typedef enum ur_device_usm_access_capability_flag_t {
 } ur_device_usm_access_capability_flag_t;
 /// @brief Bit Mask for validating ur_device_usm_access_capability_flags_t
 #define UR_DEVICE_USM_ACCESS_CAPABILITY_FLAGS_MASK 0xfffffff0
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Clock throttle reasons
+typedef uint32_t ur_device_throttle_reasons_flags_t;
+typedef enum ur_device_throttle_reasons_flag_t {
+  /// The clock frequency is throttled due to hitting the power limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP = UR_BIT(0),
+  /// The clock frequency is throttled due to hitting the current limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT = UR_BIT(1),
+  /// The clock frequency is throttled due to hitting the thermal limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT = UR_BIT(2),
+  /// The clock frequency is throttled due to power supply assertion.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT = UR_BIT(3),
+  /// The clock frequency is throttled due to software supplied frequency
+  /// range.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE = UR_BIT(4),
+  /// The clock frequency is throttled because there is a sub block that has
+  /// a lower frequency when it receives clocks.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE = UR_BIT(5),
+  /// The clock frequency is throttled due to other reason.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER = UR_BIT(6),
+  /// @cond
+  UR_DEVICE_THROTTLE_REASONS_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_device_throttle_reasons_flag_t;
+/// @brief Bit Mask for validating ur_device_throttle_reasons_flags_t
+#define UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK 0xffffff80
 
 #if !defined(__GNUC__)
 #pragma endregion

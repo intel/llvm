@@ -956,7 +956,6 @@ ur_result_t urProgramCreateWithNativeHandle(
   UR_ASSERT(Context && NativeProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   auto ZeModule = ur_cast<ze_module_handle_t>(NativeProgram);
-
   // We assume here that programs created from a native handle always
   // represent a fully linked executable (state Exe) and not an unlinked
   // executable (state Object).
@@ -966,6 +965,7 @@ ur_result_t urProgramCreateWithNativeHandle(
         ur_program_handle_t_::Exe, Context, ZeModule,
         Properties ? Properties->isNativeHandleOwned : false);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
+    (*Program)->IsInteropNativeHandle = true;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1036,15 +1036,15 @@ ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Context)
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      AssociatedDevices({Context->getDevices()[0]}),
-      InteropZeModule{InteropZeModule} {}
+      AssociatedDevices({Context->getDevices()[0]}), InteropZeModule{
+                                                         InteropZeModule} {}
 
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule,
                                            bool OwnZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{OwnZeModule},
-      AssociatedDevices({Context->getDevices()[0]}),
-      InteropZeModule{InteropZeModule} {
+      AssociatedDevices({Context->getDevices()[0]}), InteropZeModule{
+                                                         InteropZeModule} {
   // TODO: Currently it is not possible to understand the device associated
   // with provided ZeModule. So we can't set the state on that device to Exe.
 }
@@ -1080,10 +1080,10 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
       if (DeviceData.ZeBuildLog)
         ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (DeviceData.ZeBuildLog));
     }
-
     // interop api
-    if (InteropZeModule && OwnZeModule)
+    if (InteropZeModule && OwnZeModule && checkL0LoaderTeardown()) {
       ZE_CALL_NOCHECK(zeModuleDestroy, (InteropZeModule));
+    }
 
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap)
       if (DeviceData.ZeModule)

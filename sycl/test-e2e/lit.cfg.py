@@ -174,10 +174,13 @@ class test_env:
         self.old_environ = dict(os.environ)
         os.environ.clear()
         os.environ.update(config.environment)
+        self.old_dir = os.getcwd()
+        os.chdir(config.sycl_obj_root)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         os.environ.clear()
         os.environ.update(self.old_environ)
+        os.chdir(self.old_dir)
 
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))

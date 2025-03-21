@@ -786,6 +786,7 @@ static void GetProgModelBuiltinFctOverloads(
   FunctionProtoType::ExtProtoInfo PI(
       Context.getDefaultCallingConvention(false, false, true));
   PI.Variadic = IsVariadic;
+  PI.ExceptionSpec = FunctionProtoType::ExceptionSpecInfo{EST_BasicNoexcept};
 
   // Do not attempt to create any FunctionTypes if there are no return types,
   // which happens when a type belongs to a disabled extension.

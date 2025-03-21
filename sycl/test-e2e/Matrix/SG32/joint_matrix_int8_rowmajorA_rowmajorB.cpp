@@ -18,9 +18,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: gpu
-// XFAIL-TRACKER: GSD-4181
-
 #include "common.hpp"
 
 #define SG_SZ 32

@@ -13,7 +13,6 @@
 
 #include "common.hpp"
 #include "kernel.hpp"
-#include "memory.hpp"
 #include "program.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -252,7 +251,7 @@ urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
   std::ignore = pProperties;
   std::ignore = hArgValue;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -271,6 +270,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
     return UR_RESULT_SUCCESS;
   }
 
+  hKernel->addArgReference(hArgValue);
   hKernel->addPtrArg(hArgValue->_mem, argIndex);
   return UR_RESULT_SUCCESS;
 }
@@ -290,7 +290,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
   std::ignore = hKernel;
   std::ignore = phNativeKernel;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
@@ -304,7 +304,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   std::ignore = pProperties;
   std::ignore = phKernel;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(

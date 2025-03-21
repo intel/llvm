@@ -259,6 +259,19 @@ template <ext::oneapi::experimental::execution_scope CoordinationScope>
 struct work_item_progress_capabilities;
 
 } // namespace ext::oneapi::experimental::info::device
+
+namespace ext::intel {
+enum class throttle_reason {
+  power_cap,
+  current_limit,
+  thermal_limit,
+  psu_alert,
+  sw_range,
+  hw_range,
+  other
+};
+} // namespace ext::intel
+
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_intel_kernel_info_traits.def>

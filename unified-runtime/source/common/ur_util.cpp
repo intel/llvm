@@ -86,7 +86,7 @@ std::optional<std::string> ur_getenv(const char *name) {
   return std::nullopt;
 #else
   const char *tmp_env = getenv(name);
-  if (tmp_env != nullptr) {
+  if (tmp_env != nullptr && tmp_env[0] != '\0') {
     return std::string(tmp_env);
   } else {
     return std::nullopt;

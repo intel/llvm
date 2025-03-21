@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-function(add_unittest name)
+function(add_l0_v2_unittest name)
     set(target test-adapter-${name})
     add_adapter_test(${name}
         FIXTURE DEVICES
@@ -29,7 +29,7 @@ function(add_unittest name)
     )
 endfunction()
 
-add_unittest(level_zero_command_list_cache
+add_l0_v2_unittest(level_zero_command_list_cache
         command_list_cache_test.cpp
         ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/command_list_cache.cpp
 )
@@ -38,7 +38,7 @@ if(CXX_HAS_CFI_SANITIZE)
     message(WARNING "Level Zero V2 Event Pool tests are disabled when using CFI sanitizer")
     message(NOTE "See https://github.com/oneapi-src/unified-runtime/issues/2324")
 else()
-    add_unittest(level_zero_event_pool
+    add_l0_v2_unittest(level_zero_event_pool
             event_pool_test.cpp
             ${PROJECT_SOURCE_DIR}/source/ur/ur.cpp
             ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/adapter.cpp

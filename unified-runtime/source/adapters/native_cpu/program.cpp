@@ -26,7 +26,7 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
   std::ignore = pProperties;
   std::ignore = phProgram;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }
 
 static ur_result_t
@@ -206,7 +206,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   std::ignore = pFunctionName;
   std::ignore = ppFunctionPointer;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
@@ -218,7 +218,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
   std::ignore = pGlobalVariableSizeRet;
   std::ignore = ppGlobalVariablePointerRet;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -264,7 +264,7 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
   std::ignore = pPropValue;
   std::ignore = pPropSizeRet;
 
-  CONTINUE_NO_IMPLEMENTATION
+  CONTINUE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
@@ -274,7 +274,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
   std::ignore = count;
   std::ignore = pSpecConstants;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
@@ -282,7 +282,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
   std::ignore = hProgram;
   std::ignore = phNativeProgram;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
@@ -294,5 +294,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
   std::ignore = pProperties;
   std::ignore = phProgram;
 
-  DIE_NO_IMPLEMENTATION
+  DIE_NO_IMPLEMENTATION;
 }

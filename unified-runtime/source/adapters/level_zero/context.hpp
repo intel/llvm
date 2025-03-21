@@ -58,12 +58,14 @@ struct ur_context_handle_t_ : _ur_object {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
                        const ur_device_handle_t *Devs, bool OwnZeContext)
       : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
-        NumDevices{NumDevices}, DefaultPool{this, nullptr, !UseUSMAllocator} {
+        NumDevices{NumDevices}, DefaultPool{this, nullptr, !UseUSMAllocator},
+        AsyncPool{this, nullptr, !UseUSMAllocator} {
     OwnNativeHandle = OwnZeContext;
   }
 
   ur_context_handle_t_(ze_context_handle_t ZeContext)
-      : ZeContext{ZeContext}, DefaultPool{this, nullptr, !UseUSMAllocator} {}
+      : ZeContext{ZeContext}, DefaultPool{this, nullptr, !UseUSMAllocator},
+        AsyncPool{this, nullptr, !UseUSMAllocator} {}
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
@@ -125,6 +127,9 @@ struct ur_context_handle_t_ : _ur_object {
   // internally pool memory. Actual implementation during runtime is decided by
   // the 'UseUSMAllocator' variable value.
   ur_usm_pool_handle_t_ DefaultPool;
+
+  // USM pools for async allocations.
+  ur_usm_pool_handle_t_ AsyncPool;
 
   // Map associating pools created with urUsmPoolCreate and internal pools
   std::list<ur_usm_pool_handle_t> UsmPoolHandles{};

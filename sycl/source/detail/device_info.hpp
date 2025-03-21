@@ -1637,6 +1637,81 @@ get_device_info<ext::intel::esimd::info::device::has_2d_block_io_support>(
           UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
 }
 
+template <>
+inline ext::intel::info::device::current_clock_throttle_reasons::return_type
+get_device_info<ext::intel::info::device::current_clock_throttle_reasons>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_current_clock_throttle_reasons))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the "
+                    "ext_intel_current_clock_throttle_reasons aspect");
+
+  ur_device_throttle_reasons_flags_t UrThrottleReasons;
+  Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      Dev->getHandleRef(),
+      UrInfoCode<
+          ext::intel::info::device::current_clock_throttle_reasons>::value,
+      sizeof(UrThrottleReasons), &UrThrottleReasons, nullptr);
+  std::vector<ext::intel::throttle_reason> ThrottleReasons;
+  constexpr std::pair<ur_device_throttle_reasons_flags_t,
+                      ext::intel::throttle_reason>
+      UR2SYCLMappings[] = {{UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP,
+                            ext::intel::throttle_reason::power_cap},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT,
+                            ext::intel::throttle_reason::current_limit},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT,
+                            ext::intel::throttle_reason::thermal_limit},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT,
+                            ext::intel::throttle_reason::psu_alert},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE,
+                            ext::intel::throttle_reason::sw_range},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE,
+                            ext::intel::throttle_reason::hw_range},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER,
+                            ext::intel::throttle_reason::other}};
+
+  for (const auto &[UrFlag, SyclReason] : UR2SYCLMappings) {
+    if (UrThrottleReasons & UrFlag) {
+      ThrottleReasons.push_back(SyclReason);
+    }
+  }
+  return ThrottleReasons;
+}
+
+template <>
+inline ext::intel::info::device::fan_speed::return_type
+get_device_info<ext::intel::info::device::fan_speed>(const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_fan_speed))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the ext_intel_fan_speed aspect");
+  using Param = ext::intel::info::device::fan_speed;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::max_power_limit::return_type
+get_device_info<ext::intel::info::device::max_power_limit>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_power_limits))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_power_limits aspect");
+  using Param = ext::intel::info::device::max_power_limit;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::min_power_limit::return_type
+get_device_info<ext::intel::info::device::min_power_limit>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_power_limits))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_power_limits aspect");
+  using Param = ext::intel::info::device::min_power_limit;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
 // Returns the list of all progress guarantees that can be requested for
 // work_groups from the coordination level of root_group when using the device
 // given by Dev. First it calls getProgressGuarantee to get the strongest

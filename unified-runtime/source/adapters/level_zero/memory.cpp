@@ -1563,6 +1563,7 @@ ur_result_t urMemImageCreateWithNativeHandle(
   auto OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
   UR_CALL(createUrMemFromZeImage(Context, ZeHImage, OwnNativeHandle,
                                  ZeImageDesc, Mem));
+  (*Mem)->IsInteropNativeHandle = true;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1662,11 +1663,14 @@ ur_result_t urMemRelease(
     if (Image->OwnNativeHandle) {
       UR_CALL(Mem->getZeHandle(ZeHandleImage, ur_mem_handle_t_::write_only,
                                nullptr, nullptr, 0u));
-      auto ZeResult = ZE_CALL_NOCHECK(
-          zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
-      // Gracefully handle the case that L0 was already unloaded.
-      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-        return ze2urResult(ZeResult);
+      if (!Image->IsInteropNativeHandle ||
+          (Image->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+        auto ZeResult = ZE_CALL_NOCHECK(
+            zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
+        // Gracefully handle the case that L0 was already unloaded.
+        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+          return ze2urResult(ZeResult);
+      }
     }
     delete Image;
   } else {
@@ -1772,6 +1776,7 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     Buffer = new _ur_buffer(Context, Size, Device, ur_cast<char *>(NativeMem),
                             OwnNativeHandle);
     *Mem = reinterpret_cast<ur_mem_handle_t>(Buffer);
+    (*Mem)->IsInteropNativeHandle = true;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
