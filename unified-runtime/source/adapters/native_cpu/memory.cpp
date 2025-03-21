@@ -70,13 +70,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
   UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  decrementOrDelete(hMem);
 
-  hMem->decrementRefCount();
-  if (hMem->_refCount > 0) {
-    return UR_RESULT_SUCCESS;
-  }
-
-  delete hMem;
   return UR_RESULT_SUCCESS;
 }
 

@@ -13,7 +13,6 @@
 
 #include "common.hpp"
 #include "kernel.hpp"
-#include "memory.hpp"
 #include "program.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -271,6 +270,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
     return UR_RESULT_SUCCESS;
   }
 
+  hKernel->addArgReference(hArgValue);
   hKernel->addPtrArg(hArgValue->_mem, argIndex);
   return UR_RESULT_SUCCESS;
 }
