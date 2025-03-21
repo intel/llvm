@@ -12,6 +12,7 @@ on:
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
     - '.github/CODEOWNERS'
+    - 'sycl/cts_exclude_filter/**'
     - 'sycl/doc/**'
     - 'sycl/gdb/**'
     - 'clang/docs/**'
