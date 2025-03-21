@@ -711,13 +711,18 @@ public:
 
   void setExternalEvent(const event &Event) {
     std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    MHasValueInOrderExternalEvent.store(true, std::memory_order_release);
     MInOrderExternalEvent = Event;
   }
 
   std::optional<event> popExternalEvent() {
-    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
     std::optional<event> Result = std::nullopt;
-    std::swap(Result, MInOrderExternalEvent);
+
+    if (MHasValueInOrderExternalEvent.load(std::memory_order_acquire)) {
+      std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+      MHasValueInOrderExternalEvent.store(false, std::memory_order_release);
+      std::swap(Result, MInOrderExternalEvent);
+    }
     return Result;
   }
 
@@ -833,8 +838,10 @@ protected:
     // dependency so in the case where some commands were not enqueued
     // (blocked), we track them to prevent barrier from being enqueued
     // earlier.
+    if (MAreCleanupRequestsMissed.load(std::memory_order_acquire))
     {
       std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+      MAreCleanupRequestsMissed.store(false, std::memory_order_release);
       for (auto &UpdatedGraph : MMissedCleanupRequests)
         doUnenqueuedCommandCleanup(UpdatedGraph);
       MMissedCleanupRequests.clear();
@@ -850,12 +857,12 @@ protected:
     auto EventRet = Handler.finalize();
     EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
     if (Type == CGType::CodeplayHostTask)
-      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
     else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-      Deps.LastBarrier = EventRetImpl;
+      Deps.LastBarrier = std::move(EventRetImpl);
       Deps.UnenqueuedCmdEvents.clear();
     } else if (!EventRetImpl->isEnqueued()) {
-      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
     }
 
     return EventRet;
@@ -1040,6 +1047,8 @@ protected:
   // the fallback implementation of profiling info
   bool MFallbackProfiling = false;
 
+  // Is value presented in MInOrderExternalEvent?
+  std::atomic_bool MHasValueInOrderExternalEvent = false;
   // This event can be optionally provided by users for in-order queues to add
   // an additional dependency for the subsequent submission in to the queue.
   // Access to the event should be guarded with MInOrderExternalEventMtx.
@@ -1071,6 +1080,7 @@ protected:
   std::deque<std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>
       MMissedCleanupRequests;
   std::mutex MMissedCleanupRequestsMtx;
+  std::atomic_bool MAreCleanupRequestsMissed = false;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 

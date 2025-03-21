@@ -618,8 +618,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
 
-    {
+    if (MAreCleanupRequestsMissed.load(std::memory_order_acquire)) {
       std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+      MAreCleanupRequestsMissed.store(false, std::memory_order_release);
       for (auto &UpdatedGraph : MMissedCleanupRequests)
         doUnenqueuedCommandCleanup(UpdatedGraph);
       MMissedCleanupRequests.clear();
@@ -801,6 +802,7 @@ void queue_impl::revisitUnenqueuedCommandsState(
   else {
     std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
     MMissedCleanupRequests.push_back(CompletedHostTask->getCommandGraph());
+    MAreCleanupRequestsMissed.store(true, std::memory_order_release);
   }
 }
 
