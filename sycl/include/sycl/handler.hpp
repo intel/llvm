@@ -2384,7 +2384,10 @@ public:
       PropertiesT>::value> parallel_for(nd_range<Dims> Range,
                                         PropertiesT Properties,
                                         _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
+    parallel_for_impl<KernelName>(Range,
+                                  ext::oneapi::experimental::properties{
+                                      ext::oneapi::experimental::use_root_sync},
+                                  std::move(KernelFunc));
   }
 
   /// Reductions @{
