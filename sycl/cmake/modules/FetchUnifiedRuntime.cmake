@@ -363,7 +363,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   )
 
   # Copy the debug UR runtime libraries to <build>/bin & <build>/lib for use in
-  # the partent build, e.g. integration testing.
+  # the parent build, e.g. integration testing.
   set(URD_COPY_FILES)
   macro(urd_copy_library_to_build library)
     list(APPEND URD_COPY_FILES
@@ -384,8 +384,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
   endmacro()
 
   urd_copy_library_to_build(ur_loaderd)
-  foreach(adatper ${SYCL_ENABLE_BACKENDS})
-    urd_copy_library_to_build(ur_adapter_${adatper}d)
+  foreach(adapter ${SYCL_ENABLE_BACKENDS})
+    urd_copy_library_to_build(ur_adapter_${adapter}d)
   endforeach()
   # TODO: Also copy umfd.dll/umfd.lib
   # urd_copy_library_to_build(umfd)
