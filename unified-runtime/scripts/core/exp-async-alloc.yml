@@ -37,7 +37,7 @@ etors:
     - name: READ_ONLY_EXP
       value: "$X_BIT(2)"
       desc: |
-            Performance hint asserting that all memory allocations from the 
+            Performance hint asserting that all memory allocations from the
             memory pool will only ever be read from within SYCL kernel functions
 
 --- #--------------------------------------------------------------------------
@@ -261,7 +261,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_NULL_POINTER
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-    
+
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create USM memory pool with desired properties."
@@ -470,3 +470,26 @@ returns:
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "USM native pool descriptor type"
+details:
+  - Specify these properties in $xUSMPoolCreate via $x_usm_pool_desc_t
+    as part of a `pNext` chain.
+class: $xUSM
+name: $x_usm_pool_native_desc_t
+base: $x_base_desc_t
+members:
+    - type: "void*"
+      name:  pMem
+      desc: "[in] USM memory object"
+    - type: "size_t"
+      name:  size
+      desc: "[in] size of USM memory object"
+    - type: "$x_usm_type_t"
+      name:  memType
+      desc: "[in] type of USM memory object"
+    - type: "$x_device_handle_t"
+      name:  device
+      desc: "[in] device associated with the USM memory object"

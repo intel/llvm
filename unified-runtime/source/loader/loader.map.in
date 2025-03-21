@@ -506,6 +506,7 @@
 		urPrintUsmPoolGetInfoParams;
 		urPrintUsmPoolInfo;
 		urPrintUsmPoolLimitsDesc;
+		urPrintUsmPoolNativeDesc;
 		urPrintUsmPoolReleaseParams;
 		urPrintUsmPoolRetainParams;
 		urPrintUsmPoolSetDevicePoolExpParams;
