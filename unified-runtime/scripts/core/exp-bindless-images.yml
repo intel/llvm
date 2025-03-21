@@ -113,6 +113,9 @@ etors:
     - name: BINDLESS_SAMPLE_2D_USM_EXP
       value: "0x201C"
       desc: "[$x_bool_t] returns true if the device supports sampling USM backed 2D sampled image data."
+    - name: BINDLESS_IMAGES_GATHER_EXP
+      value: "0x201D"
+      desc: "[$x_bool_t] returns true if the device supports sampled image gather."
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -180,6 +183,15 @@ etors:
       desc: "Experimental cubemap image object"
 --- #--------------------------------------------------------------------------
 type: enum
+extend: True
+desc: "Memory types"
+name: $x_mem_type_t
+etors:
+    - name: IMAGE_GATHER_EXP
+      value: "0x2001"
+      desc: "Experimental gather image object"
+--- #--------------------------------------------------------------------------
+type: enum
 desc: "Sampler cubemap seamless filtering mode."
 class: $xBindlessImages
 name: $x_exp_sampler_cubemap_filter_mode_t
@@ -207,11 +219,15 @@ class: $xBindlessImages
 name: $x_exp_external_semaphore_type_t
 etors:
   - name: OPAQUE_FD
-    desc: "Opaque file descriptor"
+    desc: "Binary semaphore opaque file descriptor"
   - name: WIN32_NT
-    desc: "Win32 NT handle"
+    desc: "Binary semaphore Win32 NT handle"
   - name: WIN32_NT_DX12_FENCE
-    desc: "Win32 NT DirectX 12 fence handle"
+    desc: "Fence semaphore Win32 NT DirectX 12 handle"
+  - name: TIMELINE_FD
+    desc: "Timeline semaphore opaque file descriptor"
+  - name: TIMELINE_WIN32_NT
+    desc: "Timeline semaphore Win32 NT handle"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "File descriptor"

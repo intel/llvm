@@ -31,6 +31,7 @@
 		urCommandBufferAppendMemBufferReadRectExp;
 		urCommandBufferAppendMemBufferWriteExp;
 		urCommandBufferAppendMemBufferWriteRectExp;
+		urCommandBufferAppendNativeCommandExp;
 		urCommandBufferAppendUSMAdviseExp;
 		urCommandBufferAppendUSMFillExp;
 		urCommandBufferAppendUSMMemcpyExp;
@@ -38,6 +39,7 @@
 		urCommandBufferCreateExp;
 		urCommandBufferFinalizeExp;
 		urCommandBufferGetInfoExp;
+		urCommandBufferGetNativeHandleExp;
 		urCommandBufferReleaseExp;
 		urCommandBufferRetainExp;
 		urCommandBufferUpdateKernelLaunchExp;
@@ -214,6 +216,7 @@
 		urPrintCommandBufferAppendMemBufferReadRectExpParams;
 		urPrintCommandBufferAppendMemBufferWriteExpParams;
 		urPrintCommandBufferAppendMemBufferWriteRectExpParams;
+		urPrintCommandBufferAppendNativeCommandExpParams;
 		urPrintCommandBufferAppendUsmAdviseExpParams;
 		urPrintCommandBufferAppendUsmFillExpParams;
 		urPrintCommandBufferAppendUsmMemcpyExpParams;
@@ -221,6 +224,7 @@
 		urPrintCommandBufferCreateExpParams;
 		urPrintCommandBufferFinalizeExpParams;
 		urPrintCommandBufferGetInfoExpParams;
+		urPrintCommandBufferGetNativeHandleExpParams;
 		urPrintCommandBufferReleaseExpParams;
 		urPrintCommandBufferRetainExpParams;
 		urPrintCommandBufferUpdateKernelLaunchExpParams;
@@ -260,6 +264,7 @@
 		urPrintDeviceReleaseParams;
 		urPrintDeviceRetainParams;
 		urPrintDeviceSelectBinaryParams;
+		urPrintDeviceThrottleReasonsFlags;
 		urPrintDeviceType;
 		urPrintDeviceUsmAccessCapabilityFlags;
 		urPrintEnqueueCommandBufferExpParams;

@@ -21,6 +21,7 @@
 #include "ur/ur.hpp"
 
 #include "command_list_manager.hpp"
+#include "lockable.hpp"
 
 namespace v2 {
 
@@ -32,14 +33,16 @@ private:
   ur_device_handle_t hDevice;
   ur_queue_flags_t flags;
 
-  ur_command_list_manager commandListManager;
+  lockable<ur_command_list_manager> commandListManager;
   std::vector<ur_event_handle_t> deferredEvents;
   std::vector<ur_kernel_handle_t> submittedKernels;
 
-  wait_list_view getWaitListView(const ur_event_handle_t *phWaitEvents,
+  wait_list_view getWaitListView(locked<ur_command_list_manager> &commandList,
+                                 const ur_event_handle_t *phWaitEvents,
                                  uint32_t numWaitEvents);
 
-  ze_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
+  ze_event_handle_t getSignalEvent(locked<ur_command_list_manager> &commandList,
+                                   ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
 
   void deferEventFree(ur_event_handle_t hEvent) override;

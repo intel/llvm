@@ -38,9 +38,20 @@ private:
 ABIArgInfo CommonSPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
   Ty = useFirstFieldIfTransparentUnion(Ty);
 
-  if (getContext().getLangOpts().SYCLIsDevice && isAggregateTypeForABI(Ty)) {
+  if (getContext().getLangOpts().SYCLIsDevice) {
+    if (const BuiltinType *BT = Ty->getAs<BuiltinType>()) {
+      switch (BT->getKind()) {
+      case BuiltinType::Bool:
+        // Bool / i1 isn't a legal kernel argument in SPIR-V.
+        // Coerce the type to follow the host representation of bool.
+        return ABIArgInfo::getDirect(CGT.ConvertTypeForMem(Ty));
+      default:
+        break;
+      }
+    }
     // Pass all aggregate types allowed by Sema by value.
-    return getNaturalAlignIndirect(Ty);
+    if (isAggregateTypeForABI(Ty))
+      return getNaturalAlignIndirect(Ty);
   }
 
   return DefaultABIInfo::classifyArgumentType(Ty);

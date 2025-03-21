@@ -6,6 +6,14 @@ L0 v2 adapter can be enabled by setting passing `UR_BUILD_ADAPTER_L0_V2=1` optio
 
 Currently, L0 v2 is only available as an experimental adapter to gather feedback and adding missing features. L0 v2 is planned to be the default adapter for L0 in 2026.0 release.
 
+To enable L0 v2 adapter at runtime, set, `SYCL_UR_USE_LEVEL_ZERO_V2=1`.
+
+This forces UR and SYCL to use the v2 adapter instead of the legacy version.
+
+Alternatively, `UR_ADAPTER_FORCE_LOAD` env variable can be used.
+
+SYCL E2E tests can be used to test v2 adapter by passing `level_zero_v2:gpu` to llvm-lit `sycl_devices`.
+
 # Code structure
 
 v2 adapters is is a standalone adapter but reuses some logic from the legacy L0 adapter implementation - most notably: adapter.cpp, platform.cpp, device.cpp
