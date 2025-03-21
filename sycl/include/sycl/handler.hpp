@@ -430,7 +430,7 @@ private:
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
+  handler(const std::shared_ptr<detail::queue_impl> &Queue, bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
@@ -442,9 +442,9 @@ private:
   ///        is null if no secondary queue is associated with the submission.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-  handler(std::shared_ptr<detail::queue_impl> Queue,
-          std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          std::shared_ptr<detail::queue_impl> SecondaryQueue,
+  handler(const std::shared_ptr<detail::queue_impl> &Queue,
+          detail::queue_impl *PrimaryQueue,
+          detail::queue_impl *SecondaryQueue,
           bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from Graph.
@@ -3449,6 +3449,8 @@ private:
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
+  // to support releasing of queue_impl::MHandler
+  friend struct std::default_delete<sycl::handler>;
   // Make accessor class friend to keep the list of associated accessors.
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder,
@@ -3532,6 +3534,12 @@ private:
   }
   void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                  size_t Size, bool Block = false);
+
+  void reset(const std::shared_ptr<detail::queue_impl> &Queue,
+             detail::queue_impl *PrimaryQueue,
+             detail::queue_impl *SecondaryQueue,
+             bool CallerNeedsEvent);
+
   friend class ext::oneapi::experimental::detail::graph_impl;
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
   friend class ext::oneapi::experimental::detail::dynamic_command_group_impl;
