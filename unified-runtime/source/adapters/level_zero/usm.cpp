@@ -644,13 +644,18 @@ ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
 } // namespace ur::level_zero
 
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
-  auto ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
-  // Handle When the driver is already released
-  if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-    return UR_RESULT_SUCCESS;
-  } else {
-    return ze2urResult(ZeResult);
+  ur_result_t Res = UR_RESULT_SUCCESS;
+  if (!Context->IsInteropNativeHandle ||
+      (Context->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+    auto ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
+    // Handle When the driver is already released
+    if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
+      Res = UR_RESULT_SUCCESS;
+    } else {
+      Res = ze2urResult(ZeResult);
+    }
   }
+  return Res;
 }
 
 static ur_result_t USMQueryPageSize(ur_context_handle_t Context, void *Ptr,

@@ -361,6 +361,7 @@ urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
 
   *phKernel =
       new ur_kernel_handle_t_(hNativeKernel, hProgram, hContext, pProperties);
+  (*phKernel)->IsInteropNativeHandle = true;
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

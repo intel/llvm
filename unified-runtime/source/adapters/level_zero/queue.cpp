@@ -798,6 +798,7 @@ ur_result_t urQueueCreateWithNativeHandle(
       ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(
           ComputeQueues, CopyQueues, Context, UrDevice, OwnNativeHandle, Flags);
       *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+      (*RetQueue)->IsInteropNativeHandle = true;
     } catch (const std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
@@ -1599,10 +1600,13 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
       for (auto &QueueGroup : QueueMap)
         for (auto &ZeQueue : QueueGroup.second.ZeQueues)
           if (ZeQueue) {
-            auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
-            // Gracefully handle the case that L0 was already unloaded.
-            if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-              return ze2urResult(ZeResult);
+            if (!Queue->IsInteropNativeHandle ||
+                (Queue->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+              auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
+              // Gracefully handle the case that L0 was already unloaded.
+              if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+                return ze2urResult(ZeResult);
+            }
           }
   }
 

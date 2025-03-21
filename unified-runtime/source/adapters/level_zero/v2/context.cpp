@@ -152,6 +152,7 @@ ur_result_t urContextCreateWithNativeHandle(
 
   *phContext =
       new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
+  (*phContext)->IsInteropNativeHandle = true;
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

@@ -1001,6 +1001,7 @@ ur_result_t urEventCreateWithNativeHandle(
   UREvent->CleanedUp = true;
 
   *Event = reinterpret_cast<ur_event_handle_t>(UREvent);
+  UREvent->IsInteropNativeHandle = true;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1116,11 +1117,14 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
   if (Event->OwnNativeHandle) {
     if (DisableEventsCaching) {
-      auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+      if (!Event->IsInteropNativeHandle ||
+          (Event->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+        auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+        // Gracefully handle the case that L0 was already unloaded.
+        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+          return ze2urResult(ZeResult);
+      }
       Event->ZeEvent = nullptr;
-      // Gracefully handle the case that L0 was already unloaded.
-      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-        return ze2urResult(ZeResult);
       auto Context = Event->Context;
       if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
         return Res;

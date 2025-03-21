@@ -107,14 +107,17 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
 
 ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
-    device_access_mode_t accessMode, bool ownHostPtr)
+    device_access_mode_t accessMode, bool ownHostPtr, bool interopNativeHandle)
     : ur_mem_buffer_t(hContext, size, accessMode) {
-  this->ptr = usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr](void *ptr) {
-    if (!ownHostPtr) {
-      return;
-    }
-    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
-  });
+  this->IsInteropNativeHandle = interopNativeHandle;
+  this->ptr =
+      usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr, this](void *ptr) {
+        if (!ownHostPtr ||
+            (this->IsInteropNativeHandle && !checkL0LoaderTeardown())) {
+          return;
+        }
+        ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+      });
 }
 
 void *ur_integrated_buffer_handle_t::getDevicePtr(
@@ -220,7 +223,7 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
 ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, void *devicePtr,
     size_t size, device_access_mode_t accessMode, void *writeBackMemory,
-    bool ownZePtr)
+    bool ownZePtr, bool interopNativeHandle)
     : ur_mem_buffer_t(hContext, size, accessMode),
       deviceAllocations(hContext->getPlatform()->getNumDevices()),
       activeAllocationDevice(hDevice), writeBackPtr(writeBackMemory),
@@ -230,9 +233,11 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     hDevice = hDevice ? hDevice : hContext->getDevices()[0];
     devicePtr = allocateOnDevice(hDevice, size);
   } else {
+    this->IsInteropNativeHandle = interopNativeHandle;
     deviceAllocations[hDevice->Id.value()] = usm_unique_ptr_t(
-        devicePtr, [hContext = this->hContext, ownZePtr](void *ptr) {
-          if (!ownZePtr) {
+        devicePtr, [this, hContext = this->hContext, ownZePtr](void *ptr) {
+          if (!ownZePtr ||
+              (this->IsInteropNativeHandle && !checkL0LoaderTeardown())) {
             return;
           }
           ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
@@ -434,8 +439,10 @@ ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
 ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
                                const ur_image_format_t *pImageFormat,
                                const ur_image_desc_t *pImageDesc,
-                               ze_image_handle_t zeImage, bool ownZeImage)
+                               ze_image_handle_t zeImage, bool ownZeImage,
+                               bool interopNativeHandle)
     : hContext(hContext), zeImage(zeImage, ownZeImage) {
+  this->IsInteropNativeHandle = interopNativeHandle;
   UR_CALL_THROWS(ur2zeImageDesc(pImageFormat, pImageDesc, zeImageDesc));
 }
 
@@ -577,7 +584,7 @@ ur_result_t urMemBufferCreateWithNativeHandle(
 
   if (useHostBuffer(hContext) && memoryAttrs.type == ZE_MEMORY_TYPE_HOST) {
     *phMem = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
-        hContext, ptr, size, accessMode, ownNativeHandle);
+        hContext, ptr, size, accessMode, ownNativeHandle, true);
     // if useHostBuffer(hContext) is true but the allocation is on device, we'll
     // treat it as discrete memory
   } else {
@@ -585,11 +592,13 @@ ur_result_t urMemBufferCreateWithNativeHandle(
       // For host allocation, we need to copy the data to a device buffer
       // and then copy it back on release
       *phMem = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
-          hContext, hDevice, nullptr, size, accessMode, ptr, ownNativeHandle);
+          hContext, hDevice, nullptr, size, accessMode, ptr, ownNativeHandle,
+          true);
     } else {
       // For device/shared allocation, we can use it directly
       *phMem = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
-          hContext, hDevice, ptr, size, accessMode, nullptr, ownNativeHandle);
+          hContext, hDevice, ptr, size, accessMode, nullptr, ownNativeHandle,
+          true);
     }
   }
 
@@ -699,7 +708,7 @@ ur_result_t urMemImageCreateWithNativeHandle(
   bool ownNativeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
   *phMem = ur_mem_handle_t_::create<ur_mem_image_t>(
-      hContext, pImageFormat, pImageDesc, zeImage, ownNativeHandle);
+      hContext, pImageFormat, pImageDesc, zeImage, ownNativeHandle, true);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
