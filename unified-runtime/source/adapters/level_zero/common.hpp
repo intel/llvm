@@ -37,7 +37,7 @@
 
 struct _ur_platform_handle_t;
 
-static bool checkL0LoaderTeardown() {
+[[maybe_unused]] static bool checkL0LoaderTeardown() {
   bool loaderStable = true;
 #ifdef _WIN32
   uint32_t ZeDriverCount = 0;
