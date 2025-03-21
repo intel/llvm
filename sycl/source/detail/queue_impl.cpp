@@ -303,7 +303,7 @@ sycl::detail::optional<event> queue_impl::getLastEvent() {
 }
 
 void queue_impl::addEvent(const event &Event) {
-  EventImplPtr EImpl = getSyclObjImpl(Event);
+  const EventImplPtr &EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
   if (!Cmd) {
