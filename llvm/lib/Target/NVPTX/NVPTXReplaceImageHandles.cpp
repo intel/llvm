@@ -1809,6 +1809,8 @@ findIndexForHandle(MachineOperand &Op, MachineFunction &MF, unsigned &Idx) {
   MachineInstr &TexHandleDef = *MRI.getVRegDef(Op.getReg());
 
   switch (TexHandleDef.getOpcode()) {
+  case NVPTX::LD_i64_asi:
+  case NVPTX::LD_i64_areg_64:
   case NVPTX::LD_i64_avar: {
     // The handle is a parameter value being loaded, replace with the
     // parameter symbol
@@ -1830,7 +1832,7 @@ findIndexForHandle(MachineOperand &Op, MachineFunction &MF, unsigned &Idx) {
     NewSymStr << MF.getName() << "_param_" << Param;
 
     InstrsToRemove.insert(&TexHandleDef);
-    Idx = MFI->getImageHandleSymbolIndex(NewSymStr.str().c_str());
+    Idx = MFI->getImageHandleSymbolIndex(NewSymStr.str());
     return true;
   }
   case NVPTX::texsurf_handles: {
@@ -1839,7 +1841,7 @@ findIndexForHandle(MachineOperand &Op, MachineFunction &MF, unsigned &Idx) {
     const GlobalValue *GV = TexHandleDef.getOperand(1).getGlobal();
     assert(GV->hasName() && "Global sampler must be named!");
     InstrsToRemove.insert(&TexHandleDef);
-    Idx = MFI->getImageHandleSymbolIndex(GV->getName().data());
+    Idx = MFI->getImageHandleSymbolIndex(GV->getName());
     return true;
   }
   case NVPTX::nvvm_move_i64:
