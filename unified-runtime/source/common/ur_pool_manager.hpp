@@ -151,9 +151,11 @@ inline std::vector<pool_descriptor> pool_descriptor::createFromDevices(
   return descriptors;
 }
 
-template <typename D> struct pool_manager {
+template <typename D, typename H> struct pool_manager {
 private:
-  using desc_to_pool_map_t = std::unordered_map<D, umf::pool_unique_handle_t>;
+  using pool_handle_t = H *;
+  using unique_pool_handle_t = std::unique_ptr<H, std::function<void(H *)>>;
+  using desc_to_pool_map_t = std::unordered_map<D, unique_pool_handle_t>;
 
   desc_to_pool_map_t descToPoolMap;
 
@@ -172,8 +174,7 @@ public:
     return {UR_RESULT_SUCCESS, std::move(manager)};
   }
 
-  ur_result_t addPool(const D &desc,
-                      umf::pool_unique_handle_t &&hPool) noexcept {
+  ur_result_t addPool(const D &desc, unique_pool_handle_t &&hPool) noexcept {
     if (!descToPoolMap.try_emplace(desc, std::move(hPool)).second) {
       logger::error("Pool for pool descriptor: {}, already exists", desc);
       return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -182,7 +183,7 @@ public:
     return UR_RESULT_SUCCESS;
   }
 
-  std::optional<umf_memory_pool_handle_t> getPool(const D &desc) noexcept {
+  std::optional<pool_handle_t> getPool(const D &desc) noexcept {
     auto it = descToPoolMap.find(desc);
     if (it == descToPoolMap.end()) {
       logger::error("Pool descriptor doesn't match any existing pool: {}",
@@ -192,12 +193,11 @@ public:
 
     return it->second.get();
   }
-
-  bool hasPool(const umf_memory_pool_handle_t hPool) noexcept {
-    return std::any_of(descToPoolMap.begin(), descToPoolMap.end(),
-                       [hPool](const auto &descPoolPair) {
-                         return descPoolPair.second.get() == hPool;
-                       });
+  template <typename Func> void forEachPool(Func func) noexcept {
+    for (const auto &[desc, pool] : descToPoolMap) {
+      if (!func(pool.get()))
+        break;
+    }
   }
 };
 

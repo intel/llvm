@@ -11,25 +11,45 @@
 
 #include "common.hpp"
 
+#include "enqueued_pool.hpp"
+#include "ur_api.h"
 #include "ur_pool_manager.hpp"
+#include <set>
 #include <umf_helpers.hpp>
 
 usm::DisjointPoolAllConfigs InitializeDisjointPoolConfig();
 
+struct UsmPool {
+  UsmPool(umf::pool_unique_handle_t Pool) : UmfPool(std::move(Pool)) {}
+  umf::pool_unique_handle_t UmfPool;
+  EnqueuedPool AsyncPool;
+};
+
 struct ur_usm_pool_handle_t_ : _ur_object {
   ur_usm_pool_handle_t_(ur_context_handle_t Context,
                         ur_usm_pool_desc_t *PoolDesc, bool IsProxy = false);
+  ur_usm_pool_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
+                        ur_usm_pool_desc_t *PoolDesc);
 
   ur_result_t allocate(ur_context_handle_t Context, ur_device_handle_t Device,
                        const ur_usm_desc_t *USMDesc, ur_usm_type_t Type,
                        size_t Size, void **RetMem);
+
+  std::optional<std::pair<void *, ur_event_handle_t>>
+  allocateEnqueued(ur_queue_handle_t Queue, ur_device_handle_t Device,
+                   const ur_usm_desc_t *USMDesc, ur_usm_type_t Type,
+                   size_t Size);
+
   bool hasPool(const umf_memory_pool_handle_t Pool);
+  UsmPool *getPoolByHandle(const umf_memory_pool_handle_t Pool);
+  void cleanupPools();
+  void cleanupPoolsForQueue(ur_queue_handle_t Queue);
 
   ur_context_handle_t Context;
 
 private:
-  umf_memory_pool_handle_t getPool(const usm::pool_descriptor &Desc);
-  usm::pool_manager<usm::pool_descriptor> PoolManager;
+  UsmPool *getPool(const usm::pool_descriptor &Desc);
+  usm::pool_manager<usm::pool_descriptor, UsmPool> PoolManager;
 };
 
 // Exception type to pass allocation errors
