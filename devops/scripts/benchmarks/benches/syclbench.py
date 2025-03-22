@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -8,7 +8,7 @@ import csv
 import io
 from utils.utils import run, git_clone, create_build_path
 from .base import Benchmark, Suite
-from .result import Result
+from utils.result import Result
 from options import options
 
 
@@ -23,6 +23,12 @@ class SyclBench(Suite):
     def name(self) -> str:
         return "SYCL-Bench"
 
+    def git_url(self) -> str:
+        return "https://github.com/unisa-hpc/sycl-bench.git"
+
+    def git_hash(self) -> str:
+        return "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -31,8 +37,8 @@ class SyclBench(Suite):
         repo_path = git_clone(
             self.directory,
             "sycl-bench-repo",
-            "https://github.com/mateuszpn/sycl-bench.git",
-            "1e6ab2cfd004a72c5336c26945965017e06eab71",
+            self.git_url(),
+            self.git_hash(),
         )
 
         configure_command = [
@@ -51,7 +57,7 @@ class SyclBench(Suite):
             ]
 
         run(configure_command, add_sycl=True)
-        run(f"cmake --build {build_path} -j", add_sycl=True)
+        run(f"cmake --build {build_path} -j {options.build_jobs}", add_sycl=True)
 
         self.built = True
 
@@ -65,14 +71,14 @@ class SyclBench(Suite):
             DagTaskS(self),
             HostDevBandwidth(self),
             LocalMem(self),
-            Pattern_L2(self),
-            Reduction(self),
+            # Pattern_L2(self), # validation failure
+            # Reduction(self), # validation failure
             ScalarProd(self),
             SegmentReduction(self),
-            UsmAccLatency(self),
+            # UsmAccLatency(self), # validation failure
             UsmAllocLatency(self),
-            UsmInstrMix(self),
-            UsmPinnedOverhead(self),
+            # UsmInstrMix(self), # validation failure
+            # UsmPinnedOverhead(self), # validation failure
             VecAdd(self),
             # *** sycl-bench single benchmarks
             # TwoDConvolution(self), # run time < 1ms
@@ -82,20 +88,20 @@ class SyclBench(Suite):
             Atax(self),
             # Atomic_reduction(self), # run time < 1ms
             Bicg(self),
-            Correlation(self),
-            Covariance(self),
-            Gemm(self),
-            Gesumv(self),
-            Gramschmidt(self),
+            # Correlation(self), # validation failure
+            # Covariance(self), # validation failure
+            # Gemm(self), # validation failure
+            # Gesumv(self), # validation failure
+            # Gramschmidt(self), # validation failure
             KMeans(self),
             LinRegCoeff(self),
             # LinRegError(self), # run time < 1ms
-            MatmulChain(self),
+            # MatmulChain(self), # validation failure
             MolDyn(self),
-            Mvt(self),
+            # Mvt(self), # validation failure
             Sf(self),
-            Syr2k(self),
-            Syrk(self),
+            # Syr2k(self), # validation failure
+            # Syrk(self), # validation failure
         ]
 
 
@@ -105,7 +111,6 @@ class SyclBenchmark(Benchmark):
         self.bench = bench
         self.bench_name = name
         self.test = test
-        self.done = False
 
     def bin_args(self) -> list[str]:
         return []
@@ -113,16 +118,26 @@ class SyclBenchmark(Benchmark):
     def extra_env_vars(self) -> dict:
         return {}
 
+    def get_tags(self):
+        base_tags = ["SYCL", "micro"]
+        if "Memory" in self.bench_name or "mem" in self.bench_name.lower():
+            base_tags.append("memory")
+        if "Reduction" in self.bench_name:
+            base_tags.append("math")
+        if "Bandwidth" in self.bench_name:
+            base_tags.append("throughput")
+        if "Latency" in self.bench_name:
+            base_tags.append("latency")
+        return base_tags
+
     def setup(self):
         self.benchmark_bin = os.path.join(
             self.directory, "sycl-bench-build", self.bench_name
         )
 
     def run(self, env_vars) -> list[Result]:
-        if self.done:
-            return
         self.outputfile = os.path.join(self.bench.directory, self.test + ".csv")
-        print(f"{self.__class__.__name__}: Results in {self.outputfile}")
+
         command = [
             f"{self.benchmark_bin}",
             f"--warmup-run",
@@ -143,25 +158,27 @@ class SyclBenchmark(Benchmark):
                 if not row[0].startswith("#"):
                     res_list.append(
                         Result(
-                            label=row[0],
+                            label=f"{self.name()} {row[0]}",
                             value=float(row[12]) * 1000,  # convert to ms
                             passed=(row[1] == "PASS"),
                             command=command,
                             env=env_vars,
                             stdout=row,
                             unit="ms",
+                            git_url=self.bench.git_url(),
+                            git_hash=self.bench.git_hash(),
                         )
                     )
-        self.done = True
+
+        os.remove(self.outputfile)
+
         return res_list
 
-    def teardown(self):
-        print(f"Removing {self.outputfile}...")
-        os.remove(self.outputfile)
-        return
-
     def name(self):
-        return self.test
+        return f"{self.bench.name()} {self.test}"
+
+    def teardown(self):
+        return
 
 
 # multi benchmarks

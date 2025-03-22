@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -17,6 +17,7 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
+from presets import enabled_suites, presets
 
 import argparse
 import re
@@ -27,23 +28,27 @@ INTERNAL_WORKDIR_VERSION = "2.0"
 
 
 def run_iterations(
-    benchmark: Benchmark, env_vars, iters: int, results: dict[str, list[Result]]
+    benchmark: Benchmark,
+    env_vars,
+    iters: int,
+    results: dict[str, list[Result]],
+    failures: dict[str, str],
 ):
     for iter in range(iters):
-        print(f"running {benchmark.name()}, iteration {iter}... ", end="", flush=True)
+        print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
         bench_results = benchmark.run(env_vars)
         if bench_results is None:
-            print(f"did not finish (OK for sycl-bench).")
+            failures[benchmark.name()] = "benchmark produced no results!"
             break
 
         for bench_result in bench_results:
-            # TODO: report failures in markdown/html ?
             if not bench_result.passed:
-                print(f"complete ({bench_result.label}: verification FAILED)")
+                failures[bench_result.label] = "verification failed"
+                print(f"complete ({bench_result.label}: verification failed).")
                 continue
 
             print(
-                f"complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
             )
 
             bench_result.name = bench_result.label
@@ -132,6 +137,18 @@ def process_results(
     return valid_results, processed
 
 
+def collect_metadata(suites):
+    metadata = {}
+
+    for s in suites:
+        metadata.update(s.additionalMetadata())
+        suite_benchmarks = s.benchmarks()
+        for benchmark in suite_benchmarks:
+            metadata[benchmark.name()] = benchmark.get_metadata()
+
+    return metadata
+
+
 def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
@@ -142,22 +159,29 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         options.extra_ld_libraries.extend(cr.ld_libraries())
         options.extra_env_vars.update(cr.env_vars())
 
-    suites = (
-        [
-            ComputeBench(directory),
-            VelocityBench(directory),
-            SyclBench(directory),
-            LlamaCppBench(directory),
-            UMFSuite(directory),
-            # TestSuite()
-        ]
-        if not options.dry_run
-        else []
-    )
+    suites = [
+        ComputeBench(directory),
+        VelocityBench(directory),
+        SyclBench(directory),
+        LlamaCppBench(directory),
+        UMFSuite(directory),
+        TestSuite(),
+    ]
+
+    # Collect metadata from all benchmarks without setting them up
+    metadata = collect_metadata(suites)
+
+    # If dry run, we're done
+    if options.dry_run:
+        suites = []
 
     benchmarks = []
+    failures = {}
 
     for s in suites:
+        if s.name() not in enabled_suites(options.preset):
+            continue
+
         suite_benchmarks = s.benchmarks()
         if filter:
             suite_benchmarks = [
@@ -170,25 +194,26 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             print(f"Setting up {type(s).__name__}")
             try:
                 s.setup()
-            except:
+            except Exception as e:
+                failures[s.name()] = f"Suite setup failure: {e}"
                 print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
             else:
                 print(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks
 
-    for b in benchmarks:
-        print(b.name())
-
     for benchmark in benchmarks:
         try:
-            print(f"Setting up {benchmark.name()}... ")
+            if options.verbose:
+                print(f"Setting up {benchmark.name()}... ")
             benchmark.setup()
-            print(f"{benchmark.name()} setup complete.")
+            if options.verbose:
+                print(f"{benchmark.name()} setup complete.")
 
         except Exception as e:
             if options.exit_on_failure:
                 raise e
             else:
+                failures[benchmark.name()] = f"Benchmark setup failure: {e}"
                 print(f"failed: {e}")
 
     results = []
@@ -199,7 +224,11 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             processed: list[Result] = []
             for _ in range(options.iterations_stddev):
                 run_iterations(
-                    benchmark, merged_env_vars, options.iterations, intermediate_results
+                    benchmark,
+                    merged_env_vars,
+                    options.iterations,
+                    intermediate_results,
+                    failures,
                 )
                 valid, processed = process_results(
                     intermediate_results, benchmark.stddev_threshold()
@@ -211,12 +240,16 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             if options.exit_on_failure:
                 raise e
             else:
+                failures[benchmark.name()] = f"Benchmark run failure: {e}"
                 print(f"failed: {e}")
 
     for benchmark in benchmarks:
-        print(f"tearing down {benchmark.name()}... ", end="", flush=True)
+        # this never has any useful information anyway, so hide it behind verbose
+        if options.verbose:
+            print(f"tearing down {benchmark.name()}... ", flush=True)
         benchmark.teardown()
-        print("complete.")
+        if options.verbose:
+            print("{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}
@@ -224,7 +257,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     if not options.dry_run:
         chart_data = {this_name: results}
 
-    history = BenchmarkHistory(directory)
+    results_dir = directory
+    if options.custom_results_dir:
+        results_dir = Path(options.custom_results_dir)
+    history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
     history.load(1000)
@@ -241,14 +277,18 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
     if options.output_markdown:
         markdown_content = generate_markdown(
-            this_name, chart_data, options.output_markdown
+            this_name, chart_data, failures, options.output_markdown
         )
 
-        with open("benchmark_results.md", "w") as file:
+        md_path = options.output_directory
+        if options.output_directory is None:
+            md_path = os.getcwd()
+
+        with open(os.path.join(md_path, "benchmark_results.md"), "w") as file:
             file.write(markdown_content)
 
         print(
-            f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md"
+            f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
         )
 
     saved_name = save_name if save_name is not None else this_name
@@ -262,14 +302,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             compare_names.append(saved_name)
 
     if options.output_html:
-        html_content = generate_html(history.runs, "intel/llvm", compare_names)
-
-        with open("benchmark_results.html", "w") as file:
-            file.write(html_content)
-
-        print(
-            f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html"
-        )
+        html_path = options.output_directory
+        if options.output_directory is None:
+            html_path = os.path.join(os.path.dirname(__file__), "html")
+        generate_html(history.runs, compare_names, html_path, metadata)
 
 
 def validate_and_parse_env_args(env_args):
@@ -297,12 +333,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--adapter",
         type=str,
-        help="Options to build the Unified Runtime as part of the benchmark",
+        help="Unified Runtime adapter to use.",
         default="level_zero",
     )
     parser.add_argument(
         "--no-rebuild",
         help="Do not rebuild the benchmarks from scratch.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--redownload",
+        help="Always download benchmark data dependencies, even if they already exist.",
         action="store_true",
     )
     parser.add_argument(
@@ -348,12 +389,6 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
-        "--epsilon",
-        type=float,
-        help="Threshold to consider change of performance significant",
-        default=options.epsilon,
-    )
-    parser.add_argument(
         "--verbose", help="Print output of all the commands.", action="store_true"
     )
     parser.add_argument(
@@ -379,7 +414,17 @@ if __name__ == "__main__":
         help="Specify whether markdown output should fit the content size limit for request validation",
     )
     parser.add_argument(
-        "--output-html", help="Create HTML output", action="store_true", default=False
+        "--output-html",
+        help="Create HTML output. Local output is for direct local viewing of the html file, remote is for server deployment.",
+        nargs="?",
+        const=options.output_html,
+        choices=["local", "remote"],
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        help="Location for output files, if --output-html or --output_markdown was specified.",
+        default=None,
     )
     parser.add_argument(
         "--dry-run",
@@ -423,6 +468,25 @@ if __name__ == "__main__":
         help="Directory for cublas library",
         default=None,
     )
+    parser.add_argument(
+        "--preset",
+        type=str,
+        choices=[p for p in presets.keys()],
+        help="Benchmark preset to run.",
+        default=options.preset,
+    )
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom results directory",
+        default=options.custom_results_dir,
+    )
+    parser.add_argument(
+        "--build-jobs",
+        type=int,
+        help="Number of build jobs to run simultaneously",
+        default=options.build_jobs,
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -430,10 +494,10 @@ if __name__ == "__main__":
     options.workdir = args.benchmark_directory
     options.verbose = args.verbose
     options.rebuild = not args.no_rebuild
+    options.redownload = args.redownload
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
-    options.epsilon = args.epsilon
     options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
@@ -448,12 +512,19 @@ if __name__ == "__main__":
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
+    options.preset = args.preset
+    options.custom_results_dir = args.results_dir
+    options.build_jobs = args.build_jobs
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
     if args.compute_runtime is not None:
         options.build_compute_runtime = True
         options.compute_runtime_tag = args.compute_runtime
+    if args.output_dir is not None:
+        if not os.path.isdir(args.output_dir):
+            parser.error("Specified --output-dir is not a valid path")
+        options.output_directory = os.path.abspath(args.output_dir)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

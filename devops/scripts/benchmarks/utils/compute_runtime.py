@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -62,7 +62,7 @@ class ComputeRuntime:
             f"-DCMAKE_BUILD_TYPE=Release",
         ]
         run(configure_command)
-        run(f"cmake --build {self.gmmlib_build} -j")
+        run(f"cmake --build {self.gmmlib_build} -j {options.build_jobs}")
         run(f"cmake --install {self.gmmlib_build}")
         return self.gmmlib_install
 
@@ -87,7 +87,7 @@ class ComputeRuntime:
             f"-DCMAKE_BUILD_TYPE=Release",
         ]
         run(configure_command)
-        run(f"cmake --build {self.level_zero_build} -j")
+        run(f"cmake --build {self.level_zero_build} -j {options.build_jobs}")
         run(f"cmake --install {self.level_zero_build}")
         return self.level_zero_install
 
@@ -142,8 +142,11 @@ class ComputeRuntime:
         ]
         run(configure_command)
 
-        # set timeout to 30min. IGC takes A LONG time to build if building from scratch.
-        run(f"cmake --build {self.igc_build} -j", timeout=600 * 3)
+        # set timeout to 2h. IGC takes A LONG time to build if building from scratch.
+        run(
+            f"cmake --build {self.igc_build} -j {options.build_jobs}",
+            timeout=60 * 60 * 2,
+        )
         # cmake --install doesn't work...
         run("make install", cwd=self.igc_build)
         return self.igc_install
@@ -214,7 +217,7 @@ class ComputeRuntime:
             configure_command.append(f"-DIGC_DIR={self.igc}")
 
         run(configure_command)
-        run(f"cmake --build {self.compute_runtime_build} -j")
+        run(f"cmake --build {self.compute_runtime_build} -j {options.build_jobs}")
         return self.compute_runtime_build
 
 
