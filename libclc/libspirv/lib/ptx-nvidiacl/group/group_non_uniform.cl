@@ -13,7 +13,7 @@
 #include <libspirv/spirv_types.h>
 
 _CLC_DEF _CLC_CONVERGENT __clc_vec4_uint32_t
-_Z29__spirv_GroupNonUniformBallotjb(unsigned flag, bool predicate) {
+_Z29__spirv_GroupNonUniformBallotib(int flag, bool predicate) {
   // only support subgroup for now
   if (flag != Subgroup) {
     __builtin_trap();
@@ -38,7 +38,7 @@ _Z29__spirv_GroupNonUniformBallotjb(unsigned flag, bool predicate) {
 
 _CLC_DEF _CLC_CONVERGENT uint
 _Z37__spirv_GroupNonUniformBallotBitCountN5__spv5Scope4FlagEiDv4_j(
-    uint scope, uint flag, __clc_vec4_uint32_t mask) {
+    int scope, int flag, __clc_vec4_uint32_t mask) {
   // here we assume scope == __spv::Scope::Subgroup
   // flag == InclusiveScan is not yet implemented
   if (flag == Reduce) {

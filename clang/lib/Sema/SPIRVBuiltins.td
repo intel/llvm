@@ -911,52 +911,68 @@ foreach name = ["MemoryBarrier"] in {
 // 3.32.21. Group and Subgroup Instructions
 
 foreach name = ["GroupAsyncCopy"] in {
-  // TODO: Allow enum flags instead of UInt ?
-  // TODO: We should enforce that the UInt must be a literal.
-  def : SPVBuiltin<name, [Event, UInt, PointerType<AGenTypeN, LocalAS>, PointerType<ConstType<AGenTypeN>, GlobalAS>, Size, Size, Event], Attr.Convergent>;
-  def : SPVBuiltin<name, [Event, UInt, PointerType<AGenTypeN, GlobalAS>, PointerType<ConstType<AGenTypeN>, LocalAS>, Size, Size, Event], Attr.Convergent>;
+  // TODO: Allow enum flags instead of Int ?
+  // TODO: We should enforce that the Int must be a literal.
+  def : SPVBuiltin<name,
+                   [Event, Int, PointerType<AGenTypeN, LocalAS>,
+                    PointerType<ConstType<AGenTypeN>, GlobalAS>, Size, Size,
+                    Event],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name,
+                   [Event, Int, PointerType<AGenTypeN, GlobalAS>,
+                    PointerType<ConstType<AGenTypeN>, LocalAS>, Size, Size,
+                    Event],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupWaitEvents"] in {
-  def : SPVBuiltin<name, [Void, UInt, Int, PointerType<Event, DefaultAS>], Attr.Convergent>;
-  def : SPVBuiltin<name, [Void, UInt, Int, PointerType<Event, PrivateAS>], Attr.Convergent>;
-  def : SPVBuiltin<name, [Void, UInt, Int, PointerType<Event, GenericAS>], Attr.Convergent>;
+  def : SPVBuiltin<name, [Void, Int, Int, PointerType<Event, DefaultAS>],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name, [Void, Int, Int, PointerType<Event, PrivateAS>],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name, [Void, Int, Int, PointerType<Event, GenericAS>],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupAll", "GroupAny"] in {
-  def : SPVBuiltin<name, [Bool, UInt, Bool], Attr.Convergent>;
+  def : SPVBuiltin<name, [Bool, Int, Bool], Attr.Convergent>;
 }
 
 foreach name = ["GroupBroadcast"] in {
   foreach IDType = TLAllInts.List in {
-    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, IDType], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 2>], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 3>], Attr.Convergent>;
-    def : SPVBuiltin<name, [Bool, UInt, Bool, IDType], Attr.Convergent>;
-    def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 2>], Attr.Convergent>;
-    def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 3>], Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, Int, AGenTypeN, IDType],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, Int, AGenTypeN, VectorType<IDType, 2>],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, Int, AGenTypeN, VectorType<IDType, 3>],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [Bool, Int, Bool, IDType], Attr.Convergent>;
+    def : SPVBuiltin<name, [Bool, Int, Bool, VectorType<IDType, 2>],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [Bool, Int, Bool, VectorType<IDType, 3>],
+                     Attr.Convergent>;
   }
 }
 
 foreach name = ["GroupIAdd", "GroupIMulKHR", "GroupBitwiseOrKHR",
                 "GroupBitwiseXorKHR", "GroupBitwiseAndKHR"] in {
-  def : SPVBuiltin<name, [AIGenTypeN, UInt, UInt, AIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupFAdd", "GroupFMin", "GroupFMax",
                 "GroupFMulKHR"] in {
-  def : SPVBuiltin<name, [FGenTypeN, UInt, UInt, FGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupUMin", "GroupUMax"] in {
-  def : SPVBuiltin<name, [AUIGenTypeN, UInt, UInt, AUIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AUIGenTypeN, Int, Int, AUIGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupSMin", "GroupSMax"] in {
-  def : SPVBuiltin<name, [ASIGenTypeN, UInt, UInt, ASIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [ASIGenTypeN, Int, Int, ASIGenTypeN], Attr.Convergent>;
 }
 
 // TODO: These builtins need to support vectors of bool.
 foreach name = ["GroupLogicalAndKHR", "GroupLogicalOrKHR"] in {
-  def : SPVBuiltin<name, [Bool, UInt, UInt, Bool], Attr.Convergent>;
+  def : SPVBuiltin<name, [Bool, Int, Int, Bool], Attr.Convergent>;
 }
