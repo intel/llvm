@@ -17,7 +17,6 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
-from presets import enabled_suites, presets
 
 import argparse
 import re
@@ -179,9 +178,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     failures = {}
 
     for s in suites:
-        if s.name() not in enabled_suites(options.preset):
-            continue
-
         suite_benchmarks = s.benchmarks()
         if filter:
             suite_benchmarks = [
@@ -257,10 +253,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     if not options.dry_run:
         chart_data = {this_name: results}
 
-    results_dir = directory
-    if options.custom_results_dir:
-        results_dir = Path(options.custom_results_dir)
-    history = BenchmarkHistory(results_dir)
+    history = BenchmarkHistory(directory)
     # limit how many files we load.
     # should this be configurable?
     history.load(1000)
@@ -277,18 +270,14 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
     if options.output_markdown:
         markdown_content = generate_markdown(
-            this_name, chart_data, failures, options.output_markdown
+            this_name, chart_data, options.output_markdown
         )
 
-        md_path = options.output_directory
-        if options.output_directory is None:
-            md_path = os.getcwd()
-
-        with open(os.path.join(md_path, "benchmark_results.md"), "w") as file:
+        with open("benchmark_results.md", "w") as file:
             file.write(markdown_content)
 
         print(
-            f"Markdown with benchmark results has been written to {md_path}/benchmark_results.md"
+            f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md"
         )
 
     saved_name = save_name if save_name is not None else this_name
@@ -302,10 +291,14 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             compare_names.append(saved_name)
 
     if options.output_html:
-        html_path = options.output_directory
-        if options.output_directory is None:
-            html_path = os.path.join(os.path.dirname(__file__), "html")
-        generate_html(history.runs, compare_names, html_path, metadata)
+        html_content = generate_html(history.runs, "intel/llvm", compare_names)
+
+        with open("benchmark_results.html", "w") as file:
+            file.write(html_content)
+
+        print(
+            f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html"
+        )
 
 
 def validate_and_parse_env_args(env_args):
@@ -389,6 +382,12 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--epsilon",
+        type=float,
+        help="Threshold to consider change of performance significant",
+        default=options.epsilon,
+    )
+    parser.add_argument(
         "--verbose", help="Print output of all the commands.", action="store_true"
     )
     parser.add_argument(
@@ -414,17 +413,7 @@ if __name__ == "__main__":
         help="Specify whether markdown output should fit the content size limit for request validation",
     )
     parser.add_argument(
-        "--output-html",
-        help="Create HTML output. Local output is for direct local viewing of the html file, remote is for server deployment.",
-        nargs="?",
-        const=options.output_html,
-        choices=["local", "remote"],
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        help="Location for output files, if --output-html or --output_markdown was specified.",
-        default=None,
+        "--output-html", help="Create HTML output", action="store_true", default=False
     )
     parser.add_argument(
         "--dry-run",
@@ -456,31 +445,7 @@ if __name__ == "__main__":
         help="The name of the results which should be used as a baseline for metrics calculation",
         default=options.current_run_name,
     )
-    parser.add_argument(
-        "--cudnn_directory",
-        type=str,
-        help="Directory for cudnn library",
-        default=None,
-    )
-    parser.add_argument(
-        "--cublas_directory",
-        type=str,
-        help="Directory for cublas library",
-        default=None,
-    )
-    parser.add_argument(
-        "--preset",
-        type=str,
-        choices=[p for p in presets.keys()],
-        help="Benchmark preset to run.",
-        default=options.preset,
-    )
-    parser.add_argument(
-        "--results-dir",
-        type=str,
-        help="Specify a custom results directory",
-        default=options.custom_results_dir,
-    )
+
     parser.add_argument(
         "--build-jobs",
         type=int,
@@ -498,6 +463,7 @@ if __name__ == "__main__":
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
+    options.epsilon = args.epsilon
     options.ur = args.ur
     options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
@@ -510,10 +476,6 @@ if __name__ == "__main__":
     options.iterations_stddev = args.iterations_stddev
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
-    options.cudnn_directory = args.cudnn_directory
-    options.cublas_directory = args.cublas_directory
-    options.preset = args.preset
-    options.custom_results_dir = args.results_dir
     options.build_jobs = args.build_jobs
 
     if args.build_igc and args.compute_runtime is None:
@@ -521,10 +483,6 @@ if __name__ == "__main__":
     if args.compute_runtime is not None:
         options.build_compute_runtime = True
         options.compute_runtime_tag = args.compute_runtime
-    if args.output_dir is not None:
-        if not os.path.isdir(args.output_dir):
-            parser.error("Specified --output-dir is not a valid path")
-        options.output_directory = os.path.abspath(args.output_dir)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 
