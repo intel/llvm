@@ -13,11 +13,11 @@
 #include "ABIInfo.h"
 #include "CGCUDARuntime.h"
 #include "CGCXXABI.h"
-#include "CGHLSLRuntime.h"
 #include "CGObjCRuntime.h"
 #include "CGOpenCLRuntime.h"
 #include "CGRecordLayout.h"
 #include "CGValue.h"
+#include "CGBuiltin.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
 #include "ConstantEmitter.h"
@@ -46,30 +46,13 @@
 #include "llvm/IR/FPAccuracy.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/IntrinsicsAArch64.h"
-#include "llvm/IR/IntrinsicsAMDGPU.h"
-#include "llvm/IR/IntrinsicsARM.h"
-#include "llvm/IR/IntrinsicsBPF.h"
-#include "llvm/IR/IntrinsicsDirectX.h"
-#include "llvm/IR/IntrinsicsHexagon.h"
-#include "llvm/IR/IntrinsicsNVPTX.h"
-#include "llvm/IR/IntrinsicsPowerPC.h"
-#include "llvm/IR/IntrinsicsR600.h"
-#include "llvm/IR/IntrinsicsRISCV.h"
-#include "llvm/IR/IntrinsicsS390.h"
-#include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/MatrixBuilder.h"
 #include "llvm/IR/MemoryModelRelaxationAnnotations.h"
-#include "llvm/Support/AMDGPUAddrSpace.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/ScopedPrinter.h"
-#include "llvm/TargetParser/AArch64TargetParser.h"
-#include "llvm/TargetParser/RISCVISAInfo.h"
-#include "llvm/TargetParser/RISCVTargetParser.h"
-#include "llvm/TargetParser/X86TargetParser.h"
 #include <numeric>
 #include <optional>
 #include <utility>
@@ -77,6 +60,82 @@
 using namespace clang;
 using namespace CodeGen;
 using namespace llvm;
+
+static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
+                                        unsigned BuiltinID, const CallExpr *E,
+                                        ReturnValueSlot ReturnValue,
+                                        llvm::Triple::ArchType Arch) {
+  // When compiling in HipStdPar mode we have to be conservative in rejecting
+  // target specific features in the FE, and defer the possible error to the
+  // AcceleratorCodeSelection pass, wherein iff an unsupported target builtin is
+  // referenced by an accelerator executable function, we emit an error.
+  // Returning nullptr here leads to the builtin being handled in
+  // EmitStdParUnsupportedBuiltin.
+  if (CGF->getLangOpts().HIPStdPar && CGF->getLangOpts().CUDAIsDevice &&
+      Arch != CGF->getTarget().getTriple().getArch())
+    return nullptr;
+
+  switch (Arch) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return CGF->EmitARMBuiltinExpr(BuiltinID, E, ReturnValue, Arch);
+  case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64_32:
+  case llvm::Triple::aarch64_be:
+    return CGF->EmitAArch64BuiltinExpr(BuiltinID, E, Arch);
+  case llvm::Triple::bpfeb:
+  case llvm::Triple::bpfel:
+    return CGF->EmitBPFBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::x86:
+  case llvm::Triple::x86_64:
+    return CGF->EmitX86BuiltinExpr(BuiltinID, E);
+  case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
+  case llvm::Triple::ppc64:
+  case llvm::Triple::ppc64le:
+    return CGF->EmitPPCBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::r600:
+  case llvm::Triple::amdgcn:
+    return CGF->EmitAMDGPUBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::systemz:
+    return CGF->EmitSystemZBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::nvptx:
+  case llvm::Triple::nvptx64:
+    return CGF->EmitNVPTXBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::wasm32:
+  case llvm::Triple::wasm64:
+    return CGF->EmitWebAssemblyBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::hexagon:
+    return CGF->EmitHexagonBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::riscv32:
+  case llvm::Triple::riscv64:
+    return CGF->EmitRISCVBuiltinExpr(BuiltinID, E, ReturnValue);
+  case llvm::Triple::spirv:
+    return CGF->EmitSPIRVBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::spirv64:
+    if (CGF->getTarget().getTriple().getOS() != llvm::Triple::OSType::AMDHSA)
+      return nullptr;
+    return CGF->EmitAMDGPUBuiltinExpr(BuiltinID, E);
+  default:
+    return nullptr;
+  }
+}
+
+Value *CodeGenFunction::EmitTargetBuiltinExpr(unsigned BuiltinID,
+                                              const CallExpr *E,
+                                              ReturnValueSlot ReturnValue) {
+  if (getContext().BuiltinInfo.isAuxBuiltinID(BuiltinID)) {
+    assert(getContext().getAuxTargetInfo() && "Missing aux target info");
+    return EmitTargetArchBuiltinExpr(
+        this, getContext().BuiltinInfo.getAuxBuiltinID(BuiltinID), E,
+        ReturnValue, getContext().getAuxTargetInfo()->getTriple().getArch());
+  }
+
+  return EmitTargetArchBuiltinExpr(this, BuiltinID, E, ReturnValue,
+                                   getTarget().getTriple().getArch());
+}
 
 static void initializeAlloca(CodeGenFunction &CGF, AllocaInst *AI, Value *Size,
                              Align AlignmentInBytes) {
@@ -99,162 +158,6 @@ static void initializeAlloca(CodeGenFunction &CGF, AllocaInst *AI, Value *Size,
     return;
   auto *I = CGF.Builder.CreateMemSet(AI, Byte, Size, AlignmentInBytes);
   I->addAnnotationMetadata("auto-init");
-}
-
-static Value *handleHlslClip(const CallExpr *E, CodeGenFunction *CGF) {
-  Value *Op0 = CGF->EmitScalarExpr(E->getArg(0));
-
-  Constant *FZeroConst = ConstantFP::getZero(CGF->FloatTy);
-  Value *CMP;
-  Value *LastInstr;
-
-  if (const auto *VecTy = E->getArg(0)->getType()->getAs<clang::VectorType>()) {
-    FZeroConst = ConstantVector::getSplat(
-        ElementCount::getFixed(VecTy->getNumElements()), FZeroConst);
-    auto *FCompInst = CGF->Builder.CreateFCmpOLT(Op0, FZeroConst);
-    CMP = CGF->Builder.CreateIntrinsic(
-        CGF->Builder.getInt1Ty(), CGF->CGM.getHLSLRuntime().getAnyIntrinsic(),
-        {FCompInst});
-  } else
-    CMP = CGF->Builder.CreateFCmpOLT(Op0, FZeroConst);
-
-  if (CGF->CGM.getTarget().getTriple().isDXIL())
-    LastInstr =
-        CGF->Builder.CreateIntrinsic(CGF->VoidTy, Intrinsic::dx_discard, {CMP});
-  else if (CGF->CGM.getTarget().getTriple().isSPIRV()) {
-    BasicBlock *LT0 = CGF->createBasicBlock("lt0", CGF->CurFn);
-    BasicBlock *End = CGF->createBasicBlock("end", CGF->CurFn);
-
-    CGF->Builder.CreateCondBr(CMP, LT0, End);
-
-    CGF->Builder.SetInsertPoint(LT0);
-    CGF->Builder.CreateIntrinsic(CGF->VoidTy, Intrinsic::spv_discard, {});
-
-    LastInstr = CGF->Builder.CreateBr(End);
-    CGF->Builder.SetInsertPoint(End);
-  } else {
-    llvm_unreachable("Backend Codegen not supported.");
-  }
-
-  return LastInstr;
-}
-
-static Value *handleHlslSplitdouble(const CallExpr *E, CodeGenFunction *CGF) {
-  Value *Op0 = CGF->EmitScalarExpr(E->getArg(0));
-  const auto *OutArg1 = dyn_cast<HLSLOutArgExpr>(E->getArg(1));
-  const auto *OutArg2 = dyn_cast<HLSLOutArgExpr>(E->getArg(2));
-
-  CallArgList Args;
-  LValue Op1TmpLValue =
-      CGF->EmitHLSLOutArgExpr(OutArg1, Args, OutArg1->getType());
-  LValue Op2TmpLValue =
-      CGF->EmitHLSLOutArgExpr(OutArg2, Args, OutArg2->getType());
-
-  if (CGF->getTarget().getCXXABI().areArgsDestroyedLeftToRightInCallee())
-    Args.reverseWritebacks();
-
-  Value *LowBits = nullptr;
-  Value *HighBits = nullptr;
-
-  if (CGF->CGM.getTarget().getTriple().isDXIL()) {
-
-    llvm::Type *RetElementTy = CGF->Int32Ty;
-    if (auto *Op0VecTy = E->getArg(0)->getType()->getAs<clang::VectorType>())
-      RetElementTy = llvm::VectorType::get(
-          CGF->Int32Ty, ElementCount::getFixed(Op0VecTy->getNumElements()));
-    auto *RetTy = llvm::StructType::get(RetElementTy, RetElementTy);
-
-    CallInst *CI = CGF->Builder.CreateIntrinsic(
-        RetTy, Intrinsic::dx_splitdouble, {Op0}, nullptr, "hlsl.splitdouble");
-
-    LowBits = CGF->Builder.CreateExtractValue(CI, 0);
-    HighBits = CGF->Builder.CreateExtractValue(CI, 1);
-
-  } else {
-    // For Non DXIL targets we generate the instructions.
-
-    if (!Op0->getType()->isVectorTy()) {
-      FixedVectorType *DestTy = FixedVectorType::get(CGF->Int32Ty, 2);
-      Value *Bitcast = CGF->Builder.CreateBitCast(Op0, DestTy);
-
-      LowBits = CGF->Builder.CreateExtractElement(Bitcast, (uint64_t)0);
-      HighBits = CGF->Builder.CreateExtractElement(Bitcast, 1);
-    } else {
-      int NumElements = 1;
-      if (const auto *VecTy =
-              E->getArg(0)->getType()->getAs<clang::VectorType>())
-        NumElements = VecTy->getNumElements();
-
-      FixedVectorType *Uint32VecTy =
-          FixedVectorType::get(CGF->Int32Ty, NumElements * 2);
-      Value *Uint32Vec = CGF->Builder.CreateBitCast(Op0, Uint32VecTy);
-      if (NumElements == 1) {
-        LowBits = CGF->Builder.CreateExtractElement(Uint32Vec, (uint64_t)0);
-        HighBits = CGF->Builder.CreateExtractElement(Uint32Vec, 1);
-      } else {
-        SmallVector<int> EvenMask, OddMask;
-        for (int I = 0, E = NumElements; I != E; ++I) {
-          EvenMask.push_back(I * 2);
-          OddMask.push_back(I * 2 + 1);
-        }
-        LowBits = CGF->Builder.CreateShuffleVector(Uint32Vec, EvenMask);
-        HighBits = CGF->Builder.CreateShuffleVector(Uint32Vec, OddMask);
-      }
-    }
-  }
-  CGF->Builder.CreateStore(LowBits, Op1TmpLValue.getAddress());
-  auto *LastInst =
-      CGF->Builder.CreateStore(HighBits, Op2TmpLValue.getAddress());
-  CGF->EmitWritebacks(Args);
-  return LastInst;
-}
-
-static Value *handleAsDoubleBuiltin(CodeGenFunction &CGF, const CallExpr *E) {
-  assert((E->getArg(0)->getType()->hasUnsignedIntegerRepresentation() &&
-          E->getArg(1)->getType()->hasUnsignedIntegerRepresentation()) &&
-         "asdouble operands types mismatch");
-  Value *OpLowBits = CGF.EmitScalarExpr(E->getArg(0));
-  Value *OpHighBits = CGF.EmitScalarExpr(E->getArg(1));
-
-  llvm::Type *ResultType = CGF.DoubleTy;
-  int N = 1;
-  if (auto *VTy = E->getArg(0)->getType()->getAs<clang::VectorType>()) {
-    N = VTy->getNumElements();
-    ResultType = llvm::FixedVectorType::get(CGF.DoubleTy, N);
-  }
-
-  if (CGF.CGM.getTarget().getTriple().isDXIL())
-    return CGF.Builder.CreateIntrinsic(
-        /*ReturnType=*/ResultType, Intrinsic::dx_asdouble,
-        {OpLowBits, OpHighBits}, nullptr, "hlsl.asdouble");
-
-  if (!E->getArg(0)->getType()->isVectorType()) {
-    OpLowBits = CGF.Builder.CreateVectorSplat(1, OpLowBits);
-    OpHighBits = CGF.Builder.CreateVectorSplat(1, OpHighBits);
-  }
-
-  llvm::SmallVector<int> Mask;
-  for (int i = 0; i < N; i++) {
-    Mask.push_back(i);
-    Mask.push_back(i + N);
-  }
-
-  Value *BitVec = CGF.Builder.CreateShuffleVector(OpLowBits, OpHighBits, Mask);
-
-  return CGF.Builder.CreateBitCast(BitVec, ResultType);
-}
-
-/// Helper for the read/write/add/inc X18 builtins: read the X18 register and
-/// return it as an i8 pointer.
-Value *readX18AsPtr(CodeGenFunction &CGF) {
-  LLVMContext &Context = CGF.CGM.getLLVMContext();
-  llvm::Metadata *Ops[] = {llvm::MDString::get(Context, "x18")};
-  llvm::MDNode *RegName = llvm::MDNode::get(Context, Ops);
-  llvm::Value *Metadata = llvm::MetadataAsValue::get(Context, RegName);
-  llvm::Function *F =
-      CGF.CGM.getIntrinsic(Intrinsic::read_register, {CGF.Int64Ty});
-  llvm::Value *X18 = CGF.Builder.CreateCall(F, Metadata);
-  return CGF.Builder.CreateIntToPtr(X18, CGF.Int8PtrTy);
 }
 
 /// getBuiltinLibFunction - Given a builtin id for a function like
@@ -335,7 +238,7 @@ llvm::Constant *CodeGenModule::getBuiltinLibFunction(const FunctionDecl *FD,
 
 /// Emit the conversions required to turn the given value into an
 /// integer of the given size.
-static Value *EmitToInt(CodeGenFunction &CGF, llvm::Value *V,
+Value *EmitToInt(CodeGenFunction &CGF, llvm::Value *V,
                         QualType T, llvm::IntegerType *IntType) {
   V = CGF.EmitToMemory(V, T);
 
@@ -346,7 +249,7 @@ static Value *EmitToInt(CodeGenFunction &CGF, llvm::Value *V,
   return V;
 }
 
-static Value *EmitFromInt(CodeGenFunction &CGF, llvm::Value *V,
+Value *EmitFromInt(CodeGenFunction &CGF, llvm::Value *V,
                           QualType T, llvm::Type *ResultType) {
   V = CGF.EmitFromMemory(V, T);
 
@@ -357,7 +260,7 @@ static Value *EmitFromInt(CodeGenFunction &CGF, llvm::Value *V,
   return V;
 }
 
-static Address CheckAtomicAlignment(CodeGenFunction &CGF, const CallExpr *E) {
+Address CheckAtomicAlignment(CodeGenFunction &CGF, const CallExpr *E) {
   ASTContext &Ctx = CGF.getContext();
   Address Ptr = CGF.EmitPointerWithAlignment(E->getArg(0));
   unsigned Bytes = Ptr.getElementType()->isPointerTy()
@@ -375,9 +278,9 @@ static Address CheckAtomicAlignment(CodeGenFunction &CGF, const CallExpr *E) {
 
 /// Utility to insert an atomic instruction based on Intrinsic::ID
 /// and the expression node.
-static Value *MakeBinaryAtomicValue(
+Value *MakeBinaryAtomicValue(
     CodeGenFunction &CGF, llvm::AtomicRMWInst::BinOp Kind, const CallExpr *E,
-    AtomicOrdering Ordering = AtomicOrdering::SequentiallyConsistent) {
+    AtomicOrdering Ordering) {
 
   QualType T = E->getType();
   assert(E->getArg(0)->getType()->isPointerType());
@@ -472,7 +375,7 @@ static RValue EmitBinaryAtomicPost(CodeGenFunction &CGF,
 ///
 /// Note: In order to lower Microsoft's _InterlockedCompareExchange* intrinsics
 /// invoke the function EmitAtomicCmpXchgForMSIntrin.
-static Value *MakeAtomicCmpXchgValue(CodeGenFunction &CGF, const CallExpr *E,
+Value *MakeAtomicCmpXchgValue(CodeGenFunction &CGF, const CallExpr *E,
                                      bool ReturnBool) {
   QualType T = ReturnBool ? E->getArg(1)->getType() : E->getType();
   Address DestAddr = CheckAtomicAlignment(CGF, E);
@@ -705,11 +608,18 @@ static FuncNamePair EmitMaybeIntrinsic(CodeGenFunction &CGF, const CallExpr *E,
 
 // Emit a simple mangled intrinsic that has 1 argument and a return type
 // matching the argument type. Depending on mode, this may be a constrained
+<<<<<<< HEAD
 // or an fpbuiltin floating-point intrinsic.
 static Value *emitUnaryMaybeConstrainedFPBuiltin(
     CodeGenFunction &CGF, const CallExpr *E, unsigned IntrinsicID,
     unsigned ConstrainedIntrinsicID,
     unsigned FPAccuracyIntrinsicID = Intrinsic::not_intrinsic) {
+=======
+// floating-point intrinsic.
+Value *emitUnaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
+                                const CallExpr *E, unsigned IntrinsicID,
+                                unsigned ConstrainedIntrinsicID) {
+>>>>>>> 7f920e2e5f70b25c79adbc0b1005b1d1286d4681
   llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
   FuncNamePair Res =
     EmitMaybeIntrinsic(CGF, E, FPAccuracyIntrinsicID, IntrinsicID, Src0);
@@ -792,52 +702,6 @@ static Value *emitTernaryMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
     Function *F = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
     return CGF.Builder.CreateCall(F, { Src0, Src1, Src2 });
   }
-}
-
-// Emit an intrinsic where all operands are of the same type as the result.
-// Depending on mode, this may be a constrained floating-point intrinsic.
-static Value *emitCallMaybeConstrainedFPBuiltin(CodeGenFunction &CGF,
-                                                unsigned IntrinsicID,
-                                                unsigned ConstrainedIntrinsicID,
-                                                llvm::Type *Ty,
-                                                ArrayRef<Value *> Args) {
-  Function *F;
-  if (CGF.Builder.getIsFPConstrained())
-    F = CGF.CGM.getIntrinsic(ConstrainedIntrinsicID, Ty);
-  else
-    F = CGF.CGM.getIntrinsic(IntrinsicID, Ty);
-
-  if (CGF.Builder.getIsFPConstrained())
-    return CGF.Builder.CreateConstrainedFPCall(F, Args);
-  else
-    return CGF.Builder.CreateCall(F, Args);
-}
-
-// Emit a simple intrinsic that has N scalar arguments and a return type
-// matching the argument type. It is assumed that only the first argument is
-// overloaded.
-template <unsigned N>
-static Value *emitBuiltinWithOneOverloadedType(CodeGenFunction &CGF,
-                                               const CallExpr *E,
-                                               unsigned IntrinsicID,
-                                               llvm::StringRef Name = "") {
-  static_assert(N, "expect non-empty argument");
-  SmallVector<Value *, N> Args;
-  for (unsigned I = 0; I < N; ++I)
-    Args.push_back(CGF.EmitScalarExpr(E->getArg(I)));
-  Function *F = CGF.CGM.getIntrinsic(IntrinsicID, Args[0]->getType());
-  return CGF.Builder.CreateCall(F, Args, Name);
-}
-
-// Emit an intrinsic that has 1 float or double operand, and 1 integer.
-static Value *emitFPIntBuiltin(CodeGenFunction &CGF,
-                               const CallExpr *E,
-                               unsigned IntrinsicID) {
-  llvm::Value *Src0 = CGF.EmitScalarExpr(E->getArg(0));
-  llvm::Value *Src1 = CGF.EmitScalarExpr(E->getArg(1));
-
-  Function *F = CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
-  return CGF.Builder.CreateCall(F, {Src0, Src1});
 }
 
 // Emit an intrinsic that has overloaded integer result and fp operand.
@@ -1021,10 +885,10 @@ static RValue emitLibraryCall(CodeGenFunction &CGF, const FunctionDecl *FD,
 /// \arg Y The second argument to the llvm.*.with.overflow.*.
 /// \arg Carry The carry returned by the llvm.*.with.overflow.*.
 /// \returns The result (i.e. sum/product) returned by the intrinsic.
-static llvm::Value *EmitOverflowIntrinsic(CodeGenFunction &CGF,
-                                          const Intrinsic::ID IntrinsicID,
-                                          llvm::Value *X, llvm::Value *Y,
-                                          llvm::Value *&Carry) {
+llvm::Value *EmitOverflowIntrinsic(CodeGenFunction &CGF,
+                                   const Intrinsic::ID IntrinsicID,
+                                   llvm::Value *X, llvm::Value *Y,
+                                   llvm::Value *&Carry) {
   // Make sure we have integers of the same width.
   assert(X->getType() == Y->getType() &&
          "Arguments must be the same type. (Did you forget to make sure both "
@@ -1034,16 +898,6 @@ static llvm::Value *EmitOverflowIntrinsic(CodeGenFunction &CGF,
   llvm::Value *Tmp = CGF.Builder.CreateCall(Callee, {X, Y});
   Carry = CGF.Builder.CreateExtractValue(Tmp, 1);
   return CGF.Builder.CreateExtractValue(Tmp, 0);
-}
-
-static Value *emitRangedBuiltin(CodeGenFunction &CGF, unsigned IntrinsicID,
-                                int low, int high) {
-  Function *F = CGF.CGM.getIntrinsic(IntrinsicID, {});
-  llvm::CallInst *Call = CGF.Builder.CreateCall(F);
-  llvm::ConstantRange CR(APInt(32, low), APInt(32, high));
-  Call->addRangeRetAttr(CR);
-  Call->addRetAttr(llvm::Attribute::AttrKind::NoUndef);
-  return Call;
 }
 
 namespace {
@@ -1740,56 +1594,6 @@ static llvm::Value *EmitBitTestIntrinsic(CodeGenFunction &CGF,
       ShiftedByte, llvm::ConstantInt::get(CGF.Int8Ty, 1), "bittest.res");
 }
 
-static llvm::Value *emitPPCLoadReserveIntrinsic(CodeGenFunction &CGF,
-                                                unsigned BuiltinID,
-                                                const CallExpr *E) {
-  Value *Addr = CGF.EmitScalarExpr(E->getArg(0));
-
-  SmallString<64> Asm;
-  raw_svector_ostream AsmOS(Asm);
-  llvm::IntegerType *RetType = CGF.Int32Ty;
-
-  switch (BuiltinID) {
-  case clang::PPC::BI__builtin_ppc_ldarx:
-    AsmOS << "ldarx ";
-    RetType = CGF.Int64Ty;
-    break;
-  case clang::PPC::BI__builtin_ppc_lwarx:
-    AsmOS << "lwarx ";
-    RetType = CGF.Int32Ty;
-    break;
-  case clang::PPC::BI__builtin_ppc_lharx:
-    AsmOS << "lharx ";
-    RetType = CGF.Int16Ty;
-    break;
-  case clang::PPC::BI__builtin_ppc_lbarx:
-    AsmOS << "lbarx ";
-    RetType = CGF.Int8Ty;
-    break;
-  default:
-    llvm_unreachable("Expected only PowerPC load reserve intrinsics");
-  }
-
-  AsmOS << "$0, ${1:y}";
-
-  std::string Constraints = "=r,*Z,~{memory}";
-  std::string_view MachineClobbers = CGF.getTarget().getClobbers();
-  if (!MachineClobbers.empty()) {
-    Constraints += ',';
-    Constraints += MachineClobbers;
-  }
-
-  llvm::Type *PtrType = CGF.UnqualPtrTy;
-  llvm::FunctionType *FTy = llvm::FunctionType::get(RetType, {PtrType}, false);
-
-  llvm::InlineAsm *IA =
-      llvm::InlineAsm::get(FTy, Asm, Constraints, /*hasSideEffects=*/true);
-  llvm::CallInst *CI = CGF.Builder.CreateCall(IA, {Addr});
-  CI->addParamAttr(
-      0, Attribute::get(CGF.getLLVMContext(), Attribute::ElementType, RetType));
-  return CI;
-}
-
 namespace {
 enum class MSVCSetJmpKind {
   _setjmpex,
@@ -1839,395 +1643,6 @@ static RValue EmitMSVCRTSetJmp(CodeGenFunction &CGF, MSVCSetJmpKind SJKind,
   llvm::CallBase *CB = CGF.EmitRuntimeCallOrInvoke(SetJmpFn, Args);
   CB->setAttributes(ReturnsTwiceAttr);
   return RValue::get(CB);
-}
-
-// Many of MSVC builtins are on x64, ARM and AArch64; to avoid repeating code,
-// we handle them here.
-enum class CodeGenFunction::MSVCIntrin {
-  _BitScanForward,
-  _BitScanReverse,
-  _InterlockedAnd,
-  _InterlockedCompareExchange,
-  _InterlockedDecrement,
-  _InterlockedExchange,
-  _InterlockedExchangeAdd,
-  _InterlockedExchangeSub,
-  _InterlockedIncrement,
-  _InterlockedOr,
-  _InterlockedXor,
-  _InterlockedExchangeAdd_acq,
-  _InterlockedExchangeAdd_rel,
-  _InterlockedExchangeAdd_nf,
-  _InterlockedExchange_acq,
-  _InterlockedExchange_rel,
-  _InterlockedExchange_nf,
-  _InterlockedCompareExchange_acq,
-  _InterlockedCompareExchange_rel,
-  _InterlockedCompareExchange_nf,
-  _InterlockedCompareExchange128,
-  _InterlockedCompareExchange128_acq,
-  _InterlockedCompareExchange128_rel,
-  _InterlockedCompareExchange128_nf,
-  _InterlockedOr_acq,
-  _InterlockedOr_rel,
-  _InterlockedOr_nf,
-  _InterlockedXor_acq,
-  _InterlockedXor_rel,
-  _InterlockedXor_nf,
-  _InterlockedAnd_acq,
-  _InterlockedAnd_rel,
-  _InterlockedAnd_nf,
-  _InterlockedIncrement_acq,
-  _InterlockedIncrement_rel,
-  _InterlockedIncrement_nf,
-  _InterlockedDecrement_acq,
-  _InterlockedDecrement_rel,
-  _InterlockedDecrement_nf,
-  __fastfail,
-};
-
-static std::optional<CodeGenFunction::MSVCIntrin>
-translateArmToMsvcIntrin(unsigned BuiltinID) {
-  using MSVCIntrin = CodeGenFunction::MSVCIntrin;
-  switch (BuiltinID) {
-  default:
-    return std::nullopt;
-  case clang::ARM::BI_BitScanForward:
-  case clang::ARM::BI_BitScanForward64:
-    return MSVCIntrin::_BitScanForward;
-  case clang::ARM::BI_BitScanReverse:
-  case clang::ARM::BI_BitScanReverse64:
-    return MSVCIntrin::_BitScanReverse;
-  case clang::ARM::BI_InterlockedAnd64:
-    return MSVCIntrin::_InterlockedAnd;
-  case clang::ARM::BI_InterlockedExchange64:
-    return MSVCIntrin::_InterlockedExchange;
-  case clang::ARM::BI_InterlockedExchangeAdd64:
-    return MSVCIntrin::_InterlockedExchangeAdd;
-  case clang::ARM::BI_InterlockedExchangeSub64:
-    return MSVCIntrin::_InterlockedExchangeSub;
-  case clang::ARM::BI_InterlockedOr64:
-    return MSVCIntrin::_InterlockedOr;
-  case clang::ARM::BI_InterlockedXor64:
-    return MSVCIntrin::_InterlockedXor;
-  case clang::ARM::BI_InterlockedDecrement64:
-    return MSVCIntrin::_InterlockedDecrement;
-  case clang::ARM::BI_InterlockedIncrement64:
-    return MSVCIntrin::_InterlockedIncrement;
-  case clang::ARM::BI_InterlockedExchangeAdd8_acq:
-  case clang::ARM::BI_InterlockedExchangeAdd16_acq:
-  case clang::ARM::BI_InterlockedExchangeAdd_acq:
-  case clang::ARM::BI_InterlockedExchangeAdd64_acq:
-    return MSVCIntrin::_InterlockedExchangeAdd_acq;
-  case clang::ARM::BI_InterlockedExchangeAdd8_rel:
-  case clang::ARM::BI_InterlockedExchangeAdd16_rel:
-  case clang::ARM::BI_InterlockedExchangeAdd_rel:
-  case clang::ARM::BI_InterlockedExchangeAdd64_rel:
-    return MSVCIntrin::_InterlockedExchangeAdd_rel;
-  case clang::ARM::BI_InterlockedExchangeAdd8_nf:
-  case clang::ARM::BI_InterlockedExchangeAdd16_nf:
-  case clang::ARM::BI_InterlockedExchangeAdd_nf:
-  case clang::ARM::BI_InterlockedExchangeAdd64_nf:
-    return MSVCIntrin::_InterlockedExchangeAdd_nf;
-  case clang::ARM::BI_InterlockedExchange8_acq:
-  case clang::ARM::BI_InterlockedExchange16_acq:
-  case clang::ARM::BI_InterlockedExchange_acq:
-  case clang::ARM::BI_InterlockedExchange64_acq:
-  case clang::ARM::BI_InterlockedExchangePointer_acq:
-    return MSVCIntrin::_InterlockedExchange_acq;
-  case clang::ARM::BI_InterlockedExchange8_rel:
-  case clang::ARM::BI_InterlockedExchange16_rel:
-  case clang::ARM::BI_InterlockedExchange_rel:
-  case clang::ARM::BI_InterlockedExchange64_rel:
-  case clang::ARM::BI_InterlockedExchangePointer_rel:
-    return MSVCIntrin::_InterlockedExchange_rel;
-  case clang::ARM::BI_InterlockedExchange8_nf:
-  case clang::ARM::BI_InterlockedExchange16_nf:
-  case clang::ARM::BI_InterlockedExchange_nf:
-  case clang::ARM::BI_InterlockedExchange64_nf:
-  case clang::ARM::BI_InterlockedExchangePointer_nf:
-    return MSVCIntrin::_InterlockedExchange_nf;
-  case clang::ARM::BI_InterlockedCompareExchange8_acq:
-  case clang::ARM::BI_InterlockedCompareExchange16_acq:
-  case clang::ARM::BI_InterlockedCompareExchange_acq:
-  case clang::ARM::BI_InterlockedCompareExchange64_acq:
-  case clang::ARM::BI_InterlockedCompareExchangePointer_acq:
-    return MSVCIntrin::_InterlockedCompareExchange_acq;
-  case clang::ARM::BI_InterlockedCompareExchange8_rel:
-  case clang::ARM::BI_InterlockedCompareExchange16_rel:
-  case clang::ARM::BI_InterlockedCompareExchange_rel:
-  case clang::ARM::BI_InterlockedCompareExchange64_rel:
-  case clang::ARM::BI_InterlockedCompareExchangePointer_rel:
-    return MSVCIntrin::_InterlockedCompareExchange_rel;
-  case clang::ARM::BI_InterlockedCompareExchange8_nf:
-  case clang::ARM::BI_InterlockedCompareExchange16_nf:
-  case clang::ARM::BI_InterlockedCompareExchange_nf:
-  case clang::ARM::BI_InterlockedCompareExchange64_nf:
-    return MSVCIntrin::_InterlockedCompareExchange_nf;
-  case clang::ARM::BI_InterlockedOr8_acq:
-  case clang::ARM::BI_InterlockedOr16_acq:
-  case clang::ARM::BI_InterlockedOr_acq:
-  case clang::ARM::BI_InterlockedOr64_acq:
-    return MSVCIntrin::_InterlockedOr_acq;
-  case clang::ARM::BI_InterlockedOr8_rel:
-  case clang::ARM::BI_InterlockedOr16_rel:
-  case clang::ARM::BI_InterlockedOr_rel:
-  case clang::ARM::BI_InterlockedOr64_rel:
-    return MSVCIntrin::_InterlockedOr_rel;
-  case clang::ARM::BI_InterlockedOr8_nf:
-  case clang::ARM::BI_InterlockedOr16_nf:
-  case clang::ARM::BI_InterlockedOr_nf:
-  case clang::ARM::BI_InterlockedOr64_nf:
-    return MSVCIntrin::_InterlockedOr_nf;
-  case clang::ARM::BI_InterlockedXor8_acq:
-  case clang::ARM::BI_InterlockedXor16_acq:
-  case clang::ARM::BI_InterlockedXor_acq:
-  case clang::ARM::BI_InterlockedXor64_acq:
-    return MSVCIntrin::_InterlockedXor_acq;
-  case clang::ARM::BI_InterlockedXor8_rel:
-  case clang::ARM::BI_InterlockedXor16_rel:
-  case clang::ARM::BI_InterlockedXor_rel:
-  case clang::ARM::BI_InterlockedXor64_rel:
-    return MSVCIntrin::_InterlockedXor_rel;
-  case clang::ARM::BI_InterlockedXor8_nf:
-  case clang::ARM::BI_InterlockedXor16_nf:
-  case clang::ARM::BI_InterlockedXor_nf:
-  case clang::ARM::BI_InterlockedXor64_nf:
-    return MSVCIntrin::_InterlockedXor_nf;
-  case clang::ARM::BI_InterlockedAnd8_acq:
-  case clang::ARM::BI_InterlockedAnd16_acq:
-  case clang::ARM::BI_InterlockedAnd_acq:
-  case clang::ARM::BI_InterlockedAnd64_acq:
-    return MSVCIntrin::_InterlockedAnd_acq;
-  case clang::ARM::BI_InterlockedAnd8_rel:
-  case clang::ARM::BI_InterlockedAnd16_rel:
-  case clang::ARM::BI_InterlockedAnd_rel:
-  case clang::ARM::BI_InterlockedAnd64_rel:
-    return MSVCIntrin::_InterlockedAnd_rel;
-  case clang::ARM::BI_InterlockedAnd8_nf:
-  case clang::ARM::BI_InterlockedAnd16_nf:
-  case clang::ARM::BI_InterlockedAnd_nf:
-  case clang::ARM::BI_InterlockedAnd64_nf:
-    return MSVCIntrin::_InterlockedAnd_nf;
-  case clang::ARM::BI_InterlockedIncrement16_acq:
-  case clang::ARM::BI_InterlockedIncrement_acq:
-  case clang::ARM::BI_InterlockedIncrement64_acq:
-    return MSVCIntrin::_InterlockedIncrement_acq;
-  case clang::ARM::BI_InterlockedIncrement16_rel:
-  case clang::ARM::BI_InterlockedIncrement_rel:
-  case clang::ARM::BI_InterlockedIncrement64_rel:
-    return MSVCIntrin::_InterlockedIncrement_rel;
-  case clang::ARM::BI_InterlockedIncrement16_nf:
-  case clang::ARM::BI_InterlockedIncrement_nf:
-  case clang::ARM::BI_InterlockedIncrement64_nf:
-    return MSVCIntrin::_InterlockedIncrement_nf;
-  case clang::ARM::BI_InterlockedDecrement16_acq:
-  case clang::ARM::BI_InterlockedDecrement_acq:
-  case clang::ARM::BI_InterlockedDecrement64_acq:
-    return MSVCIntrin::_InterlockedDecrement_acq;
-  case clang::ARM::BI_InterlockedDecrement16_rel:
-  case clang::ARM::BI_InterlockedDecrement_rel:
-  case clang::ARM::BI_InterlockedDecrement64_rel:
-    return MSVCIntrin::_InterlockedDecrement_rel;
-  case clang::ARM::BI_InterlockedDecrement16_nf:
-  case clang::ARM::BI_InterlockedDecrement_nf:
-  case clang::ARM::BI_InterlockedDecrement64_nf:
-    return MSVCIntrin::_InterlockedDecrement_nf;
-  }
-  llvm_unreachable("must return from switch");
-}
-
-static std::optional<CodeGenFunction::MSVCIntrin>
-translateAarch64ToMsvcIntrin(unsigned BuiltinID) {
-  using MSVCIntrin = CodeGenFunction::MSVCIntrin;
-  switch (BuiltinID) {
-  default:
-    return std::nullopt;
-  case clang::AArch64::BI_BitScanForward:
-  case clang::AArch64::BI_BitScanForward64:
-    return MSVCIntrin::_BitScanForward;
-  case clang::AArch64::BI_BitScanReverse:
-  case clang::AArch64::BI_BitScanReverse64:
-    return MSVCIntrin::_BitScanReverse;
-  case clang::AArch64::BI_InterlockedAnd64:
-    return MSVCIntrin::_InterlockedAnd;
-  case clang::AArch64::BI_InterlockedExchange64:
-    return MSVCIntrin::_InterlockedExchange;
-  case clang::AArch64::BI_InterlockedExchangeAdd64:
-    return MSVCIntrin::_InterlockedExchangeAdd;
-  case clang::AArch64::BI_InterlockedExchangeSub64:
-    return MSVCIntrin::_InterlockedExchangeSub;
-  case clang::AArch64::BI_InterlockedOr64:
-    return MSVCIntrin::_InterlockedOr;
-  case clang::AArch64::BI_InterlockedXor64:
-    return MSVCIntrin::_InterlockedXor;
-  case clang::AArch64::BI_InterlockedDecrement64:
-    return MSVCIntrin::_InterlockedDecrement;
-  case clang::AArch64::BI_InterlockedIncrement64:
-    return MSVCIntrin::_InterlockedIncrement;
-  case clang::AArch64::BI_InterlockedExchangeAdd8_acq:
-  case clang::AArch64::BI_InterlockedExchangeAdd16_acq:
-  case clang::AArch64::BI_InterlockedExchangeAdd_acq:
-  case clang::AArch64::BI_InterlockedExchangeAdd64_acq:
-    return MSVCIntrin::_InterlockedExchangeAdd_acq;
-  case clang::AArch64::BI_InterlockedExchangeAdd8_rel:
-  case clang::AArch64::BI_InterlockedExchangeAdd16_rel:
-  case clang::AArch64::BI_InterlockedExchangeAdd_rel:
-  case clang::AArch64::BI_InterlockedExchangeAdd64_rel:
-    return MSVCIntrin::_InterlockedExchangeAdd_rel;
-  case clang::AArch64::BI_InterlockedExchangeAdd8_nf:
-  case clang::AArch64::BI_InterlockedExchangeAdd16_nf:
-  case clang::AArch64::BI_InterlockedExchangeAdd_nf:
-  case clang::AArch64::BI_InterlockedExchangeAdd64_nf:
-    return MSVCIntrin::_InterlockedExchangeAdd_nf;
-  case clang::AArch64::BI_InterlockedExchange8_acq:
-  case clang::AArch64::BI_InterlockedExchange16_acq:
-  case clang::AArch64::BI_InterlockedExchange_acq:
-  case clang::AArch64::BI_InterlockedExchange64_acq:
-  case clang::AArch64::BI_InterlockedExchangePointer_acq:
-    return MSVCIntrin::_InterlockedExchange_acq;
-  case clang::AArch64::BI_InterlockedExchange8_rel:
-  case clang::AArch64::BI_InterlockedExchange16_rel:
-  case clang::AArch64::BI_InterlockedExchange_rel:
-  case clang::AArch64::BI_InterlockedExchange64_rel:
-  case clang::AArch64::BI_InterlockedExchangePointer_rel:
-    return MSVCIntrin::_InterlockedExchange_rel;
-  case clang::AArch64::BI_InterlockedExchange8_nf:
-  case clang::AArch64::BI_InterlockedExchange16_nf:
-  case clang::AArch64::BI_InterlockedExchange_nf:
-  case clang::AArch64::BI_InterlockedExchange64_nf:
-  case clang::AArch64::BI_InterlockedExchangePointer_nf:
-    return MSVCIntrin::_InterlockedExchange_nf;
-  case clang::AArch64::BI_InterlockedCompareExchange8_acq:
-  case clang::AArch64::BI_InterlockedCompareExchange16_acq:
-  case clang::AArch64::BI_InterlockedCompareExchange_acq:
-  case clang::AArch64::BI_InterlockedCompareExchange64_acq:
-  case clang::AArch64::BI_InterlockedCompareExchangePointer_acq:
-    return MSVCIntrin::_InterlockedCompareExchange_acq;
-  case clang::AArch64::BI_InterlockedCompareExchange8_rel:
-  case clang::AArch64::BI_InterlockedCompareExchange16_rel:
-  case clang::AArch64::BI_InterlockedCompareExchange_rel:
-  case clang::AArch64::BI_InterlockedCompareExchange64_rel:
-  case clang::AArch64::BI_InterlockedCompareExchangePointer_rel:
-    return MSVCIntrin::_InterlockedCompareExchange_rel;
-  case clang::AArch64::BI_InterlockedCompareExchange8_nf:
-  case clang::AArch64::BI_InterlockedCompareExchange16_nf:
-  case clang::AArch64::BI_InterlockedCompareExchange_nf:
-  case clang::AArch64::BI_InterlockedCompareExchange64_nf:
-    return MSVCIntrin::_InterlockedCompareExchange_nf;
-  case clang::AArch64::BI_InterlockedCompareExchange128:
-    return MSVCIntrin::_InterlockedCompareExchange128;
-  case clang::AArch64::BI_InterlockedCompareExchange128_acq:
-    return MSVCIntrin::_InterlockedCompareExchange128_acq;
-  case clang::AArch64::BI_InterlockedCompareExchange128_nf:
-    return MSVCIntrin::_InterlockedCompareExchange128_nf;
-  case clang::AArch64::BI_InterlockedCompareExchange128_rel:
-    return MSVCIntrin::_InterlockedCompareExchange128_rel;
-  case clang::AArch64::BI_InterlockedOr8_acq:
-  case clang::AArch64::BI_InterlockedOr16_acq:
-  case clang::AArch64::BI_InterlockedOr_acq:
-  case clang::AArch64::BI_InterlockedOr64_acq:
-    return MSVCIntrin::_InterlockedOr_acq;
-  case clang::AArch64::BI_InterlockedOr8_rel:
-  case clang::AArch64::BI_InterlockedOr16_rel:
-  case clang::AArch64::BI_InterlockedOr_rel:
-  case clang::AArch64::BI_InterlockedOr64_rel:
-    return MSVCIntrin::_InterlockedOr_rel;
-  case clang::AArch64::BI_InterlockedOr8_nf:
-  case clang::AArch64::BI_InterlockedOr16_nf:
-  case clang::AArch64::BI_InterlockedOr_nf:
-  case clang::AArch64::BI_InterlockedOr64_nf:
-    return MSVCIntrin::_InterlockedOr_nf;
-  case clang::AArch64::BI_InterlockedXor8_acq:
-  case clang::AArch64::BI_InterlockedXor16_acq:
-  case clang::AArch64::BI_InterlockedXor_acq:
-  case clang::AArch64::BI_InterlockedXor64_acq:
-    return MSVCIntrin::_InterlockedXor_acq;
-  case clang::AArch64::BI_InterlockedXor8_rel:
-  case clang::AArch64::BI_InterlockedXor16_rel:
-  case clang::AArch64::BI_InterlockedXor_rel:
-  case clang::AArch64::BI_InterlockedXor64_rel:
-    return MSVCIntrin::_InterlockedXor_rel;
-  case clang::AArch64::BI_InterlockedXor8_nf:
-  case clang::AArch64::BI_InterlockedXor16_nf:
-  case clang::AArch64::BI_InterlockedXor_nf:
-  case clang::AArch64::BI_InterlockedXor64_nf:
-    return MSVCIntrin::_InterlockedXor_nf;
-  case clang::AArch64::BI_InterlockedAnd8_acq:
-  case clang::AArch64::BI_InterlockedAnd16_acq:
-  case clang::AArch64::BI_InterlockedAnd_acq:
-  case clang::AArch64::BI_InterlockedAnd64_acq:
-    return MSVCIntrin::_InterlockedAnd_acq;
-  case clang::AArch64::BI_InterlockedAnd8_rel:
-  case clang::AArch64::BI_InterlockedAnd16_rel:
-  case clang::AArch64::BI_InterlockedAnd_rel:
-  case clang::AArch64::BI_InterlockedAnd64_rel:
-    return MSVCIntrin::_InterlockedAnd_rel;
-  case clang::AArch64::BI_InterlockedAnd8_nf:
-  case clang::AArch64::BI_InterlockedAnd16_nf:
-  case clang::AArch64::BI_InterlockedAnd_nf:
-  case clang::AArch64::BI_InterlockedAnd64_nf:
-    return MSVCIntrin::_InterlockedAnd_nf;
-  case clang::AArch64::BI_InterlockedIncrement16_acq:
-  case clang::AArch64::BI_InterlockedIncrement_acq:
-  case clang::AArch64::BI_InterlockedIncrement64_acq:
-    return MSVCIntrin::_InterlockedIncrement_acq;
-  case clang::AArch64::BI_InterlockedIncrement16_rel:
-  case clang::AArch64::BI_InterlockedIncrement_rel:
-  case clang::AArch64::BI_InterlockedIncrement64_rel:
-    return MSVCIntrin::_InterlockedIncrement_rel;
-  case clang::AArch64::BI_InterlockedIncrement16_nf:
-  case clang::AArch64::BI_InterlockedIncrement_nf:
-  case clang::AArch64::BI_InterlockedIncrement64_nf:
-    return MSVCIntrin::_InterlockedIncrement_nf;
-  case clang::AArch64::BI_InterlockedDecrement16_acq:
-  case clang::AArch64::BI_InterlockedDecrement_acq:
-  case clang::AArch64::BI_InterlockedDecrement64_acq:
-    return MSVCIntrin::_InterlockedDecrement_acq;
-  case clang::AArch64::BI_InterlockedDecrement16_rel:
-  case clang::AArch64::BI_InterlockedDecrement_rel:
-  case clang::AArch64::BI_InterlockedDecrement64_rel:
-    return MSVCIntrin::_InterlockedDecrement_rel;
-  case clang::AArch64::BI_InterlockedDecrement16_nf:
-  case clang::AArch64::BI_InterlockedDecrement_nf:
-  case clang::AArch64::BI_InterlockedDecrement64_nf:
-    return MSVCIntrin::_InterlockedDecrement_nf;
-  }
-  llvm_unreachable("must return from switch");
-}
-
-static std::optional<CodeGenFunction::MSVCIntrin>
-translateX86ToMsvcIntrin(unsigned BuiltinID) {
-  using MSVCIntrin = CodeGenFunction::MSVCIntrin;
-  switch (BuiltinID) {
-  default:
-    return std::nullopt;
-  case clang::X86::BI_BitScanForward:
-  case clang::X86::BI_BitScanForward64:
-    return MSVCIntrin::_BitScanForward;
-  case clang::X86::BI_BitScanReverse:
-  case clang::X86::BI_BitScanReverse64:
-    return MSVCIntrin::_BitScanReverse;
-  case clang::X86::BI_InterlockedAnd64:
-    return MSVCIntrin::_InterlockedAnd;
-  case clang::X86::BI_InterlockedCompareExchange128:
-    return MSVCIntrin::_InterlockedCompareExchange128;
-  case clang::X86::BI_InterlockedExchange64:
-    return MSVCIntrin::_InterlockedExchange;
-  case clang::X86::BI_InterlockedExchangeAdd64:
-    return MSVCIntrin::_InterlockedExchangeAdd;
-  case clang::X86::BI_InterlockedExchangeSub64:
-    return MSVCIntrin::_InterlockedExchangeSub;
-  case clang::X86::BI_InterlockedOr64:
-    return MSVCIntrin::_InterlockedOr;
-  case clang::X86::BI_InterlockedXor64:
-    return MSVCIntrin::_InterlockedXor;
-  case clang::X86::BI_InterlockedDecrement64:
-    return MSVCIntrin::_InterlockedDecrement;
-  case clang::X86::BI_InterlockedIncrement64:
-    return MSVCIntrin::_InterlockedIncrement;
-  }
-  llvm_unreachable("must return from switch");
 }
 
 // Emit an MSVC intrinsic. Assumes that arguments have *not* been evaluated.
@@ -6899,6 +6314,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   return GetUndefRValue(E->getType());
 }
 
+<<<<<<< HEAD
 static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
                                         unsigned BuiltinID, const CallExpr *E,
                                         ReturnValueSlot ReturnValue,
@@ -24518,6 +23934,8 @@ Value *CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID,
   }
 }
 
+=======
+>>>>>>> 7f920e2e5f70b25c79adbc0b1005b1d1286d4681
 namespace {
 struct BuiltinAlignArgs {
   llvm::Value *Src = nullptr;
@@ -24598,6 +24016,7 @@ RValue CodeGenFunction::EmitBuiltinAlignTo(const CallExpr *E, bool AlignUp) {
   assert(Result->getType() == Args.SrcType);
   return RValue::get(Result);
 }
+<<<<<<< HEAD
 
 Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
                                                    const CallExpr *E) {
@@ -26111,3 +25530,5 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
   llvm::Function *F = CGM.getIntrinsic(ID, IntrinsicTypes);
   return Builder.CreateCall(F, Ops, "");
 }
+=======
+>>>>>>> 7f920e2e5f70b25c79adbc0b1005b1d1286d4681
