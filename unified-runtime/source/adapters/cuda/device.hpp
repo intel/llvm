@@ -36,6 +36,8 @@ private:
   int MaxChosenLocalMem{0};
   bool MaxLocalMemSizeChosen{false};
   uint32_t NumComputeUnits{0};
+  std::once_flag NVMLInitFlag;
+  bool NVMLUsed{false};
 
 public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
@@ -102,10 +104,27 @@ public:
     if (MemoryProviderShared) {
       umfMemoryProviderDestroy(MemoryProviderShared);
     }
+    if (NVMLUsed) {
+      UR_CHECK_ERROR(nvmlShutdown());
+    }
     cuDevicePrimaryCtxRelease(CuDevice);
   }
 
   native_type get() const noexcept { return CuDevice; };
+
+  nvmlDevice_t getNVML() {
+    // Initialization happens lazily once per device object. Call to nvmlInit by
+    // different objects will just increase the reference count. Each object's
+    // destructor calls shutdown method, so once there will be no NVML users
+    // left, resources will be released.
+    std::call_once(NVMLInitFlag, [this]() {
+      UR_CHECK_ERROR(nvmlInit());
+      NVMLUsed = true;
+    });
+    nvmlDevice_t NVMLDevice;
+    UR_CHECK_ERROR(nvmlDeviceGetHandleByIndex(DeviceIndex, &NVMLDevice));
+    return NVMLDevice;
+  };
 
   CUcontext getNativeContext() const noexcept { return CuContext; };
 

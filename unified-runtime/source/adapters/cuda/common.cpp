@@ -12,6 +12,7 @@
 #include "logger/ur_logger.hpp"
 
 #include <cuda.h>
+#include <nvml.h>
 
 #include <sstream>
 
@@ -36,6 +37,23 @@ ur_result_t mapErrorUR(CUresult Result) {
   }
 }
 
+ur_result_t mapErrorUR(nvmlReturn_t Result) {
+  switch (Result) {
+  case NVML_SUCCESS:
+    return UR_RESULT_SUCCESS;
+  case NVML_ERROR_NOT_SUPPORTED:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case NVML_ERROR_GPU_IS_LOST:
+    return UR_RESULT_ERROR_DEVICE_LOST;
+  case NVML_ERROR_MEMORY:
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  case NVML_ERROR_INSUFFICIENT_RESOURCES:
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  default:
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+}
+
 void checkErrorUR(CUresult Result, const char *Function, int Line,
                   const char *File) {
   if (Result == CUDA_SUCCESS || Result == CUDA_ERROR_DEINITIALIZED) {
@@ -50,6 +68,30 @@ void checkErrorUR(CUresult Result, const char *Function, int Line,
   SS << "\nUR CUDA ERROR:"
      << "\n\tValue:           " << Result
      << "\n\tName:            " << ErrorName
+     << "\n\tDescription:     " << ErrorString
+     << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+     << ":" << Line << "\n";
+  logger::error("{}", SS.str());
+
+  if (std::getenv("PI_CUDA_ABORT") != nullptr ||
+      std::getenv("UR_CUDA_ABORT") != nullptr) {
+    std::abort();
+  }
+
+  throw mapErrorUR(Result);
+}
+
+void checkErrorUR(nvmlReturn_t Result, const char *Function, int Line,
+                  const char *File) {
+  if (Result == NVML_SUCCESS) {
+    return;
+  }
+
+  const char *ErrorString = nullptr;
+  ErrorString = nvmlErrorString(Result);
+  std::stringstream SS;
+  SS << "\nUR NVML ERROR:"
+     << "\n\tValue:           " << Result
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
