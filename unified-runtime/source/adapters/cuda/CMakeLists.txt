@@ -59,6 +59,10 @@ find_package(CUDAToolkit 10.1 REQUIRED)
 # Make imported library global to use it within the project.
 add_library(cudadrv SHARED IMPORTED GLOBAL)
 
+message(STATUS "Path to CUDA driver: ${CUDA_cuda_driver_LIBRARY}")
+file(REAL_PATH ${CUDA_cuda_driver_LIBRARY} CUDA_REAL_PATH)
+message(STATUS "Real path to CUDA driver: ${CUDA_REAL_PATH}")
+
 if (WIN32)
   set_target_properties(
     cudadrv PROPERTIES 
@@ -112,6 +116,11 @@ if (UR_ENABLE_TRACING AND UNIX)
   )
   target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})
 endif()
+
+get_target_property(NVML_PATH CUDA::nvml LOCATION)
+message(STATUS "Path to NVML library: ${NVML_PATH}")
+file(REAL_PATH ${NVML_PATH} NVML_REAL_PATH)
+message(STATUS "Real path to NVML library: ${NVML_REAL_PATH}")
 
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
