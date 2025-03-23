@@ -11,6 +11,8 @@
 #include <sycl/id.hpp>
 #include <sycl/range.hpp>
 
+#define SYCL_KHR_GROUP_INTERFACE 1
+
 #if __cplusplus >= 202302L && defined(__has_include)
 #if __has_include(<mdspan>)
 #include <mdspan>
@@ -33,17 +35,17 @@ namespace detail {
 #if defined(__cpp_lib_mdspan)
 template <typename IndexType, int Dimensions> struct single_extents;
 
-template <typename IndexType> single_extents<1> {
+template <typename IndexType> struct single_extents<IndexType, 1> {
   using type = std::extents<IndexType, 1>;
-}
+};
 
-template <typename IndexType> single_extents<2> {
+template <typename IndexType> struct single_extents<IndexType, 2> {
   using type = std::extents<IndexType, 1, 1>;
-}
+};
 
-template <typename IndexType> single_extents<3> {
+template <typename IndexType> struct single_extents<IndexType, 3> {
   using type = std::extents<IndexType, 1, 1, 1>;
-}
+};
 #endif
 
 template <typename T> struct is_khr_group : public std::false_type {};
@@ -65,9 +67,9 @@ get_item(ParentGroup g);
 
 template <int Dimensions = 1> class work_group {
 public:
-  using id_type = id<Dimensions>;
+  using id_type = sycl::id<Dimensions>;
   using linear_id_type = size_t;
-  using range_type = range<Dimensions>;
+  using range_type = sycl::range<Dimensions>;
 #if defined(__cpp_lib_mdspan)
   using extents_type = std::dextents<size_t, Dimensions>;
 #endif
@@ -75,7 +77,9 @@ public:
   static constexpr int dimensions = Dimensions;
   static constexpr memory_scope fence_scope = memory_scope::work_group;
 
-  work_group(group<Dimensions> g) noexcept {}
+  work_group(group<Dimensions> g) noexcept {
+    std::ignore = g;
+  }
 
   operator group<Dimensions>() const noexcept { return legacy(); }
 
@@ -99,12 +103,26 @@ public:
     }
   }
 
-  constexpr index_type extent(rank_type r) const noexcept {
+  constexpr typename extents_type::index_type
+  extent(typename extents_type::rank_type r) const noexcept {
     return extents().extent(r);
+  }
+
+  static constexpr typename extents_type::rank_type rank() noexcept {
+    return extents_type::rank();
+  }
+
+  static constexpr typename extents_type::rank_type rank_dynamic() noexcept {
+    return extents_type::rank_dynamic();
+  }
+
+  static constexpr size_t
+  static_extent(typename extents_type::rank_type r) noexcept {
+    return extents_type::static_extent(r);
   }
 #endif
 
-  constexpr size_type size() const noexcept {
+  size_type size() const noexcept {
     return legacy().get_local_range().size();
   }
 
@@ -116,9 +134,9 @@ private:
 
 class sub_group {
 public:
-  using id_type = id<1>;
+  using id_type = sycl::id<1>;
   using linear_id_type = uint32_t;
-  using range_type = range<1>;
+  using range_type = sycl::range<1>;
 #if defined(__cpp_lib_mdspan)
   using extents_type = std::dextents<uint32_t, 1>;
 #endif
@@ -126,7 +144,9 @@ public:
   static constexpr int dimensions = 1;
   static constexpr memory_scope fence_scope = memory_scope::sub_group;
 
-  sub_group(sycl::sub_group g) noexcept {}
+  sub_group(sycl::sub_group g) noexcept {
+    std::ignore = g;
+  }
 
   operator sycl::sub_group() const noexcept { return legacy(); }
 
@@ -139,21 +159,35 @@ public:
   range_type range() const noexcept { return legacy().get_group_range(); }
 
 #if defined(__cpp_lib_mdspan)
-  constexpr extents_type extents() const noexcept {
+  extents_type extents() const noexcept {
     return extents_type(legacy().get_local_range()[0]);
   }
 
-  constexpr index_type extent(rank_type r) const noexcept {
+  typename extents_type::index_type
+  extent(typename extents_type::rank_type r) const noexcept {
     return extents().extent(r);
+  }
+
+  static constexpr typename extents_type::rank_type rank() noexcept {
+    return extents_type::rank();
+  }
+
+  static constexpr typename extents_type::rank_type rank_dynamic() noexcept {
+    return extents_type::rank_dynamic();
+  }
+
+  static constexpr size_t
+  static_extent(typename extents_type::rank_type r) noexcept {
+    return extents_type::static_extent(r);
   }
 #endif
 
-  constexpr size_type size() const noexcept {
-    return legacy().get_local_range()[0];
+  size_type size() const noexcept {
+    return legacy().get_local_range().size();
   }
 
-  constexpr size_type max_size() const noexcept {
-    return legacy().get_max_local_range()[0];
+  size_type max_size() const noexcept {
+    return legacy().get_max_local_range().size();
   }
 
 private:
@@ -168,9 +202,9 @@ public:
   using linear_id_type = typename ParentGroup::linear_id_type;
   using range_type = typename ParentGroup::range_type;
 #if defined(__cpp_lib_mdspan)
-  using extents_type =
-      detail::single_extents<typename ParentGroup::extents_type::index_type,
-                             ParentGroup::dimensions>;
+  using extents_type = typename detail::single_extents<
+      typename ParentGroup::extents_type::index_type,
+      ParentGroup::dimensions>::type;
 #endif
   using size_type = typename ParentGroup::size_type;
   static constexpr int dimensions = ParentGroup::dimensions;
@@ -187,8 +221,22 @@ public:
 #if defined(__cpp_lib_mdspan)
   constexpr extents_type extents() const noexcept { return extents_type(); }
 
-  constexpr index_type extent(rank_type r) const noexcept {
+  constexpr typename extents_type::index_type
+  extent(typename extents_type::rank_type r) const noexcept {
     return extents().extent(r);
+  }
+
+  static constexpr typename extents_type::rank_type rank() noexcept {
+    return extents_type::rank();
+  }
+
+  static constexpr typename extents_type::rank_type rank_dynamic() noexcept {
+    return extents_type::rank_dynamic();
+  }
+
+  static constexpr size_t
+  static_extent(typename extents_type::rank_type r) noexcept {
+    return extents_type::static_extent(r);
   }
 #endif
 
@@ -214,6 +262,7 @@ template <typename ParentGroup>
 std::enable_if_t<detail::is_khr_group<ParentGroup>::value,
                  work_item<ParentGroup>>
 get_item(ParentGroup g) {
+  std::ignore = g;
   return work_item<ParentGroup>{};
 }
 
