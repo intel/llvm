@@ -24,6 +24,11 @@ namespace fs = filesystem;
 
 namespace ur_loader {
 
+struct ur_device_tuple {
+  ur_adapter_backend_t backend;
+  ur_device_type_t device;
+};
+
 // Helper struct representing a ONEAPI_DEVICE_SELECTOR filter term.
 struct FilterTerm {
   std::string backend;
@@ -37,7 +42,7 @@ struct FilterTerm {
       {"native_cpu", UR_ADAPTER_BACKEND_NATIVE_CPU},
   };
 
-  bool matchesBackend(const ur_adapter_manifest &manifest) const {
+  bool matchesBackend(const ur_adapter_backend_t &match_backend) const {
     if (backend.front() == '*') {
       return true;
     }
@@ -49,7 +54,7 @@ struct FilterTerm {
           backend);
       return false;
     }
-    if (backendIter->second == manifest.backend) {
+    if (backendIter->second == match_backend) {
       return true;
     }
     return false;
@@ -60,12 +65,7 @@ struct FilterTerm {
       {"gpu", UR_DEVICE_TYPE_GPU},
       {"fpga", UR_DEVICE_TYPE_FPGA}};
 
-  bool matchesDevices(const ur_adapter_manifest &manifest) const {
-    // If the adapter can report all device types then it matches.
-    if (std::find(manifest.device_types.begin(), manifest.device_types.end(),
-                  UR_DEVICE_TYPE_ALL) != manifest.device_types.end()) {
-      return true;
-    }
+  bool matchesDevices(const ur_device_type_t &match_device) const {
     for (auto deviceString : devices) {
       // We don't have a way to determine anything about device indices or
       // sub-devices at this stage so just match any numeric value we get.
@@ -79,20 +79,19 @@ struct FilterTerm {
             deviceString);
         continue;
       }
-      if (std::find(manifest.device_types.begin(), manifest.device_types.end(),
-                    deviceIter->second) != manifest.device_types.end()) {
+      if (deviceIter->second == match_device) {
         return true;
       }
     }
     return false;
   }
 
-  bool matches(const ur_adapter_manifest &manifest) const {
-    if (!matchesBackend(manifest)) {
+  bool matches(const ur_device_tuple &device_tuple) const {
+    if (!matchesBackend(device_tuple.backend)) {
       return false;
     }
 
-    return matchesDevices(manifest);
+    return matchesDevices(device_tuple.device);
   }
 };
 
@@ -280,22 +279,31 @@ private:
       if (PositiveFilter) {
         positiveFilters.push_back({backend, termPair.second});
       } else {
-        // To preserve the behaviour of the original pre-filter implementation,
-        // we interpret all negative filters as backend only. This isn't
-        // correct, see https://github.com/intel/llvm/issues/17086
-        negativeFilters.push_back({backend, {"*"}});
+        negativeFilters.push_back({backend, termPair.second});
       }
     }
 
+    // If ONEAPI_DEVICE_SELECTOR only specified negative filters then we
+    // implicitly add a positive filter accepting all backends and devices.
+    if (positiveFilters.empty()) {
+      positiveFilters.push_back({"*", {"*"}});
+    }
+
     for (const auto &manifest : ur_adapter_manifests) {
-      auto matchesFilter = [manifest](const FilterTerm &f) -> bool {
-        return f.matches(manifest);
-      };
-      if (std::any_of(positiveFilters.begin(), positiveFilters.end(),
-                      matchesFilter) &&
-          std::none_of(negativeFilters.begin(), negativeFilters.end(),
-                       matchesFilter)) {
-        adapterNames.insert(manifest.library);
+      // Check each device in the manifest.
+      for (const auto &device : manifest.device_types) {
+        ur_device_tuple single_device = {manifest.backend, device};
+
+        auto matchesFilter = [single_device](const FilterTerm &f) -> bool {
+          return f.matches(single_device);
+        };
+
+        if (std::any_of(positiveFilters.begin(), positiveFilters.end(),
+                        matchesFilter) &&
+            std::none_of(negativeFilters.begin(), negativeFilters.end(),
+                         matchesFilter)) {
+          adapterNames.insert(manifest.library);
+        }
       }
     }
 
