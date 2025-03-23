@@ -63,7 +63,7 @@ namespace khr {
 template <typename ParentGroup>
 std::enable_if_t<detail::is_khr_group<ParentGroup>::value,
                  member_item<ParentGroup>>
-get_item(ParentGroup g);
+get_member_item(ParentGroup g);
 
 template <int Dimensions = 1> class work_group {
 public:
@@ -255,19 +255,19 @@ private:
 protected:
   member_item() {}
 
-  friend member_item<ParentGroup> get_item<ParentGroup>(ParentGroup);
+  friend member_item<ParentGroup> get_member_item<ParentGroup>(ParentGroup);
 };
 
 template <typename ParentGroup>
 std::enable_if_t<detail::is_khr_group<ParentGroup>::value,
                  member_item<ParentGroup>>
-get_item(ParentGroup g) {
+get_member_item(ParentGroup g) {
   std::ignore = g;
   return member_item<ParentGroup>{};
 }
 
 template <typename Group> bool leader_of(Group g) {
-  return get_item(g).linear_id() == 0;
+  return get_member_item(g).linear_id() == 0;
 }
 
 } // namespace khr
