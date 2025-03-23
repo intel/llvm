@@ -1,3 +1,14 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+# NOTE: device_types must be explictly listed. Refrain from using 
+#       $X_DEVICE_TYPE_ALL. See https://github.com/intel/llvm/issues/17527.
 --- #--------------------------------------------------------------------------
 type: header
 desc: "Intel $OneApi Unified Runtime adapter manifests"
@@ -7,7 +18,11 @@ type: manifest
 name: opencl
 backend: $X_ADAPTER_BACKEND_OPENCL
 device_types:
-    - $X_DEVICE_TYPE_ALL
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU
+    - $X_DEVICE_TYPE_FPGA
+    - $X_DEVICE_TYPE_MCA
+    - $X_DEVICE_TYPE_VPU
 --- #--------------------------------------------------------------------------
 type: manifest
 name: cuda
@@ -25,13 +40,21 @@ type: manifest
 name: level_zero
 backend: $X_ADAPTER_BACKEND_LEVEL_ZERO
 device_types:
-    - $X_DEVICE_TYPE_ALL
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU
+    - $X_DEVICE_TYPE_FPGA
+    - $X_DEVICE_TYPE_MCA
+    - $X_DEVICE_TYPE_VPU
 --- #--------------------------------------------------------------------------
 type: manifest
 name: level_zero_v2
 backend: $X_ADAPTER_BACKEND_LEVEL_ZERO
 device_types:
-    - $X_DEVICE_TYPE_ALL
+    - $X_DEVICE_TYPE_CPU
+    - $X_DEVICE_TYPE_GPU
+    - $X_DEVICE_TYPE_FPGA
+    - $X_DEVICE_TYPE_MCA
+    - $X_DEVICE_TYPE_VPU
 --- #--------------------------------------------------------------------------
 type: manifest
 name: native_cpu
