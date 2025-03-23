@@ -63,7 +63,7 @@ int main() {
 #endif
       assert(wg.size() == g.get_local_linear_range());
 
-      khr::work_item wi = get_item(wg);
+      khr::member_item wi = get_member_item(wg);
       assert(wi.id() == g.get_local_id());
       assert(wi.linear_id() == g.get_local_linear_id());
       assert(wi.range() == g.get_local_range());
@@ -90,7 +90,7 @@ int main() {
 #endif
                      assert(wg.size() == g.get_local_linear_range());
 
-                     khr::work_item wi = get_item(wg);
+                     khr::member_item wi = get_member_item(wg);
                      assert(wi.id() == g.get_local_id());
                      assert(wi.linear_id() == g.get_local_linear_id());
                      assert(wi.range() == g.get_local_range());
@@ -119,7 +119,7 @@ int main() {
 #endif
                      assert(wg.size() == g.get_local_linear_range());
 
-                     khr::work_item wi = get_item(wg);
+                     khr::member_item wi = get_member_item(wg);
                      assert(wi.id() == g.get_local_id());
                      assert(wi.linear_id() == g.get_local_linear_id());
                      assert(wi.range() == g.get_local_range());
