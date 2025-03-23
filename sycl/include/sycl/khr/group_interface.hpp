@@ -27,7 +27,7 @@ namespace khr {
 // Forward declarations for traits.
 template <int Dimensions> class work_group;
 class sub_group;
-template <typename ParentGroup> class work_item;
+template <typename ParentGroup> class member_item;
 
 } // namespace khr
 
@@ -62,7 +62,7 @@ namespace khr {
 // Forward declaration for friend function.
 template <typename ParentGroup>
 std::enable_if_t<detail::is_khr_group<ParentGroup>::value,
-                 work_item<ParentGroup>>
+                 member_item<ParentGroup>>
 get_item(ParentGroup g);
 
 template <int Dimensions = 1> class work_group {
@@ -196,7 +196,7 @@ private:
   }
 };
 
-template <typename ParentGroup> class work_item {
+template <typename ParentGroup> class member_item {
 public:
   using id_type = typename ParentGroup::id_type;
   using linear_id_type = typename ParentGroup::linear_id_type;
@@ -253,17 +253,17 @@ private:
   }
 
 protected:
-  work_item() {}
+  member_item() {}
 
-  friend work_item<ParentGroup> get_item<ParentGroup>(ParentGroup);
+  friend member_item<ParentGroup> get_item<ParentGroup>(ParentGroup);
 };
 
 template <typename ParentGroup>
 std::enable_if_t<detail::is_khr_group<ParentGroup>::value,
-                 work_item<ParentGroup>>
+                 member_item<ParentGroup>>
 get_item(ParentGroup g) {
   std::ignore = g;
-  return work_item<ParentGroup>{};
+  return member_item<ParentGroup>{};
 }
 
 template <typename Group> bool leader_of(Group g) {
