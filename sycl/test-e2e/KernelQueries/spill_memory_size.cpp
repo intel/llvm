@@ -45,9 +45,18 @@ int main() {
   sycl::queue q{};
   const auto ctx = q.get_context();
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
-  assert(!bundle.empty());
   auto kernel = bundle.template get_kernel<kernels::TestKernel>();
   const auto dev = q.get_device();
+
+  sycl::buffer<value_type, 1> buf{sycl::range<1>{1}};
+  auto launchRange = sycl::nd_range<1>{sycl::range<1>{1}, sycl::range<1>{1}};
+  q.submit([&](sycl::handler &cgh) {
+     auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+     cgh.parallel_for<class kernels::TestKernel>(launchRange,
+                                                 kernels::TestKernel{acc});
+   }).wait();
+
+  assert(!bundle.empty());
 
   if (dev.has(sycl::aspect::ext_intel_spill_memory_size)) {
     const auto spillMemSz = kernel.template get_info<
