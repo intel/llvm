@@ -2893,8 +2893,8 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
 
   for (auto &G : M.globals()) {
-    // DeviceASAN cannot handle nameless globals, therefore we set a name for
-    // them so that we can handle them like regular globals.
+    // DeviceSanitizers cannot handle nameless globals, therefore we set a name
+    // for them so that we can handle them like regular globals.
     if (G.getName().empty() && G.hasInternalLinkage())
       G.setName("nameless_global");
 
