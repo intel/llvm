@@ -69,7 +69,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   # Common link step setup
 
-
   add_library(${LIB_NAME} SHARED
               $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
               ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
