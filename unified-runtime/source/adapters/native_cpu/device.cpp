@@ -134,7 +134,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(hDevice->Platform);
   case UR_DEVICE_INFO_NAME:
     return ReturnValue("SYCL Native CPU");
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED:
+  case UR_DEVICE_INFO_IMAGE_SUPPORT:
     return ReturnValue(bool{false});
   case UR_DEVICE_INFO_DRIVER_VERSION:
     return ReturnValue("0.0.0");
@@ -424,7 +424,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
     return ReturnValue(false);
 
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(ur_bool_t{false});
 
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
@@ -432,7 +432,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
 
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
 
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:

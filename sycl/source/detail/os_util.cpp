@@ -321,7 +321,7 @@ void *dynLookup([[maybe_unused]] const char *WinName,
                           "Symbol " + std::string(FunName) +
                               " could not be found");
   }
-  return retVal;
+  return reinterpret_cast<void *>(retVal);
 }
 
 } // namespace detail
