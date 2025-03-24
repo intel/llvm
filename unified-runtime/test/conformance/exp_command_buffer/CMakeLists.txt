@@ -22,3 +22,5 @@ add_conformance_test_with_kernels_environment(exp_command_buffer
   update/kernel_event_sync.cpp
   update/local_memory_update.cpp
 )
+
+add_subdirectory(native-command)

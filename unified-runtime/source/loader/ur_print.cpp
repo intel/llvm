@@ -92,6 +92,13 @@ ur_result_t urPrintRectRegion(const struct ur_rect_region_t params,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintBackend(enum ur_backend_t value, char *buffer,
+                           const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintDeviceInitFlags(enum ur_device_init_flag_t value,
                                    char *buffer, const size_t buff_size,
                                    size_t *out_size) {
@@ -123,13 +130,6 @@ ur_result_t urPrintAdapterInfo(enum ur_adapter_info_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintAdapterBackend(enum ur_adapter_backend_t value, char *buffer,
-                                  const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
 ur_result_t urPrintPlatformInfo(enum ur_platform_info_t value, char *buffer,
                                 const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -149,14 +149,6 @@ ur_result_t urPrintPlatformNativeProperties(
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintPlatformBackend(enum ur_platform_backend_t value,
-                                   char *buffer, const size_t buff_size,
-                                   size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
@@ -279,6 +271,15 @@ urPrintMemoryScopeCapabilityFlags(enum ur_memory_scope_capability_flag_t value,
 ur_result_t urPrintDeviceUsmAccessCapabilityFlags(
     enum ur_device_usm_access_capability_flag_t value, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintDeviceThrottleReasonsFlags(enum ur_device_throttle_reasons_flag_t value,
+                                  char *buffer, const size_t buff_size,
+                                  size_t *out_size) {
   std::stringstream ss;
   ss << value;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -1463,6 +1464,14 @@ ur_result_t urPrintCommandBufferAppendUsmAdviseExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintCommandBufferAppendNativeCommandExpParams(
+    const struct ur_command_buffer_append_native_command_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintCommandBufferUpdateKernelLaunchExpParams(
     const struct ur_command_buffer_update_kernel_launch_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
@@ -1490,6 +1499,14 @@ ur_result_t urPrintCommandBufferUpdateWaitEventsExpParams(
 ur_result_t urPrintCommandBufferGetInfoExpParams(
     const struct ur_command_buffer_get_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintCommandBufferGetNativeHandleExpParams(
+    const struct ur_command_buffer_get_native_handle_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

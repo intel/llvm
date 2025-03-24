@@ -174,10 +174,13 @@ class test_env:
         self.old_environ = dict(os.environ)
         os.environ.clear()
         os.environ.update(config.environment)
+        self.old_dir = os.getcwd()
+        os.chdir(config.sycl_obj_root)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         os.environ.clear()
         os.environ.update(self.old_environ)
+        os.chdir(self.old_dir)
 
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
@@ -771,7 +774,7 @@ for full_name, sycl_device in zip(
 
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
-        env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+        env["SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
     # with their test run. It's just us filtering here, so silence them unless

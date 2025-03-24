@@ -512,7 +512,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxMemAllocSize) {
 
 TEST_P(urDeviceGetInfoTest, SuccessImageSupported) {
   size_t property_size = 0;
-  const ur_device_info_t property_name = UR_DEVICE_INFO_IMAGE_SUPPORTED;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_IMAGE_SUPPORT;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
@@ -1758,23 +1758,6 @@ TEST_P(urDeviceGetInfoTest, SuccessAtomicFenceScopeCapabilities) {
   ASSERT_EQ(property_value & UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK, 0);
 }
 
-TEST_P(urDeviceGetInfoTest, SuccessBFloat64) {
-  size_t property_size = 0;
-  const ur_device_info_t property_name = UR_DEVICE_INFO_BFLOAT16;
-
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
-      property_name);
-  ASSERT_EQ(property_size, sizeof(ur_bool_t));
-
-  ur_bool_t property_value = false;
-  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
-                                 &property_value, nullptr));
-
-  bool casted_value = static_cast<bool>(property_value);
-  ASSERT_TRUE(casted_value == false || casted_value == true);
-}
-
 TEST_P(urDeviceGetInfoTest, SuccessMaxComputeQueueIndices) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
@@ -1892,7 +1875,7 @@ TEST_P(urDeviceGetInfoTest, SuccessHostPipeReadWriteSupport) {
 
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED;
+      UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT;
 
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
@@ -2077,7 +2060,8 @@ TEST_P(urDeviceGetInfoTest, SuccessCommandBufferEventSupport) {
 
 TEST_P(urDeviceGetInfoTest, SuccessClusterLaunch) {
   size_t property_size = 0;
-  const ur_device_info_t property_name = UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
@@ -2358,7 +2342,7 @@ TEST_P(urDeviceGetInfoTest, SuccessCubemapSeamlessFilteringSupport) {
 TEST_P(urDeviceGetInfoTest, SuccessBindlessSampledImageFetch1DUSM) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP;
+      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
@@ -2375,7 +2359,7 @@ TEST_P(urDeviceGetInfoTest, SuccessBindlessSampledImageFetch1DUSM) {
 TEST_P(urDeviceGetInfoTest, SuccessBindlessSampledImageFetch1D) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP;
+      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
@@ -2392,7 +2376,7 @@ TEST_P(urDeviceGetInfoTest, SuccessBindlessSampledImageFetch1D) {
 TEST_P(urDeviceGetInfoTest, SuccessBindlessSampledImageFetch2DUSM) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP;
+      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
@@ -2409,7 +2393,7 @@ TEST_P(urDeviceGetInfoTest, SuccessBindlessSampledImageFetch2DUSM) {
 TEST_P(urDeviceGetInfoTest, SuccessBindlessSampledImageFetch2D) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP;
+      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
@@ -2426,7 +2410,7 @@ TEST_P(urDeviceGetInfoTest, SuccessBindlessSampledImageFetch2D) {
 TEST_P(urDeviceGetInfoTest, SuccessBindlessSampledImageFetch3D) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP;
+      UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
@@ -2476,7 +2460,7 @@ TEST_P(urDeviceGetInfoTest, SuccessImageArraySupport) {
 TEST_P(urDeviceGetInfoTest, SuccessBindlessUniqueAddressingPerDim) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP;
+      UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
@@ -2493,7 +2477,7 @@ TEST_P(urDeviceGetInfoTest, SuccessBindlessUniqueAddressingPerDim) {
 TEST_P(urDeviceGetInfoTest, SuccessBindlessSample1DUSM) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP;
+      UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
@@ -2510,7 +2494,7 @@ TEST_P(urDeviceGetInfoTest, SuccessBindlessSample1DUSM) {
 TEST_P(urDeviceGetInfoTest, SuccessBindlessSample2DUSM) {
   size_t property_size = 0;
   const ur_device_info_t property_name =
-      UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP;
+      UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP;
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
@@ -2569,6 +2553,74 @@ TEST_P(urDeviceGetInfoTest, SuccessUseNativeAssert) {
       urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
       property_name);
   ASSERT_EQ(property_size, sizeof(ur_bool_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS;
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
+  ASSERT_EQ(property_size, sizeof(ur_device_throttle_reasons_flag_t));
+
+  ur_device_throttle_reasons_flag_t property_value =
+      UR_DEVICE_THROTTLE_REASONS_FLAG_FORCE_UINT32;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+
+  ASSERT_EQ(property_value & UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK, 0);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_FAN_SPEED;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+
+  ASSERT_EQ(property_size, sizeof(int32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_MAX_POWER_LIMIT;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+
+  ASSERT_EQ(property_size, sizeof(int32_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
+TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_MIN_POWER_LIMIT;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      UR_DEVICE_INFO_COMPOSITE_DEVICE);
+
+  ASSERT_EQ(property_size, sizeof(int32_t));
 
   uint32_t property_value = 0;
   ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
