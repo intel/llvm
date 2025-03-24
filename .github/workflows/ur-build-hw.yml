@@ -30,6 +30,10 @@ on:
         required: true
         type: string
         default: ""
+      image_options:
+        required: true
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       adapter_name:
@@ -56,6 +60,10 @@ on:
         type: string
         default: OFF
       docker_image:
+        required: true
+        type: string
+        default: ""
+      image_options:
         required: true
         type: string
         default: ""
@@ -94,7 +102,8 @@ jobs:
     container:
       image: ${{ inputs.docker_image }}
       # TODO: options may differ for other GPU cards
-      options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+      options: ${{ inputs.image_options }}
+      # options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
 
     steps:
     # TODO:
