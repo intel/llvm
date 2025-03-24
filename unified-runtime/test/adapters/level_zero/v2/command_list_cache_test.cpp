@@ -31,7 +31,7 @@ struct CommandListCacheTest : public uur::urContextTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(CommandListCacheTest);
 
 TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
-  v2::command_list_cache_t cache(context->getZeHandle(), false);
+  v2::command_list_cache_t cache(context->getZeHandle(), false, false);
 
   bool IsInOrder = false;
   uint32_t Ordinal = 0;
@@ -49,7 +49,7 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
   // get command lists from the cache
   for (int i = 0; i < numListsPerType; ++i) {
     regCmdListOwners.emplace_back(cache.getRegularCommandList(
-        device->ZeDevice, IsInOrder, Ordinal, true));
+        device->ZeDevice, IsInOrder, Ordinal, true, false));
     auto [it, _] = regCmdLists.emplace(regCmdListOwners.back().get());
     ASSERT_TRUE(*it != nullptr);
 
@@ -66,7 +66,7 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
   // verify we get back the same command lists
   for (int i = 0; i < numListsPerType; ++i) {
     auto regCmdList =
-        cache.getRegularCommandList(device->ZeDevice, IsInOrder, Ordinal, true);
+        cache.getRegularCommandList(device->ZeDevice, IsInOrder, Ordinal, true, false);
     ASSERT_TRUE(regCmdList != nullptr);
 
     auto immCmdList = cache.getImmediateCommandList(
@@ -83,7 +83,7 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
-  v2::command_list_cache_t cache(context->getZeHandle(), false);
+  v2::command_list_cache_t cache(context->getZeHandle(), false, false);
 
   uint32_t numQueueGroups = 0;
   ASSERT_EQ(zeDeviceGetCommandQueueGroupProperties(device->ZeDevice,
