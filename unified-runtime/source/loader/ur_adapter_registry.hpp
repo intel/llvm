@@ -25,7 +25,7 @@ namespace fs = filesystem;
 namespace ur_loader {
 
 struct ur_device_tuple {
-  ur_adapter_backend_t backend;
+  ur_backend_t backend;
   ur_device_type_t device;
 };
 
@@ -34,15 +34,15 @@ struct FilterTerm {
   std::string backend;
   std::vector<std::string> devices;
 
-  const std::map<std::string, ur_adapter_backend_t> backendNameMap = {
-      {"opencl", UR_ADAPTER_BACKEND_OPENCL},
-      {"level_zero", UR_ADAPTER_BACKEND_LEVEL_ZERO},
-      {"cuda", UR_ADAPTER_BACKEND_CUDA},
-      {"hip", UR_ADAPTER_BACKEND_HIP},
-      {"native_cpu", UR_ADAPTER_BACKEND_NATIVE_CPU},
+  const std::map<std::string, ur_backend_t> backendNameMap = {
+      {"opencl", UR_BACKEND_OPENCL},
+      {"level_zero", UR_BACKEND_LEVEL_ZERO},
+      {"cuda", UR_BACKEND_CUDA},
+      {"hip", UR_BACKEND_HIP},
+      {"native_cpu", UR_BACKEND_NATIVE_CPU},
   };
 
-  bool matchesBackend(const ur_adapter_backend_t &match_backend) const {
+  bool matchesBackend(const ur_backend_t &match_backend) const {
     if (backend.front() == '*') {
       return true;
     }
