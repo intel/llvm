@@ -5788,7 +5788,7 @@ def offloadlib : Flag<["--"], "offloadlib">,
 def : Flag<["-"], "nogpulib">,
       Alias<no_offloadlib>,
       Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>;
-def : Flag<["-"], "nocudalib">, Alias<no_offloadlib>;
+def : Flag<["-"], "nocudalib">, Alias<no_offloadlib>, Visibility<[ClangOption, CLOption]>;
 def gpulibc : Flag<["-"], "gpulibc">, Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
   HelpText<"Link the LLVM C Library for GPUs">;
 def nogpulibc : Flag<["-"], "nogpulibc">, Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>;
