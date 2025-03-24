@@ -237,7 +237,7 @@ struct urMemImageTest : urContextTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
     ur_bool_t imageSupported = false;
-    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORT,
                                    sizeof(ur_bool_t), &imageSupported,
                                    nullptr));
     if (!imageSupported) {
@@ -376,16 +376,16 @@ struct urHostPipeTest : urQueueTest {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
     size_t size = 0;
-    ASSERT_SUCCESS(
-        urDeviceGetInfo(device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED,
-                        0, nullptr, &size));
+    ASSERT_SUCCESS(urDeviceGetInfo(device,
+                                   UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT,
+                                   0, nullptr, &size));
     ASSERT_NE(size, 0);
     ASSERT_EQ(sizeof(ur_bool_t), size);
 
     void *info_data = alloca(size);
-    ASSERT_SUCCESS(
-        urDeviceGetInfo(device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED,
-                        size, info_data, nullptr));
+    ASSERT_SUCCESS(urDeviceGetInfo(device,
+                                   UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT,
+                                   size, info_data, nullptr));
     ASSERT_NE(info_data, nullptr);
 
     bool supported;
@@ -634,7 +634,7 @@ struct urMemImageQueueTest : urQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
     ur_bool_t imageSupported = false;
-    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORT,
                                    sizeof(ur_bool_t), &imageSupported,
                                    nullptr));
     if (!imageSupported) {
@@ -717,7 +717,7 @@ struct urMultiDeviceMemImageTest : urMultiDeviceContextTest {
     UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
     for (auto device : devices) {
       ur_bool_t imageSupported = false;
-      ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+      ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_IMAGE_SUPPORT,
                                      sizeof(ur_bool_t), &imageSupported,
                                      nullptr));
       if (!imageSupported) {
@@ -1219,11 +1219,11 @@ struct urProgramTest : urQueueTest {
 
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     // Images and samplers are not available on AMD
-    if (program_name == "image_copy" && backend == UR_PLATFORM_BACKEND_HIP) {
+    if (program_name == "image_copy" && backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
@@ -1257,11 +1257,11 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
 
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam<T>::SetUp());
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(this->platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     // Images and samplers are not available on AMD
-    if (program_name == "image_copy" && backend == UR_PLATFORM_BACKEND_HIP) {
+    if (program_name == "image_copy" && backend == UR_BACKEND_HIP) {
       GTEST_SKIP();
     }
 
@@ -1429,10 +1429,10 @@ struct KernelLaunchHelper {
     // the AMD backend handles this differently and uses three separate
     // arguments for each of the three dimensions of the accessor.
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
-    if (backend == UR_PLATFORM_BACKEND_HIP) {
+    if (backend == UR_BACKEND_HIP) {
       // this emulates the three offset params for buffer accessor on AMD.
       size_t val = 0;
       ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
@@ -1666,12 +1666,11 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceQueueTest::SetUp());
 
-    ur_platform_backend_t backend;
+    ur_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(backend), &backend, nullptr));
     // Multi-device programs are not supported for AMD and CUDA
-    if (backend == UR_PLATFORM_BACKEND_HIP ||
-        backend == UR_PLATFORM_BACKEND_CUDA) {
+    if (backend == UR_BACKEND_HIP || backend == UR_BACKEND_CUDA) {
       GTEST_SKIP();
     }
     if (devices.size() < 2) {

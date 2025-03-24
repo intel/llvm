@@ -213,9 +213,9 @@ ur_result_t GetDeviceMaxMemAllocSize(ur_device_handle_t device,
 }
 
 ur_result_t GetDeviceImageSupport(ur_device_handle_t device,
-                                  bool &image_supported) {
-  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
-                             image_supported);
+                                  bool &image_support) {
+  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_IMAGE_SUPPORT,
+                             image_support);
 }
 
 ur_result_t GetDeviceMaxReadImageArgs(ur_device_handle_t device,
@@ -634,7 +634,7 @@ ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
 ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
                                          bool &support) {
   return GetDeviceInfo<bool>(
-      device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, support);
+      device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT, support);
 }
 
 ur_result_t GetTimestampRecordingSupport(ur_device_handle_t device,
@@ -684,7 +684,7 @@ ur_result_t MakeUSMAllocationByType(ur_usm_type_t type,
 }
 
 std::string GetAdapterBackendName(ur_adapter_handle_t hAdapter) {
-  ur_adapter_backend_t backend = UR_ADAPTER_BACKEND_UNKNOWN;
+  ur_backend_t backend = UR_BACKEND_UNKNOWN;
   urAdapterGetInfo(hAdapter, UR_ADAPTER_INFO_BACKEND, sizeof(backend), &backend,
                    nullptr);
   std::stringstream ss;

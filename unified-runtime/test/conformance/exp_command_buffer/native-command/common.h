@@ -59,7 +59,7 @@ struct urCommandBufferNativeAppendTest : uur::urQueueTest {
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::TearDown());
   }
 
-  ur_platform_backend_t backend{};
+  ur_backend_t backend{};
   ur_exp_command_buffer_handle_t command_buffer = nullptr;
   static constexpr int val = 42;
   static constexpr uint32_t global_size = 128;
