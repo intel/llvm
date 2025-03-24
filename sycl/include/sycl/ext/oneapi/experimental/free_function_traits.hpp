@@ -29,7 +29,16 @@ inline constexpr bool is_single_task_kernel_v =
     is_single_task_kernel<Func>::value;
 
 template <auto *Func> struct is_kernel {
+// During device compilation mode the compiler does not yet know
+// what the kernels are named because that is exactly what its trying to
+// figure out during this phase. Therefore, we set the is_kernel trait to true
+// by default during device compilation in order to not get missing functions
+// errors.
+#ifdef __SYCL_DEVICE_ONLY__
+  static constexpr bool value = true;
+#else
   static constexpr bool value = false;
+#endif
 };
 
 template <auto *Func>
