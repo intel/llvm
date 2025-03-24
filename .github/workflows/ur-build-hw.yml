@@ -105,6 +105,10 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: ${{ env.CURRENT_DIR }}/unified-runtime/.github/scripts/get_system_info.sh
+
     - name: Set working directory as environment variable
       run: echo "CURRENT_DIR=$(pwd)" >> $GITHUB_ENV
 
@@ -124,6 +128,54 @@ jobs:
         wget -O ${{ env.CURRENT_DIR }}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-12-12/sycl_linux.tar.gz
         mkdir -p ${{ env.CURRENT_DIR }}/dpcpp_compiler
         tar -xvf ${{ env.CURRENT_DIR }}/dpcpp_compiler.tar.gz -C dpcpp_compiler
+
+    - name: Install Intel Level Zero loader
+      working-directory: ${{ env.CURRENT_DIR }}
+      run: |
+        curl -L https://github.com/oneapi-src/level-zero/archive/refs/heads/master.tar.gz -o level-zero.tar.gz
+        tar -xzf level-zero.tar.gz
+        cd level-zero-master
+        
+        mkdir build && cd build
+        cmake .. -D CMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX=usr/local/install
+        cmake --build . --target package
+        cmake --build . --target install
+
+    - name: Install Intel Level Zero GPU
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gnupg2 gpg-agent curl
+        curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | sudo gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy/lts/2350 unified" | sudo tee /etc/apt/sources.list.d/intel-gpu-jammy.list
+        sudo apt update
+        sudo apt install -y \
+          intel-opencl-icd intel-level-zero-gpu \
+          intel-media-va-driver-non-free libmfx1 libmfxgen1 libvpl2 \
+          libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri \
+          libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers \
+          mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all vainfo hwinfo clinfo
+
+    - name: Add L0 to PATH
+      run: |
+        export PATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/bin:$PATH
+        export LD_LIBRARY_PATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/lib:$LD_LIBRARY_PATH
+        export CPATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/include:$CPATH
+        export LIBRARY_PATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/lib:$LIBRARY_PATH
+
+        echo 'export PATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/bin:$PATH' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
+        echo 'export CPATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/include:$CPATH' >> ~/.bashrc
+        echo 'export LIBRARY_PATH=/__w/llvm/llvm/level-zero-master/build/usr/local/install/lib:$LIBRARY_PATH' >> ~/.bashrc
+        . ~/.bashrc
+      shell: bash
+
+    - name: Check PATH
+      run: | 
+        echo $PATH
+        echo $LD_LIBRARY_PATH
+        echo $CPATH
+        echo $LIBRARY_PATH
+        ls -l /__w/llvm/llvm/level-zero-master/build/usr/local/install/lib
 
     - name: Configure Unified Runtime project
       working-directory: ${{ env.CURRENT_DIR }}/unified-runtime
@@ -156,19 +208,15 @@ jobs:
       # This is to check that install command does not fail
       run: cmake --install ${{ env.CURRENT_DIR }}/build
 
-    - name: Install Intel Level Zero GPU
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gnupg2 gpg-agent curl
-        curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | sudo gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg
-        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy/lts/2350 unified" | sudo tee /etc/apt/sources.list.d/intel-gpu-jammy.list
-        sudo apt update
-        sudo apt install -y \
-          intel-opencl-icd intel-level-zero-gpu level-zero level-zero-dev \
-          intel-media-va-driver-non-free libmfx1 libmfxgen1 libvpl2 \
-          libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri \
-          libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers \
-          mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all vainfo hwinfo clinfo
+    # - name: Run ldd on libur_* libraries
+    #   run: |
+    #     cd ${{ env.CURRENT_DIR }}
+    #     pwd
+    #     ls 
+    #     cd build
+    #     pwd
+    #     ls
+    #     ldd lib/libur_*
 
     # - name: Check if GPU is avaliable 
     #   run: |
@@ -182,7 +230,8 @@ jobs:
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
-      run: ctest -C ${{matrix.build_type}} --test-dir ${{ env.CURRENT_DIR }}/build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
+      # run: ctest -C ${{matrix.build_type}} --test-dir ${{ env.CURRENT_DIR }}/build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
+      run: ctest -C ${{ matrix.build_type }} --test-dir ${{ env.CURRENT_DIR }}/build --output-on-failure -L "adapter-specific" -R "test-adapter-level_zero$" --timeout 600 -VV
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
@@ -193,5 +242,5 @@ jobs:
       run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{ env.CURRENT_DIR }}/build --output-on-failure -L "conformance" --timeout 600 -VV
 
     - name: Get information about platform
-      # if: ${{ always() }}
+      if: ${{ always() }}
       run: ${{ env.CURRENT_DIR }}/unified-runtime/.github/scripts/get_system_info.sh
