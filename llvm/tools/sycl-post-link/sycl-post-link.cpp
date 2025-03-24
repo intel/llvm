@@ -258,7 +258,7 @@ struct IrPropSymFilenameTriple {
   std::string Sym;
 };
 
-void writeToFile(const std::string &Filename, const std::string &Content) {
+void writeToFile(StringRef Filename, StringRef Content) {
   std::error_code EC;
   raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
   checkError(EC, "error opening the file '" + Filename + "'");
@@ -266,25 +266,12 @@ void writeToFile(const std::string &Filename, const std::string &Content) {
   OS.close();
 }
 
-// Creates a filename based on current output filename, given extension,
-// sequential ID and suffix.
-std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
-  const StringRef Dir0 = OutputDir.getNumOccurrences() > 0
-                             ? OutputDir
-                             : sys::path::parent_path(OutputFiles[0].Filename);
-  const StringRef Sep = sys::path::get_separator();
-  std::string Dir = Dir0.str();
-  if (!Dir0.empty() && !Dir0.ends_with(Sep))
-    Dir += Sep.str();
-  return (Dir + sys::path::stem(OutputFiles[0].Filename) + Suffix + "_" +
-          Twine(I) + Ext)
-      .str();
-}
-
-void saveModuleIR(Module &M, StringRef OutFilename) {
+std::string saveModuleIR(Module &M, StringRef IRPrefix) {
+  StringRef Ext = (OutputAssembly) ? ".ll" : ".bc";
+  std::string Filename = (Twine(IRPrefix) + Ext).str();
   std::error_code EC;
-  raw_fd_ostream Out{OutFilename, EC, sys::fs::OF_None};
-  checkError(EC, "error opening the file '" + OutFilename + "'");
+  raw_fd_ostream Out{Filename, EC, sys::fs::OF_None};
+  checkError(EC, "error opening the file '" + Filename + "'");
 
   ModulePassManager MPM;
   ModuleAnalysisManager MAM;
@@ -295,19 +282,13 @@ void saveModuleIR(Module &M, StringRef OutFilename) {
   else if (Force || !CheckBitcodeOutputToConsole(Out))
     MPM.addPass(BitcodeWriterPass(Out));
   MPM.run(M, MAM);
-}
 
-std::string saveModuleIR(Module &M, int I, StringRef Suff) {
-  DUMP_ENTRY_POINTS(M, EmitOnlyKernelsAsEntryPoints, "saving IR");
-  StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
-  std::string OutFilename = makeResultFileName(FileExt, I, Suff);
-  saveModuleIR(M, OutFilename);
-  return OutFilename;
+  return Filename;
 }
 
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
-                                 const GlobalBinImageProps &GlobProps, int I,
-                                 StringRef Suff, StringRef Target = "") {
+                                 const GlobalBinImageProps &GlobProps,
+                                 StringRef Filename, StringRef Target = "") {
 
   PropSetRegTy PropSet;
 
@@ -329,30 +310,24 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.remove(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                    PropSetRegTy::PROPERTY_REQD_WORK_GROUP_SIZE);
 
-  std::string NewSuff = Suff.str();
-  if (!Target.empty()) {
+  if (!Target.empty())
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
                 Target);
-    NewSuff += "_";
-    NewSuff += Target;
-  }
 
   std::error_code EC;
-  std::string SCFile = makeResultFileName(".prop", I, NewSuff);
-  raw_fd_ostream SCOut(SCFile, EC);
-  checkError(EC, "error opening file '" + SCFile + "'");
+  raw_fd_ostream SCOut(Filename, EC);
+  checkError(EC, "error opening file '" + Filename + "'");
   PropSet.write(SCOut);
 
-  return SCFile;
+  return Filename.str();
 }
 
 // Saves specified collection of symbols to a file.
-std::string saveModuleSymbolTable(const module_split::ModuleDesc &MD, int I,
-                                  StringRef Suffix) {
+std::string saveModuleSymbolTable(const module_split::ModuleDesc &MD,
+                                  StringRef Filename) {
   auto SymT = computeModuleSymbolTable(MD.getModule(), MD.entries());
-  std::string OutFileName = makeResultFileName(".sym", I, Suffix);
-  writeToFile(OutFileName, SymT);
-  return OutFileName;
+  writeToFile(Filename, SymT);
+  return Filename.str();
 }
 
 template <class PassClass> bool runModulePass(Module &M) {
@@ -431,33 +406,27 @@ void addTableRow(util::SimpleTable &Table,
 
 // @param OutTables List of tables (one for each target) to output results
 // @param MD Module descriptor to save
-// @param IRFilename filename of already available IR component. If not empty,
-//   IR component saving is skipped, and this file name is recorded as such in
-//   the result.
+// @param OutputPrefix Prefix for the all generated outputs.
 void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-                module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
+                module_split::ModuleDesc &MD, int I, StringRef OutputPrefix) {
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
   MD.saveSplitInformationAsMetadata();
 
-  if (!MD.isSYCLDeviceLib()) {
-    if (!IRFilename.empty()) {
-      // don't save IR, just record the filename
-      BaseTriple.Ir = IRFilename.str();
-    } else {
-      MD.cleanup();
-      BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
-    }
-  } else {
-    // For deviceLib Modules, don't need to do clean up, no entry-point
-    // is included, the module only includes a bunch of exported functions
-    // intended to be invoked by user's device modules.
-    BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
-  }
+  // For deviceLib Modules, don't need to do clean up, no entry-point
+  // is included, the module only includes a bunch of exported functions
+  // intended to be invoked by user's device modules.
+  if (!MD.isSYCLDeviceLib())
+    MD.cleanup();
 
+  std::string IRPrefix = (Twine(OutputPrefix) + Suffix + "_" + Twine(I)).str();
+  BaseTriple.Ir = saveModuleIR(MD.getModule(), IRPrefix);
+
+  // save the names of the entry points - the symbol table
   if (DoSymGen) {
-    // save the names of the entry points - the symbol table
-    BaseTriple.Sym = saveModuleSymbolTable(MD, I, Suffix);
+    std::string Filename =
+        (Twine(OutputPrefix) + "_" + Twine(I) + ".sym").str();
+    BaseTriple.Sym = saveModuleSymbolTable(MD, Filename);
   }
 
   for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
@@ -468,8 +437,15 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                    EmitExportedSymbols, EmitImportedSymbols,
                                    DeviceGlobals};
+      StringRef Target = OutputFile.Target;
+      std::string NewSuff = Suffix.str();
+      if (!Target.empty())
+        NewSuff = (Twine("_") + Target).str();
+
+      std::string PropertiesFilename =
+          (Twine(OutputPrefix) + NewSuff + "_" + Twine(I) + ".prop").str();
       CopyTriple.Prop =
-          saveModuleProperties(MD, Props, I, Suffix, OutputFile.Target);
+          saveModuleProperties(MD, Props, PropertiesFilename, Target);
     }
     addTableRow(*Table, CopyTriple);
   }
@@ -682,7 +658,7 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 }
 
 std::vector<std::unique_ptr<util::SimpleTable>>
-processInputModule(std::unique_ptr<Module> M) {
+processInputModule(std::unique_ptr<Module> M, StringRef OutputPrefix) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
       StringRef(COL_CODE)};
@@ -775,19 +751,10 @@ processInputModule(std::unique_ptr<Module> M) {
       saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
       return Tables;
     }
-    // Empty IR file name directs saveModule to generate one and save IR to
-    // it:
-    std::string OutIRFileName = "";
 
-    if (!Modified && (OutputFiles.getNumOccurrences() == 0)) {
-      assert(!SplitOccurred);
-      OutIRFileName = InputFilename; // ... non-empty means "skip IR writing"
-      errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
-                "have been made\n";
-    }
     for (module_split::ModuleDesc &IrMD : MMs) {
       IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
-      saveModule(Tables, IrMD, ID, OutIRFileName);
+      saveModule(Tables, IrMD, ID, OutputPrefix);
     }
 
     ++ID;
@@ -796,7 +763,7 @@ processInputModule(std::unique_ptr<Module> M) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
         IsBF16DeviceLibUsed |= isSYCLDeviceLibBF16Used(IrMD.getModule());
-        saveModule(Tables, IrMD, ID, OutIRFileName);
+        saveModule(Tables, IrMD, ID, OutputPrefix);
       }
 
       ++ID;
@@ -811,6 +778,18 @@ processInputModule(std::unique_ptr<Module> M) {
 }
 
 } // namespace
+
+std::string getOutputPrefix() {
+  StringRef Dir0 = OutputDir.getNumOccurrences() > 0
+                       ? OutputDir
+                       : sys::path::parent_path(OutputFiles[0].Filename);
+  StringRef Sep = sys::path::get_separator();
+  std::string Dir = Dir0.str();
+  if (!Dir0.empty() && !Dir0.ends_with(Sep))
+    Dir += Sep.str();
+
+  return (Dir + sys::path::stem(OutputFiles[0].Filename)).str();
+}
 
 int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
@@ -949,8 +928,9 @@ int main(int argc, char **argv) {
     OutputFiles.push_back({{}, (sys::path::stem(InputFilename) + S).str()});
   }
 
+  std::string OutputPrefix = getOutputPrefix();
   std::vector<std::unique_ptr<util::SimpleTable>> Tables =
-      processInputModule(std::move(M));
+      processInputModule(std::move(M), OutputPrefix);
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)
