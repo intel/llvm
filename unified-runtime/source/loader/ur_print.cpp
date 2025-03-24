@@ -92,13 +92,6 @@ ur_result_t urPrintRectRegion(const struct ur_rect_region_t params,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintBackend(enum ur_backend_t value, char *buffer,
-                           const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << value;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
 ur_result_t urPrintDeviceInitFlags(enum ur_device_init_flag_t value,
                                    char *buffer, const size_t buff_size,
                                    size_t *out_size) {
@@ -130,6 +123,13 @@ ur_result_t urPrintAdapterInfo(enum ur_adapter_info_t value, char *buffer,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintAdapterBackend(enum ur_adapter_backend_t value, char *buffer,
+                                  const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintPlatformInfo(enum ur_platform_info_t value, char *buffer,
                                 const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
@@ -149,6 +149,14 @@ ur_result_t urPrintPlatformNativeProperties(
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintPlatformBackend(enum ur_platform_backend_t value,
+                                   char *buffer, const size_t buff_size,
+                                   size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 

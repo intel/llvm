@@ -62,10 +62,11 @@ TEST_P(urProgramGetGlobalVariablePointerTest,
 }
 
 TEST_P(urProgramGetGlobalVariablePointerTest, InvalidProgramExecutable) {
-  ur_backend_t backend;
+  ur_platform_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(ur_backend_t), &backend, nullptr));
-  if (backend != UR_BACKEND_LEVEL_ZERO) {
+                                   sizeof(ur_platform_backend_t), &backend,
+                                   nullptr));
+  if (backend != UR_PLATFORM_BACKEND_LEVEL_ZERO) {
     GTEST_SKIP();
   }
   // Get IL from the compiled program.
