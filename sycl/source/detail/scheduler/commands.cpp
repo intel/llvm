@@ -3664,6 +3664,10 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
     : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
       MNodes(Nodes) {}
 
+bool UpdateCommandBufferCommand::producesPiEvent() const {
+  return !MPreparedDepsEvents.empty();
+}
+
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
