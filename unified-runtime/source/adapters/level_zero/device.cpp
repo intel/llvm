@@ -897,10 +897,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numEUsPerSubslice});
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
-  case UR_DEVICE_INFO_BFLOAT16: {
-    // bfloat16 math functions are not yet supported on Intel GPUs.
-    return ReturnValue(ur_bool_t{false});
-  }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // There are no explicit restrictions in L0 programming guide, so assume all
     // are supported
@@ -1074,6 +1070,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(UpdateCapabilities);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
     return ReturnValue(Device->isIntelDG2OrNewer() &&

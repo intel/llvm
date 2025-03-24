@@ -2083,6 +2083,8 @@ enum class external_semaphore_handle_type {
   opaque_fd = 0,
   win32_nt_handle = 1,
   win32_nt_dx12_fence = 2,
+  timeline_fd = 3,
+  timeline_win32_nt_handle = 4,
 };
 
 // Descriptor templated on specific resource type
@@ -2134,8 +2136,9 @@ The resulting `external_semaphore` can then be used in a SYCL command
 group, to either wait until the semaphore signalled, or signal the semaphore.
 
 If the type of semaphore imported supports setting the state of discrete 
-semaphore value (the semaphore type is `win32_nt_dx12_fence`), then the user 
-can specify which value the semaphore operation should wait on, or signal.
+semaphore value (the semaphore type is `win32_nt_dx12_fence`, `timeline_fd` or
+`timeline_win32_nt_handle`), then the user can specify which value the semaphore
+operation should wait on, or signal.
 
 We propose to extend the SYCL queue and handler classes with semaphore waiting 
 and signalling operations.
@@ -2226,17 +2229,19 @@ public:
 The behaviour of waiting on a semaphore will depend on the type of the 
 semaphore which was imported.
 
-If the semaphore does not support setting of a discrete state value (the 
-semaphore type is not `win32_nt_dx12_fence`), then any operations submitted to 
-the queue after a `ext_oneapi_wait_external_semaphore` call will not begin 
-until the imported semaphore is in a signalled state. After this, the semaphore 
-will be reset to a non-signalled state.
+If the semaphore does not support setting of a discrete state value (the
+semaphore type is not `win32_nt_dx12_fence`, `timeline_fd` or
+`timeline_win32_nt_handle`), then any operations submitted to the queue after a
+`ext_oneapi_wait_external_semaphore` call will not begin until the imported
+semaphore is in a signalled state. After this, the semaphore will be reset to a
+non-signalled state.
 
-If the semaphore does support setting of a discrete state value (the semaphore 
-type is `win32_nt_dx12_fence`), then any operations submitted to the queue 
-after a `ext_oneapi_wait_external_semaphore` call will not begin until the 
-imported semaphore is in a state greater than or equal to the `wait_value`. The 
-state of this type of semaphore will not be altered by the call to 
+If the semaphore does support setting of a discrete state value (the semaphore
+type is `win32_nt_dx12_fence`, `timeline_fd` or `timeline_win32_nt_handle`),
+then any operations submitted to the queue after a
+`ext_oneapi_wait_external_semaphore` call will not begin until the imported
+semaphore is in a state greater than or equal to the `wait_value`. The state of
+this type of semaphore will not be altered by the call to
 `ext_oneapi_wait_external_semaphore`.
 
 When `ext_oneapi_signal_external_semaphore` is called, the external semaphore 
@@ -2570,4 +2575,5 @@ These features still need to be handled:
                    sub-copies.
                  - Add support for USM to USM copies and sub-copies.
                  - Add support for host to host copies and sub-copies.
+|6.8|2025-03-13| - Add support for importing timeline semaphores.
 |======================

@@ -639,16 +639,31 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
   urExternalSemDesc.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC;
   urExternalSemDesc.pNext = &urFileDescriptor;
 
-  // For this specialization of `import_external_semaphore` the handleType is
-  // always `OPAQUE_FD`.
+  // This specialization handles timeline and binary semaphores which both
+  // have the same underlying external semaphore handle type of opaque file
+  // descriptor.
+
+  // Select appropriate semaphore handle type.
+  ur_exp_external_semaphore_type_t urHandleType;
+  switch (externalSemaphoreDesc.handle_type) {
+  case external_semaphore_handle_type::opaque_fd:
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD;
+    break;
+  case external_semaphore_handle_type::timeline_fd:
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD;
+    break;
+  default:
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Invalid semaphore handle type");
+  }
+
   Adapter->call<
       sycl::errc::invalid,
       sycl::detail::UrApiKind::urBindlessImagesImportExternalSemaphoreExp>(
-      C, Device, UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD, &urExternalSemDesc,
-      &urExternalSemaphore);
+      C, Device, urHandleType, &urExternalSemDesc, &urExternalSemaphore);
 
   return external_semaphore{urExternalSemaphore,
-                                  external_semaphore_handle_type::opaque_fd};
+                            externalSemaphoreDesc.handle_type};
 }
 
 template <>
@@ -687,6 +702,9 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
     break;
   case external_semaphore_handle_type::win32_nt_dx12_fence:
     urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE;
+    break;
+  case external_semaphore_handle_type::timeline_win32_nt_handle:
+    urHandleType = UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT;
     break;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),

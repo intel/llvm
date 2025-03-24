@@ -213,9 +213,10 @@ public:
       const std::vector<unsigned char> &SpecializationConsts);
 
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
-                                               const ContextImplPtr Context);
+                                               const ContextImplPtr &Context);
 
   void addImage(sycl_device_binary RawImg,
+                bool IsRTC,
                 RTDeviceBinaryImage **OutImage = nullptr,
                 std::vector<kernel_id> *OutKernelIDs = nullptr);
   void addImages(sycl_device_binaries DeviceImages);
@@ -261,6 +262,13 @@ public:
   // The function gets a device_global entry identified by the pointer to the
   // device_global object from the device_global map.
   DeviceGlobalMapEntry *getDeviceGlobalEntry(const void *DeviceGlobalPtr);
+
+  // The function attempts to get a single device_global entry identified by its
+  // unique ID from the device_global map. If no such entry is found, nullptr is
+  // returned.
+  DeviceGlobalMapEntry *
+  tryGetDeviceGlobalEntry(const std::string &UniqueId,
+                         bool ExcludeDeviceImageScopeDecorated = false);
 
   // The function gets multiple device_global entries identified by their unique
   // IDs from the device_global map.

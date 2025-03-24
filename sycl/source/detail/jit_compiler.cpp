@@ -1170,14 +1170,18 @@ sycl_device_binaries jit_compiler::createDeviceBinaries(
     }
 
     for (const auto &FPS : DevImgInfo.Properties) {
+      bool IsDeviceGlobalsPropSet =
+          FPS.Name == __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS;
       PropertySetContainer PropSet{FPS.Name.c_str()};
       for (const auto &FPV : FPS.Values) {
         if (FPV.IsUIntValue) {
           PropSet.addProperty(
               PropertyContainer{FPV.Name.c_str(), FPV.UIntValue});
         } else {
+          std::string PrefixedName =
+              (IsDeviceGlobalsPropSet ? Prefix : "") + FPV.Name.c_str();
           PropSet.addProperty(PropertyContainer{
-              FPV.Name.c_str(), FPV.Bytes.begin(), FPV.Bytes.size(),
+              PrefixedName.c_str(), FPV.Bytes.begin(), FPV.Bytes.size(),
               sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY});
         }
       }

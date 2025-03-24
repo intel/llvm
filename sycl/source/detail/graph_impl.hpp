@@ -71,6 +71,8 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
     return node_type::host_task;
   case sycl::detail::CGType::ExecCommandBuffer:
     return node_type::subgraph;
+  case sycl::detail::CGType::EnqueueNativeCommand:
+    return node_type::native_command;
   default:
     assert(false && "Invalid Graph Node Type");
     return node_type::empty;
@@ -704,6 +706,9 @@ private:
     case sycl::detail::CGType::ExecCommandBuffer:
       Stream << "CGExecCommandBuffer \\n";
       break;
+    case sycl::detail::CGType::EnqueueNativeCommand:
+      Stream << "CGNativeCommand \\n";
+      break;
     default:
       Stream << "Other \\n";
       break;
@@ -865,7 +870,7 @@ public:
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (!(EventImpl->getCommandGraph()))
+    if (!(EventImpl->hasCommandGraph()))
       EventImpl->setCommandGraph(shared_from_this());
     MEventsMap[EventImpl] = NodeImpl;
   }

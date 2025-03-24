@@ -53,6 +53,93 @@ constexpr uint8_t ImageOriginSYCLOffline = 1;
 constexpr uint8_t ImageOriginInterop = 1 << 1;
 constexpr uint8_t ImageOriginKernelCompiler = 1 << 2;
 
+// Helper class to track and unregister shared SYCL device_globals.
+class ManagedDeviceGlobalsRegistry {
+public:
+  ManagedDeviceGlobalsRegistry(
+      const std::shared_ptr<context_impl> &ContextImpl,
+      const std::string &Prefix, std::vector<std::string> &&DeviceGlobalNames,
+      std::vector<std::unique_ptr<std::byte[]>> &&DeviceGlobalAllocations)
+      : MContextImpl{ContextImpl}, MPrefix{Prefix},
+        MDeviceGlobalNames{std::move(DeviceGlobalNames)},
+        MDeviceGlobalAllocations{std::move(DeviceGlobalAllocations)} {}
+
+  ManagedDeviceGlobalsRegistry(const ManagedDeviceGlobalsRegistry &) = delete;
+
+  ~ManagedDeviceGlobalsRegistry() try {
+    unregisterDeviceGlobalsFromContext();
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM(
+        "exception during unregistration of SYCL binaries", e);
+  }
+
+  bool hasDeviceGlobalName(const std::string &Name) const noexcept {
+    return !MDeviceGlobalNames.empty() &&
+           std::find(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
+                     mangleDeviceGlobalName(Name)) != MDeviceGlobalNames.end();
+  }
+
+  DeviceGlobalMapEntry *tryGetDeviceGlobalEntry(const std::string &Name) const {
+    auto &PM = detail::ProgramManager::getInstance();
+    return PM.tryGetDeviceGlobalEntry(MPrefix + mangleDeviceGlobalName(Name));
+  }
+
+private:
+  static std::string mangleDeviceGlobalName(const std::string &Name) {
+    // TODO: Support device globals declared in namespaces.
+    return "_Z" + std::to_string(Name.length()) + Name;
+  }
+
+  void unregisterDeviceGlobalsFromContext() {
+    if (MDeviceGlobalNames.empty())
+      return;
+
+    // Manually trigger the release of resources for all device global map
+    // entries associated with this runtime-compiled bundle. Normally, this
+    // would happen in `~context_impl()`, however in the RTC setting, the
+    // context outlives the DG map entries owned by the program manager.
+
+    std::vector<std::string> DeviceGlobalIDs;
+    std::transform(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
+                   std::back_inserter(DeviceGlobalIDs),
+                   [&](const std::string &DGName) { return MPrefix + DGName; });
+    for (DeviceGlobalMapEntry *Entry :
+         ProgramManager::getInstance().getDeviceGlobalEntries(
+             DeviceGlobalIDs)) {
+      Entry->removeAssociatedResources(MContextImpl.get());
+      MContextImpl->removeAssociatedDeviceGlobal(Entry->MDeviceGlobalPtr);
+    }
+  }
+
+  std::shared_ptr<context_impl> MContextImpl;
+
+  std::string MPrefix;
+  std::vector<std::string> MDeviceGlobalNames;
+  std::vector<std::unique_ptr<std::byte[]>> MDeviceGlobalAllocations;
+};
+
+// Helper class to unregister shared SYCL binaries.
+class ManagedDeviceBinaries {
+public:
+  ManagedDeviceBinaries(
+      sycl_device_binaries &&Binaries)
+      : MBinaries{Binaries} {}
+
+  ManagedDeviceBinaries(const ManagedDeviceBinaries &) =
+      delete;
+
+  ~ManagedDeviceBinaries() try {
+    ProgramManager::getInstance().removeImages(MBinaries);
+    syclex::detail::SYCL_JIT_Destroy(MBinaries);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM(
+        "exception during unregistration of SYCL binaries", e);
+  }
+
+private:
+  sycl_device_binaries MBinaries;
+};
+
 // Information unique to images compiled at runtime through the
 // ext_oneapi_kernel_compiler extension.
 struct KernelCompilerBinaryInfo {
@@ -69,10 +156,12 @@ struct KernelCompilerBinaryInfo {
   KernelCompilerBinaryInfo(
       syclex::source_language Lang, std::set<std::string> &&KernelNames,
       std::unordered_map<std::string, std::string> &&MangledKernelNames,
-      std::string &&Prefix)
+      std::string &&Prefix,
+      std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry)
       : MLanguage{Lang}, MKernelNames{std::move(KernelNames)},
         MMangledKernelNames{std::move(MangledKernelNames)},
-        MPrefix{std::move(Prefix)} {}
+        MPrefix{std::move(Prefix)},
+        MDeviceGlobalRegistries{std::move(DeviceGlobalRegistry)} {}
 
   static std::optional<KernelCompilerBinaryInfo>
   Merge(const std::vector<const std::optional<KernelCompilerBinaryInfo> *>
@@ -108,6 +197,11 @@ struct KernelCompilerBinaryInfo {
       Result->MIncludePairs.insert(Result->MIncludePairs.end(),
                                    RTCInfo->MIncludePairs.begin(),
                                    RTCInfo->MIncludePairs.end());
+
+      Result->MDeviceGlobalRegistries.insert(
+          Result->MDeviceGlobalRegistries.end(),
+          RTCInfo->MDeviceGlobalRegistries.begin(),
+          RTCInfo->MDeviceGlobalRegistries.end());
     }
     return Result;
   }
@@ -117,22 +211,8 @@ struct KernelCompilerBinaryInfo {
   std::unordered_map<std::string, std::string> MMangledKernelNames;
   std::string MPrefix;
   include_pairs_t MIncludePairs;
-};
-
-// Helper class to unregister shared SYCL binaries.
-class ManagedDeviceBinaries {
-public:
-  ManagedDeviceBinaries(sycl_device_binaries &&Binaries)
-      : MBinaries{Binaries} {}
-  ~ManagedDeviceBinaries() try {
-    ProgramManager::getInstance().removeImages(MBinaries);
-    syclex::detail::SYCL_JIT_Destroy(MBinaries);
-  } catch (std::exception &e) {
-    __SYCL_REPORT_EXCEPTION_TO_STREAM(
-        "exception during unregistration of SYCL binaries", e);
-  }
-private:
-  sycl_device_binaries MBinaries;
+  std::vector<std::shared_ptr<ManagedDeviceGlobalsRegistry>>
+      MDeviceGlobalRegistries;
 };
 
 // The class is impl counterpart for sycl::device_image
@@ -200,15 +280,16 @@ public:
       std::shared_ptr<std::vector<kernel_id>> &&KernelIDs,
       syclex::source_language Lang, std::set<std::string> &&KernelNames,
       std::unordered_map<std::string, std::string> &&MangledKernelNames,
-      std::string &&Prefix)
+      std::string &&Prefix,
+      std::shared_ptr<ManagedDeviceGlobalsRegistry> &&DeviceGlobalRegistry)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(nullptr),
         MKernelIDs(std::move(KernelIDs)),
         MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MOrigins(ImageOriginKernelCompiler),
-        MRTCBinInfo(KernelCompilerBinaryInfo{Lang, std::move(KernelNames),
-                                             std::move(MangledKernelNames),
-                                             std::move(Prefix)}) {
+        MRTCBinInfo(KernelCompilerBinaryInfo{
+            Lang, std::move(KernelNames), std::move(MangledKernelNames),
+            std::move(Prefix), std::move(DeviceGlobalRegistry)}) {
     updateSpecConstSymMap();
   }
 
@@ -513,7 +594,7 @@ public:
   }
 
   bool hasKernelName(const std::string &Name) const {
-    return MRTCBinInfo.has_value() &&
+    return MRTCBinInfo.has_value() && !Name.empty() &&
            MRTCBinInfo->MKernelNames.find(adjustKernelName(Name)) !=
                MRTCBinInfo->MKernelNames.end();
   }
@@ -555,6 +636,27 @@ public:
         /*ArgMask=*/nullptr, UrProgram, /*CacheMutex=*/nullptr);
   }
 
+  bool hasDeviceGlobalName(const std::string &Name) const noexcept {
+    if (!MRTCBinInfo.has_value())
+      return false;
+
+    return std::any_of(MRTCBinInfo->MDeviceGlobalRegistries.begin(),
+                       MRTCBinInfo->MDeviceGlobalRegistries.end(),
+                       [&Name](const auto &DGReg) {
+                         return DGReg->hasDeviceGlobalName(Name);
+                       });
+  }
+
+  DeviceGlobalMapEntry *tryGetDeviceGlobalEntry(const std::string &Name) const {
+    if (!MRTCBinInfo.has_value())
+      return nullptr;
+
+    for (const auto &DGReg : MRTCBinInfo->MDeviceGlobalRegistries)
+      if (DeviceGlobalMapEntry *DGEntry = DGReg->tryGetDeviceGlobalEntry(Name))
+        return DGEntry;
+    return nullptr;
+  }
+
   uint8_t getOriginMask() const noexcept { return MOrigins; }
 
   const std::optional<KernelCompilerBinaryInfo> &getRTCInfo() const noexcept {
@@ -574,7 +676,7 @@ public:
       const std::vector<device> Devices,
       const std::vector<std::string> &BuildOptions, std::string *LogPtr,
       const std::vector<std::string> &RegisteredKernelNames,
-      std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBinaries)
+      std::vector<std::shared_ptr<ManagedDeviceBinaries>> &OutDeviceBins)
       const {
     assert(!std::holds_alternative<const RTDeviceBinaryImage *>(MBinImage));
     assert(MRTCBinInfo);
@@ -637,7 +739,7 @@ public:
 
         RTDeviceBinaryImage *NewImage = nullptr;
         auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
-        PM.addImage(Binary, &NewImage, KernelIDs.get());
+        PM.addImage(Binary, /*IsRTC=*/true, &NewImage, KernelIDs.get());
 
         // If the image is empty, we can skip it.
         if (!NewImage)
@@ -645,6 +747,11 @@ public:
 
         std::set<std::string> KernelNames;
         std::unordered_map<std::string, std::string> MangledKernelNames;
+        std::unordered_set<std::string> DeviceGlobalIDSet;
+        std::vector<std::string> DeviceGlobalIDVec;
+        std::vector<std::string> DeviceGlobalNames;
+        std::vector<std::unique_ptr<std::byte[]>> DeviceGlobalAllocations;
+
         for (const auto &KernelID : *KernelIDs) {
           std::string_view KernelName{KernelID.get_name()};
           if (KernelName.find(Prefix) == 0) {
@@ -661,32 +768,73 @@ public:
             }
           }
 
-          // Apply frontend information.
           for (const sycl_device_binary_property &RKProp :
                NewImage->getRegisteredKernels()) {
-
+            // Mangled names.
             auto BA = DeviceBinaryProperty(RKProp).asByteArray();
             auto MangledNameLen = BA.consume<uint64_t>() / 8 /*bits in a byte*/;
             std::string_view MangledName{
                 reinterpret_cast<const char *>(BA.begin()), MangledNameLen};
             MangledKernelNames.emplace(RKProp->Name, MangledName);
           }
+
+          // Device globals.
+          for (const auto &DeviceGlobalProp : NewImage->getDeviceGlobals()) {
+            std::string_view DeviceGlobalName{DeviceGlobalProp->Name};
+            assert(DeviceGlobalName.find(Prefix) == 0);
+            bool Inserted = false;
+            std::tie(std::ignore, Inserted) =
+                DeviceGlobalIDSet.emplace(DeviceGlobalName);
+            if (Inserted) {
+              DeviceGlobalIDVec.emplace_back(DeviceGlobalName);
+              DeviceGlobalName.remove_prefix(Prefix.length());
+              DeviceGlobalNames.emplace_back(DeviceGlobalName);
+            }
+          }
         }
 
-        // Mark the image as input so the program manager will bring it into the
-        // right state.
+        // Device globals are usually statically allocated and registered in the
+        // integration footer, which we don't have in the RTC context. Instead,
+        // we dynamically allocate storage tied to the executable kernel bundle.
+        for (DeviceGlobalMapEntry *DeviceGlobalEntry :
+             PM.getDeviceGlobalEntries(DeviceGlobalIDVec)) {
+
+          size_t AllocSize =
+              DeviceGlobalEntry->MDeviceGlobalTSize; // init value
+          if (!DeviceGlobalEntry->MIsDeviceImageScopeDecorated) {
+            // Consider storage for device USM pointer.
+            AllocSize += sizeof(void *);
+          }
+          auto Alloc = std::make_unique<std::byte[]>(AllocSize);
+          std::string_view DeviceGlobalName{DeviceGlobalEntry->MUniqueId};
+          PM.addOrInitDeviceGlobalEntry(Alloc.get(), DeviceGlobalName.data());
+          DeviceGlobalAllocations.push_back(std::move(Alloc));
+
+          // Drop the RTC prefix from the entry's symbol name. Note that the PM
+          // still manages this device global under its prefixed name.
+          assert(DeviceGlobalName.find(Prefix) == 0);
+          DeviceGlobalName.remove_prefix(Prefix.length());
+          DeviceGlobalEntry->MUniqueId = DeviceGlobalName;
+        }
+
+        auto DGRegs = std::make_shared<ManagedDeviceGlobalsRegistry>(
+            ContextImpl, std::string{Prefix}, std::move(DeviceGlobalNames),
+            std::move(DeviceGlobalAllocations));
+
+        // Mark the image as input so the program manager will bring it into
+        // the right state.
         auto DevImgImpl = std::make_shared<device_image_impl>(
             NewImage, MContext, Devices, bundle_state::input,
             std::move(KernelIDs), MRTCBinInfo->MLanguage,
             std::move(KernelNames), std::move(MangledKernelNames),
-            std::string{Prefix});
+            std::string{Prefix}, std::move(DGRegs));
 
         DevImgPlainWithDeps ImgWithDeps{DevImgImpl};
         PM.bringSYCLDeviceImageToState(ImgWithDeps, bundle_state::executable);
         Result.push_back(getSyclObjImpl(ImgWithDeps.getMain()));
       }
 
-      OutDeviceBinaries.emplace_back(
+      OutDeviceBins.emplace_back(
           std::make_shared<ManagedDeviceBinaries>(std::move(Binaries)));
       return Result;
     }

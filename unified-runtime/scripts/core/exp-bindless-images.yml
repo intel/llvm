@@ -207,11 +207,15 @@ class: $xBindlessImages
 name: $x_exp_external_semaphore_type_t
 etors:
   - name: OPAQUE_FD
-    desc: "Opaque file descriptor"
+    desc: "Binary semaphore opaque file descriptor"
   - name: WIN32_NT
-    desc: "Win32 NT handle"
+    desc: "Binary semaphore Win32 NT handle"
   - name: WIN32_NT_DX12_FENCE
-    desc: "Win32 NT DirectX 12 fence handle"
+    desc: "Fence semaphore Win32 NT DirectX 12 handle"
+  - name: TIMELINE_FD
+    desc: "Timeline semaphore opaque file descriptor"
+  - name: TIMELINE_WIN32_NT
+    desc: "Timeline semaphore Win32 NT handle"
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "File descriptor"

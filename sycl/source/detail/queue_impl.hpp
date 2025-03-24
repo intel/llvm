@@ -368,7 +368,7 @@ public:
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
     if (SubmitInfo.SecondaryQueue()) {
       event ResEvent;
-      const std::shared_ptr<queue_impl> SecondQueue =
+      const std::shared_ptr<queue_impl> &SecondQueue =
           SubmitInfo.SecondaryQueue();
       try {
         ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
@@ -703,6 +703,8 @@ public:
     return MGraph.lock();
   }
 
+  bool hasCommandGraph() const { return !MGraph.expired(); }
+
   unsigned long long getQueueID() { return MQueueID; }
 
   void *getTraceEvent() { return MTraceEvent; }
@@ -752,6 +754,19 @@ public:
     ResEvent->setHandle(UREvent);
     return ResEvent;
   }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // CMPLRLLVM-66082
+  // These methods are for accessing a member that should live in the
+  // sycl::interop_handle class and will be moved on next ABI breaking window.
+  ur_exp_command_buffer_handle_t getInteropGraph() const {
+    return MInteropGraph;
+  }
+
+  void setInteropGraph(ur_exp_command_buffer_handle_t Graph) {
+    MInteropGraph = Graph;
+  }
+#endif
 
 protected:
   event discard_or_return(const event &Event);
@@ -999,6 +1014,14 @@ protected:
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // CMPLRLLVM-66082
+  // This member should be part of the sycl::interop_handle class, but it
+  // is an API breaking change. So member lives here temporarily where it can
+  // be accessed through the queue member of the interop_handle
+  ur_exp_command_buffer_handle_t MInteropGraph{};
+#endif
 
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;

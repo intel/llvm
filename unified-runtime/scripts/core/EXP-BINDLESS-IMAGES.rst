@@ -123,6 +123,8 @@ Enums
     * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD
     * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT
     * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE
+    * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD
+    * ${X}_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT
 
 * ${x}_function_t
     * ${X}_FUNCTION_USM_PITCHED_ALLOC_EXP
@@ -257,6 +259,8 @@ Changelog
 | 19.0     || Added ${X}_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST                | 
 |          || Added support for DtoD usm pitch copies                    |
 |          || Added support for HtoH copies                              |
++----------+-------------------------------------------------------------+
+| 20.0     | Added timeline semaphores for CUDA and L0 backends          |
 +----------+-------------------------------------------------------------+
 
 Contributors

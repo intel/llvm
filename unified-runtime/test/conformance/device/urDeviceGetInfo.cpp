@@ -1758,23 +1758,6 @@ TEST_P(urDeviceGetInfoTest, SuccessAtomicFenceScopeCapabilities) {
   ASSERT_EQ(property_value & UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK, 0);
 }
 
-TEST_P(urDeviceGetInfoTest, SuccessBFloat64) {
-  size_t property_size = 0;
-  const ur_device_info_t property_name = UR_DEVICE_INFO_BFLOAT16;
-
-  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
-      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
-      property_name);
-  ASSERT_EQ(property_size, sizeof(ur_bool_t));
-
-  ur_bool_t property_value = false;
-  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
-                                 &property_value, nullptr));
-
-  bool casted_value = static_cast<bool>(property_value);
-  ASSERT_TRUE(casted_value == false || casted_value == true);
-}
-
 TEST_P(urDeviceGetInfoTest, SuccessMaxComputeQueueIndices) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
