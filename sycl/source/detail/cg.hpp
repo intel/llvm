@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/accessor.hpp>        // for AccessorImplHost, AccessorImplPtr
-#include <sycl/detail/cg_types.hpp> // for ArgDesc, HostTask, HostKernelBase
+#include <sycl/detail/cg_types.hpp> // for ArgDesc, HostTask, HostKernel
 #include <sycl/detail/common.hpp>   // for code_location
 #include <sycl/detail/helpers.hpp>  // for context_impl
 #include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
@@ -251,7 +251,11 @@ class CGExecKernel : public CG {
 public:
   /// Stores ND-range description.
   NDRDescT MNDRDesc;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::shared_ptr<HostKernel> MHostKernel;
+#else
   std::shared_ptr<HostKernelBase> MHostKernel;
+#endif
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
@@ -266,7 +270,12 @@ public:
   bool MKernelUsesClusterLaunch = false;
   size_t MKernelWorkGroupMemorySize = 0;
 
-  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
+  CGExecKernel(NDRDescT NDRDesc,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+               HostKernel &&HKernel,
+#else
+               std::shared_ptr<HostKernelBase> HKernel,
+#endif
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
@@ -277,7 +286,12 @@ public:
                bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
                size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
-        MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
+        MNDRDesc(std::move(NDRDesc)),
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+        MHostKernel(std::make_shared<detail::HostKernel>(std::move(HKernel))),
+#else
+        MHostKernel(std::move(HKernel)),
+#endif
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),

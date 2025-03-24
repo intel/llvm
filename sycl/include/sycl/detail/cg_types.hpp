@@ -150,6 +150,7 @@ runKernelWithArg(KernelType KernelName, ArgType Arg) {
   KernelName(Arg);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // The pure virtual class aimed to store lambda/functors of any type.
 class HostKernelBase {
 public:
@@ -160,74 +161,142 @@ public:
   // NOTE: InstatiateKernelOnHost() should not be called.
   virtual void InstantiateKernelOnHost() = 0;
 };
+#endif
 
-// Class which stores specific lambda object.
-template <class KernelType, class KernelArgType, int Dims>
-class HostKernel : public HostKernelBase {
-  using IDBuilder = sycl::detail::Builder;
-  KernelType MKernel;
-  // Allowing accessing MKernel from 'ResetHostKernelHelper' method of
-  // 'sycl::handler'
-  friend class sycl::handler;
+class HostKernel
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+    : public HostKernelBase
+#endif
+{
+  // SYCL kernels must be device-copyable, so simply storing bytes is enough for
+  // RT purposes. However, accessor/stream don't seem to be
+  // `std::trivially_copyable`, so we still do placement new/manual destructor
+  // invocation as some e2e tests would fail otherwise.
+  std::unique_ptr<char[]> KernelBytes;
+  void (*KernelDeleter)(void *) = nullptr;
+
+  template <class KernelType, class KernelArgType, int Dims>
+  struct InstantiateKernelOnHostHelper {
+    static void foo(void *ptr) {
+      auto &MKernel = *static_cast<KernelType *>(ptr);
+      using IDBuilder = sycl::detail::Builder;
+      if constexpr (std::is_same_v<KernelArgType, void>) {
+        runKernelWithoutArg(MKernel);
+      } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
+        sycl::id ID = InitializedVal<Dims, id>::template get<0>();
+        runKernelWithArg<const KernelArgType &>(MKernel, ID);
+      } else if constexpr (std::is_same_v<KernelArgType, item<Dims, true>> ||
+                           std::is_same_v<KernelArgType, item<Dims, false>>) {
+        constexpr bool HasOffset =
+            std::is_same_v<KernelArgType, item<Dims, true>>;
+        if constexpr (!HasOffset) {
+          KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
+              InitializedVal<Dims, range>::template get<1>(),
+              InitializedVal<Dims, id>::template get<0>());
+          runKernelWithArg<KernelArgType>(MKernel, Item);
+        } else {
+          KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
+              InitializedVal<Dims, range>::template get<1>(),
+              InitializedVal<Dims, id>::template get<0>(),
+              InitializedVal<Dims, id>::template get<0>());
+          runKernelWithArg<KernelArgType>(MKernel, Item);
+        }
+      } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
+        sycl::range<Dims> Range =
+            InitializedVal<Dims, range>::template get<1>();
+        sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
+        sycl::group<Dims> Group =
+            IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
+        sycl::item<Dims, true> GlobalItem =
+            IDBuilder::createItem<Dims, true>(Range, ID, ID);
+        sycl::item<Dims, false> LocalItem =
+            IDBuilder::createItem<Dims, false>(Range, ID);
+        KernelArgType NDItem =
+            IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
+        runKernelWithArg<const KernelArgType>(MKernel, NDItem);
+      } else if constexpr (std::is_same_v<KernelArgType, sycl::group<Dims>>) {
+        sycl::range<Dims> Range =
+            InitializedVal<Dims, range>::template get<1>();
+        sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
+        KernelArgType Group =
+            IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
+        runKernelWithArg<KernelArgType>(MKernel, Group);
+      } else {
+        // Assume that anything else can be default-constructed. If not, this
+        // should fail to compile and the implementor should implement a generic
+        // case for the new argument type.
+        runKernelWithArg<KernelArgType>(MKernel, KernelArgType{});
+      }
+    }
+  };
+
+  template <typename KernelType> struct Deleter {
+    static void execute(void *p) {
+      static_cast<KernelType *>(p)->~KernelType();
+    }
+  };
 
 public:
-  HostKernel(KernelType Kernel) : MKernel(Kernel) {}
-
-  char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
-
-  ~HostKernel() = default;
-
-  // This function is needed for host-side compilation to keep kernels
-  // instantitated. This is important for debuggers to be able to associate
-  // kernel code instructions with source code lines.
-  // NOTE: InstatiateKernelOnHost() should not be called.
-  void InstantiateKernelOnHost() override {
-    if constexpr (std::is_same_v<KernelArgType, void>) {
-      runKernelWithoutArg(MKernel);
-    } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
-      sycl::id ID = InitializedVal<Dims, id>::template get<0>();
-      runKernelWithArg<const KernelArgType &>(MKernel, ID);
-    } else if constexpr (std::is_same_v<KernelArgType, item<Dims, true>> ||
-                         std::is_same_v<KernelArgType, item<Dims, false>>) {
-      constexpr bool HasOffset =
-          std::is_same_v<KernelArgType, item<Dims, true>>;
-      if constexpr (!HasOffset) {
-        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
-            InitializedVal<Dims, range>::template get<1>(),
-            InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(MKernel, Item);
-      } else {
-        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
-            InitializedVal<Dims, range>::template get<1>(),
-            InitializedVal<Dims, id>::template get<0>(),
-            InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(MKernel, Item);
-      }
-    } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
-      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
-      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
-      sycl::group<Dims> Group =
-          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
-      sycl::item<Dims, true> GlobalItem =
-          IDBuilder::createItem<Dims, true>(Range, ID, ID);
-      sycl::item<Dims, false> LocalItem =
-          IDBuilder::createItem<Dims, false>(Range, ID);
-      KernelArgType NDItem =
-          IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-      runKernelWithArg<const KernelArgType>(MKernel, NDItem);
-    } else if constexpr (std::is_same_v<KernelArgType, sycl::group<Dims>>) {
-      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
-      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
-      KernelArgType Group =
-          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
-      runKernelWithArg<KernelArgType>(MKernel, Group);
-    } else {
-      // Assume that anything else can be default-constructed. If not, this
-      // should fail to compile and the implementor should implement a generic
-      // case for the new argument type.
-      runKernelWithArg<KernelArgType>(MKernel, KernelArgType{});
-    }
+  HostKernel() = default;
+  HostKernel(HostKernel &&Other)
+      : KernelBytes(std::move(Other.KernelBytes)),
+        KernelDeleter(Other.KernelDeleter) {
+    Other.KernelDeleter = nullptr;
   }
+  HostKernel &operator=(HostKernel &&Other) {
+    if (KernelDeleter)
+      KernelDeleter(KernelBytes.get());
+    KernelBytes = std::move(Other.KernelBytes);
+    KernelDeleter = Other.KernelDeleter;
+    Other.KernelDeleter = nullptr;
+    return *this;
+  }
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  template <class KernelType, class KernelArgType, int Dims>
+  static HostKernel create(KernelType Kernel) {
+    HostKernel Tmp;
+    Tmp.KernelBytes.reset(
+        new (std::align_val_t(alignof(KernelType))) char[sizeof(Kernel)]);
+    // Note, `device_copyable` isn't the same as `std::is_trivially_copyable`,
+    // so `memcpy` wouldn't be enough.
+    new (Tmp.KernelBytes.get()) KernelType(Kernel);
+    Tmp.KernelDeleter = &Deleter<KernelType>::execute;
+    (void)InstantiateKernelOnHostHelper<KernelType, KernelArgType, Dims>{};
+    return Tmp;
+  }
+#else
+  template <class KernelType, class KernelArgType, int Dims>
+  static std::unique_ptr<HostKernelBase> create(KernelType Kernel) {
+    // No `make_unique` because ctor is private.
+    std::unique_ptr<HostKernel> Unique{new HostKernel()};
+    Unique->KernelBytes.reset(
+        new (std::align_val_t(alignof(KernelType))) char[sizeof(Kernel)]);
+    // Note, `device_copyable` isn't the same as `std::is_trivially_copyable`,
+    // so `memcpy` wouldn't be enough.
+    new (Unique->KernelBytes.get()) KernelType(Kernel);
+    Unique->KernelDeleter = &Deleter<KernelType>::execute;
+    (void)InstantiateKernelOnHostHelper<KernelType, KernelArgType, Dims>{};
+    return Unique;
+  }
+#endif
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  char *getPtr() { return KernelBytes.get(); }
+  ~HostKernel() {
+    if (KernelDeleter)
+      KernelDeleter(KernelBytes.get());
+  }
+#else
+  // Non-preview needs `override`s.
+  char *getPtr() override { return KernelBytes.get(); }
+  ~HostKernel() override {
+    if (KernelDeleter)
+      KernelDeleter(KernelBytes.get());
+  }
+
+  void InstantiateKernelOnHost() override {}
+#endif
 };
 
 } // namespace detail

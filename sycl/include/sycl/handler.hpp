@@ -721,8 +721,8 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    MHostKernel =
+        detail::HostKernel::create<KernelType, LambdaArgType, Dims>(KernelFunc);
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -753,9 +753,14 @@ private:
     if (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
       clearArgs();
-      extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
-                                   detail::getKernelParamDescs<KernelName>(),
-                                   detail::isKernelESIMD<KernelName>());
+      extractArgsAndReqsFromLambda(
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+          MHostKernel.getPtr(),
+#else
+          MHostKernel->getPtr(),
+#endif
+          detail::getKernelParamDescs<KernelName>(),
+          detail::isKernelESIMD<KernelName>());
       MKernelName = detail::getKernelName<KernelName>();
     } else {
       // In case w/o the integration header it is necessary to process
@@ -3434,7 +3439,11 @@ private:
   /// Pattern that is used to fill memory object in case command type is fill.
   std::vector<unsigned char> MPattern;
   /// Storage for a lambda or function object.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::HostKernel MHostKernel;
+#else
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
+#endif
 
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;

@@ -233,9 +233,7 @@ public:
   std::vector<std::shared_ptr<sycl::detail::stream_impl>> &getStreamStorage() {
     return MStreamStorage;
   }
-  std::unique_ptr<sycl::detail::HostKernelBase> &getHostKernel() {
-    return MHostKernel;
-  }
+  auto &getHostKernel() { return MHostKernel; }
   std::vector<std::vector<char>> &getArgsStorage() {
     return impl->CGData.MArgsStorage;
   }
@@ -264,8 +262,8 @@ public:
   template <typename KernelType, typename ArgType, int Dims,
             typename KernelName>
   void setHostKernel(KernelType Kernel) {
-    static_cast<sycl::handler *>(this)->MHostKernel.reset(
-        new sycl::detail::HostKernel<KernelType, ArgType, Dims>(Kernel));
+    static_cast<sycl::handler *>(this)->MHostKernel =
+        sycl::detail::HostKernel::create<KernelType, ArgType, Dims>(Kernel);
   }
 
   template <int Dims> void setNDRangeDesc(sycl::nd_range<Dims> Range) {
