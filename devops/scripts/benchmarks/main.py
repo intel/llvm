@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -27,23 +27,27 @@ INTERNAL_WORKDIR_VERSION = "2.0"
 
 
 def run_iterations(
-    benchmark: Benchmark, env_vars, iters: int, results: dict[str, list[Result]]
+    benchmark: Benchmark,
+    env_vars,
+    iters: int,
+    results: dict[str, list[Result]],
+    failures: dict[str, str],
 ):
     for iter in range(iters):
-        print(f"running {benchmark.name()}, iteration {iter}... ", end="", flush=True)
+        print(f"running {benchmark.name()}, iteration {iter}... ", flush=True)
         bench_results = benchmark.run(env_vars)
         if bench_results is None:
-            print(f"did not finish (OK for sycl-bench).")
+            failures[benchmark.name()] = "benchmark produced no results!"
             break
 
         for bench_result in bench_results:
-            # TODO: report failures in markdown/html ?
             if not bench_result.passed:
-                print(f"complete ({bench_result.label}: verification FAILED)")
+                failures[bench_result.label] = "verification failed"
+                print(f"complete ({bench_result.label}: verification failed).")
                 continue
 
             print(
-                f"complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
+                f"{benchmark.name()} complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit})."
             )
 
             bench_result.name = bench_result.label
@@ -132,6 +136,18 @@ def process_results(
     return valid_results, processed
 
 
+def collect_metadata(suites):
+    metadata = {}
+
+    for s in suites:
+        metadata.update(s.additionalMetadata())
+        suite_benchmarks = s.benchmarks()
+        for benchmark in suite_benchmarks:
+            metadata[benchmark.name()] = benchmark.get_metadata()
+
+    return metadata
+
+
 def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
@@ -142,20 +158,24 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         options.extra_ld_libraries.extend(cr.ld_libraries())
         options.extra_env_vars.update(cr.env_vars())
 
-    suites = (
-        [
-            ComputeBench(directory),
-            VelocityBench(directory),
-            SyclBench(directory),
-            LlamaCppBench(directory),
-            UMFSuite(directory),
-            # TestSuite()
-        ]
-        if not options.dry_run
-        else []
-    )
+    suites = [
+        ComputeBench(directory),
+        VelocityBench(directory),
+        SyclBench(directory),
+        LlamaCppBench(directory),
+        UMFSuite(directory),
+        TestSuite(),
+    ]
+
+    # Collect metadata from all benchmarks without setting them up
+    metadata = collect_metadata(suites)
+
+    # If dry run, we're done
+    if options.dry_run:
+        suites = []
 
     benchmarks = []
+    failures = {}
 
     for s in suites:
         suite_benchmarks = s.benchmarks()
@@ -170,25 +190,26 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             print(f"Setting up {type(s).__name__}")
             try:
                 s.setup()
-            except:
+            except Exception as e:
+                failures[s.name()] = f"Suite setup failure: {e}"
                 print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
             else:
                 print(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks
 
-    for b in benchmarks:
-        print(b.name())
-
     for benchmark in benchmarks:
         try:
-            print(f"Setting up {benchmark.name()}... ")
+            if options.verbose:
+                print(f"Setting up {benchmark.name()}... ")
             benchmark.setup()
-            print(f"{benchmark.name()} setup complete.")
+            if options.verbose:
+                print(f"{benchmark.name()} setup complete.")
 
         except Exception as e:
             if options.exit_on_failure:
                 raise e
             else:
+                failures[benchmark.name()] = f"Benchmark setup failure: {e}"
                 print(f"failed: {e}")
 
     results = []
@@ -199,7 +220,11 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             processed: list[Result] = []
             for _ in range(options.iterations_stddev):
                 run_iterations(
-                    benchmark, merged_env_vars, options.iterations, intermediate_results
+                    benchmark,
+                    merged_env_vars,
+                    options.iterations,
+                    intermediate_results,
+                    failures,
                 )
                 valid, processed = process_results(
                     intermediate_results, benchmark.stddev_threshold()
@@ -211,12 +236,16 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             if options.exit_on_failure:
                 raise e
             else:
+                failures[benchmark.name()] = f"Benchmark run failure: {e}"
                 print(f"failed: {e}")
 
     for benchmark in benchmarks:
-        print(f"tearing down {benchmark.name()}... ", end="", flush=True)
+        # this never has any useful information anyway, so hide it behind verbose
+        if options.verbose:
+            print(f"tearing down {benchmark.name()}... ", flush=True)
         benchmark.teardown()
-        print("complete.")
+        if options.verbose:
+            print("{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}
@@ -297,12 +326,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--adapter",
         type=str,
-        help="Options to build the Unified Runtime as part of the benchmark",
+        help="Unified Runtime adapter to use.",
         default="level_zero",
     )
     parser.add_argument(
         "--no-rebuild",
         help="Do not rebuild the benchmarks from scratch.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--redownload",
+        help="Always download benchmark data dependencies, even if they already exist.",
         action="store_true",
     )
     parser.add_argument(
@@ -411,17 +445,12 @@ if __name__ == "__main__":
         help="The name of the results which should be used as a baseline for metrics calculation",
         default=options.current_run_name,
     )
+
     parser.add_argument(
-        "--cudnn_directory",
-        type=str,
-        help="Directory for cudnn library",
-        default=None,
-    )
-    parser.add_argument(
-        "--cublas_directory",
-        type=str,
-        help="Directory for cublas library",
-        default=None,
+        "--build-jobs",
+        type=int,
+        help="Number of build jobs to run simultaneously",
+        default=options.build_jobs,
     )
 
     args = parser.parse_args()
@@ -430,6 +459,7 @@ if __name__ == "__main__":
     options.workdir = args.benchmark_directory
     options.verbose = args.verbose
     options.rebuild = not args.no_rebuild
+    options.redownload = args.redownload
     options.sycl = args.sycl
     options.iterations = args.iterations
     options.timeout = args.timeout
@@ -446,8 +476,7 @@ if __name__ == "__main__":
     options.iterations_stddev = args.iterations_stddev
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
-    options.cudnn_directory = args.cudnn_directory
-    options.cublas_directory = args.cublas_directory
+    options.build_jobs = args.build_jobs
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
