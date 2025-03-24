@@ -244,10 +244,6 @@ void SYCLMemObjT::handleWriteAccessorCreation() {
   }
 }
 
-bool SYCLMemObjT::hasInteropEvent() const {
-  return MInteropEvent && MInteropEvent->getHandle();
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

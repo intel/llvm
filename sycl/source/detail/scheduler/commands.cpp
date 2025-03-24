@@ -1091,12 +1091,6 @@ void AllocaCommand::emitInstrumentationData() {
 #endif
 }
 
-bool AllocaCommand::producesPiEvent() const {
-  // for reference see enqueueImp()
-  auto TypedSyclMemObj = static_cast<detail::SYCLMemObjT *>(getSYCLMemObj());
-  return TypedSyclMemObj->hasInteropEvent();
-}
-
 ur_result_t AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1125,9 +1119,9 @@ ur_result_t AllocaCommand::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  assert((!!UREvent == producesPiEvent()) &&
-         "AllocaCommand: native event is expected only when it is for interop "
-         "memory object with native event provided.");
+  // MemoryManager::allocate doesn't always provide native event, it is returned
+  // only for interop case with presence of host pointer and interop event. Not
+  // feasible to check it from command.
 
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
@@ -3784,13 +3778,18 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
     : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
       MNodes(Nodes) {}
 
+bool UpdateCommandBufferCommand::producesPiEvent() const {
+  return !MPreparedDepsEvents.empty();
+}
+
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue, EventImpls, UREvent);
   assert((!!UREvent == producesPiEvent()) &&
-         "UpdateCommandBufferCommand doesn't produce native event");
+         "UpdateCommandBufferCommand produces native event");
+  MEvent->setHandle(UREvent);
 
   auto CheckAndFindAlloca = [](Requirement *Req, const DepDesc &Dep) {
     if (Dep.MDepRequirement == Req) {
@@ -3859,7 +3858,6 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
 }
 
 void UpdateCommandBufferCommand::emitInstrumentationData() {}
-bool UpdateCommandBufferCommand::producesPiEvent() const { return false; }
 
 } // namespace detail
 } // namespace _V1
