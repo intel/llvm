@@ -861,42 +861,11 @@ protected:
     return EventRet;
   }
 
-  template <typename HandlerType = handler>
-  event finalizeHandlerPostProcess(
-      HandlerType &Handler,
-      const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    auto HandlerImpl = detail::getSyclObjImpl(Handler);
-    const CGType Type = HandlerImpl->MCGType;
-
-    bool IsKernel = Type == CGType::Kernel;
-    bool KernelUsesAssert = false;
-
-    if (IsKernel)
-      // Kernel only uses assert if it's non interop one
-      KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                         ProgramManager::getInstance().kernelUsesAssert(
-                             Handler.MKernelName.c_str());
-
-    auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
-                            : finalizeHandlerOutOfOrder(Handler);
-
-    auto &PostProcess = *PostProcessorFunc;
-
-    PostProcess(IsKernel, KernelUsesAssert, Event);
-
-    return Event;
-  }
-
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
-  event finalizeHandler(HandlerType &Handler,
-                        const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    if (PostProcessorFunc) {
-      return finalizeHandlerPostProcess(Handler, PostProcessorFunc);
-    } else {
+  event finalizeHandler(HandlerType &Handler) {
       return MIsInorder ? finalizeHandlerInOrder(Handler)
                         : finalizeHandlerOutOfOrder(Handler);
-    }
   }
 
   /// Performs command group submission to the queue.

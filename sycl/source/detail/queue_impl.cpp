@@ -368,6 +368,9 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   event Event;
   std::vector<StreamImplPtr> Streams;
+  bool IsKernel = false;
+  bool KernelUsesAssert = false;
+  bool IsPostprocessRequired = SubmitInfo.PostProcessorFunc().has_value();
   {
     // RAII wrapper around MHandler. submit_impl() must not be called in the
     // scope.
@@ -406,7 +409,27 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
     w.MHandlerPtr->impl->MEventMode = SubmitInfo.EventMode();
 
-    Event = finalizeHandler(*w.MHandlerPtr, SubmitInfo.PostProcessorFunc());
+    if (IsPostprocessRequired) {
+      auto HandlerImpl = detail::getSyclObjImpl(*w.MHandlerPtr);
+      const CGType Type = HandlerImpl->MCGType;
+
+      IsKernel = Type == CGType::Kernel;
+
+      if (IsKernel)
+        // Kernel only uses assert if it's non interop one
+        KernelUsesAssert = !((*w.MHandlerPtr).MKernel && (*w.MHandlerPtr).MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               (*w.MHandlerPtr).MKernelName.c_str());
+
+      Event = MIsInorder ? finalizeHandlerInOrder(*w.MHandlerPtr)
+                         : finalizeHandlerOutOfOrder(*w.MHandlerPtr);
+    } else
+      Event = finalizeHandler(*w.MHandlerPtr);
+  }
+
+  if (IsPostprocessRequired) {
+    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+    PostProcess(IsKernel, KernelUsesAssert, Event);
   }
 
   addEvent(Event);
