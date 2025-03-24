@@ -58,20 +58,22 @@ struct MemorySemanticsMask {
 } // namespace __spv
 
 extern DEVICE_EXTERNAL int __spirv_AtomicCompareExchange(int SPIR_GLOBAL *, int,
-                                                         int, int, int, int);
+                                                         int, int, int,
+                                                         int) noexcept;
 
 extern DEVICE_EXTERNAL int __spirv_AtomicCompareExchange(int *, int, int, int,
-                                                         int, int);
+                                                         int, int) noexcept;
 
 extern DEVICE_EXTERNAL int __spirv_AtomicLoad(const int SPIR_GLOBAL *, int,
-                                              int);
+                                              int) noexcept;
 
 extern DEVICE_EXTERNAL void __spirv_AtomicStore(int SPIR_GLOBAL *, int, int,
-                                                int);
+                                                int) noexcept;
 
-extern DEVICE_EXTERNAL void __spirv_AtomicStore(int *, int, int, int);
+extern DEVICE_EXTERNAL void __spirv_AtomicStore(int *, int, int, int) noexcept;
 
-extern DEVICE_EXTERNAL int __spirv_AtomicIAdd(SPIR_GLOBAL int *, int, int, int);
+extern DEVICE_EXTERNAL int __spirv_AtomicIAdd(SPIR_GLOBAL int *, int, int,
+                                              int) noexcept;
 
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
 /// Return the value which already was in *Ptr
