@@ -607,31 +607,30 @@ Function *VectorizationContext::getOrCreateMaskedAtomicFunction(
   // Mangle ordering
   auto mangleOrdering = [&O](AtomicOrdering Ordering) {
     switch (Ordering) {
-      default:
-        O << static_cast<unsigned>(Ordering);
-        break;
       case AtomicOrdering::Acquire:
         O << "acquire";
-        break;
+        return;
       case AtomicOrdering::AcquireRelease:
         O << "acqrel";
-        break;
+        return;
       case AtomicOrdering::Monotonic:
         O << "monotonic";
-        break;
+        return;
       case AtomicOrdering::NotAtomic:
         O << "notatomic";
-        break;
+        return;
       case AtomicOrdering::Release:
         O << "release";
-        break;
+        return;
       case AtomicOrdering::SequentiallyConsistent:
         O << "seqcst";
-        break;
+        return;
       case AtomicOrdering::Unordered:
         O << "unordered";
-        break;
+        return;
     }
+
+    O << static_cast<unsigned>(Ordering);
   };
 
   mangleOrdering(I.Ordering);

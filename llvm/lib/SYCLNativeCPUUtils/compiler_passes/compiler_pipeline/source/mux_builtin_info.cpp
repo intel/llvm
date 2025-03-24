@@ -165,65 +165,67 @@ static Function *defineSubGroupGroupOpBuiltin(Function &F,
 
   IRBuilder<> B(BasicBlock::Create(F.getContext(), "entry", &F));
 
-  switch (GroupOp.Op) {
-    default:
-      llvm_unreachable("Unhandled group operation");
-    case GroupCollective::OpKind::Any:
-    case GroupCollective::OpKind::All:
-    case GroupCollective::OpKind::Broadcast:
-    case GroupCollective::OpKind::Reduction:
-    case GroupCollective::OpKind::ScanInclusive:
-      // In the trivial size=1 case, all of these operations just return the
-      // argument back again
-      B.CreateRet(Arg);
-      break;
-    case GroupCollective::OpKind::ScanExclusive: {
-      // In the trivial size=1 case, exclusive scans return the identity.
-      assert(!OverloadInfo.empty());
-      auto *const IdentityVal =
-          getIdentityVal(GroupOp.Recurrence, OverloadInfo[0]);
-      assert(IdentityVal && "Unable to deduce identity val");
-      B.CreateRet(IdentityVal);
-      break;
+  [&] {
+    switch (GroupOp.Op) {
+      case GroupCollective::OpKind::Any:
+      case GroupCollective::OpKind::All:
+      case GroupCollective::OpKind::Broadcast:
+      case GroupCollective::OpKind::Reduction:
+      case GroupCollective::OpKind::ScanInclusive:
+        // In the trivial size=1 case, all of these operations just return the
+        // argument back again
+        B.CreateRet(Arg);
+        return;
+      case GroupCollective::OpKind::ScanExclusive: {
+        // In the trivial size=1 case, exclusive scans return the identity.
+        assert(!OverloadInfo.empty());
+        auto *const IdentityVal =
+            getIdentityVal(GroupOp.Recurrence, OverloadInfo[0]);
+        assert(IdentityVal && "Unable to deduce identity val");
+        B.CreateRet(IdentityVal);
+        return;
+      }
+      case GroupCollective::OpKind::Shuffle:
+      case GroupCollective::OpKind::ShuffleXor:
+        // In the trivial size=1 case, all of these operations just return the
+        // argument back again. Any computed shuffle index other than the only
+        // one in the sub-group would be out of bounds anyway.
+        B.CreateRet(Arg);
+        return;
+      case GroupCollective::OpKind::ShuffleUp: {
+        auto *const Prev = F.getArg(0);
+        auto *const Curr = F.getArg(1);
+        auto *const Delta = F.getArg(2);
+        // In the trivial size=1 case, negative delta is the desired index
+        // (since we're subtracting it from zero). If it's greater than zero and
+        // less than the size, we return 'current', else if it's less than zero
+        // and greater than or equal to the negative size, we return 'prev'. So
+        // if 'delta' is zero, return 'current', else return 'prev'. Anything
+        // else is out of bounds so we can simplify things here.
+        auto *const EqZero = B.CreateICmpEQ(Delta, B.getInt32(0), "eqzero");
+        auto *const Sel = B.CreateSelect(EqZero, Curr, Prev, "sel");
+        B.CreateRet(Sel);
+        return;
+      }
+      case GroupCollective::OpKind::ShuffleDown: {
+        auto *const Curr = F.getArg(0);
+        auto *const Next = F.getArg(1);
+        auto *const Delta = F.getArg(2);
+        // In the trivial size=1 case, the delta is the desired index (since
+        // we're adding it to zero). If it's less than the size, we return
+        // 'current', else if it's greater or equal to the size but less than
+        // twice the size, we return 'next'. So if 'delta' is zero, return
+        // 'current', else return 'next'. Anything else is out of bounds so we
+        // can simplify things here.
+        auto *const EqZero = B.CreateICmpEQ(Delta, B.getInt32(0), "eqzero");
+        auto *const Sel = B.CreateSelect(EqZero, Curr, Next, "sel");
+        B.CreateRet(Sel);
+        return;
+      }
     }
-    case GroupCollective::OpKind::Shuffle:
-    case GroupCollective::OpKind::ShuffleXor:
-      // In the trivial size=1 case, all of these operations just return the
-      // argument back again. Any computed shuffle index other than the only
-      // one in the sub-group would be out of bounds anyway.
-      B.CreateRet(Arg);
-      break;
-    case GroupCollective::OpKind::ShuffleUp: {
-      auto *const Prev = F.getArg(0);
-      auto *const Curr = F.getArg(1);
-      auto *const Delta = F.getArg(2);
-      // In the trivial size=1 case, negative delta is the desired index (since
-      // we're subtracting it from zero). If it's greater than zero and less
-      // than the size, we return 'current', else if it's less than zero and
-      // greater than or equal to the negative size, we return 'prev'. So if
-      // 'delta' is zero, return 'current', else return 'prev'. Anything else
-      // is out of bounds so we can simplify things here.
-      auto *const EqZero = B.CreateICmpEQ(Delta, B.getInt32(0), "eqzero");
-      auto *const Sel = B.CreateSelect(EqZero, Curr, Prev, "sel");
-      B.CreateRet(Sel);
-      break;
-    }
-    case GroupCollective::OpKind::ShuffleDown: {
-      auto *const Curr = F.getArg(0);
-      auto *const Next = F.getArg(1);
-      auto *const Delta = F.getArg(2);
-      // In the trivial size=1 case, the delta is the desired index (since
-      // we're adding it to zero). If it's less than the size, we return
-      // 'current', else if it's greater or equal to the size but less than
-      // twice the size, we return 'next'. So if 'delta' is zero, return
-      // 'current', else return 'next'. Anything else is out of bounds so we
-      // can simplify things here.
-      auto *const EqZero = B.CreateICmpEQ(Delta, B.getInt32(0), "eqzero");
-      auto *const Sel = B.CreateSelect(EqZero, Curr, Next, "sel");
-      B.CreateRet(Sel);
-      break;
-    }
-  }
+
+    llvm_unreachable("Unhandled group operation");
+  }();
 
   return &F;
 }

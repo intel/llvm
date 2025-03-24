@@ -1044,11 +1044,15 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
   BasicBlock *entry_point = region.entry;
   LLVMContext &context = module_.getContext();
 
-  LLVM_DEBUG(dbgs() << "\n"; unsigned i = 0; for (auto *d : region.blocks) {
-    dbgs() << "entry block: " << entry_point->getName() << "\n";
-    dbgs() << "region visited path [" << i++ << "] = " << d->getName()
-           << "\n\n";
-    dbgs() << *d << "\n\n";
+  LLVM_DEBUG({
+    dbgs() << "\n";
+    unsigned I = 0;
+    for (auto *D : region.blocks) {
+      dbgs() << "entry block: " << entry_point->getName() << "\n";
+      dbgs() << "region visited path [" << I++ << "] = " << D->getName()
+             << "\n\n";
+      dbgs() << *D << "\n\n";
+    }
   });
 
   SmallVector<Type *, 8> new_func_params;
@@ -1475,14 +1479,14 @@ void compiler::utils::Barrier::SeperateKernelWithBarrier() {
   barrier_md->addOperand(num_barriers__md);
 
   LLVM_DEBUG({
-    for (const auto &kid : kernel_id_map_) {
-      dbgs() << "1. kernel_id[" << kid.first << "] = " << kid.second->getName()
+    for (const auto &Kid : kernel_id_map_) {
+      dbgs() << "1. kernel_id[" << Kid.first << "] = " << Kid.second->getName()
              << "\n";
     }
 
-    for (unsigned i = kBarrier_FirstID;
-         i < kernel_id_map_.size() + kBarrier_FirstID; i++) {
-      dbgs() << "2. kernel_id[" << i << "] = " << kernel_id_map_[i]->getName()
+    for (unsigned I = kBarrier_FirstID;
+         I < kernel_id_map_.size() + kBarrier_FirstID; I++) {
+      dbgs() << "2. kernel_id[" << I << "] = " << kernel_id_map_[I]->getName()
              << "\n";
     }
     dbgs() << "\n\n" << module_ << "\n\n";

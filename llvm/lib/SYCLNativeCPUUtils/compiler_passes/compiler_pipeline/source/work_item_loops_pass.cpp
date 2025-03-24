@@ -1721,9 +1721,6 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
 
       auto *const exitBlock = [&]() {
         switch (barrierMain.getSchedule(i)) {
-          default:
-            assert(!"Unexpected barrier schedule enum");
-            LLVM_FALLTHROUGH;
           case BarrierSchedule::Unordered:
           case BarrierSchedule::ScalarTail:
             if (tailInfo && tailInfo->IsVectorPredicated) {
@@ -1737,6 +1734,8 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
           case BarrierSchedule::Linear:
             return schedule.makeLinearWorkItemLoops(block, i);
         }
+
+        llvm_unreachable("Unexpected barrier schedule enum");
       }();
 
       // the last basic block in our function!

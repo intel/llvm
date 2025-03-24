@@ -152,9 +152,8 @@ std::optional<uint32_t> getDMAReqdSizeBytes(const Function &F) {
 static constexpr const char *BarrierScheduleAttrName = "mux-barrier-schedule";
 
 void setBarrierSchedule(CallInst &CI, BarrierSchedule Sched) {
-  StringRef Val;
+  StringRef Val = "unknown";
   switch (Sched) {
-    default:
     case BarrierSchedule::Unordered:
       Val = "unordered";
       break;

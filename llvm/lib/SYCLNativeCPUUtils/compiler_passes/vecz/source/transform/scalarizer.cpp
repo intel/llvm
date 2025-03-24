@@ -1143,10 +1143,10 @@ SimdPacket *Scalarizer::scalarizeBitCast(BitCastInst *BC, PacketMask PM) {
         }
         Lane = Lane ? B.CreateOr(Lane, SrcPart) : SrcPart;
       }
+      assert(Lane && "No bits found for lane");
       if (DstEleTy != DstEleIntTy) {
         Lane = B.CreateBitCast(Lane, DstEleTy);
       }
-      assert(Lane && "No bits found for lane");
       P->set(i, Lane);
     }
     return P;

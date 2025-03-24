@@ -2540,10 +2540,10 @@ bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
           dbgs() << " (empty)\n";
         } else {
           dbgs() << "\n";
-          for (const auto &pair : deferrals) {
-            for (BasicBlock *deferred : pair.second) {
-              LLVM_DEBUG(dbgs() << "\t(" << pair.first->getName() << ", "
-                                << deferred->getName() << ")\n");
+          for (const auto &Pair : deferrals) {
+            for (BasicBlock *Deferred : Pair.second) {
+              LLVM_DEBUG(dbgs() << "\t(" << Pair.first->getName() << ", "
+                                << Deferred->getName() << ")\n");
             }
           }
         }
@@ -2934,8 +2934,8 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
         dbgs() << "\t\t\tWorklist: [";
         if (!queue.empty()) {
           dbgs() << DR->getBlockTag(*queue.begin()).BB->getName();
-          for (auto it = std::next(queue.begin()); it != queue.end(); ++it) {
-            dbgs() << ", " << DR->getBlockTag(*it).BB->getName();
+          for (auto It = std::next(queue.begin()); It != queue.end(); ++It) {
+            dbgs() << ", " << DR->getBlockTag(*It).BB->getName();
           }
           dbgs() << "]\n";
         }
