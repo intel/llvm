@@ -25,7 +25,7 @@ namespace fs = filesystem;
 namespace ur_loader {
 
 struct ur_device_tuple {
-  ur_adapter_backend_t backend;
+  ur_backend_t backend;
   ur_device_type_t device;
 };
 
@@ -42,7 +42,7 @@ struct FilterTerm {
       {"native_cpu", UR_BACKEND_NATIVE_CPU},
   };
 
-  bool matchesBackend(const ur_adapter_backend_t &match_backend) const {
+  bool matchesBackend(const ur_backend_t &match_backend) const {
     if (backend.front() == '*') {
       return true;
     }
