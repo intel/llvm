@@ -618,44 +618,6 @@ extern thread_local int32_t ErrorAdapterNativeCode;
   "ZE_intel_experimental_external_semaphore"
 #endif // ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME
 
-typedef enum _ze_intel_external_semaphore_exp_version_t {
-  ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_1_0 =
-      ZE_MAKE_VERSION(1, 0), ///< version 1.0
-  ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_CURRENT =
-      ZE_MAKE_VERSION(1, 0), ///< latest known version
-  ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_FORCE_UINT32 = 0x7fffffff
-} ze_intel_external_semaphore_exp_version_t;
-typedef enum _ze_intel_external_semaphore_exp_flags_t {
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_WIN32,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_WIN32_KMT,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_D3D12_FENCE,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_D3D11_FENCE,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_KEYED_MUTEX,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_KEYED_MUTEX_KMT,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_TIMELINE_SEMAPHORE_FD,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_TIMELINE_SEMAPHORE_WIN32
-} ze_intel_external_semaphore_exp_flags_t;
-
-typedef struct _ze_intel_external_semaphore_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  ze_intel_external_semaphore_exp_flags_t flags;
-} ze_intel_external_semaphore_exp_desc_t;
-
-typedef struct _ze_intel_external_semaphore_win32_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  void *handle;
-  const char *name;
-} ze_intel_external_semaphore_win32_exp_desc_t;
-
-typedef struct _ze_intel_external_semaphore_fd_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  int fd;
-} ze_intel_external_semaphore_desc_fd_exp_desc_t;
-
 typedef struct _ze_intel_external_semaphore_signal_exp_params_t {
   ze_structure_type_t stype;
   const void *pNext;
