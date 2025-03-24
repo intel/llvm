@@ -196,13 +196,6 @@ constexpr size_t kAccessSizeIndexMask = 0xf;
 constexpr size_t kIsWriteShift = 5;
 constexpr size_t kIsWriteMask = 0x1;
 
-// Spir memory address space
-static constexpr unsigned kSpirOffloadPrivateAS = 0;
-static constexpr unsigned kSpirOffloadGlobalAS = 1;
-static constexpr unsigned kSpirOffloadConstantAS = 2;
-static constexpr unsigned kSpirOffloadLocalAS = 3;
-static constexpr unsigned kSpirOffloadGenericAS = 4;
-
 // Command-line flags.
 
 static cl::opt<bool> ClEnableKasan(
@@ -872,8 +865,9 @@ struct AddressSanitizer {
                                  Value *SizeArgument, uint32_t Exp,
                                  RuntimeCallInserter &RTCI);
   void instrumentMemIntrinsic(MemIntrinsic *MI, RuntimeCallInserter &RTCI);
-  Value *memToShadow(Value *Shadow, IRBuilder<> &IRB,
-                     uint32_t AddressSpace = kSpirOffloadPrivateAS);
+  Value *memToShadow(
+      Value *Shadow, IRBuilder<> &IRB,
+      uint32_t AddressSpace = SanitizerCommonUtils::kSpirOffloadPrivateAS);
   bool suppressInstrumentationSiteForDebug(int &Instrumented);
   bool instrumentFunction(Function &F, const TargetLibraryInfo *TLI);
   bool maybeInsertAsanInitAtFunctionEntry(Function &F);
@@ -1403,8 +1397,9 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       SpirFixupKernels.emplace_back(&F);
 
       auto KernelName = F.getName();
-      auto *KernelNameGV = GetOrCreateGlobalString(
-          M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
+      auto *KernelNameGV =
+          GetOrCreateGlobalString(M, "__asan_kernel", KernelName,
+                                  SanitizerCommonUtils::kSpirOffloadConstantAS);
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
           StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
           ConstantInt::get(IntptrTy, KernelName.size())));
@@ -1439,7 +1434,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
     }
 
     // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
-    Types.push_back(llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS));
+    Types.push_back(llvm::PointerType::get(
+        IntptrTy, SanitizerCommonUtils::kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1497,9 +1493,9 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
     FixupMetadata("kernel_arg_exclusive_ptr",
                   ConstantAsMetadata::get(Builder.getFalse()));
 
-    FixupMetadata(
-        "kernel_arg_addr_space",
-        ConstantAsMetadata::get(Builder.getInt32(kSpirOffloadGlobalAS)));
+    FixupMetadata("kernel_arg_addr_space",
+                  ConstantAsMetadata::get(Builder.getInt32(
+                      SanitizerCommonUtils::kSpirOffloadGlobalAS)));
     FixupMetadata("kernel_arg_access_qual",
                   MDString::get(M.getContext(), "read_write"));
     FixupMetadata("kernel_arg_type", MDString::get(M.getContext(), "void*"));
@@ -1680,15 +1676,16 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   auto &Loc = InsertBefore->getDebugLoc();
 
   // SPIR constant address space
-  PointerType *ConstASPtrTy =
-      llvm::PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
+  PointerType *ConstASPtrTy = llvm::PointerType::get(
+      Type::getInt8Ty(C), SanitizerCommonUtils::kSpirOffloadConstantAS);
 
   // File & Line
   if (Loc) {
     llvm::SmallString<128> Source = Loc->getDirectory();
     sys::path::append(Source, Loc->getFilename());
-    auto *FileNameGV = GetOrCreateGlobalString(*M, "__asan_file", Source,
-                                               kSpirOffloadConstantAS);
+    auto *FileNameGV =
+        GetOrCreateGlobalString(*M, "__asan_file", Source,
+                                SanitizerCommonUtils::kSpirOffloadConstantAS);
     Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
     Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
   } else {
@@ -1698,8 +1695,9 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // Function
   auto FuncName = InsertBefore->getFunction()->getName();
-  auto *FuncNameGV = GetOrCreateGlobalString(
-      *M, "__asan_func", demangle(FuncName), kSpirOffloadConstantAS);
+  auto *FuncNameGV =
+      GetOrCreateGlobalString(*M, "__asan_func", demangle(FuncName),
+                              SanitizerCommonUtils::kSpirOffloadConstantAS);
   Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
 }
 
@@ -1735,7 +1733,8 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
   SmallVector<Argument *> LocalArgs;
   for (auto &Arg : F.args()) {
     Type *PtrTy = dyn_cast<PointerType>(Arg.getType()->getScalarType());
-    if (PtrTy && PtrTy->getPointerAddressSpace() == kSpirOffloadLocalAS)
+    if (PtrTy && PtrTy->getPointerAddressSpace() ==
+                     SanitizerCommonUtils::kSpirOffloadLocalAS)
       LocalArgs.push_back(&Arg);
   }
 
@@ -1780,8 +1779,8 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(
   // FIXME: if the initial value of "__AsanLaunchInfo" is zero, we'll not need
   // this step
   initializeCallbacks(TLI);
-  IRB.CreateStore(ConstantPointerNull::get(
-                      llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS)),
+  IRB.CreateStore(ConstantPointerNull::get(llvm::PointerType::get(
+                      IntptrTy, SanitizerCommonUtils::kSpirOffloadGlobalAS)),
                   AsanLaunchInfo);
 }
 
@@ -2802,7 +2801,8 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
   SmallVector<GlobalVariable *, 8> GlobalsToRemove;
   SmallVector<Constant *, 8> DeviceGlobalMetadata;
 
-  Type *IntptrTy = M.getDataLayout().getIntPtrType(*C, kSpirOffloadGlobalAS);
+  Type *IntptrTy = M.getDataLayout().getIntPtrType(
+      *C, SanitizerCommonUtils::kSpirOffloadGlobalAS);
 
   // Device global meta data is described by a structure
   //  size_t device_global_size
@@ -3560,8 +3560,8 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
       //   char* func
       // )
       if (TargetTriple.isSPIROrSPIRV()) {
-        auto *Int8PtrTy =
-            llvm::PointerType::get(Type::getInt8Ty(*C), kSpirOffloadConstantAS);
+        auto *Int8PtrTy = llvm::PointerType::get(
+            Type::getInt8Ty(*C), SanitizerCommonUtils::kSpirOffloadConstantAS);
 
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
@@ -3662,11 +3662,16 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
 
     AsanLaunchInfo = M.getOrInsertGlobal(
         "__AsanLaunchInfo",
-        llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), [&] {
+        llvm::PointerType::get(IntptrTy,
+                               SanitizerCommonUtils::kSpirOffloadGlobalAS),
+        [&] {
           return new GlobalVariable(
-              M, llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), false,
-              GlobalVariable::ExternalLinkage, nullptr, "__AsanLaunchInfo",
-              nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
+              M,
+              llvm::PointerType::get(
+                  IntptrTy, SanitizerCommonUtils::kSpirOffloadGlobalAS),
+              false, GlobalVariable::ExternalLinkage, nullptr,
+              "__AsanLaunchInfo", nullptr, GlobalVariable::NotThreadLocal,
+              SanitizerCommonUtils::kSpirOffloadLocalAS);
         });
 
     AsanMemToShadow = M.getOrInsertFunction(kAsanMemToShadow, IntptrTy,
@@ -4451,8 +4456,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
   const auto &ShadowAfterScope = GetShadowBytesAfterScope(SVD, L);
 
   // Poison the stack red zones at the entry.
-  Value *ShadowBase =
-      ASan.memToShadow(LocalStackBase, IRB, kSpirOffloadPrivateAS);
+  Value *ShadowBase = ASan.memToShadow(
+      LocalStackBase, IRB, SanitizerCommonUtils::kSpirOffloadPrivateAS);
   // As mask we must use most poisoned case: red zones and after scope.
   // As bytes we can use either the same or just red zones only.
   copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase,
