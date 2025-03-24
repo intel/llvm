@@ -1,13 +1,13 @@
 // RUN: %clang_cc1 %s -fsycl-is-host -D__sycl_cuda_host \
-// RUN:   -internal-isystem %S/../SemaCUDA/Inputs \
+// RUN:   -internal-isystem %S/../../SemaCUDA/Inputs \
 // RUN:   -fsycl-targets=nvptx64-nvidia-cuda -triple x86_64-unknown-linux \
 // RUN:   -emit-llvm -o - -verify -verify-ignore-unexpected=note
 // RUN: %clang_cc1 %s -fsycl-is-host -fcuda-is-device -D__cuda_device \
-// RUN:   -internal-isystem %S/../SemaCUDA/Inputs \
+// RUN:   -internal-isystem %S/../../SemaCUDA/Inputs \
 // RUN:   -fsycl-targets=nvptx64-nvidia-cuda -triple x86_64-unknown-linux \
 // RUN:   -emit-llvm -o - -verify -verify-ignore-unexpected=note
 // RUN: %clang_cc1 %s -fsycl-is-device -D__sycl_device \
-// RUN:   -internal-isystem %S/../SemaCUDA/Inputs \
+// RUN:   -internal-isystem %S/../../SemaCUDA/Inputs \
 // RUN:   -fsycl-targets=nvptx64-nvidia-cuda -triple x86_64-unknown-linux\
 // RUN:   -emit-llvm -o - -verify -verify-ignore-unexpected=note
 
