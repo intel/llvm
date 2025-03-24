@@ -29,10 +29,6 @@ constexpr unsigned kSpirOffloadGenericAS = 4;
 
 TargetExtType *getTargetExtType(Type *Ty);
 bool isJointMatrixAccess(Value *V);
-bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I,
-                             bool InstrumentLocalPtr,
-                             bool InstrumentPrivatePtr);
-
 } // namespace SanitizerCommonUtils
 } // namespace llvm
 

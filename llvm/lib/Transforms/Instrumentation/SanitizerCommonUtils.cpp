@@ -59,45 +59,5 @@ bool isJointMatrixAccess(Value *V) {
   }
   return false;
 }
-
-bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I,
-                             bool InstrumentLocalPtr,
-                             bool InstrumentPrivatePtr) {
-  if (isa<Instruction>(Addr) &&
-      cast<Instruction>(Addr)->getMetadata(LLVMContext::MD_nosanitize)) {
-    return true;
-  }
-
-  // Skip SPIR-V built-in varibles
-  auto *OrigValue = Addr->stripInBoundsOffsets();
-  assert(OrigValue != nullptr);
-  if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
-    return true;
-
-  // Ignore load/store for target ext type since we can't know exactly what size
-  // it is.
-  if (auto *SI = dyn_cast<StoreInst>(I))
-    if (getTargetExtType(SI->getValueOperand()->getType()) ||
-        isJointMatrixAccess(SI->getPointerOperand()))
-      return true;
-
-  if (auto *LI = dyn_cast<LoadInst>(I))
-    if (getTargetExtType(I->getType()) ||
-        isJointMatrixAccess(LI->getPointerOperand()))
-      return true;
-
-  Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-  switch (PtrTy->getPointerAddressSpace()) {
-  case kSpirOffloadPrivateAS:
-    return !InstrumentPrivatePtr;
-  case kSpirOffloadLocalAS:
-    return !InstrumentLocalPtr;
-  case kSpirOffloadGenericAS:
-    return false;
-  }
-
-  return false;
-}
-
 } // namespace SanitizerCommonUtils
 } // namespace llvm

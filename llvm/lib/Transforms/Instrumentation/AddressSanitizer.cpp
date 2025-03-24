@@ -1668,6 +1668,53 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }
 
+static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
+  // Skip SPIR-V built-in varibles
+  auto *OrigValue = Addr->stripInBoundsOffsets();
+  if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  GlobalVariable *GV = dyn_cast<GlobalVariable>(OrigValue);
+  if (GV && isUnsupportedDeviceGlobal(GV))
+    return true;
+
+  // Ignore load/store for target ext type since we can't know exactly what size
+  // it is.
+  if (auto *SI = dyn_cast<StoreInst>(Inst))
+    if (SanitizerCommonUtils::getTargetExtType(
+            SI->getValueOperand()->getType()) ||
+        SanitizerCommonUtils::isJointMatrixAccess(SI->getPointerOperand()))
+      return true;
+
+  if (auto *LI = dyn_cast<LoadInst>(Inst))
+    if (SanitizerCommonUtils::getTargetExtType(Inst->getType()) ||
+        SanitizerCommonUtils::isJointMatrixAccess(LI->getPointerOperand()))
+      return true;
+
+  Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
+  switch (PtrTy->getPointerAddressSpace()) {
+  case SanitizerCommonUtils::kSpirOffloadPrivateAS: {
+    if (!ClSpirOffloadPrivates)
+      return true;
+    // Skip kernel arguments
+    return Inst->getFunction()->getCallingConv() == CallingConv::SPIR_KERNEL &&
+           isa<Argument>(Addr);
+  }
+  case SanitizerCommonUtils::kSpirOffloadGlobalAS: {
+    return !ClSpirOffloadGlobals;
+  }
+  case SanitizerCommonUtils::kSpirOffloadLocalAS: {
+    if (!ClSpirOffloadLocals)
+      return true;
+    return Addr->getName().starts_with("__Asan");
+  }
+  case SanitizerCommonUtils::kSpirOffloadGenericAS: {
+    return !ClSpirOffloadGenerics;
+  }
+  }
+  return true;
+}
+
 void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
                                              Value *Addr,
                                              SmallVectorImpl<Value *> &Args) {
@@ -1836,8 +1883,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
   // SPIR has its own rules to filter the instrument accesses
   if (TargetTriple.isSPIROrSPIRV()) {
-    if (SanitizerCommonUtils::isUnsupportedSPIRAccess(
-            Ptr, Inst, ClSpirOffloadLocals, ClSpirOffloadPrivates))
+    if (isUnsupportedSPIRAccess(Ptr, Inst))
       return true;
   } else {
     // Instrument accesses from different address spaces only for AMDGPU.
