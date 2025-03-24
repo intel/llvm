@@ -15,6 +15,7 @@
 #include "kernel.hpp"
 #include "lockable.hpp"
 #include "queue_api.hpp"
+#include <unordered_set>
 #include <ze_api.h>
 
 struct ur_exp_command_buffer_handle_t_ : public ur_object {
@@ -37,7 +38,19 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
   // Command-buffer profiling is enabled.
   const bool isProfilingEnabled = false;
 
+  ur_result_t
+  createCommandHandle(locked<ur_command_list_manager> &commandListLocked,
+                      ur_kernel_handle_t hKernel,
+                      uint32_t workDim, const size_t *pGlobalWorkSize,
+                      uint32_t numKernelAlternatives,
+                      ur_kernel_handle_t *kernelAlternatives,
+                      ur_exp_command_buffer_command_handle_t *command);
+
 private:
+  const ur_context_handle_t context;
+  const ur_device_handle_t device;
+  std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
+      commandHandles;
   // Indicates if command-buffer was finalized.
   bool isFinalized = false;
 
@@ -48,11 +61,38 @@ struct ur_exp_command_buffer_command_handle_t_ : public ur_object {
   ur_exp_command_buffer_command_handle_t_(ur_exp_command_buffer_handle_t,
                                           uint64_t);
 
-private:
   ~ur_exp_command_buffer_command_handle_t_();
 
+private:
   // Command-buffer of this command.
   ur_exp_command_buffer_handle_t commandBuffer;
   // L0 command ID identifying this command
   uint64_t commandId;
+};
+
+struct kernel_command_handle : public ur_exp_command_buffer_command_handle_t_ {
+  kernel_command_handle(ur_exp_command_buffer_handle_t commandBuffer,
+                        ur_kernel_handle_t kernel, uint64_t commandId,
+                        uint32_t workDim, uint32_t numKernelAlternatives,
+                        ur_kernel_handle_t *kernelAlternatives);
+
+  ~kernel_command_handle();
+
+  void setGlobalWorkSize(const size_t *globalWorkSizePtr) {
+    const size_t copySize = sizeof(size_t) * workDim;
+    std::memcpy(globalWorkSize, globalWorkSizePtr, copySize);
+    if (workDim < 3) {
+      const size_t zeroSize = sizeof(size_t) * (3 - workDim);
+      std::memset(globalWorkSize + workDim, 0, zeroSize);
+    }
+  }
+
+  // Work-dimension the command was originally created with.
+  uint32_t workDim;
+  // Global work size of the kernel
+  size_t globalWorkSize[3];
+  // Currently active kernel handle
+  ur_kernel_handle_t kernel;
+  // Storage for valid kernel alternatives for this command.
+  std::unordered_set<ur_kernel_handle_t> validKernelHandles;
 };

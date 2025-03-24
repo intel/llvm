@@ -46,10 +46,12 @@ inline size_t command_list_descriptor_hash_t::operator()(
   }
 }
 
-command_list_cache_t::command_list_cache_t(ze_context_handle_t ZeContext,
-                                           bool ZeCopyOffloadExtensionSupported)
+command_list_cache_t::command_list_cache_t(
+    ze_context_handle_t ZeContext, bool ZeCopyOffloadExtensionSupported,
+    bool ZeMutableCmdListExtentionSupported)
     : ZeContext{ZeContext},
-      ZeCopyOffloadExtensionSupported{ZeCopyOffloadExtensionSupported} {}
+      ZeCopyOffloadExtensionSupported{ZeCopyOffloadExtensionSupported},
+      ZeMutableCmdListExtentionSupported{ZeMutableCmdListExtentionSupported} {}
 
 static bool ForceDisableCopyOffload = [] {
   return getenv_tobool("UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD");
@@ -100,11 +102,22 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     return raii::ze_command_list_handle_t(ZeCommandList);
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
+    bool isMutable = RegCmdDesc.Mutable;
+    if (!ZeCopyOffloadExtensionSupported && isMutable) {
+      logger::info("Mutable command lists are requested but are not supported "
+                   "by the driver.");
+      isMutable = false;
+    }
     ZeStruct<ze_command_list_desc_t> CmdListDesc;
     CmdListDesc.flags =
         RegCmdDesc.IsInOrder ? ZE_COMMAND_LIST_FLAG_IN_ORDER : 0;
     CmdListDesc.commandQueueGroupOrdinal = RegCmdDesc.Ordinal;
     CmdListDesc.pNext = &offloadDesc;
+    ZeStruct<ze_mutable_command_list_exp_desc_t> ZeMutableCommandListDesc;
+    if (isMutable) {
+      ZeMutableCommandListDesc.flags = 0;
+      offloadDesc.pNext = &ZeMutableCommandListDesc;
+    }
 
     UR_LOG(DEBUG,
            "create command list ordinal: {}, type: immediate, "
@@ -140,10 +153,9 @@ raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
       });
 }
 
-raii::command_list_unique_handle
-command_list_cache_t::getRegularCommandList(ze_device_handle_t ZeDevice,
-                                            bool IsInOrder, uint32_t Ordinal,
-                                            bool CopyOffloadEnable) {
+raii::command_list_unique_handle command_list_cache_t::getRegularCommandList(
+    ze_device_handle_t ZeDevice, bool IsInOrder, uint32_t Ordinal,
+    bool CopyOffloadEnable, bool Mutable) {
   TRACK_SCOPE_LATENCY("command_list_cache_t::getRegularCommandList");
 
   regular_command_list_descriptor_t Desc;
@@ -151,6 +163,7 @@ command_list_cache_t::getRegularCommandList(ze_device_handle_t ZeDevice,
   Desc.IsInOrder = IsInOrder;
   Desc.Ordinal = Ordinal;
   Desc.CopyOffloadEnabled = CopyOffloadEnable;
+  Desc.Mutable = Mutable;
 
   auto [CommandList, _] = getCommandList(Desc).release();
 

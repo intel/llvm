@@ -28,15 +28,93 @@ void checkImmediateAppendSupport(ur_context_handle_t context) {
 
 } // namespace
 
+kernel_command_handle::kernel_command_handle(
+    ur_exp_command_buffer_handle_t commandBuffer, ur_kernel_handle_t hKernel,
+    uint64_t commandId, uint32_t workDim, uint32_t numKernelAlternatives,
+    ur_kernel_handle_t *kernelAlternatives)
+    : ur_exp_command_buffer_command_handle_t_(commandBuffer, commandId),
+      workDim(workDim), kernel(hKernel) {
+  // Add the default kernel to the list of valid kernels
+  kernel->RefCount.increment();
+  validKernelHandles.insert(hKernel);
+  // Add alternative kernels if provided
+  if (kernelAlternatives) {
+    for (size_t i = 0; i < numKernelAlternatives; i++) {
+      kernelAlternatives[i]->RefCount.increment();
+      validKernelHandles.insert(kernelAlternatives[i]);
+    }
+  }
+}
+
+kernel_command_handle::~kernel_command_handle() {
+  for (const ur_kernel_handle_t &kernelHandle : validKernelHandles) {
+    kernelHandle->release();
+  }
+}
+
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList,
     const ur_exp_command_buffer_desc_t *desc)
     : commandListManager(
           context, device,
-          std::forward<v2::raii::command_list_unique_handle>(commandList),
-          v2::EVENT_FLAGS_COUNTER, nullptr),
-      isUpdatable(desc ? desc->isUpdatable : false) {}
+          std::forward<v2::raii::command_list_unique_handle>(commandList), v2::EVENT_FLAGS_COUNTER, nullptr),
+      isUpdatable(desc ? desc->isUpdatable : false), context(context),
+      device(device) {}
+
+ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
+    locked<ur_command_list_manager> &commandListLocked, ur_kernel_handle_t hKernel,
+    uint32_t workDim, const size_t *pGlobalWorkSize,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
+    ur_exp_command_buffer_command_handle_t *command) {
+  
+      uint64_t commandId = 0;
+      ZeStruct<ze_mutable_command_id_exp_desc_t> zeMutableCommandDesc;
+      zeMutableCommandDesc.flags = ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS |
+                                   ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT |
+                                   ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE |
+                                   ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET;
+  
+      auto platform = context->getPlatform();
+      ze_command_list_handle_t zeCommandList =
+          commandListLocked->getZeCommandList();
+  
+      if (numKernelAlternatives > 0) {
+        zeMutableCommandDesc.flags |=
+            ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_INSTRUCTION;
+  
+        std::vector<ze_kernel_handle_t> kernelHandles(numKernelAlternatives + 1,
+                                                      nullptr);
+  
+        kernelHandles[0] = hKernel->getZeHandle(device);
+  
+        for (size_t i = 0; i < numKernelAlternatives; i++) {
+          kernelHandles[i + 1] =
+              kernelAlternatives[i]->getZeHandle(device);
+        }
+  
+        ZE2UR_CALL(platform->ZeMutableCmdListExt
+                       .zexCommandListGetNextCommandIdWithKernelsExp,
+                   (zeCommandList, &zeMutableCommandDesc,
+                    numKernelAlternatives + 1, kernelHandles.data(), &commandId));
+  
+      } else {
+        ZE2UR_CALL(
+            platform->ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp,
+            (zeCommandList, &zeMutableCommandDesc, &commandId));
+      }
+  
+      auto newCommand = std::make_unique<kernel_command_handle>(
+          this, hKernel, commandId, workDim, numKernelAlternatives,
+          kernelAlternatives);
+  
+      newCommand->setGlobalWorkSize(pGlobalWorkSize);
+  
+      *command = newCommand.get();
+  
+      commandHandles.push_back(std::move(newCommand));
+      return UR_RESULT_SUCCESS;
+}
 
 ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   // It is not allowed to append to command list from multiple threads.
@@ -87,7 +165,8 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
       device->QueueGroup[queue_group_type::Compute].ZeOrdinal;
   v2::raii::command_list_unique_handle zeCommandList =
       context->getCommandListCache().getRegularCommandList(
-          device->ZeDevice, true, queueGroupOrdinal, true);
+          device->ZeDevice, true, queueGroupOrdinal, true,
+          commandBufferDesc->isUpdatable);
 
   *commandBuffer = new ur_exp_command_buffer_handle_t_(
       context, device, std::move(zeCommandList), commandBufferDesc);
@@ -141,7 +220,30 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   // TODO: These parameters aren't implemented in V1 yet, and are a fair amount
   // of work. Need to know semantics: should they be checked before kernel
   // execution (difficult) or before kernel appending to list (easy fix).
+  std::ignore = numEventsInWaitList;
+  std::ignore = eventWaitList;
+  std::ignore = event;
+
+  // sync mechanic can be ignored, because all lists are in-order
+  std::ignore = numSyncPointsInWaitList;
+  std::ignore = syncPointWaitList;
+  std::ignore = retSyncPoint;
+
+  if (command != nullptr && !commandBuffer->isUpdatable) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  if (numKernelAlternatives > 0 && command == nullptr) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
   auto commandListLocked = commandBuffer->commandListManager.lock();
+  if (command != nullptr) {
+    UR_CALL(commandBuffer->createCommandHandle(commandListLocked, hKernel,
+                                              workDim, pGlobalWorkSize,
+                                              numKernelAlternatives,
+                                              kernelAlternatives, command));
+  }
   UR_CALL(commandListLocked->appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
       nullptr, nullptr));
@@ -463,4 +565,36 @@ urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
   *phNativeCommandBuffer = reinterpret_cast<ur_native_handle_t>(ZeCommandList);
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numKernelUpdates,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t
+        *pUpdateKernelLaunch) {
+  std::ignore = hCommandBuffer;
+  std::ignore = numKernelUpdates;
+  std::ignore = pUpdateKernelLaunch;
+  logger::error("{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urCommandBufferUpdateSignalEventExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    ur_event_handle_t *phEvent) {
+  // needs to be implemented together with signal event handling
+  std::ignore = hCommand;
+  std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urCommandBufferUpdateWaitEventsExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList) {
+  // needs to be implemented together with wait event handling
+  std::ignore = hCommand;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
