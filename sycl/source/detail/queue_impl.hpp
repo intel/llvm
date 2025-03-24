@@ -273,10 +273,10 @@ public:
   /// \return an OpenCL interoperability queue handle.
 
   cl_command_queue get() {
-    getAdapter()->call<UrApiKind::urQueueRetain>(MQueues[0]);
     ur_native_handle_t nativeHandle = 0;
     getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], nullptr,
                                                           &nativeHandle);
+    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -848,7 +848,7 @@ protected:
       Handler.depends_on(Deps.LastBarrier);
 
     auto EventRet = Handler.finalize();
-    EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
+    const EventImplPtr &EventRetImpl = getSyclObjImpl(EventRet);
     if (Type == CGType::CodeplayHostTask)
       Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
     else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {

@@ -158,14 +158,12 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidKernelArgs) {
   UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
   UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
 
-  ur_platform_backend_t backend;
+  ur_backend_t backend;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(ur_platform_backend_t), &backend,
-                                   nullptr));
+                                   sizeof(ur_backend_t), &backend, nullptr));
 
-  if (backend == UR_PLATFORM_BACKEND_CUDA ||
-      backend == UR_PLATFORM_BACKEND_HIP ||
-      backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+  if (backend == UR_BACKEND_CUDA || backend == UR_BACKEND_HIP ||
+      backend == UR_BACKEND_LEVEL_ZERO) {
     GTEST_FAIL() << "AMD, L0 and Nvidia can't check kernel arguments.";
   }
 
