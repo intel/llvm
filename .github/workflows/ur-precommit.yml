@@ -62,6 +62,20 @@ jobs:
             runner: UR_L0
             docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: L0_V2
+            runner: UR_L0
+            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+          - name: L0
+            runner: UR_L0
+            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            static: ON
+          - name: L0
+            runner: UR_L0
+            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+            other_adapter: NATIVE_CPU
         # Extra native CPU jobs are here to force the loader to be used.
         # UR will not use the loader if there is only one target.
         # adapter: [

@@ -151,7 +151,7 @@ jobs:
     #   ghcr.io/intel/llvm/ubuntu2404_build:latest
     # not sure on OpenCL and NativeCPU - to be checked.
     - name: Install Intel Level Zero GPU
-      if: ${{inputs.adapter_name}} == "L0"
+      if: ${{inputs.adapter_name}} == "L0" || ${{inputs.adapter_name}} == "L0_V2"
       run: |
         wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | \
           sudo gpg --yes --dearmor --output /usr/share/keyrings/intel-graphics.gpg
