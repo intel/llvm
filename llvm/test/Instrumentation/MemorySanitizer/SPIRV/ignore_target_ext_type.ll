@@ -3,42 +3,23 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64-G1"
 target triple = "spir64-unknown-unknown"
 
-%"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix" = type { target("spirv.JointMatrixINTEL", i16, 16, 32, 0, 3, 0, 1) }
+%"class.sycl::_V1::ext::oneapi::bfloat16" = type { i16 }
+%"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix" = type { target("spirv.CooperativeMatrixKHR", i16, 3, 16, 32, 0) }
 
-; Function Attrs: sanitize_address
-define spir_kernel void @_ZTS4multIN4sycl3_V13ext6oneapi8bfloat16ELm16ELm16ELm32EE() #0 {
+; CHECK-LABEL: @test
+; CHECK-NOT: call i64 @__msan_get_shadow
+declare dso_local spir_func noundef ptr addrspace(4) @_Z19__spirv_AccessChainIN4sycl3_V13ext6oneapi8bfloat16ES4_Lm16ELm32ELN5__spv9MatrixUseE0ELNS5_5Scope4FlagE3EEPT_PPNS5_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr addrspace(4) noundef, i64 noundef)
+
+define weak_odr dso_local spir_kernel void @test() {
 entry:
-; CHECK-LABEL-DAG: @_ZTS4multIN4sycl3_V13ext6oneapi8bfloat16ELm16ELm16ELm32EE
-; CHECK-NOT: MyAlloc
-  %a = alloca [2 x %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix"], i32 0, align 8
-  br label %for.cond10.i
-
-for.cond10.i:                                     ; preds = %for.cond10.i, %entry
-  %0 = load target("spirv.JointMatrixINTEL", i16, 16, 32, 0, 3, 0, 1), ptr null, align 8
-  store target("spirv.JointMatrixINTEL", float, 16, 16, 3, 3, 2) zeroinitializer, ptr null, align 8
-; CHECK-NOT: call void @asan_load
-; CHECK-NOT: call void @asan_store
-  br label %for.cond10.i
-}
-
-; Function Attrs: sanitize_address
-define spir_kernel void @AccessChain() #0 {
-entry:
-; CHECK-LABEL-DAG: @AccessChain
-  %a = alloca %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", align 8
-  %0 = getelementptr inbounds %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", ptr %a, i64 0, i32 0
-  %call.i35 = call spir_func ptr @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr %0, i64 0)
-  %1 = getelementptr inbounds { i16 }, ptr %call.i35, i64 0, i32 0
-; CHECK-NOT: call void @__asan_load
-; CHECK-NOT: call void @__asan_store
-  %2 = load i16, ptr %1, align 4
-  %call.i42 = call spir_func ptr @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr %0, i64 0)
-  %3 = getelementptr inbounds { i16 }, ptr %call.i42, i64 0, i32 0
-  store i16 %2, ptr %3, align 4
+  %sub_a.i = alloca %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", align 8
+  %element.i = alloca %"class.sycl::_V1::ext::oneapi::bfloat16", align 2
+  %0 = getelementptr inbounds { i16 }, ptr %element.i, i64 0, i32 0
+  %spvm.i = getelementptr inbounds %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", ptr %sub_a.i, i64 0, i32 0
+  %addrcast = addrspacecast ptr %spvm.i to ptr addrspace(4)
+  %call.i67 = call spir_func noundef ptr addrspace(4) @_Z19__spirv_AccessChainIN4sycl3_V13ext6oneapi8bfloat16ES4_Lm16ELm32ELN5__spv9MatrixUseE0ELNS5_5Scope4FlagE3EEPT_PPNS5_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr addrspace(4) noundef %addrcast, i64 1)
+  %gep = getelementptr inbounds nuw { i16 }, ptr addrspace(4) %call.i67, i64 0, i32 0
+  %val = load i16, ptr %0, align 2
+  store i16 %val, ptr addrspace(4) %gep, align 2
   ret void
 }
-
-declare spir_func ptr @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr, i64)
-
-attributes #0 = { sanitize_address }
-
