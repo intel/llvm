@@ -2012,10 +2012,11 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 }
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  const auto &Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
+  device Device = detail::getDeviceFromHandler(*this);
+  const auto &DeviceImpl = detail::getSyclObjImpl(Device);
   std::array<size_t, 3> UrResult = {};
-  auto Ret = Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-      Dev->getHandleRef(),
+  auto Ret = DeviceImpl->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      DeviceImpl->getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
       sizeof(UrResult), &UrResult, nullptr);
