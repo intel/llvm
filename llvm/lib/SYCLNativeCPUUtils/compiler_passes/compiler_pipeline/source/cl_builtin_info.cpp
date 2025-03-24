@@ -2376,7 +2376,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineVStoreHalf(Function *F, StringRef Mode,
   DataPtr = B.CreateGEP(U16Ty, DataPtr, Offset, "vstore_base");
 
   // Store the ushort.
-  return B.CreateStore(Data, DataPtr, "vstore_half");
+  return B.CreateStore(Data, DataPtr);
 }
 
 /// @brief Emit the body of a relational builtin function.

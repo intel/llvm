@@ -177,23 +177,23 @@ void Reachability::recalculate(Function &F) {
   }
 
   LLVM_DEBUG({
-    size_t i = 0;
+    size_t I = 0;
     for (auto &BB : F) {
-      auto &node = graph[i];
+      auto &Node = graph[I];
       dbgs() << BB.getName() << ":\n";
-      dbgs() << "[ " << node.X << ", " << node.Y << " ] : ";
-      dbgs() << "( " << node.dom << ", " << node.postDom << " ) : ";
-      for (const size_t s : node.successors) {
-        if (graph[s].X <= graph[i].X) {
+      dbgs() << "[ " << Node.X << ", " << Node.Y << " ] : ";
+      dbgs() << "( " << Node.dom << ", " << Node.postDom << " ) : ";
+      for (const size_t S : Node.successors) {
+        if (graph[S].X <= graph[I].X) {
           dbgs() << "!x!";
         }
-        if (graph[s].Y <= graph[i].Y) {
+        if (graph[S].Y <= graph[I].Y) {
           dbgs() << "!y!";
         }
-        dbgs() << s << "; ";
+        dbgs() << S << "; ";
       }
       dbgs() << "\n\n";
-      ++i;
+      ++I;
     }
   });
 

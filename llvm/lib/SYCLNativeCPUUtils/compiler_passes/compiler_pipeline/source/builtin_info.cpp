@@ -1147,8 +1147,6 @@ BuiltinID BuiltinInfo::getMuxGroupCollective(const GroupCollective &Group) {
 #define SIMPLE_SCOPE_SWITCH(OP)                     \
   do {                                              \
     switch (Group.Scope) {                          \
-      default:                                      \
-        llvm_unreachable("Impossible scope kind");  \
       case GroupCollective::ScopeKind::SubGroup:    \
         return eMuxBuiltinSubgroup##OP;             \
       case GroupCollective::ScopeKind::WorkGroup:   \
@@ -1156,6 +1154,7 @@ BuiltinID BuiltinInfo::getMuxGroupCollective(const GroupCollective &Group) {
       case GroupCollective::ScopeKind::VectorGroup: \
         return eMuxBuiltinVecgroup##OP;             \
     }                                               \
+    llvm_unreachable("Impossible scope kind");      \
   } while (0)
 
 #define COMPLEX_SCOPE_SWITCH(OP, SUFFIX)               \
