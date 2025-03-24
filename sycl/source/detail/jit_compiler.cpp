@@ -1044,14 +1044,16 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
   if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
     detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
-        Queue->get_context(), {Queue->get_device()}, {FusedKernelId}));
+        Queue->get_context(), {Queue->get_device()},
+        {std::move(FusedKernelId)}));
   }
 
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
-      CGType::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
+      std::move(CGData), std::move(FusedArgs),
+      std::move(FusedOrCachedKernelName), {}, {}, CGType::Kernel,
+      KernelCacheConfig, false /* KernelIsCooperative */,
       false /* KernelUsesClusterLaunch*/, 0 /* KernelWorkGroupMemorySize */));
   return FusedCG;
 }

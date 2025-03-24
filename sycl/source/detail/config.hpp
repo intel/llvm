@@ -652,7 +652,7 @@ public:
     const char *ValStr = getCachedValue();
 
     if (!ValStr)
-      return DefaultValue;
+      return std::move(DefaultValue);
 
     return std::string{ValStr};
   }

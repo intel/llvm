@@ -593,7 +593,7 @@ ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
     [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {
 #if SYCL_EXT_JIT_ENABLE && !_WIN32
   return detail::jit_compiler::get_instance().materializeSpecConstants(
-      Queue, BinImage, KernelName, SpecConstBlob);
+      std::move(Queue), BinImage, KernelName, SpecConstBlob);
 #else  // SYCL_EXT_JIT_ENABLE && !_WIN32
   if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
     std::cerr << "WARNING: Materialization of spec constants not supported by "
