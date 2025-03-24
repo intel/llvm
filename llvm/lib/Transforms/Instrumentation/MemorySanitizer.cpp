@@ -200,6 +200,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/Transforms/Instrumentation/SanitizerCommonUtils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Instrumentation.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -1734,31 +1735,6 @@ static unsigned TypeSizeToSizeIndex(TypeSize TS) {
   return Log2_32_Ceil((TypeSizeFixed + 7) / 8);
 }
 
-static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
-  if (isa<Instruction>(Addr) &&
-      cast<Instruction>(Addr)->getMetadata(LLVMContext::MD_nosanitize)) {
-    return true;
-  }
-
-  // Skip SPIR-V built-in varibles
-  auto *OrigValue = Addr->stripInBoundsOffsets();
-  assert(OrigValue != nullptr);
-  if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
-    return true;
-
-  Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-  switch (PtrTy->getPointerAddressSpace()) {
-  case kSpirOffloadPrivateAS:
-    return !ClSpirOffloadPrivates;
-  case kSpirOffloadLocalAS:
-    return !ClSpirOffloadLocals;
-  case kSpirOffloadGenericAS:
-    return false;
-  }
-
-  return false;
-}
-
 static void setNoSanitizedMetadataSPIR(Instruction &I) {
   const Value *Addr = nullptr;
   if (const auto *LI = dyn_cast<LoadInst>(&I))
@@ -1810,7 +1786,8 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
     }
   }
 
-  if (Addr && isUnsupportedSPIRAccess(Addr, &I))
+  if (Addr && SanitizerCommonUtils::isUnsupportedSPIRAccess(
+                  Addr, &I, ClSpirOffloadLocals, ClSpirOffloadPrivates))
     I.setNoSanitizeMetadata();
 }
 

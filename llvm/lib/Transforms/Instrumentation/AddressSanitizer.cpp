@@ -74,6 +74,7 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
+#include "llvm/Transforms/Instrumentation/SanitizerCommonUtils.h"
 #include "llvm/Transforms/Utils/ASanStackFrameLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Instrumentation.h"
@@ -1653,49 +1654,6 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
   return false;
 }
 
-static TargetExtType *getTargetExtType(Type *Ty) {
-  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty))
-    return TargetTy;
-
-  if (Ty->isVectorTy())
-    return getTargetExtType(Ty->getScalarType());
-
-  if (Ty->isArrayTy())
-    return getTargetExtType(Ty->getArrayElementType());
-
-  if (auto *STy = dyn_cast<StructType>(Ty)) {
-    for (unsigned int i = 0; i < STy->getNumElements(); i++)
-      if (auto *TargetTy = getTargetExtType(STy->getElementType(i)))
-        return TargetTy;
-    return nullptr;
-  }
-
-  return nullptr;
-}
-
-// Skip pointer operand that is sycl joint matrix access since it isn't from
-// user code, e.g. %call:
-// clang-format off
-// %a = alloca %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", align 8
-// %0 = getelementptr inbounds %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", ptr %a, i64 0, i32 0
-// %call = call spir_func ptr
-// @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr %0, i64 0)
-// %1 = load float, ptr %call, align 4
-// store float %1, ptr %call, align 4
-// clang-format on
-static bool isJointMatrixAccess(Value *V) {
-  auto *ActualV = V->stripInBoundsOffsets();
-  if (auto *CI = dyn_cast<CallInst>(ActualV)) {
-    for (Value *Op : CI->args()) {
-      if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
-        if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
-          return TargetTy->getName().starts_with("spirv.") &&
-                 TargetTy->getName().contains("Matrix");
-    }
-  }
-  return false;
-}
-
 static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   // Non image scope device globals are implemented by device USM, and the
   // out-of-bounds check for them will be done by sanitizer USM part. So we
@@ -1712,52 +1670,6 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
 
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
-}
-
-static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
-  // Skip SPIR-V built-in varibles
-  auto *OrigValue = Addr->stripInBoundsOffsets();
-  if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
-    return true;
-
-  GlobalVariable *GV = dyn_cast<GlobalVariable>(OrigValue);
-  if (GV && isUnsupportedDeviceGlobal(GV))
-    return true;
-
-  // Ignore load/store for target ext type since we can't know exactly what size
-  // it is.
-  if (auto *SI = dyn_cast<StoreInst>(Inst))
-    if (getTargetExtType(SI->getValueOperand()->getType()) ||
-        isJointMatrixAccess(SI->getPointerOperand()))
-      return true;
-
-  if (auto *LI = dyn_cast<LoadInst>(Inst))
-    if (getTargetExtType(Inst->getType()) ||
-        isJointMatrixAccess(LI->getPointerOperand()))
-      return true;
-
-  Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-  switch (PtrTy->getPointerAddressSpace()) {
-  case kSpirOffloadPrivateAS: {
-    if (!ClSpirOffloadPrivates)
-      return true;
-    // Skip kernel arguments
-    return Inst->getFunction()->getCallingConv() == CallingConv::SPIR_KERNEL &&
-           isa<Argument>(Addr);
-  }
-  case kSpirOffloadGlobalAS: {
-    return !ClSpirOffloadGlobals;
-  }
-  case kSpirOffloadLocalAS: {
-    if (!ClSpirOffloadLocals)
-      return true;
-    return Addr->getName().starts_with("__Asan");
-  }
-  case kSpirOffloadGenericAS: {
-    return !ClSpirOffloadGenerics;
-  }
-  }
-  return true;
 }
 
 void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
@@ -1916,7 +1828,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
        !(SSGI && SSGI->isSafe(AI)) &&
        // ignore alloc contains target ext type since we can't know exactly what
        // size it is.
-       !getTargetExtType(AI.getAllocatedType()));
+       !SanitizerCommonUtils::getTargetExtType(AI.getAllocatedType()));
 
   It->second = IsInteresting;
   return IsInteresting;
@@ -1925,7 +1837,8 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
   // SPIR has its own rules to filter the instrument accesses
   if (TargetTriple.isSPIROrSPIRV()) {
-    if (isUnsupportedSPIRAccess(Ptr, Inst))
+    if (SanitizerCommonUtils::isUnsupportedSPIRAccess(
+            Ptr, Inst, ClSpirOffloadLocals, ClSpirOffloadPrivates))
       return true;
   } else {
     // Instrument accesses from different address spaces only for AMDGPU.
