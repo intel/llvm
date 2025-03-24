@@ -253,7 +253,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     if not options.dry_run:
         chart_data = {this_name: results}
 
-    history = BenchmarkHistory(directory)
+    results_dir = directory
+    if options.custom_results_dir:
+        results_dir = Path(options.custom_results_dir)
+    history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
     history.load(1000)
@@ -445,7 +448,12 @@ if __name__ == "__main__":
         help="The name of the results which should be used as a baseline for metrics calculation",
         default=options.current_run_name,
     )
-
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom results directory",
+        default=options.custom_results_dir,
+    )
     parser.add_argument(
         "--build-jobs",
         type=int,
@@ -476,6 +484,7 @@ if __name__ == "__main__":
     options.iterations_stddev = args.iterations_stddev
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
+    options.custom_results_dir = args.results_dir
     options.build_jobs = args.build_jobs
 
     if args.build_igc and args.compute_runtime is None:

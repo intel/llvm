@@ -42,6 +42,7 @@ class Options:
     compute_runtime_tag: str = "25.05.32567.12"
     build_igc: bool = False
     current_run_name: str = "This PR"
+    custom_results_dir = None
     build_jobs: int = multiprocessing.cpu_count()
 
 options = Options()
