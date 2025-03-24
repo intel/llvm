@@ -1303,11 +1303,15 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // to using llvmir.  This can be improved to be more obvious in usage.
   if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
           options::OPT_fsycl_device_obj_EQ)) {
+    const bool SYCLDeviceOnly = C.getDriver().offloadDeviceOnly();
+    const bool EmitAsm = C.getInputArgs().getLastArgNoClaim(options::OPT_S);
     StringRef ArgValue(DeviceObj->getValue());
     SmallVector<StringRef, 3> DeviceObjValues = {"spirv", "llvmir", "asm"};
     if (llvm::find(DeviceObjValues, ArgValue) == DeviceObjValues.end())
       Diag(clang::diag::warn_ignoring_value_using_default)
           << DeviceObj->getSpelling().split('=').first << ArgValue << "llvmir";
+    else if (ArgValue == "asm" && (!SYCLDeviceOnly || !EmitAsm))
+      Diag(clang::diag::warn_drv_fsycl_device_obj_asm_device_only);
   }
 
   Arg *SYCLForceTarget =
@@ -5321,7 +5325,7 @@ class OffloadingActionBuilder final {
                                                        types::TY_SPIRV);
             if (SYCLDeviceOnly)
               continue;
-          } else if ((SYCLDeviceOnly || FinalPhase != phases::Link) &&
+          } else if (SYCLDeviceOnly && Args.hasArg(options::OPT_S) &&
                      Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
                          .equals_insensitive("asm")) {
             auto *CompileAction =
