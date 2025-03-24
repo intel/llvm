@@ -20,7 +20,33 @@ permissions:
   contents: read
 
 jobs:
-  do-nothing:
+  create-check:
+    if: false
+    runs-on: [Linux, aux-tasks]
+    permissions:
+      checks: write
+      statuses: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.workflow_run.head_sha
+            const run_id = '${{ github.run_id }}'
+            const this_run_url = 'https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + run_id
+
+            // Create commit status.
+            await github.request('POST /repos/{owner}/{repo}/statuses/{sha}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: 'pending',
+              target_url: this_run_url,
+              description: 'SYCL E2E on AWS CUDA',
+              context: 'SYCL E2E on AWS CUDA',
+            })
+
+  aws-start:
+    if: false
     runs-on: ubuntu-latest
     steps:
       - run: echo 'do nothing'
