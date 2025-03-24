@@ -1,7 +1,7 @@
 // RUN: %clang -fpreview-breaking-changes -fsycl -o - %s
 // RUN: not %clang -fpreview-breaking-changes -fsycl -DTEST_VOID_TYPES -o - %s
 // RUN: %clang -fsycl -o - %s
-// RUN: not %clang -fsycl -DTEST_VOID_TYPES -o - %s
+// RUN: not %clang -fsycl -fsyntax-only -DTEST_VOID_TYPES -o - %s
 
 #include <cassert>
 #include <sycl/functional.hpp>

@@ -27,9 +27,9 @@ template <typename T = void>
 struct logical_and
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     : std::logical_and<T>
-#endif
 {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#else
+{
   T operator()(const T &lhs, const T &rhs) const { return lhs && rhs; }
 #endif
 }; // namespace _V1
@@ -42,9 +42,9 @@ template <typename T = void>
 struct logical_or
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     : std::logical_or<T>
-#endif
 {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#else
+{
   T operator()(const T &lhs, const T &rhs) const { return lhs || rhs; }
 #endif
 }; // namespace sycl
