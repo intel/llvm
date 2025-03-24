@@ -122,7 +122,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<uint64_t>(hDevice, UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IMAGE_SUPPORTED);
+  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IMAGE_SUPPORT);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS);
   std::cout << prefix;
@@ -291,8 +291,6 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_memory_scope_capability_flags_t>(
       hDevice, UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_BFLOAT16);
-  std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice, UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
@@ -307,7 +305,7 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED);
+                             UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT);
   std::cout << prefix;
   printDeviceInfo<uint32_t>(hDevice,
                             UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP);
@@ -334,6 +332,15 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_USE_NATIVE_ASSERT);
   std::cout << prefix;
+  printDeviceInfo<ur_device_throttle_reasons_flags_t>(
+      hDevice, UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_FAN_SPEED);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_MIN_POWER_LIMIT);
+  std::cout << prefix;
+  printDeviceInfo<int32_t>(hDevice, UR_DEVICE_INFO_MAX_POWER_LIMIT);
+  std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP);
   std::cout << prefix;
@@ -343,7 +350,11 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP);
+  printDeviceInfo<ur_bool_t>(
+      hDevice, UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP);
@@ -387,19 +398,19 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
       hDevice, UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
-      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP);
+      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
-      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP);
+      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
-      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP);
+      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
-      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP);
+      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
-      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP);
+      hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP);
@@ -407,23 +418,28 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
   printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(
-      hDevice, UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP);
+      hDevice, UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP);
+                             UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
-                             UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP);
+                             UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP);
+  std::cout << prefix;
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP);
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_exp_device_2d_block_array_capability_flags_t>(
       hDevice, UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP);
   std::cout << prefix;
-  printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP);
+  printDeviceInfo<ur_bool_t>(hDevice,
+                             UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP);
   std::cout << prefix;
   printDeviceInfo<ur_bool_t>(hDevice,
                              UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP);
