@@ -30,77 +30,14 @@ urBindlessImagesImageFreeExp([[maybe_unused]] ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urBindlessImagesImportExternalMemoryExp(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_device_handle_t hDevice, [[maybe_unused]] size_t size,
-    [[maybe_unused]] ur_exp_external_mem_type_t memHandleType,
-    [[maybe_unused]] ur_exp_external_mem_desc_t *pExternalMemDesc,
-    [[maybe_unused]] ur_exp_external_mem_handle_t *phExternalMem) {
-
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
-      "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urBindlessImagesMapExternalArrayExp(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] const ur_image_format_t *pImageFormat,
-    [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem,
-    [[maybe_unused]] ur_exp_image_mem_native_handle_t *phImageMem) {
-
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
-      "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
-    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = size;
-  std::ignore = offset;
-  std::ignore = hExternalMem;
-  std::ignore = phRetMem;
-
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
-      "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urBindlessImagesReleaseExternalMemoryExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem) {
-
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
-      "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urBindlessImagesImportExternalSemaphoreExp(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_external_semaphore_type_t semHandleType,
-    [[maybe_unused]] ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
-    [[maybe_unused]] ur_exp_external_semaphore_handle_t
-        *phExternalSemaphoreHandle) {
-  logger::error(
-      logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
-      "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_external_semaphore_handle_t hExternalSemaphore) {
+    [[maybe_unused]] uint64_t offset, [[maybe_unused]] uint64_t size,
+    [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem,
+    [[maybe_unused]] void **phRetMem) {
+  // implemented in V1 in PR https://github.com/intel/llvm/pull/17458
+  // TODO: implement in V2 after V1 is merged
   logger::error(
       logger::LegacyMessage("[UR][L0_v2] {} function not implemented!"),
       "{} function not implemented!", __FUNCTION__);
