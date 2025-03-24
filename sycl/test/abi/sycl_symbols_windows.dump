@@ -65,10 +65,12 @@
 ??$get_info@Ucomponent_devices@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Ucomposite_device@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AVdevice@23@XZ
 ??$get_info@Ucontext@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVcontext@12@XZ
+??$get_info@Ucurrent_clock_throttle_reasons@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@W4throttle_reason@intel@ext@_V1@sycl@@V?$allocator@W4throttle_reason@intel@ext@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Udevice@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVdevice@12@XZ
 ??$get_info@Udevice_id@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Udevices@context@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Uext_codeplay_num_regs@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
+??$get_info@Ufan_speed@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAHXZ
 ??$get_info@Ufree_memory@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
 ??$get_info@Uglobal_work_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$range@$02@12@AEBVdevice@12@@Z
 ??$get_info@Ugpu_eu_count@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
@@ -87,11 +89,13 @@
 ??$get_info@Umax_image_linear_width@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
 ??$get_info@Umax_mem_bandwidth@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
 ??$get_info@Umax_num_sub_groups@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
+??$get_info@Umax_power_limit@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAHXZ
 ??$get_info@Umax_registers_per_work_group@device@info@experimental@codeplay@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Umax_sub_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@Umax_sub_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@AEBV?$range@$02@12@@Z
 ??$get_info@Umemory_bus_width@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
 ??$get_info@Umemory_clock_rate@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAIXZ
+??$get_info@Umin_power_limit@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAHXZ
 ??$get_info@Umipmap_max_anisotropy@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAMXZ
 ??$get_info@Unum_compute_units@device@info@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA_KXZ
 ??$get_info@Upci_address@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
@@ -132,6 +136,7 @@
 ??$get_info_impl@Ucomponent_devices@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Ucomposite_device@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV012@XZ
 ??$get_info_impl@Ucontext@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@AEBA?AVcontext@12@XZ
+??$get_info_impl@Ucurrent_clock_throttle_reasons@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4throttle_reason@intel@ext@_V1@sycl@@V?$allocator@W4throttle_reason@intel@ext@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Udevice_id@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Udevice_type@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AW4device_type@info@12@XZ
 ??$get_info_impl@Udouble_fp_config@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@W4fp_config@info@_V1@sycl@@V?$allocator@W4fp_config@info@_V1@sycl@@@std@@@std@@XZ
@@ -156,6 +161,7 @@
 ??$get_info_impl@Uext_oneapi_srgb@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_NXZ
 ??$get_info_impl@Uextensions@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AV?$vector@Vstring@detail@_V1@sycl@@V?$allocator@Vstring@detail@_V1@sycl@@@std@@@std@@XZ
 ??$get_info_impl@Uextensions@platform@info@_V1@sycl@@@platform@_V1@sycl@@AEBA?AV?$vector@Vstring@detail@_V1@sycl@@V?$allocator@Vstring@detail@_V1@sycl@@@std@@@std@@XZ
+??$get_info_impl@Ufan_speed@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAHXZ
 ??$get_info_impl@Ufree_memory@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Ufunction_name@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uglobal_mem_cache_line_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
@@ -201,6 +207,7 @@
 ??$get_info_impl@Umax_mem_bandwidth@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
 ??$get_info_impl@Umax_num_sub_groups@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umax_parameter_size@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA_KXZ
+??$get_info_impl@Umax_power_limit@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAHXZ
 ??$get_info_impl@Umax_read_image_args@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umax_registers_per_work_group@device@info@experimental@codeplay@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umax_samplers@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
@@ -210,6 +217,7 @@
 ??$get_info_impl@Umem_base_addr_align@device@info@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umemory_bus_width@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
 ??$get_info_impl@Umemory_clock_rate@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAIXZ
+??$get_info_impl@Umin_power_limit@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@AEBAHXZ
 ??$get_info_impl@Umipmap_max_anisotropy@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@AEBAMXZ
 ??$get_info_impl@Uname@device@info@_V1@sycl@@@device@_V1@sycl@@AEBA?AVstring@detail@12@XZ
 ??$get_info_impl@Uname@platform@info@_V1@sycl@@@platform@_V1@sycl@@AEBA?AVstring@detail@12@XZ
