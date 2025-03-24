@@ -28,11 +28,11 @@ TEST_P(urP2PTest, Success) {
       /// [in] handle of the command device object
       devices[0],
       /// [in] handle of the peer device object
-      devices[1], UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED, sizeof(int),
-      &value, &returned_size));
+      devices[1], UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT, sizeof(int), &value,
+      &returned_size));
   // Note that whilst it is not currently specified to be a requirement in the
   // specification, currently all supported backends return value = 1 for the
-  // UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED query when the query is true
+  // UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT query when the query is true
   // (matching the native query return values). Generally different backends can
   // return different values for a given device query; however it is
   // advisable that for boolean queries they return the same values to indicate
@@ -43,7 +43,7 @@ TEST_P(urP2PTest, Success) {
   // Just check that this doesn't throw since supporting peer atomics is
   // optional and can depend on backend/device.
   ASSERT_SUCCESS(urUsmP2PPeerAccessGetInfoExp(
-      devices[0], devices[1], UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED,
+      devices[0], devices[1], UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT,
       sizeof(int), &value, &returned_size));
 
   ASSERT_SUCCESS(urUsmP2PEnablePeerAccessExp(devices[0], devices[1]));

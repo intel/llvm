@@ -237,9 +237,9 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
   ur_exp_peer_info_t UrAttr = [&]() {
     switch (attr) {
     case ext::oneapi::peer_access::access_supported:
-      return UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED;
+      return UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT;
     case ext::oneapi::peer_access::atomics_supported:
-      return UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED;
+      return UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT;
     }
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unrecognized peer access attribute.");

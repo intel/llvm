@@ -19,7 +19,7 @@ typed_etors: true
 desc: "Extension enums to $x_device_info_t to support async allocations."
 name: $x_device_info_t
 etors:
-    - name: ASYNC_USM_ALLOCATIONS_EXP
+    - name: ASYNC_USM_ALLOCATIONS_SUPPORT_EXP
       value: "0x2050"
       desc: |
             [$x_bool_t] returns true if the device supports enqueueing of

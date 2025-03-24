@@ -507,7 +507,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t legacy_image_support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_IMAGE_SUPPORTED, sizeof(ur_bool_t),
+            MDevice, UR_DEVICE_INFO_IMAGE_SUPPORT, sizeof(ur_bool_t),
             &legacy_image_support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && legacy_image_support;
   }
@@ -587,7 +587,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -595,7 +596,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -603,7 +604,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -611,7 +613,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -619,7 +621,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -627,7 +629,7 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP,
+            MDevice, UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -659,7 +661,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -667,7 +670,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
@@ -675,7 +679,8 @@ bool device_impl::has(aspect Aspect) const {
     ur_bool_t support = false;
     bool call_successful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP,
+            MDevice,
+            UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }

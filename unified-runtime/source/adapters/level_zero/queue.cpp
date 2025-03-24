@@ -1666,7 +1666,7 @@ bool ur_queue_handle_t_::isInOrderQueue() const {
 }
 
 bool ur_queue_handle_t_::isLowPowerEvents() const {
-  return ((this->Properties & UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP) != 0);
+  return ((this->Properties & UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP) != 0);
 }
 
 // Helper function to perform the necessary cleanup of the events from reset cmd

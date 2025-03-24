@@ -10452,7 +10452,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     if (NULL == peerDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName)
+    if (UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)

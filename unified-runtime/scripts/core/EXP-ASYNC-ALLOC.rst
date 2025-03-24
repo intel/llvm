@@ -36,7 +36,7 @@ Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * ${x}_device_info_t
-    * ${X}_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP
+    * ${X}_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP
 * ${x}_usm_pool_flags_t
     * ${X}_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP
     * ${X}_USM_POOL_FLAG_READ_ONLY_EXP
@@ -90,12 +90,16 @@ Changelog
 |          | Change enum values                                       |
 |          | Add missing properties/enums/funcs to API list           |
 +----------+----------------------------------------------------------+
+| 1.2      | Rename DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP to          |
+|          | DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP for        |
+|          | better consistency with other UR enums                   |
++----------+----------------------------------------------------------+
 
 Support
 --------------------------------------------------------------------------------
 
 Adapters which support this experimental feature *must* return true for the new
-``${X}_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP`` device info query.
+``${X}_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP`` device info query.
 
 
 Contributors

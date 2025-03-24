@@ -295,7 +295,7 @@ variables in production code.</span>
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT` (experimental) | Any(\*) | Enable support of images. This option is experimental since the image support is not fully implemented. |
+| `SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT` (experimental) | Any(\*) | Enable support of images. This option is experimental since the image support is not fully implemented. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 

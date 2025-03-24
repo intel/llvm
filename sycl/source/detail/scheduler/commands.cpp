@@ -3503,7 +3503,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     Properties.flags = 0;
     if (Barrier->MEventMode ==
         ext::oneapi::experimental::event_mode_enum::low_power)
-      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
@@ -3537,7 +3537,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     Properties.flags = 0;
     if (Barrier->MEventMode ==
         ext::oneapi::experimental::event_mode_enum::low_power)
-      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)

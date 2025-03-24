@@ -1997,7 +1997,7 @@ typedef enum ur_device_info_t {
   /// [uint64_t] max memory allocation size
   UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 28,
   /// [::ur_bool_t] images are supported
-  UR_DEVICE_INFO_IMAGE_SUPPORTED = 29,
+  UR_DEVICE_INFO_IMAGE_SUPPORT = 29,
   /// [uint32_t] max number of image objects arguments of a kernel declared
   /// with the read_only qualifier
   UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS = 30,
@@ -2195,7 +2195,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,
   /// [::ur_bool_t] Return true if the device supports enqueueing commands
   /// to read and write pipes from the host.
-  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,
+  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT = 111,
   /// [uint32_t][optional-query] The maximum number of registers available
   /// per block.
   UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,
@@ -2252,7 +2252,7 @@ typedef enum ur_device_info_t {
   /// command-buffer as a command inside another command-buffer.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP = 0x1003,
   /// [::ur_bool_t] return true if enqueue Cluster Launch is supported
-  UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP = 0x1111,
+  UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP = 0x1111,
   /// [::ur_bool_t] returns true if the device supports the creation of
   /// bindless images
   UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,
@@ -2303,19 +2303,19 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP = 0x2012,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP = 0x2012,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP = 0x2013,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP = 0x2013,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP = 0x2014,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP = 0x2014,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP = 0x2015,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP = 0x2015,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 3D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP = 0x2017,
   /// [::ur_bool_t] returns true if the device supports timestamp recording
   UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,
   /// [::ur_bool_t] returns true if the device supports allocating and
@@ -2323,27 +2323,27 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP = 0x2019,
   /// [::ur_bool_t] returns true if the device supports unique addressing
   /// per dimension.
-  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP = 0x201A,
+  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP = 0x201A,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP = 0x201B,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP = 0x201B,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP = 0x201C,
   /// [::ur_bool_t] returns true if the device supports sampled image
   /// gather.
-  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP = 0x201D,
+  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP = 0x201D,
   /// [::ur_bool_t] returns true if the device supports enqueueing of native
   /// work
   UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,
   /// [::ur_bool_t] returns true if the device supports low-power events.
-  UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP = 0x2021,
+  UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP = 0x2021,
   /// [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
   /// of Intel GPU 2D block array capabilities
   UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
-  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP = 0x2050,
+  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
   /// [::ur_bool_t] Returns true if the device supports the use of kernel
   /// launch properties.
   UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP = 0x3000,
@@ -6758,7 +6758,7 @@ typedef enum ur_queue_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP = UR_BIT(11),
+  UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP = UR_BIT(11),
   /// @cond
   UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12334,10 +12334,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(
 typedef enum ur_exp_peer_info_t {
   /// [int] 1 if P2P access is supported otherwise P2P access is not
   /// supported.
-  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED = 0,
+  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT = 0,
   /// [int] 1 if atomic operations are supported over the P2P link,
   /// otherwise such operations are not supported.
-  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED = 1,
+  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT = 1,
   /// @cond
   UR_EXP_PEER_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12447,7 +12447,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName`
+///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -12494,7 +12494,7 @@ typedef enum ur_exp_enqueue_ext_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS = UR_BIT(11),
+  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT = UR_BIT(11),
   /// @cond
   UR_EXP_ENQUEUE_EXT_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond

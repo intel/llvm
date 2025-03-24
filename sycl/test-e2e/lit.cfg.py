@@ -774,7 +774,7 @@ for full_name, sycl_device in zip(
 
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
-        env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
+        env["SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
     # with their test run. It's just us filtering here, so silence them unless
