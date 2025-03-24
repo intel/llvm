@@ -66,7 +66,11 @@ ur_result_t urPlatformGetInfo(
   switch (ParamName) {
   case UR_PLATFORM_INFO_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero V2");
+#else
     return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero");
+#endif
   case UR_PLATFORM_INFO_VENDOR_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) Corporation");
@@ -94,7 +98,7 @@ ur_result_t urPlatformGetInfo(
     //
     return ReturnValue(Platform->ZeDriverApiVersion.c_str());
   case UR_PLATFORM_INFO_BACKEND:
-    return ReturnValue(UR_PLATFORM_BACKEND_LEVEL_ZERO);
+    return ReturnValue(UR_BACKEND_LEVEL_ZERO);
   case UR_PLATFORM_INFO_ADAPTER:
     return ReturnValue(GlobalAdapter);
   default:

@@ -35,7 +35,7 @@ int main() {
 
     // CHECK: Test1
     // CHECK: ---> urEnqueueEventsWaitWithBarrierExt
-    // CHECK: zeEventCreate
+    // CHECK-OPT: zeEventCreate
     // CHECK-OPT: zeCommandListAppendWaitOnEvents
     // CHECK: zeCommandListAppendSignalEvent
     // CHECK: ) -> UR_RESULT_SUCCESS
@@ -75,7 +75,7 @@ int main() {
     Q3.wait();
     // CHECK: Test3
     // CHECK: ---> urEnqueueEventsWaitWithBarrierExt
-    // CHECK: zeEventCreate
+    // CHECK-OPT: zeEventCreate
     // CHECK-NOT: zeCommandListAppendWaitOnEvents
     // CHECK-NOT: zeCommandListAppendSignalEvent
     // CHECK: zeCommandListAppendBarrier

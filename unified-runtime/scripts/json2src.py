@@ -59,6 +59,13 @@ if __name__ == "__main__":
         default=sys.stdin,
         help="JSON file containing the API specification, by default read from stdin",
     )
+    parser.add_argument(
+        "--clang-format",
+        type=str,
+        default="clang-format",
+        required=False,
+        help="path to clang-format executable",
+    )
     parser.add_argument("out_dir", type=str, help="Root of the loader repository.")
     args = parser.parse_args()
 
@@ -154,6 +161,7 @@ if __name__ == "__main__":
                     input["meta"],
                 )
 
+    util.formatGeneratedFiles(args.clang_format)
     if args.debug:
         util.makoFileListWrite("generated.json")
 

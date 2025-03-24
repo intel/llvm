@@ -31,6 +31,7 @@ EXPORTS
 	urCommandBufferAppendMemBufferReadRectExp
 	urCommandBufferAppendMemBufferWriteExp
 	urCommandBufferAppendMemBufferWriteRectExp
+	urCommandBufferAppendNativeCommandExp
 	urCommandBufferAppendUSMAdviseExp
 	urCommandBufferAppendUSMFillExp
 	urCommandBufferAppendUSMMemcpyExp
@@ -38,6 +39,7 @@ EXPORTS
 	urCommandBufferCreateExp
 	urCommandBufferFinalizeExp
 	urCommandBufferGetInfoExp
+	urCommandBufferGetNativeHandleExp
 	urCommandBufferReleaseExp
 	urCommandBufferRetainExp
 	urCommandBufferUpdateKernelLaunchExp
@@ -170,7 +172,6 @@ EXPORTS
 	urPlatformGetBackendOption
 	urPlatformGetInfo
 	urPlatformGetNativeHandle
-	urPrintAdapterBackend
 	urPrintAdapterGetInfoParams
 	urPrintAdapterGetLastErrorParams
 	urPrintAdapterGetParams
@@ -178,6 +179,7 @@ EXPORTS
 	urPrintAdapterReleaseParams
 	urPrintAdapterRetainParams
 	urPrintApiVersion
+	urPrintBackend
 	urPrintBaseDesc
 	urPrintBaseProperties
 	urPrintBindlessImagesImageAllocateExpParams
@@ -213,6 +215,7 @@ EXPORTS
 	urPrintCommandBufferAppendMemBufferReadRectExpParams
 	urPrintCommandBufferAppendMemBufferWriteExpParams
 	urPrintCommandBufferAppendMemBufferWriteRectExpParams
+	urPrintCommandBufferAppendNativeCommandExpParams
 	urPrintCommandBufferAppendUsmAdviseExpParams
 	urPrintCommandBufferAppendUsmFillExpParams
 	urPrintCommandBufferAppendUsmMemcpyExpParams
@@ -220,6 +223,7 @@ EXPORTS
 	urPrintCommandBufferCreateExpParams
 	urPrintCommandBufferFinalizeExpParams
 	urPrintCommandBufferGetInfoExpParams
+	urPrintCommandBufferGetNativeHandleExpParams
 	urPrintCommandBufferReleaseExpParams
 	urPrintCommandBufferRetainExpParams
 	urPrintCommandBufferUpdateKernelLaunchExpParams
@@ -259,6 +263,7 @@ EXPORTS
 	urPrintDeviceReleaseParams
 	urPrintDeviceRetainParams
 	urPrintDeviceSelectBinaryParams
+	urPrintDeviceThrottleReasonsFlags
 	urPrintDeviceType
 	urPrintDeviceUsmAccessCapabilityFlags
 	urPrintEnqueueCommandBufferExpParams
@@ -407,7 +412,6 @@ EXPORTS
 	urPrintPhysicalMemProperties
 	urPrintPhysicalMemReleaseParams
 	urPrintPhysicalMemRetainParams
-	urPrintPlatformBackend
 	urPrintPlatformCreateWithNativeHandleParams
 	urPrintPlatformGetApiVersionParams
 	urPrintPlatformGetBackendOptionParams

@@ -10,6 +10,9 @@
 // XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
+// XFAIL: linux && arch-intel_gpu_bmg_g21 && !igc-dev && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17453
+
 #include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
