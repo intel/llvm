@@ -15,7 +15,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda'
+      build_configure_extra_args: '--enable-assertions --hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       retention-days: 90
 
@@ -31,7 +31,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
-      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu'
+      build_configure_extra_args: '--enable-assertions --shared-libs --hip --cuda --native_cpu'
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 
@@ -43,7 +43,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: oneapi
       build_artifact_suffix: oneapi
-      build_configure_extra_args: -DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise" -DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise"
+      build_configure_extra_args: --enable-assertions -DCMAKE_C_FLAGS="-no-intel-lib -ffp-model=precise" -DCMAKE_CXX_FLAGS="-no-intel-lib -ffp-model=precise"
       cc: icx
       cxx: icpx
 
@@ -156,6 +156,7 @@ jobs:
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
+      build_configure_extra_args: --enable-assertions
 
   e2e-win:
     needs: build-win

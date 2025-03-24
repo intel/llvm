@@ -16,7 +16,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: ''
+      build_configure_extra_args: '--enable-assertions'
 
   # This job builds SYCL-CTS with -fsycl-use-spirv-backend-for-spirv-gen.
   build-sycl-cts:
