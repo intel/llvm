@@ -135,9 +135,10 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
         // Check that this is not problematic.
         const bool HasErrors = Linker::linkModules(
             *Result, std::move(NewMod), Linker::Flags::OverrideFromSrc);
-        if (HasErrors)
+        if (HasErrors) {
           return createStringError(inconvertibleErrorCode(),
                                    "Failed to link modules");
+        }
 
         if (AddressBits != BinInfo.AddressBits) {
           return createStringError(
