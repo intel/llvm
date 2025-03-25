@@ -2412,8 +2412,13 @@ public:
       addUnsignedArg(0);
       addUnsignedArg(3);
       break;
+    case OpGroupAsyncCopy:
+      addUnsignedArg(3);
+      addUnsignedArg(4);
+      break;
     case OpGroupUMax:
     case OpGroupUMin:
+    case OpGroupBroadcast:
     case OpGroupNonUniformBroadcast:
     case OpGroupNonUniformBallotBitCount:
     case OpGroupNonUniformShuffle:
