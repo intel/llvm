@@ -3993,7 +3993,7 @@ protected:
     SPIRVType *ResCompTy = this->getType();
     if (ResCompTy->isTypeCooperativeMatrixKHR())
       this->getModule()->addExtension(ExtensionID::SPV_INTEL_joint_matrix);
-    return ExtensionID::SPV_INTEL_tensor_float32_rounding;
+    return ExtensionID::SPV_INTEL_tensor_float32_conversion;
   }
 
   void validate() const override {

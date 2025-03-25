@@ -1,5 +1,5 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_tensor_float32_rounding
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_tensor_float32_conversion
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.spv -o %t.rev.bc -r --spirv-target-env=SPV-IR
@@ -8,13 +8,13 @@
 
 ; RUN: not llvm-spirv %t.bc 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 ; CHECK-ERROR: RequiresExtension: Feature requires the following SPIR-V extension:
-; CHECK-ERROR-NEXT: SPV_INTEL_tensor_float32_rounding
+; CHECK-ERROR-NEXT: SPV_INTEL_tensor_float32_conversion
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
 ; CHECK-SPIRV: Capability TensorFloat32RoundingINTEL
-; CHECK-SPIRV: Extension "SPV_INTEL_tensor_float32_rounding"
+; CHECK-SPIRV: Extension "SPV_INTEL_tensor_float32_conversion"
 ; CHECK-SPIRV: TypeFloat [[#FP32Ty:]] 32
 ; CHECK-SPIRV: TypeVector [[#FP32v8Ty:]] [[#FP32Ty]] 8
 ; CHECK-SPIRV: Constant [[#FP32Ty]] [[#CONST:]] 1065353216
