@@ -2562,6 +2562,7 @@ TEST_P(urDeviceGetInfoTest, SuccessUseNativeAssert) {
 
 TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
   // TODO: enable when driver/library version mismatch is fixed in CI.
+  // See https://github.com/intel/llvm/issues/17614
   UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   size_t property_size = 0;
@@ -2582,6 +2583,7 @@ TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
 
 TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
   // TODO: enable when driver/library version mismatch is fixed in CI.
+  // See https://github.com/intel/llvm/issues/17614
   UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   size_t property_size = 0;
@@ -2602,6 +2604,7 @@ TEST_P(urDeviceGetInfoTest, SuccessFanSpeed) {
 
 TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
   // TODO: enable when driver/library version mismatch is fixed in CI.
+  // See https://github.com/intel/llvm/issues/17614
   UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   size_t property_size = 0;
@@ -2622,6 +2625,7 @@ TEST_P(urDeviceGetInfoTest, SuccessMaxPowerLimit) {
 
 TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
   // TODO: enable when driver/library version mismatch is fixed in CI.
+  // See https://github.com/intel/llvm/issues/17614
   UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   size_t property_size = 0;
