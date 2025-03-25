@@ -67,3 +67,4 @@ Developer Documentation
    developer/ABIPolicyGuide
    developer/ContributeToDPCPP
    developer/KHRExtensions
+   developer/WorkingOnAReleaseBranch

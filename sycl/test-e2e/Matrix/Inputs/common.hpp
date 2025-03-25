@@ -5,7 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <bitset>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <random>
 #include <sycl/detail/core.hpp>
@@ -17,6 +19,18 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 namespace syclex = sycl::ext::oneapi::experimental;
 namespace syclintelex = sycl::ext::intel::experimental;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
+
+void print_float_as_hex(float value) {
+  union {
+    float f;
+    uint32_t i;
+  } v;
+  v.f = value;
+
+  std::ios_base::fmtflags f(std::cout.flags());
+  std::cout << std::hex << std::setw(8) << std::setfill('0') << v.i;
+  std::cout.flags(f);
+}
 
 // Most of the time, failures related to floating-point calculations (both float
 // and bfloat16) are caused by accumulation errors rather than the algorithm
@@ -223,13 +237,19 @@ template <typename KernelName> size_t get_sg_size(queue q) {
 }
 
 template <typename T>
-void matrix_print(unsigned int rows, unsigned int cols, T *mat) {
+void matrix_print(unsigned int rows, unsigned int cols, T *mat,
+                  bool hex = false) {
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
       if constexpr (std::is_integral_v<T>)
         std::cout << (int)mat[i * cols + j] << " ";
-      else
-        std::cout << (float)mat[i * cols + j] << " ";
+      else {
+        if (hex)
+          print_float_as_hex((float)mat[i * cols + j]);
+        else
+          std::cout << (float)mat[i * cols + j];
+        std::cout << " ";
+      }
     }
     std::cout << "\n";
   }

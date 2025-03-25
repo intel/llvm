@@ -80,28 +80,25 @@ static ur_result_t
 CreateHostMemoryProviderPool(ur_device_handle_t_ *DeviceHandle,
                              umf_memory_provider_handle_t *MemoryProviderHost,
                              umf_memory_pool_handle_t *MemoryPoolHost) {
-  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
 
   *MemoryProviderHost = nullptr;
   CUcontext context = DeviceHandle->getNativeContext();
 
+  umf_cuda_memory_provider_params_handle_t CUMemoryProviderParams = nullptr;
   umf_result_t UmfResult =
       umfCUDAMemoryProviderParamsCreate(&CUMemoryProviderParams);
   UMF_RETURN_UR_ERROR(UmfResult);
+  OnScopeExit Cleanup(
+      [=]() { umfCUDAMemoryProviderParamsDestroy(CUMemoryProviderParams); });
 
-  umf::cuda_params_unique_handle_t CUMemoryProviderParamsUnique(
-      CUMemoryProviderParams, umfCUDAMemoryProviderParamsDestroy);
-
-  UmfResult = umf::setCUMemoryProviderParams(CUMemoryProviderParamsUnique.get(),
-                                             0 /* cuDevice */, context,
-                                             UMF_MEMORY_TYPE_HOST);
+  UmfResult = umf::setCUMemoryProviderParams(
+      CUMemoryProviderParams, 0 /* cuDevice */, context, UMF_MEMORY_TYPE_HOST);
   UMF_RETURN_UR_ERROR(UmfResult);
 
   // create UMF CUDA memory provider and pool for the host memory
   // (UMF_MEMORY_TYPE_HOST)
-  UmfResult = umfMemoryProviderCreate(umfCUDAMemoryProviderOps(),
-                                      CUMemoryProviderParamsUnique.get(),
-                                      MemoryProviderHost);
+  UmfResult = umfMemoryProviderCreate(
+      umfCUDAMemoryProviderOps(), CUMemoryProviderParams, MemoryProviderHost);
   UMF_RETURN_UR_ERROR(UmfResult);
 
   UmfResult = umfPoolCreate(umfProxyPoolOps(), *MemoryProviderHost, nullptr, 0,

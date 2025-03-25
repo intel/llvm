@@ -10,7 +10,7 @@
 #define LLVM_OBJECT_SYCLBIN_H
 
 #include "llvm/ADT/SmallString.h"
-#include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <string>
 

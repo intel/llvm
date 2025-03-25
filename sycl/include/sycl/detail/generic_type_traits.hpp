@@ -172,7 +172,7 @@ template <typename T> auto convertToOpenCLType(T &&x) {
   } else if constexpr (std::is_same_v<no_ref, ext::oneapi::bfloat16>) {
     // On host, don't interpret BF16 as uint16.
 #ifdef __SYCL_DEVICE_ONLY__
-    using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+    using OpenCLType = sycl::ext::oneapi::bfloat16::Bfloat16StorageT;
     return sycl::bit_cast<OpenCLType>(x);
 #else
     return std::forward<T>(x);

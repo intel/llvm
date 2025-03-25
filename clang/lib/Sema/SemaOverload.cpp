@@ -6169,8 +6169,8 @@ static ExprResult BuildConvertedConstantExpression(Sema &S, Expr *From,
                                                    Sema::CCEKind CCE,
                                                    NamedDecl *Dest,
                                                    APValue &PreNarrowingValue) {
-  assert(S.getLangOpts().CPlusPlus11 &&
-         "converted constant expression outside C++11");
+  assert((S.getLangOpts().CPlusPlus11 || CCE == Sema::CCEK_InjectedTTP) &&
+         "converted constant expression outside C++11 or TTP matching");
 
   if (checkPlaceholderForOverload(S, From))
     return ExprError();
@@ -6239,8 +6239,10 @@ static ExprResult BuildConvertedConstantExpression(Sema &S, Expr *From,
   // earlier, but that's not guaranteed to work when initializing an object of
   // class type.
   ExprResult Result;
+  bool IsTemplateArgument =
+      CCE == Sema::CCEK_TemplateArg || CCE == Sema::CCEK_InjectedTTP;
   if (T->isRecordType()) {
-    assert(CCE == Sema::CCEK_TemplateArg &&
+    assert(IsTemplateArgument &&
            "unexpected class type converted constant expr");
     Result = S.PerformCopyInitialization(
         InitializedEntity::InitializeTemplateParameter(
@@ -6257,7 +6259,7 @@ static ExprResult BuildConvertedConstantExpression(Sema &S, Expr *From,
   //   A full-expression is [...] a constant-expression [...]
   Result = S.ActOnFinishFullExpr(Result.get(), From->getExprLoc(),
                                  /*DiscardedValue=*/false, /*IsConstexpr=*/true,
-                                 CCE == Sema::CCEKind::CCEK_TemplateArg);
+                                 IsTemplateArgument);
   if (Result.isInvalid())
     return Result;
 
@@ -6266,9 +6268,6 @@ static ExprResult BuildConvertedConstantExpression(Sema &S, Expr *From,
   QualType PreNarrowingType;
   switch (SCS->getNarrowingKind(S.Context, Result.get(), PreNarrowingValue,
                                 PreNarrowingType)) {
-  case NK_Dependent_Narrowing:
-    // Implicit conversion to a narrower type, but the expression is
-    // value-dependent so we can't tell whether it's actually narrowing.
   case NK_Variable_Narrowing:
     // Implicit conversion to a narrower type, and the value is not a constant
     // expression. We'll diagnose this in a moment.
@@ -6289,6 +6288,14 @@ static ExprResult BuildConvertedConstantExpression(Sema &S, Expr *From,
         << PreNarrowingValue.getAsString(S.Context, PreNarrowingType) << T;
     break;
 
+  case NK_Dependent_Narrowing:
+    // Implicit conversion to a narrower type, but the expression is
+    // value-dependent so we can't tell whether it's actually narrowing.
+    // For matching the parameters of a TTP, the conversion is ill-formed
+    // if it may narrow.
+    if (CCE != Sema::CCEK_InjectedTTP)
+      break;
+    [[fallthrough]];
   case NK_Type_Narrowing:
     // FIXME: It would be better to diagnose that the expression is not a
     // constant expression.
@@ -6360,6 +6367,8 @@ Sema::EvaluateConvertedConstantExpression(Expr *E, QualType T, APValue &Value,
   SmallVector<PartialDiagnosticAt, 8> Notes;
   Expr::EvalResult Eval;
   Eval.Diag = &Notes;
+
+  assert(CCE != Sema::CCEK_InjectedTTP && "unnexpected CCE Kind");
 
   ConstantExprKind Kind;
   if (CCE == Sema::CCEK_TemplateArg && T->isRecordType())
@@ -6935,7 +6944,8 @@ void Sema::AddOverloadCandidate(
     OverloadCandidateSet &CandidateSet, bool SuppressUserConversions,
     bool PartialOverloading, bool AllowExplicit, bool AllowExplicitConversions,
     ADLCallKind IsADLCandidate, ConversionSequenceList EarlyConversions,
-    OverloadCandidateParamOrder PO, bool AggregateCandidateDeduction) {
+    OverloadCandidateParamOrder PO, bool AggregateCandidateDeduction,
+    bool HasMatchedPackOnParmToNonPackOnArg) {
   const FunctionProtoType *Proto
     = dyn_cast<FunctionProtoType>(Function->getType()->getAs<FunctionType>());
   assert(Proto && "Functions without a prototype cannot be overloaded");
@@ -6954,7 +6964,8 @@ void Sema::AddOverloadCandidate(
       AddMethodCandidate(Method, FoundDecl, Method->getParent(), QualType(),
                          Expr::Classification::makeSimpleLValue(), Args,
                          CandidateSet, SuppressUserConversions,
-                         PartialOverloading, EarlyConversions, PO);
+                         PartialOverloading, EarlyConversions, PO,
+                         HasMatchedPackOnParmToNonPackOnArg);
       return;
     }
     // We treat a constructor like a non-member function, since its object
@@ -6997,6 +7008,8 @@ void Sema::AddOverloadCandidate(
       CandidateSet.getRewriteInfo().getRewriteKind(Function, PO);
   Candidate.IsADLCandidate = llvm::to_underlying(IsADLCandidate);
   Candidate.ExplicitCallArguments = Args.size();
+  Candidate.HasMatchedPackOnParmToNonPackOnArg =
+      HasMatchedPackOnParmToNonPackOnArg;
 
   // Explicit functions are not actually candidates at all if we're not
   // allowing them in this context, but keep them around so we can point
@@ -7391,8 +7404,10 @@ static bool diagnoseDiagnoseIfAttrsWith(Sema &S, const NamedDecl *ND,
     return false;
 
   auto WarningBegin = std::stable_partition(
-      Attrs.begin(), Attrs.end(),
-      [](const DiagnoseIfAttr *DIA) { return DIA->isError(); });
+      Attrs.begin(), Attrs.end(), [](const DiagnoseIfAttr *DIA) {
+        return DIA->getDefaultSeverity() == DiagnoseIfAttr::DS_error &&
+               DIA->getWarningGroup().empty();
+      });
 
   // Note that diagnose_if attributes are late-parsed, so they appear in the
   // correct order (unlike enable_if attributes).
@@ -7406,11 +7421,32 @@ static bool diagnoseDiagnoseIfAttrsWith(Sema &S, const NamedDecl *ND,
     return true;
   }
 
+  auto ToSeverity = [](DiagnoseIfAttr::DefaultSeverity Sev) {
+    switch (Sev) {
+    case DiagnoseIfAttr::DS_warning:
+      return diag::Severity::Warning;
+    case DiagnoseIfAttr::DS_error:
+      return diag::Severity::Error;
+    }
+    llvm_unreachable("Fully covered switch above!");
+  };
+
   for (const auto *DIA : llvm::make_range(WarningBegin, Attrs.end()))
     if (IsSuccessful(DIA)) {
-      S.Diag(Loc, diag::warn_diagnose_if_succeeded) << DIA->getMessage();
-      S.Diag(DIA->getLocation(), diag::note_from_diagnose_if)
-          << DIA->getParent() << DIA->getCond()->getSourceRange();
+      if (DIA->getWarningGroup().empty() &&
+          DIA->getDefaultSeverity() == DiagnoseIfAttr::DS_warning) {
+        S.Diag(Loc, diag::warn_diagnose_if_succeeded) << DIA->getMessage();
+        S.Diag(DIA->getLocation(), diag::note_from_diagnose_if)
+            << DIA->getParent() << DIA->getCond()->getSourceRange();
+      } else {
+        auto DiagGroup = S.Diags.getDiagnosticIDs()->getGroupForWarningOption(
+            DIA->getWarningGroup());
+        assert(DiagGroup);
+        auto DiagID = S.Diags.getDiagnosticIDs()->getCustomDiagID(
+            {ToSeverity(DIA->getDefaultSeverity()), "%0",
+             DiagnosticIDs::CLASS_WARNING, false, false, *DiagGroup});
+        S.Diag(Loc, DiagID) << DIA->getMessage();
+      }
     }
 
   return false;
@@ -7539,16 +7575,13 @@ void Sema::AddMethodCandidate(DeclAccessPair FoundDecl, QualType ObjectType,
   }
 }
 
-void
-Sema::AddMethodCandidate(CXXMethodDecl *Method, DeclAccessPair FoundDecl,
-                         CXXRecordDecl *ActingContext, QualType ObjectType,
-                         Expr::Classification ObjectClassification,
-                         ArrayRef<Expr *> Args,
-                         OverloadCandidateSet &CandidateSet,
-                         bool SuppressUserConversions,
-                         bool PartialOverloading,
-                         ConversionSequenceList EarlyConversions,
-                         OverloadCandidateParamOrder PO) {
+void Sema::AddMethodCandidate(
+    CXXMethodDecl *Method, DeclAccessPair FoundDecl,
+    CXXRecordDecl *ActingContext, QualType ObjectType,
+    Expr::Classification ObjectClassification, ArrayRef<Expr *> Args,
+    OverloadCandidateSet &CandidateSet, bool SuppressUserConversions,
+    bool PartialOverloading, ConversionSequenceList EarlyConversions,
+    OverloadCandidateParamOrder PO, bool HasMatchedPackOnParmToNonPackOnArg) {
   const FunctionProtoType *Proto
     = dyn_cast<FunctionProtoType>(Method->getType()->getAs<FunctionType>());
   assert(Proto && "Methods without a prototype cannot be overloaded");
@@ -7579,6 +7612,8 @@ Sema::AddMethodCandidate(CXXMethodDecl *Method, DeclAccessPair FoundDecl,
   Candidate.TookAddressOfOverload =
       CandidateSet.getKind() == OverloadCandidateSet::CSK_AddressOfOverloadSet;
   Candidate.ExplicitCallArguments = Args.size();
+  Candidate.HasMatchedPackOnParmToNonPackOnArg =
+      HasMatchedPackOnParmToNonPackOnArg;
 
   bool IgnoreExplicitObject =
       (Method->isExplicitObjectMemberFunction() &&
@@ -7749,8 +7784,8 @@ void Sema::AddMethodTemplateCandidate(
   ConversionSequenceList Conversions;
   if (TemplateDeductionResult Result = DeduceTemplateArguments(
           MethodTmpl, ExplicitTemplateArgs, Args, Specialization, Info,
-          PartialOverloading, /*AggregateDeductionCandidate=*/false, ObjectType,
-          ObjectClassification,
+          PartialOverloading, /*AggregateDeductionCandidate=*/false,
+          /*PartialOrdering=*/false, ObjectType, ObjectClassification,
           [&](ArrayRef<QualType> ParamTypes) {
             return CheckNonDependentConversions(
                 MethodTmpl, ParamTypes, Args, CandidateSet, Conversions,
@@ -7788,7 +7823,8 @@ void Sema::AddMethodTemplateCandidate(
   AddMethodCandidate(cast<CXXMethodDecl>(Specialization), FoundDecl,
                      ActingContext, ObjectType, ObjectClassification, Args,
                      CandidateSet, SuppressUserConversions, PartialOverloading,
-                     Conversions, PO);
+                     Conversions, PO,
+                     Info.hasMatchedPackOnParmToNonPackOnArg());
 }
 
 /// Determine whether a given function template has a simple explicit specifier
@@ -7834,6 +7870,7 @@ void Sema::AddTemplateOverloadCandidate(
   if (TemplateDeductionResult Result = DeduceTemplateArguments(
           FunctionTemplate, ExplicitTemplateArgs, Args, Specialization, Info,
           PartialOverloading, AggregateCandidateDeduction,
+          /*PartialOrdering=*/false,
           /*ObjectType=*/QualType(),
           /*ObjectClassification=*/Expr::Classification(),
           [&](ArrayRef<QualType> ParamTypes) {
@@ -7874,7 +7911,8 @@ void Sema::AddTemplateOverloadCandidate(
       Specialization, FoundDecl, Args, CandidateSet, SuppressUserConversions,
       PartialOverloading, AllowExplicit,
       /*AllowExplicitConversions=*/false, IsADLCandidate, Conversions, PO,
-      Info.AggregateDeductionCandidateHasMismatchedArity);
+      Info.AggregateDeductionCandidateHasMismatchedArity,
+      Info.hasMatchedPackOnParmToNonPackOnArg());
 }
 
 bool Sema::CheckNonDependentConversions(
@@ -7996,7 +8034,8 @@ void Sema::AddConversionCandidate(
     CXXConversionDecl *Conversion, DeclAccessPair FoundDecl,
     CXXRecordDecl *ActingContext, Expr *From, QualType ToType,
     OverloadCandidateSet &CandidateSet, bool AllowObjCConversionOnExplicit,
-    bool AllowExplicit, bool AllowResultConversion) {
+    bool AllowExplicit, bool AllowResultConversion,
+    bool HasMatchedPackOnParmToNonPackOnArg) {
   assert(!Conversion->getDescribedFunctionTemplate() &&
          "Conversion function templates use AddTemplateConversionCandidate");
   QualType ConvType = Conversion->getConversionType().getNonReferenceType();
@@ -8041,6 +8080,8 @@ void Sema::AddConversionCandidate(
   Candidate.FinalConversion.setAllToTypes(ToType);
   Candidate.Viable = true;
   Candidate.ExplicitCallArguments = 1;
+  Candidate.HasMatchedPackOnParmToNonPackOnArg =
+      HasMatchedPackOnParmToNonPackOnArg;
 
   // Explicit functions are not actually candidates at all if we're not
   // allowing them in this context, but keep them around so we can point
@@ -8242,7 +8283,8 @@ void Sema::AddTemplateConversionCandidate(
   assert(Specialization && "Missing function template specialization?");
   AddConversionCandidate(Specialization, FoundDecl, ActingDC, From, ToType,
                          CandidateSet, AllowObjCConversionOnExplicit,
-                         AllowExplicit, AllowResultConversion);
+                         AllowExplicit, AllowResultConversion,
+                         Info.hasMatchedPackOnParmToNonPackOnArg());
 }
 
 void Sema::AddSurrogateCandidate(CXXConversionDecl *Conversion,
@@ -10593,6 +10635,10 @@ bool clang::isBetterOverloadCandidate(
       isa<CXXConstructorDecl>(Cand1.Function) !=
           isa<CXXConstructorDecl>(Cand2.Function))
     return isa<CXXConstructorDecl>(Cand1.Function);
+
+  if (Cand1.HasMatchedPackOnParmToNonPackOnArg !=
+      Cand2.HasMatchedPackOnParmToNonPackOnArg)
+    return Cand2.HasMatchedPackOnParmToNonPackOnArg;
 
   //    -- F1 is a non-template function and F2 is a function template
   //       specialization, or, if not that,

@@ -11,7 +11,16 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramReleaseTest);
 
 TEST_P(urProgramReleaseTest, Success) {
   ASSERT_SUCCESS(urProgramRetain(program));
+
+  uint32_t prevRefCount = 0;
+  ASSERT_SUCCESS(uur::GetObjectReferenceCount(program, prevRefCount));
+
   ASSERT_SUCCESS(urProgramRelease(program));
+
+  uint32_t refCount = 0;
+  ASSERT_SUCCESS(uur::GetObjectReferenceCount(program, refCount));
+
+  ASSERT_GT(prevRefCount, refCount);
 }
 
 TEST_P(urProgramReleaseTest, InvalidNullHandleProgram) {

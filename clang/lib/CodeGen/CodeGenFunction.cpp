@@ -435,9 +435,9 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   // important to do this before we enter the return block or return
   // edges will be *really* confused.
   bool HasCleanups = EHStack.stable_begin() != PrologueCleanupDepth;
-  bool HasOnlyLifetimeMarkers =
-      HasCleanups && EHStack.containsOnlyLifetimeMarkers(PrologueCleanupDepth);
-  bool EmitRetDbgLoc = !HasCleanups || HasOnlyLifetimeMarkers;
+  bool HasOnlyNoopCleanups =
+      HasCleanups && EHStack.containsOnlyNoopCleanups(PrologueCleanupDepth);
+  bool EmitRetDbgLoc = !HasCleanups || HasOnlyNoopCleanups;
 
   std::optional<ApplyDebugLocation> OAL;
   if (HasCleanups) {
@@ -1858,16 +1858,6 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   if (Body && isa_and_nonnull<CoroutineBodyStmt>(Body))
     llvm::append_range(FnArgs, FD->parameters());
 
-  // Generate a dummy __host__ function for compiling CUDA sources in SYCL.
-  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
-      getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
-      FD->hasAttr<CUDADeviceAttr>()) {
-    if (FD->getReturnType()->isVoidType())
-      Builder.CreateRetVoid();
-    else
-      Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
-    return;
-  }
   // When compiling a CUDA file in SYCL device mode,
   // set weak ODR linkage for possibly duplicated functions.
   if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
@@ -1884,7 +1874,22 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   // Generate the body of the function.
   PGO.assignRegionCounters(GD, CurFn);
-  if (isa<CXXDestructorDecl>(FD))
+  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
+      getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
+      FD->hasAttr<CUDADeviceAttr>()) {
+    // SYCL host compilation with CUDA compatibility enabled requires
+    // the creation of a host stub function for functions declared with
+    // the __device__ specifier but without the __host__ specifier.
+    // This is caused by the fact that SYCL doesn't use specifier like CUDA and
+    // so may have what can appear to be call from host to device. As we can't
+    // prevent the emission of such call, we need to produce a symbol for
+    // function with the __device__.
+    if (FD->getReturnType()->isVoidType())
+      Builder.CreateRetVoid();
+    else
+      Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
+    Builder.ClearInsertionPoint();
+  } else if (isa<CXXDestructorDecl>(FD))
     EmitDestructorBody(Args);
   else if (isa<CXXConstructorDecl>(FD))
     EmitConstructorBody(Args);

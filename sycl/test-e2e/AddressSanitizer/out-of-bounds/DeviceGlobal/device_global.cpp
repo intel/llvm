@@ -15,7 +15,7 @@
 // a choice based on that. This is rather fragile but workarounds the issue for
 // the time being.
 
-// DEFINE: %{not} = not %if test-mode-run-only %{ --crash %}
+// DEFINE: %{not} = not %if run-mode && !build-mode %{ --crash %}
 
 // RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
 // RUN: %{run} %{not} %t1.out 2>&1 | FileCheck %s

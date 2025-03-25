@@ -1,0 +1,26 @@
+; REQUIRES: spirv-as
+
+; RUN: spirv-as %s --target-env spv1.6 -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -to-text -o - %t.spv | FileCheck %s
+
+; Check that the translator does not add the Shader/Matrix capability
+; requirements for SPIR-V 1.6.
+
+; CHECK-NOT: Capability Matrix
+; CHECK-NOT: Capability Shader
+
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability UniformDecoration
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %2 "test"
+               OpDecorateId %uint_0 UniformId %uint_0
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+       %void = OpTypeVoid
+          %1 = OpTypeFunction %void
+          %2 = OpFunction %void None %1
+          %3 = OpLabel
+               OpReturn
+               OpFunctionEnd

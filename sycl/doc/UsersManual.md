@@ -322,6 +322,18 @@ and not recommended to use in production environment.
 
 ## Other options
 
+**`-f[no-]offload-fp32-prec-sqrt`**
+
+    Enable use of correctly rounded `sycl::sqrt` function as defined by IEE754.
+    Without this flag, the default precision requirement for `sycl::sqrt` is 3
+    ULP.
+
+**`-f[no-]offload-fp32-prec-div`**
+
+    Enable use of correctly rounded divide operation as defined by IEE754.
+    Without this flag, the default precision requirement for divide in SYCL is
+    2.5 ULP.
+
 **`-fsycl-device-only`**
 
     Compile only device part of the code and ignore host part.
@@ -331,6 +343,7 @@ and not recommended to use in production environment.
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
     emitted.
     Enabled by default.
+    This option is replaced with -fsycl-device-obj=<arg>.
 
 **`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
 
@@ -365,14 +378,14 @@ and not recommended to use in production environment.
     options (e.g. -c, -E, -S) may interfere with the expected output set during
     the host compilation.  Doing so is considered undefined behavior.
 
-**`-fsycl-fp32-prec-sqrt`**
+**`-fsycl-fp32-prec-sqrt`** [DEPRECATED]
 
     Enable use of correctly rounded `sycl::sqrt` function as defined by IEE754.
     Without this flag, the default precision requirement for `sycl::sqrt` is 3
     ULP.
+    This option is replaced with -foffload-fp32-prec-sqrt.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
-
 
 **`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
 

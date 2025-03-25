@@ -21,13 +21,9 @@ using namespace clang;
 using namespace clang::targets;
 
 static constexpr Builtin::Info BuiltinInfo[] = {
-#define BUILTIN(ID, TYPE, ATTRS)                                               \
-  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
-#define LIBBUILTIN(ID, TYPE, ATTRS, HEADER)                                    \
-  {#ID, TYPE, ATTRS, nullptr, HeaderDesc::HEADER, ALL_LANGUAGES},
 #define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE)                               \
   {#ID, TYPE, ATTRS, FEATURE, HeaderDesc::NO_HEADER, ALL_LANGUAGES},
-#include "clang/Basic/BuiltinsNVPTX.def"
+#include "clang/Basic/BuiltinsNVPTX.inc"
 };
 
 const char *const NVPTXTargetInfo::GCCRegNames[] = {"r0"};
@@ -298,11 +294,13 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       llvm_unreachable("unhandled OffloadArch");
     }();
 
-    if (Opts.SYCLIsDevice) {
+    if (Opts.SYCLIsDevice)
       Builder.defineMacro("__SYCL_CUDA_ARCH__", CUDAArchCode);
-    } else {
+    // Don't define __CUDA_ARCH__ if in SYCL device mode unless we are in
+    // SYCL-CUDA compatibility mode.
+    // For all other cases, define the macro.
+    if (!Opts.SYCLIsDevice || Opts.SYCLCUDACompat)
       Builder.defineMacro("__CUDA_ARCH__", CUDAArchCode);
-    }
     if (GPU == OffloadArch::SM_90a)
       Builder.defineMacro("__CUDA_ARCH_FEAT_SM90_ALL", "1");
     if (GPU == OffloadArch::SM_100a)

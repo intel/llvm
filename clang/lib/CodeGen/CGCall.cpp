@@ -2963,7 +2963,7 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     }
 
     if (FI.getExtParameterInfo(ArgNo).isNoEscape())
-      Attrs.addAttribute(llvm::Attribute::NoCapture);
+      Attrs.addCapturesAttr(llvm::CaptureInfo::none());
 
     if (Attrs.hasAttributes()) {
       unsigned FirstIRArg, NumIRArgs;
@@ -3697,15 +3697,26 @@ static llvm::StoreInst *findDominatingStoreToReturnValue(CodeGenFunction &CGF) {
     llvm::BasicBlock *IP = CGF.Builder.GetInsertBlock();
     if (IP->empty()) return nullptr;
 
-    // Look at directly preceding instruction, skipping bitcasts and lifetime
-    // markers.
+    // Look at directly preceding instruction, skipping bitcasts, lifetime
+    // markers, and fake uses and their operands.
+    const llvm::Instruction *LoadIntoFakeUse = nullptr;
     for (llvm::Instruction &I : make_range(IP->rbegin(), IP->rend())) {
+      // Ignore instructions that are just loads for fake uses; the load should
+      // immediately precede the fake use, so we only need to remember the
+      // operand for the last fake use seen.
+      if (LoadIntoFakeUse == &I)
+        continue;
       if (isa<llvm::BitCastInst>(&I))
         continue;
-      if (auto *II = dyn_cast<llvm::IntrinsicInst>(&I))
+      if (auto *II = dyn_cast<llvm::IntrinsicInst>(&I)) {
         if (II->getIntrinsicID() == llvm::Intrinsic::lifetime_end)
           continue;
 
+        if (II->getIntrinsicID() == llvm::Intrinsic::fake_use) {
+          LoadIntoFakeUse = dyn_cast<llvm::Instruction>(II->getArgOperand(0));
+          continue;
+        }
+      }
       return GetStoreIfValid(&I);
     }
     return nullptr;
@@ -5894,7 +5905,22 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       bool isFp32SqrtFunction =
           (FuncName == "sqrt" && !getLangOpts().OffloadFP32PrecSqrt &&
            IsFloat32Type);
-      if (hasFPAccuracyFuncMap || hasFPAccuracyVal || isFp32SqrtFunction) {
+      bool ArgsTypeIsFloat = true;
+      // In sycl mode, functions' arguments of type half are expanded
+      // to pointer types. Exclude these functions from being emitted
+      // as fpbuiltins.
+      if (!getLangOpts().OffloadFP32PrecSqrt ||
+          !getLangOpts().OffloadFP32PrecDiv) {
+        for (auto &Arg : IRCallArgs) {
+          if (!Arg->getType()->isFPOrFPVectorTy() &&
+              !Arg->getType()->isIntOrIntVectorTy()) {
+            ArgsTypeIsFloat = false;
+            break;
+          }
+        }
+      }
+      if (ArgsTypeIsFloat &&
+          (hasFPAccuracyFuncMap || hasFPAccuracyVal || isFp32SqrtFunction)) {
         CI = MaybeEmitFPBuiltinofFD(IRFuncTy, IRCallArgs, CalleePtr,
                                     FD->getName(), FD->getBuiltinID());
         if (CI)

@@ -44,6 +44,47 @@ TEST_P(urProgramCreateWithBinaryTest, Success) {
                                            nullptr, &binary_program));
 }
 
+TEST_P(urProgramCreateWithBinaryTest, SuccessWithProperties) {
+  auto size = binary.size();
+  const uint8_t *data = binary.data();
+
+  std::string string = "test metadata";
+  ur_program_metadata_value_t md_value_string;
+  md_value_string.pString = string.data();
+  ur_program_metadata_t meta_string = {string.data(),
+                                       UR_PROGRAM_METADATA_TYPE_STRING,
+                                       string.size(), md_value_string};
+
+  ur_program_metadata_value_t md_value_32;
+  md_value_32.data32 = 32;
+  ur_program_metadata_t meta_32 = {string.data(),
+                                   UR_PROGRAM_METADATA_TYPE_UINT32,
+                                   sizeof(uint32_t), md_value_32};
+
+  ur_program_metadata_value_t md_value_64;
+  md_value_64.data64 = 64;
+  ur_program_metadata_t meta_64 = {string.data(),
+                                   UR_PROGRAM_METADATA_TYPE_UINT64,
+                                   sizeof(uint64_t), md_value_64};
+
+  ur_program_metadata_value_t md_value_data;
+  std::vector<uint8_t> metadataValue = {0xDE, 0xAD, 0xBE, 0xEF};
+  md_value_data.pData = metadataValue.data();
+  ur_program_metadata_t meta_data = {string.data(),
+                                     UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
+                                     metadataValue.size(), md_value_data};
+
+  std::vector<ur_program_metadata_t> metadatas = {meta_string, meta_32, meta_64,
+                                                  meta_data};
+
+  ur_program_properties_t properties{
+      UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
+      static_cast<uint32_t>(metadatas.size()), metadatas.data()};
+
+  ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &size, &data,
+                                           &properties, &binary_program));
+}
+
 TEST_P(urProgramCreateWithBinaryTest, InvalidNullHandleContext) {
   auto size = binary.size();
   const uint8_t *data = binary.data();

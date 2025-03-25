@@ -18,6 +18,7 @@ add_llvm_library(sycl-jit
 
    LINK_COMPONENTS
    BitReader
+   BitWriter
    Core
    Support
    Option
@@ -33,6 +34,7 @@ add_llvm_library(sycl-jit
    TargetParser
    MC
    SYCLLowerIR
+   SYCLPostLink
    GenXIntrinsics
    ${LLVM_TARGETS_TO_BUILD}
 

@@ -8,10 +8,10 @@
 
 #include <libspirv/spirv.h>
 
-#include <libspirv/math/tables.h>
+#include <clc/math/tables.h>
 #include <clc/clcmacro.h>
-#include <config.h>
-#include <math/math.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
 
 // compute pow using log and exp
 // x^y = exp(y * log(x))

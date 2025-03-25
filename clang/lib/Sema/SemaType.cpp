@@ -1835,7 +1835,8 @@ QualType Sema::BuildPointerType(QualType T,
   if (checkQualifiedFunction(*this, T, Loc, QFK_Pointer))
     return QualType();
 
-  assert(!T->isObjCObjectType() && "Should build ObjCObjectPointerType");
+  if (T->isObjCObjectType())
+    return Context.getObjCObjectPointerType(T);
 
   // In ARC, it is forbidden to build pointers to unqualified pointers.
   if (getLangOpts().ObjCAutoRefCount)
@@ -8393,7 +8394,8 @@ static bool isPermittedNeonBaseType(QualType &Ty, VectorKind VecKind, Sema &S) {
          BTy->getKind() == BuiltinType::ULongLong ||
          BTy->getKind() == BuiltinType::Float ||
          BTy->getKind() == BuiltinType::Half ||
-         BTy->getKind() == BuiltinType::BFloat16;
+         BTy->getKind() == BuiltinType::BFloat16 ||
+         BTy->getKind() == BuiltinType::MFloat8;
 }
 
 static bool verifyValidIntegerConstantExpr(Sema &S, const ParsedAttr &Attr,
@@ -9898,8 +9900,7 @@ QualType Sema::BuiltinAddPointer(QualType BaseType, SourceLocation Loc) {
 }
 
 QualType Sema::BuiltinRemovePointer(QualType BaseType, SourceLocation Loc) {
-  // We don't want block pointers or ObjectiveC's id type.
-  if (!BaseType->isAnyPointerType() || BaseType->isObjCIdType())
+  if (!BaseType->isAnyPointerType())
     return BaseType;
 
   return BaseType->getPointeeType();

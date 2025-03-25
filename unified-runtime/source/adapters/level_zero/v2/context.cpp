@@ -49,7 +49,9 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            const ur_device_handle_t *phDevices,
                                            bool ownZeContext)
     : hContext(hContext, ownZeContext),
-      hDevices(phDevices, phDevices + numDevices), commandListCache(hContext),
+      hDevices(phDevices, phDevices + numDevices),
+      commandListCache(hContext,
+                       phDevices[0]->Platform->ZeCopyOffloadExtensionSupported),
       eventPoolCache(this, phDevices[0]->Platform->getNumDevices(),
                      [context = this, platform = phDevices[0]->Platform](
                          DeviceId deviceId, v2::event_flags_t flags)
@@ -150,6 +152,7 @@ ur_result_t urContextCreateWithNativeHandle(
 
   *phContext =
       new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
+  (*phContext)->IsInteropNativeHandle = true;
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
@@ -188,12 +191,6 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
     return ReturnValue(uint8_t{false});
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }

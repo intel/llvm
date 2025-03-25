@@ -38,21 +38,8 @@
 
 #include <core/convert.h>
 
-#include <core/integer/clc_abs.h>
-#include <core/integer/clc_abs_diff.h>
 #include <core/integer/clc_add_sat.h>
-#include <core/integer/clc_hadd.h>
-#include <core/integer/clc_mad24.h>
-#include <core/integer/clc_mad_hi.h>
 #include <core/integer/clc_mad_sat.h>
-#include <core/integer/clc_mul24.h>
-#include <core/integer/clc_mul_hi.h>
-#include <core/integer/clc_rhadd.h>
 #include <core/integer/clc_sub_sat.h>
-#include <core/integer/clc_upsample.h>
-
-#include <core/shared/clc_clamp.h>
-#include <core/shared/clc_max.h>
-#include <core/shared/clc_min.h>
 
 #pragma OPENCL EXTENSION all : disable

@@ -52,6 +52,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 #endif
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
+    if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     EnqueueResultT Res;
     bool Enqueued =
         GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
@@ -65,6 +68,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
+    if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     EnqueueResultT Res;
     bool Enqueued =
         GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
@@ -156,12 +162,14 @@ void Scheduler::enqueueCommandForCG(EventImplPtr NewEvent,
         }
         delete NewCmd;
       }
+      cleanupCommands(ToCleanUp);
     };
 
     for (Command *Cmd : AuxiliaryCmds) {
-      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd,
-                                                Blocking);
       try {
+        Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp,
+                                                  Cmd, Blocking);
+
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw exception(make_error_code(errc::runtime),
                           "Auxiliary enqueue process failed.");
@@ -662,7 +670,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<sycl::event> &DepEvents, ContextImplPtr Context) {
+    const std::vector<sycl::event> &DepEvents, const ContextImplPtr &Context) {
 
   return std::all_of(
       DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
@@ -672,7 +680,7 @@ bool Scheduler::areEventsSafeForSchedulerBypass(
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<EventImplPtr> &DepEvents, ContextImplPtr Context) {
+    const std::vector<EventImplPtr> &DepEvents, const ContextImplPtr &Context) {
 
   return std::all_of(DepEvents.begin(), DepEvents.end(),
                      [&Context](const EventImplPtr &SyclEventImplPtr) {

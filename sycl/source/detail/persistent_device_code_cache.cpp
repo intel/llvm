@@ -103,8 +103,8 @@ getSortedImages(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
             [](const RTDeviceBinaryImage *A, const RTDeviceBinaryImage *B) {
               // All entry names are unique among these images, so comparing the
               // first ones is enough.
-              return std::strcmp(A->getRawData().EntriesBegin->name,
-                                 B->getRawData().EntriesBegin->name) < 0;
+              return std::strcmp(A->getRawData().EntriesBegin->GetName(),
+                                 B->getRawData().EntriesBegin->GetName()) < 0;
             });
   return SortedImgs;
 }
@@ -557,6 +557,53 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
     updateCacheFileSizeAndTriggerEviction(getRootDir(), TotalSize);
 }
 
+void PersistentDeviceCodeCache::putDeviceCodeIRToDisc(
+    const std::string &Key, const std::vector<char> &IR) {
+
+  repopulateCacheSizeFile(getRootDir());
+
+  // Do not insert any new item if eviction is in progress.
+  // Since evictions are rare, we can afford to spin lock here.
+  const std::string EvictionInProgressFile =
+      getRootDir() + EvictionInProgressFileSuffix;
+  // Stall until the other process finishes eviction.
+  while (OSUtil::isPathPresent(EvictionInProgressFile))
+    continue;
+
+  // Total size of the item that we are writing to the cache.
+  size_t TotalSize = 0;
+
+  std::string DirName = getDeviceCodeIRPath(Key);
+  std::string FileName = DirName + "/ir";
+  std::string FullFileName = FileName + ".bin";
+
+  try {
+    OSUtil::makeDir(DirName.c_str());
+    LockCacheItem Lock{FileName};
+    if (Lock.isOwned()) {
+      writeBinaryDataToFile(FullFileName, IR);
+      PersistentDeviceCodeCache::trace_KernelCompiler(
+          "storing device code IR: ", FullFileName);
+
+      TotalSize = getFileSize(FullFileName);
+      saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
+    } else {
+      PersistentDeviceCodeCache::trace_KernelCompiler("cache lock not owned ",
+                                                      FileName);
+    }
+  } catch (std::exception &e) {
+    PersistentDeviceCodeCache::trace_KernelCompiler(
+        std::string("exception encountered making cache: ") + e.what());
+  } catch (...) {
+    PersistentDeviceCodeCache::trace_KernelCompiler(
+        std::string("error outputting cache: ") + std::strerror(errno));
+  }
+
+  // Update the cache size file and trigger cache eviction if needed.
+  if (TotalSize)
+    updateCacheFileSizeAndTriggerEviction(getRootDir(), TotalSize);
+}
+
 /* Program binaries built for one or more devices are read from persistent
  * cache and returned in form of vector of programs. Each binary program is
  * stored in vector of chars. There is a one-to-one correspondence between
@@ -662,6 +709,39 @@ PersistentDeviceCodeCache::getCompiledKernelFromDisc(
   PersistentDeviceCodeCache::trace_KernelCompiler("using cached binary: ",
                                                   FileNames);
   return Binaries;
+}
+
+std::vector<char>
+PersistentDeviceCodeCache::getDeviceCodeIRFromDisc(const std::string &Key) {
+  std::vector<char> IR;
+
+  std::string DirName = getDeviceCodeIRPath(Key);
+  std::string FileName = DirName + "/ir";
+  std::string FullFileName = FileName + ".bin";
+
+  if (DirName.empty() || !OSUtil::isPathPresent(FullFileName)) {
+    trace_KernelCompiler("cache miss: ", Key);
+    return {};
+  }
+
+  if (!LockCacheItem::isLocked(FileName)) {
+    try {
+      IR = readBinaryDataFromFile(FullFileName);
+
+      // Explicitly update the access time of the file. This is required for
+      // eviction.
+      if (isEvictionEnabled())
+        saveCurrentTimeInAFile(FileName + CacheEntryAccessTimeSuffix);
+    } catch (...) {
+      // If read was unsuccessfull give up
+      trace_KernelCompiler("cache miss: ", Key);
+      return {};
+    }
+  }
+
+  PersistentDeviceCodeCache::trace_KernelCompiler(
+      "using cached device code IR: ", FullFileName);
+  return IR;
 }
 
 /* Returns string value which can be used to identify different device
@@ -862,6 +942,17 @@ std::string PersistentDeviceCodeCache::getCompiledKernelItemPath(
          std::to_string(StringHasher(DeviceString)) + "/" +
          std::to_string(StringHasher(BuildOptionsString)) + "/" +
          std::to_string(StringHasher(SourceString));
+}
+
+std::string
+PersistentDeviceCodeCache::getDeviceCodeIRPath(const std::string &Key) {
+  std::string cache_root{getRootDir()};
+  if (cache_root.empty()) {
+    trace("Disable persistent cache due to unconfigured cache root.");
+    return {};
+  }
+
+  return cache_root + "/ext_kernel_compiler/" + Key;
 }
 
 /* Returns true if persistent cache is enabled.

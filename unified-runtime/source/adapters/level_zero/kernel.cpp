@@ -752,10 +752,24 @@ ur_result_t urKernelGetInfo(
   case UR_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(uint32_t{Kernel->ZeKernelProperties->numKernelArgs});
   case UR_KERNEL_INFO_SPILL_MEM_SIZE: {
-    std::vector<uint32_t> spills = {
-        uint32_t{Kernel->ZeKernelProperties->spillMemSize}};
-    return ReturnValue(static_cast<const uint32_t *>(spills.data()),
-                       spills.size());
+    try {
+      std::vector<uint32_t> Spills;
+      Spills.reserve(Kernel->ZeKernels.size());
+      for (auto &ZeKernel : Kernel->ZeKernels) {
+        ze_kernel_properties_t props;
+        props.stype = ZE_STRUCTURE_TYPE_KERNEL_PROPERTIES;
+        props.pNext = nullptr;
+        ZE2UR_CALL(zeKernelGetProperties, (ZeKernel, &props));
+        uint32_t spillMemSize = props.spillMemSize;
+        Spills.push_back(spillMemSize);
+      }
+      return ReturnValue(static_cast<const uint32_t *>(Spills.data()),
+                         Spills.size());
+    } catch (const std::bad_alloc &) {
+      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    } catch (...) {
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
   }
   case UR_KERNEL_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Kernel->RefCount.load()});
@@ -926,10 +940,13 @@ ur_result_t urKernelRelease(
   auto KernelProgram = Kernel->Program;
   if (Kernel->OwnNativeHandle) {
     for (auto &ZeKernel : Kernel->ZeKernels) {
-      auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernel));
-      // Gracefully handle the case that L0 was already unloaded.
-      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-        return ze2urResult(ZeResult);
+      if (!Kernel->IsInteropNativeHandle ||
+          (Kernel->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+        auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernel));
+        // Gracefully handle the case that L0 was already unloaded.
+        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+          return ze2urResult(ZeResult);
+      }
     }
   }
   Kernel->ZeKernelMap.clear();
@@ -1140,6 +1157,7 @@ ur_result_t urKernelCreateWithNativeHandle(
   }
 
   Kernel->Program = Program;
+  Kernel->IsInteropNativeHandle = true;
 
   UR_CALL(Kernel->initialize());
 

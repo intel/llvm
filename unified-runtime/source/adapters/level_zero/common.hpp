@@ -18,16 +18,86 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef _WIN32
+#include "windows.h"
+#else
+#include <dlfcn.h>
+#include <unistd.h>
+#endif
+
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
+#include <level_zero/include/level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
 #include "logger/ur_logger.hpp"
 
 struct _ur_platform_handle_t;
+
+[[maybe_unused]] static bool checkL0LoaderTeardown() {
+  bool loaderStable = true;
+#ifdef _WIN32
+  uint32_t ZeDriverCount = 0;
+  HMODULE zeLoader = LoadLibrary("ze_loader.dll");
+  if (zeLoader) {
+    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
+    zeDriverGet_t zeDriverGetLoader =
+        (zeDriverGet_t)GetProcAddress(zeLoader, "zeDriverGet");
+    if (zeDriverGetLoader) {
+      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
+      logger::debug(
+          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
+          ZeDriverCount);
+      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
+        loaderStable = false;
+      }
+    } else {
+      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
+                    "zeDriverGet");
+      loaderStable = false;
+    }
+    FreeLibrary(zeLoader);
+  } else {
+    logger::debug(
+        "ZE ---> checkL0LoaderTeardown: Failed to load ze_loader.dll");
+    loaderStable = false;
+  }
+#else
+  uint32_t ZeDriverCount = 0;
+  void *zeLoader = dlopen("libze_loader.so.1", RTLD_LAZY);
+  if (zeLoader) {
+    typedef ze_result_t (*zeDriverGet_t)(uint32_t *, ze_driver_handle_t *);
+    zeDriverGet_t zeDriverGetLoader =
+        (zeDriverGet_t)dlsym(zeLoader, "zeDriverGet");
+    if (zeDriverGetLoader) {
+      ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
+      logger::debug(
+          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
+          ZeDriverCount);
+      if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
+        loaderStable = false;
+      }
+    } else {
+      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
+                    "zeDriverGet");
+      loaderStable = false;
+    }
+    dlclose(zeLoader);
+  } else {
+    logger::debug(
+        "ZE ---> checkL0LoaderTeardown: Failed to load libze_loader.so.1");
+    loaderStable = false;
+  }
+#endif
+  if (!loaderStable) {
+    logger::debug(
+        "ZE ---> checkL0LoaderTeardown: Loader is not stable, returning false");
+  }
+  return loaderStable;
+}
 
 static auto getUrResultString = [](ur_result_t Result) {
   switch (Result) {
@@ -434,6 +504,9 @@ struct _ur_object {
   // Indicates if we own the native handle or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnNativeHandle = false;
+
+  // Indicates if this object is an interop handle.
+  bool IsInteropNativeHandle = false;
 };
 
 // Record for a memory allocation. This structure is used to keep information
@@ -537,76 +610,3 @@ extern thread_local int32_t ErrorAdapterNativeCode;
                                       int32_t AdapterErrorCode);
 
 #define L0_DRIVER_INORDER_MIN_VERSION 29534
-
-// Definitions for the External Semaphore Extension
-
-#ifndef ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME
-/// @brief Event sync mode extension name
-#define ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME                                   \
-  "ZE_intel_experimental_external_semaphore"
-#endif // ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME
-
-typedef enum _ze_intel_external_semaphore_exp_version_t {
-  ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_1_0 =
-      ZE_MAKE_VERSION(1, 0), ///< version 1.0
-  ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_CURRENT =
-      ZE_MAKE_VERSION(1, 0), ///< latest known version
-  ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_FORCE_UINT32 = 0x7fffffff
-} ze_intel_external_semaphore_exp_version_t;
-typedef enum _ze_intel_external_semaphore_exp_flags_t {
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_WIN32,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_WIN32_KMT,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_D3D12_FENCE,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_D3D11_FENCE,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_KEYED_MUTEX,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_KEYED_MUTEX_KMT,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_TIMELINE_SEMAPHORE_FD,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_TIMELINE_SEMAPHORE_WIN32
-} ze_intel_external_semaphore_exp_flags_t;
-
-typedef struct _ze_intel_external_semaphore_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  ze_intel_external_semaphore_exp_flags_t flags;
-} ze_intel_external_semaphore_exp_desc_t;
-
-typedef struct _ze_intel_external_semaphore_win32_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  void *handle;
-  const char *name;
-} ze_intel_external_semaphore_win32_exp_desc_t;
-
-typedef struct _ze_intel_external_semaphore_fd_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  int fd;
-} ze_intel_external_semaphore_desc_fd_exp_desc_t;
-
-typedef struct _ze_intel_external_semaphore_signal_exp_params_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  uint64_t value;
-} ze_intel_external_semaphore_signal_exp_params_t;
-
-typedef struct _ze_intel_external_semaphore_wait_exp_params_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-
-  uint64_t value;
-} ze_intel_external_semaphore_wait_exp_params_t;
-
-typedef struct _ze_intel_external_semaphore_exp_handle_t
-    *ze_intel_external_semaphore_exp_handle_t;
-
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_EXP_DESC                    \
-  (ze_structure_type_t)0x0003001E
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WIN32_EXP_DESC              \
-  (ze_structure_type_t)0x0003001F
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_FD_EXP_DESC                 \
-  (ze_structure_type_t)0x00030023
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXP           \
-  (ze_structure_type_t)0x00030024
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP             \
-  (ze_structure_type_t)0x00030025

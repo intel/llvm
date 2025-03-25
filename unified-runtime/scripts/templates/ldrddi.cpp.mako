@@ -212,6 +212,16 @@ namespace ur_loader
         <% handle_structs = th.get_object_handle_structs_to_convert(n, tags, obj, meta) %>
         %if handle_structs:
         // Deal with any struct parameters that have handle members we need to convert.
+        %if func_basename == "CommandBufferUpdateKernelLaunchExp":
+            ## CommandBufferUpdateKernelLaunchExp entry-point takes a list of structs with
+            ## handle members, as well as members defining a nested list of structs
+            ## containing handles. This usage is not supported yet, so special case as
+            ## a temporary measure.
+            std::vector<ur_exp_command_buffer_update_kernel_launch_desc_t> pUpdateKernelLaunchVector = {};
+            std::vector<std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t>>
+                ppUpdateKernelLaunchpNewMemObjArgList(numKernelUpdates);
+            for (size_t Offset = 0; Offset < numKernelUpdates; Offset ++) {
+        %endif
         %for struct in handle_structs:
             %if struct['optional']:
             ${struct['type']} ${struct['name']}Local = {};
@@ -239,7 +249,13 @@ namespace ur_loader
                 range_end = member['range_end']
                 if not re.match(r"[0-9]+$", range_end):
                     range_end = struct['name'] + "->" + member['parent'] + range_end %>
+
+        %if func_basename == "CommandBufferUpdateKernelLaunchExp":
+                 std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t>&
+           pUpdateKernelLaunchpNewMemObjArgList = ppUpdateKernelLaunchpNewMemObjArgList[Offset];
+        %else:
                 std::vector<${member['type']}> ${range_vector_name};
+        %endif
                 for(uint32_t i = ${range_start}; i < ${range_end}; i++) {
                     ${member['type']} NewRangeStruct = ${struct['name']}Local.${member['parent']}${member['name']}[i];
                     %for handle_member in member['handle_members']:
@@ -277,6 +293,12 @@ namespace ur_loader
         %endfor
         %endfor
 
+        %if func_basename == "CommandBufferUpdateKernelLaunchExp":
+                pUpdateKernelLaunchVector.push_back(pUpdateKernelLaunchLocal);
+                pUpdateKernelLaunch++;
+            }
+            pUpdateKernelLaunch = pUpdateKernelLaunchVector.data();
+        %else:
         // Now that we've converted all the members update the param pointers
         %for struct in handle_structs:
             %if struct['optional']:
@@ -284,6 +306,7 @@ namespace ur_loader
             %endif
             ${struct['name']} = &${struct['name']}Local;
         %endfor
+        %endif
         %endif
 
         // forward to device-platform

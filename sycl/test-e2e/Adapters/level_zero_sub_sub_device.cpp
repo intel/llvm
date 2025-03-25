@@ -32,7 +32,6 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
-#include <unistd.h>
 
 using namespace sycl;
 using namespace std::chrono;
