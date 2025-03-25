@@ -89,6 +89,19 @@ static const char *LegalSYCLFunctionsInStatelessMode[] = {
 
 namespace {
 
+class BuffDeleter {
+public:
+  BuffDeleter(char *Buffer) : Buff(Buffer) {};
+  ~BuffDeleter() { std::free(Buff); };
+
+  BuffDeleter() = delete;
+  BuffDeleter(const BuffDeleter &) = delete;
+  BuffDeleter(BuffDeleter &&) = delete;
+
+private:
+  char *Buff;
+};
+
 class ESIMDVerifierImpl {
   const Module &M;
   bool MayNeedForceStatelessMemModeAPI;
@@ -149,6 +162,7 @@ public:
             continue;
 
           id::OutputBuffer NameBuf;
+          BuffDeleter NameBufDeleter(NameBuf.getBuffer());
           NameNode->print(NameBuf);
           StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
 
@@ -160,7 +174,6 @@ public:
               Name.starts_with(
                   "sycl::_V1::ext::intel::experimental::esimd::") ||
               Name.starts_with("sycl::_V1::ext::oneapi::this_work_item::")) {
-            std::free(NameBuf.getBuffer());
             continue;
           }
 
@@ -178,11 +191,9 @@ public:
               // reported at compilation time.
               (MayNeedForceStatelessMemModeAPI &&
                any_of(LegalSYCLFunctionsInStatelessMode, checkLegalFunc))) {
-            std::free(NameBuf.getBuffer());
             continue;
           }
 
-          std::free(NameBuf.getBuffer());
           // If not, report an error.
           std::string ErrorMsg = std::string("function '") +
                                  demangle(MangledName.str()) +
