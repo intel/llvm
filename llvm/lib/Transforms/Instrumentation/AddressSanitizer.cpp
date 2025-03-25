@@ -74,7 +74,7 @@
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
-#include "llvm/Transforms/Instrumentation/SanitizerCommonUtils.h"
+#include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
 #include "llvm/Transforms/Utils/ASanStackFrameLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Instrumentation.h"
@@ -867,7 +867,7 @@ struct AddressSanitizer {
   void instrumentMemIntrinsic(MemIntrinsic *MI, RuntimeCallInserter &RTCI);
   Value *memToShadow(
       Value *Shadow, IRBuilder<> &IRB,
-      uint32_t AddressSpace = SanitizerCommonUtils::kSpirOffloadPrivateAS);
+      uint32_t AddressSpace = SPIRVSanitizerCommonUtils::kSpirOffloadPrivateAS);
   bool suppressInstrumentationSiteForDebug(int &Instrumented);
   bool instrumentFunction(Function &F, const TargetLibraryInfo *TLI);
   bool maybeInsertAsanInitAtFunctionEntry(Function &F);
@@ -1397,9 +1397,9 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
       SpirFixupKernels.emplace_back(&F);
 
       auto KernelName = F.getName();
-      auto *KernelNameGV =
-          GetOrCreateGlobalString(M, "__asan_kernel", KernelName,
-                                  SanitizerCommonUtils::kSpirOffloadConstantAS);
+      auto *KernelNameGV = GetOrCreateGlobalString(
+          M, "__asan_kernel", KernelName,
+          SPIRVSanitizerCommonUtils::kSpirOffloadConstantAS);
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
           StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
           ConstantInt::get(IntptrTy, KernelName.size())));
@@ -1435,7 +1435,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
 
     // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
     Types.push_back(llvm::PointerType::get(
-        IntptrTy, SanitizerCommonUtils::kSpirOffloadGlobalAS));
+        IntptrTy, SPIRVSanitizerCommonUtils::kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1495,7 +1495,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
 
     FixupMetadata("kernel_arg_addr_space",
                   ConstantAsMetadata::get(Builder.getInt32(
-                      SanitizerCommonUtils::kSpirOffloadGlobalAS)));
+                      SPIRVSanitizerCommonUtils::kSpirOffloadGlobalAS)));
     FixupMetadata("kernel_arg_access_qual",
                   MDString::get(M.getContext(), "read_write"));
     FixupMetadata("kernel_arg_type", MDString::get(M.getContext(), "void*"));
@@ -1681,34 +1681,34 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
   // Ignore load/store for target ext type since we can't know exactly what size
   // it is.
   if (auto *SI = dyn_cast<StoreInst>(Inst))
-    if (SanitizerCommonUtils::getTargetExtType(
+    if (SPIRVSanitizerCommonUtils::getTargetExtType(
             SI->getValueOperand()->getType()) ||
-        SanitizerCommonUtils::isJointMatrixAccess(SI->getPointerOperand()))
+        SPIRVSanitizerCommonUtils::isJointMatrixAccess(SI->getPointerOperand()))
       return true;
 
   if (auto *LI = dyn_cast<LoadInst>(Inst))
-    if (SanitizerCommonUtils::getTargetExtType(Inst->getType()) ||
-        SanitizerCommonUtils::isJointMatrixAccess(LI->getPointerOperand()))
+    if (SPIRVSanitizerCommonUtils::getTargetExtType(Inst->getType()) ||
+        SPIRVSanitizerCommonUtils::isJointMatrixAccess(LI->getPointerOperand()))
       return true;
 
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   switch (PtrTy->getPointerAddressSpace()) {
-  case SanitizerCommonUtils::kSpirOffloadPrivateAS: {
+  case SPIRVSanitizerCommonUtils::kSpirOffloadPrivateAS: {
     if (!ClSpirOffloadPrivates)
       return true;
     // Skip kernel arguments
     return Inst->getFunction()->getCallingConv() == CallingConv::SPIR_KERNEL &&
            isa<Argument>(Addr);
   }
-  case SanitizerCommonUtils::kSpirOffloadGlobalAS: {
+  case SPIRVSanitizerCommonUtils::kSpirOffloadGlobalAS: {
     return !ClSpirOffloadGlobals;
   }
-  case SanitizerCommonUtils::kSpirOffloadLocalAS: {
+  case SPIRVSanitizerCommonUtils::kSpirOffloadLocalAS: {
     if (!ClSpirOffloadLocals)
       return true;
     return Addr->getName().starts_with("__Asan");
   }
-  case SanitizerCommonUtils::kSpirOffloadGenericAS: {
+  case SPIRVSanitizerCommonUtils::kSpirOffloadGenericAS: {
     return !ClSpirOffloadGenerics;
   }
   }
@@ -1724,15 +1724,15 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // SPIR constant address space
   PointerType *ConstASPtrTy = llvm::PointerType::get(
-      Type::getInt8Ty(C), SanitizerCommonUtils::kSpirOffloadConstantAS);
+      Type::getInt8Ty(C), SPIRVSanitizerCommonUtils::kSpirOffloadConstantAS);
 
   // File & Line
   if (Loc) {
     llvm::SmallString<128> Source = Loc->getDirectory();
     sys::path::append(Source, Loc->getFilename());
-    auto *FileNameGV =
-        GetOrCreateGlobalString(*M, "__asan_file", Source,
-                                SanitizerCommonUtils::kSpirOffloadConstantAS);
+    auto *FileNameGV = GetOrCreateGlobalString(
+        *M, "__asan_file", Source,
+        SPIRVSanitizerCommonUtils::kSpirOffloadConstantAS);
     Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
     Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
   } else {
@@ -1742,9 +1742,9 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // Function
   auto FuncName = InsertBefore->getFunction()->getName();
-  auto *FuncNameGV =
-      GetOrCreateGlobalString(*M, "__asan_func", demangle(FuncName),
-                              SanitizerCommonUtils::kSpirOffloadConstantAS);
+  auto *FuncNameGV = GetOrCreateGlobalString(
+      *M, "__asan_func", demangle(FuncName),
+      SPIRVSanitizerCommonUtils::kSpirOffloadConstantAS);
   Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
 }
 
@@ -1781,7 +1781,7 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
   for (auto &Arg : F.args()) {
     Type *PtrTy = dyn_cast<PointerType>(Arg.getType()->getScalarType());
     if (PtrTy && PtrTy->getPointerAddressSpace() ==
-                     SanitizerCommonUtils::kSpirOffloadLocalAS)
+                     SPIRVSanitizerCommonUtils::kSpirOffloadLocalAS)
       LocalArgs.push_back(&Arg);
   }
 
@@ -1826,9 +1826,10 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(
   // FIXME: if the initial value of "__AsanLaunchInfo" is zero, we'll not need
   // this step
   initializeCallbacks(TLI);
-  IRB.CreateStore(ConstantPointerNull::get(llvm::PointerType::get(
-                      IntptrTy, SanitizerCommonUtils::kSpirOffloadGlobalAS)),
-                  AsanLaunchInfo);
+  IRB.CreateStore(
+      ConstantPointerNull::get(llvm::PointerType::get(
+          IntptrTy, SPIRVSanitizerCommonUtils::kSpirOffloadGlobalAS)),
+      AsanLaunchInfo);
 }
 
 // Instrument memset/memmove/memcpy
@@ -1874,7 +1875,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
        !(SSGI && SSGI->isSafe(AI)) &&
        // ignore alloc contains target ext type since we can't know exactly what
        // size it is.
-       !SanitizerCommonUtils::getTargetExtType(AI.getAllocatedType()));
+       !SPIRVSanitizerCommonUtils::getTargetExtType(AI.getAllocatedType()));
 
   It->second = IsInteresting;
   return IsInteresting;
@@ -2848,7 +2849,7 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
   SmallVector<Constant *, 8> DeviceGlobalMetadata;
 
   Type *IntptrTy = M.getDataLayout().getIntPtrType(
-      *C, SanitizerCommonUtils::kSpirOffloadGlobalAS);
+      *C, SPIRVSanitizerCommonUtils::kSpirOffloadGlobalAS);
 
   // Device global meta data is described by a structure
   //  size_t device_global_size
@@ -3607,7 +3608,8 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
       // )
       if (TargetTriple.isSPIROrSPIRV()) {
         auto *Int8PtrTy = llvm::PointerType::get(
-            Type::getInt8Ty(*C), SanitizerCommonUtils::kSpirOffloadConstantAS);
+            Type::getInt8Ty(*C),
+            SPIRVSanitizerCommonUtils::kSpirOffloadConstantAS);
 
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
@@ -3709,15 +3711,15 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
     AsanLaunchInfo = M.getOrInsertGlobal(
         "__AsanLaunchInfo",
         llvm::PointerType::get(IntptrTy,
-                               SanitizerCommonUtils::kSpirOffloadGlobalAS),
+                               SPIRVSanitizerCommonUtils::kSpirOffloadGlobalAS),
         [&] {
           return new GlobalVariable(
               M,
               llvm::PointerType::get(
-                  IntptrTy, SanitizerCommonUtils::kSpirOffloadGlobalAS),
+                  IntptrTy, SPIRVSanitizerCommonUtils::kSpirOffloadGlobalAS),
               false, GlobalVariable::ExternalLinkage, nullptr,
               "__AsanLaunchInfo", nullptr, GlobalVariable::NotThreadLocal,
-              SanitizerCommonUtils::kSpirOffloadLocalAS);
+              SPIRVSanitizerCommonUtils::kSpirOffloadLocalAS);
         });
 
     AsanMemToShadow = M.getOrInsertFunction(kAsanMemToShadow, IntptrTy,
@@ -4503,7 +4505,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
 
   // Poison the stack red zones at the entry.
   Value *ShadowBase = ASan.memToShadow(
-      LocalStackBase, IRB, SanitizerCommonUtils::kSpirOffloadPrivateAS);
+      LocalStackBase, IRB, SPIRVSanitizerCommonUtils::kSpirOffloadPrivateAS);
   // As mask we must use most poisoned case: red zones and after scope.
   // As bytes we can use either the same or just red zones only.
   copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase,

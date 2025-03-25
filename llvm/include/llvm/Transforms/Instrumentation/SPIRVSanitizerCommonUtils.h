@@ -1,4 +1,4 @@
-//===- SanitizerCommonUtils.h - Sanitizer commnon utils ---------*- C++ -*-===//
+//===- SPIRVSanitizerCommonUtils.h - Commnon utils --------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file declares common infrastructure for Sanitizer.
+// This file declares common infrastructure for SPIRV Sanitizer.
 //
 //===----------------------------------------------------------------------===//
-#ifndef LLVM_TRANSFORMS_INSTRUMENTATION_SANITIZERCOMMONUTILS_H
-#define LLVM_TRANSFORMS_INSTRUMENTATION_SANITIZERCOMMONUTILS_H
+#ifndef LLVM_TRANSFORMS_INSTRUMENTATION_SPIRVSANITIZERCOMMONUTILS_H
+#define LLVM_TRANSFORMS_INSTRUMENTATION_SPIRVSANITIZERCOMMONUTILS_H
 
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
@@ -18,7 +18,7 @@
 #include "llvm/IR/Value.h"
 
 namespace llvm {
-namespace SanitizerCommonUtils {
+namespace SPIRVSanitizerCommonUtils {
 
 // Spir memory address space
 constexpr unsigned kSpirOffloadPrivateAS = 0;
@@ -29,7 +29,7 @@ constexpr unsigned kSpirOffloadGenericAS = 4;
 
 TargetExtType *getTargetExtType(Type *Ty);
 bool isJointMatrixAccess(Value *V);
-} // namespace SanitizerCommonUtils
+} // namespace SPIRVSanitizerCommonUtils
 } // namespace llvm
 
-#endif // LLVM_TRANSFORMS_INSTRUMENTATION_SANITIZERCOMMONUTILS_H
+#endif // LLVM_TRANSFORMS_INSTRUMENTATION_SPIRVSANITIZERCOMMONUTILS_H

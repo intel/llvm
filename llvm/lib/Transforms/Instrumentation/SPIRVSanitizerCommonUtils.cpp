@@ -1,4 +1,4 @@
-//===- SanitizerCommonUtils.cpp- Sanitizer commnon utils------------------===//
+//===- SPIRVSanitizerCommonUtils.cpp- SPIRV Sanitizer commnon utils ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,16 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file declares common infrastructure for Sanitizer.
+// This file defines common infrastructure for SPIRV Sanitizer.
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Transforms/Instrumentation/SanitizerCommonUtils.h"
+#include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
 
 using namespace llvm;
 
 namespace llvm {
-namespace SanitizerCommonUtils {
+namespace SPIRVSanitizerCommonUtils {
 
 TargetExtType *getTargetExtType(Type *Ty) {
   if (auto *TargetTy = dyn_cast<TargetExtType>(Ty))
@@ -59,5 +59,5 @@ bool isJointMatrixAccess(Value *V) {
   }
   return false;
 }
-} // namespace SanitizerCommonUtils
+} // namespace SPIRVSanitizerCommonUtils
 } // namespace llvm

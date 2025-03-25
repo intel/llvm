@@ -200,7 +200,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
-#include "llvm/Transforms/Instrumentation/SanitizerCommonUtils.h"
+#include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Instrumentation.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -1750,14 +1750,14 @@ static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
   // Ignore load/store for target ext type since we can't know exactly what size
   // it is.
   if (auto *SI = dyn_cast<StoreInst>(I))
-    if (SanitizerCommonUtils::getTargetExtType(
+    if (SPIRVSanitizerCommonUtils::getTargetExtType(
             SI->getValueOperand()->getType()) ||
-        SanitizerCommonUtils::isJointMatrixAccess(SI->getPointerOperand()))
+        SPIRVSanitizerCommonUtils::isJointMatrixAccess(SI->getPointerOperand()))
       return true;
 
   if (auto *LI = dyn_cast<LoadInst>(I))
-    if (SanitizerCommonUtils::getTargetExtType(I->getType()) ||
-        SanitizerCommonUtils::isJointMatrixAccess(LI->getPointerOperand()))
+    if (SPIRVSanitizerCommonUtils::getTargetExtType(I->getType()) ||
+        SPIRVSanitizerCommonUtils::isJointMatrixAccess(LI->getPointerOperand()))
       return true;
 
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
