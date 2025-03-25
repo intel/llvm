@@ -266,9 +266,7 @@ void writeToFile(StringRef Filename, StringRef Content) {
   OS.close();
 }
 
-std::string saveModuleIR(Module &M, StringRef IRPrefix) {
-  StringRef Ext = (OutputAssembly) ? ".ll" : ".bc";
-  std::string Filename = (Twine(IRPrefix) + Ext).str();
+void saveModuleIR(Module &M, StringRef Filename) {
   std::error_code EC;
   raw_fd_ostream Out{Filename, EC, sys::fs::OF_None};
   checkError(EC, "error opening the file '" + Filename + "'");
@@ -282,8 +280,6 @@ std::string saveModuleIR(Module &M, StringRef IRPrefix) {
   else if (Force || !CheckBitcodeOutputToConsole(Out))
     MPM.addPass(BitcodeWriterPass(Out));
   MPM.run(M, MAM);
-
-  return Filename;
 }
 
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
@@ -419,13 +415,14 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
   if (!MD.isSYCLDeviceLib())
     MD.cleanup();
 
-  std::string IRPrefix = (Twine(OutputPrefix) + Suffix + "_" + Twine(I)).str();
-  BaseTriple.Ir = saveModuleIR(MD.getModule(), IRPrefix);
+  StringRef Ext = (OutputAssembly) ? ".ll" : ".bc";
+  BaseTriple.Ir = (Twine(OutputPrefix) + Suffix + "_" + Twine(I) + Ext).str();
+  saveModuleIR(MD.getModule(), BaseTriple.Ir);
 
   // save the names of the entry points - the symbol table
   if (DoSymGen) {
     std::string Filename =
-        (Twine(OutputPrefix) + "_" + Twine(I) + ".sym").str();
+        (Twine(OutputPrefix) + Suffix + "_" + Twine(I) + ".sym").str();
     BaseTriple.Sym = saveModuleSymbolTable(MD, Filename);
   }
 
@@ -924,7 +921,7 @@ int main(int argc, char **argv) {
 
   if (OutputFiles.getNumOccurrences() == 0) {
     StringRef S =
-        IROutputOnly ? (OutputAssembly ? ".out.ll" : "out.bc") : ".files";
+        IROutputOnly ? ".out" : ".files";
     OutputFiles.push_back({{}, (sys::path::stem(InputFilename) + S).str()});
   }
 
