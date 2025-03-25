@@ -69,15 +69,14 @@ ur_result_t DeviceInfo::allocShadowMemory() {
   return UR_RESULT_SUCCESS;
 }
 
-void ContextInfo::insertAllocInfo(ur_device_handle_t Device,
-                                  std::shared_ptr<TsanAllocInfo> &AI) {
+void ContextInfo::insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI) {
   if (Device) {
     std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
-    AllocInfosMap[Device].emplace_back(AI);
+    AllocInfosMap[Device].emplace_back(std::move(AI));
   } else {
     for (auto Device : DeviceList) {
       std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
-      AllocInfosMap[Device].emplace_back(AI);
+      AllocInfosMap[Device].emplace_back(std::move(AI));
     }
   }
 }
@@ -103,11 +102,9 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
         Context, Device, Properties, Pool, Size, &Allocated));
   }
 
-  auto AI = std::make_shared<TsanAllocInfo>(
-      TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size});
-
+  auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory
-  CI->insertAllocInfo(Device, AI);
+  CI->insertAllocInfo(Device, std::move(AI));
 
   *ResultPtr = Allocated;
   return UR_RESULT_SUCCESS;
@@ -153,10 +150,8 @@ ur_result_t TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) 
 
     for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
       const auto &GVInfo = GVInfos[i];
-      auto AI = std::make_shared<TsanAllocInfo>(
-          TsanAllocInfo{GVInfo.Addr, GVInfo.Size});
-
-      ContextInfo->insertAllocInfo(Device, AI);
+      auto AI = TsanAllocInfo{GVInfo.Addr, GVInfo.Size};
+      ContextInfo->insertAllocInfo(Device, std::move(AI));
     }
   }
 
@@ -275,9 +270,10 @@ TsanInterceptor::updateShadowMemory(std::shared_ptr<ContextInfo> &CI,
                                     ur_queue_handle_t Queue) {
   std::scoped_lock<ur_shared_mutex> Guard(CI->AllocInfosMapMutex);
   for (auto &AllocInfo : CI->AllocInfosMap[DI->Handle]) {
-    UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo->AllocBegin,
-                                    AllocInfo->AllocSize));
+    UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo.AllocBegin,
+                                    AllocInfo.AllocSize));
   }
+  CI->AllocInfosMap[DI->Handle].clear();
   return UR_RESULT_SUCCESS;
 }
 

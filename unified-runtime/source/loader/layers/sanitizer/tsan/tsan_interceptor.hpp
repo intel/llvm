@@ -48,8 +48,7 @@ struct ContextInfo {
   std::vector<ur_device_handle_t> DeviceList;
 
   ur_shared_mutex AllocInfosMapMutex;
-  std::unordered_map<ur_device_handle_t,
-                     std::vector<std::shared_ptr<TsanAllocInfo>>>
+  std::unordered_map<ur_device_handle_t, std::vector<TsanAllocInfo>>
       AllocInfosMap;
 
   explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
@@ -68,8 +67,7 @@ struct ContextInfo {
 
   ContextInfo &operator=(const ContextInfo &) = delete;
 
-  void insertAllocInfo(ur_device_handle_t Device,
-                       std::shared_ptr<TsanAllocInfo> &AI);
+  void insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI);
 };
 
 struct DeviceGlobalInfo {
