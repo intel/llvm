@@ -188,6 +188,39 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.get().value;
 }
 
+// Return the Sysman device handle and correpsonding data for the given UR
+// device.
+static std::tuple<zes_device_handle_t, ur_zes_device_handle_data_t, ur_result_t>
+getZesDeviceData(ur_device_handle_t Device) {
+  bool SysManEnv = getenv_tobool("ZES_ENABLE_SYSMAN", false);
+  if ((Device->Platform->ZedeviceToZesDeviceMap.size() == 0) && !SysManEnv) {
+    logger::error("SysMan support is unavailable on this system. Please "
+                  "check your level zero driver installation.");
+    return {nullptr, {}, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION};
+  }
+
+  zes_device_handle_t ZesDevice = Device->ZeDevice;
+  ur_zes_device_handle_data_t ZesDeviceData = {};
+  // If legacy sysman is enabled thru the environment variable, then zesInit
+  // will fail, but sysman is still usable so go the legacy route.
+  if (!SysManEnv) {
+    auto It = Device->Platform->ZedeviceToZesDeviceMap.find(Device->ZeDevice);
+    if (It == Device->Platform->ZedeviceToZesDeviceMap.end()) {
+      // no matching device
+      return {nullptr, {}, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION};
+    } else {
+      ZesDeviceData =
+          Device->Platform->ZedeviceToZesDeviceMap[Device->ZeDevice];
+      ZesDevice = ZesDeviceData.ZesDevice;
+    }
+  } else {
+    ZesDeviceData.SubDevice = Device->isSubDevice();
+    ZesDeviceData.SubDeviceId = Device->ZeDeviceProperties->subdeviceId;
+  }
+
+  return {ZesDevice, ZesDeviceData, UR_RESULT_SUCCESS};
+}
+
 ur_result_t urDeviceGetInfo(
     /// [in] handle of the device instance
     ur_device_handle_t Device,
@@ -371,7 +404,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
     return ReturnValue(
         uint64_t{Device->ZeDeviceComputeProperties->maxSharedLocalMemory});
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED:
+  case UR_DEVICE_INFO_IMAGE_SUPPORT:
     return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(
@@ -487,7 +520,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
     // TODO: To find out correct value
     return ReturnValue("");
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
@@ -757,12 +790,6 @@ ur_result_t urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
-    bool SysManEnv = getenv_tobool("ZES_ENABLE_SYSMAN", false);
-    if ((Device->Platform->ZedeviceToZesDeviceMap.size() == 0) && !SysManEnv) {
-      logger::error("SysMan support is unavailable on this system. Please "
-                    "check your level zero driver installation.");
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-    }
     // Calculate the global memory size as the max limit that can be reported as
     // "free" memory for the user to allocate.
     uint64_t GlobalMemSize = calculateGlobalMemSize(Device);
@@ -771,21 +798,9 @@ ur_result_t urDeviceGetInfo(
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
 
-    zes_device_handle_t ZesDevice = Device->ZeDevice;
-    struct ur_zes_device_handle_data_t ZesDeviceData = {};
-    // If legacy sysman is enabled thru the environment variable, then zesInit
-    // will fail, but sysman is still usable so go the legacy route.
-    if (!SysManEnv) {
-      auto It = Device->Platform->ZedeviceToZesDeviceMap.find(Device->ZeDevice);
-      if (It == Device->Platform->ZedeviceToZesDeviceMap.end()) {
-        // no matching device
-        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-      } else {
-        ZesDeviceData =
-            Device->Platform->ZedeviceToZesDeviceMap[Device->ZeDevice];
-        ZesDevice = ZesDeviceData.ZesDevice;
-      }
-    }
+    auto [ZesDevice, ZesDeviceData, Result] = getZesDeviceData(Device);
+    if (Result != UR_RESULT_SUCCESS)
+      return Result;
 
     ZE2UR_CALL(zesDeviceEnumMemoryModules, (ZesDevice, &MemCount, nullptr));
     if (MemCount != 0) {
@@ -798,22 +813,11 @@ ur_result_t urDeviceGetInfo(
         // For root-device report memory from all memory modules since that
         // is what totally available in the default implicit scaling mode.
         // For sub-devices only report memory local to them.
-        if (SysManEnv) {
-          if (!Device->isSubDevice() ||
-              Device->ZeDeviceProperties->subdeviceId ==
-                  ZesMemProperties.subdeviceId) {
-
-            ZesStruct<zes_mem_state_t> ZesMemState;
-            ZE2UR_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
-            FreeMemory += ZesMemState.free;
-          }
-        } else {
-          if (ZesDeviceData.SubDeviceId == ZesMemProperties.subdeviceId ||
-              !ZesDeviceData.SubDevice) {
-            ZesStruct<zes_mem_state_t> ZesMemState;
-            ZE2UR_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
-            FreeMemory += ZesMemState.free;
-          }
+        if (ZesDeviceData.SubDeviceId == ZesMemProperties.subdeviceId ||
+            !ZesDeviceData.SubDevice) {
+          ZesStruct<zes_mem_state_t> ZesMemState;
+          ZE2UR_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
+          FreeMemory += ZesMemState.free;
         }
       }
     }
@@ -897,10 +901,6 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numEUsPerSubslice});
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->numThreadsPerEU});
-  case UR_DEVICE_INFO_BFLOAT16: {
-    // bfloat16 math functions are not yet supported on Intel GPUs.
-    return ReturnValue(ur_bool_t{false});
-  }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // There are no explicit restrictions in L0 programming guide, so assume all
     // are supported
@@ -1038,7 +1038,7 @@ ur_result_t urDeviceGetInfo(
       return ze2urResult(errc);
     return ReturnValue(UrRootDev);
   }
-  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL: {
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
     bool Bfloat16ConversionSupport =
         (Device->Platform->zeDriverExtensionMap.count(
             ZE_BFLOAT16_CONVERSIONS_EXT_NAME)) ||
@@ -1082,6 +1082,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(UpdateCapabilities);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
     return ReturnValue(Device->isIntelDG2OrNewer() &&
@@ -1139,23 +1141,23 @@ ur_result_t urDeviceGetInfo(
     // L0 does not support cubemap seamless filtering.
     return ReturnValue(false);
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP: {
     // L0 does support fetching 1D USM sampled image data.
     return ReturnValue(true);
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
     // L0 does not support fetching 1D non-USM sampled image data.
     return ReturnValue(false);
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     // L0 does support fetching 2D USM sampled image data.
     return ReturnValue(true);
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP: {
     // L0 does support fetching 2D non-USM sampled image data.
     return ReturnValue(true);
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP: {
     // L0 does support fetching 3D non-USM sampled image data.
     return ReturnValue(true);
   }
@@ -1163,17 +1165,21 @@ ur_result_t urDeviceGetInfo(
     // L0 does support image arrays
     return ReturnValue(true);
   }
-  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP: {
     // L0 does not support unique addressing per dimension
     return ReturnValue(false);
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP: {
     // L0 does not support sampling 1D USM sampled image data.
     return ReturnValue(false);
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP: {
     // L0 does not support sampling 2D USM sampled image data.
     return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP: {
+    // L0 doesn't support sampled image gather.
+    return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(true);
@@ -1209,7 +1215,7 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(false);
@@ -1221,6 +1227,114 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
+    ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
+      return ReturnValue(ThrottleReasons);
+    }
+    [[maybe_unused]] auto [ZesDevice, Ignored, Result] =
+        getZesDeviceData(Device);
+    if (Result != UR_RESULT_SUCCESS)
+      return Result;
+    uint32_t FreqCount = 0;
+    ZE2UR_CALL(zesDeviceEnumFrequencyDomains, (ZesDevice, &FreqCount, nullptr));
+    if (FreqCount != 0) {
+      std::vector<zes_freq_handle_t> ZesFreqHandles(FreqCount);
+      ZE2UR_CALL(zesDeviceEnumFrequencyDomains,
+                 (ZesDevice, &FreqCount, ZesFreqHandles.data()));
+      for (auto &ZesFreqHandle : ZesFreqHandles) {
+        ZesStruct<zes_freq_properties_t> FreqProperties;
+        ZE2UR_CALL(zesFrequencyGetProperties, (ZesFreqHandle, &FreqProperties));
+        if (FreqProperties.type != ZES_FREQ_DOMAIN_GPU) {
+          continue;
+        }
+        zes_freq_state_t State;
+        zesFrequencyGetState(ZesFreqHandle, &State);
+        constexpr zes_freq_throttle_reason_flags_t ZeThrottleFlags[] = {
+            ZES_FREQ_THROTTLE_REASON_FLAG_AVE_PWR_CAP,
+            ZES_FREQ_THROTTLE_REASON_FLAG_CURRENT_LIMIT,
+            ZES_FREQ_THROTTLE_REASON_FLAG_THERMAL_LIMIT,
+            ZES_FREQ_THROTTLE_REASON_FLAG_PSU_ALERT,
+            ZES_FREQ_THROTTLE_REASON_FLAG_SW_RANGE,
+            ZES_FREQ_THROTTLE_REASON_FLAG_HW_RANGE};
+
+        constexpr ur_device_throttle_reasons_flags_t UrThrottleFlags[] = {
+            UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP,
+            UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT,
+            UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT,
+            UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT,
+            UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE,
+            UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE};
+
+        for (size_t i = 0;
+             i < sizeof(ZeThrottleFlags) / sizeof(ZeThrottleFlags[0]); ++i) {
+          if (State.throttleReasons & ZeThrottleFlags[i]) {
+            ThrottleReasons |= UrThrottleFlags[i];
+            State.throttleReasons &= ~ZeThrottleFlags[i];
+          }
+        }
+
+        if (State.throttleReasons) {
+          ThrottleReasons |= UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+        }
+      }
+    }
+    return ReturnValue(ThrottleReasons);
+  }
+  case UR_DEVICE_INFO_FAN_SPEED: {
+    [[maybe_unused]] auto [ZesDevice, Ignored, Result] =
+        getZesDeviceData(Device);
+    if (Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    uint32_t FanCount = 0;
+    ZE2UR_CALL(zesDeviceEnumFans, (ZesDevice, &FanCount, nullptr));
+    // If there are no fans, then report speed query as unsupported.
+    if (FanCount == 0)
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
+      return ReturnValue(int32_t{0});
+    }
+
+    std::vector<zes_fan_handle_t> ZeFanHandles(FanCount);
+    ZE2UR_CALL(zesDeviceEnumFans, (ZesDevice, &FanCount, ZeFanHandles.data()));
+    int32_t Speed = -1;
+    for (auto Fan : ZeFanHandles) {
+      int32_t CurSpeed;
+      ZE2UR_CALL(zesFanGetState, (Fan, ZES_FAN_SPEED_UNITS_PERCENT, &CurSpeed));
+      Speed = std::max(Speed, CurSpeed);
+    }
+    return ReturnValue(Speed);
+  }
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT:
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
+    if (!ParamValue) {
+      // If ParamValue is nullptr, then we are only interested in the size of
+      // the value.
+      return ReturnValue(int32_t{0});
+    }
+
+    [[maybe_unused]] auto [ZesDevice, Ignored, Result] =
+        getZesDeviceData(Device);
+    if (Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    zes_pwr_handle_t ZesPwrHandle = nullptr;
+    ZE2UR_CALL(zesDeviceGetCardPowerDomain, (ZesDevice, &ZesPwrHandle));
+    ZesStruct<zes_power_properties_t> PowerProperties;
+    ZE2UR_CALL(zesPowerGetProperties, (ZesPwrHandle, &PowerProperties));
+
+    if (ParamName == UR_DEVICE_INFO_MIN_POWER_LIMIT) {
+      return ReturnValue(int32_t{PowerProperties.minLimit});
+    } else {
+      return ReturnValue(int32_t{PowerProperties.maxLimit});
+    }
+  }
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,
@@ -1422,6 +1536,7 @@ ur_result_t urDeviceCreateWithNativeHandle(
   if (Dev == nullptr)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
+  Dev->IsInteropNativeHandle = true;
   *Device = Dev;
   return UR_RESULT_SUCCESS;
 }

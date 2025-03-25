@@ -453,6 +453,10 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_POOL_TRIM_TO_EXP = 261,
   /// Enumerator for ::urUSMPoolGetInfoExp
   UR_FUNCTION_USM_POOL_GET_INFO_EXP = 262,
+  /// Enumerator for ::urCommandBufferAppendNativeCommandExp
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP = 263,
+  /// Enumerator for ::urCommandBufferGetNativeHandleExp
+  UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP = 264,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -1993,7 +1997,7 @@ typedef enum ur_device_info_t {
   /// [uint64_t] max memory allocation size
   UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 28,
   /// [::ur_bool_t] images are supported
-  UR_DEVICE_INFO_IMAGE_SUPPORTED = 29,
+  UR_DEVICE_INFO_IMAGE_SUPPORT = 29,
   /// [uint32_t] max number of image objects arguments of a kernel declared
   /// with the read_only qualifier
   UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS = 30,
@@ -2171,8 +2175,8 @@ typedef enum ur_device_info_t {
   /// [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
   /// memory fence scope capabilities
   UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 103,
-  /// [::ur_bool_t] support for bfloat16
-  UR_DEVICE_INFO_BFLOAT16 = 104,
+  /// [::ur_bool_t][deprecated-value] support for bfloat16
+  UR_DEVICE_INFO_BFLOAT16 [[deprecated]] = 104,
   /// [uint32_t] Returns 1 if the device doesn't have a notion of a
   /// queue index. Otherwise, returns the number of queue indices that are
   /// available for this device.
@@ -2191,7 +2195,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,
   /// [::ur_bool_t] Return true if the device supports enqueueing commands
   /// to read and write pipes from the host.
-  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,
+  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT = 111,
   /// [uint32_t][optional-query] The maximum number of registers available
   /// per block.
   UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,
@@ -2225,8 +2229,18 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] return true if the device has a native assert
   /// implementation.
   UR_DEVICE_INFO_USE_NATIVE_ASSERT = 122,
+  /// [::ur_device_throttle_reasons_flags_t][optional-query] return current
+  /// clock throttle reasons.
+  UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS = 123,
+  /// [int32_t][optional-query] return the current speed of fan as a
+  /// percentage of the maximum speed.
+  UR_DEVICE_INFO_FAN_SPEED = 124,
+  /// [int32_t][optional-query] return min power limit in milliwatts.
+  UR_DEVICE_INFO_MIN_POWER_LIMIT = 125,
+  /// [int32_t][optional-query] return max power limit in milliwatts.
+  UR_DEVICE_INFO_MAX_POWER_LIMIT = 126,
   /// [::ur_bool_t] support for native bfloat16 conversions
-  UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL = 123,
+  UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2236,8 +2250,11 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] Returns true if the device supports using event objects
   /// for command synchronization outside of a command-buffer.
   UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP = 0x1002,
+  /// [::ur_bool_t] Returns true if the device supports appending a
+  /// command-buffer as a command inside another command-buffer.
+  UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP = 0x1003,
   /// [::ur_bool_t] return true if enqueue Cluster Launch is supported
-  UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP = 0x1111,
+  UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP = 0x1111,
   /// [::ur_bool_t] returns true if the device supports the creation of
   /// bindless images
   UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,
@@ -2288,19 +2305,19 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP = 0x2012,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP = 0x2012,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP = 0x2013,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP = 0x2013,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP = 0x2014,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP = 0x2014,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP = 0x2015,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP = 0x2015,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 3D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP = 0x2017,
   /// [::ur_bool_t] returns true if the device supports timestamp recording
   UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,
   /// [::ur_bool_t] returns true if the device supports allocating and
@@ -2308,24 +2325,27 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP = 0x2019,
   /// [::ur_bool_t] returns true if the device supports unique addressing
   /// per dimension.
-  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP = 0x201A,
+  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP = 0x201A,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP = 0x201B,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP = 0x201B,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP = 0x201C,
+  /// [::ur_bool_t] returns true if the device supports sampled image
+  /// gather.
+  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP = 0x201D,
   /// [::ur_bool_t] returns true if the device supports enqueueing of native
   /// work
   UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,
   /// [::ur_bool_t] returns true if the device supports low-power events.
-  UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP = 0x2021,
+  UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP = 0x2021,
   /// [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
   /// of Intel GPU 2D block array capabilities
   UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
-  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP = 0x2050,
+  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
   /// [::ur_bool_t] Returns true if the device supports the use of kernel
   /// launch properties.
   UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP = 0x3000,
@@ -2871,6 +2891,34 @@ typedef enum ur_device_usm_access_capability_flag_t {
 /// @brief Bit Mask for validating ur_device_usm_access_capability_flags_t
 #define UR_DEVICE_USM_ACCESS_CAPABILITY_FLAGS_MASK 0xfffffff0
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Clock throttle reasons
+typedef uint32_t ur_device_throttle_reasons_flags_t;
+typedef enum ur_device_throttle_reasons_flag_t {
+  /// The clock frequency is throttled due to hitting the power limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP = UR_BIT(0),
+  /// The clock frequency is throttled due to hitting the current limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT = UR_BIT(1),
+  /// The clock frequency is throttled due to hitting the thermal limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT = UR_BIT(2),
+  /// The clock frequency is throttled due to power supply assertion.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT = UR_BIT(3),
+  /// The clock frequency is throttled due to software supplied frequency
+  /// range.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE = UR_BIT(4),
+  /// The clock frequency is throttled because there is a sub block that has
+  /// a lower frequency when it receives clocks.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE = UR_BIT(5),
+  /// The clock frequency is throttled due to other reason.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER = UR_BIT(6),
+  /// @cond
+  UR_DEVICE_THROTTLE_REASONS_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_device_throttle_reasons_flag_t;
+/// @brief Bit Mask for validating ur_device_throttle_reasons_flags_t
+#define UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK 0xffffff80
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -3235,6 +3283,8 @@ typedef enum ur_mem_type_t {
   UR_MEM_TYPE_IMAGE1D_ARRAY = 4,
   /// Experimental cubemap image object
   UR_MEM_TYPE_IMAGE_CUBEMAP_EXP = 0x2000,
+  /// Experimental gather image object
+  UR_MEM_TYPE_IMAGE_GATHER_EXP = 0x2001,
   /// @cond
   UR_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -6710,7 +6760,7 @@ typedef enum ur_queue_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP = UR_BIT(11),
+  UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP = UR_BIT(11),
   /// @cond
   UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -11484,6 +11534,55 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function adding work through the native API to be executed
+///        immediately.
+typedef void (*ur_exp_command_buffer_native_command_function_t)(
+    /// [in][out] Pointer to data to be passed to callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append nodes to the command-buffer through a native backend API
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeCommand`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Submit a command-buffer for execution on a queue.
 ///
 /// @returns
@@ -11718,6 +11817,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     void *pPropValue,
     /// [out][optional] bytes returned in command-buffer property
     size_t *pPropSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native command-buffer handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeCommandBuffer`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -12213,10 +12336,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(
 typedef enum ur_exp_peer_info_t {
   /// [int] 1 if P2P access is supported otherwise P2P access is not
   /// supported.
-  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED = 0,
+  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT = 0,
   /// [int] 1 if atomic operations are supported over the P2P link,
   /// otherwise such operations are not supported.
-  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED = 1,
+  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT = 1,
   /// @cond
   UR_EXP_PEER_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12326,7 +12449,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName`
+///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -12373,7 +12496,7 @@ typedef enum ur_exp_enqueue_ext_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS = UR_BIT(11),
+  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT = UR_BIT(11),
   /// @cond
   UR_EXP_ENQUEUE_EXT_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -14803,6 +14926,20 @@ typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
 } ur_command_buffer_append_usm_advise_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferAppendNativeCommandExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_append_native_command_exp_params_t {
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  ur_exp_command_buffer_native_command_function_t *ppfnNativeCommand;
+  void **ppData;
+  ur_exp_command_buffer_handle_t *phChildCommandBuffer;
+  uint32_t *pnumSyncPointsInWaitList;
+  const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+  ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_native_command_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferUpdateKernelLaunchExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14843,6 +14980,15 @@ typedef struct ur_command_buffer_get_info_exp_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_command_buffer_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferGetNativeHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_get_native_handle_exp_params_t {
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  ur_native_handle_t **pphNativeCommandBuffer;
+} ur_command_buffer_get_native_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUsmP2PEnablePeerAccessExp

@@ -493,4 +493,41 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
+
+ur_result_t urCommandBufferAppendNativeCommandExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    void *pData, ur_exp_command_buffer_handle_t,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  // sync mechanic can be ignored, because all lists are in-order
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  // Barrier on all commands before user defined commands.
+
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  UR_CALL(commandListLocked->appendBarrier(0, nullptr, nullptr));
+
+  // Call user-defined function immediately
+  pfnNativeCommand(pData);
+
+  // Barrier on all commands after user defined commands.
+  UR_CALL(commandListLocked->appendBarrier(0, nullptr, nullptr));
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
+                                  ur_native_handle_t *phNativeCommandBuffer) {
+
+  auto commandListLocked = hCommandBuffer->commandListManager.lock();
+  ze_command_list_handle_t ZeCommandList =
+      commandListLocked->getZeCommandList();
+  *phNativeCommandBuffer = reinterpret_cast<ur_native_handle_t>(ZeCommandList);
+  return UR_RESULT_SUCCESS;
+}
 } // namespace ur::level_zero

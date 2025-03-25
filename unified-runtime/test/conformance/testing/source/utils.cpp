@@ -213,9 +213,9 @@ ur_result_t GetDeviceMaxMemAllocSize(ur_device_handle_t device,
 }
 
 ur_result_t GetDeviceImageSupport(ur_device_handle_t device,
-                                  bool &image_supported) {
-  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
-                             image_supported);
+                                  bool &image_support) {
+  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_IMAGE_SUPPORT,
+                             image_support);
 }
 
 ur_result_t GetDeviceMaxReadImageArgs(ur_device_handle_t device,
@@ -625,13 +625,9 @@ GetDeviceMemoryScopeCapabilities(ur_device_handle_t device,
       device, UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES, flags);
 }
 
-ur_result_t GetDeviceBFloat16Support(ur_device_handle_t device, bool &support) {
-  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_BFLOAT16, support);
-}
-
-ur_result_t GetDeviceBFloat16ConversionsIntelSupport(ur_device_handle_t device,
+ur_result_t GetDeviceBFloat16ConversionsNativeSupport(ur_device_handle_t device,
                                                      bool &support) {
-  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_INTEL,
+  return GetDeviceInfo<bool>(device, UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE,
                              support);
 }
 
@@ -644,7 +640,7 @@ ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
 ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,
                                          bool &support) {
   return GetDeviceInfo<bool>(
-      device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, support);
+      device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT, support);
 }
 
 ur_result_t GetTimestampRecordingSupport(ur_device_handle_t device,

@@ -255,7 +255,7 @@ public:
     removeDuplicateImages();
 
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
-      const KernelBundleImplPtr BundlePtr = getSyclObjImpl(Bundle);
+      const KernelBundleImplPtr &BundlePtr = getSyclObjImpl(Bundle);
       for (const std::pair<const std::string, std::vector<unsigned char>>
                &SpecConst : BundlePtr->MSpecConstValues) {
         MSpecConstValues[SpecConst.first] = SpecConst.second;
@@ -449,7 +449,7 @@ public:
                                   const std::string &SourceStr,
                                   ur_program_handle_t &UrProgram) {
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const ContextImplPtr &ContextImpl = getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
     std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
@@ -494,13 +494,13 @@ public:
            "bundle_state::ext_oneapi_source required");
 
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const ContextImplPtr &ContextImpl = getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
     std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
     for (const auto &SyclDev : Devices) {
-      DeviceImplPtr DevImpl = getSyclObjImpl(SyclDev);
+      const DeviceImplPtr &DevImpl = getSyclObjImpl(SyclDev);
       if (!ContextImpl->hasDevice(DevImpl)) {
         throw sycl::exception(make_error_code(errc::invalid),
                               "device not part of kernel_bundle context");
@@ -785,7 +785,7 @@ private:
     std::transform(MDeviceGlobalNames.begin(), MDeviceGlobalNames.end(),
                    std::back_inserter(DeviceGlobalIDs),
                    [&](const std::string &DGName) { return MPrefix + DGName; });
-    auto ContextImpl = getSyclObjImpl(MContext);
+    const auto &ContextImpl = getSyclObjImpl(MContext);
     for (DeviceGlobalMapEntry *Entry :
          ProgramManager::getInstance().getDeviceGlobalEntries(
              DeviceGlobalIDs)) {
@@ -830,7 +830,7 @@ public:
         auto KernelImpl = std::make_shared<kernel_impl>(
             UrKernel, getSyclObjImpl(MContext), DevImgImpl, Self, ArgMask,
             UrProgram, CacheMutex);
-        return createSyclObjFromImpl<kernel>(KernelImpl);
+        return createSyclObjFromImpl<kernel>(std::move(KernelImpl));
       }
 
       assert(false && "Malformed RTC kernel bundle");
@@ -840,7 +840,7 @@ public:
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
         detail::getSyclObjImpl(MDeviceImages[0].getMain());
     ur_program_handle_t UrProgram = DeviceImageImpl->get_ur_program_ref();
-    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const ContextImplPtr &ContextImpl = getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
     ur_kernel_handle_t UrKernel = nullptr;
     Adapter->call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
@@ -850,7 +850,7 @@ public:
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
         UrKernel, detail::getSyclObjImpl(MContext), Self);
 
-    return detail::createSyclObjFromImpl<kernel>(KernelImpl);
+    return detail::createSyclObjFromImpl<kernel>(std::move(KernelImpl));
   }
 
   std::string ext_oneapi_get_raw_kernel_name(const std::string &Name) {
@@ -1004,7 +1004,7 @@ public:
         Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
         SelectedImage->get_ur_program_ref(), CacheMutex);
 
-    return detail::createSyclObjFromImpl<kernel>(KernelImpl);
+    return detail::createSyclObjFromImpl<kernel>(std::move(KernelImpl));
   }
 
   bool has_kernel(const kernel_id &KernelID) const noexcept {

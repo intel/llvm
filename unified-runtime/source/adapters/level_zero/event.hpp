@@ -26,6 +26,7 @@
 
 #include "common.hpp"
 #include "queue.hpp"
+#include "ur_api.h"
 
 extern "C" {
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
@@ -256,6 +257,10 @@ struct ur_event_handle_t_ : _ur_object {
   bool CounterBasedEventsEnabled = false;
   // Keeps track of whether we are using Interrupt-based Events.
   bool InterruptBasedEventsEnabled = false;
+
+  // Used only for asynchronous allocations. This is the event originally used
+  // on async free to indicate when the allocation can be used again.
+  ur_event_handle_t OriginAllocEvent = nullptr;
 };
 
 // Helper function to implement zeHostSynchronize.
