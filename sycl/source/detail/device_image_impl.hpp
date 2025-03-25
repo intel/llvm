@@ -211,9 +211,6 @@ struct KernelCompilerBinaryInfo {
           Result->MIncludePairs.push_back(IncludePair);
         }
       }
-      Result->MIncludePairs.insert(Result->MIncludePairs.end(),
-                                   RTCInfo->MIncludePairs.begin(),
-                                   RTCInfo->MIncludePairs.end());
 
       Result->MDeviceGlobalRegistries.insert(
           Result->MDeviceGlobalRegistries.end(),
