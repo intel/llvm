@@ -20,9 +20,13 @@
 namespace ur_sanitizer_layer {
 namespace asan {
 
-std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
-                                              ur_device_handle_t Device,
-                                              DeviceType Type) {
+std::shared_ptr<ShadowMemory> GetShadowMemory(ur_device_handle_t Device) {
+  ur_context_handle_t Context;
+  [[maybe_unused]] auto URes =
+      getContext()->urDdiTable.Context.pfnCreate(1, &Device, nullptr, &Context);
+  assert(URes == UR_RESULT_SUCCESS);
+
+  DeviceType Type = GetDeviceType(Context, Device);
   if (Type == DeviceType::CPU) {
     static std::shared_ptr<ShadowMemory> ShadowCPU =
         std::make_shared<ShadowMemoryCPU>(Context, Device);

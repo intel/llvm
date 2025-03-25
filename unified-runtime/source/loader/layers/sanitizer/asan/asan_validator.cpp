@@ -42,8 +42,8 @@ ValidateUSMResult ValidateUSMPointer(ur_context_handle_t Context,
 
   auto AllocInfoItOp = getAsanInterceptor()->findAllocInfoByAddress(Ptr);
   if (!AllocInfoItOp) {
-    auto DI = getAsanInterceptor()->getDeviceInfo(Device);
-    bool IsSupportSharedSystemUSM = DI->IsSupportSharedSystemUSM;
+    auto &DI = getAsanInterceptor()->getDeviceInfo(Device);
+    bool IsSupportSharedSystemUSM = DI.IsSupportSharedSystemUSM;
     if (IsSupportSharedSystemUSM) {
       // maybe it's host pointer
       return ValidateUSMResult::success();
