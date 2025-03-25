@@ -22,12 +22,12 @@ class Result:
     # stddev can be optionally set by the benchmark,
     # if not set, it will be calculated automatically.
     stddev: float = 0.0
+    git_url: str = ""
+    git_hash: str = ""
     # values below should not be set by the benchmark
     name: str = ""
     lower_is_better: bool = True
     suite: str = "Unknown"
-    git_url: str = ""
-    git_hash: str = ""
 
 @dataclass_json
 @dataclass
