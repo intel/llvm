@@ -29,6 +29,8 @@ namespace detail {
 // Treat 0 as reserved for host task traces
 std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
 
+thread_local std::unique_ptr<sycl::handler> queue_impl::MHandler;
+
 thread_local bool NestedCallsDetector = false;
 class NestedCallsTracker {
 public:
@@ -363,30 +365,76 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
-  Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
+  event Event;
+  std::vector<StreamImplPtr> Streams;
+  bool IsKernel = false;
+  bool KernelUsesAssert = false;
+  bool IsPostprocessRequired = SubmitInfo.PostProcessorFunc().has_value();
   {
-    NestedCallsTracker tracker;
-    CGF(Handler);
+    // RAII wrapper around MHandler. submit_impl() must not be called in the
+    // scope.
+    struct Wrapper {
+      sycl::handler *MHandlerPtr;
+      Wrapper(const std::shared_ptr<queue_impl> &Self,
+              queue_impl *PrimaryQueue,
+              queue_impl *SecondaryQueue,
+              bool CallerNeedsEvent)
+          : MHandlerPtr(MHandler.get()) {
+        if (MHandlerPtr)
+          MHandlerPtr->reset(Self, PrimaryQueue, SecondaryQueue,
+                             CallerNeedsEvent);
+        else {
+          MHandler = std::unique_ptr<sycl::handler>(new sycl::handler(
+              Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent));
+          MHandlerPtr = MHandler.get();
+        }
+      }
+      ~Wrapper() { MHandlerPtr->reset(nullptr, nullptr, nullptr, false); }
+    } w(Self, PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent);
+
+    w.MHandlerPtr->saveCodeLoc(Loc, IsTopCodeLoc);
+
+    {
+      NestedCallsTracker tracker;
+      CGF(*w.MHandlerPtr);
+    }
+
+    // Scheduler will later omit events, that are not required to execute tasks.
+    // Host and interop tasks, however, are not submitted to low-level runtimes
+    // and require separate dependency management.
+    const CGType Type = w.MHandlerPtr->impl->MCGType;
+    if (Type == CGType::Kernel)
+      Streams = std::move(w.MHandlerPtr->MStreamStorage);
+
+    w.MHandlerPtr->impl->MEventMode = SubmitInfo.EventMode();
+
+    if (IsPostprocessRequired) {
+      auto HandlerImpl = detail::getSyclObjImpl(*w.MHandlerPtr);
+      const CGType Type = HandlerImpl->MCGType;
+
+      IsKernel = Type == CGType::Kernel;
+
+      if (IsKernel)
+        // Kernel only uses assert if it's non interop one
+        KernelUsesAssert = !((*w.MHandlerPtr).MKernel && (*w.MHandlerPtr).MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               (*w.MHandlerPtr).MKernelName.c_str());
+
+      Event = MIsInorder ? finalizeHandlerInOrder(*w.MHandlerPtr)
+                         : finalizeHandlerOutOfOrder(*w.MHandlerPtr);
+    } else
+      Event = finalizeHandler(*w.MHandlerPtr);
   }
 
-  // Scheduler will later omit events, that are not required to execute tasks.
-  // Host and interop tasks, however, are not submitted to low-level runtimes
-  // and require separate dependency management.
-  const CGType Type = HandlerImpl->MCGType;
-  std::vector<StreamImplPtr> Streams;
-  if (Type == CGType::Kernel)
-    Streams = std::move(Handler.MStreamStorage);
-
-  HandlerImpl->MEventMode = SubmitInfo.EventMode();
-
-  auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
+  if (IsPostprocessRequired) {
+    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+    PostProcess(IsKernel, KernelUsesAssert, Event);
+  }
 
   addEvent(Event);
 
-  auto EventImpl = detail::getSyclObjImpl(Event);
+  auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel

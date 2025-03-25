@@ -86,12 +86,12 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(0);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, std::nullopt);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH);
   }
   {
     LimitedHandlerSimulation MockCGH{detail::CGType::CodeplayHostTask, Queue};
     EXPECT_CALL(MockCGH, depends_on(An<const sycl::detail::EventImplPtr &>()))
         .Times(1);
-    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, std::nullopt);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH);
   }
 }
