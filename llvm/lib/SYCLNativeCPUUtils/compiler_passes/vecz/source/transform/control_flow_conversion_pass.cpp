@@ -2161,7 +2161,7 @@ bool ControlFlowConversionState::Impl::generateDivergentLoopResultUpdates(
   // the outer loop otherwise.
   auto *const ParentL = LTag.loop->getParentLoop();
   auto *const ParentLT = ParentL ? &DR->getTag(ParentL) : nullptr;
-  if (!ParentLT || !ParentLT->loopResultPrevs.count(LLV)) {
+  if (!ParentLT || !ParentLT->loopResultPrevs.contains(LLV)) {
     PHI->addIncoming(getDefaultValue(PHI->getType()), LTag.preheader);
   } else {
     BasicBlock *LLVDef = cast<Instruction>(LLV)->getParent();
@@ -2343,7 +2343,7 @@ void addDeferral(BasicBlock *newSrc, BasicBlock *deferred,
   auto newSrcIt = deferrals.find(newSrc);
   if (newSrcIt != deferrals.end()) {
     // If the deferral edge already exists, there is no need to add it again.
-    if (newSrcIt->second.count(deferred)) {
+    if (newSrcIt->second.contains(deferred)) {
       LLVM_DEBUG(dbgs() << "\t\tDeferral (" << newSrc->getName() << ", "
                         << deferred->getName() << ") already exists\n");
       return;
@@ -2354,7 +2354,7 @@ void addDeferral(BasicBlock *newSrc, BasicBlock *deferred,
     // If the deferral edge already exists the other way around, we don't want
     // to add it the opposite way, in risk of creating an infinite loop in the
     // CFG.
-    if (deferredIt->second.count(newSrc)) {
+    if (deferredIt->second.contains(newSrc)) {
       LLVM_DEBUG(dbgs() << "\t\tOpposite deferral (" << deferred->getName()
                         << ", " << newSrc->getName() << ") already exists\n");
       return;
@@ -2438,7 +2438,7 @@ bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
       for (BasicBlock *succ : successors(BB)) {
         size_t nextIndex = ~size_t(0);
         for (BasicBlock *deferred : availableTargets) {
-          if (targeted.count(deferred)) {
+          if (targeted.contains(deferred)) {
             continue;
           }
 
@@ -2449,7 +2449,7 @@ bool ControlFlowConversionState::Impl::computeNewTargets(Linearization &lin) {
         }
 
         const size_t succIndex = DR->getTagIndex(succ);
-        if (!targeted.count(succ)) {
+        if (!targeted.contains(succ)) {
           // If we have not found a target or there is a better one.
           if (nextIndex == ~size_t(0) || nextIndex > succIndex) {
             nextIndex = succIndex;
@@ -2688,7 +2688,7 @@ bool ControlFlowConversionState::Impl::generateSelects() {
         BasicBlock *cur = B;
         while (cur->hasNPredecessors(1) && !incomings.empty()) {
           cur = cur->getSinglePredecessor();
-          if (incomings.count(cur)) {
+          if (incomings.contains(cur)) {
             break;
           }
         }
@@ -2698,7 +2698,7 @@ bool ControlFlowConversionState::Impl::generateSelects() {
         //   selects),
         // - if the last block of the chain is not an incoming block, and
         // - if the last block of the chain is a convergence block.
-        if (!DR->isBlend(*B) && !incomings.count(cur) &&
+        if (!DR->isBlend(*B) && !incomings.contains(cur) &&
             cur->hasNPredecessorsOrMore(2) && PHI->getNumIncomingValues() > 1) {
           // All PHI nodes have the same incoming blocks so we update the exit
           // masks of the incoming blocks of the first PHI node here.
@@ -2845,7 +2845,7 @@ bool ControlFlowConversionState::Impl::updatePHIsIncomings() {
       const bool isEntryMask = PHI == maskInfo.entryMask;
       for (unsigned idx = 0; idx < PHI->getNumIncomingValues(); ++idx) {
         BasicBlock *incoming = PHI->getIncomingBlock(idx);
-        if (preds.count(incoming)) {
+        if (preds.contains(incoming)) {
           continue;
         }
         // If the incoming block is no longer a predecessor, transform it into
@@ -2887,7 +2887,7 @@ bool ControlFlowConversionState::Impl::updatePHIsIncomings() {
 
       // And add any new incoming blocks that do not replace any previous.
       for (BasicBlock *pred : preds) {
-        if (!incomings.count(pred)) {
+        if (!incomings.contains(pred)) {
           PHI->addIncoming(getDefaultValue(PHI->getType()), pred);
         }
       }
@@ -3045,7 +3045,7 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
                       << ":\n");
     for (Instruction &I : *dst) {
       // Don't try to blend a blend value.
-      if (blends.count(&I)) {
+      if (blends.contains(&I)) {
         continue;
       }
 
@@ -3113,7 +3113,7 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
             }
             // If 'opDef' is a loop live value, set an entry point in the loop
             // header.
-            if (srcLoop->loopLiveValues.count(opDef)) {
+            if (srcLoop->loopLiveValues.contains(opDef)) {
               LLVM_DEBUG(dbgs()
                          << "\t\t\tFound persisted value of the operand: "
                          << srcLoop->loopResultPrevs[opDef] << "\n");

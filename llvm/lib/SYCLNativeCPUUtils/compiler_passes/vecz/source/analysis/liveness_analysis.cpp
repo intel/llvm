@@ -231,8 +231,8 @@ void LivenessResult::Impl::calculateMaxRegistersInBlock(const BasicBlock *BB) {
     // Operands are live so they use a register. Increment registerCount if not
     // in live out or already counted.
     for (const auto *operand : inst.operand_values()) {
-      if (definesVariable(*operand) && !liveOut.count(operand) &&
-          !seenButNotInLiveOut.count(operand)) {
+      if (definesVariable(*operand) && !liveOut.contains(operand) &&
+          !seenButNotInLiveOut.contains(operand)) {
         registersUsed++;
         seenButNotInLiveOut.insert(operand);
       }

@@ -174,7 +174,7 @@ bool ControlFlowConversionState::BOSCCGadget::duplicateUniformRegions() {
           duplicatedLoops.push_back(loop);
         }
 
-        if (!duplicatedLoopSet.count(loop)) {
+        if (!duplicatedLoopSet.contains(loop)) {
           newBTag.loop = LTag;
           loop->addBasicBlockToLoop(newB, *LI);
         }
@@ -193,7 +193,7 @@ bool ControlFlowConversionState::BOSCCGadget::duplicateUniformRegions() {
   // Since we added all loops by their headers in DCBI order, inner loops will
   // always follow outer loops, so there is no need to sort them.
   for (Loop *L : duplicatedLoops) {
-    if (!LMap.count(L) && !noDuplicateLoops.count(L)) {
+    if (!LMap.contains(L) && !noDuplicateLoops.contains(L)) {
       VECZ_FAIL_IF(!duplicateUniformLoops(L));
     }
   }
@@ -526,7 +526,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectBOSCCRegions() {
   // then the loop now has 2 preheaders. We thus need to blend them into one
   // single preheader.
   for (auto *const LTag : DR->getLoopOrdering()) {
-    if (!LTag->isLoopDivergent() && !LMap.count(LTag->loop)) {
+    if (!LTag->isLoopDivergent() && !LMap.contains(LTag->loop)) {
       BasicBlock *predicatedPreheader = LTag->preheader;
       if (BasicBlock *uniformPreheader = getBlock(predicatedPreheader)) {
         BasicBlock *header = LTag->header;
@@ -577,7 +577,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectBOSCCRegions() {
     const Loop *L = pair.first;
 
     if (Loop *parentL = L->getParentLoop()) {
-      if (LMap.count(parentL)) {
+      if (LMap.contains(parentL)) {
         continue;
       }
     }
@@ -783,7 +783,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
   BasicBlock *connectionPoint = target;
 
   const auto *const LTag = DR->getTag(predicatedB).loop;
-  const bool needsStore = LTag && LMap.count(LTag->loop);
+  const bool needsStore = LTag && LMap.contains(LTag->loop);
   if (needsStore) {
     // 'store' is a block that will contain all the uniform versions of the
     // live in instructions of the predicated target.
@@ -818,7 +818,7 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
 
     // 'store' belongs in the first outer loop non duplicated.
     Loop *parentLoop = LTag->loop->getParentLoop();
-    while (parentLoop && LMap.count(parentLoop)) {
+    while (parentLoop && LMap.contains(parentLoop)) {
       parentLoop = parentLoop->getParentLoop();
     }
     if (parentLoop) {
@@ -867,7 +867,7 @@ bool ControlFlowConversionState::BOSCCGadget::blendConnectionPoint(
       // because of 'CP'. These blocks are all the blocks that have more than
       // one predecessor, that belong to the same region as 'CP', and that
       // succeed it.
-      if (!region.blendPoints.count(CP)) {
+      if (!region.blendPoints.contains(CP)) {
         // The first blend point impacted by 'CP' is 'CP' itself.
         region.blendPoints.insert({CP, {CP}});
 
@@ -968,7 +968,7 @@ bool ControlFlowConversionState::BOSCCGadget::blendFinalize() {
 
   for (const auto &tag : DR->getBlockOrdering()) {
     BasicBlock *blendPoint = tag.BB;
-    if (blendBlocks.count(blendPoint) == 0) {
+    if (!blendBlocks.contains(blendPoint)) {
       continue;
     }
 
@@ -986,7 +986,7 @@ bool ControlFlowConversionState::BOSCCGadget::blendFinalize() {
     }
 
     for (auto *liveInVal : liveness->getBlockInfo(blendPoint).LiveIn) {
-      if (blendedValues.count(liveInVal)) {
+      if (blendedValues.contains(liveInVal)) {
         continue;
       }
 
