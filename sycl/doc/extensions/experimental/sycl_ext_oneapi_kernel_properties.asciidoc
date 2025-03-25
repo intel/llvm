@@ -387,19 +387,43 @@ struct kernel_function {
 
   // Available only if Function is invocable with Args
   template <typename... Args>
-  void operator()(Args... args) const {
-      f(std::forward<Args>(args)...);
-  }
+  void operator()(Args... args) const;
 
-  auto get(syclx::properties_tag) {
-    return Properties{};
-  }
+  // Available only if Properties contains no run-time properties
+  static constexpr auto get(syclx::properties_tag) const;
 
-  private:
-  const Function f; // exposition only
+  // Available only if Properties contains at least one run-time property
+  auto get(syclx::properties_tag) const;
 
 } // namespace sycl::ext::oneapi::experimental
 ```
+
+---
+
+```c++
+template <typename... Args>
+void operator()(Args... args) const;
+```
+
+_Constraints_: `Function` is invocable with `Args`.
+
+_Effects_: Invokes `Function` with `Args`.
+
+---
+
+```c++
+static constexpr auto get(syclx::properties_tag) const; (1)
+
+auto get(syclx::properties_tag) const;                  (2)
+```
+
+_Constraints_ (1): `Properties` contains no run-time properties.
+
+_Constraints_ (2): `Properties` contains at least one run-time property.
+
+_Returns_: The property list associated with this kernel function.
+
+---
 
 The example below shows how the `KernelFunctor` example from the previous
 section can be written using this wrapper:
