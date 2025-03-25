@@ -42,13 +42,14 @@ inline std::string stripPrefix(std::string_view value,
 }
 
 inline std::string getAdapterBackend(ur_adapter_handle_t adapter) {
-  ur_backend_t adapterBackend;
+  ur_adapter_backend_t adapterBackend;
   UR_CHECK(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
-                            sizeof(ur_backend_t), &adapterBackend, nullptr));
+                            sizeof(ur_adapter_backend_t), &adapterBackend,
+                            nullptr));
   std::stringstream adapterBackendStream;
   adapterBackendStream << adapterBackend;
   std::string adapterBackendStr =
-      stripPrefix(adapterBackendStream.str(), "UR_BACKEND_");
+      stripPrefix(adapterBackendStream.str(), "UR_ADAPTER_BACKEND_");
   std::transform(adapterBackendStr.begin(), adapterBackendStr.end(),
                  adapterBackendStr.begin(),
                  [](unsigned char c) { return std::tolower(c); });
@@ -127,8 +128,8 @@ inline void printLoaderConfigInfo(ur_loader_config_handle_t loaderConfig,
                                   ur_loader_config_info_t info) {
   std::cout << getLoaderConfigInfoName(info) << ": ";
   T value;
-  UR_CHECK(urLoaderConfigGetInfo(loaderConfig, info, sizeof(ur_backend_t),
-                                 &value, nullptr));
+  UR_CHECK(urLoaderConfigGetInfo(
+      loaderConfig, info, sizeof(ur_adapter_backend_t), &value, nullptr));
   std::cout << value << "\n";
 }
 
@@ -158,8 +159,8 @@ inline void printAdapterInfo(ur_adapter_handle_t adapter,
                              ur_adapter_info_t info) {
   std::cout << getAdapterInfoName(info) << ": ";
   T value;
-  UR_CHECK(
-      urAdapterGetInfo(adapter, info, sizeof(ur_backend_t), &value, nullptr));
+  UR_CHECK(urAdapterGetInfo(adapter, info, sizeof(ur_adapter_backend_t), &value,
+                            nullptr));
   std::cout << value << "\n";
 }
 
