@@ -169,6 +169,7 @@ struct KernelCompilerBinaryInfo {
   Merge(const std::vector<const std::optional<KernelCompilerBinaryInfo> *>
             &RTCInfos) {
     std::optional<KernelCompilerBinaryInfo> Result = std::nullopt;
+    std::map<std::string, std::string> IncludePairMap;
     for (const std::optional<KernelCompilerBinaryInfo> *RTCInfoPtr : RTCInfos) {
       if (!RTCInfoPtr || !(*RTCInfoPtr))
         continue;
@@ -196,6 +197,20 @@ struct KernelCompilerBinaryInfo {
       Result->MMangledKernelNames.insert(RTCInfo->MMangledKernelNames.begin(),
                                          RTCInfo->MMangledKernelNames.end());
 
+      // Assumption is that there are no duplicates, but in the case we let
+      // duplicates through it should be alright to pay for the minimal extra
+      // space allocated.
+      Result->MIncludePairs.reserve(RTCInfo->MIncludePairs.size());
+      for (const auto &IncludePair : RTCInfo->MIncludePairs) {
+        auto Inserted = IncludePairMap.insert(IncludePair);
+        if (!Inserted.second) {
+          if (Inserted.first->second != IncludePair.second)
+            throw sycl::exception(make_error_code(errc::invalid),
+                                  "Conflicting include files.");
+        } else {
+          Result->MIncludePairs.push_back(IncludePair);
+        }
+      }
       Result->MIncludePairs.insert(Result->MIncludePairs.end(),
                                    RTCInfo->MIncludePairs.begin(),
                                    RTCInfo->MIncludePairs.end());
