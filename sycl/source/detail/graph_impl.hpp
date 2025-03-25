@@ -919,10 +919,6 @@ public:
   /// @return Device associated with graph.
   sycl::device getDevice() const { return MDevice; }
 
-  const DeviceImplPtr &getDeviceImplPtr() const {
-    return getSyclObjImpl(MDevice);
-  }
-
   /// List of root nodes.
   std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
       MRoots;
