@@ -647,12 +647,12 @@ template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_CPU> {
 
 public:
   static std::string get() {
-    const std::string DefaultValue{""};
+    std::string DefaultValue{""};
 
     const char *ValStr = getCachedValue();
 
     if (!ValStr)
-      return std::move(DefaultValue);
+      return DefaultValue;
 
     return std::string{ValStr};
   }
@@ -675,7 +675,7 @@ template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES> {
 
 public:
   static std::string get() {
-    const std::string DefaultValue{""};
+    std::string DefaultValue{""};
 
     const char *ValStr = getCachedValue();
 
