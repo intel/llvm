@@ -228,7 +228,7 @@ PreservedAnalyses PreLinearizePass::run(Function &F,
       VU.choices().isEnabled(VectorizationChoices::eDivisionExceptions);
 
   InstructionCost boscc_cost;
-  UniformValueResult *UVR = nullptr;
+  const UniformValueResult *UVR = nullptr;
   if (VU.choices().linearizeBOSCC()) {
     boscc_cost = calculateBoolReductionCost(F.getContext(), F.getParent(), TTI,
                                             VU.width());
@@ -261,7 +261,7 @@ PreservedAnalyses PreLinearizePass::run(Function &F,
       SmallVector<BasicBlock *, 2> hoistable;
       SmallPtrSet<BasicBlock *, 2> new_succs;
       for (auto *succ : successors(BB)) {
-        if (targets.count(succ) == 0) {
+        if (!targets.contains(succ)) {
           if (single_succs[succ] == nullptr || pred_size(succ) != 1 ||
               LI.getLoopFor(succ) != block_loop || !isTrivialBlock(*succ)) {
             simple = false;

@@ -646,7 +646,7 @@ Function *compiler::utils::Barrier::GenerateFakeKernel(
 
   for (auto *bb : region.blocks) {
     BasicBlock *new_bb = BasicBlock::Create(context, "", new_kernel);
-    if (region.barrier_blocks.count(bb)) {
+    if (region.barrier_blocks.contains(bb)) {
       ReturnInst::Create(context, nullptr, new_bb);
     } else {
       bb->getTerminator()->clone()->insertInto(new_bb, new_bb->end());
@@ -679,7 +679,7 @@ void compiler::utils::Barrier::GatherBarrierRegionBlocks(
   size_t index = 0;
   while (index < region.blocks.size()) {
     BasicBlock *BB = region.blocks[index++];
-    if (barrier_successor_set_.count(BB)) {
+    if (barrier_successor_set_.contains(BB)) {
       region.barrier_blocks.insert(BB);
     } else {
       for (BasicBlock *succ : successors(BB)) {
@@ -716,14 +716,14 @@ void compiler::utils::Barrier::GatherBarrierRegionUses(
       if (PHINode *pn = dyn_cast<PHINode>(&I)) {
         for (unsigned i = 0, e = pn->getNumIncomingValues(); i != e; i++) {
           Value *val = pn->getIncomingValue(i);
-          if (CheckValidUse(val) && !ignore.count(val)) {
+          if (CheckValidUse(val) && !ignore.contains(val)) {
             if (auto *inst = dyn_cast<Instruction>(val)) {
               BasicBlock *incoming = pn->getIncomingBlock(i);
               BasicBlock *parent = inst->getParent();
               // If the incoming edge comes from outside the region, it is
               // going to get removed anyway, so disregard it
-              if (bbmap.count(incoming)) {
-                if (!bbmap.count(parent)) {
+              if (bbmap.contains(incoming)) {
+                if (!bbmap.contains(parent)) {
                   region.uses_ext.insert(val);
                 } else if (!DT.dominates(bbmap[parent], bbmap[incoming])) {
                   region.uses_int.insert(val);
@@ -734,10 +734,10 @@ void compiler::utils::Barrier::GatherBarrierRegionUses(
         }
       } else {
         for (Value *val : I.operands()) {
-          if (CheckValidUse(val) && !ignore.count(val)) {
+          if (CheckValidUse(val) && !ignore.contains(val)) {
             if (auto *inst = dyn_cast<Instruction>(val)) {
               BasicBlock *parent = inst->getParent();
-              if (!bbmap.count(parent)) {
+              if (!bbmap.contains(parent)) {
                 region.uses_ext.insert(val);
               } else if (!DT.dominates(bbmap[parent], BBclone)) {
                 region.uses_int.insert(val);
@@ -847,7 +847,7 @@ void compiler::utils::Barrier::TidyLiveVariables() {
       removals.push_back(v);
     } else if (auto *cast = dyn_cast<CastInst>(v)) {
       Value *op = cast->getOperand(0);
-      if (whole_live_variables_set_.count(op)) {
+      if (whole_live_variables_set_.contains(op)) {
         removals.push_back(v);
       }
     }
@@ -1126,7 +1126,7 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
     vmap[block] = cloned_bb;
 
     // Remove last terminator from clone block with barrier.
-    if (region.barrier_blocks.count(block)) {
+    if (region.barrier_blocks.contains(block)) {
       cloned_bb->getTerminator()->eraseFromParent();
 
       // Return the next barrier's id.
@@ -1450,7 +1450,7 @@ BasicBlock *compiler::utils::Barrier::CloneBasicBlock(
     new_inst->insertInto(new_bb, new_bb->end());
 
     // Record live variables' defs which are in current kernel.
-    if (whole_live_variables_set_.count(&i)) {
+    if (whole_live_variables_set_.contains(&i)) {
       live_defs_info.insert(&i);
     }
 

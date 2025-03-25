@@ -54,7 +54,7 @@ PreservedAnalyses compiler::utils::PrepareBarriersPass::run(
 
         // If it's one of our kernels don't inline it, and definitely don't
         // delete it either. No need to inline already dead functions, either!
-        if (!Callee->isDefTriviallyDead() && Kernels.count(Callee) == 0) {
+        if (!Callee->isDefTriviallyDead() && !Kernels.contains(Callee)) {
           FuncsWithBarriers.insert(Callee);
         }
       }
@@ -91,7 +91,7 @@ PreservedAnalyses compiler::utils::PrepareBarriersPass::run(
 
         // The function we inlined into now contains a barrier, so add it
         // to the set.
-        if (!InfoF->isDefTriviallyDead() && Kernels.count(InfoF) == 0) {
+        if (!InfoF->isDefTriviallyDead() && !Kernels.contains(InfoF)) {
           FuncsWithBarriers.insert(InfoF);
         }
       } else {

@@ -74,39 +74,11 @@ PreservedAnalyses vecz::SimplifyInfiniteLoopPass::run(
     assert(AR.DT.verify() &&
            "SimplifyInfiniteLoopPass: Dominator Tree failed verification");
 
-    std::unordered_set<Instruction *> toBlend;
-    // Find all instructions used in `target` that may be defined after the
-    // infinite loop, for which adding the edge from the infinite loop to the
-    // return block may break the SSA form.
-    for (Instruction &I : *target) {
-      if (!isa<PHINode>(&I)) {
-        for (Value *op : I.operands()) {
-          if (Instruction *opI = dyn_cast<Instruction>(op)) {
-            if (opI->getParent() != target) {
-              toBlend.insert(opI);
-            }
-          }
-        }
-      }
-    }
-
     // Update the phi nodes in the return block because we added a new
     // predecessor to it.
     for (Instruction &I : *target) {
       if (auto *PHI = dyn_cast<PHINode>(&I)) {
         PHI->addIncoming(UndefValue::get(PHI->getType()), virtualExit);
-      }
-    }
-    // Add new phi nodes for instructions computed in `toBlend`.
-    for (Instruction *I : toBlend) {
-      PHINode *PHI = PHINode::Create(I->getType(), 2, I->getName() + ".blend");
-      PHI->insertBefore(target->begin());
-      for (BasicBlock *pred : predecessors(target)) {
-        if (pred != virtualExit) {
-          PHI->addIncoming(I, pred);
-        } else {
-          PHI->addIncoming(UndefValue::get(PHI->getType()), pred);
-        }
       }
     }
 

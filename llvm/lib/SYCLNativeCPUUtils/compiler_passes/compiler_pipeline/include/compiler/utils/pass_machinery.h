@@ -34,10 +34,13 @@ class TargetMachine;
 
 namespace compiler {
 namespace utils {
+extern bool VerifyEachIsEnabled;
 
 /// @brief Mirror's LLVM's DebugLogging options in its `opt` tool. Clang has
 /// a boolean on/off version.
 enum class DebugLogging { None, Normal, Verbose, Quiet };
+
+extern DebugLogging DebugPasses;
 
 /// @brief A class that manages the lifetime and initialization of all
 /// components required to set up a new-style LLVM pass manager.

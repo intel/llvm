@@ -539,7 +539,7 @@ void Packetizer::Result::getPacketValues(unsigned width,
 
 PacketRange Packetizer::Result::createPacket(unsigned width) const {
   assert(info && "Can't create a packet on a fail state");
-  assert(info->packets.count(width) == 0 &&
+  assert(!info->packets.contains(width) &&
          "Shouldn't create the same packet twice");
 
   const auto start = packetizer.packetData.size();

@@ -258,7 +258,7 @@ PreservedAnalyses ScalarizationPass::run(llvm::Function &F,
         }
 
         if (I.getType()->isVectorTy() && UVR.isVarying(&I) &&
-            tracer.visited.count(&I) == 0) {
+            !tracer.visited.contains(&I)) {
           SR.setNeedsScalarization(&I);
           NeedsScalarization = true;
         }

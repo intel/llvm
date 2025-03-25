@@ -23,7 +23,6 @@ using namespace llvm;
 
 namespace compiler {
 namespace utils {
-
 // Note that Clang has three on/off options for debugging pass managers:
 // `-fdebug-pass-manager`, `-fdebug-pass-structure`, and
 // `-fdebug-pass-arguments``.
@@ -49,9 +48,10 @@ namespace utils {
 // While clang also pushes `mdebug-pass` onto LLVM, it only works for the
 // legacy pass manager, and so we choose to only support and model the
 // `debug-pass-manager` form.
-static cl::opt<DebugLogging> DebugPM(
-    "debug-pass-manager", cl::Hidden, cl::ValueOptional,
-    cl::desc("Print pass management debugging information"),
+DebugLogging DebugPasses;
+static cl::opt<DebugLogging, true> DebugPM(
+    "debug-pass-manager", cl::location(DebugPasses), cl::Hidden,
+    cl::ValueOptional, cl::desc("Print pass management debugging information"),
     cl::init(DebugLogging::None),
     cl::values(
         clEnumValN(DebugLogging::Normal, "", ""),
@@ -61,8 +61,10 @@ static cl::opt<DebugLogging> DebugPM(
             DebugLogging::Verbose, "verbose",
             "Print extra information about adaptors and pass managers")));
 
-static cl::opt<bool> VerifyEach("verify-each",
-                                cl::desc("Verify after each transform"));
+bool VerifyEachIsEnabled;
+static cl::opt<bool, true> VerifyEach("verify-each",
+                                      cl::location(VerifyEachIsEnabled),
+                                      cl::desc("Verify after each transform"));
 
 PassMachinery::PassMachinery(LLVMContext &Ctx, TargetMachine *TM,
                              bool VerifyEach, DebugLogging debugLogLevel)
