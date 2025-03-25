@@ -447,13 +447,25 @@ if __name__ == "__main__":
         type=str,
         help="The name of the results which should be used as a baseline for metrics calculation",
         default=options.current_run_name,
+    ) 
+    parser.add_argument(
+        "--cudnn_directory",
+        type=str,
+        help="Directory for cudnn library",
+        default=None,
+    )
+    parser.add_argument(
+        "--cublas_directory",
+        type=str,
+        help="Directory for cublas library",
+        default=None,
     )
     parser.add_argument(
         "--results-dir",
         type=str,
         help="Specify a custom results directory",
         default=options.custom_results_dir,
-    )
+    ) 
     parser.add_argument(
         "--build-jobs",
         type=int,
@@ -484,6 +496,8 @@ if __name__ == "__main__":
     options.iterations_stddev = args.iterations_stddev
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
+    options.cudnn_directory = args.cudnn_directory
+    options.cublas_directory = args.cublas_directory
     options.custom_results_dir = args.results_dir
     options.build_jobs = args.build_jobs
 
