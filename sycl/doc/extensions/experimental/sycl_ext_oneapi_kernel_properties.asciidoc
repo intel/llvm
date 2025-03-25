@@ -383,17 +383,17 @@ namespace sycl::ext::oneapi::experimental {
 template <typename Function, typename Properties = empty_properties_t>
 struct kernel_function {
 
-  kernel_function(Function &&f, Properties p = syclx::properties{});
+  kernel_function(Function &&f, Properties p = properties{});
 
   // Available only if Function is invocable with Args
   template <typename... Args>
   void operator()(Args&&... args) const;
 
   // Available only if Properties contains no run-time properties
-  static constexpr auto get(syclx::properties_tag) const;
+  static constexpr auto get(properties_tag) const;
 
   // Available only if Properties contains at least one run-time property
-  auto get(syclx::properties_tag) const;
+  auto get(properties_tag) const;
 
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -412,9 +412,9 @@ _Effects_: Invokes `Function` with `Args`.
 ---
 
 ```c++
-static constexpr auto get(syclx::properties_tag) const; (1)
+static constexpr auto get(properties_tag) const; (1)
 
-auto get(syclx::properties_tag) const;                  (2)
+auto get(properties_tag) const;                  (2)
 ```
 
 _Constraints_ (1): `Properties` contains no run-time properties.
