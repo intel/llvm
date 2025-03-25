@@ -610,37 +610,3 @@ extern thread_local int32_t ErrorAdapterNativeCode;
                                       int32_t AdapterErrorCode);
 
 #define L0_DRIVER_INORDER_MIN_VERSION 29534
-// Definitions for the External Semaphore Extension
-
-#ifndef ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME
-/// @brief Event sync mode extension name
-#define ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME                                   \
-  "ZE_intel_experimental_external_semaphore"
-#endif // ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME
-
-typedef struct _ze_intel_external_semaphore_signal_exp_params_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  uint64_t value;
-} ze_intel_external_semaphore_signal_exp_params_t;
-
-typedef struct _ze_intel_external_semaphore_wait_exp_params_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-
-  uint64_t value;
-} ze_intel_external_semaphore_wait_exp_params_t;
-
-typedef struct _ze_intel_external_semaphore_exp_handle_t
-    *ze_intel_external_semaphore_exp_handle_t;
-
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_EXP_DESC                    \
-  (ze_structure_type_t)0x0003001E
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WIN32_EXP_DESC              \
-  (ze_structure_type_t)0x0003001F
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_FD_EXP_DESC                 \
-  (ze_structure_type_t)0x00030023
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXP           \
-  (ze_structure_type_t)0x00030024
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP             \
-  (ze_structure_type_t)0x00030025
