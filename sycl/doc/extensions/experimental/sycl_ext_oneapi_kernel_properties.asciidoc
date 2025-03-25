@@ -383,11 +383,11 @@ namespace sycl::ext::oneapi::experimental {
 template <typename Function, typename Properties = empty_properties_t>
 struct kernel_function {
 
-  kernel_function(Function f, Properties p = syclx::properties{});
+  kernel_function(Function &&f, Properties p = syclx::properties{});
 
   // Available only if Function is invocable with Args
   template <typename... Args>
-  void operator()(Args... args) const;
+  void operator()(Args&&... args) const;
 
   // Available only if Properties contains no run-time properties
   static constexpr auto get(syclx::properties_tag) const;
@@ -402,7 +402,7 @@ struct kernel_function {
 
 ```c++
 template <typename... Args>
-void operator()(Args... args) const;
+void operator()(Args&&... args) const;
 ```
 
 _Constraints_: `Function` is invocable with `Args`.
