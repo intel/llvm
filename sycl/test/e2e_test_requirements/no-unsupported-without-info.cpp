@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 282
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 280
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -208,8 +208,6 @@
 // CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
 // CHECK-NEXT: InvokeSimd/Regression/ImplicitSubgroup/call_vadd_1d_spill.cpp
 // CHECK-NEXT: InvokeSimd/Regression/call_vadd_1d_spill.cpp
-// CHECK-NEXT: KernelAndProgram/build-log.cpp
-// CHECK-NEXT: KernelAndProgram/cache-build-result.cpp
 // CHECK-NEXT: KernelAndProgram/free_function_apis.cpp
 // CHECK-NEXT: KernelAndProgram/free_function_kernels.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options-env.cpp
@@ -218,7 +216,6 @@
 // CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
 // CHECK-NEXT: KernelAndProgram/spec_constants_after_link.cpp
 // CHECK-NEXT: KernelAndProgram/spec_constants_after_link.cpp
-// CHECK-NEXT: KernelAndProgram/undefined-symbol.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_abc.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops_half.cpp
