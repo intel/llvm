@@ -24,7 +24,7 @@ endif()
 # If SYCL_ENABLE_BACKENDS is undefined, we default to enabling OpenCL and Level
 # Zero backends.
 if (NOT DEFINED SYCL_ENABLE_BACKENDS)
-  set(SYCL_ENABLE_BACKENDS "opencl;level_zero")
+  set(SYCL_ENABLE_BACKENDS "opencl;level_zero;level_zero_v2")
 endif()
 
 # Option to enable JIT, this in turn makes kernel fusion and spec constant

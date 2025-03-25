@@ -233,7 +233,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   const auto &ProgMetadata = Img.getProgramMetadataUR();
 
   // Load the image
-  const ContextImplPtr Ctx = getSyclObjImpl(Context);
+  const ContextImplPtr &Ctx = getSyclObjImpl(Context);
   std::vector<const uint8_t *> Binaries(
       Devices.size(), const_cast<uint8_t *>(RawImg.BinaryStart));
   std::vector<size_t> Lengths(Devices.size(), ImgSize);
@@ -2700,6 +2700,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 void ProgramManager::bringSYCLDeviceImageToState(
     DevImgPlainWithDeps &DeviceImage, bundle_state TargetState) {
   device_image_plain &MainImg = DeviceImage.getMain();
+  const DeviceImageImplPtr &MainImgImpl = getSyclObjImpl(MainImg);
   const bundle_state DevImageState = getSyclObjImpl(MainImg)->get_state();
   // At this time, there is no circumstance where a device image should ever
   // be in the source state. That not good.
@@ -2716,7 +2717,7 @@ void ProgramManager::bringSYCLDeviceImageToState(
     break;
   case bundle_state::object:
     if (DevImageState == bundle_state::input) {
-      DeviceImage = compile(DeviceImage, getSyclObjImpl(MainImg)->get_devices(),
+      DeviceImage = compile(DeviceImage, MainImgImpl->get_devices(),
                             /*PropList=*/{});
       break;
     }
@@ -2731,12 +2732,12 @@ void ProgramManager::bringSYCLDeviceImageToState(
       assert(DevImageState != bundle_state::ext_oneapi_source);
       break;
     case bundle_state::input:
-      DeviceImage = build(DeviceImage, getSyclObjImpl(MainImg)->get_devices(),
+      DeviceImage = build(DeviceImage, MainImgImpl->get_devices(),
                           /*PropList=*/{});
       break;
     case bundle_state::object: {
       std::vector<device_image_plain> LinkedDevImages =
-          link(DeviceImage, getSyclObjImpl(MainImg)->get_devices(),
+          link(DeviceImage, MainImgImpl->get_devices(),
                /*PropList=*/{});
       // Since only one device image is passed here one output device image is
       // expected
@@ -2745,7 +2746,7 @@ void ProgramManager::bringSYCLDeviceImageToState(
       break;
     }
     case bundle_state::executable:
-      DeviceImage = build(DeviceImage, getSyclObjImpl(MainImg)->get_devices(),
+      DeviceImage = build(DeviceImage, MainImgImpl->get_devices(),
                           /*PropList=*/{});
       break;
     }
@@ -2895,7 +2896,8 @@ static void mergeImageData(const std::vector<device_image_plain> &Imgs,
                            std::vector<unsigned char> &NewSpecConstBlob,
                            device_image_impl::SpecConstMapT &NewSpecConstMap) {
   for (const device_image_plain &Img : Imgs) {
-    std::shared_ptr<device_image_impl> DeviceImageImpl = getSyclObjImpl(Img);
+    const std::shared_ptr<device_image_impl> &DeviceImageImpl =
+        getSyclObjImpl(Img);
     // Duplicates are not expected here, otherwise urProgramLink should fail
     KernelIDs.insert(KernelIDs.end(),
                      DeviceImageImpl->get_kernel_ids_ptr()->begin(),
@@ -2956,16 +2958,15 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
   std::string LinkOptionsStr;
   applyLinkOptionsFromEnvironment(LinkOptionsStr);
   const device_image_plain &MainImg = ImgWithDeps.getMain();
+  const std::shared_ptr<device_image_impl> &InputImpl = getSyclObjImpl(MainImg);
   if (LinkOptionsStr.empty()) {
-    const std::shared_ptr<device_image_impl> &InputImpl =
-        getSyclObjImpl(MainImg);
     appendLinkOptionsFromImage(LinkOptionsStr,
                                *(InputImpl->get_bin_image_ref()));
   }
   // Should always come last!
   appendLinkEnvironmentVariablesThatAppend(LinkOptionsStr);
-  const context &Context = getSyclObjImpl(MainImg)->get_context();
-  const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
+  const context &Context = InputImpl->get_context();
+  const ContextImplPtr &ContextImpl = getSyclObjImpl(Context);
   const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
   ur_program_handle_t LinkedProg = nullptr;
@@ -2991,8 +2992,7 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   if (Error != UR_RESULT_SUCCESS) {
     if (LinkedProg) {
-      const std::string ErrorMsg =
-          getProgramBuildLog(LinkedProg, std::move(ContextImpl));
+      const std::string ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
       throw sycl::exception(make_error_code(errc::build), ErrorMsg);
     }
     throw set_ur_error(exception(make_error_code(errc::build), "link() failed"),
@@ -3020,17 +3020,19 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   // The origin becomes the combination of all the origins.
   uint8_t CombinedOrigins = 0;
-  for (const device_image_plain &DevImg : ImgWithDeps)
-    CombinedOrigins |= getSyclObjImpl(DevImg)->getOriginMask();
-
+  // For the kernel compiler binary info, we collect pointers to all of the
+  // input ones and then merge them afterwards.
   std::vector<const std::optional<detail::KernelCompilerBinaryInfo> *>
       RTCInfoPtrs;
   RTCInfoPtrs.reserve(ImgWithDeps.size());
-  for (const device_image_plain &DevImg : ImgWithDeps)
-    RTCInfoPtrs.emplace_back(&(getSyclObjImpl(DevImg)->getRTCInfo()));
+  for (const device_image_plain &DevImg : ImgWithDeps) {
+    const DeviceImageImplPtr &DevImgImpl = getSyclObjImpl(DevImg);
+    CombinedOrigins |= DevImgImpl->getOriginMask();
+    RTCInfoPtrs.emplace_back(&(DevImgImpl->getRTCInfo()));
+  }
   auto MergedRTCInfo = detail::KernelCompilerBinaryInfo::Merge(RTCInfoPtrs);
 
-  auto BinImg = getSyclObjImpl(MainImg)->get_bin_image_ref();
+  auto BinImg = InputImpl->get_bin_image_ref();
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
           BinImg, Context, Devs, bundle_state::executable, std::move(KernelIDs),
@@ -3060,7 +3062,6 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
       getSyclObjImpl(DevImgWithDeps.getMain());
 
   const context Context = MainInputImpl->get_context();
-  const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
   std::vector<const RTDeviceBinaryImage *> BinImgs;
   BinImgs.reserve(DevImgWithDeps.size());
@@ -3125,7 +3126,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
 
-  const ContextImplPtr Ctx = getSyclObjImpl(Context);
+  const ContextImplPtr &Ctx = getSyclObjImpl(Context);
 
   KernelProgramCache &Cache = Ctx->getKernelProgramCache();
 

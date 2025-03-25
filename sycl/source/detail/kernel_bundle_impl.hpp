@@ -251,7 +251,7 @@ public:
     removeDuplicateImages();
 
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
-      const KernelBundleImplPtr BundlePtr = getSyclObjImpl(Bundle);
+      const KernelBundleImplPtr &BundlePtr = getSyclObjImpl(Bundle);
       for (const std::pair<const std::string, std::vector<unsigned char>>
                &SpecConst : BundlePtr->MSpecConstValues) {
         MSpecConstValues[SpecConst.first] = SpecConst.second;

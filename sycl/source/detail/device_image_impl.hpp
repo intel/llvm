@@ -555,11 +555,11 @@ public:
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImplPtr->getAdapter();
 
-    if (ContextImplPtr->getBackend() == backend::opencl)
-      Adapter->call<UrApiKind::urProgramRetain>(MProgram);
     ur_native_handle_t NativeProgram = 0;
     Adapter->call<UrApiKind::urProgramGetNativeHandle>(MProgram,
                                                        &NativeProgram);
+    if (ContextImplPtr->getBackend() == backend::opencl)
+      __SYCL_OCL_CALL(clRetainProgram, ur::cast<cl_program>(NativeProgram));
 
     return NativeProgram;
   }
@@ -682,11 +682,11 @@ public:
     assert(MRTCBinInfo);
     assert(MOrigins & ImageOriginKernelCompiler);
 
-    std::shared_ptr<sycl::detail::context_impl> ContextImpl =
+    const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
         getSyclObjImpl(MContext);
 
     for (const auto &SyclDev : Devices) {
-      DeviceImplPtr DevImpl = getSyclObjImpl(SyclDev);
+      const DeviceImplPtr &DevImpl = getSyclObjImpl(SyclDev);
       if (!ContextImpl->hasDevice(DevImpl)) {
         throw sycl::exception(make_error_code(errc::invalid),
                               "device not part of kernel_bundle context");
@@ -992,7 +992,7 @@ private:
                                   const std::vector<std::string> &BuildOptions,
                                   const std::string &SourceStr,
                                   ur_program_handle_t &UrProgram) const {
-    std::shared_ptr<sycl::detail::context_impl> ContextImpl =
+    const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
         getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
 

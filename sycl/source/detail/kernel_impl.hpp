@@ -75,10 +75,10 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    getAdapter()->call<UrApiKind::urKernelRetain>(MKernel);
     ur_native_handle_t nativeHandle = 0;
     getAdapter()->call<UrApiKind::urKernelGetNativeHandle>(MKernel,
                                                            &nativeHandle);
+    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
@@ -215,11 +215,11 @@ public:
   ur_native_handle_t getNative() const {
     const AdapterPtr &Adapter = MContext->getAdapter();
 
-    if (MContext->getBackend() == backend::opencl)
-      Adapter->call<UrApiKind::urKernelRetain>(MKernel);
-
     ur_native_handle_t NativeKernel = 0;
     Adapter->call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
+
+    if (MContext->getBackend() == backend::opencl)
+      __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
 
     return NativeKernel;
   }
