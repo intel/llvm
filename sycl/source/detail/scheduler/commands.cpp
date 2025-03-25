@@ -1094,8 +1094,8 @@ bool AllocaCommand::producesPiEvent() const {
   // for reference see enqueueImp()
   auto TypedSyclMemObj = static_cast<detail::SYCLMemObjT *>(getSYCLMemObj());
   // Event presence implies interop context esistence
-  return TypedSyclMemObj->hasInteropEvent() && !MIsLeaderAlloca &&
-         (MLinkedAllocaCmd->getMemAllocation() != nullptr);
+  return (TypedSyclMemObj->hasInteropEvent() &&
+          (getContext(MQueue) == TypedSyclMemObj->getInteropContext()));
 }
 
 ur_result_t AllocaCommand::enqueueImp() {
