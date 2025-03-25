@@ -29,7 +29,6 @@ _SPIRV_OP_INTERNAL(CooperativeMatrixApplyFunctionINTEL,
                    internal::OpCooperativeMatrixApplyFunctionINTEL)
 _SPIRV_OP_INTERNAL(MaskedGatherINTEL, internal::OpMaskedGatherINTEL)
 _SPIRV_OP_INTERNAL(MaskedScatterINTEL, internal::OpMaskedScatterINTEL)
-_SPIRV_OP_INTERNAL(RoundFToTF32INTEL, internal::RoundFToTF32INTEL)
 _SPIRV_OP_INTERNAL(TaskSequenceAsyncINTEL, internal::OpTaskSequenceAsyncINTEL)
 _SPIRV_OP_INTERNAL(TaskSequenceCreateINTEL, internal::OpTaskSequenceCreateINTEL)
 _SPIRV_OP_INTERNAL(TaskSequenceGetINTEL, internal::OpTaskSequenceGetINTEL)

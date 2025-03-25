@@ -3984,9 +3984,9 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     SPIRVType *ResCompTy = this->getType();
     if (ResCompTy->isTypeCooperativeMatrixKHR())
-      return getVec(internal::CapabilityTensorFloat32RoundingINTEL,
+      return getVec(CapabilityTensorFloat32RoundingINTEL,
                     internal::CapabilityJointMatrixTF32ComponentTypeINTEL);
-    return getVec(internal::CapabilityTensorFloat32RoundingINTEL);
+    return getVec(CapabilityTensorFloat32RoundingINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
@@ -4057,7 +4057,7 @@ protected:
 };
 
 #define _SPIRV_OP(x)                                                           \
-  typedef SPIRVTensorFloat32RoundingINTELInstBase<internal::Op##x> SPIRV##x;
+  typedef SPIRVTensorFloat32RoundingINTELInstBase<Op##x> SPIRV##x;
 _SPIRV_OP(RoundFToTF32INTEL)
 #undef _SPIRV_OP
 
