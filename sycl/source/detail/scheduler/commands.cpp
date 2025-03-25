@@ -1091,6 +1091,14 @@ void AllocaCommand::emitInstrumentationData() {
 #endif
 }
 
+bool AllocaCommand::producesPiEvent() const {
+  // for reference see enqueueImp()
+  auto TypedSyclMemObj = static_cast<detail::SYCLMemObjT *>(getSYCLMemObj());
+  // Event presence implies interop context esistence
+  return (TypedSyclMemObj->hasInteropEvent() &&
+          (getContext(MQueue) == TypedSyclMemObj->getInteropContext()));
+}
+
 ur_result_t AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1119,9 +1127,9 @@ ur_result_t AllocaCommand::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
-  // MemoryManager::allocate doesn't always provide native event, it is returned
-  // only for interop case with presence of host pointer and interop event. Not
-  // feasible to check it from command.
+  assert((!!UREvent == producesPiEvent()) &&
+         "AllocaCommand: native event is expected only when it is for interop "
+         "memory object with native event provided.");
 
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;

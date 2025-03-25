@@ -501,6 +501,7 @@ public:
   void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
+  bool producesPiEvent() const final;
 
 private:
   ur_result_t enqueueImp() final;
