@@ -174,6 +174,10 @@ class HostKernel
   // invocation as some e2e tests would fail otherwise.
   std::unique_ptr<char[]> KernelBytes;
   void (*KernelDeleter)(void *) = nullptr;
+  // NOTE: This is *NOT* for debugger only. Host-side optimizations affect
+  // device code linking, see
+  // `test-e2e/SeparateCompile/sycl-external-within-staticlib.cpp`.
+  void (*InstantiateOnHostHelper)(void *) = nullptr;
 
   template <class KernelType, class KernelArgType, int Dims>
   struct InstantiateKernelOnHostHelper {
@@ -252,6 +256,8 @@ public:
     return *this;
   }
 
+  // Can't specify explicit template parameters when invoking a ctor, so has to
+  // be a static member function.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <class KernelType, class KernelArgType, int Dims>
   static HostKernel create(KernelType Kernel) {
@@ -262,21 +268,20 @@ public:
     // so `memcpy` wouldn't be enough.
     new (Tmp.KernelBytes.get()) KernelType(Kernel);
     Tmp.KernelDeleter = &Deleter<KernelType>::execute;
-    (void)InstantiateKernelOnHostHelper<KernelType, KernelArgType, Dims>{};
+    Tmp.InstantiateOnHostHelper = &InstantiateKernelOnHostHelper<KernelType, KernelArgType, Dims>::foo;
     return Tmp;
   }
 #else
   template <class KernelType, class KernelArgType, int Dims>
   static std::unique_ptr<HostKernelBase> create(KernelType Kernel) {
-    // No `make_unique` because ctor is private.
-    std::unique_ptr<HostKernel> Unique{new HostKernel()};
+    auto Unique = std::make_unique<HostKernel>();
     Unique->KernelBytes.reset(
         new (std::align_val_t(alignof(KernelType))) char[sizeof(Kernel)]);
     // Note, `device_copyable` isn't the same as `std::is_trivially_copyable`,
     // so `memcpy` wouldn't be enough.
     new (Unique->KernelBytes.get()) KernelType(Kernel);
     Unique->KernelDeleter = &Deleter<KernelType>::execute;
-    (void)InstantiateKernelOnHostHelper<KernelType, KernelArgType, Dims>{};
+    Unique->InstantiateOnHostHelper = &InstantiateKernelOnHostHelper<KernelType, KernelArgType, Dims>::foo;
     return Unique;
   }
 #endif
