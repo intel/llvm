@@ -16,7 +16,7 @@
 using namespace clang;
 using namespace clang::targets;
 
-static const unsigned NativeCPUASMap[] = {
+static const LangASMap NativeCPUASMap = {
     0,  // Default
     1,  // opencl_global
     3,  // opencl_local
@@ -78,8 +78,8 @@ NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &,
     LongLongAlign = HostTarget->getLongLongAlign();
     PointerWidth = HostTarget->getPointerWidth(LangAS::Default);
     PointerAlign = HostTarget->getPointerAlign(LangAS::Default);
-    MinGlobalAlign = HostTarget->getMinGlobalAlign(/* TypeSize = */ 0,
-                                                   /* HasNonWeakDef = */ true);
+    MinGlobalAlign = HostTarget->getMinGlobalAlign(/*TypeSize=*/0,
+                                                   /*HasNonWeakDef=*/true);
     NewAlign = HostTarget->getNewAlign();
     DefaultAlignForAttributeAligned =
         HostTarget->getDefaultAlignForAttributeAligned();
