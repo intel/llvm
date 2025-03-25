@@ -446,13 +446,13 @@ if __name__ == "__main__":
         default=options.current_run_name,
     )
     parser.add_argument(
-        "--cudnn_directory",
+        "--cudnn-directory",
         type=str,
         help="Directory for cudnn library",
         default=None,
     )
     parser.add_argument(
-        "--cublas_directory",
+        "--cublas-directory",
         type=str,
         help="Directory for cublas library",
         default=None,
@@ -468,7 +468,9 @@ if __name__ == "__main__":
         type=int,
         help="Number of build jobs to run simultaneously",
         default=options.build_jobs,
-        "--hip_arch",
+    )
+    parser.add_argument(
+        "--hip-arch",
         type=str,
         help="HIP device architecture",
         default=None,
