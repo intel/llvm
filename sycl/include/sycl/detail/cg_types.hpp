@@ -171,7 +171,8 @@ class HostKernel : public HostKernelBase {
   friend class sycl::handler;
 
 public:
-  HostKernel(KernelType Kernel) : MKernel(Kernel) {}
+  HostKernel(const KernelType &Kernel) : MKernel(Kernel) {}
+  HostKernel(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
