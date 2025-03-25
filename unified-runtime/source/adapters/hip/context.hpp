@@ -11,6 +11,7 @@
 
 #include <set>
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "device.hpp"
 #include "platform.hpp"
@@ -85,16 +86,14 @@ struct ur_context_handle_t_ {
     void operator()() { Function(UserData); }
   };
 
+  std::shared_ptr<ur_adapter_handle_t_> Adapter;
   std::vector<ur_device_handle_t> Devices;
 
   std::atomic_uint32_t RefCount;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Devices{Devs, Devs + NumDevices}, RefCount{1} {
-    for (auto &Dev : Devices) {
-      urDeviceRetain(Dev);
-    }
-  };
+      : Adapter(ur::hip::adapter), Devices{Devs, Devs + NumDevices},
+        RefCount{1} {};
 
   ~ur_context_handle_t_() {}
 
