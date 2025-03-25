@@ -295,8 +295,12 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-  // setKernelArg is expecting a pointer to our argument
-  hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
+  try {
+    // setKernelArg is expecting a pointer to our argument
+    hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
+  } catch (ur_result_t Err) {
+    return Err;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -304,15 +308,15 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *Properties,
                      ur_mem_handle_t hArgValue) {
-  // Below sets kernel arg when zero-sized buffers are handled.
-  // In such case the corresponding memory is null.
-  if (hArgValue == nullptr) {
-    hKernel->setKernelArg(argIndex, 0, nullptr);
-    return UR_RESULT_SUCCESS;
-  }
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
+    // Below sets kernel arg when zero-sized buffers are handled.
+    // In such case the corresponding memory is null.
+    if (hArgValue == nullptr) {
+      hKernel->setKernelArg(argIndex, 0, nullptr);
+      return UR_RESULT_SUCCESS;
+    }
+
     auto Device = hKernel->getProgram()->getDevice();
     hKernel->Args.addMemObjArg(argIndex, hArgValue,
                                Properties ? Properties->memoryAccess : 0);

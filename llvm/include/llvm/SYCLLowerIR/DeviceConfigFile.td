@@ -88,6 +88,10 @@ def AspectExt_oneapi_atomic16 : Aspect<"ext_oneapi_atomic16">;
 def AspectExt_oneapi_virtual_functions : Aspect<"ext_oneapi_virtual_functions">;
 def AspectExt_intel_spill_memory_size : Aspect<"ext_intel_spill_memory_size">;
 def AspectExt_oneapi_bindless_images_gather : Aspect<"ext_oneapi_bindless_images_gather">;
+def AspectExt_intel_current_clock_throttle_reasons : Aspect<"ext_intel_current_clock_throttle_reasons">;
+def AspectExt_intel_fan_speed : Aspect<"ext_intel_fan_speed">;
+def AspectExt_intel_power_limits : Aspect<"ext_intel_power_limits">;
+
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
@@ -154,7 +158,10 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_intel_fpga_task_sequence,
     AspectExt_oneapi_atomic16,
     AspectExt_oneapi_virtual_functions,
-    AspectExt_intel_spill_memory_size],
+    AspectExt_intel_spill_memory_size,
+    AspectExt_intel_current_clock_throttle_reasons,
+    AspectExt_intel_fan_speed,
+    AspectExt_intel_power_limits],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
