@@ -32,9 +32,7 @@ class Options:
     output_markdown: MarkdownSize = MarkdownSize.SHORT
     output_html: bool = False
     dry_run: bool = False
-    # these two should probably be merged into one setting
     stddev_threshold: float = 0.02
-    epsilon: float = 0.02
     iterations_stddev: int = 5
     build_compute_runtime: bool = False
     extra_ld_libraries: list[str] = field(default_factory=list)
