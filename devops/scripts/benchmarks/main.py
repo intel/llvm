@@ -414,6 +414,12 @@ if __name__ == "__main__":
         "--output-html", help="Create HTML output", action="store_true", default=False
     )
     parser.add_argument(
+        "--output-dir",
+        type=str,
+        help="Location for output files, if --output-html or --output_markdown was specified.",
+        default=None,
+    )
+    parser.add_argument(
         "--dry-run",
         help="Do not run any actual benchmarks",
         action="store_true",
@@ -500,6 +506,11 @@ if __name__ == "__main__":
     if args.compute_runtime is not None:
         options.build_compute_runtime = True
         options.compute_runtime_tag = args.compute_runtime
+    if args.output_dir is not None:
+        if not os.path.isdir(args.output_dir):
+            parser.error("Specified --output-dir is not a valid path")
+        options.output_directory = os.path.abspath(args.output_dir)
+
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 
