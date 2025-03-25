@@ -291,14 +291,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             compare_names.append(saved_name)
 
     if options.output_html:
-        html_content = generate_html(history.runs, "intel/llvm", compare_names)
-
-        with open("benchmark_results.html", "w") as file:
-            file.write(html_content)
-
-        print(
-            f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html"
-        )
+        html_path = options.output_directory
+        if options.output_directory is None:
+            html_path = os.path.join(os.path.dirname(__file__), "html")
+        generate_html(history.runs, compare_names, html_path, metadata)
 
 
 def validate_and_parse_env_args(env_args):
@@ -413,8 +409,17 @@ if __name__ == "__main__":
         help="Specify whether markdown output should fit the content size limit for request validation",
     )
     parser.add_argument(
-        "--output-html", help="Create HTML output", action="store_true", default=False
+        "--output-html",
+        help="Create HTML output. Local output is for direct local viewing of the html file, remote is for server deployment.",
+        nargs="?",
+        const=options.output_html,
+        choices=["local", "remote"],
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        help="Location for output files, if --output-html or --output_markdown was specified.",
+        default=None,
     parser.add_argument(
         "--dry-run",
         help="Do not run any actual benchmarks",
@@ -446,6 +451,12 @@ if __name__ == "__main__":
         default=options.current_run_name,
     )
 
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom directory to load/store (historical) results from",
+        default=options.custom_results_dir,
+    )
     parser.add_argument(
         "--build-jobs",
         type=int,
@@ -483,6 +494,14 @@ if __name__ == "__main__":
     if args.compute_runtime is not None:
         options.build_compute_runtime = True
         options.compute_runtime_tag = args.compute_runtime
+    if args.output_dir is not None:
+        if not os.path.isdir(args.output_dir):
+            parser.error("Specified --output-dir is not a valid path")
+        options.output_directory = os.path.abspath(args.output_dir)
+    if args.results_dir is not None:
+        if not os.path.isdir(args.results_dir):
+            parser.error("Specified --results-dir is not a valid path")
+        options.custom_results_dir = os.path.abspath(args.results_dir)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 
