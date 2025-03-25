@@ -2953,6 +2953,7 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     os << "UR_DEVICE_INFO_MAX_POWER_LIMIT";
+    break;
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
     os << "UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE";
     break;
