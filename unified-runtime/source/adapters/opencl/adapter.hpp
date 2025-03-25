@@ -7,16 +7,25 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
+
+#include "logger/ur_logger.hpp"
+#include "platform.hpp"
 
 #include "CL/cl.h"
+#include "common.hpp"
 #include "logger/ur_logger.hpp"
 
-struct ur_adapter_handle_t_ {
+struct ur_adapter_handle_t_ : cl_adapter::ur_handle_t_ {
   ur_adapter_handle_t_();
+  ~ur_adapter_handle_t_();
 
   std::atomic<uint32_t> RefCount = 0;
-  std::mutex Mutex;
   logger::Logger &log = logger::get_logger("opencl");
+  cl_ext::ExtFuncPtrCacheT fnCache{};
+
+  std::vector<std::unique_ptr<ur_platform_handle_t_>> URPlatforms;
+  uint32_t NumPlatforms = 0;
 
   // Function pointers to core OpenCL entry points which may not exist in older
   // versions of the OpenCL-ICD-Loader are tracked here and initialized by
@@ -29,5 +38,8 @@ struct ur_adapter_handle_t_ {
 namespace ur {
 namespace cl {
 ur_adapter_handle_t getAdapter();
+inline cl_ext::ExtFuncPtrCacheT &getExtFnPtrCache() {
+  return getAdapter()->fnCache;
+}
 } // namespace cl
 } // namespace ur
