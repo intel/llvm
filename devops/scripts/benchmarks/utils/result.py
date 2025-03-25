@@ -57,7 +57,7 @@ class BenchmarkMetadata:
     description: str = None
     notes: str = None
     unstable: str = None
-    tags: list[str] = field(default_factory=list)  # Changed to list of tag names
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass_json
