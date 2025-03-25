@@ -5844,7 +5844,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (isa<CallInst>(CB) && cast<CallInst>(CB).isMustTailCall())
       return;
 
-    if (MayCheckCall && CB.hasRetAttr(Attribute::NoUndef)) {
+    // Since Spirv always does eager checking, the shadow of retval must be
+    // zeros
+    if (SpirOrSpirv || (MayCheckCall && CB.hasRetAttr(Attribute::NoUndef))) {
       setShadow(&CB, getCleanShadow(&CB));
       setOrigin(&CB, getCleanOrigin());
       return;
