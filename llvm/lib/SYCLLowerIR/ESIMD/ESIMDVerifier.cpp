@@ -173,9 +173,8 @@ public:
               Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
               Name.starts_with(
                   "sycl::_V1::ext::intel::experimental::esimd::") ||
-              Name.starts_with("sycl::_V1::ext::oneapi::this_work_item::")) {
+              Name.starts_with("sycl::_V1::ext::oneapi::this_work_item::"))
             continue;
-          }
 
           // Check if function name matches any allowed SYCL function name.
           auto checkLegalFunc = [Name](const char *LegalName) {
@@ -190,9 +189,8 @@ public:
               // lowered to buffer_t will cause runtime error and thus must be
               // reported at compilation time.
               (MayNeedForceStatelessMemModeAPI &&
-               any_of(LegalSYCLFunctionsInStatelessMode, checkLegalFunc))) {
+               any_of(LegalSYCLFunctionsInStatelessMode, checkLegalFunc)))
             continue;
-          }
 
           // If not, report an error.
           std::string ErrorMsg = std::string("function '") +
