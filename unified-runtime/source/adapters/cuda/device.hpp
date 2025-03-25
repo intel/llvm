@@ -37,14 +37,13 @@ private:
   bool MaxLocalMemSizeChosen{false};
   uint32_t NumComputeUnits{0};
   std::once_flag NVMLInitFlag;
-  bool NVMLUsed{false};
+  std::optional<nvmlDevice_t> NVMLDevice;
 
 public:
   ur_device_handle_t_(native_type cuDevice, CUcontext cuContext, CUevent evBase,
                       ur_platform_handle_t platform, uint32_t DevIndex)
       : CuDevice(cuDevice), CuContext(cuContext), EvBase(evBase), RefCount{1},
         Platform(platform), DeviceIndex{DevIndex} {
-
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
         cuDevice));
@@ -104,7 +103,7 @@ public:
     if (MemoryProviderShared) {
       umfMemoryProviderDestroy(MemoryProviderShared);
     }
-    if (NVMLUsed) {
+    if (NVMLDevice.has_value()) {
       UR_CHECK_ERROR(nvmlShutdown());
     }
     cuDevicePrimaryCtxRelease(CuDevice);
@@ -119,11 +118,11 @@ public:
     // left, resources will be released.
     std::call_once(NVMLInitFlag, [this]() {
       UR_CHECK_ERROR(nvmlInit());
-      NVMLUsed = true;
+      nvmlDevice_t Handle;
+      UR_CHECK_ERROR(nvmlDeviceGetHandleByIndex(DeviceIndex, &Handle));
+      NVMLDevice = Handle;
     });
-    nvmlDevice_t NVMLDevice;
-    UR_CHECK_ERROR(nvmlDeviceGetHandleByIndex(DeviceIndex, &NVMLDevice));
-    return NVMLDevice;
+    return NVMLDevice.value();
   };
 
   CUcontext getNativeContext() const noexcept { return CuContext; };
