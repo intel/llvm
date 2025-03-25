@@ -128,12 +128,14 @@ public:
 
   ManagedDeviceBinaries(const ManagedDeviceBinaries &) = delete;
 
-  ~ManagedDeviceBinaries() try {
-    ProgramManager::getInstance().removeImages(MBinaries);
-    syclex::detail::SYCL_JIT_Destroy(MBinaries);
-  } catch (std::exception &e) {
-    __SYCL_REPORT_EXCEPTION_TO_STREAM(
-        "exception during unregistration of SYCL binaries", e);
+  ~ManagedDeviceBinaries() {
+    try {
+      ProgramManager::getInstance().removeImages(MBinaries);
+      syclex::detail::SYCL_JIT_Destroy(MBinaries);
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM(
+          "exception during unregistration of SYCL binaries", e);
+    }
   }
 
 private:
