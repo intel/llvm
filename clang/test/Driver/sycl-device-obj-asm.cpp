@@ -31,7 +31,7 @@
 /// -fsycl-device-obj=asm should always be accompanied by -fsycl-device-only
 /// and -S, check that the compiler issues a correct warning message:
 // RUN:   %clang -fsycl-device-only -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_50 -fsycl-device-obj=asm %s 2>&1 -o - | FileCheck %s --check-prefix=CHECK-NO-DEV-ONLY-NO-S
-// CHECK-NO-DEV-ONLY-NO-S: warning: -fsycl-device-obj=asm flag has an effect only when compailing device code and emitting assembly, make sure both -fsycl-device-only and -S flags are present. The option will be ignored [-Wsycl-target]
+// CHECK-NO-DEV-ONLY-NO-S: warning: -fsycl-device-obj=asm flag has an effect only when compiling device code and emitting assembly, make sure both -fsycl-device-only and -S flags are present; will be ignored [-Wsycl-target]
 
 /// -fsycl-device-obj=asm will finish at generating assembly stage, hence
 /// inform users that generating library will not be possible (ignore -c)
