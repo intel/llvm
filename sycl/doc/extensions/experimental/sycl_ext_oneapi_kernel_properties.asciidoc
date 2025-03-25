@@ -289,14 +289,15 @@ by the property, the implementation must throw a synchronous exception with the
 
 === Embedding Properties into a Kernel
 
-In other situations it may be useful to embed a kernel's properties directly
-into its type, to ensure that a kernel cannot be launched without a property
-that it depends upon for correctness.
+A kernel's properties are embedded directly into its type, to ensure that a
+kernel cannot be launched without a property that it depends upon for
+correctness.
 
-To enable this use-case, this extension adds a mechanism for implementations to
-extract a property list from a kernel functor, if a kernel functor declares
-a member function named `get` accepting a `sycl::ext::oneapi::experimental::properties_tag`
-tag type and returning an instance of `sycl::ext::oneapi::experimental::properties`.
+To enable this, this extension adds a mechanism for implementations to extract
+a property list from a kernel functor, if a kernel functor declares a member
+function named `get` accepting a
+`sycl::ext::oneapi::experimental::properties_tag` tag type and returning an
+instance of `sycl::ext::oneapi::experimental::properties`.
 
 ```c++
 namespace sycl {
@@ -323,8 +324,8 @@ attributes to be applied to different call operators within the same
 functor. An embedded property list applies to all call operators in
 the functor.
 
-The example below shows how the kernel from the previous section could be
-rewritten to leverage an embedded property list:
+The example below shows how a simple vector addition kernel could be
+written to leverage an embedded property list:
 
 ```c++
 struct KernelFunctor {
