@@ -23,6 +23,12 @@ class SyclBench(Suite):
     def name(self) -> str:
         return "SYCL-Bench"
 
+    def git_url(self) -> str:
+        return "https://github.com/unisa-hpc/sycl-bench.git"
+
+    def git_hash(self) -> str:
+        return "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -31,8 +37,8 @@ class SyclBench(Suite):
         repo_path = git_clone(
             self.directory,
             "sycl-bench-repo",
-            "https://github.com/unisa-hpc/sycl-bench.git",
-            "31fc70be6266193c4ba60eb1fe3ce26edee4ca5b",
+            self.git_url(),
+            self.git_hash(),
         )
 
         configure_command = [
@@ -51,7 +57,7 @@ class SyclBench(Suite):
             ]
 
         run(configure_command, add_sycl=True)
-        run(f"cmake --build {build_path} -j", add_sycl=True)
+        run(f"cmake --build {build_path} -j {options.build_jobs}", add_sycl=True)
 
         self.built = True
 
@@ -112,6 +118,18 @@ class SyclBenchmark(Benchmark):
     def extra_env_vars(self) -> dict:
         return {}
 
+    def get_tags(self):
+        base_tags = ["SYCL", "micro"]
+        if "Memory" in self.bench_name or "mem" in self.bench_name.lower():
+            base_tags.append("memory")
+        if "Reduction" in self.bench_name:
+            base_tags.append("math")
+        if "Bandwidth" in self.bench_name:
+            base_tags.append("throughput")
+        if "Latency" in self.bench_name:
+            base_tags.append("latency")
+        return base_tags
+
     def setup(self):
         self.benchmark_bin = os.path.join(
             self.directory, "sycl-bench-build", self.bench_name
@@ -147,6 +165,8 @@ class SyclBenchmark(Benchmark):
                             env=env_vars,
                             stdout=row,
                             unit="ms",
+                            git_url=self.bench.git_url(),
+                            git_hash=self.bench.git_hash(),
                         )
                     )
 

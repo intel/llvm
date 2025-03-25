@@ -337,6 +337,7 @@ plural form *enumerators* is abbreviated to `etors`.
     + `desc` will be used as the etors's description comment
     + If the enum has `typed_etors`, `desc` must begin with type identifier: {`"[type]"`}
     + `desc` may contain the [optional-query] annotation. This denotes the etor as an info query which is optional for adapters to implement, and may legally result in a non-success error code.
+    + `desc` may contain the [deprecated-value] annotation. This marks the etor with the `[[deprecated]]` attribute specifier.
     + `name` must be a unique ISO-C standard identifier, and be all caps
   - An etor may take the following optional scalar field: {`value`, `version`}
     + `value` must be an ISO-C standard identifier

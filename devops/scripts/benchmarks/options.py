@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
+import multiprocessing
 
 from presets import presets
 
@@ -44,6 +45,7 @@ class Options:
     current_run_name: str = "This PR"
     preset: str = "Full"
     custom_results_dir = None
+    build_jobs: int = multiprocessing.cpu_count()
 
     regression_threshold: float = 0.01
     timestamp_override: str = None

@@ -233,7 +233,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   const auto &ProgMetadata = Img.getProgramMetadataUR();
 
   // Load the image
-  const ContextImplPtr Ctx = getSyclObjImpl(Context);
+  const ContextImplPtr &Ctx = getSyclObjImpl(Context);
   std::vector<const uint8_t *> Binaries(
       Devices.size(), const_cast<uint8_t *>(RawImg.BinaryStart));
   std::vector<size_t> Lengths(Devices.size(), ImgSize);
@@ -1172,7 +1172,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
 ur_program_handle_t
 ProgramManager::getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
-                                         const ContextImplPtr Context) {
+                                         const ContextImplPtr &Context) {
   ur_program_handle_t Program;
   const AdapterPtr &Adapter = Context->getAdapter();
   Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_PROGRAM,
@@ -1837,13 +1837,17 @@ ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   return {};
 }
 
-static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
+static bool shouldSkipEmptyImage(sycl_device_binary RawImg, bool IsRTC) {
   // For bfloat16 device library image, we should keep it. However, in some
   // scenario, __sycl_register_lib can be called multiple times and the same
   // bfloat16 device library image may be handled multiple times which is not
   // needed. 2 static bool variables are created to record whether native or
   // fallback bfloat16 device library image has been handled, if yes, we just
   // need to skip it.
+  // We cannot prevent redundant loads of device library images if they are part
+  // of a runtime-compiled device binary, as these will be freed when the
+  // corresponding kernel bundle is destroyed. Hence, normal kernels cannot rely
+  // on the presence of RTC device library images.
   sycl_device_binary_property_set ImgPS;
   static bool IsNativeBF16DeviceLibHandled = false;
   static bool IsFallbackBF16DeviceLibHandled = false;
@@ -1861,8 +1865,13 @@ static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
       if (ImgP == ImgPS->PropertiesEnd)
         return true;
 
-      // A valid bfloat16 device library image is found here, need to check
-      // wheter it has been handled already.
+      // A valid bfloat16 device library image is found here.
+      // If it originated from RTC, we cannot skip it, but do not mark it as
+      // being present.
+      if (IsRTC)
+        return false;
+
+      // Otherwise, we need to check whether it has been handled already.
       uint32_t BF16NativeVal = DeviceBinaryProperty(ImgP).asUint32();
       if (((BF16NativeVal == 0) && IsFallbackBF16DeviceLibHandled) ||
           ((BF16NativeVal == 1) && IsNativeBF16DeviceLibHandled))
@@ -1879,14 +1888,33 @@ static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
   return true;
 }
 
+static bool isCompiledAtRuntime(sycl_device_binaries DeviceBinary) {
+  // Check whether the first device binary contains a legacy format offload
+  // entry with a `$` in its name.
+  if (DeviceBinary->NumDeviceBinaries > 0) {
+    sycl_device_binary Binary = DeviceBinary->DeviceBinaries;
+    if (Binary->EntriesBegin != Binary->EntriesEnd) {
+      sycl_offload_entry Entry = Binary->EntriesBegin;
+      if (!Entry->IsNewOffloadEntryType() &&
+          std::string_view{Entry->name}.find('$') != std::string_view::npos) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
+  const bool IsRTC = isCompiledAtRuntime(DeviceBinary);
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
-    // Treat the image as empty one
-    if ((EntriesB == EntriesE) && shouldSkipEmptyImage(RawImg))
+    // If the image does not contain kernels, skip it unless it is one of the
+    // bfloat16 device libraries, and it wasn't loaded before or resulted from
+    // runtime compilation.
+    if ((EntriesB == EntriesE) && shouldSkipEmptyImage(RawImg, IsRTC))
       continue;
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
@@ -1973,9 +2001,10 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
         std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
             std::make_shared<detail::kernel_id_impl>(name);
         sycl::kernel_id KernelID =
-            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+            detail::createSyclObjFromImpl<sycl::kernel_id>(
+                std::move(KernelIDImpl));
 
-        It = m_KernelName2KernelIDs.emplace_hint(It, name, KernelID);
+        It = m_KernelName2KernelIDs.emplace_hint(It, name, std::move(KernelID));
       }
       m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
       m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
@@ -2081,6 +2110,7 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 }
 
 void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
+  bool IsRTC = isCompiledAtRuntime(DeviceBinary);
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     auto DevImgIt = m_DeviceImages.find(RawImg);
@@ -2088,8 +2118,11 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       continue;
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
-    // Treat the image as empty one
-    if (EntriesB == EntriesE)
+    // Skip clean up if there are no offload entries, unless `DeviceBinary`
+    // resulted from runtime compilation: Then, this is one of the `bfloat16`
+    // device libraries, so we want to make sure that the image and its exported
+    // symbols are removed from the program manager's maps.
+    if (EntriesB == EntriesE && !IsRTC)
       continue;
 
     RTDeviceBinaryImage *Img = DevImgIt->second.get();
@@ -2338,7 +2371,7 @@ kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
   auto KernelID = m_BuiltInKernelIDs.find(KernelName);
   if (KernelID == m_BuiltInKernelIDs.end()) {
     auto Impl = std::make_shared<kernel_id_impl>(KernelName);
-    auto CachedID = createSyclObjFromImpl<kernel_id>(Impl);
+    auto CachedID = createSyclObjFromImpl<kernel_id>(std::move(Impl));
     KernelID = m_BuiltInKernelIDs.insert({KernelName, CachedID}).first;
   }
 
@@ -2450,7 +2483,7 @@ device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
       BinImage, Ctx, std::vector<device>{Dev}, ImgState, KernelIDs,
       /*PIProgram=*/nullptr);
 
-  return createSyclObjFromImpl<device_image_plain>(Impl);
+  return createSyclObjFromImpl<device_image_plain>(std::move(Impl));
 }
 
 std::vector<DevImgPlainWithDeps>
@@ -2640,7 +2673,8 @@ void ProgramManager::bringSYCLDeviceImagesToState(
 
   for (DevImgPlainWithDeps &ImgWithDeps : DeviceImages) {
     device_image_plain &MainImg = ImgWithDeps.getMain();
-    const bundle_state DevImageState = getSyclObjImpl(MainImg)->get_state();
+    const DeviceImageImplPtr &MainImgImpl = getSyclObjImpl(MainImg);
+    const bundle_state DevImageState = MainImgImpl->get_state();
     // At this time, there is no circumstance where a device image should ever
     // be in the source state. That not good.
     assert(DevImageState != bundle_state::ext_oneapi_source);
@@ -2656,9 +2690,8 @@ void ProgramManager::bringSYCLDeviceImagesToState(
       break;
     case bundle_state::object:
       if (DevImageState == bundle_state::input) {
-        ImgWithDeps =
-            compile(ImgWithDeps, getSyclObjImpl(MainImg)->get_devices(),
-                    /*PropList=*/{});
+        ImgWithDeps = compile(ImgWithDeps, MainImgImpl->get_devices(),
+                              /*PropList=*/{});
         break;
       }
       // Device image is expected to be object state then.
@@ -2672,7 +2705,7 @@ void ProgramManager::bringSYCLDeviceImagesToState(
         assert(DevImageState != bundle_state::ext_oneapi_source);
         break;
       case bundle_state::input:
-        ImgWithDeps = build(ImgWithDeps, getSyclObjImpl(MainImg)->get_devices(),
+        ImgWithDeps = build(ImgWithDeps, MainImgImpl->get_devices(),
                             /*PropList=*/{});
         break;
       case bundle_state::object: {
@@ -2686,7 +2719,7 @@ void ProgramManager::bringSYCLDeviceImagesToState(
         break;
       }
       case bundle_state::executable:
-        ImgWithDeps = build(ImgWithDeps, getSyclObjImpl(MainImg)->get_devices(),
+        ImgWithDeps = build(ImgWithDeps, MainImgImpl->get_devices(),
                             /*PropList=*/{});
         break;
       }
@@ -2828,7 +2861,8 @@ static void mergeImageData(const std::vector<device_image_plain> &Imgs,
                            std::vector<unsigned char> &NewSpecConstBlob,
                            device_image_impl::SpecConstMapT &NewSpecConstMap) {
   for (const device_image_plain &Img : Imgs) {
-    std::shared_ptr<device_image_impl> DeviceImageImpl = getSyclObjImpl(Img);
+    const std::shared_ptr<device_image_impl> &DeviceImageImpl =
+        getSyclObjImpl(Img);
     // Duplicates are not expected here, otherwise urProgramLink should fail
     KernelIDs.insert(KernelIDs.end(),
                      DeviceImageImpl->get_kernel_ids_ptr()->begin(),
@@ -2889,16 +2923,15 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
   std::string LinkOptionsStr;
   applyLinkOptionsFromEnvironment(LinkOptionsStr);
   const device_image_plain &MainImg = ImgWithDeps.getMain();
+  const std::shared_ptr<device_image_impl> &InputImpl = getSyclObjImpl(MainImg);
   if (LinkOptionsStr.empty()) {
-    const std::shared_ptr<device_image_impl> &InputImpl =
-        getSyclObjImpl(MainImg);
     appendLinkOptionsFromImage(LinkOptionsStr,
                                *(InputImpl->get_bin_image_ref()));
   }
   // Should always come last!
   appendLinkEnvironmentVariablesThatAppend(LinkOptionsStr);
-  const context &Context = getSyclObjImpl(MainImg)->get_context();
-  const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
+  const context &Context = InputImpl->get_context();
+  const ContextImplPtr &ContextImpl = getSyclObjImpl(Context);
   const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
   ur_program_handle_t LinkedProg = nullptr;
@@ -2924,8 +2957,7 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   if (Error != UR_RESULT_SUCCESS) {
     if (LinkedProg) {
-      const std::string ErrorMsg =
-          getProgramBuildLog(LinkedProg, std::move(ContextImpl));
+      const std::string ErrorMsg = getProgramBuildLog(LinkedProg, ContextImpl);
       throw sycl::exception(make_error_code(errc::build), ErrorMsg);
     }
     throw set_ur_error(exception(make_error_code(errc::build), "link() failed"),
@@ -2951,7 +2983,7 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
     }
   }
 
-  auto BinImg = getSyclObjImpl(MainImg)->get_bin_image_ref();
+  auto BinImg = InputImpl->get_bin_image_ref();
   DeviceImageImplPtr ExecutableImpl =
       std::make_shared<detail::device_image_impl>(
           BinImg, Context, Devs, bundle_state::executable, std::move(KernelIDs),
@@ -2980,7 +3012,6 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
       getSyclObjImpl(DevImgWithDeps.getMain());
 
   const context Context = MainInputImpl->get_context();
-  const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
   std::vector<const RTDeviceBinaryImage *> BinImgs;
   BinImgs.reserve(DevImgWithDeps.size());
@@ -3032,7 +3063,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
 
-  const ContextImplPtr Ctx = getSyclObjImpl(Context);
+  const ContextImplPtr &Ctx = getSyclObjImpl(Context);
 
   KernelProgramCache &Cache = Ctx->getKernelProgramCache();
 

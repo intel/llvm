@@ -99,7 +99,6 @@ class TestBench(Benchmark):
                 env={"A": "B"},
                 stdout="no output",
                 unit="ms",
-                description=self.description(),
             )
         ]
 

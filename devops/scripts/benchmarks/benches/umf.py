@@ -74,6 +74,9 @@ class ComputeUMFBenchmark(Benchmark):
 
         self.benchmark_bin = os.path.join(options.umf, "benchmark", self.bench_name)
 
+    def get_tags(self):
+        return ["UMF", "allocation", "latency", "micro"]
+
     def run(self, env_vars) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",

@@ -27,12 +27,26 @@ def runtime_to_name(runtime: RUNTIMES) -> str:
     }[runtime]
 
 
+def runtime_to_tag_name(runtime: RUNTIMES) -> str:
+    return {
+        RUNTIMES.SYCL: "SYCL",
+        RUNTIMES.LEVEL_ZERO: "L0",
+        RUNTIMES.UR: "UR",
+    }[runtime]
+
+
 class ComputeBench(Suite):
     def __init__(self, directory):
         self.directory = directory
 
     def name(self) -> str:
         return "Compute Benchmarks"
+
+    def git_url(self) -> str:
+        return "https://github.com/intel/compute-benchmarks.git"
+
+    def git_hash(self) -> str:
+        return "b5cc46acf61766ab00da04e85bd4da4f7591eb21"
 
     def setup(self):
         if options.sycl is None:
@@ -41,8 +55,8 @@ class ComputeBench(Suite):
         repo_path = git_clone(
             self.directory,
             "compute-benchmarks-repo",
-            "https://github.com/intel/compute-benchmarks.git",
-            "b5cc46acf61766ab00da04e85bd4da4f7591eb21",
+            self.git_url(),
+            self.git_hash(),
         )
         build_path = create_build_path(self.directory, "compute-benchmarks-build")
 
@@ -64,7 +78,7 @@ class ComputeBench(Suite):
 
         run(configure_command, add_sycl=True)
 
-        run(f"cmake --build {build_path} -j", add_sycl=True)
+        run(f"cmake --build {build_path} -j {options.build_jobs}", add_sycl=True)
 
         self.built = True
 
@@ -77,10 +91,15 @@ class ComputeBench(Suite):
                 "The first layer is the Level Zero API, the second is the Unified Runtime API, and the third is the SYCL API.\n"
                 "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
                 "Work is ongoing to reduce the overhead of the SYCL API\n",
+                tags=["submit", "micro", "SYCL", "UR", "L0"],
             ),
             "SinKernelGraph": BenchmarkMetadata(
                 type="group",
                 unstable="This benchmark combines both eager and graph execution, and may not be representative of real use cases.",
+                tags=["submit", "memory", "proxy", "SYCL", "UR", "L0", "graph"],
+            ),
+            "SubmitGraph": BenchmarkMetadata(
+                type="group", tags=["submit", "micro", "SYCL", "UR", "L0", "graph"]
             ),
         }
 
@@ -224,7 +243,8 @@ class ComputeBenchmark(Benchmark):
                     env=env_vars,
                     stdout=result,
                     unit=parse_unit_type(unit),
-                    description=self.description(),
+                    git_url=self.bench.git_url(),
+                    git_hash=self.bench.git_hash(),
                 )
             )
         return ret
@@ -264,6 +284,9 @@ class SubmitKernel(ComputeBenchmark):
         super().__init__(
             bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel"
         )
+
+    def get_tags(self):
+        return ["submit", "latency", runtime_to_tag_name(self.runtime), "micro"]
 
     def name(self):
         order = "in order" if self.ioq else "out of order"
@@ -327,6 +350,9 @@ class ExecImmediateCopyQueue(ComputeBenchmark):
             f"{self.destination} memory with {self.size} bytes. Tests immediate execution overheads."
         )
 
+    def get_tags(self):
+        return ["memory", "submit", "latency", "SYCL", "micro"]
+
     def bin_args(self) -> list[str]:
         return [
             "--iterations=100000",
@@ -357,6 +383,9 @@ class QueueInOrderMemcpy(ComputeBenchmark):
             f"{self.source} to {self.destination} with {self.size} bytes, executed 100 times per iteration."
         )
 
+    def get_tags(self):
+        return ["memory", "latency", "SYCL", "micro"]
+
     def bin_args(self) -> list[str]:
         return [
             "--iterations=10000",
@@ -383,6 +412,9 @@ class QueueMemcpy(ComputeBenchmark):
             f"Measures general SYCL queue memory copy performance from {self.source} to "
             f"{self.destination} with {self.size} bytes per operation."
         )
+
+    def get_tags(self):
+        return ["memory", "latency", "SYCL", "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -413,6 +445,9 @@ class StreamMemory(ComputeBenchmark):
     def lower_is_better(self):
         return False
 
+    def get_tags(self):
+        return ["memory", "throughput", "SYCL", "micro"]
+
     def bin_args(self) -> list[str]:
         return [
             "--iterations=10000",
@@ -438,6 +473,9 @@ class VectorSum(ComputeBenchmark):
             "Measures performance of vector addition across 3D grid (512x256x256 elements) "
             "using SYCL."
         )
+
+    def get_tags(self):
+        return ["math", "throughput", "SYCL", "micro"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -485,6 +523,9 @@ class MemcpyExecute(ComputeBenchmark):
             f"from {src_type} to {dst_type} memory {events} events."
         )
 
+    def get_tags(self):
+        return ["memory", "latency", "UR", "micro"]
+
     def bin_args(self) -> list[str]:
         return [
             "--Ioq=1",
@@ -525,6 +566,16 @@ class GraphApiSinKernelGraph(ComputeBenchmark):
     def unstable(self) -> str:
         return "This benchmark combines both eager and graph execution, and may not be representative of real use cases."
 
+    def get_tags(self):
+        return [
+            "graph",
+            runtime_to_tag_name(self.runtime),
+            "proxy",
+            "submit",
+            "memory",
+            "latency",
+        ]
+
     def bin_args(self) -> list[str]:
         return [
             "--iterations=10000",
@@ -557,6 +608,15 @@ class GraphApiSubmitGraph(ComputeBenchmark):
     def name(self):
         return f"graph_api_benchmark_{self.runtime.value} SubmitGraph numKernels:{self.numKernels} ioq {self.inOrderQueue} measureCompletion {self.measureCompletionTime}"
 
+    def get_tags(self):
+        return [
+            "graph",
+            runtime_to_tag_name(self.runtime),
+            "micro",
+            "submit",
+            "latency",
+        ]
+
     def bin_args(self) -> list[str]:
         return [
             "--iterations=10000",
@@ -583,6 +643,9 @@ class UllsEmptyKernel(ComputeBenchmark):
 
     def name(self):
         return f"ulls_benchmark_{self.runtime.value} EmptyKernel wgc:{self.wgc}, wgs:{self.wgs}"
+
+    def get_tags(self):
+        return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
 
     def bin_args(self) -> list[str]:
         return [
@@ -621,6 +684,9 @@ class UllsKernelSwitch(ComputeBenchmark):
 
     def name(self):
         return f"ulls_benchmark_{self.runtime.value} KernelSwitch count {self.count} kernelTime {self.kernelTime}"
+
+    def get_tags(self):
+        return [runtime_to_tag_name(self.runtime), "micro", "latency", "submit"]
 
     def bin_args(self) -> list[str]:
         return [

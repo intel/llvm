@@ -303,10 +303,11 @@ context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
 
 ur_native_handle_t context_impl::getNative() const {
   const auto &Adapter = getAdapter();
-  if (getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urContextRetain>(getHandleRef());
   ur_native_handle_t Handle;
   Adapter->call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
+  if (getBackend() == backend::opencl) {
+    __SYCL_OCL_CALL(clRetainContext, ur::cast<cl_context>(Handle));
+  }
   return Handle;
 }
 
@@ -327,6 +328,11 @@ bool context_impl::isBufferLocationSupported() const {
 void context_impl::addAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
   std::lock_guard<std::mutex> Lock{MAssociatedDeviceGlobalsMutex};
   MAssociatedDeviceGlobals.insert(DeviceGlobalPtr);
+}
+
+void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
+  std::lock_guard<std::mutex> Lock{MAssociatedDeviceGlobalsMutex};
+  MAssociatedDeviceGlobals.erase(DeviceGlobalPtr);
 }
 
 void context_impl::addDeviceGlobalInitializer(
@@ -407,6 +413,9 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     // Device global map entry pointers will not die before the end of the
     // program and the pointers will stay the same, so we do not need
     // m_DeviceGlobalsMutex here.
+    // The lifetimes of device global map entries representing globals in
+    // runtime-compiled code will be tied to the kernel bundle, so the
+    // assumption holds in that setting as well.
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =

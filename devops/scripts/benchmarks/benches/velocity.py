@@ -26,6 +26,12 @@ class VelocityBench(Suite):
     def name(self) -> str:
         return "Velocity Bench"
 
+    def git_url(self) -> str:
+        return "https://github.com/oneapi-src/Velocity-Bench/"
+
+    def git_hash(self) -> str:
+        return "b22215c16f789100449c34bf4eaa3fb178983d69"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -33,8 +39,8 @@ class VelocityBench(Suite):
         self.repo_path = git_clone(
             self.directory,
             "velocity-bench-repo",
-            "https://github.com/oneapi-src/Velocity-Bench/",
-            "b22215c16f789100449c34bf4eaa3fb178983d69",
+            self.git_url(),
+            self.git_hash(),
         )
 
     def benchmarks(self) -> list[Benchmark]:
@@ -101,7 +107,7 @@ class VelocityBase(Benchmark):
 
         run(configure_command, {"CC": "clang", "CXX": "clang++"}, add_sycl=True)
         run(
-            f"cmake --build {build_path} -j",
+            f"cmake --build {build_path} -j {options.build_jobs}",
             add_sycl=True,
             ld_library=self.ld_libraries(),
         )
@@ -117,6 +123,9 @@ class VelocityBase(Benchmark):
 
     def description(self) -> str:
         return ""
+
+    def get_tags(self):
+        return ["SYCL", "application"]
 
     def run(self, env_vars) -> list[Result]:
         env_vars.update(self.extra_env_vars())
@@ -136,7 +145,8 @@ class VelocityBase(Benchmark):
                 env=env_vars,
                 stdout=result,
                 unit=self.unit,
-                description=self.description(),
+                git_url=self.vb.git_url(),
+                git_hash=self.vb.git_hash(),
             )
         ]
 
@@ -171,6 +181,9 @@ class Hashtable(VelocityBase):
             raise ValueError(
                 "{self.__class__.__name__}: Failed to parse keys per second from benchmark output."
             )
+
+    def get_tags(self):
+        return ["SYCL", "application", "throughput"]
 
 
 class Bitcracker(VelocityBase):
@@ -209,6 +222,9 @@ class Bitcracker(VelocityBase):
             raise ValueError(
                 "{self.__class__.__name__}: Failed to parse benchmark output."
             )
+
+    def get_tags(self):
+        return ["SYCL", "application", "throughput"]
 
 
 class SobelFilter(VelocityBase):
@@ -256,6 +272,9 @@ class SobelFilter(VelocityBase):
                 "{self.__class__.__name__}: Failed to parse benchmark output."
             )
 
+    def get_tags(self):
+        return ["SYCL", "application", "image", "throughput"]
+
 
 class QuickSilver(VelocityBase):
     def __init__(self, vb: VelocityBench):
@@ -302,6 +321,9 @@ class QuickSilver(VelocityBase):
             raise ValueError(
                 "{self.__class__.__name__}: Failed to parse benchmark output."
             )
+
+    def get_tags(self):
+        return ["SYCL", "application", "simulation", "throughput"]
 
 
 class Easywave(VelocityBase):
@@ -367,6 +389,9 @@ class Easywave(VelocityBase):
             os.path.join(options.benchmark_cwd, "easywave.log")
         )
 
+    def get_tags(self):
+        return ["SYCL", "application", "simulation"]
+
 
 class CudaSift(VelocityBase):
     def __init__(self, vb: VelocityBench):
@@ -394,6 +419,9 @@ class CudaSift(VelocityBase):
             return float(match.group(1))
         else:
             raise ValueError("Failed to parse benchmark output.")
+
+    def get_tags(self):
+        return ["SYCL", "application", "image"]
 
 
 class DLCifar(VelocityBase):
@@ -445,6 +473,9 @@ class DLCifar(VelocityBase):
             return float(match.group(1))
         else:
             raise ValueError("Failed to parse benchmark output.")
+
+    def get_tags(self):
+        return ["SYCL", "application", "inference", "image"]
 
 
 class DLMnist(VelocityBase):
@@ -531,6 +562,9 @@ class DLMnist(VelocityBase):
         else:
             raise ValueError("Failed to parse benchmark output.")
 
+    def get_tags(self):
+        return ["SYCL", "application", "inference", "image"]
+
 
 class SVM(VelocityBase):
     def __init__(self, vb: VelocityBench):
@@ -573,3 +607,6 @@ class SVM(VelocityBase):
             return float(match.group(1))
         else:
             raise ValueError("Failed to parse benchmark output.")
+
+    def get_tags(self):
+        return ["SYCL", "application", "inference"]

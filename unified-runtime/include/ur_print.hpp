@@ -103,6 +103,10 @@ printFlag<ur_device_usm_access_capability_flag_t>(std::ostream &os,
                                                   uint32_t flag);
 
 template <>
+inline ur_result_t
+printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
 inline ur_result_t printFlag<ur_context_flag_t>(std::ostream &os,
                                                 uint32_t flag);
 
@@ -331,6 +335,8 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_memory_scope_capability_flag_t value);
 inline std::ostream &
 operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_throttle_reasons_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
@@ -1221,6 +1227,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_USM_POOL_GET_INFO_EXP:
     os << "UR_FUNCTION_USM_POOL_GET_INFO_EXP";
+    break;
+  case UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP:
+    os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP";
+    break;
+  case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP:
+    os << "UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -2876,9 +2888,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
     os << "UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES";
     break;
-  case UR_DEVICE_INFO_BFLOAT16:
-    os << "UR_DEVICE_INFO_BFLOAT16";
-    break;
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES:
     os << "UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES";
     break;
@@ -2933,6 +2942,18 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     os << "UR_DEVICE_INFO_USE_NATIVE_ASSERT";
     break;
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
+    os << "UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS";
+    break;
+  case UR_DEVICE_INFO_FAN_SPEED:
+    os << "UR_DEVICE_INFO_FAN_SPEED";
+    break;
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT:
+    os << "UR_DEVICE_INFO_MIN_POWER_LIMIT";
+    break;
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT:
+    os << "UR_DEVICE_INFO_MAX_POWER_LIMIT";
+    break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
     break;
@@ -2941,6 +2962,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP";
+    break;
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
     os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP";
@@ -3022,6 +3046,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP:
     os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP";
+    break;
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP";
     break;
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP";
@@ -4369,19 +4396,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BFLOAT16: {
-    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-    if (sizeof(ur_bool_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_bool_t) << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    os << *tptr;
-
-    os << ")";
-  } break;
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     const uint32_t *tptr = (const uint32_t *)ptr;
     if (sizeof(uint32_t) > size) {
@@ -4618,6 +4632,60 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
+    const ur_device_throttle_reasons_flags_t *tptr =
+        (const ur_device_throttle_reasons_flags_t *)ptr;
+    if (sizeof(ur_device_throttle_reasons_flags_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_device_throttle_reasons_flags_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    ur::details::printFlag<ur_device_throttle_reasons_flag_t>(os, *tptr);
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_FAN_SPEED: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
+    const int32_t *tptr = (const int32_t *)ptr;
+    if (sizeof(int32_t) > size) {
+      os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
+         << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
@@ -4647,6 +4715,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -4998,6 +5079,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << ")";
   } break;
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5938,6 +6032,138 @@ printFlag<ur_device_usm_access_capability_flag_t>(std::ostream &os,
 }
 } // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_device_throttle_reasons_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_device_throttle_reasons_flag_t value) {
+  switch (value) {
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE";
+    break;
+  case UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER:
+    os << "UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_device_throttle_reasons_flag_t flag
+template <>
+inline ur_result_t
+printFlag<ur_device_throttle_reasons_flag_t>(std::ostream &os, uint32_t flag) {
+  uint32_t val = flag;
+  bool first = true;
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE;
+  }
+
+  if ((val & UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER) ==
+      (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER) {
+    val ^= (uint32_t)UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+  }
+  if (val != 0) {
+    std::bitset<32> bits(val);
+    if (!first) {
+      os << " | ";
+    }
+    os << "unknown bit flags " << bits;
+  } else if (first) {
+    os << "0";
+  }
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_context_flag_t type
 /// @returns
 ///     std::ostream &
@@ -6284,6 +6510,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
     break;
   case UR_MEM_TYPE_IMAGE_CUBEMAP_EXP:
     os << "UR_MEM_TYPE_IMAGE_CUBEMAP_EXP";
+    break;
+  case UR_MEM_TYPE_IMAGE_GATHER_EXP:
+    os << "UR_MEM_TYPE_IMAGE_GATHER_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -10840,6 +11069,12 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
     os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE";
+    break;
+  case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD:
+    os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD";
+    break;
+  case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
+    os << "UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT";
     break;
   default:
     os << "unknown enumerator";
@@ -19438,6 +19673,52 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
+/// ur_command_buffer_append_native_command_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_append_native_command_exp_params_t *params) {
+
+  os << ".hCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phCommandBuffer));
+
+  os << ", ";
+  os << ".pfnNativeCommand = ";
+
+  os << reinterpret_cast<void *>(*(params->ppfnNativeCommand));
+
+  os << ", ";
+  os << ".pData = ";
+
+  ur::details::printPtr(os, *(params->ppData));
+
+  os << ", ";
+  os << ".hChildCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phChildCommandBuffer));
+
+  os << ", ";
+  os << ".numSyncPointsInWaitList = ";
+
+  os << *(params->pnumSyncPointsInWaitList);
+
+  os << ", ";
+  os << ".pSyncPointWaitList = ";
+
+  ur::details::printPtr(os, *(params->ppSyncPointWaitList));
+
+  os << ", ";
+  os << ".pSyncPoint = ";
+
+  ur::details::printPtr(os, *(params->ppSyncPoint));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
 /// ur_command_buffer_update_kernel_launch_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -19563,6 +19844,27 @@ operator<<(std::ostream &os,
   os << ".pPropSizeRet = ";
 
   ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the
+/// ur_command_buffer_get_native_handle_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_command_buffer_get_native_handle_exp_params_t *params) {
+
+  os << ".hCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->phCommandBuffer));
+
+  os << ", ";
+  os << ".phNativeCommandBuffer = ";
+
+  ur::details::printPtr(os, *(params->pphNativeCommandBuffer));
 
   return os;
 }
@@ -20874,6 +21176,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
     os << (const struct ur_command_buffer_append_usm_advise_exp_params_t *)
             params;
   } break;
+  case UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP: {
+    os << (const struct ur_command_buffer_append_native_command_exp_params_t *)
+            params;
+  } break;
   case UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP: {
     os << (const struct ur_command_buffer_update_kernel_launch_exp_params_t *)
             params;
@@ -20888,6 +21194,10 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP: {
     os << (const struct ur_command_buffer_get_info_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP: {
+    os << (const struct ur_command_buffer_get_native_handle_exp_params_t *)
+            params;
   } break;
   case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP: {
     os << (const struct ur_usm_p2p_enable_peer_access_exp_params_t *)params;

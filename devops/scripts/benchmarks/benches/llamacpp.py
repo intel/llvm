@@ -25,6 +25,12 @@ class LlamaCppBench(Suite):
     def name(self) -> str:
         return "llama.cpp bench"
 
+    def git_url(self) -> str:
+        return "https://github.com/ggerganov/llama.cpp"
+
+    def git_hash(self) -> str:
+        return "1ee9eea094fe5846c7d8d770aa7caa749d246b23"
+
     def setup(self):
         if options.sycl is None:
             return
@@ -32,8 +38,8 @@ class LlamaCppBench(Suite):
         repo_path = git_clone(
             self.directory,
             "llamacpp-repo",
-            "https://github.com/ggerganov/llama.cpp",
-            "1ee9eea094fe5846c7d8d770aa7caa749d246b23",
+            self.git_url(),
+            self.git_hash(),
         )
 
         self.models_dir = os.path.join(self.directory, "models")
@@ -67,7 +73,7 @@ class LlamaCppBench(Suite):
         run(configure_command, add_sycl=True)
 
         run(
-            f"cmake --build {self.build_path} -j",
+            f"cmake --build {self.build_path} -j {options.build_jobs}",
             add_sycl=True,
             ld_library=self.oneapi.ld_libraries(),
         )
@@ -100,6 +106,9 @@ class LlamaBench(Benchmark):
             "different batch sizes. Higher values indicate better performance. Uses the Phi-3-mini-4k-instruct "
             "quantized model and leverages SYCL with oneDNN for acceleration."
         )
+
+    def get_tags(self):
+        return ["SYCL", "application", "inference", "throughput"]
 
     def lower_is_better(self):
         return False
@@ -139,7 +148,8 @@ class LlamaBench(Benchmark):
                     env=env_vars,
                     stdout=result,
                     unit="token/s",
-                    description=self.description(),
+                    git_url=self.bench.git_url(),
+                    git_hash=self.bench.git_hash(),
                 )
             )
         return results

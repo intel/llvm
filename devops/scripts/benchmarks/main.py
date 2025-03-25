@@ -483,6 +483,12 @@ if __name__ == "__main__":
         default=options.custom_results_dir,
     )
     parser.add_argument(
+        "--build-jobs",
+        type=int,
+        help="Number of build jobs to run simultaneously",
+        default=options.build_jobs,
+    )
+    parser.add_argument(
         "--timestamp-override",
         type=str,
         help="Used in CI to enforce use of same timestamp across scripts",
@@ -514,6 +520,7 @@ if __name__ == "__main__":
     options.cublas_directory = args.cublas_directory
     options.preset = args.preset
     options.custom_results_dir = args.results_dir
+    options.build_jobs = args.build_jobs
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
