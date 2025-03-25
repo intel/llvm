@@ -287,7 +287,7 @@ by the property, the implementation must throw a synchronous exception with the
 
 |===
 
-== Embedding Properties into a Kernel
+=== Embedding Properties into a Kernel
 
 In other situations it may be useful to embed a kernel's properties directly
 into its type, to ensure that a kernel cannot be launched without a property
@@ -362,6 +362,62 @@ combinations that can be detected at compile-time should be reported via a
 diagnostic; invalid combinations that can only be detected at run-time should
 result in an implementation throwing an `exception` with the `errc::invalid`
 error code.
+
+=== Using Properties with Lambda Expressions
+
+When a SYCL kernel is defined via a lambda expression, there is no way to
+define a `get` member function and subsequently no way to embed kernel
+properties. Instead, developers must wrap the lambda expression in an object.
+
+To simplify this usage pattern, this extension defines a `kernel_function`
+that encapsulates a kernel function (which may be a lambda expression) and a
+property list.
+
+NOTE: Developers are free to extend `kernel_function` or define their own
+wrapper classes (e.g., to attach commonly used property lists).
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Function, typename Properties = empty_properties_t>
+struct kernel_function {
+
+  kernel_function(Function f, Properties p = syclx::properties{});
+
+  // Available only if Function is invocable with Args
+  template <typename... Args>
+  void operator()(Args... args) const {
+      f(std::forward<Args>(args)...);
+  }
+
+  auto get(syclx::properties_tag) {
+    return Properties{};
+  }
+
+  private:
+  const Function f; // exposition only
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+The example below shows how the `KernelFunctor` example from the previous
+section can be written using this wrapper:
+
+```c++
+namespace syclx = sycl::ext::oneapi::experimental;
+
+...
+
+auto lambda = [=](id<1> i) const {
+    a[i] = b[i] + c[i];
+}
+auto props = syclx::properties{syclx::work_group_size<8, 8>, syclx::sub_group_size<8>};
+auto kernel = syclx::kernel_function(lambda, props);
+
+...
+
+q.parallel_for(range<2>{16, 16}, kernel).wait();
+```
 
 === Querying Properties in a Compiled Kernel
 
