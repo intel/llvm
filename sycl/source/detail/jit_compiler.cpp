@@ -1042,10 +1042,6 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       FusedOrCachedKernelName);
 
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
-  if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
-    detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
-        Queue->get_context(), {Queue->get_device()}, {FusedKernelId}));
-  }
 
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
