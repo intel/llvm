@@ -167,6 +167,9 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         TestSuite(),
     ]
 
+    # Collect metadata from all benchmarks without setting them up
+    metadata = collect_metadata(suites)
+
     # If dry run, we're done
     if options.dry_run:
         suites = []
@@ -420,6 +423,7 @@ if __name__ == "__main__":
         type=str,
         help="Location for output files, if --output-html or --output_markdown was specified.",
         default=None,
+    )
     parser.add_argument(
         "--dry-run",
         help="Do not run any actual benchmarks",
@@ -461,12 +465,6 @@ if __name__ == "__main__":
         type=str,
         help="Directory for cublas library",
         default=None,
-    )
-    parser.add_argument(
-        "--results-dir",
-        type=str,
-        help="Specify a custom results directory",
-        default=options.custom_results_dir,
     )
     parser.add_argument(
         "--results-dir",
