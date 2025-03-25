@@ -1689,7 +1689,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 // Unsupported options for SYCL device compilation.
 //  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
 //  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
-//  -fcs-profile-generate -forder-file-instrumentation, --coverage
+//  -fcs-profile-generate, --coverage
 static ArrayRef<options::ID> getUnsupportedOpts() {
   static constexpr options::ID UnsupportedOpts[] = {
       options::OPT_fsanitize_EQ,      // -fsanitize
