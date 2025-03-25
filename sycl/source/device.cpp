@@ -37,11 +37,8 @@ device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   ur_device_handle_t Device;
-  Adapter->call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
-      detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter->getUrAdapter(),
-      nullptr, &Device);
-  auto Platform =
-      detail::platform_impl::getPlatformFromUrDevice(Device, Adapter);
+  Adapter->call<detail::UrApiKind::urDeviceCreateWithNativeHandle>( detail::ur::cast<ur_native_handle_t>(DeviceId), Adapter->getUrAdapter(), nullptr, &Device);
+  auto Platform = detail::platform_impl::getPlatformFromUrDevice(Device, Adapter);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
   __SYCL_OCL_CALL(clRetainDevice, DeviceId);
 }
