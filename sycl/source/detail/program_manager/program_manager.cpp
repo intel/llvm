@@ -1904,8 +1904,7 @@ static bool isCompiledAtRuntime(sycl_device_binaries DeviceBinary) {
   return false;
 }
 
-void ProgramManager::addImage(sycl_device_binary RawImg,
-                              bool IsRTC,
+void ProgramManager::addImage(sycl_device_binary RawImg, bool IsRTC,
                               RTDeviceBinaryImage **OutImage,
                               std::vector<kernel_id> *OutKernelIDs) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;

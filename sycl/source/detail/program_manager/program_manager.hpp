@@ -215,8 +215,7 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr &Context);
 
-  void addImage(sycl_device_binary RawImg,
-                bool IsRTC,
+  void addImage(sycl_device_binary RawImg, bool IsRTC,
                 RTDeviceBinaryImage **OutImage = nullptr,
                 std::vector<kernel_id> *OutKernelIDs = nullptr);
   void addImages(sycl_device_binaries DeviceImages);
@@ -268,7 +267,7 @@ public:
   // returned.
   DeviceGlobalMapEntry *
   tryGetDeviceGlobalEntry(const std::string &UniqueId,
-                         bool ExcludeDeviceImageScopeDecorated = false);
+                          bool ExcludeDeviceImageScopeDecorated = false);
 
   // The function gets multiple device_global entries identified by their unique
   // IDs from the device_global map.

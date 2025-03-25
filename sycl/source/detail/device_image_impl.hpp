@@ -121,12 +121,10 @@ private:
 // Helper class to unregister shared SYCL binaries.
 class ManagedDeviceBinaries {
 public:
-  ManagedDeviceBinaries(
-      sycl_device_binaries &&Binaries)
+  ManagedDeviceBinaries(sycl_device_binaries &&Binaries)
       : MBinaries{Binaries} {}
 
-  ManagedDeviceBinaries(const ManagedDeviceBinaries &) =
-      delete;
+  ManagedDeviceBinaries(const ManagedDeviceBinaries &) = delete;
 
   ~ManagedDeviceBinaries() try {
     ProgramManager::getInstance().removeImages(MBinaries);

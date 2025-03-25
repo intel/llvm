@@ -306,8 +306,8 @@ public:
       MDeviceImages.insert(MDeviceImages.end(), Bundle->MDeviceImages.begin(),
                            Bundle->MDeviceImages.end());
       MSharedDeviceBinaries.insert(MSharedDeviceBinaries.end(),
-                                    Bundle->MSharedDeviceBinaries.begin(),
-                                    Bundle->MSharedDeviceBinaries.end());
+                                   Bundle->MSharedDeviceBinaries.begin(),
+                                   Bundle->MSharedDeviceBinaries.end());
     }
 
     fillUniqueDeviceImages();
