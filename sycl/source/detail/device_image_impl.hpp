@@ -66,11 +66,13 @@ public:
 
   ManagedDeviceGlobalsRegistry(const ManagedDeviceGlobalsRegistry &) = delete;
 
-  ~ManagedDeviceGlobalsRegistry() try {
-    unregisterDeviceGlobalsFromContext();
-  } catch (std::exception &e) {
-    __SYCL_REPORT_EXCEPTION_TO_STREAM(
-        "exception during unregistration of SYCL binaries", e);
+  ~ManagedDeviceGlobalsRegistry() {
+    try {
+      unregisterDeviceGlobalsFromContext();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM(
+          "exception during unregistration of SYCL binaries", e);
+    }
   }
 
   bool hasDeviceGlobalName(const std::string &Name) const noexcept {
