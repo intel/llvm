@@ -447,7 +447,7 @@ if __name__ == "__main__":
         type=str,
         help="The name of the results which should be used as a baseline for metrics calculation",
         default=options.current_run_name,
-    ) 
+    )
     parser.add_argument(
         "--cudnn_directory",
         type=str,
@@ -465,7 +465,7 @@ if __name__ == "__main__":
         type=str,
         help="Specify a custom results directory",
         default=options.custom_results_dir,
-    ) 
+    )
     parser.add_argument(
         "--build-jobs",
         type=int,
