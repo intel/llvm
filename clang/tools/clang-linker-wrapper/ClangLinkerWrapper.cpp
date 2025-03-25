@@ -2607,24 +2607,11 @@ int main(int Argc, char **Argv) {
 
   if (Args.hasArg(OPT_sycl_dump_device_code_EQ)) {
     Arg *A = Args.getLastArg(OPT_sycl_dump_device_code_EQ);
-    SmallString<128> Dir(A->getValue());
-    if (Dir.empty())
-      sys::path::native(Dir = "./");
+    OffloadImageDumpDir = A->getValue();
+    if (OffloadImageDumpDir.empty())
+      sys::path::native(OffloadImageDumpDir = "./");
     else
-      Dir.append(sys::path::get_separator());
-
-    OffloadImageDumpDir = Dir;
-
-    if (!DryRun) {
-      std::error_code EC = sys::fs::create_directory(OffloadImageDumpDir,
-                                                     /*IgnoreExisting*/ true);
-      if (EC)
-        reportError(createStringError(
-            EC,
-            formatv(
-                "failed to create dump directory. path: {0}, error_code: {1}",
-                OffloadImageDumpDir, EC.value())));
-    }
+      OffloadImageDumpDir.append(sys::path::get_separator());
   }
 
   {
