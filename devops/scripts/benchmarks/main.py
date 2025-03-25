@@ -167,9 +167,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         TestSuite(),
     ]
 
-    # Collect metadata from all benchmarks without setting them up
-    metadata = collect_metadata(suites)
-
     # If dry run, we're done
     if options.dry_run:
         suites = []
@@ -253,7 +250,10 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     if not options.dry_run:
         chart_data = {this_name: results}
 
-    history = BenchmarkHistory(directory)
+    results_dir = directory
+    if options.custom_results_dir:
+        results_dir = Path(options.custom_results_dir)
+    history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
     history.load(1000)
@@ -450,7 +450,24 @@ if __name__ == "__main__":
         help="The name of the results which should be used as a baseline for metrics calculation",
         default=options.current_run_name,
     )
-
+    parser.add_argument(
+        "--cudnn_directory",
+        type=str,
+        help="Directory for cudnn library",
+        default=None,
+    )
+    parser.add_argument(
+        "--cublas_directory",
+        type=str,
+        help="Directory for cublas library",
+        default=None,
+    )
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom results directory",
+        default=options.custom_results_dir,
+    )
     parser.add_argument(
         "--results-dir",
         type=str,
@@ -487,6 +504,9 @@ if __name__ == "__main__":
     options.iterations_stddev = args.iterations_stddev
     options.build_igc = args.build_igc
     options.current_run_name = args.relative_perf
+    options.cudnn_directory = args.cudnn_directory
+    options.cublas_directory = args.cublas_directory
+    options.custom_results_dir = args.results_dir
     options.build_jobs = args.build_jobs
 
     if args.build_igc and args.compute_runtime is None:

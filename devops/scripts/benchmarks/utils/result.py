@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Any
 from dataclasses_json import config, dataclass_json
 from datetime import datetime
 
@@ -23,12 +22,12 @@ class Result:
     # stddev can be optionally set by the benchmark,
     # if not set, it will be calculated automatically.
     stddev: float = 0.0
+    git_url: str = ""
+    git_hash: str = ""
     # values below should not be set by the benchmark
     name: str = ""
     lower_is_better: bool = True
     suite: str = "Unknown"
-    git_url: str = ""
-    git_hash: str = ""
 
 @dataclass_json
 @dataclass
@@ -55,16 +54,16 @@ class BenchmarkTag:
 @dataclass
 class BenchmarkMetadata:
     type: str = "benchmark"  # or 'group'
-    description: Optional[str] = None
-    notes: Optional[str] = None
-    unstable: Optional[str] = None
-    tags: list[str] = field(default_factory=list)  # Changed to list of tag names
+    description: str = None
+    notes: str = None
+    unstable: str = None
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass_json
 @dataclass
 class BenchmarkOutput:
     runs: list[BenchmarkRun]
-    metadata: Dict[str, BenchmarkMetadata]
-    tags: Dict[str, BenchmarkTag]
-    default_compare_names: List[str] = field(default_factory=list)
+    metadata: dict[str, BenchmarkMetadata]
+    tags: dict[str, BenchmarkTag]
+    default_compare_names: list[str] = field(default_factory=list)
