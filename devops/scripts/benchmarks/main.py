@@ -167,9 +167,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         TestSuite(),
     ]
 
-    # Collect metadata from all benchmarks without setting them up
-    metadata = collect_metadata(suites)
-
     # If dry run, we're done
     if options.dry_run:
         suites = []
