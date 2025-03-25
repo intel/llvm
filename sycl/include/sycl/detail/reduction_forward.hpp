@@ -65,7 +65,8 @@ void reduction_parallel_for(handler &CGH, range<Dims> NDRange,
 
 template <typename KernelName,
           reduction::strategy Strategy = reduction::strategy::auto_select,
-          int Dims, typename PropertiesT, typename... RestT>
+          bool IsDeducedNDRange = false, int Dims, typename PropertiesT,
+          typename... RestT>
 void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                             PropertiesT Properties, RestT... Rest);
 
