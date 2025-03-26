@@ -724,7 +724,6 @@ private:
     // Not using `std::make_unique` to avoid unnecessary instantiations of
     // `std::unique_ptr<HostKernel<...>>`. Only
     // `std::unique_ptr<HostKernelBase>` is necessary.
-
     MHostKernel.reset(new detail::HostKernel<KernelType, LambdaArgType, Dims>(
         std::forward<KernelTypeUniversalRef>(KernelFunc)));
 
