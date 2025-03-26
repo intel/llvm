@@ -45,8 +45,6 @@ public:
   }
 
   OptionStorage &operator=(OptionStorage &&Other) {
-    if (this == &Other)
-      return *this;
     Storage = Other.Storage;
     Other.Storage = nullptr;
     return *this;
