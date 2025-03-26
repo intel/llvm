@@ -715,7 +715,7 @@ private:
   /// \param KernelFunc is a SYCL kernel function
   /// \param ParamDescs is the vector of kernel parameter descriptors.
   template <typename KernelName, typename KernelType, int Dims,
-  typename LambdaArgType, typename KernelTypeUniversalRef>
+            typename LambdaArgType, typename KernelTypeUniversalRef>
   void StoreLambda(KernelTypeUniversalRef &&KernelFunc) {
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
@@ -1545,8 +1545,9 @@ private:
     // methods side.
 
     template <typename... TypesToForward, typename... ArgsTy>
-    static void kernel_single_task_unpack(handler *h, ArgsTy&&... Args) {
-      h->kernel_single_task<TypesToForward..., Props...>(std::forward<ArgsTy>(Args)...);
+    static void kernel_single_task_unpack(handler *h, ArgsTy &&...Args) {
+      h->kernel_single_task<TypesToForward..., Props...>(
+          std::forward<ArgsTy>(Args)...);
     }
 
     template <typename... TypesToForward, typename... ArgsTy>
