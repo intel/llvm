@@ -721,8 +721,11 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    // Not using `std::make_unique` to avoid unnecessary instantiations of
+    // `std::unique_ptr<HostKernel<...>>`. Only
+    // `std::unique_ptr<HostKernelBase>` is necessary.
+    MHostKernel.reset(
+        new detail::HostKernel<KernelType, LambdaArgType, Dims>(KernelFunc));
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
