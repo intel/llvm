@@ -44,7 +44,7 @@ public:
   fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
               const property_list &);
   ur_kernel_handle_t
-  materializeSpecConstants(QueueImplPtr Queue,
+  materializeSpecConstants(const QueueImplPtr &Queue,
                            const RTDeviceBinaryImage *BinImage,
                            const std::string &KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);
