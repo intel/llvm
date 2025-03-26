@@ -55,7 +55,8 @@ __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
  * @return Generic pointer to allocated USM memory.
  */
 __SYCL_EXPORT void *
-async_malloc_from_pool(const sycl::queue &q, size_t size, memory_pool &pool,
+async_malloc_from_pool(const sycl::queue &q, size_t size,
+                       const memory_pool &pool,
                        const sycl::detail::code_location &CodeLoc =
                            sycl::detail::code_location::current());
 
@@ -69,7 +70,7 @@ async_malloc_from_pool(const sycl::queue &q, size_t size, memory_pool &pool,
  * @return Generic pointer to allocated USM memory.
  */
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
-                                           memory_pool &pool);
+                                           const memory_pool &pool);
 
 /**
  * @brief  Asynchronously free memory.

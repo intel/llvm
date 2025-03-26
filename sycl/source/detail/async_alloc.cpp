@@ -89,7 +89,7 @@ __SYCL_EXPORT void *async_malloc(const sycl::queue &q, sycl::usm::alloc kind,
 }
 
 __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
-                                           memory_pool &pool) {
+                                           const memory_pool &pool) {
 
   h.throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
@@ -121,7 +121,8 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 }
 
 __SYCL_EXPORT void *
-async_malloc_from_pool(const sycl::queue &q, size_t size, memory_pool &pool,
+async_malloc_from_pool(const sycl::queue &q, size_t size,
+                       const memory_pool &pool,
                        const sycl::detail::code_location &CodeLoc) {
   void *temp = nullptr;
   submit(
