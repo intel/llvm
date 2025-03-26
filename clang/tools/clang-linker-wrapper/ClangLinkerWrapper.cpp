@@ -756,8 +756,12 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
     if (!ImageFileOrErr)
       return ImageFileOrErr.takeError();
 
+    // Arbitrary values are used for the testing of SYCL Offload Wrapping.
+    auto Properties = util::PropertySetRegistry();
+    Properties.add(util::PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS, "key",
+                   util::PropertyValue(uint32_t(0)));
     std::vector Modules = {module_split::SplitModule(
-        *ImageFileOrErr, util::PropertySetRegistry(), "")};
+        *ImageFileOrErr, std::move(Properties), "entry1\nentry2")};
     return Modules;
   }
 
@@ -1047,21 +1051,6 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
 
-  StringRef OutputFilePath = *OutputFileOrErr;
-  if (Verbose || DryRun) {
-    std::string InputFiles;
-    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-      InputFiles += SplitModules[I].ModuleFilePath;
-      if (I + 1 < E)
-        InputFiles += ',';
-    }
-
-    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFiles,
-                      OutputFilePath);
-    if (DryRun)
-      return OutputFilePath;
-  }
-
   StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
   if (Target.empty())
     return createStringError(
@@ -1092,7 +1081,9 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
                                              CopyFrom, CopyTo, EC.value()));
     }
 
-    auto MBOrDesc = MemoryBuffer::getFile(SI.ModuleFilePath);
+    ErrorOr<std::unique_ptr<MemoryBuffer>> MBOrDesc =
+        DryRun ? MemoryBuffer::getMemBuffer("")
+               : MemoryBuffer::getFile(SI.ModuleFilePath);
     if (!MBOrDesc)
       return createFileError(SI.ModuleFilePath, MBOrDesc.getError());
 
@@ -1119,10 +1110,21 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
-  if (Verbose) {
-    errs() << formatv(" offload-wrapper: compile-opts: {0}, link-opts: {1}\n",
-                      CompileOptions, LinkOptions);
+
+  StringRef OutputFilePath = *OutputFileOrErr;
+  if (Verbose || DryRun) {
+    std::string InputFiles;
+    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
+      InputFiles += SplitModules[I].ModuleFilePath;
+      if (I + 1 < E)
+        InputFiles += ',';
+    }
+
+    errs() << formatv(" offload-wrapper: input: {0}, output: {1}, "
+                      "compile-opts: {2}, link-opts: {3}\n",
+                      InputFiles, OutputFilePath, CompileOptions, LinkOptions);
   }
+
   if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
