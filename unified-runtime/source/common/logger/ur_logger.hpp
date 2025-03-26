@@ -14,13 +14,14 @@
 
 namespace logger {
 
-Logger create_logger(std::string logger_name, bool skip_prefix = false,
-                     bool skip_linebreak = false,
-                     logger::Level default_log_level = logger::Level::QUIET);
+Logger
+create_logger(std::string logger_name, bool skip_prefix = false,
+              bool skip_linebreak = false,
+              ur_logger_level_t default_log_level = UR_LOGGER_LEVEL_QUIET);
 
 inline Logger &
 get_logger(std::string name = "common",
-           logger::Level default_log_level = logger::Level::QUIET) {
+           ur_logger_level_t default_log_level = UR_LOGGER_LEVEL_QUIET) {
   static Logger logger =
       create_logger(std::move(name), /*skip_prefix*/ false,
                     /*slip_linebreak*/ false, default_log_level);
@@ -31,22 +32,22 @@ inline void init(const std::string &name) { get_logger(name.c_str()); }
 
 template <typename... Args>
 inline void debug(const char *format, Args &&...args) {
-  get_logger().log(logger::Level::DEBUG, format, std::forward<Args>(args)...);
+  get_logger().log(UR_LOGGER_LEVEL_DEBUG, format, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void info(const char *format, Args &&...args) {
-  get_logger().log(logger::Level::INFO, format, std::forward<Args>(args)...);
+  get_logger().log(UR_LOGGER_LEVEL_INFO, format, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void warning(const char *format, Args &&...args) {
-  get_logger().log(logger::Level::WARN, format, std::forward<Args>(args)...);
+  get_logger().log(UR_LOGGER_LEVEL_WARN, format, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void error(const char *format, Args &&...args) {
-  get_logger().log(logger::Level::ERR, format, std::forward<Args>(args)...);
+  get_logger().log(UR_LOGGER_LEVEL_ERROR, format, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
@@ -57,29 +58,32 @@ inline void always(const char *format, Args &&...args) {
 template <typename... Args>
 inline void debug(const logger::LegacyMessage &p, const char *format,
                   Args &&...args) {
-  get_logger().log(p, logger::Level::DEBUG, format,
+  get_logger().log(p, UR_LOGGER_LEVEL_DEBUG, format,
                    std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void info(logger::LegacyMessage p, const char *format, Args &&...args) {
-  get_logger().log(p, logger::Level::INFO, format, std::forward<Args>(args)...);
+  get_logger().log(p, UR_LOGGER_LEVEL_INFO, format,
+                   std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void warning(logger::LegacyMessage p, const char *format,
                     Args &&...args) {
-  get_logger().log(p, logger::Level::WARN, format, std::forward<Args>(args)...);
+  get_logger().log(p, UR_LOGGER_LEVEL_WARN, format,
+                   std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 inline void error(logger::LegacyMessage p, const char *format, Args &&...args) {
-  get_logger().log(p, logger::Level::ERR, format, std::forward<Args>(args)...);
+  get_logger().log(p, UR_LOGGER_LEVEL_ERROR, format,
+                   std::forward<Args>(args)...);
 }
 
-inline void setLevel(logger::Level level) { get_logger().setLevel(level); }
+inline void setLevel(ur_logger_level_t level) { get_logger().setLevel(level); }
 
-inline void setFlushLevel(logger::Level level) {
+inline void setFlushLevel(ur_logger_level_t level) {
   get_logger().setFlushLevel(level);
 }
 
@@ -115,21 +119,19 @@ template <typename T> inline std::string toHex(T t) {
 ///                            to be printed immediately as they occur
 ///             - output: stderr
 inline Logger create_logger(std::string logger_name, bool skip_prefix,
-                            bool skip_linebreak,
-                            logger::Level default_log_level) {
+                            bool skip_linebreak, ur_logger_level_t level) {
   std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
                  ::toupper);
-  const auto default_flush_level = logger::Level::ERR;
+  const std::string env_var_name = "UR_LOG_" + logger_name;
+  const auto default_flush_level = UR_LOGGER_LEVEL_ERROR;
   const std::string default_output = "stderr";
-  auto level = default_log_level;
   auto flush_level = default_flush_level;
   std::unique_ptr<logger::Sink> sink;
 
-  auto env_var_name = "UR_LOG_" + logger_name;
   try {
     auto map = getenv_to_map(env_var_name.c_str());
     if (!map.has_value()) {
-      return Logger(default_log_level,
+      return Logger(level,
                     std::make_unique<logger::StderrSink>(
                         std::move(logger_name), skip_prefix, skip_linebreak));
     }
@@ -148,7 +150,7 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
       map->erase(kv);
     }
 
-    std::vector<std::string> values = {std::move(default_output)};
+    std::vector<std::string> values = {default_output};
     kv = map->find("output");
     if (kv != map->end()) {
       values = kv->second;
@@ -158,7 +160,7 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
     if (!map->empty()) {
       std::cerr << "Wrong logger environment variable parameter: '"
                 << map->begin()->first << "'. Default logger options are set.";
-      return Logger(default_log_level,
+      return Logger(level,
                     std::make_unique<logger::StderrSink>(
                         std::move(logger_name), skip_prefix, skip_linebreak));
     }
@@ -171,10 +173,11 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
     std::cerr << "Error when creating a logger instance from the '"
               << env_var_name << "' environment variable:\n"
               << e.what() << std::endl;
-    return Logger(default_log_level,
+    return Logger(level,
                   std::make_unique<logger::StderrSink>(
                       std::move(logger_name), skip_prefix, skip_linebreak));
   }
+
   sink->setFlushLevel(flush_level);
 
   return Logger(level, std::move(sink));
