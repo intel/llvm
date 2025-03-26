@@ -39,15 +39,14 @@ and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Prerequisites
 
-* `git` - [Download](https://git-scm.com/downloads)
-* `cmake` version 3.20 or later - [Download](http://www.cmake.org/download/)
-* `python` - [Download](https://www.python.org/downloads/)
-* `ninja` -
-[Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
-* `hwloc` version 2.3 or later (Linux only)
-  * libhwloc-dev or hwloc-devel package on linux
-* C++ compiler
-  * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
+| Software                                                                    | Version                                                                                                                              |
+| ---                                                                         | ---                                                                                                                                  |
+| [Git](https://git-scm.com/downloads)                                        |                                                                                                                                      |
+| [CMake](http://www.cmake.org/download/)                                     | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Python](https://www.python.org/downloads/)                                 | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Ninja](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages) |                                                                                                                                      |
+| `hwloc`                                                                     | >= 2.3 (Linux only, `libhwloc-dev` or `hwloc-devel`)                                                                                 |
+| C++ compiler                                                                | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library) |
 
 Alternatively, you can create a Docker image that has everything you need for
 building pre-installed using the [Ubuntu 24.04 build Dockerfile](https://github.com/intel/llvm/blob/sycl/devops/containers/ubuntu2404_build.Dockerfile).
