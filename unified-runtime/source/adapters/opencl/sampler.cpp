@@ -27,7 +27,7 @@ cl_sampler_info ur2CLSamplerInfo(ur_sampler_info_t URInfo) {
 #undef CASE
 
   default:
-    cl_adapter::die("Unhandled: ur_sampler_info_t");
+    die("Unhandled: ur_sampler_info_t");
   }
 }
 
@@ -48,7 +48,7 @@ cl_addressing_mode ur2CLAddressingMode(ur_sampler_addressing_mode_t Mode) {
 #undef CASE
 
   default:
-    cl_adapter::die("Unhandled: ur_sampler_addressing_mode_t");
+    die("Unhandled: ur_sampler_addressing_mode_t");
   }
 }
 
@@ -65,7 +65,7 @@ cl_filter_mode ur2CLFilterMode(ur_sampler_filter_mode_t Mode) {
 #undef CASE
 
   default:
-    cl_adapter::die("Unhandled: ur_sampler_filter_mode_t");
+    die("Unhandled: ur_sampler_filter_mode_t");
   }
 }
 
@@ -86,7 +86,7 @@ ur_sampler_addressing_mode_t cl2URAddressingMode(cl_addressing_mode Mode) {
 #undef CASE
 
   default:
-    cl_adapter::die("Unhandled: cl_addressing_mode");
+    die("Unhandled: cl_addressing_mode");
   }
 }
 
@@ -102,7 +102,7 @@ ur_sampler_filter_mode_t cl2URFilterMode(cl_filter_mode Mode) {
 #undef CASE
 
   default:
-    cl_adapter::die("Unhandled: cl_filter_mode");
+    die("Unhandled: cl_filter_mode");
   }
 }
 

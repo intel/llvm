@@ -33,10 +33,10 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
 /// all the memory objects allocated for command_buffer managment
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release the memory allocated to the Context stored in the command_buffer
-  UR_TRACE(urContextRelease(Context));
+  UR_CALL_NOCHECK(urContextRelease(Context));
 
   // Release the device
-  UR_TRACE(urDeviceRelease(Device));
+  UR_CALL_NOCHECK(urDeviceRelease(Device));
 
   // Release the memory allocated to the HIPGraph
   (void)hipGraphDestroy(HIPGraph);
