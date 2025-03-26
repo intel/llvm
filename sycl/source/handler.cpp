@@ -189,7 +189,7 @@ fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
                const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
@@ -256,7 +256,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &Desc,
                ur_exp_image_copy_flags_t ImageCopyFlags,
                sycl::range<3> SrcOffset = {0, 0, 0},
@@ -271,7 +271,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &Desc,
                ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
                size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
@@ -285,7 +285,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
                const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                ur_exp_image_copy_flags_t ImageCopyFlags,
@@ -302,22 +302,19 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 
 } // namespace detail
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+handler::handler(std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
+    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
+                                                        CallerNeedsEvent)),
+      impl(MImplOwner.get()), MQueue(Queue) {}
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                  std::move(SecondaryQueue),
-                                                  CallerNeedsEvent)),
-      MQueue(std::move(Queue)) {}
+handler::handler(detail::handler_impl *HandlerImpl,
+                 std::shared_ptr<detail::queue_impl> &Queue)
+    : impl(HandlerImpl), MQueue(Queue) {}
 
-handler::handler(
-    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))) {}
+static std::shared_ptr<detail::queue_impl> DummyQueue;
+
+handler::handler(detail::handler_impl *HandlerImpl) : impl(HandlerImpl), MQueue(DummyQueue) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -546,7 +543,8 @@ event handler::finalize() {
         NewEvent->setEnqueued();
         // connect returned event with dependent events
         if (!MQueue->isInOrder()) {
-          NewEvent->getPreparedDepsEvents() = impl->CGData.MEvents;
+          NewEvent->getPreparedDepsEvents().assign(impl->CGData.MEvents.begin(),
+                                                   impl->CGData.MEvents.end());
           NewEvent->cleanDepEventsThroughOneLevel();
         }
       }
@@ -1665,10 +1663,8 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-  std::shared_ptr<detail::queue_impl> PrimaryQueue =
-      impl->MSubmissionPrimaryQueue;
   if ((!impl->MGraph &&
-       (PrimaryQueue->get_context() != ExecBundle.get_context())) ||
+       (impl->MSubmissionPrimaryQueue->get_context() != ExecBundle.get_context())) ||
       (impl->MGraph &&
        (impl->MGraph->getContext() != ExecBundle.get_context())))
     throw sycl::exception(
@@ -1676,10 +1672,8 @@ void handler::use_kernel_bundle(
         "Context associated with the primary queue is different from the "
         "context associated with the kernel bundle");
 
-  std::shared_ptr<detail::queue_impl> SecondaryQueue =
-      impl->MSubmissionSecondaryQueue;
-  if (SecondaryQueue &&
-      SecondaryQueue->get_context() != ExecBundle.get_context())
+  if (impl->MSubmissionSecondaryQueue &&
+      impl->MSubmissionSecondaryQueue->get_context() != ExecBundle.get_context())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the secondary queue is different from the "
@@ -1821,7 +1815,7 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
+  for (detail::queue_impl *QueueImpl :
        {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
     if (QueueImpl &&
         !checkContextSupports(QueueImpl->getContextImplPtr(),
@@ -1832,7 +1826,7 @@ bool handler::supportsUSMMemcpy2D() {
 }
 
 bool handler::supportsUSMFill2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
+  for (detail::queue_impl *QueueImpl :
        {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
     if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
                                            UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
@@ -1842,7 +1836,7 @@ bool handler::supportsUSMFill2D() {
 }
 
 bool handler::supportsUSMMemset2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
+  for (detail::queue_impl *QueueImpl :
        {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
     if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
                                            UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))

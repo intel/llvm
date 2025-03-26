@@ -363,8 +363,9 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+  detail::handler_impl HandlerImpl(
+      PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent);
+  handler Handler(&HandlerImpl, const_cast<std::shared_ptr<queue_impl> &>(Self));
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
@@ -375,18 +376,18 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CGType Type = HandlerImpl->MCGType;
+  const CGType Type = HandlerImpl.MCGType;
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  HandlerImpl->MEventMode = SubmitInfo.EventMode();
+  HandlerImpl.MEventMode = SubmitInfo.EventMode();
 
   auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
 
   addEvent(Event);
 
-  auto EventImpl = detail::getSyclObjImpl(Event);
+  auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel
