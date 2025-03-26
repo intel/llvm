@@ -73,7 +73,7 @@ int main() {
               << "\nmipmapLevelReferenceSupport: "
               << mipmapLevelReferenceSupport << "\n";
     if (mipmapAnisotropySupport) {
-      std::cout << "\nmipmapMaxAnisotropy: " << mipmapMaxAnisotropy;
+      std::cout << "mipmapMaxAnisotropy: " << mipmapMaxAnisotropy << "\n";
     }
 #endif
 
