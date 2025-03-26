@@ -28,7 +28,9 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
   // g.get_local_linear_id()!
 
   // It seems shift_group_left is overly restrictive and requires trivial types
-  // instead of trivially copyable.
+  // instead of trivially copyable. Existing
+  // `test-e2e/UserDefinedReductions/user_defined_reductions.cpp` can be used to
+  // see the issue.
   if constexpr (sycl::detail::is_sub_group<decltype(g)>::value &&
                 std::is_trivial_v<T>) {
     // sycl::ext::oneapi::sub_group isn't sycl::sub_group, and shift_group_left
