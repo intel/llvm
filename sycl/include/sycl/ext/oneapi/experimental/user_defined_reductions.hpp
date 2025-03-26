@@ -11,6 +11,7 @@
 #include <sycl/builtins.hpp> // for sycl::min
 #include <sycl/detail/defines.hpp>
 #include <sycl/ext/oneapi/experimental/group_helpers_sorters.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/sycl_span.hpp>
 
@@ -32,7 +33,7 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
                 std::is_trivial_v<T>) {
     // sycl::ext::oneapi::sub_group isn't sycl::sub_group, and shift_group_left
     // only accepts the latter.
-    auto ndi = sycl::ext::oneapi::experimental::this_nd_item<
+    auto ndi = sycl::ext::oneapi::this_work_item::get_nd_item<
         decltype(g)::dimensions>();
     auto sg = ndi.get_sub_group();
     for (size_t offset = num_elements / 2; offset > 0; offset /= 2) {
@@ -51,7 +52,7 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
                   std::is_trivial_v<T>) {
       // TODO: Use get_child_group from sycl_ext_oneapi_root_group extension
       // once it is implemented instead of this free function.
-      auto ndi = sycl::ext::oneapi::experimental::this_nd_item<
+      auto ndi = sycl::ext::oneapi::this_work_item::get_nd_item<
           decltype(g)::dimensions>();
       auto sg = ndi.get_sub_group();
 
