@@ -419,8 +419,12 @@ event handler::finalize() {
         getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
-      if (!KernelBundleImpPtr->isInterop() &&
-          !impl->isStateExplicitKernelBundle()) {
+      if (!impl->isStateExplicitKernelBundle() &&
+          !(MKernel && MKernel->isInterop()) &&
+          (KernelBundleImpPtr->empty() ||
+           KernelBundleImpPtr->hasSYCLOfflineImages()) &&
+          !KernelBundleImpPtr->tryGetKernel(MKernelName.c_str(),
+                                            KernelBundleImpPtr)) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
