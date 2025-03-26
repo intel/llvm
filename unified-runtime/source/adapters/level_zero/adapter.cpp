@@ -387,7 +387,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       if (GlobalAdapter->ZeInitResult != ZE_RESULT_SUCCESS) {
         const char *ErrorString = "Unknown";
         zeParseError(GlobalAdapter->ZeInitResult, ErrorString);
-        logger::error("\nzeInit failed with {}\n", ErrorString);
+        //logger::error("\nzeInit failed with {}\n", ErrorString);
       }
 
       bool useInitDrivers = false;
@@ -439,7 +439,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
           } else {
             const char *ErrorString = "Unknown";
             zeParseError(GlobalAdapter->ZeInitDriversResult, ErrorString);
-            logger::error("\nzeInitDrivers failed with {}\n", ErrorString);
+            //logger::error("\nzeInitDrivers failed with {}\n", ErrorString);
           }
         }
       }
