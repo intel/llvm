@@ -18,6 +18,7 @@
 #include "logger/ur_logger.hpp"
 #include "platform.hpp"
 #include "ur_util.hpp"
+#include <nvml.h>
 
 int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   int value;
@@ -1085,11 +1086,64 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_IP_VERSION:
-  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
-  case UR_DEVICE_INFO_FAN_SPEED:
-  case UR_DEVICE_INFO_MIN_POWER_LIMIT:
-  case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
+    unsigned long long ClocksEventReasons;
+    UR_CHECK_ERROR(nvmlDeviceGetCurrentClocksEventReasons(hDevice->getNVML(),
+                                                          &ClocksEventReasons));
+    ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
+    constexpr unsigned long long NVMLThrottleFlags[] = {
+        nvmlClocksThrottleReasonSwPowerCap,
+        nvmlClocksThrottleReasonHwThermalSlowdown ||
+            nvmlClocksThrottleReasonSwThermalSlowdown,
+        nvmlClocksThrottleReasonHwPowerBrakeSlowdown,
+        nvmlClocksThrottleReasonApplicationsClocksSetting};
+
+    constexpr ur_device_throttle_reasons_flags_t UrThrottleFlags[] = {
+        UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP,
+        UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT,
+        UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT,
+        UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE};
+
+    for (size_t i = 0;
+         i < sizeof(NVMLThrottleFlags) / sizeof(NVMLThrottleFlags[0]); ++i) {
+      if (ClocksEventReasons & NVMLThrottleFlags[i]) {
+        ThrottleReasons |= UrThrottleFlags[i];
+        ClocksEventReasons &= ~NVMLThrottleFlags[i];
+      }
+    }
+    if (ClocksEventReasons) {
+      ThrottleReasons |= UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+    }
+    return ReturnValue(ThrottleReasons);
+  }
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT:
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
+    unsigned int minLimit, maxLimit;
+    auto NVMLHandle = hDevice->getNVML();
+    auto NVMLError = nvmlDeviceGetPowerManagementLimitConstraints(
+        NVMLHandle, &minLimit, &maxLimit);
+    if (NVMLError == NVML_ERROR_NOT_SUPPORTED) {
+      if (propName == UR_DEVICE_INFO_MAX_POWER_LIMIT) {
+        UR_CHECK_ERROR(
+            nvmlDeviceGetPowerManagementLimit(NVMLHandle, &maxLimit));
+        return ReturnValue(static_cast<int32_t>(maxLimit));
+      } else if (propName == UR_DEVICE_INFO_MIN_POWER_LIMIT) {
+        return ReturnValue(static_cast<int32_t>(-1));
+      }
+    }
+    if (propName == UR_DEVICE_INFO_MAX_POWER_LIMIT) {
+      return ReturnValue(static_cast<int32_t>(maxLimit));
+    } else if (propName == UR_DEVICE_INFO_MIN_POWER_LIMIT) {
+      return ReturnValue(static_cast<int32_t>(minLimit));
+    }
+    break;
+  }
+  case UR_DEVICE_INFO_FAN_SPEED: {
+    unsigned int Speed;
+    UR_CHECK_ERROR(nvmlDeviceGetFanSpeed(hDevice->getNVML(), &Speed));
+    return ReturnValue(static_cast<int32_t>(Speed));
+  }
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
