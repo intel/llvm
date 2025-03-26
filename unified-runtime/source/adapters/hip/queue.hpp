@@ -14,7 +14,7 @@
 #include <mutex>
 #include <vector>
 
-#include "../cuda/stream_queue.hpp"
+#include <common/cuda-hip/stream_queue.hpp>
 
 /// UR queue mapping on to hipStream_t objects.
 ///

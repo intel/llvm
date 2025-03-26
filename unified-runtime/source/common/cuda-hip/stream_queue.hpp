@@ -1,15 +1,15 @@
-//===--------- stream_queue.hpp - CUDA Adapter ----------------------------===//
-//
-// Copyright (C) 2025 Intel Corporation
-//
-// Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
-// Exceptions. See LICENSE.TXT
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-#pragma once
+/*
+ *
+ * Copyright (C) 2025 Intel Corporation
+ *
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
+ * Exceptions. See LICENSE.TXT
+ *
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ */
 
-#include <ur/ur.hpp>
+#pragma once
 
 #include <algorithm>
 #include <mutex>
@@ -17,8 +17,10 @@
 
 using ur_stream_guard = std::unique_lock<std::mutex>;
 
-/// Generic implementation of out-of-order queue using in-order streams.
+/// Generic implementation of an out-of-order UR queue based on in-order
+/// backend 'stream' objects.
 ///
+/// This class is specifically designed for the CUDA and HIP adapters.
 template <typename ST, int CS, int TS> struct stream_queue_t {
   using native_type = ST;
   static constexpr int DefaultNumComputeStreams = CS;
