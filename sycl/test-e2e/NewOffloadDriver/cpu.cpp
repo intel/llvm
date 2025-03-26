@@ -8,6 +8,9 @@
 
 // REQUIRES: opencl-aot, cpu
 
+// XFAIL: windows && !(build-mode && run-mode)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17515
+
 // CPU AOT targets host isa, so we compile on the run system instead.
 // Test with  `--offload-new-driver`
 // RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 --offload-new-driver %S/Inputs/aot.cpp -o %t.out

@@ -1,5 +1,8 @@
 // REQUIRES: opencl-aot, cpu, target-spir
 
+// XFAIL: windows && !(build-mode && run-mode)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17515
+
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64 %S/Inputs/common.cpp -o %t_spv_cpu.out
 // RUN: %{run} %t_spv_cpu.out
 // Ensure that image ordering does not impact the execution
