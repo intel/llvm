@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // See comments in the header.
 //===----------------------------------------------------------------------===//
-#include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
+#include "llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
@@ -17,11 +17,11 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
-#include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
+#include "llvm/SYCLPostLink/ModuleSplitter.h"
 #include <queue>
 #include <unordered_set>
 #ifndef NDEBUG
@@ -312,6 +312,14 @@ PropSetRegTy computeModuleProperties(const Module &M,
         MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
         PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
                     KernelReqdWorkGroupSize);
+      }
+
+      if (auto ReqdSubGroupSize = getKernelSingleEltMetadata<uint32_t>(
+              Func, "intel_reqd_sub_group_size")) {
+        // intel_reqd_sub_group_size is stored as i32.
+        MetadataNames.push_back(Func.getName().str() + "@reqd_sub_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    *ReqdSubGroupSize);
       }
 
       if (auto WorkGroupNumDim = getKernelSingleEltMetadata<uint32_t>(

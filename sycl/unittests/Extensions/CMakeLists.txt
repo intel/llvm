@@ -21,6 +21,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   BFloat16.cpp
   LaunchQueries.cpp
   EventMode.cpp
+  DeviceInfo.cpp
 )
 
 add_subdirectory(CommandGraph)
