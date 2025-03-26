@@ -2653,7 +2653,7 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
     };
 
     if constexpr (Reduction::has_float64_atomics) {
-      if (getDeviceFromHandler(CGH).has(aspect::atomic64))
+      if (handlerDeviceHasAspect(CGH, aspect::atomic64))
         return Delegate(Impl<Strat::group_reduce_and_atomic_cross_wg>{});
 
       if constexpr (Reduction::has_fast_reduce)
@@ -2667,7 +2667,7 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
         // aspect::atomic64 if the result type of the reduction is 64-bit. If
         // the device does not support this, we need to fall back to more
         // reliable strategies.
-        if (!getDeviceFromHandler(CGH).has(aspect::atomic64)) {
+        if (!handlerDeviceHasAspect(CGH, aspect::atomic64)) {
           if constexpr (Reduction::has_fast_reduce)
             return Delegate(Impl<Strat::group_reduce_and_multiple_kernels>{});
           else

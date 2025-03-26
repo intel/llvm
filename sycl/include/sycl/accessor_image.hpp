@@ -390,8 +390,8 @@ public:
         MImgChannelOrder(ImageRef.getChannelOrder()),
         MImgChannelType(ImageRef.getChannelType()) {
 
-    device Device = getDeviceFromHandler(CommandGroupHandlerRef);
-    if (!Device.has(aspect::ext_intel_legacy_image))
+    if (!handlerDeviceHasAspect(CommandGroupHandlerRef,
+                                aspect::ext_intel_legacy_image))
       throw sycl::exception(
           sycl::errc::feature_not_supported,
           "SYCL 1.2.1 images are not supported by this device.");
@@ -829,10 +829,10 @@ public:
                         {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                         ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                         PropList) {
-    device Device = detail::getDeviceFromHandler(CommandGroupHandlerRef);
     // Avoid aspect::image warning.
     aspect ImageAspect = aspect::image;
-    if (AccessTarget == image_target::device && !Device.has(ImageAspect))
+    if (AccessTarget == image_target::device &&
+        !detail::handlerDeviceHasAspect(CommandGroupHandlerRef, ImageAspect))
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device associated with command group handler does not have "
@@ -1140,10 +1140,10 @@ public:
                         {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                         ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                         ImageRef.getSampler(), PropList) {
-    device Device = detail::getDeviceFromHandler(CommandGroupHandlerRef);
     // Avoid aspect::image warning.
     aspect ImageAspect = aspect::image;
-    if (AccessTarget == image_target::device && !Device.has(ImageAspect))
+    if (AccessTarget == image_target::device &&
+        !detail::handlerDeviceHasAspect(CommandGroupHandlerRef, ImageAspect))
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device associated with command group handler does not have "

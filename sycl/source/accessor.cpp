@@ -14,13 +14,14 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-device getDeviceFromHandler(handler &cgh) {
+
+bool handlerDeviceHasAspect(handler &cgh, aspect Aspect) {
   assert((cgh.MQueue || getSyclObjImpl(cgh)->MGraph) &&
          "One of MQueue or MGraph should be nonnull!");
   if (cgh.MQueue)
-    return cgh.MQueue->get_device();
+    return cgh.MQueue->getDeviceImplPtr()->has(Aspect);
 
-  return getSyclObjImpl(cgh)->MGraph->getDevice();
+  return getSyclObjImpl(cgh)->MGraph->getDeviceImplPtr()->has(Aspect);
 }
 
 // property::no_init is supported now for
