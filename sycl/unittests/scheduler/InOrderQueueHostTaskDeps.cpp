@@ -38,7 +38,7 @@ inline ur_result_t redefinedEventsWait(void *pParams) {
     GEventsWaitCounter++;
 
     if (**params.pphEventWaitList == DummyHostTaskEvent) {
-      std::unique_lock lk(HostTaskMutex);
+      std::unique_lock<std::mutex> lk(HostTaskMutex);
       HostTaskCV.wait(lk, [] { return HostTaskReady; });
     }
   }
