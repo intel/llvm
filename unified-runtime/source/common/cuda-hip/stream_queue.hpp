@@ -77,13 +77,9 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
         LastSyncComputeStreams{0}, LastSyncTransferStreams{0}, Flags(Flags),
         URFlags(URFlags), Priority(Priority), HasOwnership{BackendOwns} {
     urContextRetain(Context);
-    urDeviceRetain(Device);
   }
 
-  ~stream_queue_t() {
-    urContextRelease(Context);
-    urDeviceRelease(Device);
-  }
+  ~stream_queue_t() { urContextRelease(Context); }
 
   virtual void computeStreamWaitForBarrierIfNeeded(native_type Strean,
                                                    uint32_t StreamI) = 0;
