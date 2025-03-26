@@ -2666,8 +2666,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
     os << "UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE";
     break;
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED:
-    os << "UR_DEVICE_INFO_IMAGE_SUPPORTED";
+  case UR_DEVICE_INFO_IMAGE_SUPPORT:
+    os << "UR_DEVICE_INFO_IMAGE_SUPPORT";
     break;
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS:
     os << "UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS";
@@ -2909,8 +2909,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
     os << "UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT";
     break;
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
-    os << "UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED";
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
+    os << "UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT";
     break;
   case UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP:
     os << "UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP";
@@ -2969,8 +2969,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
-    os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP";
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP";
@@ -3020,20 +3020,20 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP:
-    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP";
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP:
-    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP";
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP:
-    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP";
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP:
-    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP";
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP:
-    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP";
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP";
@@ -3041,29 +3041,29 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
   case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP:
-    os << "UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP";
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP:
-    os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP";
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP:
-    os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP";
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP:
-    os << "UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP";
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP";
     break;
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
-    os << "UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP";
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     os << "UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP";
     break;
-  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP:
-    os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP";
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
+    os << "UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP";
     break;
   case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP";
@@ -3478,7 +3478,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
+  case UR_DEVICE_INFO_IMAGE_SUPPORT: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -4481,7 +4481,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED: {
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -4746,7 +4746,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP: {
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -4967,7 +4967,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -4980,7 +4980,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -4993,7 +4993,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5006,7 +5006,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5019,7 +5019,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5058,7 +5058,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5071,7 +5071,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5084,7 +5084,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5097,7 +5097,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5123,7 +5123,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP: {
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -5151,7 +5151,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP: {
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP: {
     const ur_bool_t *tptr = (const ur_bool_t *)ptr;
     if (sizeof(ur_bool_t) > size) {
       os << "invalid size (is: " << size
@@ -10008,8 +10008,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value) {
   case UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM:
     os << "UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM";
     break;
-  case UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP:
-    os << "UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP";
+  case UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP:
+    os << "UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -10146,15 +10146,15 @@ inline ur_result_t printFlag<ur_queue_flag_t>(std::ostream &os, uint32_t flag) {
     os << UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   }
 
-  if ((val & UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP) ==
-      (uint32_t)UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP) {
-    val ^= (uint32_t)UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP;
+  if ((val & UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP) ==
+      (uint32_t)UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP) {
+    val ^= (uint32_t)UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP;
     if (!first) {
       os << " | ";
     } else {
       first = false;
     }
-    os << UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP;
+    os << UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
@@ -11968,11 +11968,11 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_peer_info_t value) {
   switch (value) {
-  case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED:
-    os << "UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED";
+  case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT:
+    os << "UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT";
     break;
-  case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED:
-    os << "UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED";
+  case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT:
+    os << "UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT";
     break;
   default:
     os << "unknown enumerator";
@@ -11991,7 +11991,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
   }
 
   switch (value) {
-  case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
+  case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT: {
     const int *tptr = (const int *)ptr;
     if (sizeof(int) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(int)
@@ -12004,7 +12004,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 
     os << ")";
   } break;
-  case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED: {
+  case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT: {
     const int *tptr = (const int *)ptr;
     if (sizeof(int) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(int)
@@ -12032,8 +12032,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_enqueue_ext_flag_t value) {
   switch (value) {
-  case UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS:
-    os << "UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS";
+  case UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT:
+    os << "UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT";
     break;
   default:
     os << "unknown enumerator";
@@ -12051,15 +12051,15 @@ inline ur_result_t printFlag<ur_exp_enqueue_ext_flag_t>(std::ostream &os,
   uint32_t val = flag;
   bool first = true;
 
-  if ((val & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) ==
-      (uint32_t)UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) {
-    val ^= (uint32_t)UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+  if ((val & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT) ==
+      (uint32_t)UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT) {
+    val ^= (uint32_t)UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
     if (!first) {
       os << " | ";
     } else {
       first = false;
     }
-    os << UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+    os << UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
