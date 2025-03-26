@@ -73,6 +73,80 @@ public:
 
 } // namespace
 
+Expected<std::optional<SYCLBIN::IRModuleHeaderType>>
+SYCLBIN::createIRModuleHeader(const SYCLBIN::ModuleDesc &Desc,
+                              const module_split::SplitModule &SM,
+                              SmallString<0> &MetadataByteTable,
+                              raw_svector_ostream &MetadataByteTableOS,
+                              SmallString<0> &BinaryByteTable,
+                              raw_svector_ostream &BinaryByteTableOS) {
+  // If no arch string is present, the module must be IR.
+  if (!Desc.ArchString.empty())
+    return std::nullopt;
+
+  // Read the module data.
+  auto BinaryDataOrError =
+      llvm::MemoryBuffer::getFileOrSTDIN(SM.ModuleFilePath);
+  if (std::error_code EC = BinaryDataOrError.getError())
+    return createFileError(SM.ModuleFilePath, EC);
+  StringRef RawModuleData{(*BinaryDataOrError)->getBufferStart(),
+                          (*BinaryDataOrError)->getBufferSize()};
+
+  IRModuleHeaderType IRMHeader{};
+  {
+    // Create metadata properties.
+    IRMHeader.MetadataOffset = MetadataByteTable.size();
+    llvm::util::PropertySetRegistry IRMMetadata;
+    // TODO: Determine state from the input.
+    IRMMetadata.add(llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
+                    "type",
+                    /*SPIR-V*/ 0);
+    IRMMetadata.write(MetadataByteTableOS);
+    IRMHeader.MetadataSize =
+        MetadataByteTable.size() - IRMHeader.MetadataOffset;
+  }
+  IRMHeader.RawIRBytesOffset = BinaryByteTable.size();
+  IRMHeader.RawIRBytesSize = RawModuleData.size();
+  BinaryByteTableOS << RawModuleData;
+  return IRMHeader;
+}
+
+Expected<std::optional<SYCLBIN::NativeDeviceCodeImageHeaderType>>
+SYCLBIN::createNativeDeviceCodeImageHeader(
+    const SYCLBIN::ModuleDesc &Desc, const module_split::SplitModule &SM,
+    SmallString<0> &MetadataByteTable, raw_svector_ostream &MetadataByteTableOS,
+    SmallString<0> &BinaryByteTable, raw_svector_ostream &BinaryByteTableOS) {
+  // If arch string is present, the module must be a native device code
+  // image.
+  if (Desc.ArchString.empty())
+    return std::nullopt;
+
+  // Read the module data.
+  auto BinaryDataOrError =
+      llvm::MemoryBuffer::getFileOrSTDIN(SM.ModuleFilePath);
+  if (std::error_code EC = BinaryDataOrError.getError())
+    return createFileError(SM.ModuleFilePath, EC);
+  StringRef RawModuleData{(*BinaryDataOrError)->getBufferStart(),
+                          (*BinaryDataOrError)->getBufferSize()};
+
+  NativeDeviceCodeImageHeaderType NDCIHeader{};
+  {
+    // Create metadata properties.
+    NDCIHeader.MetadataOffset = MetadataByteTable.size();
+    llvm::util::PropertySetRegistry NDCIMetadata;
+    NDCIMetadata.add(llvm::util::PropertySetRegistry::
+                         SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
+                     "arch", Desc.ArchString);
+    NDCIMetadata.write(MetadataByteTableOS);
+    NDCIHeader.MetadataSize =
+        MetadataByteTable.size() - NDCIHeader.MetadataOffset;
+  }
+  NDCIHeader.BinaryBytesOffset = BinaryByteTable.size();
+  NDCIHeader.BinaryBytesSize = RawModuleData.size();
+  BinaryByteTableOS << RawModuleData;
+  return NDCIHeader;
+}
+
 Expected<SmallString<0>>
 SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
   // TODO: Merge by properties, so overlap can live in the same abstract module.
@@ -119,63 +193,36 @@ SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
       AMHeader.MetadataSize =
           MetadataByteTable.size() - AMHeader.MetadataOffset;
 
-      // Read the module data. This is needed no matter what kind of module it
-      // is.
-      auto BinaryDataOrError =
-          llvm::MemoryBuffer::getFileOrSTDIN(SM.ModuleFilePath);
-      if (std::error_code EC = BinaryDataOrError.getError())
-        return createFileError(SM.ModuleFilePath, EC);
-      StringRef RawModuleData{(*BinaryDataOrError)->getBufferStart(),
-                              (*BinaryDataOrError)->getBufferSize()};
+      std::optional<IRModuleHeaderType> MaybeIRModuleHeader = std::nullopt;
+      if (Error E = createIRModuleHeader(Desc, SM, MetadataByteTable,
+                                         MetadataByteTableOS, BinaryByteTable,
+                                         BinaryByteTableOS)
+                        .moveInto(MaybeIRModuleHeader))
+        return E;
 
       // If no arch string is present, the module must be IR.
-      AMHeader.IRModuleCount = Desc.ArchString.empty();
+      AMHeader.IRModuleCount = MaybeIRModuleHeader.has_value();
       AMHeader.IRModuleOffset = IRMHeaders.size();
       FileHeader.IRModuleCount += AMHeader.IRModuleCount;
-      if (AMHeader.IRModuleCount) {
-        IRModuleHeaderType &IRMHeader = IRMHeaders.emplace_back();
-        {
-          // Create metadata properties.
-          IRMHeader.MetadataOffset = MetadataByteTable.size();
-          llvm::util::PropertySetRegistry IRMMetadata;
-          // TODO: Determine state from the input.
-          IRMMetadata.add(
-              llvm::util::PropertySetRegistry::SYCLBIN_IR_MODULE_METADATA,
-              "type",
-              /*SPIR-V*/ 0);
-          IRMMetadata.write(MetadataByteTableOS);
-          IRMHeader.MetadataSize =
-              MetadataByteTable.size() - IRMHeader.MetadataOffset;
-        }
-        IRMHeader.RawIRBytesOffset = BinaryByteTable.size();
-        IRMHeader.RawIRBytesSize = RawModuleData.size();
-        BinaryByteTableOS << RawModuleData;
-      }
+      if (MaybeIRModuleHeader.has_value())
+        IRMHeaders.push_back(*MaybeIRModuleHeader);
+
+      std::optional<NativeDeviceCodeImageHeaderType> MaybeNDCIHeader =
+          std::nullopt;
+      if (Error E = createNativeDeviceCodeImageHeader(
+                        Desc, SM, MetadataByteTable, MetadataByteTableOS,
+                        BinaryByteTable, BinaryByteTableOS)
+                        .moveInto(MaybeNDCIHeader))
+        return E;
 
       // If arch string is present, the module must be a native device code
       // image.
-      AMHeader.NativeDeviceCodeImageCount = !Desc.ArchString.empty();
+      AMHeader.NativeDeviceCodeImageCount = MaybeNDCIHeader.has_value();
       AMHeader.NativeDeviceCodeImageOffset = NDCIHeaders.size();
       FileHeader.NativeDeviceCodeImageCount +=
           AMHeader.NativeDeviceCodeImageCount;
-      if (AMHeader.NativeDeviceCodeImageCount) {
-        NativeDeviceCodeImageHeaderType &NDCIHeader =
-            NDCIHeaders.emplace_back();
-        {
-          // Create metadata properties.
-          NDCIHeader.MetadataOffset = MetadataByteTable.size();
-          llvm::util::PropertySetRegistry NDCIMetadata;
-          NDCIMetadata.add(llvm::util::PropertySetRegistry::
-                               SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA,
-                           "arch", Desc.ArchString);
-          NDCIMetadata.write(MetadataByteTableOS);
-          NDCIHeader.MetadataSize =
-              MetadataByteTable.size() - NDCIHeader.MetadataOffset;
-        }
-        NDCIHeader.BinaryBytesOffset = BinaryByteTable.size();
-        NDCIHeader.BinaryBytesSize = RawModuleData.size();
-        BinaryByteTableOS << RawModuleData;
-      }
+      if (MaybeNDCIHeader.has_value())
+        NDCIHeaders.push_back(*MaybeNDCIHeader);
     }
   }
 
