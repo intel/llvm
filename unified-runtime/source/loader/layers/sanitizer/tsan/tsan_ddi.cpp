@@ -130,6 +130,93 @@ ur_result_t urContextRelease(
   return UR_RESULT_SUCCESS;
 }
 
+/// @brief Intercept function for urProgramBuild
+ur_result_t urProgramBuild(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the program object
+    ur_program_handle_t hProgram,
+    /// [in] string of build options
+    const char *pOptions) {
+  getContext()->logger.debug("==== urProgramBuild");
+
+  UR_CALL(
+      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions));
+
+  UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLink
+ur_result_t urProgramLink(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms,
+    /// [in][optional] pointer to linker options null-terminated string.
+    const char *pOptions,
+    /// [out] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
+  getContext()->logger.debug("==== urProgramLink");
+
+  UR_CALL(getContext()->urDdiTable.Program.pfnLink(hContext, count, phPrograms,
+                                                   pOptions, phProgram));
+
+  UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuildExp
+ur_result_t urProgramBuildExp(
+    /// [in] Handle of the program to build.
+    ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in][optional] pointer to build options null-terminated string.
+    const char *pOptions) {
+  getContext()->logger.debug("==== urProgramBuildExp");
+
+  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnBuildExp(hProgram, numDevices,
+                                                          phDevices, pOptions));
+  UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
+/// @brief Intercept function for urProgramLinkExp
+ur_result_t urProgramLinkExp(
+    /// [in] handle of the context instance.
+    ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
+    /// [in] number of program handles in `phPrograms`.
+    uint32_t count,
+    /// [in][range(0, count)] pointer to array of program handles.
+    const ur_program_handle_t *phPrograms,
+    /// [in][optional] pointer to linker options null-terminated string.
+    const char *pOptions,
+    /// [out] pointer to handle of program object created.
+    ur_program_handle_t *phProgram) {
+  getContext()->logger.debug("==== urProgramLinkExp");
+
+  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnLinkExp(
+      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram));
+
+  UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemBufferCreate
 ur_result_t urMemBufferCreate(
@@ -1089,24 +1176,12 @@ ur_result_t urCheckVersion(ur_api_version_t version) {
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_context_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
 
   pDdiTable->pfnCreate = ur_sanitizer_layer::tsan::urContextCreate;
   pDdiTable->pfnCreateWithNativeHandle =
@@ -1114,7 +1189,47 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
   pDdiTable->pfnRetain = ur_sanitizer_layer::tsan::urContextRetain;
   pDdiTable->pfnRelease = ur_sanitizer_layer::tsan::urContextRelease;
 
-  return result;
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Program table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetProgramProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_program_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnBuild = ur_sanitizer_layer::tsan::urProgramBuild;
+  pDdiTable->pfnLink = ur_sanitizer_layer::tsan::urProgramLink;
+
+  return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's ProgramExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+ur_result_t urGetProgramExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_program_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnBuildExp = ur_sanitizer_layer::tsan::urProgramBuildExp;
+  pDdiTable->pfnLinkExp = ur_sanitizer_layer::tsan::urProgramLinkExp;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1125,19 +1240,10 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ur_result_t urGetKernelProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_kernel_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-  }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
   }
 
   pDdiTable->pfnCreate = ur_sanitizer_layer::tsan::urKernelCreate;
@@ -1157,19 +1263,10 @@ ur_result_t urGetKernelProcAddrTable(
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ur_result_t urGetMemProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_mem_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-  }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
   }
 
   pDdiTable->pfnBufferCreate = ur_sanitizer_layer::tsan::urMemBufferCreate;
@@ -1191,30 +1288,18 @@ ur_result_t urGetMemProcAddrTable(
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_usm_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
   pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::tsan::urUSMDeviceAlloc;
   pDdiTable->pfnHostAlloc = ur_sanitizer_layer::tsan::urUSMHostAlloc;
   pDdiTable->pfnSharedAlloc = ur_sanitizer_layer::tsan::urUSMSharedAlloc;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1224,24 +1309,12 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
 __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
     /// [in,out] pointer to table of DDI function pointers
     ur_enqueue_dditable_t *pDdiTable) {
   if (nullptr == pDdiTable) {
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
-
-  if (UR_MAJOR_VERSION(ur_sanitizer_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_sanitizer_layer::getContext()->version) >
-          UR_MINOR_VERSION(version)) {
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-  }
-
-  ur_result_t result = UR_RESULT_SUCCESS;
 
   pDdiTable->pfnMemBufferRead =
       ur_sanitizer_layer::tsan::urEnqueueMemBufferRead;
@@ -1261,7 +1334,7 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
   pDdiTable->pfnMemUnmap = ur_sanitizer_layer::tsan::urEnqueueMemUnmap;
   pDdiTable->pfnKernelLaunch = ur_sanitizer_layer::tsan::urEnqueueKernelLaunch;
 
-  return result;
+  return UR_RESULT_SUCCESS;
 }
 
 } // namespace tsan
@@ -1276,28 +1349,36 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::tsan::urGetContextProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Context);
+    result =
+        ur_sanitizer_layer::tsan::urGetContextProcAddrTable(&dditable->Context);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::tsan::urGetKernelProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Kernel);
+    result =
+        ur_sanitizer_layer::tsan::urGetProgramProcAddrTable(&dditable->Program);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::tsan::urGetMemProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Mem);
+    result = ur_sanitizer_layer::tsan::urGetProgramExpProcAddrTable(
+        &dditable->ProgramExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::tsan::urGetUSMProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->USM);
+    result =
+        ur_sanitizer_layer::tsan::urGetKernelProcAddrTable(&dditable->Kernel);
   }
 
   if (UR_RESULT_SUCCESS == result) {
-    result = ur_sanitizer_layer::tsan::urGetEnqueueProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->Enqueue);
+    result = ur_sanitizer_layer::tsan::urGetMemProcAddrTable(&dditable->Mem);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::tsan::urGetUSMProcAddrTable(&dditable->USM);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result =
+        ur_sanitizer_layer::tsan::urGetEnqueueProcAddrTable(&dditable->Enqueue);
   }
 
   if (result != UR_RESULT_SUCCESS) {
