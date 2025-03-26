@@ -28,30 +28,26 @@ document for details of support of different SYCL backends.
 ### UR Command-Buffer Experimental Feature
 
 The command-buffer concept has been introduced to UR as an
-[experimental feature](https://oneapi-src.github.io/unified-runtime/core/api.html#command-buffer-experimental)
-with the following entry-points:
-
-| Function                                     | Description |
-| -------------------------------------------- | ----------- |
-| `urCommandBufferCreateExp`                   | Create a command-buffer. |
-| `urCommandBufferRetainExp`                   | Incrementing reference count of command-buffer. |
-| `urCommandBufferReleaseExp`                  | Decrementing reference count of command-buffer. |
-| `urCommandBufferFinalizeExp`                 | No more commands can be appended, makes command-buffer ready to enqueue on a command-queue. |
-| `urCommandBufferAppendKernelLaunchExp`       | Append a kernel execution command to command-buffer. |
-| `urCommandBufferAppendUSMMemcpyExp`          | Append a USM memcpy command to the command-buffer. |
-| `urCommandBufferAppendUSMFillExp`            | Append a USM fill command to the command-buffer. |
-| `urCommandBufferAppendMemBufferCopyExp`      | Append a mem buffer copy command to the command-buffer. |
-| `urCommandBufferAppendMemBufferWriteExp`     | Append a memory write command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferReadExp`      | Append a memory read command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferCopyRectExp`  | Append a rectangular memory copy command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferWriteRectExp` | Append a rectangular memory write command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferReadRectExp`  | Append a rectangular memory read command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferFillExp`      | Append a memory fill command to a command-buffer object. |
-| `urEnqueueCommandBufferExp`                  | Submit command-buffer to a command-queue for execution. |
-| `urCommandBufferUpdateKernelLaunchExp`       | Updates the parameters of a previous kernel launch command. |
-
+[experimental feature](https://oneapi-src.github.io/unified-runtime/core/api.html#command-buffer-experimental).
 See the [UR EXP-COMMAND-BUFFER](https://oneapi-src.github.io/unified-runtime/core/EXP-COMMAND-BUFFER.html)
-specification for more details.
+specification for details.
+
+Device support for SYCL-Graph is communicated to the user via two aspects.
+The `aspect::ext_oneapi_limited_graph` aspect for basic graph support and
+the `aspect::ext_oneapi_graph` aspect for full graph support.
+
+The `UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP` query result is used by the
+SYCL-RT to inform whether to report `aspect::ext_oneapi_limited_graph`.
+
+Reporting of the `aspect::ext_oneapi_graph` aspect is based on the
+`UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP` query result. For
+a device to report this aspect, the UR query must report support for all of:
+
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS`
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE`
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE`
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET`
+* `UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE`
 
 ## Design
 
@@ -608,43 +604,14 @@ SYCL-Graph is only enabled for an OpenCL backend when the
 extension is available, however this information isn't available until runtime
 due to OpenCL implementations being loaded through an ICD.
 
-The `ur_exp_command_buffer` string is conditionally returned from the OpenCL
-command-buffer UR backend at runtime based on `cl_khr_command_buffer` support
-to indicate that the graph extension should be enabled. This is information
-is propagated to the SYCL user via the
-`device.get_info<info::device::graph_support>()` query for graph extension
-support.
-
-#### Limitations
-
-Due to the API mapping gaps documented in the following section, OpenCL as a
-SYCL backend cannot fully support the graph API. Instead, there are
-limitations in the types of nodes which a user can add to a graph, using
-an unsupported node type will cause a SYCL exception to be thrown in graph
-finalization with error code `sycl::errc::feature_not_supported` and a message
-mentioning the unsupported command. For example,
-
-```
-terminate called after throwing an instance of 'sycl::_V1::exception'
-what():  USM copy command not supported by graph backend
-```
-
-The types of commands which are unsupported, and lead to this exception are:
-* `handler::copy(src, dest)` - Where `src` is an accessor and `dest` is a pointer.
-   This corresponds to a memory buffer read command.
-* `handler::copy(src, dest)` - Where `src` is an pointer and `dest` is an accessor.
-  This corresponds to a memory buffer write command.
-* `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
-   `dest` are USM pointers. This corresponds to a USM copy command.
-* `handler::fill(ptr, pattern, count)` - This corresponds to a USM memory
-  fill command.
-* `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
-  fill command.
-* `handler::prefetch()`.
-* `handler::mem_advise()`.
-
-Note that `handler::copy(src, dest)` where both `src` and `dest` are an accessor
-is supported, as a memory buffer copy command exists in the OpenCL extension.
+The `UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP` UR query returns true in the
+OpenCL UR adapter based on
+the presence of `cl_khr_command_buffer`, and the OpenCL device reporting
+support for
+[CL_COMMAND_BUFFER_CAPABILITY_SIMULTANEOUS_USE_KHR](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#CL_COMMAND_BUFFER_CAPABILITY_SIMULTANEOUS_USE_KHR).
+The later is required to enable multiple submissions of the same executable
+`command_graph` object without having to do a blocking wait on prior submissions
+in-between.
 
 #### UR API Mapping
 
@@ -678,18 +645,56 @@ adapter where there is matching support for each function in the list.
 |  | clGetCommandBufferInfoKHR | No |
 |  | clCommandSVMMemcpyKHR | No |
 |  | clCommandSVMMemFillKHR | No |
-| urCommandBufferUpdateKernelLaunchExp | clUpdateMutableCommandsKHR | Yes[1] |
+| urCommandBufferUpdateKernelLaunchExp | clUpdateMutableCommandsKHR | Partial [See Update Section](#update-support) |
 
 We are looking to address these gaps in the future so that SYCL-Graph can be
 fully supported on a `cl_khr_command_buffer` backend.
 
-[1] Support for `urCommandBufferUpdateKernelLaunchExp` used to update the
+#### Unsupported Command Types
+
+Due to the API mapping gaps documented in the previous section, OpenCL as a
+SYCL backend cannot fully support the graph API. Instead, there are
+limitations in the types of nodes which a user can add to a graph, using
+an unsupported node type will cause a SYCL exception to be thrown in graph
+finalization with error code `sycl::errc::feature_not_supported` and a message
+mentioning the unsupported command. For example,
+
+```
+terminate called after throwing an instance of 'sycl::_V1::exception'
+what():  USM copy command not supported by graph backend
+```
+
+The types of commands which are unsupported, and lead to this exception are:
+* `handler::copy(src, dest)` - Where `src` is an accessor and `dest` is a pointer.
+   This corresponds to a memory buffer read command.
+* `handler::copy(src, dest)` - Where `src` is an pointer and `dest` is an accessor.
+  This corresponds to a memory buffer write command.
+* `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
+   `dest` are USM pointers. This corresponds to a USM copy command.
+* `handler::fill(ptr, pattern, count)` - This corresponds to a USM memory
+  fill command.
+* `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
+  fill command.
+* `handler::prefetch()`.
+* `handler::mem_advise()`.
+
+Note that `handler::copy(src, dest)` where both `src` and `dest` are an accessor
+is supported, as a memory buffer copy command exists in the OpenCL extension.
+
+#### Update Support
+
+Support for `urCommandBufferUpdateKernelLaunchExp` used to update the
 configuration of kernel commands requires an OpenCL implementation with the
 [cl_khr_command_buffer_mutable_dispatch](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Ext.html#cl_khr_command_buffer_mutable_dispatch)
-extension. The optional capabilities that are reported by this extension must
-include all of of `CL_MUTABLE_DISPATCH_GLOBAL_OFFSET_KHR`,
-`CL_MUTABLE_DISPATCH_GLOBAL_SIZE_KHR`, `CL_MUTABLE_DISPATCH_LOCAL_SIZE_KHR`,
-`CL_MUTABLE_DISPATCH_ARGUMENTS_KHR`, and `CL_MUTABLE_DISPATCH_EXEC_INFO_KHR`.
+extension.
+
+However, the OpenCL adapter can not report `aspect::ext_oneapi_graph` for full
+SYCL-Graph support. As the `cl_khr_command_buffer_mutable_dispatch` extension
+has no concept of updating the `cl_kernel` objects in kernel commands, and so
+can't report the
+`UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE` capability.
+This extension limitation is tracked in by the OpenCL Working Group in an
+[OpenCL-Docs Issue](https://github.com/KhronosGroup/OpenCL-Docs/issues/1279).
 
 #### UR Command-Buffer Implementation
 
