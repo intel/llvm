@@ -17,23 +17,6 @@
 #include <memory>
 #include <unordered_set>
 
-// Trace an internal UR call
-#define UR_TRACE(Call)                                                         \
-  {                                                                            \
-    ur_result_t Result;                                                        \
-    UR_CALL(Call, Result);                                                     \
-  }
-
-// Trace an internal UR call and return the result to the user.
-#define UR_CALL(Call, Result)                                                  \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      std::cerr << "UR ---> " << #Call << "\n";                                \
-    Result = (Call);                                                           \
-    if (PrintTrace)                                                            \
-      std::cerr << "UR <--- " << #Call << "(" << Result << ")\n";              \
-  }
-
 // Handle to a kernel command.
 //
 // Struct that stores all the information related to a kernel command in a
