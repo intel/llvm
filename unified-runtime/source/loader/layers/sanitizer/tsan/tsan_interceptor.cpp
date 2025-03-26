@@ -69,15 +69,14 @@ ur_result_t DeviceInfo::allocShadowMemory() {
   return UR_RESULT_SUCCESS;
 }
 
-void ContextInfo::insertAllocInfo(ur_device_handle_t Device,
-                                  std::shared_ptr<TsanAllocInfo> &AI) {
+void ContextInfo::insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI) {
   if (Device) {
     std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
-    AllocInfosMap[Device].emplace_back(AI);
+    AllocInfosMap[Device].emplace_back(std::move(AI));
   } else {
     for (auto Device : DeviceList) {
       std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
-      AllocInfosMap[Device].emplace_back(AI);
+      AllocInfosMap[Device].emplace_back(std::move(AI));
     }
   }
 }
@@ -103,13 +102,59 @@ ur_result_t TsanInterceptor::allocateMemory(ur_context_handle_t Context,
         Context, Device, Properties, Pool, Size, &Allocated));
   }
 
-  auto AI = std::make_shared<TsanAllocInfo>(
-      TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size});
-
+  auto AI = TsanAllocInfo{reinterpret_cast<uptr>(Allocated), Size};
   // For updating shadow memory
-  CI->insertAllocInfo(Device, AI);
+  CI->insertAllocInfo(Device, std::move(AI));
 
   *ResultPtr = Allocated;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::registerProgram(ur_program_handle_t Program) {
+  getContext()->logger.info("registerDeviceGlobals");
+  UR_CALL(registerDeviceGlobals(Program));
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
+  std::vector<ur_device_handle_t> Devices = GetDevices(Program);
+  assert(Devices.size() != 0 && "No devices in registerDeviceGlobals");
+  auto Context = GetContext(Program);
+  auto ContextInfo = getContextInfo(Context);
+
+  for (auto Device : Devices) {
+    ManagedQueue Queue(Context, Device);
+
+    size_t MetadataSize;
+    void *MetadataPtr;
+    auto Result = getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
+        Device, Program, kSPIR_TsanDeviceGlobalMetadata, &MetadataSize,
+        &MetadataPtr);
+    if (Result != UR_RESULT_SUCCESS) {
+      getContext()->logger.info("No device globals");
+      continue;
+    }
+
+    const uint64_t NumOfDeviceGlobal = MetadataSize / sizeof(DeviceGlobalInfo);
+    assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
+           "DeviceGlobal metadata size is not correct");
+    std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
+    Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, &GVInfos[0], MetadataPtr,
+        sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
+    if (Result != UR_RESULT_SUCCESS) {
+      getContext()->logger.error("Device Global[{}] Read Failed: {}",
+                                 kSPIR_TsanDeviceGlobalMetadata, Result);
+      return Result;
+    }
+
+    for (size_t i = 0; i < NumOfDeviceGlobal; i++) {
+      const auto &GVInfo = GVInfos[i];
+      auto AI = TsanAllocInfo{GVInfo.Addr, GVInfo.Size};
+      ContextInfo->insertAllocInfo(Device, std::move(AI));
+    }
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -225,9 +270,10 @@ TsanInterceptor::updateShadowMemory(std::shared_ptr<ContextInfo> &CI,
                                     ur_queue_handle_t Queue) {
   std::scoped_lock<ur_shared_mutex> Guard(CI->AllocInfosMapMutex);
   for (auto &AllocInfo : CI->AllocInfosMap[DI->Handle]) {
-    UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo->AllocBegin,
-                                    AllocInfo->AllocSize));
+    UR_CALL(DI->Shadow->CleanShadow(Queue, AllocInfo.AllocBegin,
+                                    AllocInfo.AllocSize));
   }
+  CI->AllocInfosMap[DI->Handle].clear();
   return UR_RESULT_SUCCESS;
 }
 
