@@ -13,13 +13,10 @@
 #define LLVM_TRANSFORMS_INSTRUMENTATION_SPIRVSANITIZERCOMMONUTILS_H
 
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 
 namespace llvm {
-namespace SPIRVSanitizerCommonUtils {
-
 // Spir memory address space
 constexpr unsigned kSpirOffloadPrivateAS = 0;
 constexpr unsigned kSpirOffloadGlobalAS = 1;
@@ -29,7 +26,6 @@ constexpr unsigned kSpirOffloadGenericAS = 4;
 
 TargetExtType *getTargetExtType(Type *Ty);
 bool isJointMatrixAccess(Value *V);
-} // namespace SPIRVSanitizerCommonUtils
 } // namespace llvm
 
 #endif // LLVM_TRANSFORMS_INSTRUMENTATION_SPIRVSANITIZERCOMMONUTILS_H

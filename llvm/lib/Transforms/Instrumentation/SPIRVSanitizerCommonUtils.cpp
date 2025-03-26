@@ -11,12 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Instrumentation/SPIRVSanitizerCommonUtils.h"
+#include "llvm/IR/Instructions.h"
 
 using namespace llvm;
 
 namespace llvm {
-namespace SPIRVSanitizerCommonUtils {
-
 TargetExtType *getTargetExtType(Type *Ty) {
   if (auto *TargetTy = dyn_cast<TargetExtType>(Ty))
     return TargetTy;
@@ -59,5 +58,4 @@ bool isJointMatrixAccess(Value *V) {
   }
   return false;
 }
-} // namespace SPIRVSanitizerCommonUtils
 } // namespace llvm

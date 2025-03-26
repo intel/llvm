@@ -589,13 +589,6 @@ static const PlatformMemoryMapParams Intel_SPIR_MemoryMapParams = {
     &Intel_SPIR64_MemoryMapParams,
 };
 
-// Spir memory address space
-static constexpr unsigned kSpirOffloadPrivateAS = 0;
-static constexpr unsigned kSpirOffloadGlobalAS = 1;
-static constexpr unsigned kSpirOffloadConstantAS = 2;
-static constexpr unsigned kSpirOffloadLocalAS = 3;
-static constexpr unsigned kSpirOffloadGenericAS = 4;
-
 namespace {
 
 class MemorySanitizerOnSpirv;
@@ -1750,14 +1743,13 @@ static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
   // Ignore load/store for target ext type since we can't know exactly what size
   // it is.
   if (auto *SI = dyn_cast<StoreInst>(I))
-    if (SPIRVSanitizerCommonUtils::getTargetExtType(
-            SI->getValueOperand()->getType()) ||
-        SPIRVSanitizerCommonUtils::isJointMatrixAccess(SI->getPointerOperand()))
+    if (getTargetExtType(SI->getValueOperand()->getType()) ||
+        isJointMatrixAccess(SI->getPointerOperand()))
       return true;
 
   if (auto *LI = dyn_cast<LoadInst>(I))
-    if (SPIRVSanitizerCommonUtils::getTargetExtType(I->getType()) ||
-        SPIRVSanitizerCommonUtils::isJointMatrixAccess(LI->getPointerOperand()))
+    if (getTargetExtType(I->getType()) ||
+        isJointMatrixAccess(LI->getPointerOperand()))
       return true;
 
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
