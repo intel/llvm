@@ -990,6 +990,14 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
       ZE2UR_CALL(zelLoaderTranslateHandle,
                  (ZEL_HANDLE_EVENT, ZeEvent, (void **)&translatedEvent));
     }
+    std::vector<ze_event_handle_t> EventHandles(WaitList.Length + 1, nullptr);
+    if (WaitList.Length > 0) {
+      for (size_t i = 0; i < WaitList.Length; i++) {
+        ze_event_handle_t ZeEvent = WaitList.ZeEventList[i];
+        ZE2UR_CALL(zelLoaderTranslateHandle,
+                   (ZEL_HANDLE_EVENT, ZeEvent, (void **)&EventHandles[i + 1]));
+      }
+    }
     ze_intel_external_semaphore_wait_params_exp_t WaitParams = {
         ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP, nullptr, 0};
     WaitParams.value = hasValue ? waitValue : 0;
@@ -998,7 +1006,7 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
     ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
                    .zexExpCommandListAppendWaitExternalSemaphoresExp,
                (translatedCommandList, 1, &hExtSemaphore, &WaitParams,
-                translatedEvent, WaitList.Length, WaitList.ZeEventList));
+                translatedEvent, WaitList.Length, EventHandles.data()));
   }
 
   return UR_RESULT_SUCCESS;
@@ -1074,10 +1082,18 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
       ZE2UR_CALL(zelLoaderTranslateHandle,
                  (ZEL_HANDLE_EVENT, ZeEvent, (void **)&translatedEvent));
     }
+    std::vector<ze_event_handle_t> EventHandles(WaitList.Length + 1, nullptr);
+    if (WaitList.Length > 0) {
+      for (size_t i = 0; i < WaitList.Length; i++) {
+        ze_event_handle_t ZeEvent = WaitList.ZeEventList[i];
+        ZE2UR_CALL(zelLoaderTranslateHandle,
+                   (ZEL_HANDLE_EVENT, ZeEvent, (void **)&EventHandles[i + 1]));
+      }
+    }
     ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
                    .zexExpCommandListAppendSignalExternalSemaphoresExp,
                (translatedCommandList, 1, &hExtSemaphore, &SignalParams,
-                translatedEvent, WaitList.Length, WaitList.ZeEventList));
+                translatedEvent, WaitList.Length, EventHandles.data()));
   }
 
   return UR_RESULT_SUCCESS;
