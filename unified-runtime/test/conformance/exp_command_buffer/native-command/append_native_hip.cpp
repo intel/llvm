@@ -15,7 +15,7 @@ struct urHipCommandBufferNativeAppendTest
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferNativeAppendTest::SetUp());
-    if (backend != UR_PLATFORM_BACKEND_HIP) {
+    if (backend != UR_BACKEND_HIP) {
       GTEST_SKIP() << "Native append test is only supported on HIP.";
     }
 
