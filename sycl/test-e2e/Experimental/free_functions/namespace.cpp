@@ -93,7 +93,7 @@ void test_function_in_inline_ns(sycl::queue& q, sycl::context& ctxt)
   call_kernel_code(q, k_function_in_inline_ns);
 }
 
-void test_function_in_anonimous_ns(sycl::queue& q, sycl::context& ctxt) {
+void test_function_in_anonymous_ns(sycl::queue& q, sycl::context& ctxt) {
   // Get a kernel bundle that contains the free function kernel "function_in_anonymous_ns".
   auto exe_bndl =
       syclexp::get_kernel_bundle<function_in_anonymous_ns, 
@@ -111,6 +111,6 @@ int main() {
   test_function_without_ns(q, ctxt);
   test_function_in_ns(q, ctxt);
   test_function_in_inline_ns(q, ctxt);
-  test_function_in_anonimous_ns(q, ctxt);
+  test_function_in_anonymous_ns(q, ctxt);
   return 0;
 }
