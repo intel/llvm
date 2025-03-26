@@ -364,7 +364,6 @@ def TLFloat         : TypeList<[Float, Double, Half]>;
 // FIXME: handle properly char (signed or unsigned depending on host)
 def TLSignedInts    : TypeList<[Char, Short, Int, Long]>;
 def TLUnsignedInts  : TypeList<[UChar, UShort, UInt, ULong]>;
-def TLUnsignedIntLong : TypeList<[UInt, ULong]>;
 
 // Signed to Unsigned conversion
 // FIXME: handle properly char (signed or unsigned depending on host)
@@ -388,6 +387,7 @@ def AGenTypeN              : GenericType<"AGenTypeN", TLAll, VecAndScalar>;
 def AGenTypeNNoScalar      : GenericType<"AGenTypeNNoScalar", TLAll, VecNoScalar>;
 def AGenTypeNWithBool
     : GenericType<"AGenTypeNWithBool", TLAllWithBool, VecAndScalar>;
+// Bool
 def BoolGenTypeN : GenericType<"BoolGenTypeN", TypeList<[Bool]>, VecAndScalar>;
 // All integer
 def AIGenType1             : GenericType<"AIGenType1", TLAllInts, Vec1>;
@@ -998,12 +998,16 @@ foreach name = ["GroupNonUniformAllEqual"] in {
   def : SPVBuiltin<name, [Bool, Int, AGenTypeNWithBool], Attr.Convergent>;
 }
 
-foreach name = ["GroupNonUniformBroadcast",
-                "GroupNonUniformBroadcastFirst"] in {
-  foreach IDType = TLUnsignedIntLong.List in {
+foreach name = ["GroupNonUniformBroadcast"] in {
+  foreach IDType = [UInt, ULong] in {
     def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool, IDType],
                      Attr.Convergent>;
   }
+}
+
+foreach name = ["GroupNonUniformBroadcastFirst"] in {
+  def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupNonUniformBallot"] in {
@@ -1015,9 +1019,7 @@ foreach name = ["GroupNonUniformInverseBallot"] in {
 }
 
 foreach name = ["GroupNonUniformBallotBitExtract"] in {
-  foreach IDType = TLUnsignedIntLong.List in {
-    def : SPVBuiltin<name, [Bool, Int, UInt4, IDType], Attr.Convergent>;
-  }
+  def : SPVBuiltin<name, [Bool, Int, UInt4, UInt], Attr.Convergent>;
 }
 
 foreach name = ["GroupNonUniformBallotBitCount", "GroupNonUniformBallotFindLSB",
@@ -1027,60 +1029,46 @@ foreach name = ["GroupNonUniformBallotBitCount", "GroupNonUniformBallotFindLSB",
 
 foreach name = ["GroupNonUniformShuffle", "GroupNonUniformShuffleXor",
                 "GroupNonUniformShuffleUp", "GroupNonUniformShuffleDown"] in {
-  foreach IDType = TLUnsignedIntLong.List in {
-    def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool, IDType],
-                     Attr.Convergent>;
-  }
+  def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool, UInt],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupNonUniformIAdd", "GroupNonUniformIMul"] in {
   def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN], Attr.Convergent>;
-  foreach IDType = TLUnsignedIntLong.List in {
-    def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN, IDType],
-                     Attr.Convergent>;
-  }
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN, UInt],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupNonUniformSMin", "GroupNonUniformSMax"] in {
-  def : SPVBuiltin<name, [ASIGenTypeN, Int, Int, ASIGenTypeN], Attr.Convergent>;
-  foreach IDType = TLUnsignedIntLong.List in {
-    def : SPVBuiltin<name, [ASIGenTypeN, Int, Int, ASIGenTypeN, IDType],
-                     Attr.Convergent>;
-  }
+  def : SPVBuiltin<name, [SGenTypeN, Int, Int, SGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [SGenTypeN, Int, Int, SGenTypeN, UInt],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupNonUniformUMin", "GroupNonUniformUMax"] in {
   def : SPVBuiltin<name, [UGenTypeN, Int, Int, UGenTypeN], Attr.Convergent>;
-  foreach IDType = TLUnsignedIntLong.List in {
-    def : SPVBuiltin<name, [UGenTypeN, Int, Int, UGenTypeN, IDType],
-                     Attr.Convergent>;
-  }
+  def : SPVBuiltin<name, [UGenTypeN, Int, Int, UGenTypeN, UInt],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupNonUniformFAdd", "GroupNonUniformFMul",
                 "GroupNonUniformFMin", "GroupNonUniformFMax"] in {
   def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN], Attr.Convergent>;
-  foreach IDType = TLUnsignedIntLong.List in {
-    def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN, IDType],
-                     Attr.Convergent>;
-  }
+  def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN, UInt],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupNonUniformBitwiseAnd", "GroupNonUniformBitwiseOr",
                 "GroupNonUniformBitwiseXor"] in {
   def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN], Attr.Convergent>;
-  foreach IDType = TLUnsignedIntLong.List in {
-    def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN, IDType],
-                     Attr.Convergent>;
-  }
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN, UInt],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupNonUniformLogicalAnd", "GroupNonUniformLogicalOr",
                 "GroupNonUniformLogicalXor"] in {
   def : SPVBuiltin<name, [BoolGenTypeN, Int, Int, BoolGenTypeN],
                    Attr.Convergent>;
-  foreach IDType = TLUnsignedIntLong.List in {
-    def : SPVBuiltin<name, [BoolGenTypeN, Int, Int, BoolGenTypeN, IDType],
-                     Attr.Convergent>;
-  }
+  def : SPVBuiltin<name, [BoolGenTypeN, Int, Int, BoolGenTypeN, UInt],
+                   Attr.Convergent>;
 }

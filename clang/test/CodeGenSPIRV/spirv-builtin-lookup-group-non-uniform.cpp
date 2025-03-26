@@ -18,8 +18,8 @@ template <class T> T group_broad_cast(T v, unsigned int id) {
   return __spirv_GroupNonUniformBroadcast(2, v, id);
 }
 
-template <class T> T group_broad_cast_first(T v, unsigned int id) {
-  return __spirv_GroupNonUniformBroadcastFirst(2, v, id);
+template <class T> T group_broad_cast_first(T v) {
+  return __spirv_GroupNonUniformBroadcastFirst(2, v);
 }
 
 typedef unsigned int uint4 __attribute__((ext_vector_type(4)));
@@ -147,7 +147,7 @@ template <class T> void test_with_bool() {
   unsigned int id = 0;
   group_all_equal<T>(v);
   group_broad_cast<T>(v, id);
-  group_broad_cast_first<T>(v, id);
+  group_broad_cast_first<T>(v);
   group_shuffle(v, id);
   group_shuffle_xor(v, id);
   group_shuffle_up(v, id);
@@ -227,70 +227,70 @@ void test() {
 // CHECK: call noundef i32 @_Z36__spirv_GroupNonUniformBallotFindMSBiiDv4_j
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualib
 // CHECK: call noundef zeroext i1 @_Z32__spirv_GroupNonUniformBroadcastibj
-// CHECK: call noundef zeroext i1 @_Z37__spirv_GroupNonUniformBroadcastFirstibj
+// CHECK: call noundef zeroext i1 @_Z37__spirv_GroupNonUniformBroadcastFirstib
 // CHECK: call noundef zeroext i1 @_Z30__spirv_GroupNonUniformShuffleibj
 // CHECK: call noundef zeroext i1 @_Z33__spirv_GroupNonUniformShuffleXoribj
 // CHECK: call noundef zeroext i1 @_Z32__spirv_GroupNonUniformShuffleUpibj
 // CHECK: call noundef zeroext i1 @_Z34__spirv_GroupNonUniformShuffleDownibj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualii
 // CHECK: call noundef i32 @_Z32__spirv_GroupNonUniformBroadcastiij
-// CHECK: call noundef i32 @_Z37__spirv_GroupNonUniformBroadcastFirstiij
+// CHECK: call noundef i32 @_Z37__spirv_GroupNonUniformBroadcastFirstii
 // CHECK: call noundef i32 @_Z30__spirv_GroupNonUniformShuffleiij
 // CHECK: call noundef i32 @_Z33__spirv_GroupNonUniformShuffleXoriij
 // CHECK: call noundef i32 @_Z32__spirv_GroupNonUniformShuffleUpiij
 // CHECK: call noundef i32 @_Z34__spirv_GroupNonUniformShuffleDowniij
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualih
 // CHECK: call noundef zeroext i8 @_Z32__spirv_GroupNonUniformBroadcastihj
-// CHECK: call noundef zeroext i8 @_Z37__spirv_GroupNonUniformBroadcastFirstihj
+// CHECK: call noundef zeroext i8 @_Z37__spirv_GroupNonUniformBroadcastFirstih
 // CHECK: call noundef zeroext i8 @_Z30__spirv_GroupNonUniformShuffleihj
 // CHECK: call noundef zeroext i8 @_Z33__spirv_GroupNonUniformShuffleXorihj
 // CHECK: call noundef zeroext i8 @_Z32__spirv_GroupNonUniformShuffleUpihj
 // CHECK: call noundef zeroext i8 @_Z34__spirv_GroupNonUniformShuffleDownihj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualis
 // CHECK: call noundef signext i16 @_Z32__spirv_GroupNonUniformBroadcastisj
-// CHECK: call noundef signext i16 @_Z37__spirv_GroupNonUniformBroadcastFirstisj
+// CHECK: call noundef signext i16 @_Z37__spirv_GroupNonUniformBroadcastFirstis
 // CHECK: call noundef signext i16 @_Z30__spirv_GroupNonUniformShuffleisj
 // CHECK: call noundef signext i16 @_Z33__spirv_GroupNonUniformShuffleXorisj
 // CHECK: call noundef signext i16 @_Z32__spirv_GroupNonUniformShuffleUpisj
 // CHECK: call noundef signext i16 @_Z34__spirv_GroupNonUniformShuffleDownisj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualit
 // CHECK: call noundef zeroext i16 @_Z32__spirv_GroupNonUniformBroadcastitj
-// CHECK: call noundef zeroext i16 @_Z37__spirv_GroupNonUniformBroadcastFirstitj
+// CHECK: call noundef zeroext i16 @_Z37__spirv_GroupNonUniformBroadcastFirstit
 // CHECK: call noundef zeroext i16 @_Z30__spirv_GroupNonUniformShuffleitj
 // CHECK: call noundef zeroext i16 @_Z33__spirv_GroupNonUniformShuffleXoritj
 // CHECK: call noundef zeroext i16 @_Z32__spirv_GroupNonUniformShuffleUpitj
 // CHECK: call noundef zeroext i16 @_Z34__spirv_GroupNonUniformShuffleDownitj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualii
 // CHECK: call noundef i32 @_Z32__spirv_GroupNonUniformBroadcastiij
-// CHECK: call noundef i32 @_Z37__spirv_GroupNonUniformBroadcastFirstiij
+// CHECK: call noundef i32 @_Z37__spirv_GroupNonUniformBroadcastFirstii
 // CHECK: call noundef i32 @_Z30__spirv_GroupNonUniformShuffleiij
 // CHECK: call noundef i32 @_Z33__spirv_GroupNonUniformShuffleXoriij
 // CHECK: call noundef i32 @_Z32__spirv_GroupNonUniformShuffleUpiij
 // CHECK: call noundef i32 @_Z34__spirv_GroupNonUniformShuffleDowniij
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualij
 // CHECK: call noundef i32 @_Z32__spirv_GroupNonUniformBroadcastijj
-// CHECK: call noundef i32 @_Z37__spirv_GroupNonUniformBroadcastFirstijj
+// CHECK: call noundef i32 @_Z37__spirv_GroupNonUniformBroadcastFirstij
 // CHECK: call noundef i32 @_Z30__spirv_GroupNonUniformShuffleijj
 // CHECK: call noundef i32 @_Z33__spirv_GroupNonUniformShuffleXorijj
 // CHECK: call noundef i32 @_Z32__spirv_GroupNonUniformShuffleUpijj
 // CHECK: call noundef i32 @_Z34__spirv_GroupNonUniformShuffleDownijj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualiDF16_
 // CHECK: call noundef half @_Z32__spirv_GroupNonUniformBroadcastiDF16_j
-// CHECK: call noundef half @_Z37__spirv_GroupNonUniformBroadcastFirstiDF16_j
+// CHECK: call noundef half @_Z37__spirv_GroupNonUniformBroadcastFirstiDF16_
 // CHECK: call noundef half @_Z30__spirv_GroupNonUniformShuffleiDF16_j
 // CHECK: call noundef half @_Z33__spirv_GroupNonUniformShuffleXoriDF16_j
 // CHECK: call noundef half @_Z32__spirv_GroupNonUniformShuffleUpiDF16_j
 // CHECK: call noundef half @_Z34__spirv_GroupNonUniformShuffleDowniDF16_j
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualif
 // CHECK: call noundef float @_Z32__spirv_GroupNonUniformBroadcastifj
-// CHECK: call noundef float @_Z37__spirv_GroupNonUniformBroadcastFirstifj
+// CHECK: call noundef float @_Z37__spirv_GroupNonUniformBroadcastFirstif
 // CHECK: call noundef float @_Z30__spirv_GroupNonUniformShuffleifj
 // CHECK: call noundef float @_Z33__spirv_GroupNonUniformShuffleXorifj
 // CHECK: call noundef float @_Z32__spirv_GroupNonUniformShuffleUpifj
 // CHECK: call noundef float @_Z34__spirv_GroupNonUniformShuffleDownifj
 // CHECK: call noundef zeroext i1 @_Z31__spirv_GroupNonUniformAllEqualid
 // CHECK: call noundef double @_Z32__spirv_GroupNonUniformBroadcastidj
-// CHECK: call noundef double @_Z37__spirv_GroupNonUniformBroadcastFirstidj
+// CHECK: call noundef double @_Z37__spirv_GroupNonUniformBroadcastFirstid
 // CHECK: call noundef double @_Z30__spirv_GroupNonUniformShuffleidj
 // CHECK: call noundef double @_Z33__spirv_GroupNonUniformShuffleXoridj
 // CHECK: call noundef double @_Z32__spirv_GroupNonUniformShuffleUpidj
