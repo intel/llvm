@@ -1,7 +1,7 @@
 // UNSUPPORTED: target-nvidia || target-amd
 // UNSUPPORTED-INTENDED: The test looks for an exception thrown during the
 // compilation of the kernel, but for CUDA the failure is not thrown, but comes
-// form ptxas that crashes clang. The JIT part is not relevant, because the
+// from ptxas that crashes clang. The JIT part is not relevant, because the
 // flow is such that the AOT compilation still happens, it’s just that if we
 // request JIT, it will do the thing again at the run time.
 //

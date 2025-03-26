@@ -208,6 +208,7 @@
 // CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
 // CHECK-NEXT: InvokeSimd/Regression/ImplicitSubgroup/call_vadd_1d_spill.cpp
 // CHECK-NEXT: InvokeSimd/Regression/call_vadd_1d_spill.cpp
+// CHECK-NEXT: KernelAndProgram/cache-build-result.cpp
 // CHECK-NEXT: KernelAndProgram/free_function_apis.cpp
 // CHECK-NEXT: KernelAndProgram/free_function_kernels.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options-env.cpp
