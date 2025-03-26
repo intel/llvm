@@ -6,9 +6,12 @@
 //
 //===-------------------------------------------------------------------------===//
 
-#include <chrono>
 #include <random>
 #include <sycl/usm.hpp>
+
+#ifdef _WIN32
+#include <chrono>
+#endif
 
 #ifdef SLM
 #include "slm_utils.hpp"
