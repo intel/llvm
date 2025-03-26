@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -6,10 +6,10 @@
 import random
 from utils.utils import git_clone
 from .base import Benchmark, Suite
-from .result import Result
+from utils.result import Result
 from utils.utils import run, create_build_path
 from options import options
-from .oneapi import get_oneapi
+from utils.oneapi import get_oneapi
 import os
 import csv
 import io
@@ -22,8 +22,6 @@ def isUMFAvailable():
 class UMFSuite(Suite):
     def __init__(self, directory):
         self.directory = directory
-        if not isUMFAvailable():
-            print("UMF not provided. Related benchmarks will not run")
 
     def name(self) -> str:
         return "UMF"
@@ -75,6 +73,9 @@ class ComputeUMFBenchmark(Benchmark):
             return
 
         self.benchmark_bin = os.path.join(options.umf, "benchmark", self.bench_name)
+
+    def get_tags(self):
+        return ["UMF", "allocation", "latency", "micro"]
 
     def run(self, env_vars) -> list[Result]:
         command = [
