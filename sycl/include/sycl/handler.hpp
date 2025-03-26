@@ -753,7 +753,7 @@ private:
 #endif
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
-    if (KernelHasName) {
+    if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
       clearArgs();
       extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
@@ -770,7 +770,7 @@ private:
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
-    if (IsCallableWithKernelHandler) {
+    if constexpr (IsCallableWithKernelHandler) {
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
     }
   }
