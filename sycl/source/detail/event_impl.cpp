@@ -158,6 +158,14 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
   }
 }
 
+void event_impl::allocateHostProfilingInfo() {
+  MHostProfilingInfo.reset(new HostProfilingInfo());
+  if (!MHostProfilingInfo)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Out of host memory " +
+                              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
+}
+
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled},
       MFallbackProfiling{MIsProfilingEnabled && Queue &&
@@ -166,12 +174,7 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     this->setContextImpl(Queue->getContextImplPtr());
   else {
     MState.store(HES_NotComplete);
-    MHostProfilingInfo.reset(new HostProfilingInfo());
-    if (!MHostProfilingInfo)
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::runtime),
-          "Out of host memory " +
-              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
+    allocateHostProfilingInfo();
     return;
   }
   MState.store(HES_Complete);
@@ -628,8 +631,14 @@ bool event_impl::isCompleted() {
 void event_impl::setCommand(void *Cmd) {
   MCommand = Cmd;
   auto TypedCommand = static_cast<Command *>(Cmd);
-  if (TypedCommand)
-    MIsHostEvent = TypedCommand->getWorkerContext() == nullptr;
+  if (TypedCommand && TypedCommand->getWorkerContext() == nullptr)
+    markAsHost();
+}
+
+void event_impl::markAsHost() {
+  MIsHostEvent = true;
+  if (!MHostProfilingInfo)
+    allocateHostProfilingInfo();
 }
 
 } // namespace detail

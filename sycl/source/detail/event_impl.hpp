@@ -349,7 +349,7 @@ public:
     return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
   }
 
-  void markAsHost() { MIsHostEvent = true; }
+  void markAsHost();
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -360,6 +360,7 @@ protected:
   void instrumentationEpilog(void *TelementryEvent, const std::string &Name,
                              int32_t StreamID, uint64_t IId) const;
   void checkProfilingPreconditions() const;
+  void allocateHostProfilingInfo();
 
   std::atomic<ur_event_handle_t> MEvent = nullptr;
   // Stores submission time of command associated with event
