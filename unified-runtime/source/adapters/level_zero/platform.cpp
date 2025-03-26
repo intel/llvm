@@ -277,7 +277,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
     }
     // Check if extension is available for Spec External Sempahores
     if (strncmp(extension.name, ZE_EXTERNAL_SEMAPHORES_EXTENSION_NAME,
-      strlen(ZE_EXTERNAL_SEMAPHORES_EXTENSION_NAME) + 1) == 0) {
+                strlen(ZE_EXTERNAL_SEMAPHORES_EXTENSION_NAME) + 1) == 0) {
       if (extension.version == ZE_EXTERNAL_SEMAPHORE_EXT_VERSION_1_0) {
         ZeExternalSemaphoreExtensionSupported = true;
       }
@@ -356,10 +356,10 @@ ur_result_t ur_platform_handle_t_::initialize() {
          0);
     ZeExternalSemaphoreExt.Supported |=
         (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-              (ZeDriver, "zeDeviceReleaseExternalSemaphoreExt",
-              reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt
-                        .zexDeviceReleaseExternalSemaphoreExp))) ==
+                         (ZeDriver, "zeDeviceReleaseExternalSemaphoreExt",
+                          reinterpret_cast<void **>(
+                              &ZeExternalSemaphoreExt
+                                   .zexDeviceReleaseExternalSemaphoreExp))) ==
          0);
   } else if (ZeIntelExternalSemaphoreExtensionSupported) {
     ZeExternalSemaphoreExt.Supported |=
