@@ -304,10 +304,10 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
   assert(AllocaCmdSrc->MIsActive &&
          "Expected source alloca command to be active");
 
-  if (!AllocaCmdSrc->getQueue()) {
+  if (!AllocaCmdSrc->getWorkerQueue()) {
     UnMapMemObject *UnMapCmd = new UnMapMemObject(
         AllocaCmdDst, *AllocaCmdDst->getRequirement(),
-        &AllocaCmdSrc->MMemAllocation, AllocaCmdDst->getQueue());
+        &AllocaCmdSrc->MMemAllocation, AllocaCmdDst->getWorkerQueue());
 
     std::swap(AllocaCmdSrc->MIsActive, AllocaCmdDst->MIsActive);
 
@@ -316,7 +316,7 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
 
   MapMemObject *MapCmd = new MapMemObject(
       AllocaCmdSrc, *AllocaCmdSrc->getRequirement(),
-      &AllocaCmdDst->MMemAllocation, AllocaCmdSrc->getQueue(), MapMode);
+      &AllocaCmdDst->MMemAllocation, AllocaCmdSrc->getWorkerQueue(), MapMode);
 
   std::swap(AllocaCmdSrc->MIsActive, AllocaCmdDst->MIsActive);
 
@@ -349,9 +349,10 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     // current context, need to find a parent alloca command for it (it must be
     // there)
     auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
-      bool Res = isOnSameContext(Record->MCurContext, AllocaCmd->getQueue()) &&
-                 // Looking for a parent buffer alloca command
-                 AllocaCmd->getType() == Command::CommandType::ALLOCA;
+      bool Res =
+          isOnSameContext(Record->MCurContext, AllocaCmd->getWorkerQueue()) &&
+          // Looking for a parent buffer alloca command
+          AllocaCmd->getType() == Command::CommandType::ALLOCA;
       return Res;
     };
     const auto It =
@@ -389,10 +390,10 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     } else {
       // Full copy of buffer is needed to avoid loss of data that may be caused
       // by copying specific range from host to device and backwards.
-      NewCmd =
-          new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
-                            *AllocaCmdDst->getRequirement(), AllocaCmdDst,
-                            AllocaCmdSrc->getQueue(), AllocaCmdDst->getQueue());
+      NewCmd = new MemCpyCommand(*AllocaCmdSrc->getRequirement(), AllocaCmdSrc,
+                                 *AllocaCmdDst->getRequirement(), AllocaCmdDst,
+                                 AllocaCmdSrc->getWorkerQueue(),
+                                 AllocaCmdDst->getWorkerQueue());
     }
   }
   std::vector<Command *> ToCleanUp;
@@ -413,7 +414,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
 Command *Scheduler::GraphBuilder::remapMemoryObject(
     MemObjRecord *Record, Requirement *Req, AllocaCommandBase *HostAllocaCmd,
     std::vector<Command *> &ToEnqueue) {
-  assert(!HostAllocaCmd->getQueue() && "Host alloca command expected");
+  assert(!HostAllocaCmd->getWorkerQueue() && "Host alloca command expected");
   assert(HostAllocaCmd->MIsActive && "Active alloca command expected");
 
   AllocaCommandBase *LinkedAllocaCmd = HostAllocaCmd->MLinkedAllocaCmd;
@@ -423,15 +424,16 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
 
   UnMapMemObject *UnMapCmd = new UnMapMemObject(
       LinkedAllocaCmd, *LinkedAllocaCmd->getRequirement(),
-      &HostAllocaCmd->MMemAllocation, LinkedAllocaCmd->getQueue());
+      &HostAllocaCmd->MMemAllocation, LinkedAllocaCmd->getWorkerQueue());
 
   // Map write only as read-write
   access::mode MapMode = Req->MAccessMode;
   if (MapMode == access::mode::write)
     MapMode = access::mode::read_write;
-  MapMemObject *MapCmd = new MapMemObject(
-      LinkedAllocaCmd, *LinkedAllocaCmd->getRequirement(),
-      &HostAllocaCmd->MMemAllocation, LinkedAllocaCmd->getQueue(), MapMode);
+  MapMemObject *MapCmd =
+      new MapMemObject(LinkedAllocaCmd, *LinkedAllocaCmd->getRequirement(),
+                       &HostAllocaCmd->MMemAllocation,
+                       LinkedAllocaCmd->getWorkerQueue(), MapMode);
 
   std::vector<Command *> ToCleanUp;
   for (Command *Dep : Deps) {
@@ -474,7 +476,7 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
 
   auto MemCpyCmdUniquePtr = std::make_unique<MemCpyToHostCommand>(
       *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
-      SrcAllocaCmd->getQueue());
+      SrcAllocaCmd->getWorkerQueue());
 
   if (!MemCpyCmdUniquePtr)
     throw exception(make_error_code(errc::memory_allocation),
@@ -522,7 +524,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
   AllocaCommandBase *HostAllocaCmd =
       getOrCreateAllocaForReq(Record, Req, nullptr, ToEnqueue);
 
-  if (isOnSameContext(Record->MCurContext, HostAllocaCmd->getQueue())) {
+  if (isOnSameContext(Record->MCurContext, HostAllocaCmd->getWorkerQueue())) {
     if (!isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess)) {
       remapMemoryObject(Record, Req,
                         Req->MIsSubBuffer ? (static_cast<AllocaSubBufCommand *>(
@@ -603,7 +605,7 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
 
       // Going through copying memory between contexts is not supported.
       if (Dep.MDepCommand) {
-        auto DepQueue = Dep.MDepCommand->getQueue();
+        auto DepQueue = Dep.MDepCommand->getWorkerQueue();
         CanBypassDep &= isOnSameContext(Context, DepQueue);
       }
 
@@ -644,7 +646,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     bool AllowConst) {
   auto IsSuitableAlloca = [&Context, Req,
                            AllowConst](AllocaCommandBase *AllocaCmd) {
-    bool Res = isOnSameContext(Context, AllocaCmd->getQueue());
+    bool Res = isOnSameContext(Context, AllocaCmd->getWorkerQueue());
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
@@ -1222,7 +1224,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   try {
     std::shared_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Queue = */ Cmd->getQueue(), /* Context = */ {},
+        std::move(HT), /* Queue = */ Cmd->getWorkerQueue(), /* Context = */ {},
         /* Args = */ {},
         detail::CG::StorageInitHelper(
             /* ArgsStorage = */ {}, /* AccStorage = */ {},

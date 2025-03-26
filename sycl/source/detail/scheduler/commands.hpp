@@ -228,6 +228,7 @@ public:
   /// Get the context of the queue this command will be submitted to. Could
   /// differ from the context of MQueue for memory copy commands.
   ContextImplPtr getWorkerContext() const;
+  QueueImplPtr getWorkerQueue() const { return MWorkerQueue; }
 
   /// Returns true iff the command produces a UR event on non-host devices.
   virtual bool producesPiEvent() const;
