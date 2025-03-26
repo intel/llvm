@@ -179,8 +179,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
   try {
     ScopedDevice Active(hQueue->getDevice());
 
-    hQueue->syncStreams<true>(
-        [&Result](hipStream_t S) { UR_CHECK_ERROR(hipStreamSynchronize(S)); });
+    hQueue->syncStreams</*ResetUsed=*/true>(
+        [](hipStream_t S) { UR_CHECK_ERROR(hipStreamSynchronize(S)); });
+
   } catch (ur_result_t Err) {
     Result = Err;
   } catch (...) {
