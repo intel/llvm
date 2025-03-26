@@ -467,8 +467,8 @@ private:
   }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-// TODO: Those functions are not used anymore, remove it in the next
-// ABI-breaking window.
+  // TODO: Those functions are not used anymore, remove it in the next
+  // ABI-breaking window.
   void extractArgsAndReqsFromLambda(
       char *LambdaPtr,
       const std::vector<detail::kernel_param_desc_t> &ParamDescs, bool IsESIMD);
@@ -757,8 +757,10 @@ private:
       char *LambdaPtr = MHostKernel->getPtr();
 
       for (size_t I = 0, IndexShift = 0; I < NumParams; ++I) {
-        const detail::kernel_param_desc_t param = detail::getKernelParamDesc<KernelName>(I);
-        extractArgsAndReqsFromLambda(LambdaPtr, param, detail::isKernelESIMD<KernelName>(), I, IndexShift);
+        extractArgsAndReqsFromLambda(LambdaPtr,
+                                     detail::getKernelParamDesc<KernelName>(I),
+                                     detail::isKernelESIMD<KernelName>(), I,
+                                     IndexShift);
       }
 
       MKernelName = detail::getKernelName<KernelName>();

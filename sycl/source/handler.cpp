@@ -1066,8 +1066,8 @@ void handler::extractArgsAndReqs() {
 }
 
 void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, const detail::kernel_param_desc_t &ParamDesc,
-    bool IsESIMD, size_t Index, size_t &IndexShift) {
+    char *LambdaPtr, const detail::kernel_param_desc_t &ParamDesc, bool IsESIMD,
+    size_t Index, size_t &IndexShift) {
   void *Ptr = LambdaPtr + ParamDesc.offset;
   const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
   const int &Size = ParamDesc.info;
@@ -1089,8 +1089,8 @@ void handler::extractArgsAndReqsFromLambda(
       Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
     }
   }
-  processArg(Ptr, Kind, Size, Index, IndexShift, /*IsKernelCreatedFromSource=*/false,
-             IsESIMD);
+  processArg(Ptr, Kind, Size, Index, IndexShift,
+             /*IsKernelCreatedFromSource=*/false, IsESIMD);
 }
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
@@ -2134,7 +2134,9 @@ void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
 
 void handler::clearArgs() { impl->MArgs.clear(); }
 
-void handler::reseveArgs(int NumParams) { impl->MArgs.reserve(MaxNumAdditionalArgs * NumParams); }
+void handler::reseveArgs(int NumParams) {
+  impl->MArgs.reserve(MaxNumAdditionalArgs * NumParams);
+}
 
 void handler::setArgsToAssociatedAccessors() {
   impl->MArgs = impl->MAssociatedAccesors;
