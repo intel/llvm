@@ -725,8 +725,11 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    // Not using `std::make_unique` to avoid unnecessary instantiations of
+    // `std::unique_ptr<HostKernel<...>>`. Only
+    // `std::unique_ptr<HostKernelBase>` is necessary.
+    MHostKernel.reset(
+        new detail::HostKernel<KernelType, LambdaArgType, Dims>(KernelFunc));
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -754,7 +757,7 @@ private:
 #endif
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
-    if (KernelHasName) {
+    if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
       clearArgs();
       extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
@@ -771,7 +774,7 @@ private:
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
-    if (IsCallableWithKernelHandler) {
+    if constexpr (IsCallableWithKernelHandler) {
       getOrInsertHandlerKernelBundle(/*Insert=*/true);
     }
   }

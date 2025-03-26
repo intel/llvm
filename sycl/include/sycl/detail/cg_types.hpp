@@ -166,11 +166,7 @@ public:
 // Class which stores specific lambda object.
 template <class KernelType, class KernelArgType, int Dims>
 class HostKernel : public HostKernelBase {
-  using IDBuilder = sycl::detail::Builder;
   KernelType MKernel;
-  // Allowing accessing MKernel from 'ResetHostKernelHelper' method of
-  // 'sycl::handler'
-  friend class sycl::handler;
 
 public:
   HostKernel(KernelType Kernel) : MKernel(Kernel) {}
@@ -184,6 +180,7 @@ public:
   // kernel code instructions with source code lines.
   // NOTE: InstatiateKernelOnHost() should not be called.
   void InstantiateKernelOnHost() override {
+    using IDBuilder = sycl::detail::Builder;
     if constexpr (std::is_same_v<KernelArgType, void>) {
       runKernelWithoutArg(MKernel);
     } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
