@@ -17,12 +17,6 @@
 // This tests support of col major layout for matrix B which does transpose and
 // then VNNI transform. This is currently only available on AMX
 
-// XFAIL: gpu && !gpu-intel-pvc
-// XFAIL-TRACKER: GSD-5768
-
-// UNSUPPORTED: gpu-intel-pvc
-// UNSUPPORTED-TRACKER: GSD-5768
-
 #include "common.hpp"
 
 constexpr size_t TN = 16;
