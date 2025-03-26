@@ -939,6 +939,11 @@ void MemorySanitizerOnSpirv::instrumentGlobalVariables() {
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
 
   for (auto &G : M.globals()) {
+    // DeviceSanitizers cannot handle nameless globals, therefore we set a name
+    // for them so that we can handle them like regular globals.
+    if (G.getName().empty() && G.hasInternalLinkage())
+      G.setName("nameless_global");
+
     if (isUnsupportedDeviceGlobal(&G)) {
       for (auto *User : G.users())
         if (auto *Inst = dyn_cast<Instruction>(User))
