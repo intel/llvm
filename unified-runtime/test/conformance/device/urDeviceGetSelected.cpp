@@ -164,7 +164,7 @@ TEST_P(urDeviceGetSelectedTest, InvalidMissingBackend) {
   setenv("ONEAPI_DEVICE_SELECTOR", ":garbage", 1);
   uint32_t count = 0;
   ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_UNKNOWN,
+      UR_RESULT_ERROR_INVALID_VALUE,
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
   ASSERT_EQ(count, 0);
 }
@@ -204,7 +204,7 @@ TEST_P(urDeviceGetSelectedTest, InvalidMissingFilterString) {
   setenv("ONEAPI_DEVICE_SELECTOR", "*:0,,2", 1);
   uint32_t count = 0;
   ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_UNKNOWN,
+      UR_RESULT_ERROR_INVALID_VALUE,
       urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
   ASSERT_EQ(count, 0);
 }
