@@ -223,7 +223,7 @@ bool InterleavedGroupCombinePass::InterleavedGroupInfo::canDeinterleaveMask(
   // If it finds any of the mask's own operands as group members or in
   // between group members, the mask cannot be (trivially) moved.
   while (IA) {
-    if (Ops.count(IA)) {
+    if (Ops.contains(IA)) {
       // We found something the mask depends on, so we can't de-interleave...
       return false;
     } else if (IA == Data.front()) {

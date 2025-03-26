@@ -62,7 +62,7 @@ bool AreUsersDead(Instruction *I,
     }
 
     // I is held by a non-dead user.
-    if (!DeadList.count(UserI) && !WorkList.count(UserI)) {
+    if (!DeadList.contains(UserI) && !WorkList.contains(UserI)) {
       return false;
     }
 

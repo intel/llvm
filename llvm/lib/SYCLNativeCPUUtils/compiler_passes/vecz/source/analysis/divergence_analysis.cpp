@@ -365,7 +365,7 @@ void DivergenceResult::markDivLoopDivBlocks(BasicBlock &BB, Loop &L,
   L.getExitBlocks(exits);
   const auto &divergentExits = escapePoints(BB, L);
   for (BasicBlock *E : exits) {
-    if (divergentExits.count(E)) {
+    if (divergentExits.contains(E)) {
       markDivergent(*E);
     }
     // All loop exits of a divergent loop need their PHIs marked varying.

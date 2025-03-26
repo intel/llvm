@@ -162,7 +162,7 @@ bool BasicMem2RegPass::canPromoteAlloca(AllocaInst *Alloca) const {
 
   // Stores must precede other users.
   for (Instruction &I : EntryBB) {
-    if (NonStoreUsers.count(&I)) {
+    if (NonStoreUsers.contains(&I)) {
       return false;
     } else if (&I == TheStore) {
       break;
