@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import multiprocessing
 
+from presets import presets
 
 class Compare(Enum):
     LATEST = "latest"
@@ -42,6 +43,7 @@ class Options:
     compute_runtime_tag: str = "25.05.32567.12"
     build_igc: bool = False
     current_run_name: str = "This PR"
+    preset: str = "Full"
     custom_results_dir = None
     build_jobs: int = multiprocessing.cpu_count()
 
