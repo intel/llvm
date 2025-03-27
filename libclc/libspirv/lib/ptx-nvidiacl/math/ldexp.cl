@@ -10,8 +10,8 @@
 
 #include <libspirv/ptx-nvidiacl/libdevice.h>
 #include <clc/clcmacro.h>
-#include <config.h>
-#include <math/math.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
 
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __nv_ldexpf, float, int)
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __nv_ldexpf, float, uint)

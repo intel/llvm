@@ -16,20 +16,10 @@ namespace uur {
 namespace command_buffer {
 
 static void checkCommandBufferSupport(ur_device_handle_t device) {
-  size_t returned_size;
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-                                 &returned_size));
-
-  std::unique_ptr<char[]> returned_extensions(new char[returned_size]);
-
-  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_EXTENSIONS,
-                                 returned_size, returned_extensions.get(),
-                                 nullptr));
-
-  std::string_view extensions_string(returned_extensions.get());
-  bool command_buffer_support =
-      extensions_string.find(UR_COMMAND_BUFFER_EXTENSION_STRING_EXP) !=
-      std::string::npos;
+  ur_bool_t command_buffer_support = false;
+  ASSERT_SUCCESS(urDeviceGetInfo(
+      device, UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+      sizeof(command_buffer_support), &command_buffer_support, nullptr));
 
   if (!command_buffer_support) {
     GTEST_SKIP() << "EXP command-buffer feature is not supported.";

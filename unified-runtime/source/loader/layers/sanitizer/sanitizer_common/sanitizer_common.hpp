@@ -64,8 +64,7 @@ inline constexpr uptr RZSize2Log(uptr rz_size) {
   return res;
 }
 
-inline constexpr uptr ComputeRZLog(uptr user_requested_size, uptr min_size,
-                                   uptr max_size) {
+inline constexpr uptr ComputeRZLog(uptr user_requested_size, uptr min_size) {
   uptr rz_log = user_requested_size <= 64 - 16            ? 0
                 : user_requested_size <= 128 - 32         ? 1
                 : user_requested_size <= 512 - 64         ? 2
@@ -75,8 +74,7 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size, uptr min_size,
                 : user_requested_size <= (1 << 16) - 1024 ? 6
                                                           : 7;
   uptr min_log = RZSize2Log(min_size);
-  uptr max_log = RZSize2Log(max_size);
-  return std::min(std::max(rz_log, min_log), max_log);
+  return std::max(rz_log, min_log);
 }
 
 /// Returns the next integer (mod 2**64) that is greater than or equal to
@@ -115,18 +113,6 @@ inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
 }
 
 // ================================================================
-
-// Trace an internal UR call; returns in case of an error.
-#define UR_CALL(Call)                                                          \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      getContext()->logger.debug("UR ---> {}", #Call);                         \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
-      getContext()->logger.debug("UR <--- {}({})", #Call, Result);             \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      return Result;                                                           \
-  }
 
 using BacktraceFrame = void *;
 using BacktraceInfo = std::string;

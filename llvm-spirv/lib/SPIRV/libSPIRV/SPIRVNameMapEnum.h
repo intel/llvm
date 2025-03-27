@@ -639,6 +639,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
+  add(CapabilityBFloat16ConversionINTEL, "Bfloat16ConversionINTEL");
   add(CapabilitySplitBarrierINTEL, "SplitBarrierINTEL");
   add(CapabilityGlobalVariableFPGADecorationsINTEL,
       "GlobalVariableFPGADecorationsINTEL");
@@ -655,11 +656,15 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPMaxErrorINTEL, "FPMaxErrorINTEL");
   add(CapabilityRegisterLimitsINTEL, "RegisterLimitsINTEL");
   add(CapabilityArithmeticFenceEXT, "ArithmeticFenceEXT");
+  add(CapabilitySubgroup2DBlockIOINTEL, "Subgroup2DBlockIOINTEL");
+  add(CapabilitySubgroup2DBlockTransformINTEL, "Subgroup2DBlockTransformINTEL");
+  add(CapabilitySubgroup2DBlockTransposeINTEL, "Subgroup2DBlockTransposeINTEL");
+  add(CapabilitySubgroupMatrixMultiplyAccumulateINTEL,
+      "SubgroupMatrixMultiplyAccumulateINTEL");
   // From spirv_internal.hpp
   add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(internal::CapabilityTokenTypeINTEL, "TokenTypeINTEL");
-  add(internal::CapabilityBfloat16ConversionINTEL, "Bfloat16ConversionINTEL");
   add(internal::CapabilityJointMatrixINTEL, "JointMatrixINTEL");
   add(internal::CapabilityHWThreadQueryINTEL, "HWThreadQueryINTEL");
   add(internal::CapabilityGlobalVariableDecorationsINTEL,

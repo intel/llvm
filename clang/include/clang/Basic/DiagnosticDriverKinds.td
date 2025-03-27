@@ -512,12 +512,13 @@ def warn_drv_clang_unsupported : Warning<
   "the clang compiler does not support '%0'">;
 def warn_drv_deprecated_arg : Warning<
   "argument '%0' is deprecated%select{|, use '%2' instead}1">, InGroup<Deprecated>;
-def warn_drv_deprecated_arg_no_relaxed_template_template_args : Warning<
-  "argument '-fno-relaxed-template-template-args' is deprecated">,
-  InGroup<DeprecatedNoRelaxedTemplateTemplateArgs>;
 def warn_drv_deprecated_arg_ofast : Warning<
   "argument '-Ofast' is deprecated; use '-O3 -ffast-math' for the same behavior,"
   " or '-O3' to enable only conforming optimizations">,
+  InGroup<DeprecatedOFast>;
+def warn_drv_deprecated_arg_ofast_for_flang : Warning<
+  "argument '-Ofast' is deprecated; use '-O3 -ffast-math -fstack-arrays' for the same behavior,"
+  " or '-O3 -fstack-arrays' to enable only conforming optimizations">,
   InGroup<DeprecatedOFast>;
 def warn_drv_deprecated_custom : Warning<
   "argument '%0' is deprecated, %1">, InGroup<Deprecated>;
@@ -565,7 +566,7 @@ def warn_drv_object_size_disabled_O0 : Warning<
 def warn_drv_deprecated_option : Warning<
   "option '%0' is deprecated, use '%1' directly instead">, InGroup<Deprecated>;
 def warn_drv_deprecated_option_release : Warning<
-  "option '%0' is deprecated and will be removed in a future release">,
+  "option '%0' is deprecated and will be removed in a future release%select{|, use '%2' instead}1">,
   InGroup<Deprecated>;
 def warn_drv_deprecated_argument_option_release : Warning<
   "argument '%0' for option '%1' is deprecated and will be removed in a "

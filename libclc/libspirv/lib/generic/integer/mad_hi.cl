@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <core/clc_core.h>
+#include <clc/integer/clc_mad_hi.h>
 #include <libspirv/spirv.h>
 
 #define __CLC_BODY <mad_hi.inc>

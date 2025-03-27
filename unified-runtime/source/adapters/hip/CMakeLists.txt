@@ -59,6 +59,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/async_alloc.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
@@ -154,17 +155,17 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     target_compile_definitions(${TARGET_NAME} PRIVATE __HIP_PLATFORM_AMD__)
 elseif("${UR_HIP_PLATFORM}" STREQUAL "NVIDIA")
     # Import CUDA libraries
-    find_package(CUDA REQUIRED)
+    find_package(CUDAToolkit REQUIRED)
     find_package(Threads REQUIRED)
 
-    list(APPEND HIP_HEADERS ${CUDA_INCLUDE_DIRS})
+    list(APPEND HIP_HEADERS ${CUDAToolkit_INCLUDE_DIRS})
 
     # cudadrv may be defined by the CUDA plugin
     if(NOT TARGET cudadrv)
     add_library(cudadrv SHARED IMPORTED GLOBAL)
     set_target_properties(
         cudadrv PROPERTIES
-        IMPORTED_LOCATION                    ${CUDA_CUDA_LIBRARY}
+        IMPORTED_LOCATION                    ${CUDA_cuda_driver_LIBRARY}
         INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
         INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
     )
@@ -173,7 +174,7 @@ elseif("${UR_HIP_PLATFORM}" STREQUAL "NVIDIA")
     add_library(cudart SHARED IMPORTED GLOBAL)
     set_target_properties(
     cudart PROPERTIES
-        IMPORTED_LOCATION                    ${CUDA_CUDART_LIBRARY}
+        IMPORTED_LOCATION                    ${CUDA_cudart_LIBRARY}
         INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
         INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
     )

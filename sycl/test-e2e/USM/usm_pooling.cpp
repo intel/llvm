@@ -1,8 +1,9 @@
 // REQUIRES: level_zero
 // RUN: %{build} -o %t.out
 
-// UNSUPPORTED: gpu-intel-dg2
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12397
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: memory allocation logs are not emitted in
+// level_zero_v2_adapter
 
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
 

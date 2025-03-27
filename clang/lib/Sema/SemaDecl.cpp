@@ -11484,8 +11484,11 @@ static bool CheckMultiVersionAdditionalRules(Sema &S, const FunctionDecl *OldFD,
     return true;
 
   // Only allow transition to MultiVersion if it hasn't been used.
-  if (OldFD && CausesMV && OldFD->isUsed(false))
-    return S.Diag(NewFD->getLocation(), diag::err_multiversion_after_used);
+  if (OldFD && CausesMV && OldFD->isUsed(false)) {
+    S.Diag(NewFD->getLocation(), diag::err_multiversion_after_used);
+    S.Diag(OldFD->getLocation(), diag::note_previous_declaration);
+    return true;
+  }
 
   return S.areMultiversionVariantFunctionsCompatible(
       OldFD, NewFD, S.PDiag(diag::err_multiversion_noproto),
@@ -16135,7 +16138,6 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
       if (!FD->isDeletedAsWritten())
         FD->setBody(Body);
       FD->setWillHaveBody(false);
-      CheckImmediateEscalatingFunctionDefinition(FD, FSI);
 
       if (getLangOpts().CPlusPlus14) {
         if (!FD->isInvalidDecl() && Body && !FD->isDependentContext() &&
@@ -16512,6 +16514,9 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
   } // Pops the ExitFunctionBodyRAII scope, which needs to happen before we pop
     // the declaration context below. Otherwise, we're unable to transform
     // 'this' expressions when transforming immediate context functions.
+
+  if (FD)
+    CheckImmediateEscalatingFunctionDefinition(FD, getCurFunction());
 
   if (!IsInstantiation)
     PopDeclContext();
@@ -17828,9 +17833,11 @@ Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK, SourceLocation KWLoc,
             return PrevTagDecl;
 
           QualType EnumUnderlyingTy;
-          if (TypeSourceInfo *TI = EnumUnderlying.dyn_cast<TypeSourceInfo*>())
+          if (TypeSourceInfo *TI =
+                  dyn_cast_if_present<TypeSourceInfo *>(EnumUnderlying))
             EnumUnderlyingTy = TI->getType().getUnqualifiedType();
-          else if (const Type *T = EnumUnderlying.dyn_cast<const Type*>())
+          else if (const Type *T =
+                       dyn_cast_if_present<const Type *>(EnumUnderlying))
             EnumUnderlyingTy = QualType(T, 0);
 
           // All conflicts with previous declarations are recovered by
@@ -20443,9 +20450,13 @@ Sema::DeviceDiagnosticReason Sema::getEmissionReason(const FunctionDecl *FD) {
   if (FD->hasAttr<SYCLSimdAttr>())
     return Sema::DeviceDiagnosticReason::Esimd;
   if (FD->hasAttr<SYCLDeviceAttr>() || FD->hasAttr<SYCLKernelAttr>())
-    return Sema::DeviceDiagnosticReason::Sycl;
+    return getLangOpts().SYCLCUDACompat
+               ? Sema::DeviceDiagnosticReason::SyclCudaCompat
+               : Sema::DeviceDiagnosticReason::Sycl;
   // FIXME: Refine the logic for CUDA and OpenMP.
-  if (getLangOpts().CUDA)
+  // In SYCL-CUDA compat mode, don't return CudaDevice or CudaHost but return
+  // All just like in normal SYCL.
+  if (getLangOpts().CUDA && !getLangOpts().SYCLCUDACompat)
     return getLangOpts().CUDAIsDevice ? Sema::DeviceDiagnosticReason::CudaDevice
                                       : Sema::DeviceDiagnosticReason::CudaHost;
   if (getLangOpts().OpenMP)
@@ -20527,7 +20538,9 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
         (T == CUDAFunctionTarget::Device || T == CUDAFunctionTarget::Global))
       return FunctionEmissionStatus::CUDADiscarded;
 
-    if (IsEmittedForExternalSymbol())
+    // Defer to SYCLIsDevice if in cuda compat mode
+    if ((LangOpts.CUDAIsDevice || !LangOpts.SYCLCUDACompat) &&
+        IsEmittedForExternalSymbol())
       return FunctionEmissionStatus::Emitted;
   }
 

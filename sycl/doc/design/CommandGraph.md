@@ -47,7 +47,7 @@ with the following entry-points:
 | `urCommandBufferAppendMemBufferWriteRectExp` | Append a rectangular memory write command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferReadRectExp`  | Append a rectangular memory read command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferFillExp`      | Append a memory fill command to a command-buffer object. |
-| `urCommandBufferEnqueueExp`                  | Submit command-buffer to a command-queue for execution. |
+| `urEnqueueCommandBufferExp`                  | Submit command-buffer to a command-queue for execution. |
 | `urCommandBufferUpdateKernelLaunchExp`       | Updates the parameters of a previous kernel launch command. |
 
 See the [UR EXP-COMMAND-BUFFER](https://oneapi-src.github.io/unified-runtime/core/EXP-COMMAND-BUFFER.html)
@@ -100,11 +100,15 @@ Edges are stored in each node as lists of predecessor and successor nodes.
 
 ## Execution Order
 
-The current way graph nodes are linearized into execution order is using a
-reversed depth-first sorting algorithm. Alternative algorithms, such as
-breadth-first, are possible and may give better performance on certain
-workloads/hardware. In the future there might be options for allowing the
-user to control this implementation detail.
+Graph nodes are currently linearized into execution order using a topological
+sort algorithm. This algorithm uses a breadth-first search approach
+and is an implementation of Kahn's algorithm. Alternative algorithms, such as
+depth-first search, are possible and may give better performance on certain
+workloads/hardware. However, depth first searches are usually implemented 
+using recursion, which can lead to stack overflow issues on large graphs.
+In the future, there might be options for allowing the user to control this
+implementation detail. It might also be possible to automatically change
+which algorithm is used based on characteristics such as the graph's size.
 
 ## Scheduler Integration
 
@@ -393,7 +397,7 @@ we need 2 of these helper command-lists:
 `CopyCommandList`
 
 #### Wait event Path Implementation Details
-The UR `urCommandBufferEnqueueExp` interface for submitting a command-buffer
+The UR `urEnqueueCommandBufferExp` interface for submitting a command-buffer
 takes a list of events to wait on, and returns an event representing the
 completion of that specific submission of the command-buffer.
 
@@ -474,7 +478,7 @@ the *SignalEvent*, is added (when the command-buffer is finalized). In an
 additional command-list (*signal command-list*), a barrier waiting for this
 event is also added. This barrier signals, in turn, the UR return event that
 has be defined by the runtime layer when calling the
-`urCommandBufferEnqueueExp` function.
+`urEnqueueCommandBufferExp` function.
 
 2) Manage the profiling. If a command-buffer is about to be submitted to a
 queue with the profiling property enabled, an extra command that copies
@@ -484,7 +488,7 @@ information that corresponds to the current submission of the command-buffer.
 
 ![L0 command-buffer diagram](images/L0_UR_command-buffer-v5.jpg)
 
-For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
+For a call to `urEnqueueCommandBufferExp` with an `event_list` *EL*,
 command-buffer *CB*, and return event *RE* our implementation has to submit three
 new command-lists for the above approach to work. Two before the command-list
 with extra commands associated with *CB*, and the other after *CB*. These new
@@ -666,7 +670,7 @@ adapter where there is matching support for each function in the list.
 | urCommandBufferAppendMemBufferFillExp | clCommandFillBufferKHR | Yes |
 | urCommandBufferAppendUSMPrefetchExp |  | No |
 | urCommandBufferAppendUSMAdviseExp |  | No |
-| urCommandBufferEnqueueExp | clEnqueueCommandBufferKHR | Yes |
+| urEnqueueCommandBufferExp | clEnqueueCommandBufferKHR | Yes |
 |  | clCommandBarrierWithWaitListKHR | No |
 |  | clCommandCopyImageKHR | No |
 |  | clCommandCopyImageToBufferKHR | No |

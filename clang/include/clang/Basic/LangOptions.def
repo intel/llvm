@@ -160,7 +160,6 @@ LANGOPT(GNUAsm            , 1, 1, "GNU-style inline assembly")
 LANGOPT(Coroutines        , 1, 0, "C++20 coroutines")
 LANGOPT(CoroAlignedAllocation, 1, 0, "prefer Aligned Allocation according to P2014 Option 2")
 LANGOPT(DllExportInlines  , 1, 1, "dllexported classes dllexport inline methods")
-LANGOPT(RelaxedTemplateTemplateArgs, 1, 1, "C++17 relaxed matching of template template arguments")
 LANGOPT(ExperimentalLibrary, 1, 0, "enable unstable and experimental library features")
 LANGOPT(RetainSubstTemplateTypeParmTypeAstNodes, 1, 0, "retain SubstTemplateTypeParmType nodes in the AST's representation of alias template specializations")
 
@@ -319,6 +318,10 @@ LANGOPT(
     "SYCL compiler assumes value fits within MAX_INT for member function of "
     "get/operator[], get_id/operator[] and get_global_id/get_global_linear_id "
     "in SYCL class id, iterm and nd_iterm")
+LANGOPT(SYCLCUDACompat, 1, 0,
+        "Enable CUDA definitions and implicit includes when building for the "
+        "NVPTX backend. This mode can help SYCL program to run using the CUDA "
+        "infrastructure on Nvidia's platforms. ")
 ENUM_LANGOPT(SYCLRangeRounding, SYCLRangeRoundingPreference, 2,
     SYCLRangeRoundingPreference::On,
     "Preference for SYCL parallel_for range rounding")
@@ -435,6 +438,7 @@ VALUE_LANGOPT(TrivialAutoVarInitMaxSize, 32, 0,
              "stop trivial automatic variable initialization if var size exceeds the specified size (in bytes). Must be greater than 0.")
 ENUM_LANGOPT(SignedOverflowBehavior, SignedOverflowBehaviorTy, 2, SOB_Undefined,
              "signed integer overflow handling")
+LANGOPT(PointerOverflowDefined, 1, 0, "make pointer overflow defined")
 ENUM_LANGOPT(ThreadModel  , ThreadModelKind, 2, ThreadModelKind::POSIX, "Thread Model")
 
 BENIGN_LANGOPT(ArrowDepth, 32, 256,

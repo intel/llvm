@@ -169,6 +169,10 @@ command_list_cache_t::getCommandList(const command_list_descriptor_t &desc) {
   if (it->second.empty())
     ZeCommandListCache.erase(it);
 
+  if (std::holds_alternative<regular_command_list_descriptor_t>(desc)) {
+    ZE2UR_CALL_THROWS(zeCommandListReset, (CommandListHandle.get()));
+  }
+
   return CommandListHandle;
 }
 

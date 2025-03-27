@@ -16,18 +16,18 @@ define i64 @_ZTS14other_function() {
   ret i64 %4
 }
 
-define void @_ZTS14example_kernel() {
+define ptx_kernel void @_ZTS14example_kernel() {
 entry:
   %0 = call i64 @_ZTS14other_function()
   ret void
 }
 
-; CHECK: !nvvm.annotations = !{![[OLDMD0:[0-9]+]], ![[OLDMD1:[0-9]+]], ![[OLDMD1]], ![[OLDMD0]]}
+; CHECK: !nvvm.annotations = !{![[OLDMD0:[0-9]+]], ![[OLDMD1:[0-9]+]]}
 
 !llvm.module.flags = !{!0}
 !nvvm.annotations = !{!1, !2, !2, !1}
 
-; CHECK: ![[OLDMD0]] = distinct !{ptr @_ZTS14example_kernel, !"maxnreg", i32 256, !"kernel", i32 1}
+; CHECK: ![[OLDMD0]] = !{ptr @_ZTS14example_kernel, !"maxnreg", i32 256}
 ; CHECK: ![[OLDMD1]] = !{ptr @_ZTS14example_kernel, !"maxntidx", i32 8, !"maxntidy", i32 16, !"maxntidz", i32 32}
 
 !0 = !{i32 1, !"sycl-device", i32 1}

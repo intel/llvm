@@ -1,7 +1,18 @@
 // RUN: %clang_cc1 -triple spir-unknown-unknown -O0 -cl-std=CL2.0 -emit-llvm-bc %s -o %t.bc
 // RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
-// RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
+// RUN: FileCheck < %t.spv.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 // RUN: llvm-spirv %t.bc -o %t.spv
+// RUN: spirv-val %t.spv
+// RUN: llvm-spirv -r %t.spv --spirv-target-env CL2.0 -o %t.rev.bc
+// RUN: llvm-dis %t.rev.bc
+// RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r %t.spv --spirv-target-env SPV-IR -o %t.rev.bc
+// RUN: llvm-dis %t.rev.bc
+// RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-SPV-IR
+
+// RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt --spirv-ext=+SPV_KHR_untyped_pointers
+// RUN: FileCheck < %t.spv.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+// RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv -r %t.spv --spirv-target-env CL2.0 -o %t.rev.bc
 // RUN: llvm-dis %t.rev.bc
@@ -32,9 +43,11 @@
 // CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt8:[0-9]+]] 8
 // CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt20:[0-9]+]] 24
 
-// CHECK-SPIRV: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
+// CHECK-SPIRV-TYPED-PTR: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
+// CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int8PtrGenTy:[0-9]+]] 8
 // CHECK-SPIRV: TypeVoid [[VoidTy:[0-9]+]]
-// CHECK-SPIRV: TypePointer [[Int32LocPtrTy:[0-9]+]] 7 [[Int32Ty]]
+// CHECK-SPIRV-TYPED-PTR: TypePointer [[Int32LocPtrTy:[0-9]+]] 7 [[Int32Ty]]
+// CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[Int32LocPtrTy:[0-9]+]] 7
 // CHECK-SPIRV: TypeDeviceEvent [[EventTy:[0-9]+]]
 // CHECK-SPIRV: TypePointer [[EventPtrTy:[0-9]+]] 8 [[EventTy]]
 // CHECK-SPIRV: TypeFunction [[BlockTy1:[0-9]+]] [[VoidTy]] [[Int8PtrGenTy]]
@@ -101,7 +114,8 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
   // Emits global block literal and block kernel.
   // CHECK-SPIRV: PtrCastToGeneric [[EventPtrTy]] [[Event1:[0-9]+]]
   // CHECK-SPIRV: PtrCastToGeneric [[EventPtrTy]] [[Event2:[0-9]+]]
-  // CHECK-SPIRV-COUNT-2: PtrAccessChain [[Int32LocPtrTy]] [[LocalBuf31:[0-9]+]]
+  // CHECK-SPIRV-TYPED-PTR-COUNT-2: PtrAccessChain [[Int32LocPtrTy]] [[LocalBuf31:[0-9]+]]
+  // CHECK-SPIRV-UNTYPED-PTR-COUNT-2: UntypedPtrAccessChainKHR [[Int32LocPtrTy]] [[LocalBuf31:[0-9]+]]
   // CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[BlockLit3Tmp:[0-9]+]] [[BlockGlb1:[0-9]+]]
   // CHECK-SPIRV: Bitcast [[Int8PtrGenTy]] [[BlockLit3:[0-9]+]] [[BlockLit3Tmp]]
   // CHECK-SPIRV: EnqueueKernel [[Int32Ty]] [[#]] [[#]] [[#]] [[#]]
@@ -122,9 +136,12 @@ kernel void device_side_enqueue(global int *a, global int *b, int i, char c0) {
 
   // Emits global block literal and block kernel.
 
-  // CHECK-SPIRV-COUNT-4: PtrAccessChain [[Int32LocPtrTy]] [[LocalBuf41:[0-9]+]]
-  // CHECK-SPIRV: PtrAccessChain [[Int32LocPtrTy]] [[LocalBuf42:[0-9]+]]
-  // CHECK-SPIRV: PtrAccessChain [[Int32LocPtrTy]] [[LocalBuf43:[0-9]+]]
+  // CHECK-SPIRV-TYPED-PTR-COUNT-4: PtrAccessChain [[Int32LocPtrTy]] [[LocalBuf41:[0-9]+]]
+  // CHECK-SPIRV-TYPED-PTR: PtrAccessChain [[Int32LocPtrTy]] [[LocalBuf42:[0-9]+]]
+  // CHECK-SPIRV-TYPED-PTR: PtrAccessChain [[Int32LocPtrTy]] [[LocalBuf43:[0-9]+]]
+  // CHECK-SPIRV-UNTYPED-PTR-COUNT-4: UntypedPtrAccessChainKHR [[Int32LocPtrTy]] [[LocalBuf41:[0-9]+]]
+  // CHECK-SPIRV-UNTYPED-PTR: UntypedPtrAccessChainKHR [[Int32LocPtrTy]] [[LocalBuf42:[0-9]+]]
+  // CHECK-SPIRV-UNTYPED-PTR: UntypedPtrAccessChainKHR [[Int32LocPtrTy]] [[LocalBuf43:[0-9]+]]
   // CHECK-SPIRV: PtrCastToGeneric {{[0-9]+}} [[BlockLit4Tmp:[0-9]+]] [[BlockGlb2:[0-9]+]]
   // CHECK-SPIRV: Bitcast [[Int8PtrGenTy]] [[BlockLit4:[0-9]+]] [[BlockLit4Tmp]]
   // CHECK-SPIRV: EnqueueKernel [[Int32Ty]] [[#]] [[#]] [[#]] [[#]]

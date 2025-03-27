@@ -14,11 +14,12 @@ TEST_P(cudaMemoryTest, urMemBufferNoActiveContext) {
   constexpr size_t memSize = 1024u;
 
   CUcontext current = nullptr;
-  do {
+  ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&current));
+  while (current != nullptr) {
     CUcontext oldContext = nullptr;
     ASSERT_SUCCESS_CUDA(cuCtxPopCurrent(&oldContext));
     ASSERT_SUCCESS_CUDA(cuCtxGetCurrent(&current));
-  } while (current != nullptr);
+  }
 
   uur::raii::Mem mem;
   ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, memSize,

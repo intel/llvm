@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_atan(float x) {
   const float piby2 = 1.5707963267948966f; // 0x3ff921fb54442d18
@@ -178,6 +178,6 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_atan, double);
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_atan, __builtin_atan, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_atan, __builtin_atanf16, half)
 
 #endif

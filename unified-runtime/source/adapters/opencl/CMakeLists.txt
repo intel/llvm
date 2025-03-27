@@ -16,6 +16,7 @@ add_ur_adapter(${TARGET_NAME} SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/async_alloc.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
@@ -79,6 +80,11 @@ else()
     endif()
     set(OpenCLICDLoaderLibrary OpenCL::OpenCL)
 endif()
+
+# Make interface library use within the project.
+add_library(OpenCLICDLoader INTERFACE)
+target_link_libraries(OpenCLICDLoader INTERFACE "${OpenCLICDLoaderLibrary}")
+target_include_directories(OpenCLICDLoader INTERFACE ${OpenCLIncludeDirectory})
 
 message(STATUS "OpenCL Include Directory: ${OpenCLIncludeDirectory}")
 message(STATUS "OpenCL ICD Loader Library: ${OpenCLICDLoaderLibrary}")
