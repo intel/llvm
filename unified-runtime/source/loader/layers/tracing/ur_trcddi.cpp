@@ -6306,50 +6306,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolSetThresholdExp
-__urdlllocal ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold) {
-  auto pfnPoolSetThresholdExp =
-      getContext()->urDdiTable.USMExp.pfnPoolSetThresholdExp;
-
-  if (nullptr == pfnPoolSetThresholdExp)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-  ur_usm_pool_set_threshold_exp_params_t params = {&hContext, &hDevice, &hPool,
-                                                   &newThreshold};
-  uint64_t instance =
-      getContext()->notify_begin(UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP,
-                                 "urUSMPoolSetThresholdExp", &params);
-
-  auto &logger = getContext()->logger;
-  logger.info("   ---> urUSMPoolSetThresholdExp\n");
-
-  ur_result_t result =
-      pfnPoolSetThresholdExp(hContext, hDevice, hPool, newThreshold);
-
-  getContext()->notify_end(UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP,
-                           "urUSMPoolSetThresholdExp", &params, &result,
-                           instance);
-
-  if (logger.getLevel() <= logger::Level::INFO) {
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP, &params);
-    logger.info("   <--- urUSMPoolSetThresholdExp({}) -> {};\n", args_str.str(),
-                result);
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolGetDefaultDevicePoolExp
 __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
     /// [in] handle of the context object
@@ -6425,6 +6381,46 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_GET_INFO_EXP,
                                     &params);
     logger.info("   <--- urUSMPoolGetInfoExp({}) -> {};\n", args_str.str(),
+                result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) {
+  auto pfnPoolSetInfoExp = getContext()->urDdiTable.USMExp.pfnPoolSetInfoExp;
+
+  if (nullptr == pfnPoolSetInfoExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_usm_pool_set_info_exp_params_t params = {&hPool, &propName, &pPropValue,
+                                              &propSize};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_USM_POOL_SET_INFO_EXP, "urUSMPoolSetInfoExp", &params);
+
+  auto &logger = getContext()->logger;
+  logger.info("   ---> urUSMPoolSetInfoExp\n");
+
+  ur_result_t result = pfnPoolSetInfoExp(hPool, propName, pPropValue, propSize);
+
+  getContext()->notify_end(UR_FUNCTION_USM_POOL_SET_INFO_EXP,
+                           "urUSMPoolSetInfoExp", &params, &result, instance);
+
+  if (logger.getLevel() <= logger::Level::INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(args_str, UR_FUNCTION_USM_POOL_SET_INFO_EXP,
+                                    &params);
+    logger.info("   <--- urUSMPoolSetInfoExp({}) -> {};\n", args_str.str(),
                 result);
   }
 
@@ -10845,10 +10841,6 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   dditable.pfnPoolDestroyExp = pDdiTable->pfnPoolDestroyExp;
   pDdiTable->pfnPoolDestroyExp = ur_tracing_layer::urUSMPoolDestroyExp;
 
-  dditable.pfnPoolSetThresholdExp = pDdiTable->pfnPoolSetThresholdExp;
-  pDdiTable->pfnPoolSetThresholdExp =
-      ur_tracing_layer::urUSMPoolSetThresholdExp;
-
   dditable.pfnPoolGetDefaultDevicePoolExp =
       pDdiTable->pfnPoolGetDefaultDevicePoolExp;
   pDdiTable->pfnPoolGetDefaultDevicePoolExp =
@@ -10856,6 +10848,9 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   dditable.pfnPoolGetInfoExp = pDdiTable->pfnPoolGetInfoExp;
   pDdiTable->pfnPoolGetInfoExp = ur_tracing_layer::urUSMPoolGetInfoExp;
+
+  dditable.pfnPoolSetInfoExp = pDdiTable->pfnPoolSetInfoExp;
+  pDdiTable->pfnPoolSetInfoExp = ur_tracing_layer::urUSMPoolSetInfoExp;
 
   dditable.pfnPoolSetDevicePoolExp = pDdiTable->pfnPoolSetDevicePoolExp;
   pDdiTable->pfnPoolSetDevicePoolExp =

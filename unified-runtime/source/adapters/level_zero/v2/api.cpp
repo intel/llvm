@@ -207,10 +207,9 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t hContext,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t UR_APICALL urUSMPoolSetThresholdExp(ur_context_handle_t hContext,
-                                                ur_device_handle_t hDevice,
-                                                ur_usm_pool_handle_t hPool,
-                                                size_t newThreshold) {
+ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t hPool,
+                                           ur_usm_pool_info_t propName,
+                                           void *pPropValue, size_t propSize) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

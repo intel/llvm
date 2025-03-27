@@ -15,6 +15,7 @@
 #include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
 #include <sycl/event.hpp>           // for event_impl
 #include <sycl/exception_list.hpp>  // for queue_impl
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
 #include <sycl/kernel.hpp>        // for kernel_impl
 #include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
@@ -665,6 +666,49 @@ public:
     return MExternalSemaphore;
   }
   std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
+};
+
+/// "Async Alloc" command group class.
+class CGAsyncAlloc : public CG {
+
+  // These members are unused but kept in case of logging.
+  size_t MSize;
+  std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl> MMemPool;
+
+  // Resulting event carried from async alloc execution.
+  ur_event_handle_t MEvent;
+
+public:
+  CGAsyncAlloc(
+      size_t size,
+      std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl>
+          MemPool,
+      ur_event_handle_t event, CG::StorageInitHelper CGData,
+      detail::code_location loc = {})
+      : CG(CGType::AsyncAlloc, std::move(CGData), std::move(loc)), MSize(size),
+        MMemPool(MemPool), MEvent(event) {}
+
+  std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl>
+  getMemPool() const {
+    return MMemPool;
+  }
+
+  size_t getSize() const { return MSize; }
+
+  ur_event_handle_t getEvent() const { return MEvent; }
+};
+
+/// "Async Free" command group class.
+class CGAsyncFree : public CG {
+  void *MFreePtr;
+
+public:
+  CGAsyncFree(void *ptr, CG::StorageInitHelper CGData,
+              detail::code_location loc = {})
+      : CG(CGType::AsyncFree, std::move(CGData), std::move(loc)),
+        MFreePtr(ptr) {}
+
+  void *getPtr() const { return MFreePtr; }
 };
 
 /// "Execute command-buffer" command group class.

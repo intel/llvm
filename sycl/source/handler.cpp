@@ -717,6 +717,15 @@ event handler::finalize() {
         impl->MExternalSemaphore, impl->MSignalValue, std::move(impl->CGData),
         MCodeLoc));
     break;
+  case detail::CGType::AsyncAlloc:
+    CommandGroup.reset(new detail::CGAsyncAlloc(
+        impl->MAllocSize, impl->MMemPool, impl->MAsyncAllocEvent,
+        std::move(impl->CGData), MCodeLoc));
+    break;
+  case detail::CGType::AsyncFree:
+    CommandGroup.reset(new detail::CGAsyncFree(
+        impl->MFreePtr, std::move(impl->CGData), MCodeLoc));
+    break;
   case detail::CGType::None:
     CommandGroup.reset(new detail::CG(detail::CGType::None,
                                       std::move(impl->CGData), MCodeLoc));
@@ -1710,6 +1719,15 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   if (EventImpl->isDiscarded()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
+  }
+
+  // Async alloc calls adapter immediately. Any explicit/implicit dependencies
+  // are handled at that point, including in order queue deps. Further calls to
+  // depends_on after an async alloc are explicitly disallowed.
+  if (getType() == CGType::AsyncAlloc) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot submit a dependency after an asynchronous "
+                          "allocation has already been executed!");
   }
 
   auto EventGraph = EventImpl->getCommandGraph();

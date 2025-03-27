@@ -7640,55 +7640,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolSetThresholdExp
-__urdlllocal ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_usm_pool_set_threshold_exp_params_t params = {&hContext, &hDevice, &hPool,
-                                                   &newThreshold};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urUSMPoolSetThresholdExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urUSMPoolSetThresholdExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urUSMPoolSetThresholdExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolGetDefaultDevicePoolExp
 __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
     /// [in] handle of the context object
@@ -7779,6 +7730,55 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback("urUSMPoolGetInfoExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_usm_pool_set_info_exp_params_t params = {&hPool, &propName, &pPropValue,
+                                              &propSize};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback("urUSMPoolSetInfoExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback("urUSMPoolSetInfoExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback("urUSMPoolSetInfoExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -12499,12 +12499,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   pDdiTable->pfnPoolDestroyExp = driver::urUSMPoolDestroyExp;
 
-  pDdiTable->pfnPoolSetThresholdExp = driver::urUSMPoolSetThresholdExp;
-
   pDdiTable->pfnPoolGetDefaultDevicePoolExp =
       driver::urUSMPoolGetDefaultDevicePoolExp;
 
   pDdiTable->pfnPoolGetInfoExp = driver::urUSMPoolGetInfoExp;
+
+  pDdiTable->pfnPoolSetInfoExp = driver::urUSMPoolSetInfoExp;
 
   pDdiTable->pfnPoolSetDevicePoolExp = driver::urUSMPoolSetDevicePoolExp;
 

@@ -441,8 +441,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_POOL_CREATE_EXP = 254,
   /// Enumerator for ::urUSMPoolDestroyExp
   UR_FUNCTION_USM_POOL_DESTROY_EXP = 255,
-  /// Enumerator for ::urUSMPoolSetThresholdExp
-  UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP = 256,
   /// Enumerator for ::urUSMPoolGetDefaultDevicePoolExp
   UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP = 257,
   /// Enumerator for ::urUSMPoolSetDevicePoolExp
@@ -457,6 +455,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP = 263,
   /// Enumerator for ::urCommandBufferGetNativeHandleExp
   UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP = 264,
+  /// Enumerator for ::urUSMPoolSetInfoExp
+  UR_FUNCTION_USM_POOL_SET_INFO_EXP = 265,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -9315,35 +9315,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroyExp(
     ur_usm_pool_handle_t hPool);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a new release threshold for a USM memory pool.
-///
-/// @details
-///     - Set a new release threshold for a USM memory pool.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///         + `NULL == hPool`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If any device associated with `hContext` reports `false` for
-///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Get the default pool for a device.
 ///
 /// @details
@@ -9390,7 +9361,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(
@@ -9402,6 +9372,42 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(
     void *pPropValue,
     /// [out][optional] returned query value size
     size_t *pPropSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a property for a USM memory pool.
+///
+/// @details
+///     - Set a property for a USM memory pool.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///         + `pPropValue == NULL`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Set the current pool for a device.
@@ -14324,17 +14330,6 @@ typedef struct ur_usm_pool_destroy_exp_params_t {
 } ur_usm_pool_destroy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMPoolSetThresholdExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_pool_set_threshold_exp_params_t {
-  ur_context_handle_t *phContext;
-  ur_device_handle_t *phDevice;
-  ur_usm_pool_handle_t *phPool;
-  size_t *pnewThreshold;
-} ur_usm_pool_set_threshold_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMPoolGetDefaultDevicePoolExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14354,6 +14349,17 @@ typedef struct ur_usm_pool_get_info_exp_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_usm_pool_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolSetInfoExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_set_info_exp_params_t {
+  ur_usm_pool_handle_t *phPool;
+  ur_usm_pool_info_t *ppropName;
+  void **ppPropValue;
+  size_t *ppropSize;
+} ur_usm_pool_set_info_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMPoolSetDevicePoolExp

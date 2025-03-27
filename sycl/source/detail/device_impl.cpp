@@ -820,6 +820,14 @@ bool device_impl::has(aspect Aspect) const {
     bool isCompatibleBE = BE == sycl::backend::ext_oneapi_level_zero;
     return is_gpu() && isCompatibleBE;
   }
+  case aspect::ext_oneapi_async_memory_alloc: {
+    ur_bool_t support = false;
+    bool call_successful =
+        getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            MDevice, UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
+    return call_successful && support;
+  }
   }
 
   return false; // This device aspect has not been implemented yet.

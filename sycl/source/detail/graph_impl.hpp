@@ -306,6 +306,10 @@ public:
       return createCGCopy<sycl::detail::CGProfilingTag>();
     case sycl::detail::CGType::ExecCommandBuffer:
       return createCGCopy<sycl::detail::CGExecCommandBuffer>();
+    case sycl::detail::CGType::AsyncAlloc:
+      return createCGCopy<sycl::detail::CGAsyncAlloc>();
+    case sycl::detail::CGType::AsyncFree:
+      return createCGCopy<sycl::detail::CGAsyncFree>();
     case sycl::detail::CGType::None:
       return nullptr;
     }

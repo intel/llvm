@@ -456,10 +456,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   pDdiTable->pfnPoolCreateExp = ur::level_zero::urUSMPoolCreateExp;
   pDdiTable->pfnPoolDestroyExp = ur::level_zero::urUSMPoolDestroyExp;
-  pDdiTable->pfnPoolSetThresholdExp = ur::level_zero::urUSMPoolSetThresholdExp;
   pDdiTable->pfnPoolGetDefaultDevicePoolExp =
       ur::level_zero::urUSMPoolGetDefaultDevicePoolExp;
   pDdiTable->pfnPoolGetInfoExp = ur::level_zero::urUSMPoolGetInfoExp;
+  pDdiTable->pfnPoolSetInfoExp = ur::level_zero::urUSMPoolSetInfoExp;
   pDdiTable->pfnPoolSetDevicePoolExp =
       ur::level_zero::urUSMPoolSetDevicePoolExp;
   pDdiTable->pfnPoolGetDevicePoolExp =
