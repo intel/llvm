@@ -955,7 +955,10 @@ function loadData() {
     if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
         // Fetch data from remote URL
         fetch(remoteDataUrl)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) { throw new Error(`Got response status ${response.status}.`) }
+                return response.json();
+            })
             .then(data => {
                 benchmarkRuns = data.runs || data;
                 benchmarkMetadata = data.metadata || benchmarkMetadata || {};
