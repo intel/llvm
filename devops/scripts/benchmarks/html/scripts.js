@@ -546,11 +546,7 @@ function processTimeseriesData(benchmarkRuns) {
 function processBarChartsData(benchmarkRuns) {
     const groupedResults = {};
 
-    // Runs ordered from oldest to newest. In groupedResults, we want to use
-    // the data for the given group from the newest run. Therefore, we reverse
-    // the order of iteration to obtain runs ordered from newest to oldest
-    // instead.
-    benchmarkRuns.reverse().forEach(run => {
+    benchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             if (!result.explicit_group) return;
 
@@ -592,7 +588,8 @@ function processBarChartsData(benchmarkRuns) {
             }
 
             const runIndex = group.labels.indexOf(run.name);
-            dataset.data[runIndex] = result.value;
+            if (dataset.data[runIndex] == null)
+                dataset.data[runIndex] = result.value;
         });
     });
 
