@@ -540,7 +540,7 @@ function processTimeseriesData(benchmarkRuns) {
 function processBarChartsData(benchmarkRuns) {
     const groupedResults = {};
 
-    benchmarkRuns.reverse().forEach(run => {
+    benchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             if (!result.explicit_group) return;
 
@@ -582,7 +582,8 @@ function processBarChartsData(benchmarkRuns) {
             }
 
             const runIndex = group.labels.indexOf(run.name);
-            dataset.data[runIndex] = result.value;
+            if (dataset.data[runIndex] == null)
+                dataset.data[runIndex] = result.value;
         });
     });
 
