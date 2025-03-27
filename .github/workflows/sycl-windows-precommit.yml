@@ -43,6 +43,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       changes: ${{ needs.detect_changes.outputs.filters }}
+      build_configure_extra_args: "--enable-assertions"
 
   e2e:
     needs: build

@@ -54,7 +54,7 @@ def do_configure(args, passthrough_args):
     sycl_build_pi_hip_platform = "AMD"
     sycl_clang_extra_flags = ""
     sycl_werror = "OFF"
-    llvm_enable_assertions = "ON"
+    llvm_enable_assertions = "OFF"
     llvm_enable_doxygen = "OFF"
     llvm_enable_sphinx = "OFF"
     llvm_build_shared_libs = "OFF"
@@ -122,8 +122,8 @@ def do_configure(args, passthrough_args):
         sycl_werror = "ON"
         xpti_enable_werror = "ON"
 
-    if args.no_assertions:
-        llvm_enable_assertions = "OFF"
+    if args.enable_assertions:
+        llvm_enable_assertions = "ON"
 
     if args.docs:
         llvm_enable_sphinx = "ON"
@@ -357,7 +357,7 @@ def main():
         help="build compiler with all supported targets, it doesn't change runtime build",
     )
     parser.add_argument(
-        "--no-assertions", action="store_true", help="build without assertions"
+        "--enable-assertions", action="store_true", help="Build with assertions."
     )
     parser.add_argument(
         "--docs", action="store_true", help="build Doxygen documentation"
