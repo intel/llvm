@@ -920,20 +920,20 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
 }
 
 Command *Scheduler::GraphBuilder::addCG(
-    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-    std::vector<Command *> &ToEnqueue, bool EventNeeded,
-    ur_exp_command_buffer_handle_t CommandBuffer,
+    std::unique_ptr<detail::CG> CommandGroup,
+    const QueueImplPtr &SubmittedQueue, std::vector<Command *> &ToEnqueue,
+    bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
     const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
-  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue,
-                                                EventNeeded, CommandBuffer,
-                                                std::move(Dependencies));
-
+  auto NewCmd = std::make_unique<ExecCGCommand>(
+      std::move(CommandGroup), SubmittedQueue, EventNeeded, CommandBuffer,
+      std::move(Dependencies));
   if (!NewCmd)
     throw exception(make_error_code(errc::memory_allocation),
                     "Out of host memory");
+  auto Queue = NewCmd->getWorkerQueue();
 
   bool isInteropTask = isInteropHostTask(NewCmd.get());
 
