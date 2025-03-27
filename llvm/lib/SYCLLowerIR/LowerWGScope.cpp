@@ -103,6 +103,7 @@ STATISTIC(LocalMemUsed, "amount of additional local memory used for sharing");
 static constexpr char WG_SCOPE_MD[] = "work_group_scope";
 static constexpr char WI_SCOPE_MD[] = "work_item_scope";
 static constexpr char PFWI_MD[] = "parallel_for_work_item";
+static constexpr char GET_GROUP_PREFIX[] = "_ZNK4sycl3_V15group";
 
 static cl::opt<int> Debug("sycl-lower-wg-debug", llvm::cl::Optional,
                           llvm::cl::Hidden,
@@ -818,6 +819,30 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
         Allocas.insert(AllocaI);
     }
     for (; I && (I != BB.getTerminator()); I = I->getNextNode()) {
+      if (CallInst *CI = dyn_cast<CallInst>(I)) {
+        if (CI->getCalledFunction()->getName().
+            starts_with(GET_GROUP_PREFIX) &&
+            CI->hasStructRetAttr()) {
+          if (auto *ASCast = dyn_cast<AddrSpaceCastOperator>(CI->getOperand(0))) {
+            unsigned SrcAS = ASCast->getSrcAddressSpace();
+            unsigned DstAS = ASCast->getDestAddressSpace();
+            if (SrcAS == static_cast<unsigned>(spirv::AddrSpace::Local) &&
+                DstAS == static_cast<unsigned>(spirv::AddrSpace::Private)) {
+              IRBuilder<> Builder(CI->getContext());
+              llvm::BasicBlock &FirstBB = F.getEntryBlock();
+              Builder.SetInsertPoint(&FirstBB, FirstBB.begin());
+              Type *ResTy = CI->getParamStructRetType(0);
+              auto *TMPAlloca = Builder.CreateAlloca(
+                  ResTy, nullptr, "lower_wg.local_copy");
+              Builder.SetInsertPoint(CI->getNextNode());
+              auto *LI = Builder.CreateLoad(ResTy, TMPAlloca, "lower_wg.private_load");
+              Builder.CreateStore(LI, ASCast->getPointerOperand());
+              ASCast->replaceAllUsesWith(TMPAlloca);
+              ASCast->dropAllReferences();
+            }
+          }
+        }
+      }
       if (isWIScopeInst(I)) {
         if (isPFWICall(I))
           PFWICalls.insert(dyn_cast<CallInst>(I));
