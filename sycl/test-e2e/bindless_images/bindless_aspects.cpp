@@ -13,8 +13,6 @@
 int main() {
 
   sycl::device dev;
-  sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   bool validated = true;
 
