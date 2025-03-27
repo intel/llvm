@@ -750,17 +750,14 @@ private:
     if (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
 
-      size_t NumParams = detail::getKernelNumParams<KernelName>();
       clearArgs();
-      reseveArgs(NumParams);
-
-      char *LambdaPtr = MHostKernel->getPtr();
+      size_t NumParams = detail::getKernelNumParams<KernelName>();
+      reserveArgs(NumParams);
 
       for (size_t I = 0, IndexShift = 0; I < NumParams; ++I) {
-        extractArgsAndReqsFromLambda(LambdaPtr,
-                                     detail::getKernelParamDesc<KernelName>(I),
-                                     detail::isKernelESIMD<KernelName>(), I,
-                                     IndexShift);
+        extractArgsAndReqsFromLambda(
+            MHostKernel->getPtr(), detail::getKernelParamDesc<KernelName>(I),
+            detail::isKernelESIMD<KernelName>(), I, IndexShift);
       }
 
       MKernelName = detail::getKernelName<KernelName>();
@@ -3823,7 +3820,7 @@ private:
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
   void clearArgs();
-  void reseveArgs(int NumParams);
+  void reserveArgs(int NumParams);
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,

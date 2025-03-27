@@ -2134,7 +2134,7 @@ void handler::addArg(detail::kernel_param_kind_t ArgKind, void *Req,
 
 void handler::clearArgs() { impl->MArgs.clear(); }
 
-void handler::reseveArgs(int NumParams) {
+void handler::reserveArgs(int NumParams) {
   impl->MArgs.reserve(MaxNumAdditionalArgs * NumParams);
 }
 
