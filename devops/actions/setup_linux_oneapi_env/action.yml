@@ -1,0 +1,22 @@
+name: Linux setup oneAPI env
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup oneAPI env
+      shell: bash
+      run: |
+        sudo apt-get --fix-broken -y install
+        wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor \
+        | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
+        sudo echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+        | sudo tee /etc/apt/sources.list.d/oneAPI.list && \
+        sudo apt update && sudo apt-get -y install intel-oneapi-compiler-dpcpp-cpp-2025.0
+
+        env_before=$(env | sort)         
+        source /opt/intel/oneapi/setvars.sh
+        env_after=$(env | sort)
+        changed_envvars=$(comm -13 <(echo "$env_before") <(echo "$env_after"))
+        while IFS= read -r line; do
+          echo "$line" >> $GITHUB_ENV
+        done <<< "$changed_envvars"
