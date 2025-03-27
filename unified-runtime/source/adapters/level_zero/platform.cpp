@@ -349,13 +349,13 @@ ur_result_t ur_platform_handle_t_::initialize() {
                 "zeDeviceImportExternalSemaphoreExt");
 
     ZeExternalSemaphoreExt.zexCommandListAppendWaitExternalSemaphoresExp =
-        (ze_pfnCommandListAppendWaitExternalSemaphoresExt_t)
+        (ze_pfnCommandListAppendWaitExternalSemaphoreExt_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListAppendWaitExternalSemaphoreExt");
 
     ZeExternalSemaphoreExt.zexCommandListAppendSignalExternalSemaphoresExp =
-        (ze_pfnCommandListAppendSignalExternalSemaphoresExt_t)
+        (ze_pfnCommandListAppendSignalExternalSemaphoreExt_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListAppendSignalExternalSemaphoreExt");
