@@ -58,20 +58,14 @@ config.unsupported_features = []
 config.test_mode = lit_config.params.get("test-mode", "full")
 config.fallback_build_run_only = False
 if config.test_mode == "full":
+    config.available_features.add("build-mode")
     config.available_features.add("run-mode")
-    config.available_features.add("build-and-run-mode")
 elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
-    # run-only uses external shell, some tests might have hacks to workaround
-    # failures caused by that.
-    config.available_features.add("test-mode-run-only")
-
     config.available_features.add("run-mode")
-    if lit_config.params.get("fallback-to-build-if-requires-build-and-run", False):
-        config.available_features.add("build-and-run-mode")
-        config.fallback_build_run_only = True
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
+    config.available_features.add("build-mode")
     config.sycl_devices = []
     if not config.amd_arch:
         config.amd_arch = "gfx1030"
@@ -180,10 +174,13 @@ class test_env:
         self.old_environ = dict(os.environ)
         os.environ.clear()
         os.environ.update(config.environment)
+        self.old_dir = os.getcwd()
+        os.chdir(config.sycl_obj_root)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         os.environ.clear()
         os.environ.update(self.old_environ)
+        os.chdir(self.old_dir)
 
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
@@ -240,13 +237,13 @@ def get_device_family_from_arch(arch):
             return device_family
     return None
 
+
 def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
         with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
             if "igc-dev" in contents:
                 config.available_features.add("igc-dev")
-
 
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
@@ -571,6 +568,11 @@ if len(config.sycl_devices) > 1:
         "Running on multiple devices, XFAIL-marked tests will be skipped on corresponding devices"
     )
 
+
+def remove_level_zero_suffix(devices):
+    return [device.replace("_v2", "") for device in devices]
+
+
 available_devices = {
     "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",
@@ -578,10 +580,17 @@ available_devices = {
     "hip": "gpu",
     "native_cpu": "cpu",
 }
-for d in config.sycl_devices:
+for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
     if be not in available_devices or dev not in available_devices[be]:
         lit_config.error("Unsupported device {}".format(d))
+
+# Set ROCM_PATH to help clang find the HIP installation.
+if "target-amd" in config.sycl_build_targets:
+    llvm_config.with_system_environment("ROCM_PATH")
+    config.substitutions.append(
+        ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
+    )
 
 if "cuda:gpu" in config.sycl_devices:
     if "CUDA_PATH" not in os.environ:
@@ -738,7 +747,7 @@ for aot_tool in aot_tools:
 if config.test_mode != "build-only":
     config.sycl_build_targets = set()
 
-for sycl_device in config.sycl_devices:
+for sycl_device in remove_level_zero_suffix(config.sycl_devices):
     be, dev = sycl_device.split(":")
     config.available_features.add("any-device-is-" + dev)
     # Use short names for LIT rules.
@@ -755,13 +764,17 @@ config.sycl_dev_features = {}
 
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
-for sycl_device in config.sycl_devices:
+for full_name, sycl_device in zip(
+    config.sycl_devices, remove_level_zero_suffix(config.sycl_devices)
+):
     env = copy.copy(llvm_config.config.environment)
+
+    if "v2" in full_name:
+        env["UR_LOADER_ENABLE_LEVEL_ZERO_V2"] = "1"
+
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     if sycl_device.startswith("cuda:"):
-        env["UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
-    if sycl_device.startswith("hip:"):
-        env["UR_HIP_ENABLE_IMAGE_SUPPORT"] = "1"
+        env["SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
     # prints warnings that might derail a user thinking something is wrong
     # with their test run. It's just us filtering here, so silence them unless
@@ -812,7 +825,7 @@ for sycl_device in config.sycl_devices:
             gpu_intel_pvc_2T_device_id = "3029"
             _, device_id = line.strip().split(":", 1)
             device_id = device_id.strip()
-            if device_id == gpu_intel_pvc_1T_device_id:             
+            if device_id == gpu_intel_pvc_1T_device_id:
                 config.available_features.add("gpu-intel-pvc-1T")
             if device_id == gpu_intel_pvc_2T_device_id:
                 config.available_features.add("gpu-intel-pvc-2T")
@@ -890,6 +903,8 @@ for sycl_device in config.sycl_devices:
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))
+    if "v2" in full_name:
+        features.add("level_zero_v2_adapter")
     # Use short names for LIT rules.
     features.add(be)
     # Add corresponding target feature
@@ -906,16 +921,12 @@ for sycl_device in config.sycl_devices:
                     "Cannot detect architecture for AMD HIP device, specify it explicitly"
                 )
             config.amd_arch = arch.replace(amd_arch_prefix, "")
-        llvm_config.with_system_environment("ROCM_PATH")
-        config.substitutions.append(
-            ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
-        )
 
-    config.sycl_dev_features[sycl_device] = features.union(config.available_features)
+    config.sycl_dev_features[full_name] = features.union(config.available_features)
     if is_intel_driver:
-        config.intel_driver_ver[sycl_device] = intel_driver_ver
+        config.intel_driver_ver[full_name] = intel_driver_ver
     else:
-        config.intel_driver_ver[sycl_device] = {}
+        config.intel_driver_ver[full_name] = {}
 
 if lit_config.params.get("compatibility_testing", False):
     config.substitutions.append(("%clangxx", " true "))

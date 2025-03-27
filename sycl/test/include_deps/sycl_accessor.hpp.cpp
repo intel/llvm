@@ -78,6 +78,7 @@
 // CHECK-NEXT: info/event_profiling_traits.def
 // CHECK-NEXT: info/ext_codeplay_device_traits.def
 // CHECK-NEXT: info/ext_intel_device_traits.def
+// CHECK-NEXT: info/ext_intel_kernel_info_traits.def
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
 // CHECK-NEXT: info/sycl_backend_traits.def
@@ -85,5 +86,6 @@
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
+// CHECK-NEXT: usm/usm_enums.hpp
 // CHECK-NEXT: properties/buffer_properties.def
 // CHECK-EMPTY:

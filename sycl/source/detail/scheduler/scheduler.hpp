@@ -453,7 +453,7 @@ public:
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
   ur_kernel_handle_t completeSpecConstMaterialization(
-      QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
+      const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
       const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
@@ -479,10 +479,10 @@ public:
 
   static bool
   areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
-                                  ContextImplPtr Context);
+                                  const ContextImplPtr &Context);
   static bool
   areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
-                                  ContextImplPtr Context);
+                                  const ContextImplPtr &Context);
 
 protected:
   using RWLockT = std::shared_timed_mutex;

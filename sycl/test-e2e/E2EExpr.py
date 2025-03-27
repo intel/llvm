@@ -3,7 +3,8 @@ from lit.BooleanExpression import BooleanExpression
 
 class E2EExpr(BooleanExpression):
     build_specific_features = {
-        "build-and-run-mode",
+        "run-mode",
+        "build-mode",
         "preview-mode",
         "target-spir",
         "target-nvidia",

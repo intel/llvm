@@ -27,10 +27,10 @@ class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
 struct RTCDevImgInfo;
+struct RTCBundleInfo;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
 using JITEnvVar = DynArray<char>;
-using RTCBundleInfo = DynArray<RTCDevImgInfo>;
 } // namespace jit_compiler
 
 namespace sycl {
@@ -44,7 +44,7 @@ public:
   fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
               const property_list &);
   ur_kernel_handle_t
-  materializeSpecConstants(QueueImplPtr Queue,
+  materializeSpecConstants(const QueueImplPtr &Queue,
                            const RTDeviceBinaryImage *BinImage,
                            const std::string &KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);

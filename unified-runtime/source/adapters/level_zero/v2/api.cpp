@@ -171,7 +171,7 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
 }
 
 ur_result_t urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
+    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
   logger::error("{} function not implemented!", __FUNCTION__);
@@ -207,10 +207,9 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t hContext,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t UR_APICALL urUSMPoolSetThresholdExp(ur_context_handle_t hContext,
-                                                ur_device_handle_t hDevice,
-                                                ur_usm_pool_handle_t hPool,
-                                                size_t newThreshold) {
+ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t hPool,
+                                           ur_usm_pool_info_t propName,
+                                           void *pPropValue, size_t propSize) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

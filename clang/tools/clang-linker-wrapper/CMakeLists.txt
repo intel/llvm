@@ -17,6 +17,7 @@ set(LLVM_LINK_COMPONENTS
   LTO
   FrontendOffloading
   SYCLLowerIR
+  SYCLPostLink
   )
 
 set(LLVM_TARGET_DEFINITIONS LinkerWrapperOpts.td)

@@ -333,6 +333,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintDeviceUsmAccessCapabilityFlags(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_device_throttle_reasons_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintDeviceThrottleReasonsFlags(
+    enum ur_device_throttle_reasons_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_context_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2687,6 +2697,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueUsmFreeExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_enqueue_command_buffer_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintEnqueueCommandBufferExpParams(
+    const struct ur_enqueue_command_buffer_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_enqueue_cooperative_kernel_launch_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2828,16 +2848,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolDestroyExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_usm_pool_set_threshold_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolSetThresholdExpParams(
-    const struct ur_usm_pool_set_threshold_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_pool_get_default_device_pool_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2855,6 +2865,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolGetDefaultDevicePoolExpParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolGetInfoExpParams(
     const struct ur_usm_pool_get_info_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_usm_pool_set_info_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolSetInfoExpParams(
+    const struct ur_usm_pool_set_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3302,14 +3322,15 @@ urPrintCommandBufferAppendUsmAdviseExpParams(
     char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_command_buffer_enqueue_exp_params_t struct
+/// @brief Print ur_command_buffer_append_native_command_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferEnqueueExpParams(
-    const struct ur_command_buffer_enqueue_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintCommandBufferAppendNativeCommandExpParams(
+    const struct ur_command_buffer_append_native_command_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_command_buffer_update_kernel_launch_exp_params_t struct
@@ -3353,6 +3374,17 @@ urPrintCommandBufferUpdateWaitEventsExpParams(
 UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferGetInfoExpParams(
     const struct ur_command_buffer_get_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_command_buffer_get_native_handle_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL
+urPrintCommandBufferGetNativeHandleExpParams(
+    const struct ur_command_buffer_get_native_handle_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_p2p_enable_peer_access_exp_params_t struct

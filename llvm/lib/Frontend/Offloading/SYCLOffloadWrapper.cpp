@@ -62,18 +62,6 @@ int8_t binaryImageFormatToInt8(SYCLBinaryImageFormat Format) {
   }
 }
 
-StructType* getLegacyOffloadEntryTy(Module &M) {
-  LLVMContext &C = M.getContext();
-  StructType *EntryTy =
-      StructType::getTypeByName(C, "struct.__tgt_offload_entry");
-  if (!EntryTy)
-    EntryTy = StructType::create(
-        "struct.__tgt_offload_entry", PointerType::getUnqual(C),
-        PointerType::getUnqual(C), M.getDataLayout().getIntPtrType(C),
-        Type::getInt32Ty(C), Type::getInt32Ty(C));
-  return EntryTy;
-}
-
 /// Wrapper helper class that creates all LLVM IRs wrapping given images.
 /// Note: All created structures, "_pi_device_*", "__sycl_*" and "__tgt*" names
 /// in this implementation are aligned with "sycl/include/sycl/detail/pi.h".
@@ -95,7 +83,7 @@ struct Wrapper {
 
     SyclPropTy = getSyclPropTy();
     SyclPropSetTy = getSyclPropSetTy();
-    EntryTy = getLegacyOffloadEntryTy(M);
+    EntryTy = offloading::getEntryTy(M);
     SyclDeviceImageTy = getSyclDeviceImageTy();
     SyclBinDescTy = getSyclBinDescTy();
   }
@@ -399,16 +387,26 @@ struct Wrapper {
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
 
-    auto *Zero = ConstantInt::get(getSizeTTy(), 0);
+    auto *I64Zero = ConstantInt::get(Type::getInt64Ty(C), 0);
     auto *I32Zero = ConstantInt::get(Type::getInt32Ty(C), 0);
     auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
 
     SmallVector<Constant *> EntriesInits;
     std::unique_ptr<MemoryBuffer> MB = MemoryBuffer::getMemBuffer(Entries);
-    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
-      EntriesInits.push_back(ConstantStruct::get(
-          EntryTy, NullPtr, addStringToModule(*LI, "__sycl_offload_entry_name"),
-          Zero, I32Zero, I32Zero));
+    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
+      Constant *EntryData[] = {
+          ConstantExpr::getNullValue(Type::getInt64Ty(C)),
+          ConstantInt::get(Type::getInt16Ty(C), 1),
+          ConstantInt::get(Type::getInt16Ty(C), object::OffloadKind::OFK_SYCL),
+          I32Zero,
+          NullPtr,
+          addStringToModule(*LI, "__sycl_offload_entry_name"),
+          I64Zero,
+          I64Zero,
+          NullPtr};
+
+      EntriesInits.push_back(ConstantStruct::get(EntryTy, EntryData));
+    }
 
     auto *Arr = ConstantArray::get(ArrayType::get(EntryTy, EntriesInits.size()),
                                    EntriesInits);

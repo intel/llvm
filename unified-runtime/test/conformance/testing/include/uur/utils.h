@@ -269,7 +269,7 @@ ur_result_t GetDeviceAddressBits(ur_device_handle_t device,
 ur_result_t GetDeviceMaxMemAllocSize(ur_device_handle_t device,
                                      uint64_t &alloc_size);
 ur_result_t GetDeviceImageSupport(ur_device_handle_t device,
-                                  bool &image_supported);
+                                  bool &image_support);
 ur_result_t GetDeviceMaxReadImageArgs(ur_device_handle_t device,
                                       uint32_t &read_arg);
 ur_result_t GetDeviceMaxWriteImageArgs(ur_device_handle_t device,
@@ -405,7 +405,6 @@ GetDeviceMemoryOrderCapabilities(ur_device_handle_t device,
 ur_result_t
 GetDeviceMemoryScopeCapabilities(ur_device_handle_t device,
                                  ur_memory_scope_capability_flags_t &flags);
-ur_result_t GetDeviceBFloat16Support(ur_device_handle_t device, bool &support);
 ur_result_t GetDeviceMaxComputeQueueIndices(ur_device_handle_t device,
                                             uint32_t &max_indices);
 ur_result_t GetDeviceHostPipeRWSupported(ur_device_handle_t device,

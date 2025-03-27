@@ -52,6 +52,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/enqueued_pool.cpp
     )
     install_ur_library(ur_adapter_level_zero)
 
@@ -158,6 +159,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/lockable.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
@@ -191,6 +193,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         )
     endif()
 
+    target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_STATIC_LEVEL_ZERO)
     target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_ADAPTER_LEVEL_ZERO_V2)
 
     # TODO: fix level_zero adapter conversion warnings

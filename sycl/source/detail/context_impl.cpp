@@ -303,10 +303,11 @@ context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
 
 ur_native_handle_t context_impl::getNative() const {
   const auto &Adapter = getAdapter();
-  if (getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urContextRetain>(getHandleRef());
   ur_native_handle_t Handle;
   Adapter->call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
+  if (getBackend() == backend::opencl) {
+    __SYCL_OCL_CALL(clRetainContext, ur::cast<cl_context>(Handle));
+  }
   return Handle;
 }
 
@@ -327,6 +328,11 @@ bool context_impl::isBufferLocationSupported() const {
 void context_impl::addAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
   std::lock_guard<std::mutex> Lock{MAssociatedDeviceGlobalsMutex};
   MAssociatedDeviceGlobals.insert(DeviceGlobalPtr);
+}
+
+void context_impl::removeAssociatedDeviceGlobal(const void *DeviceGlobalPtr) {
+  std::lock_guard<std::mutex> Lock{MAssociatedDeviceGlobalsMutex};
+  MAssociatedDeviceGlobals.erase(DeviceGlobalPtr);
 }
 
 void context_impl::addDeviceGlobalInitializer(
@@ -407,6 +413,9 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     // Device global map entry pointers will not die before the end of the
     // program and the pointers will stay the same, so we do not need
     // m_DeviceGlobalsMutex here.
+    // The lifetimes of device global map entries representing globals in
+    // runtime-compiled code will be tied to the kernel bundle, so the
+    // assumption holds in that setting as well.
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =
@@ -551,6 +560,47 @@ void context_impl::verifyProps(const property_list &Props) const {
   auto NoAllowedPropertiesCheck = [](int) { return false; };
   detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
                                                 NoAllowedPropertiesCheck);
+}
+
+// The handle for a device default pool is retrieved once on first request.
+// Subsequent requests are returned immediately without calling the backend.
+std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
+context_impl::get_default_memory_pool(const context &Context,
+                                      const device &Device,
+                                      const usm::alloc &Kind) {
+
+  assert(Kind == usm::alloc::device);
+
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(Device);
+  ur_device_handle_t DeviceHandle = DevImpl->getHandleRef();
+  const sycl::detail::AdapterPtr &Adapter = this->getAdapter();
+
+  // Check dev is already in our list of device pool pairs.
+  if (auto it = std::find_if(MMemPoolImplPtrs.begin(), MMemPoolImplPtrs.end(),
+                             [&](auto &pair) { return Device == pair.first; });
+      it != MMemPoolImplPtrs.end()) {
+    // Check if the shared_ptr of memory_pool_impl has not been destroyed.
+    if (!it->second.expired())
+      return it->second.lock();
+  }
+
+  // The memory_pool_impl does not exist for this device yet.
+  ur_usm_pool_handle_t PoolHandle;
+  Adapter->call<sycl::errc::runtime,
+                sycl::detail::UrApiKind::urUSMPoolGetDefaultDevicePoolExp>(
+      this->getHandleRef(), DeviceHandle, &PoolHandle);
+
+  auto MemPoolImplPtr = std::make_shared<
+      sycl::ext::oneapi::experimental::detail::memory_pool_impl>(
+      Context, Device, sycl::usm::alloc::device, PoolHandle,
+      true /*Default pool*/, property_list{});
+
+  // Hold onto a weak_ptr of the memory_pool_impl. Prevents circular
+  // dependencies between the context_impl and memory_pool_impl.
+  MMemPoolImplPtrs.push_back(std::pair(Device, MemPoolImplPtr));
+
+  return MemPoolImplPtr;
 }
 
 } // namespace detail

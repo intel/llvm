@@ -127,7 +127,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       ur::level_zero::urCommandBufferAppendUSMPrefetchExp;
   pDdiTable->pfnAppendUSMAdviseExp =
       ur::level_zero::urCommandBufferAppendUSMAdviseExp;
-  pDdiTable->pfnEnqueueExp = ur::level_zero::urCommandBufferEnqueueExp;
+  pDdiTable->pfnAppendNativeCommandExp =
+      ur::level_zero::urCommandBufferAppendNativeCommandExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
       ur::level_zero::urCommandBufferUpdateKernelLaunchExp;
   pDdiTable->pfnUpdateSignalEventExp =
@@ -135,6 +136,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnUpdateWaitEventsExp =
       ur::level_zero::urCommandBufferUpdateWaitEventsExp;
   pDdiTable->pfnGetInfoExp = ur::level_zero::urCommandBufferGetInfoExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur::level_zero::urCommandBufferGetNativeHandleExp;
 
   return result;
 }
@@ -214,6 +217,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   pDdiTable->pfnUSMSharedAllocExp = ur::level_zero::urEnqueueUSMSharedAllocExp;
   pDdiTable->pfnUSMHostAllocExp = ur::level_zero::urEnqueueUSMHostAllocExp;
   pDdiTable->pfnUSMFreeExp = ur::level_zero::urEnqueueUSMFreeExp;
+  pDdiTable->pfnCommandBufferExp = ur::level_zero::urEnqueueCommandBufferExp;
   pDdiTable->pfnCooperativeKernelLaunchExp =
       ur::level_zero::urEnqueueCooperativeKernelLaunchExp;
   pDdiTable->pfnTimestampRecordingExp =
@@ -452,10 +456,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
   pDdiTable->pfnPoolCreateExp = ur::level_zero::urUSMPoolCreateExp;
   pDdiTable->pfnPoolDestroyExp = ur::level_zero::urUSMPoolDestroyExp;
-  pDdiTable->pfnPoolSetThresholdExp = ur::level_zero::urUSMPoolSetThresholdExp;
   pDdiTable->pfnPoolGetDefaultDevicePoolExp =
       ur::level_zero::urUSMPoolGetDefaultDevicePoolExp;
   pDdiTable->pfnPoolGetInfoExp = ur::level_zero::urUSMPoolGetInfoExp;
+  pDdiTable->pfnPoolSetInfoExp = ur::level_zero::urUSMPoolSetInfoExp;
   pDdiTable->pfnPoolSetDevicePoolExp =
       ur::level_zero::urUSMPoolSetDevicePoolExp;
   pDdiTable->pfnPoolGetDevicePoolExp =

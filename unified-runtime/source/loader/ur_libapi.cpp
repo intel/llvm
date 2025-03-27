@@ -869,7 +869,7 @@ ur_result_t UR_APICALL urDeviceGetSelected(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP < propName`
+///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1179,6 +1179,8 @@ ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     /// [in] handle of the device instance
     ur_device_handle_t hDevice,
@@ -1331,7 +1333,7 @@ ur_result_t UR_APICALL urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName`
+///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -1475,6 +1477,8 @@ ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnDeleter`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 ur_result_t UR_APICALL urContextSetExtendedDeleter(
     /// [in] handle of the context.
     ur_context_handle_t hContext,
@@ -6975,44 +6979,6 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a new release threshold for a USM memory pool.
-///
-/// @details
-///     - Set a new release threshold for a USM memory pool.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///         + `NULL == hPool`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If any device associated with `hContext` reports `false` for
-///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
-ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold) try {
-  auto pfnPoolSetThresholdExp =
-      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolSetThresholdExp;
-  if (nullptr == pfnPoolSetThresholdExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  return pfnPoolSetThresholdExp(hContext, hDevice, hPool, newThreshold);
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Get the default pool for a device.
 ///
 /// @details
@@ -7068,7 +7034,6 @@ ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urUSMPoolGetInfoExp(
@@ -7086,6 +7051,51 @@ ur_result_t UR_APICALL urUSMPoolGetInfoExp(
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   return pfnPoolGetInfoExp(hPool, propName, pPropValue, pPropSizeRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a property for a USM memory pool.
+///
+/// @details
+///     - Set a property for a USM memory pool.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///         + `pPropValue == NULL`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) try {
+  auto pfnPoolSetInfoExp =
+      ur_lib::getContext()->urDdiTable.USMExp.pfnPoolSetInfoExp;
+  if (nullptr == pfnPoolSetInfoExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnPoolSetInfoExp(hPool, propName, pPropValue, propSize);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -7928,7 +7938,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`
@@ -9201,7 +9211,7 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Submit a command-buffer for execution on a queue.
+/// @brief Append nodes to the command-buffer through a native backend API
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -9210,7 +9220,61 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeCommand`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) try {
+  auto pfnAppendNativeCommandExp =
+      ur_lib::getContext()
+          ->urDdiTable.CommandBufferExp.pfnAppendNativeCommandExp;
+  if (nullptr == pfnAppendNativeCommandExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnAppendNativeCommandExp(hCommandBuffer, pfnNativeCommand, pData,
+                                   hChildCommandBuffer, numSyncPointsInWaitList,
+                                   pSyncPointWaitList, pSyncPoint);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Submit a command-buffer for execution on a queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
+///         + `NULL == hCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -9220,11 +9284,11 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    /// [in] Handle of the command-buffer object.
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -9237,13 +9301,13 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     /// phEvent are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) try {
-  auto pfnEnqueueExp =
-      ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
-  if (nullptr == pfnEnqueueExp)
+  auto pfnCommandBufferExp =
+      ur_lib::getContext()->urDdiTable.EnqueueExp.pfnCommandBufferExp;
+  if (nullptr == pfnCommandBufferExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnEnqueueExp(hCommandBuffer, hQueue, numEventsInWaitList,
-                       phEventWaitList, phEvent);
+  return pfnCommandBufferExp(hQueue, hCommandBuffer, numEventsInWaitList,
+                             phEventWaitList, phEvent);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -9253,7 +9317,8 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///
 /// @details
 /// This entry-point is synchronous and may block if the command-buffer is
-/// executing when the entry-point is called.
+/// executing when the entry-point is called. On error, the state of the
+/// command-buffer commands being updated is undefined.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -9261,66 +9326,75 @@ ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommand`
+///         + `NULL == hCommandBuffer`
+///         + `NULL == pUpdateKernelLaunch->hCommand`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUpdateKernelLaunch`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `numKernelUpdates == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS
-///         is not supported by the device, but any of
-///         `pUpdateKernelLaunch->numNewMemObjArgs`,
-///         `pUpdateKernelLaunch->numNewPointerArgs`, or
-///         `pUpdateKernelLaunch->numNewValueArgs` are not zero.
+///         is not supported by the device, and for any of any element of
+///         `pUpdateKernelLaunch` the `numNewMemObjArgs`, `numNewPointerArgs`,
+///         or `numNewValueArgs` members are not zero.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is nullptr and
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is nullptr and
+///         `pNewGlobalWorkSize` is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkSize` member is not nullptr
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkOffset` member is not
+///         nullptr.
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE
-///         is not supported by the device but `pUpdateKernelLaunch->hNewKernel`
-///         is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `hNewKernel` member is not nullptr.
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true
-///         on creation of the command-buffer `hCommand` belongs to.
-///         + If the command-buffer `hCommand` belongs to has not been
-///         finalized.
+///         on creation of the `hCommandBuffer`.
+///         + If `hCommandBuffer`  has not been finalized.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
-///         + If `hCommand` is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         was not created from `hCommandBuffer`.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pUpdateKernelLaunch->newWorkDim < 1 ||
-///         pUpdateKernelLaunch->newWorkDim > 3`
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is less than 1 or greater than 3.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + If `pUpdateKernelLaunch->hNewKernel` was not passed to the
-///         `hKernel` or `phKernelAlternatives` parameters of
-///         ::urCommandBufferAppendKernelLaunchExp when this command was
-///         created.
-///         + If `pUpdateKernelLaunch->newWorkDim` is different from the current
-///         workDim in `hCommand` and,
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize`, or
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` are nullptr.
+///         + If for any element of `pUpdateKernelLaunch` the `hNewKernel`
+///         member was not passed to the `hKernel` or `phKernelAlternatives`
+///         parameters of ::urCommandBufferAppendKernelLaunchExp when the
+///         command was created.
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is different from the current workDim in the `hCommand`
+///         member, and `pNewGlobalWorkSize` or `pNewGlobalWorkOffset` are
+///         nullptr.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    /// [in] Handle of the command-buffer kernel command to update.
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] Struct defining how the kernel command is to be updated.
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Length of pUpdateKernelLaunch.
+    uint32_t numKernelUpdates,
+    /// [in][range(0, numKernelUpdates)]  List of structs defining how a
+    /// kernel commands are to be updated.
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) try {
   auto pfnUpdateKernelLaunchExp =
@@ -9329,7 +9403,8 @@ ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   if (nullptr == pfnUpdateKernelLaunchExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
-  return pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+  return pfnUpdateKernelLaunchExp(hCommandBuffer, numKernelUpdates,
+                                  pUpdateKernelLaunch);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -9470,6 +9545,39 @@ ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 
   return pfnGetInfoExp(hCommandBuffer, propName, propSize, pPropValue,
                        pPropSizeRet);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native command-buffer handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeCommandBuffer`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer) try {
+  auto pfnGetNativeHandleExp =
+      ur_lib::getContext()->urDdiTable.CommandBufferExp.pfnGetNativeHandleExp;
+  if (nullptr == pfnGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  return pfnGetNativeHandleExp(hCommandBuffer, phNativeCommandBuffer);
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
@@ -10076,7 +10184,7 @@ ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName`
+///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE

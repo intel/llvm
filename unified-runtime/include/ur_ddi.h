@@ -1145,6 +1145,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMFreeExp_t)(
     const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueCommandBufferExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCommandBufferExp_t)(
+    ur_queue_handle_t, ur_exp_command_buffer_handle_t, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueCooperativeKernelLaunchExp
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCooperativeKernelLaunchExp_t)(
     ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
@@ -1173,6 +1179,7 @@ typedef struct ur_enqueue_exp_dditable_t {
   ur_pfnEnqueueUSMSharedAllocExp_t pfnUSMSharedAllocExp;
   ur_pfnEnqueueUSMHostAllocExp_t pfnUSMHostAllocExp;
   ur_pfnEnqueueUSMFreeExp_t pfnUSMFreeExp;
+  ur_pfnEnqueueCommandBufferExp_t pfnCommandBufferExp;
   ur_pfnEnqueueCooperativeKernelLaunchExp_t pfnCooperativeKernelLaunchExp;
   ur_pfnEnqueueTimestampRecordingExp_t pfnTimestampRecordingExp;
   ur_pfnEnqueueNativeCommandExp_t pfnNativeCommandExp;
@@ -1300,11 +1307,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolDestroyExp_t)(
     ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urUSMPoolSetThresholdExp
-typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolSetThresholdExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t, size_t);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMPoolGetDefaultDevicePoolExp
 typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetDefaultDevicePoolExp_t)(
     ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *);
@@ -1314,6 +1316,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetDefaultDevicePoolExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetInfoExp_t)(ur_usm_pool_handle_t,
                                                            ur_usm_pool_info_t,
                                                            void *, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolSetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolSetInfoExp_t)(ur_usm_pool_handle_t,
+                                                           ur_usm_pool_info_t,
+                                                           void *, size_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMPoolSetDevicePoolExp
@@ -1353,9 +1361,9 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMReleaseExp_t)(ur_context_handle_t,
 typedef struct ur_usm_exp_dditable_t {
   ur_pfnUSMPoolCreateExp_t pfnPoolCreateExp;
   ur_pfnUSMPoolDestroyExp_t pfnPoolDestroyExp;
-  ur_pfnUSMPoolSetThresholdExp_t pfnPoolSetThresholdExp;
   ur_pfnUSMPoolGetDefaultDevicePoolExp_t pfnPoolGetDefaultDevicePoolExp;
   ur_pfnUSMPoolGetInfoExp_t pfnPoolGetInfoExp;
+  ur_pfnUSMPoolSetInfoExp_t pfnPoolSetInfoExp;
   ur_pfnUSMPoolSetDevicePoolExp_t pfnPoolSetDevicePoolExp;
   ur_pfnUSMPoolGetDevicePoolExp_t pfnPoolGetDevicePoolExp;
   ur_pfnUSMPoolTrimToExp_t pfnPoolTrimToExp;
@@ -1674,15 +1682,18 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMAdviseExp_t)(
     ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferEnqueueExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferEnqueueExp_t)(
-    ur_exp_command_buffer_handle_t, ur_queue_handle_t, uint32_t,
-    const ur_event_handle_t *, ur_event_handle_t *);
+/// @brief Function-pointer for urCommandBufferAppendNativeCommandExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendNativeCommandExp_t)(
+    ur_exp_command_buffer_handle_t,
+    ur_exp_command_buffer_native_command_function_t, void *,
+    ur_exp_command_buffer_handle_t, uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferUpdateKernelLaunchExp
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateKernelLaunchExp_t)(
-    ur_exp_command_buffer_command_handle_t,
+    ur_exp_command_buffer_handle_t, uint32_t,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1701,6 +1712,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateWaitEventsExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferGetInfoExp_t)(
     ur_exp_command_buffer_handle_t, ur_exp_command_buffer_info_t, size_t,
     void *, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferGetNativeHandleExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferGetNativeHandleExp_t)(
+    ur_exp_command_buffer_handle_t, ur_native_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of CommandBufferExp functions pointers
@@ -1722,11 +1738,12 @@ typedef struct ur_command_buffer_exp_dditable_t {
   ur_pfnCommandBufferAppendMemBufferFillExp_t pfnAppendMemBufferFillExp;
   ur_pfnCommandBufferAppendUSMPrefetchExp_t pfnAppendUSMPrefetchExp;
   ur_pfnCommandBufferAppendUSMAdviseExp_t pfnAppendUSMAdviseExp;
-  ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
+  ur_pfnCommandBufferAppendNativeCommandExp_t pfnAppendNativeCommandExp;
   ur_pfnCommandBufferUpdateKernelLaunchExp_t pfnUpdateKernelLaunchExp;
   ur_pfnCommandBufferUpdateSignalEventExp_t pfnUpdateSignalEventExp;
   ur_pfnCommandBufferUpdateWaitEventsExp_t pfnUpdateWaitEventsExp;
   ur_pfnCommandBufferGetInfoExp_t pfnGetInfoExp;
+  ur_pfnCommandBufferGetNativeHandleExp_t pfnGetNativeHandleExp;
 } ur_command_buffer_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

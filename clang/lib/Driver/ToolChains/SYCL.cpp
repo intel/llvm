@@ -154,7 +154,8 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
 
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
-    const llvm::opt::ArgList &Args) : D(D) {}
+    const llvm::opt::ArgList &Args)
+    : D(D) {}
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
@@ -309,8 +310,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
-      "intel_gpu_acm_g12", "intel_gpu_dg2_10",  "intel_gpu_dg2_11",
-      "intel_dg2_g12",     "intel_gpu_bmg_g21"};
+      "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
+      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -351,7 +352,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
-             Device.starts_with("dg2") || Device.starts_with("bmg");
+             Device.starts_with("dg2") || Device.starts_with("bmg") ||
+             Device.starts_with("lnl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {
@@ -1703,9 +1705,9 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
       options::OPT_fprofile_instr_generate,
       options::OPT_fprofile_instr_generate_EQ,
       options::OPT_fprofile_arcs,
-      options::OPT_fno_profile_arcs, // -f[no-]profile-arcs
+      options::OPT_fno_profile_arcs,           // -f[no-]profile-arcs
       options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate
-      options::OPT_fcreate_profile,  // -fcreate-profile
+      options::OPT_fcreate_profile,            // -fcreate-profile
       options::OPT_fprofile_instr_use,
       options::OPT_fprofile_instr_use_EQ,       // -fprofile-instr-use
       options::OPT_forder_file_instrumentation, // -forder-file-instrumentation

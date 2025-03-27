@@ -33,7 +33,7 @@ jobs:
       if: matrix.os == 'ubuntu-22.04'
       run: |
         sudo apt-get update
-        sudo apt-get install -y doxygen
+        sudo apt-get install -y doxygen libhwloc-dev
 
     - name: "[Win] Install doxygen"
       if: matrix.os == 'windows-2022'
@@ -43,20 +43,8 @@ jobs:
         Expand-Archive -Path "$WorkingDir\doxygen.zip"
         Add-Content $env:GITHUB_PATH "$WorkingDir\doxygen"
 
-    - name: "[Lin] Install hwloc"
-      working-directory: ${{github.workspace}}/unified-runtime
-      if: matrix.os == 'ubuntu-22.04'
-      run: .github/scripts/install_hwloc.sh
-
-    - name: "[Win] Install hwloc"
-      working-directory: ${{github.workspace}}/unified-runtime
-      if: matrix.os == 'windows-2022'
-      run: vcpkg install hwloc:x64-windows
-
     - name: Configure Unified Runtime project
       working-directory: ${{github.workspace}}/unified-runtime
-      env:
-        VCPKG_PATH: "C:/vcpkg/packages/hwloc_x64-windows"
       run: >
         cmake
         -B${{github.workspace}}/build

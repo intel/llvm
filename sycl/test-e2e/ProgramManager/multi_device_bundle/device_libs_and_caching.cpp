@@ -1,5 +1,4 @@
-// REQUIRES: ocloc && gpu && linux && (opencl || level_zero)
-// REQUIRES: build-and-run-mode
+// REQUIRES: ocloc && gpu && linux && target-spir
 
 // Test to check several use cases for multi-device kernel bundles.
 // Test covers AOT and JIT cases. Kernel is using some math functions to enforce
@@ -12,26 +11,29 @@
 // manager can handle this as well. With this option program manager will
 // compile the main program, load and compile device libraries and then link
 // everything together.
-// RUN: %{build} -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{build} -fsycl-device-lib-jit-link -o %t_jit.out
 
 // Check the default case when in-memory caching is enabled.
-// RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=4 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s --check-prefixes=CHECK-SPIRV-JIT-LINK-TRACE
+// RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=4 SYCL_UR_TRACE=2 %{run} %t_jit.out | FileCheck %s --check-prefixes=CHECK-SPIRV-JIT-LINK-TRACE
 
 // Check the case when in-memory caching of the programs is disabled.
-// RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t.out
+// RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t_jit.out
 
 // Test AOT next.
-// RUN: %{build} -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device *" -o %t.out
+// RUN: %{build} -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device *" -o %t_aot.out
 
 // Check the default case when in-memory caching is enabled.
-// RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=4 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s --check-prefixes=CHECK-AOT-TRACE
+// RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=4 SYCL_UR_TRACE=2 %{run} %t_aot.out | FileCheck %s --check-prefixes=CHECK-AOT-TRACE
 
 // Check the case when in-memory caching of the programs is disabled.
-// RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t.out
+// RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t_aot.out
 
 // Depends on SPIR-V Backend & run-time drivers version.
 // XFAIL: spirv-backend && run-mode
 // XFAIL-TRACKER: CMPLRLLVM-64705
+
+// XFAIL: linux && arch-intel_gpu_bmg_g21 && !igc-dev && run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17453
 
 #include <cmath>
 #include <complex>
