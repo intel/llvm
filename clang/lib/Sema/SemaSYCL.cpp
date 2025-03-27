@@ -6452,25 +6452,55 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
       [](raw_ostream &OS, const NamespaceDecl *NS) {}, OS, DC);
 }
 
-static bool insertFreeFunctionDeclaration(const PrintingPolicy &Policy,
-                                          const FunctionDecl *FD,
-                                          const std::string& Args,
-                                          raw_ostream &O) {
-  const auto *DC = FD->getDeclContext();
-  bool NSInserted{false};
-  if (DC) {
-    if (isa<NamespaceDecl>(DC)) {
-      PrintNamespaces(O, FD);
-      NSInserted = true;
-    }
-    O << FD->getReturnType().getAsString() << " ";
-    O << FD->getNameAsString() << "(" << Args << ");";
-    if (NSInserted) {
-      PrintNSClosingBraces(O, FD);
+class FreeFunctionPrinter {
+  raw_ostream &O;
+  const PrintingPolicy &Policy;
+  bool NSInserted = false;
+
+public:
+  FreeFunctionPrinter(raw_ostream &O, const PrintingPolicy &Policy)
+      : O(O), Policy(Policy) {}
+
+  /// Emits the function declaration of a free function.
+  /// \param FD The function declaration to print.
+  /// \param Args The arguments of the function.
+  void printFreeFunctionDeclaration(const FunctionDecl *FD,
+                                    const std::string &Args) {
+    const DeclContext *DC = FD->getDeclContext();
+    if (DC) {
+      // if function in namespace, print namespace
+      if (isa<NamespaceDecl>(DC)) {
+        PrintNamespaces(O, FD);
+        // Set flag to print closing braces for namespaces and namespace in shim
+        // function
+        NSInserted = true;
+      }
+      O << FD->getReturnType().getAsString() << " ";
+      O << FD->getNameAsString() << "(" << Args << ");";
+      if (NSInserted) {
+        O << "\n";
+        PrintNSClosingBraces(O, FD);
+      }
+      O << "\n";
     }
   }
-  return NSInserted;
-}
+
+  /// Emits free function shim function.
+  /// \param FD The function declaration to print.
+  /// \param ShimCounter The counter for the shim function.
+  /// \param ParmList The parameter list of the function.
+  void printFreeFunctionShim(const FunctionDecl *FD, const unsigned ShimCounter,
+                             const std::string &ParmList) {
+    // Generate a shim function that returns the address of the free function.
+    O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
+    O << "  return (void (*)(" << ParmList << "))";
+
+    if (NSInserted) {
+      PrintNamespaces(O, FD, true);
+    }
+    O << FD->getIdentifier()->getName().data();
+  }
+};
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
@@ -6813,23 +6843,16 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     // template arguments that match default template arguments while printing
     // template-ids, even if the source code doesn't reference them.
     Policy.EnforceDefaultTemplateArgs = true;
-    bool NSInserted{false};
+    FreeFunctionPrinter FFPrinter(O, Policy);
+    // bool NSInserted{false};
     if (FTD) {
       FTD->print(O, Policy);
       O << ";\n";
     } else {
-      NSInserted = insertFreeFunctionDeclaration(Policy, K.SyclKernel, ParmListWithNames, O);
-      O << "\n";
+      FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
 
-    // Generate a shim function that returns the address of the free function.
-    O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
-    O << "  return (void (*)(" << ParmList << "))";
-    if (NSInserted) {
-      PrintNamespaces(O, K.SyclKernel, true);
-    }
-
-    O << K.SyclKernel->getIdentifier()->getName().data();
+    FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
     if (FTD) {
       const TemplateArgumentList *TAL =
           K.SyclKernel->getTemplateSpecializationArgs();
@@ -6908,6 +6931,13 @@ bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   }
   llvm::raw_fd_ostream Out(IntHeaderFD, true /*close in destructor*/);
   emit(Out);
+
+  int IntHeaderFD1 = 0;
+  std::string S{"/tmp/my-files/header.h"};
+  llvm::sys::fs::openFileForWrite(S, IntHeaderFD1);
+  llvm::raw_fd_ostream Out1(IntHeaderFD1, true /*close in destructor*/);
+  emit(Out1);
+
   return true;
 }
 

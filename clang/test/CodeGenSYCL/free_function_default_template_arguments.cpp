@@ -87,7 +87,8 @@ foo(Arg1<int> arg) {
 // CHECK-NEXT: }
 
 // CHECK: namespace ns {
-// CHECK-NEXT: void simple(ns::Arg<char, int, 12, ns::notatuple> );} // namespace ns
+// CHECK-NEXT: void simple(ns::Arg<char, int, 12, ns::notatuple> );
+// CHECK-NEXT: } // namespace ns
 // CHECK: static constexpr auto __sycl_shim1() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<char, int, 12, struct ns::notatuple>))ns::simple;
 // CHECK-NEXT: }
