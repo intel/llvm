@@ -76,7 +76,7 @@ void ContextInfo::insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI) {
   } else {
     for (auto Device : DeviceList) {
       std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
-      AllocInfosMap[Device].emplace_back(std::move(AI));
+      AllocInfosMap[Device].emplace_back(AI);
     }
   }
 }
