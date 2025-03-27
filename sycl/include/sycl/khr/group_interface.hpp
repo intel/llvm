@@ -77,9 +77,7 @@ public:
   static constexpr int dimensions = Dimensions;
   static constexpr memory_scope fence_scope = memory_scope::work_group;
 
-  work_group(group<Dimensions> g) noexcept {
-    std::ignore = g;
-  }
+  work_group(group<Dimensions>) noexcept {}
 
   operator group<Dimensions>() const noexcept { return legacy(); }
 
@@ -122,9 +120,7 @@ public:
   }
 #endif
 
-  size_type size() const noexcept {
-    return legacy().get_local_range().size();
-  }
+  size_type size() const noexcept { return legacy().get_local_range().size(); }
 
 private:
   group<Dimensions> legacy() const noexcept {
@@ -144,9 +140,7 @@ public:
   static constexpr int dimensions = 1;
   static constexpr memory_scope fence_scope = memory_scope::sub_group;
 
-  sub_group(sycl::sub_group g) noexcept {
-    std::ignore = g;
-  }
+  sub_group(sycl::sub_group) noexcept {}
 
   operator sycl::sub_group() const noexcept { return legacy(); }
 
@@ -182,9 +176,7 @@ public:
   }
 #endif
 
-  size_type size() const noexcept {
-    return legacy().get_local_range().size();
-  }
+  size_type size() const noexcept { return legacy().get_local_range().size(); }
 
   size_type max_size() const noexcept {
     return legacy().get_max_local_range().size();
@@ -261,8 +253,7 @@ protected:
 template <typename ParentGroup>
 std::enable_if_t<detail::is_khr_group<ParentGroup>::value,
                  member_item<ParentGroup>>
-get_member_item(ParentGroup g) {
-  std::ignore = g;
+get_member_item(ParentGroup) {
   return member_item<ParentGroup>{};
 }
 
