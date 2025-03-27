@@ -19,7 +19,7 @@ entry:
 ; CHECK: call spir_func void @_ZNK4sycl3_V15groupILi1EE12get_group_idEv(ptr dead_on_unwind writable sret(%"class.sycl::_V1::id") align 8 %lower_wg.local_copy, ptr {{.*}})
 ; CHECK: %lower_wg.private_load = load %"class.sycl::_V1::id", ptr %lower_wg.local_copy, align 8
 ; CHECK: store %"class.sycl::_V1::id" %lower_wg.private_load, ptr addrspace(3) @hierarchical, align 8
-
+; CHECK-NOT: addrspacecast (ptr addrspace(3) @hierarchical to ptr)
   %group_pid.ascast = addrspacecast ptr %group_pid to ptr addrspace(4)
   call spir_func void @_ZNK4sycl3_V15groupILi1EE12get_group_idEv(ptr dead_on_unwind writable sret(%"class.sycl::_V1::id") align 8 addrspacecast (ptr addrspace(3) @hierarchical to ptr), ptr addrspace(4) noundef align 8 dereferenceable_or_null(32) %group_pid.ascast)
   ret void
