@@ -126,11 +126,11 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Structure with function pointers for External Semaphore Extension.
   struct ZeExternalSemaphoreExtension {
     bool Supported = false;
-    // If LoaderExtension is true, the L0 loader is aware of the MCL extension.
-    // If it is false, the extension has to be loaded directly from the driver
-    // using zeDriverGetExtensionFunctionAddress. If it is loaded directly from
-    // the driver, any handles passed to it must be translated using
-    // zelLoaderTranslateHandle.
+    // If LoaderExtension is true, the L0 loader is aware of the External
+    // Semaphore Extension. If it is false, the extension has to be loaded
+    // directly from the driver using zeDriverGetExtensionFunctionAddress. If it
+    // is loaded directly from the driver, any handles passed to it must be
+    // translated using zelLoaderTranslateHandle.
     bool LoaderExtension = false;
     // Spec Functions
     ze_pfnDeviceImportExternalSemaphoreExt_t zexImportExternalSemaphoreExp =
