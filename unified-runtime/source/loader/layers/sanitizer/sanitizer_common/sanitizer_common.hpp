@@ -114,18 +114,6 @@ inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
 
 // ================================================================
 
-// Trace an internal UR call; returns in case of an error.
-#define UR_CALL(Call)                                                          \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      URLOG_CTX(DEBUG, "UR ---> {}", #Call);                                   \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
-      URLOG_CTX(DEBUG, "UR <--- {}({})", #Call, Result);                       \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      return Result;                                                           \
-  }
-
 using BacktraceFrame = void *;
 using BacktraceInfo = std::string;
 
