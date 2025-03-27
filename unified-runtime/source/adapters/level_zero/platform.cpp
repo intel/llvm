@@ -508,13 +508,15 @@ bool ur_platform_handle_t_::allowDriverInOrderLists(bool OnlyIfRequested) {
     bool CompatibleDriver = this->isDriverVersionNewerOrSimilar(
         1, L0_DRIVER_INORDER_MINOR_VERSION, L0_DRIVER_INORDER_PATCH_VERSION);
     bool DriverInOrderRequested = UrRet ? std::atoi(UrRet) != 0 : false;
-    if (OnlyIfRequested) {
-      return DriverInOrderRequested;
-    }
     bool CanUseDriverInOrderLists = CompatibleDriver || DriverInOrderRequested;
     return CanUseDriverInOrderLists;
   }();
 
+  if (OnlyIfRequested) {
+    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
+    bool DriverInOrderRequested = UrRet ? std::atoi(UrRet) != 0 : false;
+    return DriverInOrderRequested;
+  }
   return UseDriverInOrderLists;
 }
 
