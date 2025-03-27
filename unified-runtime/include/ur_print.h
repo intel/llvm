@@ -2848,16 +2848,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolDestroyExpParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_usm_pool_set_threshold_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolSetThresholdExpParams(
-    const struct ur_usm_pool_set_threshold_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_usm_pool_get_default_device_pool_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2875,6 +2865,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolGetDefaultDevicePoolExpParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolGetInfoExpParams(
     const struct ur_usm_pool_get_info_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_usm_pool_set_info_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmPoolSetInfoExpParams(
+    const struct ur_usm_pool_set_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
