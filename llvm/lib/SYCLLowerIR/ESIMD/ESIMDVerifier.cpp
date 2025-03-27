@@ -97,6 +97,8 @@ public:
   BuffDeleter() = delete;
   BuffDeleter(const BuffDeleter &) = delete;
   BuffDeleter(BuffDeleter &&) = delete;
+  BuffDeleter &operator=(BuffDeleter &) = delete;
+  BuffDeleter &operator=(BuffDeleter &&) = delete;
 
 private:
   char *Buff;
