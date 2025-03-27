@@ -32,10 +32,9 @@ class Options:
     compare_max: int = 10  # average/median over how many results
     output_markdown: MarkdownSize = MarkdownSize.SHORT
     output_html: bool = False
+    output_directory: str = None
     dry_run: bool = False
-    # these two should probably be merged into one setting
     stddev_threshold: float = 0.02
-    epsilon: float = 0.02
     iterations_stddev: int = 5
     build_compute_runtime: bool = False
     extra_ld_libraries: list[str] = field(default_factory=list)
