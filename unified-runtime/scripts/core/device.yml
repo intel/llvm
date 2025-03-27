@@ -460,6 +460,8 @@ etors:
       desc: "[int32_t][optional-query] return min power limit in milliwatts."
     - name: MAX_POWER_LIMIT
       desc: "[int32_t][optional-query] return max power limit in milliwatts."
+    - name: BFLOAT16_CONVERSIONS_NATIVE
+      desc: "[$x_bool_t] support for native bfloat16 conversions"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
