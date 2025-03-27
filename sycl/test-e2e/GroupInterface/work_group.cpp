@@ -1,5 +1,3 @@
-// REQUIRES: cpu
-
 // RUN: %{build} %cxx_std_optionc++23 -o %t.out
 // RUN: %{run} %t.out
 
@@ -46,91 +44,99 @@ static_assert(khr::work_group<3>::dimensions == 3);
 static_assert(khr::work_group<3>::fence_scope == memory_scope::work_group);
 
 int main() {
-  queue q(cpu_selector_v);
+  queue q;
+  sycl::buffer<bool, 1> result(1);
 
   const int sz = 16;
   q.submit([&](handler &h) {
+    sycl::accessor<bool, 0> acc{result, h};
     h.parallel_for(nd_range<1>{sz, sz}, [=](nd_item<1> item) {
       group<1> g = item.get_group();
 
       khr::work_group<1> wg = g;
-      assert(wg.id() == g.get_group_id());
-      assert(wg.linear_id() == g.get_group_linear_id());
-      assert(wg.range() == g.get_group_range());
+      acc = true;
+      acc &= (wg.id() == g.get_group_id());
+      acc &= (wg.linear_id() == g.get_group_linear_id());
+      acc &= (wg.range() == g.get_group_range());
 #if defined(__cpp_lib_mdspan)
-      assert(wg.extents().rank() == 1);
-      assert(wg.extent(0) == g.get_local_range()[0]);
+      acc &= (wg.extents().rank() == 1);
+      acc &= (wg.extent(0) == g.get_local_range()[0]);
 #endif
-      assert(wg.size() == g.get_local_linear_range());
+      acc &= (wg.size() == g.get_local_linear_range());
 
       khr::member_item wi = get_member_item(wg);
-      assert(wi.id() == g.get_local_id());
-      assert(wi.linear_id() == g.get_local_linear_id());
-      assert(wi.range() == g.get_local_range());
+      acc &= (wi.id() == g.get_local_id());
+      acc &= (wi.linear_id() == g.get_local_linear_id());
+      acc &= (wi.range() == g.get_local_range());
 #if defined(__cpp_lib_mdspan)
-      assert(wi.extents().rank() == 1);
-      assert(wi.extent(0) == 1);
+      acc &= (wi.extents().rank() == 1);
+      acc &= (wi.extent(0) == 1);
 #endif
-      assert(wi.size() == 1);
+      acc &= (wi.size() == 1);
     });
   });
   q.submit([&](handler &h) {
+    sycl::accessor<bool, 0> acc{result, h};
     h.parallel_for(nd_range<2>{range<2>{sz, sz}, range<2>{sz, sz}},
                    [=](nd_item<2> item) {
                      group<2> g = item.get_group();
 
                      khr::work_group<2> wg = g;
-                     assert(wg.id() == g.get_group_id());
-                     assert(wg.linear_id() == g.get_group_linear_id());
-                     assert(wg.range() == g.get_group_range());
+                     acc &= (wg.id() == g.get_group_id());
+                     acc &= (wg.linear_id() == g.get_group_linear_id());
+                     acc &= (wg.range() == g.get_group_range());
 #if defined(__cpp_lib_mdspan)
-                     assert(wg.extents().rank() == 2);
-                     assert(wg.extent(0) == g.get_local_range()[0]);
-                     assert(wg.extent(1) == g.get_local_range()[1]);
+                     acc &= (wg.extents().rank() == 2);
+                     acc &= (wg.extent(0) == g.get_local_range()[0]);
+                     acc &= (wg.extent(1) == g.get_local_range()[1]);
 #endif
-                     assert(wg.size() == g.get_local_linear_range());
+                     acc &= (wg.size() == g.get_local_linear_range());
 
                      khr::member_item wi = get_member_item(wg);
-                     assert(wi.id() == g.get_local_id());
-                     assert(wi.linear_id() == g.get_local_linear_id());
-                     assert(wi.range() == g.get_local_range());
+                     acc &= (wi.id() == g.get_local_id());
+                     acc &= (wi.linear_id() == g.get_local_linear_id());
+                     acc &= (wi.range() == g.get_local_range());
 #if defined(__cpp_lib_mdspan)
-                     assert(wi.extents().rank() == 2);
-                     assert(wi.extent(0) == 1);
-                     assert(wi.extent(1) == 1);
+                     acc &= (wi.extents().rank() == 2);
+                     acc &= (wi.extent(0) == 1);
+                     acc &= (wi.extent(1) == 1);
 #endif
-                     assert(wi.size() == 1);
+                     acc &= (wi.size() == 1);
                    });
   });
   q.submit([&](handler &h) {
+    sycl::accessor<bool, 0> acc{result, h};
     h.parallel_for(nd_range<3>{range<3>{sz, sz, sz}, range<3>{sz, sz, sz}},
                    [=](nd_item<3> item) {
                      group<3> g = item.get_group();
 
                      khr::work_group<3> wg = g;
-                     assert(wg.id() == g.get_group_id());
-                     assert(wg.linear_id() == g.get_group_linear_id());
-                     assert(wg.range() == g.get_group_range());
+                     acc &= (wg.id() == g.get_group_id());
+                     acc &= (wg.linear_id() == g.get_group_linear_id());
+                     acc &= (wg.range() == g.get_group_range());
 #if defined(__cpp_lib_mdspan)
-                     assert(wg.extents().rank() == 3);
-                     assert(wg.extent(0) == g.get_local_range()[0]);
-                     assert(wg.extent(1) == g.get_local_range()[1]);
-                     assert(wg.extent(2) == g.get_local_range()[2]);
+                     acc &= (wg.extents().rank() == 3);
+                     acc &= (wg.extent(0) == g.get_local_range()[0]);
+                     acc &= (wg.extent(1) == g.get_local_range()[1]);
+                     acc &= (wg.extent(2) == g.get_local_range()[2]);
 #endif
-                     assert(wg.size() == g.get_local_linear_range());
+                     acc &= (wg.size() == g.get_local_linear_range());
 
                      khr::member_item wi = get_member_item(wg);
-                     assert(wi.id() == g.get_local_id());
-                     assert(wi.linear_id() == g.get_local_linear_id());
-                     assert(wi.range() == g.get_local_range());
+                     acc &= (wi.id() == g.get_local_id());
+                     acc &= (wi.linear_id() == g.get_local_linear_id());
+                     acc &= (wi.range() == g.get_local_range());
 #if defined(__cpp_lib_mdspan)
-                     assert(wi.extents().rank() == 3);
-                     assert(wi.extent(0) == 1);
-                     assert(wi.extent(1) == 1);
-                     assert(wi.extent(2) == 1);
+                     acc &= (wi.extents().rank() == 3);
+                     acc &= (wi.extent(0) == 1);
+                     acc &= (wi.extent(1) == 1);
+                     acc &= (wi.extent(2) == 1);
 #endif
-                     assert(wi.size() == 1);
+                     acc &= (wi.size() == 1);
                    });
   });
   q.wait();
+
+  sycl::host_accessor<bool, 0> acc{result};
+  assert(static_cast<bool>(acc));
 }
