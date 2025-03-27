@@ -162,6 +162,8 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_report.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_shadow.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/msan/msan_shadow.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_buffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_buffer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_ddi.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_ddi.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/tsan/tsan_interceptor.cpp

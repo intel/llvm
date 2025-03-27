@@ -76,7 +76,7 @@ void ContextInfo::insertAllocInfo(ur_device_handle_t Device, TsanAllocInfo AI) {
   } else {
     for (auto Device : DeviceList) {
       std::scoped_lock<ur_shared_mutex> Guard(AllocInfosMapMutex);
-      AllocInfosMap[Device].emplace_back(std::move(AI));
+      AllocInfosMap[Device].emplace_back(AI);
     }
   }
 }
@@ -183,6 +183,24 @@ ur_result_t TsanInterceptor::eraseContext(ur_context_handle_t Context) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t TsanInterceptor::insertKernel(ur_kernel_handle_t Kernel) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+  if (m_KernelMap.find(Kernel) != m_KernelMap.end()) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  m_KernelMap.emplace(Kernel, Kernel);
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::eraseKernel(ur_kernel_handle_t Kernel) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_KernelMapMutex);
+  assert(m_KernelMap.find(Kernel) != m_KernelMap.end());
+  m_KernelMap.erase(Kernel);
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t TsanInterceptor::insertDevice(ur_device_handle_t Device,
                                           std::shared_ptr<DeviceInfo> &DI) {
   std::scoped_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
@@ -198,6 +216,32 @@ ur_result_t TsanInterceptor::insertDevice(ur_device_handle_t Device,
   m_DeviceMap.emplace(Device, DI);
 
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+TsanInterceptor::insertMemBuffer(std::shared_ptr<MemBuffer> MemBuffer) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
+  assert(m_MemBufferMap.find(ur_cast<ur_mem_handle_t>(MemBuffer.get())) ==
+         m_MemBufferMap.end());
+  m_MemBufferMap.emplace(reinterpret_cast<ur_mem_handle_t>(MemBuffer.get()),
+                         MemBuffer);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t TsanInterceptor::eraseMemBuffer(ur_mem_handle_t MemHandle) {
+  std::scoped_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
+  assert(m_MemBufferMap.find(MemHandle) != m_MemBufferMap.end());
+  m_MemBufferMap.erase(MemHandle);
+  return UR_RESULT_SUCCESS;
+}
+
+std::shared_ptr<MemBuffer>
+TsanInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
+  std::shared_lock<ur_shared_mutex> Guard(m_MemBufferMapMutex);
+  if (m_MemBufferMap.find(MemHandle) != m_MemBufferMap.end()) {
+    return m_MemBufferMap[MemHandle];
+  }
+  return nullptr;
 }
 
 ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
@@ -241,6 +285,23 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
                                            ur_queue_handle_t Queue,
                                            ur_kernel_handle_t Kernel,
                                            LaunchInfo &LaunchInfo) {
+  // Set membuffer arguments
+  auto &KernelInfo = getKernelInfo(Kernel);
+  {
+    std::shared_lock<ur_shared_mutex> Guard(KernelInfo.Mutex);
+    for (const auto &[ArgIndex, MemBuffer] : KernelInfo.BufferArgs) {
+      char *ArgPointer = nullptr;
+      UR_CALL(MemBuffer->getHandle(DI->Handle, ArgPointer));
+      ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
+          Kernel, ArgIndex, nullptr, ArgPointer);
+      if (URes != UR_RESULT_SUCCESS) {
+        getContext()->logger.error(
+            "Failed to set buffer {} as the {} arg to kernel {}: {}",
+            ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel, URes);
+      }
+    }
+  }
+
   // Prepare launch info data
   LaunchInfo.Data.Host.GlobalShadowOffset = DI->Shadow->ShadowBegin;
   LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DI->Shadow->ShadowEnd;
