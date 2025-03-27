@@ -594,7 +594,7 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
 }
 
 ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
-    [[maybe_unused]] QueueImplPtr Queue,
+    [[maybe_unused]] const QueueImplPtr &Queue,
     [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
     [[maybe_unused]] const std::string &KernelName,
     [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {

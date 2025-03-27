@@ -126,7 +126,7 @@ static event prepareSYCLEventAssociatedWithQueue(
 static event createDiscardedEvent() {
   EventImplPtr EventImpl =
       std::make_shared<event_impl>(event_impl::HES_Discarded);
-  return createSyclObjFromImpl<event>(EventImpl);
+  return createSyclObjFromImpl<event>(std::move(EventImpl));
 }
 
 const std::vector<event> &
@@ -303,7 +303,7 @@ sycl::detail::optional<event> queue_impl::getLastEvent() {
 }
 
 void queue_impl::addEvent(const event &Event) {
-  EventImplPtr EImpl = getSyclObjImpl(Event);
+  const EventImplPtr &EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
   if (!Cmd) {
@@ -388,7 +388,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
 
   addEvent(Event);
 
-  auto EventImpl = detail::getSyclObjImpl(Event);
+  const auto &EventImpl = detail::getSyclObjImpl(Event);
   for (auto &Stream : Streams) {
     // We don't want stream flushing to be blocking operation that is why submit
     // a host task to print stream buffer. It will fire up as soon as the kernel
@@ -728,8 +728,6 @@ void queue_impl::destructorNotification() {
 
 ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   const AdapterPtr &Adapter = getAdapter();
-  if (getContextImplPtr()->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urQueueRetain>(MQueues[0]);
   ur_native_handle_t Handle{};
   ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
                                       nullptr, nullptr};
@@ -737,6 +735,9 @@ ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
 
   Adapter->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], &UrNativeDesc,
                                                    &Handle);
+  if (getContextImplPtr()->getBackend() == backend::opencl)
+    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(Handle));
+
   return Handle;
 }
 
