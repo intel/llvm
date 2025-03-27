@@ -1496,7 +1496,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     /// must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) {
   auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
-  URLOG_CTX(DEBUG, "==== pfnUSMMemcpy");
+  URLOG_CTX(DEBUG, "==== urEnqueueUSMMemcpy");
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
@@ -1637,7 +1637,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     /// phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) {
   auto pfnUSMMemcpy2D = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D;
-  URLOG_CTX(DEBUG, "==== pfnUSMMemcpy2D");
+  URLOG_CTX(DEBUG, "==== urEnqueueUSMMemcpy2D");
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
