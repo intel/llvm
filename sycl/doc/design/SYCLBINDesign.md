@@ -6,10 +6,14 @@ doing so through the
 [sycl_ext_oneapi_kernel_compiler](https://github.com/intel/llvm/blob/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc)
 extension can be unnecessarily expensive, if the systems utilizing this
 modularity are able to compile the binaries separate from the application's
-execution. However, since the compiler may produce multiple binaries and related
-metadata, e.g. through module splitting or multiple device targets, a new
-SYCLBIN format is needed to define the interface between the compiler-produced
-binaries and the runtime's handling of it.
+execution.
+
+To facilitate that a new SYCLBIN format is needed to define the interface between
+the compiler-produced binaries and the runtime's handling of it. This necessity
+comes from the overall design of our SYCL toolchain where runtime relies on
+compiler-provided information/metadata to implement various features (like
+support for specialization constants or shared libraries), i.e. device code alone
+is not enough.
 
 This design document details the SYCLBIN binary format used for storing SYCL
 device binaries to be loaded dynamically by the SYCL runtime. It also details
@@ -74,7 +78,7 @@ file.
 | `uint64_t` | Byte size of the metadata byte table.                                         |
 | `uint64_t` | Byte size of the binary byte table.                                           |
 | `uint64_t` | Byte offset of the global metadata from the start of the metadata byte table. |
-| `uint64_t` | Byte size of the global metadata from the start of the metadata byte table.   |
+| `uint64_t` | Byte size of the global metadata.                                             |
 
 
 #### Global metadata
