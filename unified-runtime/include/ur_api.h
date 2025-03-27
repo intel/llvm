@@ -1820,7 +1820,9 @@ typedef struct ur_device_binary_t {
 typedef enum ur_device_type_t {
   /// The default device type as preferred by the runtime
   UR_DEVICE_TYPE_DEFAULT = 1,
-  /// Devices of all types
+  /// Devices of all types, for use with ::urDeviceGet() and
+  /// ::urDeviceGetSelected(). This value will never be returned when
+  /// querying about a device.
   UR_DEVICE_TYPE_ALL = 2,
   /// Graphics Processing Unit
   UR_DEVICE_TYPE_GPU = 3,
