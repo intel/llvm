@@ -277,9 +277,9 @@ private:
                      [](unsigned char c) { return std::tolower(c); });
 
       if (PositiveFilter) {
-        positiveFilters.push_back({backend, termPair.second});
+        positiveFilters.push_back({std::move(backend), termPair.second});
       } else {
-        negativeFilters.push_back({backend, termPair.second});
+        negativeFilters.push_back({std::move(backend), termPair.second});
       }
     }
 
@@ -294,7 +294,8 @@ private:
       for (const auto &device : manifest.device_types) {
         ur_device_tuple single_device = {manifest.backend, device};
 
-        auto matchesFilter = [single_device](const FilterTerm &f) -> bool {
+        const auto matchesFilter =
+            [single_device](const FilterTerm &f) -> bool {
           return f.matches(single_device);
         };
 
