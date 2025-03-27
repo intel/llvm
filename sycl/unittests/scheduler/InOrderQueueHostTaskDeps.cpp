@@ -49,7 +49,7 @@ inline ur_result_t redefinedEventsWait(void *pParams) {
 inline ur_result_t redefinedEventHostSignal(void *pParams) {
   EventSignaled = true;
   {
-    std::lock_guard lk(HostTaskMutex);
+    std::unique_lock<std::mutex> lk(HostTaskMutex);
     HostTaskReady = true;
   }
   HostTaskCV.notify_one();
