@@ -299,26 +299,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+template <class T, class I>
+static inline ur_result_t
+withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
+                uint32_t numEventsInWaitList,
+                const ur_event_handle_t *phEventWaitList,
+                ur_event_handle_t *phEvent, T &&f, I &&inv) {
+  urEventWait(numEventsInWaitList, phEventWaitList);
+  ur_event_handle_t event = nullptr;
+  if (phEvent) {
+    ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
+    event->tick_start();
+    ur_result_t result = inv(std::forward<T>(f), event);
+    *phEvent = event;
+    return result;
+  }
+  ur_result_t result = f();
+  return result;
+}
+
+struct BlockingWithEvent {
+  template <class T>
+  ur_result_t operator()(T &&op, ur_event_handle_t event) const {
+    ur_result_t result = op();
+    event->tick_end();
+    return result;
+  }
+};
+
 template <class T>
 static inline ur_result_t
 withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
                 uint32_t numEventsInWaitList,
                 const ur_event_handle_t *phEventWaitList,
                 ur_event_handle_t *phEvent, T &&f) {
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  ur_event_handle_t event = nullptr;
-  if (phEvent) {
-    event = new ur_event_handle_t_(hQueue, command_type);
-    event->tick_start();
-  }
-
-  ur_result_t result = f();
-
-  if (phEvent) {
-    event->tick_end();
-    *phEvent = event;
-  }
-  return result;
+  return withTimingEvent(command_type, hQueue, numEventsInWaitList,
+                         phEventWaitList, phEvent, std::forward<T>(f),
+                         BlockingWithEvent());
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
@@ -654,18 +671,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = blocking;
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
+  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  auto Inv = [blocking, hQueue, size](auto &&f, ur_event_handle_t event) {
+    if (blocking || size < 100)
+      return BlockingWithEvent()(f, event);
+    auto &tp = hQueue->getDevice()->tp;
+    std::vector<std::future<void>> futures;
+    futures.emplace_back(tp.schedule_task([f](size_t) { f(); }));
+    event->set_futures(futures);
+    event->set_callback([event]() { event->tick_end(); });
+    return UR_RESULT_SUCCESS;
+  };
+  // blocking op
   return withTimingEvent(
       UR_COMMAND_USM_MEMCPY, hQueue, numEventsInWaitList, phEventWaitList,
-      phEvent, [&]() {
-        UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
-        UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-        UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
+      phEvent,
+      [pDst, pSrc, size]() {
         memcpy(pDst, pSrc, size);
-
         return UR_RESULT_SUCCESS;
-      });
+      },
+      Inv);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
