@@ -426,7 +426,7 @@ public:
       typename vector_t_ = vector_t,
       typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
   constexpr vec(vector_t_ openclVector) {
-    m_Data = sycl::bit_cast<DataType>(openclVector);
+    sycl::detail::memcpy(&m_Data, &openclVector, sizeof(openclVector));
   }
 
   /* @SYCL2020
@@ -540,7 +540,7 @@ public:
       if constexpr (canUseNativeVectorConvert) {
         auto val = detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
                                 OpenCLVecR>(NativeVector);
-        Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(val);
+        sycl::detail::memcpy(&Result.m_Data, &val, sizeof(Result));
       } else
 #endif // __SYCL_DEVICE_ONLY__
       {
