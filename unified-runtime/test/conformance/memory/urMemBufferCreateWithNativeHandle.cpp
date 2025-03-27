@@ -42,8 +42,8 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, SuccessWithProperties) {
   // we always get the native handle from a UR object, and transferring
   // ownership from one UR object to another isn't allowed.
   ur_mem_native_properties_t props = {
-      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.pNext =*/nullptr,
+      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.isNativeHandleOwned =*/false,
   };
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
@@ -64,8 +64,8 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
 
   ur_mem_handle_t mem = nullptr;
   ur_mem_native_properties_t props = {
-      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.pNext =*/nullptr,
+      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.isNativeHandleOwned =*/false,
   };
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
@@ -86,8 +86,8 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, InvalidNullHandle) {
 
   ur_mem_handle_t mem = nullptr;
   ur_mem_native_properties_t props = {
-      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.pNext =*/nullptr,
+      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.isNativeHandleOwned =*/false,
   };
   auto err =
@@ -102,8 +102,8 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, InvalidNullPointer) {
       urMemGetNativeHandle(buffer, device, &hNativeMem));
 
   ur_mem_native_properties_t props = {
-      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.pNext =*/nullptr,
+      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.isNativeHandleOwned =*/false,
   };
   auto err =
@@ -122,8 +122,8 @@ TEST_P(urMemBufferMultiQueueMemBufferTest, WriteBack) {
   ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &ptr));
   ur_mem_handle_t mem = nullptr;
   ur_mem_native_properties_t props = {
-      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.pNext =*/nullptr,
+      /*.stype =*/UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
       /*.isNativeHandleOwned =*/false,
   };
   {

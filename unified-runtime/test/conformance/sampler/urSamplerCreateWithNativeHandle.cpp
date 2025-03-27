@@ -46,7 +46,7 @@ TEST_P(urSamplerCreateWithNativeHandleTest,
   // and perform some query on it to verify that it works.
   ur_sampler_handle_t hSampler = nullptr;
   ur_sampler_native_properties_t props{
-      UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES, nullptr, false};
+      nullptr, UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES, false};
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urSamplerCreateWithNativeHandle(
       native_sampler, context, &props, &hSampler));
   ASSERT_NE(hSampler, nullptr);
@@ -89,8 +89,8 @@ TEST_P(urSamplerCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
   uur::raii::Sampler hSampler = nullptr;
   {
     ur_sampler_desc_t sampler_desc{
-        UR_STRUCTURE_TYPE_SAMPLER_DESC,  /* stype */
         nullptr,                         /* pNext */
+        UR_STRUCTURE_TYPE_SAMPLER_DESC,  /* stype */
         true,                            /* normalizedCoords */
         UR_SAMPLER_ADDRESSING_MODE_NONE, /* addressing mode */
         UR_SAMPLER_FILTER_MODE_NEAREST,  /* filterMode */
@@ -103,7 +103,7 @@ TEST_P(urSamplerCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
   }
 
   ur_sampler_native_properties_t props = {
-      UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES, nullptr, true};
+      nullptr, UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES, true};
   ur_sampler_handle_t sampler = nullptr;
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urSamplerCreateWithNativeHandle(
       native_handle, context, &props, &sampler));
@@ -116,8 +116,8 @@ TEST_P(urSamplerCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
   uur::raii::Sampler hSampler = nullptr;
   {
     ur_sampler_desc_t sampler_desc{
-        UR_STRUCTURE_TYPE_SAMPLER_DESC,  /* stype */
         nullptr,                         /* pNext */
+        UR_STRUCTURE_TYPE_SAMPLER_DESC,  /* stype */
         true,                            /* normalizedCoords */
         UR_SAMPLER_ADDRESSING_MODE_NONE, /* addressing mode */
         UR_SAMPLER_FILTER_MODE_NEAREST,  /* filterMode */
@@ -130,7 +130,7 @@ TEST_P(urSamplerCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
   }
 
   ur_sampler_native_properties_t props = {
-      UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES, nullptr, false};
+      nullptr, UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES, false};
   ur_sampler_handle_t sampler = nullptr;
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urSamplerCreateWithNativeHandle(
       native_handle, context, &props, &sampler));

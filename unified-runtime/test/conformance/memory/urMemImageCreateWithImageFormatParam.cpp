@@ -8,8 +8,8 @@
 #include <vector>
 
 static ur_image_desc_t image_desc{
-    UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
     nullptr, ///< [in][optional] pointer to extension-specific structure
+    UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
     UR_MEM_TYPE_IMAGE3D, ///< [in] memory object type
     1,                   ///< [in] image width
     1,                   ///< [in] image height

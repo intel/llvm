@@ -37,7 +37,7 @@ TEST_P(urDeviceCreateWithNativeHandleTest,
 
   ur_device_handle_t dev = nullptr;
   ur_device_native_properties_t props{
-      UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES, nullptr, false};
+      nullptr, UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES, false};
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceCreateWithNativeHandle(native_handle, adapter, &props, &dev));
   ASSERT_NE(dev, nullptr);

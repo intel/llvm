@@ -134,8 +134,8 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
   {
     static const size_t PageSize = GetVirtualMemGranularity(Context, Device);
 
-    ur_physical_mem_properties_t Desc{UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
-                                      nullptr, 0};
+    ur_physical_mem_properties_t Desc{nullptr,
+                                      UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES, 0};
 
     // Make sure [Ptr, Ptr + Size] is mapped to physical memory
     for (auto MappedPtr = RoundDownTo((uptr)Begin, PageSize); MappedPtr <= End;

@@ -49,7 +49,7 @@ TEST_P(urPlatformCreateWithNativeHandleTest,
   // We can however convert the native_handle back into a unified-runtime
   // handle and perform some query on it to verify that it works.
   ur_platform_native_properties_t props = {
-      UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES, nullptr, false};
+      nullptr, UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES, false};
   ur_platform_handle_t plat = nullptr;
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urPlatformCreateWithNativeHandle(native_handle, adapter, &props, &plat));
