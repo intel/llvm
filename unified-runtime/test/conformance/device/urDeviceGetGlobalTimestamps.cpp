@@ -31,39 +31,32 @@ using urDeviceGetGlobalTimestampTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urDeviceGetGlobalTimestampTest);
 
 TEST_P(urDeviceGetGlobalTimestampTest, Success) {
-  // See https://github.com/oneapi-src/unified-runtime/issues/2633
-  UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
-
   uint64_t device_time = 0;
   uint64_t host_time = 0;
-  ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, &device_time, &host_time));
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetGlobalTimestamps(device, &device_time, &host_time));
   ASSERT_NE(device_time, 0);
   ASSERT_NE(host_time, 0);
 }
 
 TEST_P(urDeviceGetGlobalTimestampTest, SuccessHostTimer) {
-  UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
-
   uint64_t host_time = 0;
-  ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, &host_time));
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetGlobalTimestamps(device, nullptr, &host_time));
   ASSERT_NE(host_time, 0);
 }
 
 TEST_P(urDeviceGetGlobalTimestampTest, SuccessNoTimers) {
-  UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
-
-  ASSERT_SUCCESS(urDeviceGetGlobalTimestamps(device, nullptr, nullptr));
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetGlobalTimestamps(device, nullptr, nullptr));
 }
 
 TEST_P(urDeviceGetGlobalTimestampTest, SuccessSynchronizedTime) {
-  // Returns `UR_RESULT_ERROR_INVALID_OPERATION`
-  UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) FPGA"});
-
   uint64_t deviceStartTime = 0, deviceEndTime = 0;
   uint64_t hostStartTime = 0, hostEndTime = 0;
   uint64_t hostOnlyStartTime = 0, hostOnlyEndTime = 0;
 
-  ASSERT_SUCCESS(
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceGetGlobalTimestamps(device, &deviceStartTime, &hostStartTime));
   ASSERT_SUCCESS(
       urDeviceGetGlobalTimestamps(device, nullptr, &hostOnlyStartTime));

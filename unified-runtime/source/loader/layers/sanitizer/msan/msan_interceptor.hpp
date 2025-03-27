@@ -88,6 +88,9 @@ struct KernelInfo {
   ur_shared_mutex Mutex;
   std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
 
+  // Need preserve the order of local arguments
+  std::map<uint32_t, MsanLocalArgsInfo> LocalArgs;
+
   explicit KernelInfo(ur_kernel_handle_t Kernel) : Handle(Kernel) {
     [[maybe_unused]] auto Result =
         getContext()->urDdiTable.Kernel.pfnRetain(Kernel);
@@ -168,6 +171,9 @@ struct USMLaunchInfo {
   ~USMLaunchInfo();
 
   ur_result_t initialize();
+  ur_result_t
+  importLocalArgsInfo(ur_queue_handle_t Queue,
+                      const std::vector<MsanLocalArgsInfo> &LocalArgs);
 };
 
 struct DeviceGlobalInfo {

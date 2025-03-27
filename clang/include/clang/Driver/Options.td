@@ -6943,9 +6943,9 @@ def fsycl_device_lib_jit_link : Flag<["-"], "fsycl-device-lib-jit-link">,
 def fno_sycl_device_lib_jit_link : Flag<["-"], "fno-sycl-device-lib-jit-link">,
   HelpText<"Disables sycl device library jit link (experimental)">;
 def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">,
+  Alias<foffload_fp32_prec_sqrt>, Flags<[Deprecated]>,
   Visibility<[ClangOption, CC1Option]>, HelpText<"SYCL only. Specify that "
-  "single precision floating-point sqrt is correctly rounded.">,
-  MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
+  "single precision floating-point sqrt is correctly rounded. (deprecated)">;
 def fsycl_default_sub_group_size
     : Separate<["-"], "fsycl-default-sub-group-size">,
       HelpText<"Set the default sub group size for SYCL kernels">,
@@ -7031,6 +7031,13 @@ defm sycl_decompose_functor
           NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not">,
           BothFlags<[], [ClangOption, CLOption, CC1Option],
            " decompose SYCL functor if possible (experimental, CUDA only)">>;
+defm sycl_cuda_compat
+    : BoolFOption<"sycl-cuda-compatibility", LangOpts<"SYCLCUDACompat">, DefaultFalse,
+          PosFlag<SetTrue, [], [ClangOption, CLOption, CC1Option], "Enable CUDA compatibility mode (experimental). "
+          "Enable the use of CUDA device code with SYCL device code. "
+          "Under this mode, a SYCL device function can call a CUDA device function (but not the other way around). "
+          "This implies the definition of CUDA macros and the inclusion of implicit header files.">,
+          NegFlag<SetFalse, [], [ClangOption, CLOption, CC1Option], "Disable CUDA compatibility mode.">>;
 def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
   HelpText<"Generate and use a custom linker script for huge device code "
            "sections">;

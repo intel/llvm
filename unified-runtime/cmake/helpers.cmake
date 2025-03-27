@@ -80,10 +80,10 @@ else()
 endif()
 
 set(CFI_FLAGS "")
-if (CFI_HAS_CFI_SANITIZE)
+if (CXX_HAS_CFI_SANITIZE)
     # cfi-icall requires called functions in shared libraries to also be built with cfi-icall, which we can't
     # guarantee. -fsanitize=cfi depends on -flto
-    set(CFI_FLAGS "-flto -fsanitize=cfi -fno-sanitize=cfi-icall -fsanitize-ignorelist=${PROJECT_SOURCE_DIR}/sanitizer-ignorelist.txt")
+    set(CFI_FLAGS "-flto;-fsanitize=cfi;-fno-sanitize=cfi-icall;-fsanitize-ignorelist=${PROJECT_SOURCE_DIR}/sanitizer-ignorelist.txt")
 endif()
 
 function(add_ur_target_compile_options name)
@@ -99,11 +99,11 @@ function(add_ur_target_compile_options name)
             -Wunused-parameter
 
             # Hardening options
-            -fPIC
             -fstack-protector-strong
             -fvisibility=hidden
 
             ${CFI_FLAGS}
+
             $<$<BOOL:${CXX_HAS_FCF_PROTECTION_FULL}>:-fcf-protection=full>
             $<$<BOOL:${CXX_HAS_FSTACK_CLASH_PROTECTION}>:-fstack-clash-protection>
 
@@ -171,15 +171,7 @@ function(add_ur_target_link_options name)
 endfunction()
 
 function(add_ur_target_exec_options name)
-    if(NOT MSVC)
-        if(NOT APPLE)
-            if(CMAKE_BUILD_TYPE STREQUAL "Release")
-                target_link_options(${name} PRIVATE
-                    $<$<CXX_COMPILER_ID:GNU>:-pie>
-                )
-            endif()
-        endif()
-    elseif(MSVC)
+    if(MSVC)
         target_link_options(${name} PRIVATE
             LINKER:/ALLOWISOLATION
         )

@@ -2010,6 +2010,8 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   SET_UNSUPPORTED(pDdiTable->pfnUpdateSignalEventExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateWaitEventsExp);
   SET_UNSUPPORTED(pDdiTable->pfnGetInfoExp);
+  SET_UNSUPPORTED(pDdiTable->pfnAppendNativeCommandExp);
+  SET_UNSUPPORTED(pDdiTable->pfnGetNativeHandleExp);
 
 #undef SET_UNSUPPORTED
 

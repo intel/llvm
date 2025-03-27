@@ -39,15 +39,14 @@ and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Prerequisites
 
-* `git` - [Download](https://git-scm.com/downloads)
-* `cmake` version 3.20 or later - [Download](http://www.cmake.org/download/)
-* `python` - [Download](https://www.python.org/downloads/)
-* `ninja` -
-[Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
-* `hwloc` version 2.3 or later (Linux only)
-  * libhwloc-dev or hwloc-devel package on linux
-* C++ compiler
-  * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
+| Software                                                                    | Version                                                                                                                              |
+| ---                                                                         | ---                                                                                                                                  |
+| [Git](https://git-scm.com/downloads)                                        |                                                                                                                                      |
+| [CMake](http://www.cmake.org/download/)                                     | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Python](https://www.python.org/downloads/)                                 | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Ninja](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages) |                                                                                                                                      |
+| `hwloc`                                                                     | >= 2.3 (Linux only, `libhwloc-dev` or `hwloc-devel`)                                                                                 |
+| C++ compiler                                                                | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library) |
 
 Alternatively, you can create a Docker image that has everything you need for
 building pre-installed using the [Ubuntu 24.04 build Dockerfile](https://github.com/intel/llvm/blob/sycl/devops/containers/ubuntu2404_build.Dockerfile).
@@ -219,13 +218,13 @@ Firstly, **do not** add the toolkit to your standard environment variables
 (`PATH`, `LD_LIBRARY_PATH`), as to do so will create conflicts with OpenCL
 headers.
 
-Secondly, set the `CUDA_LIB_PATH` environment variable and pass the CMake
-variable `CUDA_TOOLKIT_ROOT_DIR` as follows:
+Secondly pass the CMake variable `CUDAToolkit_ROOT` as follows:
 
 ```sh
-CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py --cuda --cmake-opt="-DCUDA_TOOLKIT_ROOT_DIR=/path/to/cuda/toolkit"
+CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py \
+    --cuda -DCUDA_Toolkit_ROOT=/path/to/cuda/toolkit
 
-CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
+CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/compile.py
 
 $DPCPP_HOME/llvm/build/bin/clang++ -std=c++17 -O3 -fsycl -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=/path/to/cuda/toolkit *.cpp -o a.out
 
@@ -251,12 +250,12 @@ instruction on how to install this refer to
 
 The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it is
 installed somewhere else, the directory must be provided through the CMake
-variable `UR_HIP_ROCM_DIR` which can be passed using the
-`--cmake-opt` option of `configure.py` as follows:
+variable `UR_HIP_ROCM_DIR` which can be passed through to cmake using the
+configure helper script as follows:
 
 ```sh
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
-  --cmake-opt=-DUR_HIP_ROCM_DIR=/usr/local/rocm
+  -DUR_HIP_ROCM_DIR=/usr/local/rocm
 ```
 If further customization is required — for instance when the layout of
 individual directories can not be inferred from `UR_HIP_ROCM_DIR` —

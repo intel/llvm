@@ -1,4 +1,4 @@
-//==------------------- df.cpp --- kernel_compiler extension tests   -------==//
+//==--- sycl_device_flags.cpp --- kernel_compiler extension tests ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -109,11 +109,12 @@ int main(int argc, char *argv[]) {
     std::cerr << "Usage: " << argv[0] << " <dump_directory>" << std::endl;
     return 1;
   }
-  std::string dump_dir = argv[1];
 
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  std::string dump_dir = argv[1];
 
   sycl::queue q;
   sycl::context ctx = q.get_context();
@@ -128,9 +129,8 @@ int main(int argc, char *argv[]) {
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource);
 
-  // Flags with and without space, inner quotes.
-  std::vector<std::string> flags{"-Xs '-doubleGRF'",
-                                 "-Xs'-Xfinalizer \"-printregusage\"'"};
+  std::vector<std::string> flags{"-Xs", "-doubleGRF",
+                                 "-XsXfinalizer \"-printregusage\""};
   exe_kb kbExe =
       syclex::build(kbSrc, syclex::properties{syclex::build_options{flags}});
 

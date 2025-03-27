@@ -18,7 +18,7 @@ struct urEnqueueMemImageCopyTest
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
 
     ur_bool_t imageSupported;
-    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORT,
                                    sizeof(ur_bool_t), &imageSupported,
                                    nullptr));
     if (!imageSupported) {

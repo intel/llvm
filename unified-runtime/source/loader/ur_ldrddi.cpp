@@ -6513,42 +6513,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolSetThresholdExp
-__urdlllocal ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-  auto pfnPoolSetThresholdExp = dditable->ur.USMExp.pfnPoolSetThresholdExp;
-  if (nullptr == pfnPoolSetThresholdExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
-
-  // convert loader handle to platform handle
-  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
-
-  // convert loader handle to platform handle
-  hPool = reinterpret_cast<ur_usm_pool_object_t *>(hPool)->handle;
-
-  // forward to device-platform
-  result = pfnPoolSetThresholdExp(hContext, hDevice, hPool, newThreshold);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolGetDefaultDevicePoolExp
 __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
     /// [in] handle of the context object
@@ -6617,6 +6581,36 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
 
   // forward to device-platform
   result = pfnPoolGetInfoExp(hPool, propName, pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_usm_pool_object_t *>(hPool)->dditable;
+  auto pfnPoolSetInfoExp = dditable->ur.USMExp.pfnPoolSetInfoExp;
+  if (nullptr == pfnPoolSetInfoExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hPool = reinterpret_cast<ur_usm_pool_object_t *>(hPool)->handle;
+
+  // forward to device-platform
+  result = pfnPoolSetInfoExp(hPool, propName, pPropValue, propSize);
 
   return result;
 }
@@ -8879,6 +8873,63 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendNativeCommandExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->dditable;
+  auto pfnAppendNativeCommandExp =
+      dditable->ur.CommandBufferExp.pfnAppendNativeCommandExp;
+  if (nullptr == pfnAppendNativeCommandExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->handle;
+
+  // convert loader handle to platform handle
+  hChildCommandBuffer =
+      (hChildCommandBuffer)
+          ? reinterpret_cast<ur_exp_command_buffer_object_t *>(
+                hChildCommandBuffer)
+                ->handle
+          : nullptr;
+
+  // forward to device-platform
+  result = pfnAppendNativeCommandExp(
+      hCommandBuffer, pfnNativeCommand, pData, hChildCommandBuffer,
+      numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueCommandBufferExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
@@ -9138,6 +9189,40 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   // forward to device-platform
   result = pfnGetInfoExp(hCommandBuffer, propName, propSize, pPropValue,
                          pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferGetNativeHandleExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->dditable;
+  auto pfnGetNativeHandleExp =
+      dditable->ur.CommandBufferExp.pfnGetNativeHandleExp;
+  if (nullptr == pfnGetNativeHandleExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hCommandBuffer =
+      reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+          ->handle;
+
+  // forward to device-platform
+  result = pfnGetNativeHandleExp(hCommandBuffer, phNativeCommandBuffer);
+
+  if (UR_RESULT_SUCCESS != result)
+    return result;
 
   return result;
 }
@@ -10070,6 +10155,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
           ur_loader::urCommandBufferAppendUSMPrefetchExp;
       pDdiTable->pfnAppendUSMAdviseExp =
           ur_loader::urCommandBufferAppendUSMAdviseExp;
+      pDdiTable->pfnAppendNativeCommandExp =
+          ur_loader::urCommandBufferAppendNativeCommandExp;
       pDdiTable->pfnUpdateKernelLaunchExp =
           ur_loader::urCommandBufferUpdateKernelLaunchExp;
       pDdiTable->pfnUpdateSignalEventExp =
@@ -10077,6 +10164,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       pDdiTable->pfnUpdateWaitEventsExp =
           ur_loader::urCommandBufferUpdateWaitEventsExp;
       pDdiTable->pfnGetInfoExp = ur_loader::urCommandBufferGetInfoExp;
+      pDdiTable->pfnGetNativeHandleExp =
+          ur_loader::urCommandBufferGetNativeHandleExp;
     } else {
       // return pointers directly to platform's DDIs
       *pDdiTable = ur_loader::getContext()
@@ -11004,10 +11093,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
       // return pointers to loader's DDIs
       pDdiTable->pfnPoolCreateExp = ur_loader::urUSMPoolCreateExp;
       pDdiTable->pfnPoolDestroyExp = ur_loader::urUSMPoolDestroyExp;
-      pDdiTable->pfnPoolSetThresholdExp = ur_loader::urUSMPoolSetThresholdExp;
       pDdiTable->pfnPoolGetDefaultDevicePoolExp =
           ur_loader::urUSMPoolGetDefaultDevicePoolExp;
       pDdiTable->pfnPoolGetInfoExp = ur_loader::urUSMPoolGetInfoExp;
+      pDdiTable->pfnPoolSetInfoExp = ur_loader::urUSMPoolSetInfoExp;
       pDdiTable->pfnPoolSetDevicePoolExp = ur_loader::urUSMPoolSetDevicePoolExp;
       pDdiTable->pfnPoolGetDevicePoolExp = ur_loader::urUSMPoolGetDevicePoolExp;
       pDdiTable->pfnPoolTrimToExp = ur_loader::urUSMPoolTrimToExp;

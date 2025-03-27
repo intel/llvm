@@ -86,32 +86,37 @@ private:
   sycl::detail::string HashOrLog;
 };
 
+enum class RTCErrorCode { SUCCESS, BUILD, INVALID };
+
 class RTCResult {
 public:
-  explicit RTCResult(const char *BuildLog)
-      : Failed{true}, BundleInfo{}, BuildLog{BuildLog} {}
+  explicit RTCResult(const char *BuildLog,
+                     RTCErrorCode ErrorCode = RTCErrorCode::BUILD)
+      : ErrorCode{ErrorCode}, BundleInfo{}, BuildLog{BuildLog} {
+    assert(ErrorCode != RTCErrorCode::SUCCESS);
+  }
 
   RTCResult(RTCBundleInfo &&BundleInfo, RTCDeviceCodeIR &&DeviceCodeIR,
             const char *BuildLog)
-      : Failed{false}, BundleInfo{std::move(BundleInfo)},
+      : ErrorCode{RTCErrorCode::SUCCESS}, BundleInfo{std::move(BundleInfo)},
         DeviceCodeIR(std::move(DeviceCodeIR)), BuildLog{BuildLog} {}
 
-  bool failed() const { return Failed; }
+  RTCErrorCode getErrorCode() const { return ErrorCode; }
 
   const char *getBuildLog() const { return BuildLog.c_str(); }
 
   const RTCBundleInfo &getBundleInfo() const {
-    assert(!failed() && "No bundle info");
+    assert(ErrorCode == RTCErrorCode::SUCCESS && "No bundle info");
     return BundleInfo;
   }
 
   const RTCDeviceCodeIR &getDeviceCodeIR() const {
-    assert(!failed() && "No device code IR");
+    assert(ErrorCode == RTCErrorCode::SUCCESS && "No device code IR");
     return DeviceCodeIR;
   }
 
 private:
-  bool Failed;
+  RTCErrorCode ErrorCode;
   RTCBundleInfo BundleInfo;
   RTCDeviceCodeIR DeviceCodeIR;
   sycl::detail::string BuildLog;
