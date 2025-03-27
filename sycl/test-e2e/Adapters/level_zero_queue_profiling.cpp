@@ -1,5 +1,5 @@
 // REQUIRES: gpu, level_zero
-// UNSUPPORTED: ze_debug, level_zero_v2_adapter
+// UNSUPPORTED: ze_debug
 
 // RUN: %{build} -o %t.out
 // RUN: env UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=WITHOUT %s
