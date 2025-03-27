@@ -116,7 +116,7 @@ TEST_P(MultipleDevsKernelBundleTest, BuildTwiceWithOverlappingDevices) {
 
   // Get devices and create a context with at least 3 devices
   std::vector<sycl::device> Devices = Plt.get_devices();
-  ASSERT_GE(Devices.size(), 3) << "Test requires at least 3 devices";
+  ASSERT_GE(Devices.size(), 3lu) << "Test requires at least 3 devices";
 
   auto Dev1 = Devices[0], Dev2 = Devices[1], Dev3 = Devices[2];
 
