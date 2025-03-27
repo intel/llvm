@@ -33,7 +33,5 @@ void test(queue q) {
 int main() {
   queue q;
   test(q);
-
-  std::cout << "Test passed." << std::endl;
   return 0;
 }
