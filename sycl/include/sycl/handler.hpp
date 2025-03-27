@@ -814,7 +814,9 @@ private:
 
     constexpr bool UsesRootSync = PropertiesT::template has_property<
         sycl::ext::oneapi::experimental::use_root_sync_key>();
-    setKernelIsCooperative(UsesRootSync);
+    if (UsesRootSync) {
+      setKernelIsCooperative(UsesRootSync);
+    }
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::oneapi::experimental::
                           work_group_progress_key>()) {
@@ -2384,10 +2386,7 @@ public:
       PropertiesT>::value> parallel_for(nd_range<Dims> Range,
                                         PropertiesT Properties,
                                         _KERNELFUNCPARAM(KernelFunc)) {
-    parallel_for_impl<KernelName>(Range,
-                                  ext::oneapi::experimental::properties{
-                                      ext::oneapi::experimental::use_root_sync},
-                                  std::move(KernelFunc));
+    parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 
   /// Reductions @{

@@ -23,7 +23,7 @@ struct RootGroupKernel {
     auto root = it.ext_oneapi_get_root_group();
     sycl::group_barrier(root);
   }
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::use_root_sync};
   }
