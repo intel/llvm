@@ -54,8 +54,7 @@ command_list_cache_t::command_list_cache_t(ze_context_handle_t ZeContext,
 raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
   ZeStruct<zex_intel_queue_copy_operations_offload_hint_exp_desc_t> offloadDesc;
-  auto requestedCopyOffload =
-      std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
+  auto requestedCopyOffload = false;
 
   if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
     logger::info(
