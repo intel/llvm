@@ -819,23 +819,33 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
         Allocas.insert(AllocaI);
     }
     for (; I && (I != BB.getTerminator()); I = I->getNextNode()) {
+      // sycl::group functions returning a structure would return it via sret
+      // CallInst operand, which will be placed in target's alloca address
+      // space (which is private for SPIR). As such sycl::group function
+      // might write to a Global with Local address space - frontend will
+      // insert address space cast from Local to Private, which is illegal.
+      // So here we create a temporary alloca, that will be used as sret
+      // operand, and copy from it to the Global.
       if (CallInst *CI = dyn_cast<CallInst>(I)) {
-        if (CI->getCalledFunction()->getName().
-            starts_with(GET_GROUP_PREFIX) &&
+        if (CI->getCalledFunction()->getName().starts_with(GET_GROUP_PREFIX) &&
             CI->hasStructRetAttr()) {
-          if (auto *ASCast = dyn_cast<AddrSpaceCastOperator>(CI->getOperand(0))) {
+          if (auto *ASCast =
+                  dyn_cast<AddrSpaceCastOperator>(CI->getOperand(0))) {
             unsigned SrcAS = ASCast->getSrcAddressSpace();
             unsigned DstAS = ASCast->getDestAddressSpace();
             if (SrcAS == static_cast<unsigned>(spirv::AddrSpace::Local) &&
                 DstAS == static_cast<unsigned>(spirv::AddrSpace::Private)) {
+              LLVM_DEBUG(llvm::dbgs() << "+++ Illegal AS cast found in a call: "
+                                      << *CI << "\n");
               IRBuilder<> Builder(CI->getContext());
               llvm::BasicBlock &FirstBB = F.getEntryBlock();
               Builder.SetInsertPoint(&FirstBB, FirstBB.begin());
               Type *ResTy = CI->getParamStructRetType(0);
-              auto *TMPAlloca = Builder.CreateAlloca(
-                  ResTy, nullptr, "lower_wg.local_copy");
+              auto *TMPAlloca =
+                  Builder.CreateAlloca(ResTy, nullptr, "lower_wg.local_copy");
               Builder.SetInsertPoint(CI->getNextNode());
-              auto *LI = Builder.CreateLoad(ResTy, TMPAlloca, "lower_wg.private_load");
+              auto *LI =
+                  Builder.CreateLoad(ResTy, TMPAlloca, "lower_wg.private_load");
               Builder.CreateStore(LI, ASCast->getPointerOperand());
               ASCast->replaceAllUsesWith(TMPAlloca);
               ASCast->dropAllReferences();
