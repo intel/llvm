@@ -118,12 +118,18 @@ struct ThreadSanitizerOnSpirv {
 
   void initialize();
 
-  void extendSpirKernelArgs();
+  void instrumentModule();
 
   void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
 
 private:
+  void instrumentGlobalVariables();
+
+  void instrumentKernelsMetadata();
+
   bool isSupportedSPIRKernel(Function &F);
+
+  bool isUnsupportedDeviceGlobal(const GlobalVariable &G);
 
   GlobalVariable *GetOrCreateGlobalString(StringRef Name, StringRef Value,
                                           unsigned AddressSpace);
@@ -243,7 +249,7 @@ PreservedAnalyses ModuleThreadSanitizerPass::run(Module &M,
     return PreservedAnalyses::all();
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     ThreadSanitizerOnSpirv Spirv(M);
-    Spirv.extendSpirKernelArgs();
+    Spirv.instrumentModule();
   } else
     insertModuleCtor(M);
   return PreservedAnalyses::none();
@@ -327,9 +333,71 @@ bool ThreadSanitizerOnSpirv::isSupportedSPIRKernel(Function &F) {
   return true;
 }
 
-void ThreadSanitizerOnSpirv::extendSpirKernelArgs() {
-  SmallVector<Function *> SpirFixupKernels;
-  SmallVector<Function *> SpirSkipedKernels;
+bool ThreadSanitizerOnSpirv::isUnsupportedDeviceGlobal(
+    const GlobalVariable &G) {
+  if (G.user_empty())
+    return true;
+  // Skip instrumenting on "__TsanKernelMetadata" etc.
+  if (G.getName().starts_with("__Tsan"))
+    return true;
+  if (G.getName().starts_with("__tsan_"))
+    return true;
+  if (G.getName().starts_with("__spirv_BuiltIn"))
+    return true;
+  if (G.getName().starts_with("__usid_str"))
+    return true;
+  // TODO: Will support global variable with local address space later.
+  if (G.getAddressSpace() == kSpirOffloadLocalAS)
+    return true;
+  // Global variables have constant value or constant address space will not
+  // trigger race condition.
+  if (G.isConstant() || G.getAddressSpace() == kSpirOffloadConstantAS)
+    return true;
+  return false;
+}
+
+void ThreadSanitizerOnSpirv::instrumentModule() {
+  instrumentGlobalVariables();
+  instrumentKernelsMetadata();
+}
+
+void ThreadSanitizerOnSpirv::instrumentGlobalVariables() {
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  // Device global metadata is described by a structure
+  //  size_t device_global_size
+  //  size_t beginning address of the device global
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+  for (auto &G : M.globals()) {
+    if (isUnsupportedDeviceGlobal(G)) {
+      for (auto *User : G.users())
+        if (auto *Inst = dyn_cast<Instruction>(User))
+          Inst->setNoSanitizeMetadata();
+      continue;
+    }
+
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy,
+        ConstantInt::get(IntptrTy, DL.getTypeAllocSize(G.getValueType())),
+        ConstantExpr::getPointerCast(&G, IntptrTy)));
+  }
+
+  if (DeviceGlobalMetadata.empty())
+    return;
+
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__TsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+}
+
+void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
   SmallVector<Constant *, 8> SpirKernelsMetadata;
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
@@ -338,29 +406,17 @@ void ThreadSanitizerOnSpirv::extendSpirKernelArgs() {
   //  uptr unmangled_kernel_name_size
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
 
-  Constant *TsanLaunchInfo = M.getOrInsertGlobal(
-      "__TsanLaunchInfo", PointerType::get(IntptrTy, kSpirOffloadGlobalAS),
-      [&] {
-        return new GlobalVariable(
-            M, llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), false,
-            GlobalVariable::ExternalLinkage, nullptr, "__TsanLaunchInfo",
-            nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
-      });
-
   for (Function &F : M) {
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
 
     if (isSupportedSPIRKernel(F)) {
-      SpirFixupKernels.emplace_back(&F);
       auto KernelName = F.getName();
       auto *KernelNameGV = GetOrCreateGlobalString("__tsan_kernel", KernelName,
                                                    kSpirOffloadConstantAS);
       SpirKernelsMetadata.emplace_back(ConstantStruct::get(
           StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
           ConstantInt::get(IntptrTy, KernelName.size())));
-    } else {
-      SpirSkipedKernels.emplace_back(&F);
     }
   }
 
@@ -381,100 +437,6 @@ void ThreadSanitizerOnSpirv::extendSpirKernelArgs() {
   TsanSpirKernelMetadata->addAttribute("sycl-unique-id",
                                        "_Z20__TsanKernelMetadata");
   TsanSpirKernelMetadata->setDSOLocal(true);
-
-  // Handle SpirFixupKernels
-  for (auto *F : SpirFixupKernels) {
-    SmallVector<Type *, 16> Types;
-    for (Function::const_arg_iterator I = F->arg_begin(), E = F->arg_end();
-         I != E; ++I) {
-      Types.push_back(I->getType());
-    }
-
-    // New argument: uintptr_t as(1)*, which is allocated in USM buffer
-    Types.push_back(PointerType::get(IntptrTy, kSpirOffloadGlobalAS));
-
-    FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
-
-    std::string OrigFuncName = F->getName().str();
-    F->setName(OrigFuncName + "_del");
-
-    Function *NewF =
-        Function::Create(NewFTy, F->getLinkage(), OrigFuncName, F->getParent());
-    NewF->copyAttributesFrom(F);
-    NewF->copyMetadata(F, 0);
-    NewF->setCallingConv(F->getCallingConv());
-    NewF->setDSOLocal(F->isDSOLocal());
-
-    // Set original arguments' names.
-    Function::arg_iterator NewI = NewF->arg_begin();
-    for (Function::const_arg_iterator I = F->arg_begin(), E = F->arg_end();
-         I != E; ++I, ++NewI) {
-      NewI->setName(I->getName());
-    }
-    // New argument name
-    NewI->setName("__tsan_launch");
-    NewI->addAttr(Attribute::NoUndef);
-
-    NewF->splice(NewF->begin(), F);
-    assert(F->isDeclaration() &&
-           "splice does not work, original function body is not empty!");
-
-    NewF->setSubprogram(F->getSubprogram());
-
-    NewF->setComdat(F->getComdat());
-    F->setComdat(nullptr);
-
-    for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(),
-                                NI = NewF->arg_begin();
-         I != E; ++I, ++NI) {
-      I->replaceAllUsesWith(&*NI);
-    }
-
-    // Fixup metadata
-    IRBuilder<> Builder(M.getContext());
-
-    auto FixupMetadata = [&NewF](StringRef MDName, Metadata *NewV) {
-      auto *Node = NewF->getMetadata(MDName);
-      if (!Node)
-        return;
-      SmallVector<Metadata *, 8> NewMD(Node->operands());
-      NewMD.emplace_back(NewV);
-      NewF->setMetadata(MDName, llvm::MDNode::get(NewF->getContext(), NewMD));
-    };
-
-    FixupMetadata("kernel_arg_buffer_location",
-                  ConstantAsMetadata::get(Builder.getInt32(-1)));
-    FixupMetadata("kernel_arg_runtime_aligned",
-                  ConstantAsMetadata::get(Builder.getFalse()));
-    FixupMetadata("kernel_arg_exclusive_ptr",
-                  ConstantAsMetadata::get(Builder.getFalse()));
-
-    FixupMetadata(
-        "kernel_arg_addr_space",
-        ConstantAsMetadata::get(Builder.getInt32(kSpirOffloadGlobalAS)));
-    FixupMetadata("kernel_arg_access_qual",
-                  MDString::get(M.getContext(), "read_write"));
-    FixupMetadata("kernel_arg_type", MDString::get(M.getContext(), "void*"));
-    FixupMetadata("kernel_arg_base_type",
-                  MDString::get(M.getContext(), "void*"));
-    FixupMetadata("kernel_arg_type_qual", MDString::get(M.getContext(), ""));
-    FixupMetadata("kernel_arg_accessor_ptr",
-                  ConstantAsMetadata::get(Builder.getFalse()));
-
-    // Initialize the value of local memory "__TsanLaunchInfo"
-    InstrumentationIRBuilder IRB(NewF->getEntryBlock().getFirstNonPHI());
-    IRB.CreateStore(NewI, TsanLaunchInfo);
-
-    F->eraseFromParent();
-  }
-
-  // Initialize the value of local memory "__TsanLaunchInfo"
-  for (Function *F : SpirSkipedKernels) {
-    InstrumentationIRBuilder IRB(F->getEntryBlock().getFirstNonPHI());
-    IRB.CreateStore(ConstantPointerNull::get(
-                        PointerType::get(IntptrTy, kSpirOffloadGlobalAS)),
-                    TsanLaunchInfo);
-  }
 }
 
 GlobalVariable *

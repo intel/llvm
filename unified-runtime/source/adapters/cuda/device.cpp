@@ -18,6 +18,7 @@
 #include "logger/ur_logger.hpp"
 #include "platform.hpp"
 #include "ur_util.hpp"
+#include <nvml.h>
 
 int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   int value;
@@ -253,14 +254,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
     return ReturnValue(Capabilities);
   }
-  case UR_DEVICE_INFO_BFLOAT16: {
-    int Major = 0;
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
-
-    bool BFloat16 = (Major >= 8) ? true : false;
-    return ReturnValue(BFloat16);
-  }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
     int WarpSize = 0;
@@ -283,17 +276,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
     return ReturnValue(uint64_t{hDevice->getMaxAllocSize()});
   }
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
+  case UR_DEVICE_INFO_IMAGE_SUPPORT: {
     bool Enabled = false;
 
-    if (std::getenv("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr ||
-        std::getenv("UR_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
+    if (std::getenv("UR_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
+      std::cerr << "UR_CUDA_ENABLE_IMAGE_SUPPORT is deprecated, please use "
+                   "SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT instead.";
+    } else if (std::getenv("SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
       Enabled = true;
     } else {
       logger::always(
           "Images are not fully supported by the CUDA BE, their support is "
           "disabled by default. Their partial support can be activated by "
-          "setting UR_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
+          "setting SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
           "runtime.");
     }
 
@@ -904,23 +899,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA supports cubemap seamless filtering.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP: {
     // CUDA does support fetching 1D USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
     // CUDA does not support fetching 1D non-USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     // CUDA does support fetching 2D USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP: {
     // CUDA does support fetching 2D non-USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP: {
     // CUDA does support fetching 3D non-USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
@@ -928,16 +923,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA does support image arrays
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP: {
     // CUDA does support unique addressing per dimension
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP: {
     // CUDA does not support sampling 1D USM sampled image data.
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP: {
     // CUDA does support sampling 1D USM sampled image data.
+    return ReturnValue(static_cast<ur_bool_t>(true));
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP: {
+    // CUDA does support sampled image gather.
     return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
@@ -1067,7 +1066,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(static_cast<ur_bool_t>(false));
     // TODO: Investigate if this information is available on CUDA.
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(static_cast<ur_bool_t>(false));
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
     return ReturnValue(static_cast<ur_bool_t>(true));
@@ -1088,6 +1087,63 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_IP_VERSION:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
+    unsigned long long ClocksEventReasons;
+    UR_CHECK_ERROR(nvmlDeviceGetCurrentClocksEventReasons(hDevice->getNVML(),
+                                                          &ClocksEventReasons));
+    ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
+    constexpr unsigned long long NVMLThrottleFlags[] = {
+        nvmlClocksThrottleReasonSwPowerCap,
+        nvmlClocksThrottleReasonHwThermalSlowdown ||
+            nvmlClocksThrottleReasonSwThermalSlowdown,
+        nvmlClocksThrottleReasonHwPowerBrakeSlowdown,
+        nvmlClocksThrottleReasonApplicationsClocksSetting};
+
+    constexpr ur_device_throttle_reasons_flags_t UrThrottleFlags[] = {
+        UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP,
+        UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT,
+        UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT,
+        UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE};
+
+    for (size_t i = 0;
+         i < sizeof(NVMLThrottleFlags) / sizeof(NVMLThrottleFlags[0]); ++i) {
+      if (ClocksEventReasons & NVMLThrottleFlags[i]) {
+        ThrottleReasons |= UrThrottleFlags[i];
+        ClocksEventReasons &= ~NVMLThrottleFlags[i];
+      }
+    }
+    if (ClocksEventReasons) {
+      ThrottleReasons |= UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER;
+    }
+    return ReturnValue(ThrottleReasons);
+  }
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT:
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT: {
+    unsigned int minLimit, maxLimit;
+    auto NVMLHandle = hDevice->getNVML();
+    auto NVMLError = nvmlDeviceGetPowerManagementLimitConstraints(
+        NVMLHandle, &minLimit, &maxLimit);
+    if (NVMLError == NVML_ERROR_NOT_SUPPORTED) {
+      if (propName == UR_DEVICE_INFO_MAX_POWER_LIMIT) {
+        UR_CHECK_ERROR(
+            nvmlDeviceGetPowerManagementLimit(NVMLHandle, &maxLimit));
+        return ReturnValue(static_cast<int32_t>(maxLimit));
+      } else if (propName == UR_DEVICE_INFO_MIN_POWER_LIMIT) {
+        return ReturnValue(static_cast<int32_t>(-1));
+      }
+    }
+    if (propName == UR_DEVICE_INFO_MAX_POWER_LIMIT) {
+      return ReturnValue(static_cast<int32_t>(maxLimit));
+    } else if (propName == UR_DEVICE_INFO_MIN_POWER_LIMIT) {
+      return ReturnValue(static_cast<int32_t>(minLimit));
+    }
+    break;
+  }
+  case UR_DEVICE_INFO_FAN_SPEED: {
+    unsigned int Speed;
+    UR_CHECK_ERROR(nvmlDeviceGetFanSpeed(hDevice->getNVML(), &Speed));
+    return ReturnValue(static_cast<int32_t>(Speed));
+  }
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
@@ -1104,12 +1160,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS;
     return ReturnValue(UpdateCapabilities);
   }
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP: {
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP: {
     int Value = getAttribute(hDevice,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 9;
     return ReturnValue(static_cast<bool>(Value));
   }
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
     return ReturnValue(true);
@@ -1121,7 +1179,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
-
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
+    return ReturnValue(true);
   default:
     break;
   }

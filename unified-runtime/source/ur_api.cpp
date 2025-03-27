@@ -6124,38 +6124,6 @@ ur_result_t UR_APICALL urUSMPoolDestroyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a new release threshold for a USM memory pool.
-///
-/// @details
-///     - Set a new release threshold for a USM memory pool.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///         + `NULL == hPool`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If any device associated with `hContext` reports `false` for
-///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
-ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Get the default pool for a device.
 ///
 /// @details
@@ -6205,7 +6173,6 @@ ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urUSMPoolGetInfoExp(
@@ -6217,6 +6184,45 @@ ur_result_t UR_APICALL urUSMPoolGetInfoExp(
     void *pPropValue,
     /// [out][optional] returned query value size
     size_t *pPropSizeRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a property for a USM memory pool.
+///
+/// @details
+///     - Set a property for a USM memory pool.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///         + `pPropValue == NULL`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -6932,7 +6938,7 @@ ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`
@@ -8027,6 +8033,51 @@ ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Append nodes to the command-buffer through a native backend API
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeCommand`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Submit a command-buffer for execution on a queue.
 ///
 /// @returns
@@ -8273,6 +8324,33 @@ ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     void *pPropValue,
     /// [out][optional] bytes returned in command-buffer property
     size_t *pPropSizeRet) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native command-buffer handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeCommandBuffer`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer) {
   ur_result_t result = UR_RESULT_SUCCESS;
   return result;
 }
@@ -8804,7 +8882,7 @@ ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName`
+///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE

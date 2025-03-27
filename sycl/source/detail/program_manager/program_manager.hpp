@@ -213,7 +213,7 @@ public:
       const std::vector<unsigned char> &SpecializationConsts);
 
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
-                                               const ContextImplPtr Context);
+                                               const ContextImplPtr &Context);
 
   void addImages(sycl_device_binaries DeviceImages);
   void removeImages(sycl_device_binaries DeviceImages);
@@ -350,7 +350,7 @@ private:
 
   using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
                                      decltype(&::urProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
+  ProgramPtr build(ProgramPtr Program, const ContextImplPtr &Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions,
                    std::vector<ur_device_handle_t> &Devices,

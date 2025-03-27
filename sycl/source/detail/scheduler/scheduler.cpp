@@ -587,7 +587,7 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
 }
 
 ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
-    [[maybe_unused]] QueueImplPtr Queue,
+    [[maybe_unused]] const QueueImplPtr &Queue,
     [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
     [[maybe_unused]] const std::string &KernelName,
     [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {
@@ -670,7 +670,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<sycl::event> &DepEvents, ContextImplPtr Context) {
+    const std::vector<sycl::event> &DepEvents, const ContextImplPtr &Context) {
 
   return std::all_of(
       DepEvents.begin(), DepEvents.end(), [&Context](const sycl::event &Event) {
@@ -680,7 +680,7 @@ bool Scheduler::areEventsSafeForSchedulerBypass(
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::vector<EventImplPtr> &DepEvents, ContextImplPtr Context) {
+    const std::vector<EventImplPtr> &DepEvents, const ContextImplPtr &Context) {
 
   return std::all_of(DepEvents.begin(), DepEvents.end(),
                      [&Context](const EventImplPtr &SyclEventImplPtr) {

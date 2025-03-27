@@ -62,7 +62,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_bindless_images = 7,
   sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
   sycl_ext_codeplay_enqueue_native_command = 9,
-  sycl_ext_oneapi_work_group_scratch_memory = 10
+  sycl_ext_oneapi_work_group_scratch_memory = 10,
+  sycl_ext_oneapi_async_alloc = 11
 };
 
 inline const char *
@@ -91,6 +92,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_codeplay_enqueue_native_command";
   case UGF::sycl_ext_oneapi_work_group_scratch_memory:
     return "sycl_ext_oneapi_work_group_scratch_memory";
+  case UGF::sycl_ext_oneapi_async_alloc:
+    return "sycl_ext_oneapi_async_alloc";
   }
 
   assert(false && "Unhandled graphs feature");
@@ -114,7 +117,8 @@ enum class node_type {
   prefetch = 6,
   memadvise = 7,
   ext_oneapi_barrier = 8,
-  host_task = 9
+  host_task = 9,
+  native_command = 10
 };
 
 /// Class representing a node in the graph, returned by command_graph::add().
@@ -157,7 +161,11 @@ private:
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   std::shared_ptr<detail::node_impl> impl;
 };
@@ -370,7 +378,11 @@ protected:
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
   std::shared_ptr<detail::graph_impl> impl;
 
   static void checkNodePropertiesAndThrow(const property_list &Properties);
@@ -470,7 +482,11 @@ private:
       : modifiable_command_graph(Impl) {}
 
   template <class T>
-  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T sycl::detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 };
 
 template <>

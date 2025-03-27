@@ -71,6 +71,8 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
     return node_type::host_task;
   case sycl::detail::CGType::ExecCommandBuffer:
     return node_type::subgraph;
+  case sycl::detail::CGType::EnqueueNativeCommand:
+    return node_type::native_command;
   default:
     assert(false && "Invalid Graph Node Type");
     return node_type::empty;
@@ -100,8 +102,8 @@ public:
   /// subgraph node.
   std::shared_ptr<exec_graph_impl> MSubGraphImpl;
 
-  /// Used for tracking visited status during cycle checks.
-  bool MVisited = false;
+  /// Used for tracking visited status during cycle checks and node scheduling.
+  size_t MTotalVisitedEdges = 0;
 
   /// Partition number needed to assign a Node to a a partition.
   /// Note : This number is only used during the partitionning process and
@@ -304,6 +306,10 @@ public:
       return createCGCopy<sycl::detail::CGProfilingTag>();
     case sycl::detail::CGType::ExecCommandBuffer:
       return createCGCopy<sycl::detail::CGExecCommandBuffer>();
+    case sycl::detail::CGType::AsyncAlloc:
+      return createCGCopy<sycl::detail::CGAsyncAlloc>();
+    case sycl::detail::CGType::AsyncFree:
+      return createCGCopy<sycl::detail::CGAsyncFree>();
     case sycl::detail::CGType::None:
       return nullptr;
     }
@@ -704,6 +710,9 @@ private:
     case sycl::detail::CGType::ExecCommandBuffer:
       Stream << "CGExecCommandBuffer \\n";
       break;
+    case sycl::detail::CGType::EnqueueNativeCommand:
+      Stream << "CGNativeCommand \\n";
+      break;
     default:
       Stream << "Other \\n";
       break;
@@ -865,7 +874,7 @@ public:
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (!(EventImpl->getCommandGraph()))
+    if (!(EventImpl->hasCommandGraph()))
       EventImpl->setCommandGraph(shared_from_this());
     MEventsMap[EventImpl] = NodeImpl;
   }
@@ -1125,17 +1134,6 @@ public:
   unsigned long long getID() const { return MID; }
 
 private:
-  /// Iterate over the graph depth-first and run \p NodeFunc on each node.
-  /// @param NodeFunc A function which receives as input a node in the graph to
-  /// perform operations on as well as the stack of nodes encountered in the
-  /// current path. The return value of this function determines whether an
-  /// early exit is triggered, if true the depth-first search will end
-  /// immediately and no further nodes will be visited.
-  void
-  searchDepthFirst(std::function<bool(std::shared_ptr<node_impl> &,
-                                      std::deque<std::shared_ptr<node_impl>> &)>
-                       NodeFunc);
-
   /// Check the graph for cycles by performing a depth-first search of the
   /// graph. If a node is visited more than once in a given path through the
   /// graph, a cycle is present and the search ends immediately.
