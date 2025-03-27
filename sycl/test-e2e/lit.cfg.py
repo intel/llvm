@@ -469,7 +469,11 @@ hip_options = hip_options = (
 if cl_options:
     hip_options = (
         " "
-        + (config.hip_libs_dir + "/amdhip64_6.lib " if config.hip_libs_dir else "amdhip64_6.lib")
+        + (
+            config.hip_libs_dir + "/amdhip64_6.lib "
+            if config.hip_libs_dir
+            else "amdhip64_6.lib"
+        )
         + " /I"
         + config.hip_include
     )
@@ -483,7 +487,7 @@ with test_env():
         config.substitutions.append(("%hip_options", hip_options))
     else:
         config.substitutions.append(("%hip_options", ""))
-        
+
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
     if cl_options:
