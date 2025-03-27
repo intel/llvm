@@ -481,8 +481,17 @@ function updateURL() {
     }
 
     // Add toggle states to URL
-    url.searchParams.set('notes', isNotesEnabled());
-    url.searchParams.set('unstable', isUnstableEnabled());
+    if (isNotesEnabled()) {
+        url.searchParams.delete('notes');
+    } else {
+        url.searchParams.set('notes', 'false');
+    }
+
+    if (!isUnstableEnabled()) {
+        url.searchParams.delete('unstable');
+    } else {
+        url.searchParams.set('unstable', 'true');
+    }
 
     history.replaceState(null, '', url);
 }
@@ -760,6 +769,7 @@ function setupToggles() {
         document.querySelectorAll('.benchmark-note').forEach(note => {
             note.style.display = isNotesEnabled() ? 'block' : 'none';
         });
+        updateURL();
     });
 
     unstableToggle.addEventListener('change', function() {
