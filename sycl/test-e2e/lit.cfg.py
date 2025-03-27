@@ -470,9 +470,9 @@ if cl_options:
     hip_options = (
         " "
         + (
-            config.hip_libs_dir + "/amdhip64_6.lib "
+            config.hip_libs_dir + "/amdhip64.lib "
             if config.hip_libs_dir
-            else "amdhip64_6.lib"
+            else "amdhip64.lib"
         )
         + " /I"
         + config.hip_include
