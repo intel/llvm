@@ -120,7 +120,7 @@ public:
   __SYCL2020_DEPRECATED("use sycl::group::get_group_id() instead")
   size_t get_id(int dimension) const { return index[dimension]; }
 
-  id<Dimensions> get_group_id() const { return index; }
+  id<Dimensions> &get_group_id() { return index; }
 
   size_t get_group_id(int dimension) const { return index[dimension]; }
 
