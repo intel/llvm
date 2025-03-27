@@ -184,6 +184,7 @@ template <typename DataT, int NumElements> class vec_base {
 
   // To allow testing of private methods
   template <typename T1, int T2> friend class detail::vec_base_test;
+
 protected:
   // fields
   // Alignment is the same as size, to a maximum size of 64. SPEC requires
