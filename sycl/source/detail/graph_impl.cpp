@@ -1398,6 +1398,14 @@ void exec_graph_impl::update(
             this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
 
     MExecutionEvents.push_back(UpdateEvent);
+
+    if (MContainsHostTask) {
+      // If the graph has HostTasks, the update has to be blocking. This is
+      // needed because HostTask nodes (and all the nodes that depend on
+      // HostTasks), are scheduled using a separate thread. This wait call
+      // acts as a synchronization point for that thread.
+      UpdateEvent->wait(UpdateEvent);
+    }
   } else {
     // For each partition in the executable graph, call UR update on the
     // command-buffer with the nodes to update.
