@@ -481,8 +481,8 @@ private:
   /// from the built-ins or integration header.
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr,
-                               const detail::kernel_param_desc_t &ParamDesc,
-                               bool IsESIMD, size_t Index, size_t &IndexShift);
+                               detail::kernel_param_desc_t (*ParamDescGetter)(int),
+                               size_t NumKernelParams, bool IsESIMD);
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
@@ -751,15 +751,10 @@ private:
       // TODO support ESIMD in no-integration-header case too.
 
       clearArgs();
-      size_t NumParams = detail::getKernelNumParams<KernelName>();
-      reserveArgs(NumParams);
-
-      for (size_t I = 0, IndexShift = 0; I < NumParams; ++I) {
-        extractArgsAndReqsFromLambda(
-            MHostKernel->getPtr(), detail::getKernelParamDesc<KernelName>(I),
-            detail::isKernelESIMD<KernelName>(), I, IndexShift);
-      }
-
+      extractArgsAndReqsFromLambda(
+          MHostKernel->getPtr(), &(detail::getKernelParamDesc<KernelName>),
+          detail::getKernelNumParams<KernelName>(),
+          detail::isKernelESIMD<KernelName>());
       MKernelName = detail::getKernelName<KernelName>();
     } else {
       // In case w/o the integration header it is necessary to process
@@ -3820,7 +3815,6 @@ private:
   void addArg(detail::kernel_param_kind_t ArgKind, void *Req, int AccessTarget,
               int ArgIndex);
   void clearArgs();
-  void reserveArgs(int NumParams);
   void setArgsToAssociatedAccessors();
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,

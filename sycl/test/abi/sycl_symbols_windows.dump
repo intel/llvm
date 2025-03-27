@@ -4300,7 +4300,6 @@
 ?remquo_impl@detail@_V1@sycl@@YA?AVhalf@half_impl@123@V45123@0PEAH@Z
 ?remquo_impl@detail@_V1@sycl@@YAMMMPEAH@Z
 ?remquo_impl@detail@_V1@sycl@@YANNNPEAH@Z
-?reserveArgs@handler@_V1@sycl@@AEAAXH@Z
 ?reserve_virtual_mem@experimental@oneapi@ext@_V1@sycl@@YA_K_K0AEBVcontext@45@@Z
 ?reset@filter_selector@ONEAPI@_V1@sycl@@QEBAXXZ
 ?reset@filter_selector@oneapi@ext@_V1@sycl@@QEBAXXZ
