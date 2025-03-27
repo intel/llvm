@@ -167,7 +167,8 @@ class HostKernel : public HostKernelBase {
   KernelType MKernel;
 
 public:
-  HostKernel(KernelType Kernel) : MKernel(Kernel) {}
+  HostKernel(const KernelType &Kernel) : MKernel(Kernel) {}
+  HostKernel(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
