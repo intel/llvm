@@ -303,11 +303,10 @@ context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
 
 ur_native_handle_t context_impl::getNative() const {
   const auto &Adapter = getAdapter();
+  if (getBackend() == backend::opencl)
+    Adapter->call<UrApiKind::urContextRetain>(getHandleRef());
   ur_native_handle_t Handle;
   Adapter->call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
-  if (getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainContext, ur::cast<cl_context>(Handle));
-  }
   return Handle;
 }
 

@@ -531,9 +531,6 @@ inline ur_result_t mock_urCommandBufferAppendKernelLaunchExp(void *pParams) {
 
 } // namespace MockAdapter
 
-// Will be linked from the mock OpenCL.dll/OpenCL.so
-void loadMockOpenCL();
-
 /// The UrMock<> class sets up UR for adapter mocking with the set of default
 /// overrides above, and ensures the appropriate parts of the sycl runtime and
 /// UR mocking code are reset/torn down in between tests.
@@ -547,12 +544,6 @@ public:
   /// This ensures UR is setup for adapter mocking and also injects our default
   /// entry-point overrides into the mock adapter.
   UrMock() {
-    if constexpr (Backend == backend::opencl) {
-      // Some tests use the interop handles, so we need to ensure the mock
-      // OpenCL library is loaded.
-      loadMockOpenCL();
-    }
-
 #define ADD_DEFAULT_OVERRIDE(func_name, func_override)                         \
   mock::getCallbacks().set_replace_callback(#func_name,                        \
                                             &MockAdapter::func_override);

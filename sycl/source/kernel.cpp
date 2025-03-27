@@ -30,7 +30,7 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainKernel, ClKernel);
+    impl->getAdapter()->call<detail::UrApiKind::urKernelRetain>(hKernel);
   }
 }
 

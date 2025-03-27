@@ -511,10 +511,10 @@ ur_native_handle_t event_impl::getNative() {
     this->setHandle(UREvent);
     Handle = UREvent;
   }
+  if (MContext->getBackend() == backend::opencl)
+    Adapter->call<UrApiKind::urEventRetain>(Handle);
   ur_native_handle_t OutHandle;
   Adapter->call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
-  if (MContext->getBackend() == backend::opencl)
-    __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(OutHandle));
   return OutHandle;
 }
 

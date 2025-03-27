@@ -99,7 +99,7 @@ bool device_impl::is_affinity_supported(
 
 cl_device_id device_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(getNative()));
+  getAdapter()->call<UrApiKind::urDeviceRetain>(MDevice);
   return ur::cast<cl_device_id>(getNative());
 }
 
@@ -346,11 +346,10 @@ std::vector<device> device_impl::create_sub_devices() const {
 
 ur_native_handle_t device_impl::getNative() const {
   auto Adapter = getAdapter();
+  if (getBackend() == backend::opencl)
+    Adapter->call<UrApiKind::urDeviceRetain>(getHandleRef());
   ur_native_handle_t Handle;
   Adapter->call<UrApiKind::urDeviceGetNativeHandle>(getHandleRef(), &Handle);
-  if (getBackend() == backend::opencl) {
-    __SYCL_OCL_CALL(clRetainDevice, ur::cast<cl_device_id>(Handle));
-  }
   return Handle;
 }
 
