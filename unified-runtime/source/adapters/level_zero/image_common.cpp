@@ -13,10 +13,8 @@
 #include "common.hpp"
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
 #include "v2/context.hpp"
-#include "v2/event.hpp"
 #else
 #include "context.hpp"
-#include "event.hpp"
 #endif
 #include "helpers/image_helpers.hpp"
 #include "logger/ur_logger.hpp"

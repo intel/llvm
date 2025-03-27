@@ -27,7 +27,7 @@ struct ur_bindless_mem_handle_t {
   };
 
   ze_image_handle_t getZeImage() const { return zeImage.get(); }
-  
+
   ze_image_format_t getFormat() const { return format; }
   uint64_t getWidth() const { return width; }
   uint64_t getHeight() const { return height; }
@@ -51,15 +51,12 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
                                  ur_rect_region_t *Region,
                                  ze_image_region_t &ZeRegion);
 
-
-ur_result_t bindlessImagesHandleCopyFlags(const void *pSrc, void *pDst,
-                                          const ur_image_desc_t *pSrcImageDesc,
-                                          const ur_image_desc_t *pDstImageDesc,
-                                          const ur_image_format_t *pSrcImageFormat,
-                                          const ur_image_format_t *pDstImageFormat,
-                                          ur_exp_image_copy_region_t *pCopyRegion,
-                                          ur_exp_image_copy_flags_t imageCopyFlags,
-                                          ze_command_list_handle_t ZeCommandList,
-                                          ze_event_handle_t zeSignalEvent,
-                                          uint32_t numWaitEvents,
-                                          ze_event_handle_t *phWaitEvents);
+ur_result_t bindlessImagesHandleCopyFlags(
+    const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
+    const ur_image_desc_t *pDstImageDesc,
+    const ur_image_format_t *pSrcImageFormat,
+    const ur_image_format_t *pDstImageFormat,
+    ur_exp_image_copy_region_t *pCopyRegion,
+    ur_exp_image_copy_flags_t imageCopyFlags,
+    ze_command_list_handle_t ZeCommandList, ze_event_handle_t zeSignalEvent,
+    uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);

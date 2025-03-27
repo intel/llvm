@@ -12,12 +12,9 @@
 
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
 #include "../v2/context.hpp"
-#include "../v2/memory.hpp"
 #else
 #include "../context.hpp"
-#include "../memory.hpp"
 #endif
-
 #include "../sampler.hpp"
 #include "image_helpers.hpp"
 
