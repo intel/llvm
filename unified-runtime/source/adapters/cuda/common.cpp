@@ -95,7 +95,7 @@ void checkErrorUR(nvmlReturn_t Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  URLOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr ||
       std::getenv("UR_CUDA_ABORT") != nullptr) {

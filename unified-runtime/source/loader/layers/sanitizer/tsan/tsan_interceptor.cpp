@@ -294,8 +294,7 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
       ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
           Kernel, ArgIndex, nullptr, ArgPointer);
       if (URes != UR_RESULT_SUCCESS) {
-        URLOG_CTX(ERR,
-                  "Failed to set buffer {} as the {} arg to kernel {}: {}",
+        URLOG_CTX(ERR, "Failed to set buffer {} as the {} arg to kernel {}: {}",
                   ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
                   URes);
       }

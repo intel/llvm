@@ -105,8 +105,8 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
                                                 Size, AllocType::DEVICE_USM,
                                                 ur_cast<void **>(&Allocation));
     if (URes != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "Failed to allocate {} bytes memory for buffer {}",
-                Size, this);
+      URLOG_CTX(ERR, "Failed to allocate {} bytes memory for buffer {}", Size,
+                this);
       return URes;
     }
 
