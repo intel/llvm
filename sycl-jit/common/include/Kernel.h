@@ -380,7 +380,7 @@ struct FrozenPropertyValue {
   FrozenPropertyValue(std::string_view Name, uint32_t Value)
       : Name{Name}, IsUIntValue{true}, UIntValue{Value}, Bytes{0} {}
   FrozenPropertyValue(std::string_view Name, const uint8_t *Ptr, size_t Size)
-      : Name{Name}, IsUIntValue{false}, Bytes{Size} {
+      : Name{Name}, IsUIntValue{false}, UIntValue{0}, Bytes{Size} {
     std::memcpy(Bytes.begin(), Ptr, Size);
   }
 };

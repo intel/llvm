@@ -133,8 +133,13 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
         // read last. This could cause problems if different modules contain
         // definitions with the same name, but different body/content.
         // Check that this is not problematic.
-        Linker::linkModules(*Result, std::move(NewMod),
-                            Linker::Flags::OverrideFromSrc);
+        const bool HasErrors = Linker::linkModules(
+            *Result, std::move(NewMod), Linker::Flags::OverrideFromSrc);
+        if (HasErrors) {
+          return createStringError(inconvertibleErrorCode(),
+                                   "Failed to link modules");
+        }
+
         if (AddressBits != BinInfo.AddressBits) {
           return createStringError(
               inconvertibleErrorCode(),
@@ -300,9 +305,9 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
   }
 
   // FIXME: Check whether we can provide more accurate target information here
-  auto *TargetMachine = Target->createTargetMachine(
+  std::unique_ptr<TargetMachine> TargetMachine(Target->createTargetMachine(
       TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
-      llvm::CodeGenOptLevel::Default);
+      llvm::CodeGenOptLevel::Default));
 
   llvm::legacy::PassManager PM;
 
@@ -380,9 +385,9 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
   }
 
   // FIXME: Check whether we can provide more accurate target information here
-  auto *TargetMachine = Target->createTargetMachine(
+  std::unique_ptr<TargetMachine> TargetMachine(Target->createTargetMachine(
       TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
-      llvm::CodeGenOptLevel::Default);
+      llvm::CodeGenOptLevel::Default));
 
   std::string AMDObj;
   {
