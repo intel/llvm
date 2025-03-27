@@ -17,6 +17,7 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
+from presets import enabled_suites, presets
 
 import argparse
 import re
@@ -175,6 +176,9 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     failures = {}
 
     for s in suites:
+        if s.name() not in enabled_suites(options.preset):
+            continue
+
         suite_benchmarks = s.benchmarks()
         if filter:
             suite_benchmarks = [
@@ -458,6 +462,13 @@ if __name__ == "__main__":
         default=None,
     )
     parser.add_argument(
+        "--preset",
+        type=str,
+        choices=[p for p in presets.keys()],
+        help="Benchmark preset to run",
+        default=options.preset,
+    )
+    parser.add_argument(
         "--results-dir",
         type=str,
         help="Specify a custom results directory",
@@ -495,6 +506,7 @@ if __name__ == "__main__":
     options.current_run_name = args.relative_perf
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
+    options.preset = args.preset
     options.custom_results_dir = args.results_dir
     options.build_jobs = args.build_jobs
 

@@ -6,6 +6,8 @@ Scripts for running performance tests on SYCL and Unified Runtime.
 
 - [Velocity Bench](https://github.com/oneapi-src/Velocity-Bench)
 - [Compute Benchmarks](https://github.com/intel/compute-benchmarks/)
+- [LlamaCpp Benchmarks](https://github.com/ggerganov/llama.cpp)
+- [SYCL-Bench](https://github.com/unisa-hpc/sycl-bench)
 
 ## Running
 
@@ -27,8 +29,6 @@ You can also include additional benchmark parameters, such as environment variab
 
 Once all the required information is entered, click the "Run workflow" button to initiate a new workflow run. This will execute the benchmarks and then post the results as a comment on the specified Pull Request.
 
-By default, all benchmark runs are compared against `baseline`, which is a well-established set of the latest data.
-
 You must be a member of the `oneapi-src` organization to access these features.
 
 ## Comparing results
@@ -37,8 +37,8 @@ By default, the benchmark results are not stored. To store them, use the option 
 
 You can compare benchmark results using `--compare` option. The comparison will be presented in a markdown output file (see below). If you want to calculate the relative performance of the new results against the previously saved data, use `--compare <previously_saved_data>` (i.e. `--compare baseline`). In case of comparing only stored data without generating new results, use `--dry-run --compare <name1> --compare <name2> --relative-perf <name1>`, where `name1` indicates the baseline for the relative performance calculation and `--dry-run` prevents the script for running benchmarks. Listing more than two `--compare` options results in displaying only execution time, without statistical analysis.
 
-Baseline, as well as baseline-v2 (for the level-zero adapter v2) is updated automatically during a nightly job. The results
-are stored [here](https://oneapi-src.github.io/unified-runtime/benchmark_results.html).
+Baseline_L0, as well as Baseline_L0v2 (for the level-zero adapter v2) is updated automatically during a nightly job. The results
+are stored [here](https://oneapi-src.github.io/unified-runtime/performance/).
 
 ## Output formats
 You can display the results in the form of a HTML file by using `--ouptut-html` and a markdown file by using `--output-markdown`. Due to character limits for posting PR comments, the final content of the markdown file might be reduced. In order to obtain the full markdown output, use `--output-markdown full`.
