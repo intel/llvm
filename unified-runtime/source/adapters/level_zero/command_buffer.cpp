@@ -19,7 +19,7 @@ https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CommandGraph.md#level-ze
 */
 
 // Print the name of a variable and its value in the L0 debug log
-#define DEBUG_LOG(VAR) logger::debug(#VAR " {}", VAR);
+#define DEBUG_LOG(VAR) URLOG(DEBUG, #VAR " {}", VAR);
 
 namespace {
 
@@ -44,17 +44,18 @@ bool checkImmediateAppendSupport(ur_context_handle_t Context,
     const bool EnableAppendPath = std::atoi(UrRet) == 1;
 
     if (EnableAppendPath && !Device->ImmCommandListUsed) {
-      logger::error("{} is set but immediate command-lists are currently "
-                    "disabled. Immediate command-lists are "
-                    "required to use the immediate append path.",
-                    AppendEnvVarName);
+      URLOG(ERR,
+            "{} is set but immediate command-lists are currently "
+            "disabled. Immediate command-lists are "
+            "required to use the immediate append path.",
+            AppendEnvVarName);
       std::abort();
     }
     if (EnableAppendPath && !DriverSupportsImmediateAppend) {
-      logger::error("{} is set but "
-                    "the current driver does not support the "
-                    "zeCommandListImmediateAppendCommandListsExp entrypoint.",
-                    AppendEnvVarName);
+      URLOG(ERR,
+            "{} is set but the current driver does not support the "
+            "zeCommandListImmediateAppendCommandListsExp entrypoint.",
+            AppendEnvVarName);
       std::abort();
     }
 
@@ -1840,7 +1841,7 @@ ur_result_t validateCommandDesc(
   auto SupportedFeatures =
       CommandBuffer->Device->ZeDeviceMutableCmdListsProperties
           ->mutableCommandFlags;
-  logger::debug("Mutable features supported by device {}", SupportedFeatures);
+  URLOG(DEBUG, "Mutable features supported by device {}", SupportedFeatures);
 
   auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
   UR_ASSERT(CommandBuffer == Command->CommandBuffer,
@@ -1869,7 +1870,7 @@ ur_result_t validateCommandDesc(
   if (NewGlobalWorkOffset) {
     if (!CommandBuffer->Context->getPlatform()
              ->ZeDriverGlobalOffsetExtensionFound) {
-      logger::error("No global offset extension found on this driver");
+      URLOG(ERR, "No global offset extension found on this driver");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }

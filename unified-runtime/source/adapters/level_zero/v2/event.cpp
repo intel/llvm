@@ -271,9 +271,8 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
     return returnValue(hEvent->getCommandType());
   }
   default:
-    logger::error(
-        "Unsupported ParamName in urEventGetInfo: ParamName=ParamName={}(0x{})",
-        propName, logger::toHex(propName));
+    URLOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
+          propName, logger::toHex(propName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -318,7 +317,7 @@ ur_result_t urEventGetProfilingInfo(
       return returnValue(hEvent->getEventEndTimestamp());
     }
     default:
-      logger::error("urEventGetProfilingInfo: not supported ParamName");
+      URLOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -368,7 +367,7 @@ ur_result_t urEventGetProfilingInfo(
     //
     return returnValue(uint64_t{0});
   default:
-    logger::error("urEventGetProfilingInfo: not supported ParamName");
+    URLOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 

@@ -29,10 +29,10 @@
 #define UR_CALL(Call, Result)                                                  \
   {                                                                            \
     if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
+      URLOG_ALWAYS("UR ---> {}", #Call);                                       \
     Result = (Call);                                                           \
     if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, Result);                         \
+      URLOG_ALWAYS("UR <--- {}({})", #Call, Result);                           \
   }
 
 enum class CommandType {

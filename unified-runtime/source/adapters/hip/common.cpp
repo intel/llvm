@@ -86,7 +86,7 @@ void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  URLOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
       std::getenv("UR_HIP_ABORT") != nullptr) {
@@ -113,7 +113,7 @@ void checkErrorUR(hipError_t Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  URLOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
       std::getenv("UR_HIP_ABORT") != nullptr) {
@@ -133,7 +133,7 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
   SS << "\nUR HIP ERROR:"
      << "\n\tValue:           " << Result << "\n\tFunction:        " << Function
      << "\n\tSource Location: " << File << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  URLOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
       std::getenv("UR_HIP_ABORT") != nullptr) {
@@ -157,7 +157,7 @@ hipError_t getHipVersionString(std::string &Version) {
 }
 
 void detail::ur::die(const char *pMessage) {
-  logger::always("ur_die: {}", pMessage);
+  URLOG_ALWAYS("ur_die: {}", pMessage);
   std::terminate();
 }
 

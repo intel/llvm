@@ -56,7 +56,7 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32;
       break;
     default:
-      logger::error("ur2zeImageDescBindless: unexpected data type size");
+      URLOG(ERR, "ur2zeImageDescBindless: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -75,7 +75,7 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32;
       break;
     default:
-      logger::error("ur2zeImageDescBindless: unexpected data type size");
+      URLOG(ERR, "ur2zeImageDescBindless: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -95,7 +95,7 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
       break;
     default:
-      logger::error("ur2zeImageDescBindless: unexpected data type size");
+      URLOG(ERR, "ur2zeImageDescBindless: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -113,13 +113,13 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32;
       break;
     default:
-      logger::error("ur2zeImageDescBindless: unexpected data type size");
+      URLOG(ERR, "ur2zeImageDescBindless: unexpected data type size");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   }
   default:
-    logger::error("format channel order = {}", ImageFormat->channelOrder);
+    URLOG(ERR, "format channel order = {}", ImageFormat->channelOrder);
     die("ur2zeImageDescBindless: unsupported image channel order\n");
     break;
   }
@@ -148,7 +148,7 @@ ur2zeImageDescBindless(const ur_image_format_t *ImageFormat,
     ZeImageType = ZE_IMAGE_TYPE_2DARRAY;
     break;
   default:
-    logger::error("ur2zeImageDescBindless: unsupported image type");
+    URLOG(ERR, "ur2zeImageDescBindless: unsupported image type");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -237,9 +237,10 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
         DriverHandle, "zeImageGetDeviceOffsetExp",
         (void **)&zeImageGetDeviceOffsetExpFunctionPtr);
     if (Result != ZE_RESULT_SUCCESS)
-      logger::error("zeDriverGetExtensionFunctionAddress "
-                    "zeImageGetDeviceOffsetExpv failed, err = {}",
-                    Result);
+      URLOG(ERR,
+            "zeDriverGetExtensionFunctionAddress zeImageGetDeviceOffsetExpv "
+            "failed, err = {}",
+            Result);
   });
   if (!zeImageGetDeviceOffsetExpFunctionPtr)
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -280,10 +281,10 @@ ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
         DriverHandle, "zeMemGetPitchFor2dImage",
         (void **)&zeMemGetPitchFor2dImageFunctionPtr);
     if (Result != ZE_RESULT_SUCCESS)
-      logger::error(
-          "zeDriverGetExtensionFunctionAddress zeMemGetPitchFor2dImage "
-          "failed, err = {}",
-          Result);
+      URLOG(ERR,
+            "zeDriverGetExtensionFunctionAddress zeMemGetPitchFor2dImage "
+            "failed, err = {}",
+            Result);
   });
   if (!zeMemGetPitchFor2dImageFunctionPtr)
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -551,7 +552,7 @@ ur_result_t urBindlessImagesImageCopyExp(
                 &DstRegion, &SrcRegion, ZeEvent, WaitList.Length,
                 WaitList.ZeEventList));
   } else {
-    logger::error("urBindlessImagesImageCopyExp: unexpected imageCopyFlags");
+    URLOG(ERR, "urBindlessImagesImageCopyExp: unexpected imageCopyFlags");
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -619,8 +620,10 @@ ur_result_t urBindlessImagesMipmapGetLevelExp(
   std::ignore = hImageMem;
   std::ignore = mipmapLevel;
   std::ignore = phImageMem;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
+  logger::get_logger().log(
+      logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+      logger::Level::ERR, SHORT_FILE, UR_STR(__LINE__),
+      "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -735,8 +738,8 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
   std::ignore = offset;
   std::ignore = hExternalMem;
   std::ignore = phRetMem;
-  logger::error("[UR][L0] {} function not implemented!",
-                "{} function not implemented!", __FUNCTION__);
+  URLOG(ERR, "[UR][L0] {} function not implemented!",
+        "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -778,8 +781,9 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
 
   auto UrPlatform = hContext->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    logger::get_logger().log(logger::LegacyMessage("[UR][L0] "),
+                             logger::Level::ERR, SHORT_FILE, UR_STR(__LINE__),
+                             " {} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
   ze_intel_external_semaphore_exp_desc_t SemDesc = {
@@ -845,8 +849,9 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
   std::ignore = hDevice;
   auto UrPlatform = hContext->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    logger::get_logger().log(logger::LegacyMessage("[UR][L0] "),
+                             logger::Level::ERR, SHORT_FILE, UR_STR(__LINE__),
+                             " {} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
   ZE2UR_CALL(
@@ -862,8 +867,9 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    logger::get_logger().log(logger::LegacyMessage("[UR][L0] "),
+                             logger::Level::ERR, SHORT_FILE, UR_STR(__LINE__),
+                             " {} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
@@ -924,8 +930,9 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   std::ignore = phEvent;
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
-    logger::error(logger::LegacyMessage("[UR][L0] "),
-                  " {} function not supported!", __FUNCTION__);
+    logger::get_logger().log(logger::LegacyMessage("[UR][L0] "),
+                             logger::Level::ERR, SHORT_FILE, UR_STR(__LINE__),
+                             " {} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 

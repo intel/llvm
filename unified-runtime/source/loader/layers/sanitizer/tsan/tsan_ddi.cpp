@@ -31,7 +31,7 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
     UR_CALL(getTsanInterceptor()->insertDevice(phDevices[i], DI));
     DI->Type = GetDeviceType(Context, DI->Handle);
     if (DI->Type == DeviceType::UNKNOWN) {
-      getContext()->logger.error("Unsupport device");
+      URLOG_CTX(ERR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
     if (!DI->Shadow)
@@ -54,7 +54,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     const ur_context_properties_t *pProperties,
     /// [out] pointer to handle of context object created
     ur_context_handle_t *phContext) {
-  getContext()->logger.debug("==== urContextCreate");
+  URLOG_CTX(DEBUG, "==== urContextCreate");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnCreate(numDevices, phDevices,
                                                      pProperties, phContext));
@@ -78,7 +78,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     const ur_context_native_properties_t *pProperties,
     /// [out] pointer to the handle of the context object created.
     ur_context_handle_t *phContext) {
-  getContext()->logger.debug("==== urContextCreateWithNativeHandle");
+  URLOG_CTX(DEBUG, "==== urContextCreateWithNativeHandle");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnCreateWithNativeHandle(
       hNativeContext, hAdapter, numDevices, phDevices, pProperties, phContext));
@@ -94,13 +94,13 @@ ur_result_t urContextRetain(
 
     /// [in] handle of the context to get a reference of.
     ur_context_handle_t hContext) {
-  getContext()->logger.debug("==== urContextRetain");
+  URLOG_CTX(DEBUG, "==== urContextRetain");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnRetain(hContext));
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    getContext()->logger.error("Invalid context");
+    URLOG_CTX(ERR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
   ContextInfo->RefCount++;
@@ -113,13 +113,13 @@ ur_result_t urContextRetain(
 ur_result_t urContextRelease(
     /// [in] handle of the context to release.
     ur_context_handle_t hContext) {
-  getContext()->logger.debug("==== urContextRelease");
+  URLOG_CTX(DEBUG, "==== urContextRelease");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnRelease(hContext));
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    getContext()->logger.error("Invalid context");
+    URLOG_CTX(ERR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
@@ -145,7 +145,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     size_t size,
     /// [out] pointer to USM device memory object
     void **ppMem) {
-  getContext()->logger.debug("==== urUSMDeviceAlloc");
+  URLOG_CTX(DEBUG, "==== urUSMDeviceAlloc");
 
   return getTsanInterceptor()->allocateMemory(
       hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
@@ -164,7 +164,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     size_t size,
     /// [out] pointer to USM host memory object
     void **ppMem) {
-  getContext()->logger.debug("==== urUSMHostAlloc");
+  URLOG_CTX(DEBUG, "==== urUSMHostAlloc");
 
   return getTsanInterceptor()->allocateMemory(hContext, nullptr, pUSMDesc, pool,
                                               size, AllocType::HOST_USM, ppMem);
@@ -185,7 +185,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     size_t size,
     /// [out] pointer to USM shared memory object
     void **ppMem) {
-  getContext()->logger.debug("==== urUSMSharedAlloc");
+  URLOG_CTX(DEBUG, "==== urUSMSharedAlloc");
 
   return getTsanInterceptor()->allocateMemory(
       hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
@@ -223,7 +223,7 @@ ur_result_t urEnqueueKernelLaunch(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
-  getContext()->logger.debug("==== urEnqueueKernelLaunch");
+  URLOG_CTX(DEBUG, "==== urEnqueueKernelLaunch");
 
   LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
 
@@ -352,7 +352,7 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  getContext()->logger.always("==== DeviceSanitizer: TSAN");
+  URLOG_CTX_ALWAYS("==== DeviceSanitizer: TSAN");
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urCheckVersion(UR_API_VERSION_CURRENT);
@@ -374,7 +374,7 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (result != UR_RESULT_SUCCESS) {
-    getContext()->logger.error("Initialize TSAN DDI table failed: {}", result);
+    URLOG_CTX(ERR, "Initialize TSAN DDI table failed: {}", result);
   }
 
   return result;

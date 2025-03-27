@@ -8,17 +8,17 @@
 
 //////////////////////////////////////////////////////////////////////////////
 TEST_F(LoggerFromEnvVar, DebugMessage) {
-  logger::debug("Test message: {}", "success");
+  URLOG(DEBUG, "Test message: {}", "success");
 }
 
 TEST_F(LoggerFromEnvVar, InfoMessage) {
-  logger::info("Test message: {}", "success");
+  URLOG(INFO, "Test message: {}", "success");
 }
 
 TEST_F(LoggerFromEnvVar, WarningMessage) {
-  logger::warning("Test message: {}", "success");
+  URLOG(WARN, "Test message: {}", "success");
 }
 
 TEST_F(LoggerFromEnvVar, ErrorMessage) {
-  logger::error("Test message: {}", "success");
+  URLOG(ERR, "Test message: {}", "success");
 }

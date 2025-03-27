@@ -28,7 +28,7 @@ void SanitizerOptions::Init(const std::string &EnvName,
     std::stringstream SS;
     SS << "<SANITIZER>[ERROR]: ";
     SS << e.what();
-    Logger.always(SS.str().c_str());
+    URLOG_ALWAYS_(Logger, SS.str().c_str());
     die("Sanitizer failed to parse options.\n");
   }
 

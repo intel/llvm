@@ -93,7 +93,7 @@ namespace ur_validation_layer
             %>
             %if tp_input_handle_funcs and not is_related_create_get_retain_release_func:
             if (getContext()->enableLifetimeValidation && !getContext()->refCountContext->isReferenceValid(${tp['name']})) {
-                getContext()->refCountContext->logInvalidReference(${tp['name']});
+                URLOG_CTX_INVALID_REFERENCES(${tp['name']});
             }
             %endif
             %endfor

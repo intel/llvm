@@ -53,7 +53,7 @@ void checkErrorUR(CUresult Result, const char *Function, int Line,
      << "\n\tDescription:     " << ErrorString
      << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
      << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  URLOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr ||
       std::getenv("UR_CUDA_ABORT") != nullptr) {
@@ -73,7 +73,7 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
   SS << "\nUR ERROR:"
      << "\n\tValue:           " << Result << "\n\tFunction:        " << Function
      << "\n\tSource Location: " << File << ":" << Line << "\n";
-  logger::error("{}", SS.str());
+  URLOG(ERR, "{}", SS.str());
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
@@ -93,7 +93,7 @@ std::string getCudaVersionString() {
 }
 
 void detail::ur::die(const char *Message) {
-  logger::always("ur_die:{}", Message);
+  URLOG_ALWAYS("ur_die:{}", Message);
   std::terminate();
 }
 

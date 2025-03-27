@@ -33,8 +33,8 @@ TsanRuntimeData *TsanRuntimeDataWrapper::getDevicePtr() {
         Context, Device, nullptr, nullptr, sizeof(TsanRuntimeData),
         (void **)&DevicePtr);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error(
-          "Failed to alloc device usm for asan runtime data: {}", Result);
+      URLOG(ERR, "Failed to alloc device usm for asan runtime data: {}",
+            Result);
     }
   }
   return DevicePtr;
@@ -63,9 +63,8 @@ ur_result_t DeviceInfo::allocShadowMemory() {
   Shadow = GetShadowMemory(ShadowContext, Handle, Type);
   assert(Shadow && "Failed to get shadow memory");
   UR_CALL(Shadow->Setup());
-  getContext()->logger.info("ShadowMemory(Global): {} - {}",
-                            (void *)Shadow->ShadowBegin,
-                            (void *)Shadow->ShadowEnd);
+  URLOG_CTX(INFO, "ShadowMemory(Global): {} - {}", (void *)Shadow->ShadowBegin,
+            (void *)Shadow->ShadowEnd);
   return UR_RESULT_SUCCESS;
 }
 
@@ -163,7 +162,7 @@ ur_result_t TsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ManagedQueue InternalQueue(CI->Handle, DI->Handle);
   if (!InternalQueue) {
-    getContext()->logger.error("Failed to create internal queue");
+    URLOG_CTX(ERR, "Failed to create internal queue");
     return UR_RESULT_ERROR_INVALID_QUEUE;
   }
 
@@ -211,9 +210,10 @@ ur_result_t TsanInterceptor::prepareLaunch(std::shared_ptr<ContextInfo> &,
           Queue, GetProgram(Kernel), "__TsanLaunchInfo", true,
           sizeof(LaunchInfoPtr), 0, &LaunchInfoPtr, 0, nullptr, nullptr);
   if (URes != UR_RESULT_SUCCESS) {
-    getContext()->logger.info("EnqueueWriteGlobal(__TsanLaunchInfo) "
-                              "failed, maybe empty kernel: {}",
-                              URes);
+    URLOG_CTX(INFO,
+              "EnqueueWriteGlobal(__TsanLaunchInfo) "
+              "failed, maybe empty kernel: {}",
+              URes);
   }
 
   return UR_RESULT_SUCCESS;

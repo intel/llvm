@@ -118,10 +118,10 @@ inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
 #define UR_CALL(Call)                                                          \
   {                                                                            \
     if (PrintTrace)                                                            \
-      getContext()->logger.debug("UR ---> {}", #Call);                         \
+      URLOG_CTX(DEBUG, "UR ---> {}", #Call);                                   \
     ur_result_t Result = (Call);                                               \
     if (PrintTrace)                                                            \
-      getContext()->logger.debug("UR <--- {}({})", #Call, Result);             \
+      URLOG_CTX(DEBUG, "UR <--- {}({})", #Call, Result);                       \
     if (Result != UR_RESULT_SUCCESS)                                           \
       return Result;                                                           \
   }

@@ -48,21 +48,20 @@ struct _ur_platform_handle_t;
         (zeDriverGet_t)GetProcAddress(zeLoader, "zeDriverGet");
     if (zeDriverGetLoader) {
       ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
+      URLOG(DEBUG,
+            "ZE ---> checkL0LoaderTeardown result = {} driver count = {}",
+            result, ZeDriverCount);
       if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
         loaderStable = false;
       }
     } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
+      URLOG(DEBUG, "ZE ---> checkL0LoaderTeardown: Failed to get address of "
+                   "zeDriverGet");
       loaderStable = false;
     }
     FreeLibrary(zeLoader);
   } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load ze_loader.dll");
+    URLOG(DEBUG, "ZE ---> checkL0LoaderTeardown: Failed to load ze_loader.dll");
     loaderStable = false;
   }
 #else
@@ -74,26 +73,27 @@ struct _ur_platform_handle_t;
         (zeDriverGet_t)dlsym(zeLoader, "zeDriverGet");
     if (zeDriverGetLoader) {
       ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
+      URLOG(DEBUG,
+            "ZE ---> checkL0LoaderTeardown result = {} driver count = {}",
+            result, ZeDriverCount);
       if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
         loaderStable = false;
       }
     } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
+      URLOG(DEBUG, "ZE ---> checkL0LoaderTeardown: Failed to get address of "
+                   "zeDriverGet");
       loaderStable = false;
     }
     dlclose(zeLoader);
   } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load libze_loader.so.1");
+    URLOG(DEBUG,
+          "ZE ---> checkL0LoaderTeardown: Failed to load libze_loader.so.1");
     loaderStable = false;
   }
 #endif
   if (!loaderStable) {
-    logger::debug(
+    URLOG(
+        DEBUG,
         "ZE ---> checkL0LoaderTeardown: Loader is not stable, returning false");
   }
   return loaderStable;
@@ -244,10 +244,10 @@ static auto getUrResultString = [](ur_result_t Result) {
 #define UR_CALL(Call)                                                          \
   {                                                                            \
     if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
+      URLOG_ALWAYS("UR ---> {}", #Call);                                       \
     ur_result_t Result = (Call);                                               \
     if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
+      URLOG_ALWAYS("UR <--- {}({})", #Call, getUrResultString(Result));        \
     if (Result != UR_RESULT_SUCCESS)                                           \
       return Result;                                                           \
   }
@@ -256,10 +256,10 @@ static auto getUrResultString = [](ur_result_t Result) {
 #define UR_CALL_THROWS(Call)                                                   \
   {                                                                            \
     if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
+      URLOG_ALWAYS("UR ---> {}", #Call);                                       \
     ur_result_t Result = (Call);                                               \
     if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
+      URLOG_ALWAYS("UR <--- {}({})", #Call, getUrResultString(Result));        \
     if (Result != UR_RESULT_SUCCESS)                                           \
       throw Result;                                                            \
   }

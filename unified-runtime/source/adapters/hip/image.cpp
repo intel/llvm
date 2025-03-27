@@ -825,8 +825,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
       // we don't support copying between different image types.
       if (pSrcImageDesc->type != pDstImageDesc->type) {
-        logger::error(
-            "Unsupported copy operation between different type of images");
+        URLOG(ERR,
+              "Unsupported copy operation between different type of images");
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
       }
 
