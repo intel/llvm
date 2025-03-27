@@ -15,26 +15,25 @@ let layerComparisonsData;
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
 
 const colorPalette = [
-    '#98C1D9', // Soft Blue
-    '#FFB5A7', // Peach
-    '#A8D5BA', // Sage Green
-    '#F5CAC3', // Rose Pink
-    '#B6D7DE', // Sky Blue
-    '#FFE5D9', // Light Peach
-    '#D4E6B5', // Lime Green
-    '#E8DFF5', // Lavender
-    '#FFD3B5', // Light Orange
-    '#C3E8BD', // Mint Green
-    '#E5C1C8', // Dusty Rose
-    '#A4C3B2', // Sea Green
-    '#F0B5B3', // Coral
-    '#B5C7E7', // Periwinkle
-    '#F5E6CC', // Cream
-    '#C8D6B9', // Olive Green
-    '#DFB2F4', // Light Purple
-    '#B5E5CF', // Aqua Mint
-    '#F4D1AE', // Apricot
-    '#BFD7EA'  // Steel Blue
+    'rgb(255, 50, 80)',
+    'rgb(255, 145, 15)',
+    'rgb(255, 220, 0)',
+    'rgb(20, 200, 50)',
+    'rgb(0, 130, 255)',
+    'rgb(180, 60, 255)',
+    'rgb(255, 40, 200)',
+    'rgb(0, 210, 180)',
+    'rgb(255, 90, 0)',
+    'rgb(110, 220, 0)',
+    'rgb(240, 100, 170)',
+    'rgb(30, 175, 255)',
+    'rgb(180, 210, 0)',
+    'rgb(130, 0, 220)',
+    'rgb(255, 170, 0)',
+    'rgb(0, 170, 110)',
+    'rgb(220, 80, 60)',
+    'rgb(80, 115, 230)',
+    'rgb(210, 190, 0)',
 ];
 
 // Run selector functions
@@ -153,7 +152,6 @@ function createChart(data, containerId, type) {
         },
         options: options
     };
-    console.log(chartConfig.data.datasets);
 
     const chart = new Chart(ctx, chartConfig);
     chartInstances.set(containerId, chart);
@@ -627,7 +625,7 @@ function processLayerComparisonsData(benchmarkRuns) {
             const uniqueLayers = new Set();
             labelsInGroup.forEach(label => {
                 const labelMetadata = metadataForLabel(label, 'benchmark');
-                const layerTags = getLayerTags(label, labelMetadata);
+                const layerTags = getLayerTags(labelMetadata);
                 layerTags.forEach(tag => uniqueLayers.add(tag));
             });
 
