@@ -427,12 +427,6 @@ if __name__ == "__main__":
 		default=options.output_directory,
     )
     parser.add_argument(
-        "--output-dir",
-        type=str,
-        help="Location for output files, if --output-html or --output-markdown was specified.",
-        default=None,
-    )
-    parser.add_argument(
         "--dry-run",
         help="Do not run any actual benchmarks",
         action="store_true",
