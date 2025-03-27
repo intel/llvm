@@ -17,6 +17,7 @@ def generate_html(
     metadata: dict[str, BenchmarkMetadata],
 ):
     benchmark_runs.sort(key=lambda run: run.date, reverse=True)
+    # Sorted in reverse, such that runs are ordered from newest to oldest
 
     # Create the comprehensive output object
     output = BenchmarkOutput(

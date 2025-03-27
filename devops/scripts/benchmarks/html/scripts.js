@@ -374,6 +374,12 @@ function downloadChart(canvasId, label) {
 }
 
 // URL and filtering functions
+//
+// Information about currently displayed charts, filters, etc. are preserved in
+// the URL query string: This allows users to save/share links reproducing exact
+// queries, filters, settings, etc. Therefore, for consistency, the URL needs to
+// be reconstruted everytime queries, filters, etc. are changed.
+
 function getQueryParam(param) {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get(param);
@@ -499,6 +505,10 @@ function processTimeseriesData(benchmarkRuns) {
 function processBarChartsData(benchmarkRuns) {
     const groupedResults = {};
 
+    // Runs ordered from oldest to newest. In groupedResults, we want to use
+    // the data for the given group from the newest run. Therefore, we reverse
+    // the order of iteration to obtain runs ordered from newest to oldest
+    // instead.
     benchmarkRuns.reverse().forEach(run => {
         run.results.forEach(result => {
             if (!result.explicit_group) return;
