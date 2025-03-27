@@ -9,9 +9,33 @@ let chartInstances = new Map();
 let suiteNames = new Set();
 let timeseriesData, barChartsData, allRunNames;
 let activeTags = new Set();
+let layerComparisonsData;
 
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
+
+const colorPalette = [
+    '#98C1D9', // Soft Blue
+    '#FFB5A7', // Peach
+    '#A8D5BA', // Sage Green
+    '#F5CAC3', // Rose Pink
+    '#B6D7DE', // Sky Blue
+    '#FFE5D9', // Light Peach
+    '#D4E6B5', // Lime Green
+    '#E8DFF5', // Lavender
+    '#FFD3B5', // Light Orange
+    '#C3E8BD', // Mint Green
+    '#E5C1C8', // Dusty Rose
+    '#A4C3B2', // Sea Green
+    '#F0B5B3', // Coral
+    '#B5C7E7', // Periwinkle
+    '#F5E6CC', // Cream
+    '#C8D6B9', // Olive Green
+    '#DFB2F4', // Light Purple
+    '#B5E5CF', // Aqua Mint
+    '#F4D1AE', // Apricot
+    '#BFD7EA'  // Steel Blue
+];
 
 // Run selector functions
 function updateSelectedRuns(forceUpdate = true) {
@@ -67,7 +91,7 @@ function createChart(data, containerId, type) {
                         if (type === 'time') {
                             const point = context.raw;
                             return [
-                                `${data.label}:`,
+                                `${point.seriesName}:`,
                                 `Value: ${point.y.toFixed(2)} ${data.unit}`,
                                 `Stddev: ${point.stddev.toFixed(2)} ${data.unit}`,
                                 `Git Hash: ${point.gitHash}`,
@@ -129,6 +153,7 @@ function createChart(data, containerId, type) {
         },
         options: options
     };
+    console.log(chartConfig.data.datasets);
 
     const chart = new Chart(ctx, chartConfig);
     chartInstances.set(containerId, chart);
@@ -136,15 +161,18 @@ function createChart(data, containerId, type) {
 }
 
 function createTimeseriesDatasets(data) {
-    return Object.entries(data.runs).map(([name, points]) => ({
+    return Object.entries(data.runs).map(([name, runData], index) => ({
         label: name,
-        data: points.map(p => ({
-            x: new Date(p.date),
+        data: runData.points.map(p => ({
+            seriesName: name,
+            x: p.date,
             y: p.value,
             gitHash: p.git_hash,
             gitRepo: p.github_repo,
             stddev: p.stddev
         })),
+        borderColor: colorPalette[index % colorPalette.length],
+        backgroundColor: colorPalette[index % colorPalette.length],
         borderWidth: 1,
         pointRadius: 3,
         pointStyle: 'circle',
@@ -153,13 +181,17 @@ function createTimeseriesDatasets(data) {
 }
 
 function updateCharts() {
-    // Filter data by active runs
-    const filteredTimeseriesData = timeseriesData.map(chart => ({
+    const filterRunData = (chart) => ({
         ...chart,
         runs: Object.fromEntries(
-            Object.entries(chart.runs).filter(([name]) => activeRuns.has(name))
+            Object.entries(chart.runs).filter(([_, data]) => 
+                activeRuns.has(data.runName)
+            )
         )
-    }));
+    });
+
+    const filteredTimeseriesData = timeseriesData.map(filterRunData);
+    const filteredLayerComparisonsData = layerComparisonsData.map(filterRunData);
 
     const filteredBarChartsData = barChartsData.map(chart => ({
         ...chart,
@@ -170,11 +202,10 @@ function updateCharts() {
         }))
     }));
 
-    // Draw charts with filtered data
-    drawCharts(filteredTimeseriesData, filteredBarChartsData);
+    drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayerComparisonsData);
 }
 
-function drawCharts(filteredTimeseriesData, filteredBarChartsData) {
+function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayerComparisonsData) {
     // Clear existing charts
     document.querySelectorAll('.charts').forEach(container => container.innerHTML = '');
     chartInstances.forEach(chart => chart.destroy());
@@ -185,6 +216,14 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData) {
         const containerId = `timeseries-${index}`;
         const container = createChartContainer(data, containerId, 'benchmark');
         document.querySelector('.timeseries .charts').appendChild(container);
+        createChart(data, containerId, 'time');
+    });
+
+    // Create layer comparison charts
+    filteredLayerComparisonsData.forEach((data, index) => {
+        const containerId = `layer-comparison-${index}`;
+        const container = createChartContainer(data, containerId, 'group');
+        document.querySelector('.layer-comparisons .charts').appendChild(container);
         createChart(data, containerId, 'time');
     });
 
@@ -324,16 +363,31 @@ function createLatestRunsLookup(benchmarkRuns) {
     return latestRunsMap;
 }
 
-function generateExtraInfo(latestRunsLookup, data, type) {
-    const labels = data.datasets ? data.datasets.map(dataset => dataset.label) : [data.label];
+function extractLabels(data) {
+    // For layer comparison charts
+    if (data.benchmarkLabels) {
+        return data.benchmarkLabels;
+    }
+
+    // For bar charts
+    if (data.datasets) {
+        return data.datasets.map(dataset => dataset.label);
+    }
+
+    // For time series charts
+    return [data.label];
+}
+
+function generateExtraInfo(latestRunsLookup, data) {
+    const labels = extractLabels(data);
 
     return labels.map(label => {
-        const metadata = metadataForLabel(label, type);
+        const metadata = metadataForLabel(label, 'benchmark');
         const latestRun = latestRunsLookup.get(label);
 
         let html = '<div class="extra-info-entry">';
 
-        if (metadata) {
+        if (metadata && latestRun) {
             html += `<strong>${label}:</strong> ${formatCommand(latestRun.result)}<br>`;
 
             if (metadata.description) {
@@ -473,7 +527,6 @@ function processTimeseriesData(benchmarkRuns) {
     const resultsByLabel = {};
 
     benchmarkRuns.forEach(run => {
-        const runDate = run.date ? new Date(run.date) : null;
         run.results.forEach(result => {
             if (!resultsByLabel[result.label]) {
                 resultsByLabel[result.label] = {
@@ -485,17 +538,7 @@ function processTimeseriesData(benchmarkRuns) {
                 };
             }
 
-            if (!resultsByLabel[result.label].runs[run.name]) {
-                resultsByLabel[result.label].runs[run.name] = [];
-            }
-
-            resultsByLabel[result.label].runs[run.name].push({
-                date: runDate,
-                value: result.value,
-                stddev: result.stddev,
-                git_hash: run.git_hash,
-                github_repo: run.github_repo
-            });
+            addRunDataPoint(resultsByLabel[result.label], run, result, run.name);
         });
     });
 
@@ -539,9 +582,13 @@ function processBarChartsData(benchmarkRuns) {
 
             let dataset = group.datasets.find(d => d.label === result.label);
             if (!dataset) {
+                const datasetIndex = group.datasets.length;
                 dataset = {
                     label: result.label,
-                    data: new Array(group.labels.length).fill(null)
+                    data: new Array(group.labels.length).fill(null),
+                    backgroundColor: colorPalette[datasetIndex % colorPalette.length],
+                    borderColor: colorPalette[datasetIndex % colorPalette.length],
+                    borderWidth: 1
                 };
                 group.datasets.push(dataset);
             }
@@ -552,6 +599,113 @@ function processBarChartsData(benchmarkRuns) {
     });
 
     return Object.values(groupedResults);
+}
+
+function getLayerTags(metadata) {
+    const layerTags = new Set();
+    if (metadata?.tags) {
+        metadata.tags.forEach(tag => {
+            if (tag.startsWith('SYCL') || tag.startsWith('UR') || tag === 'L0') {
+                layerTags.add(tag);
+            }
+        });
+    }
+    return layerTags;
+}
+
+function processLayerComparisonsData(benchmarkRuns) {
+    const groupedResults = {};
+
+    benchmarkRuns.forEach(run => {
+        run.results.forEach(result => {
+            if (!result.explicit_group) return;
+
+            // Skip if no metadata available
+            const metadata = metadataForLabel(result.explicit_group, 'group');
+            if (!metadata) return;
+
+            // Get all benchmark labels in this group
+            const labelsInGroup = new Set(
+                benchmarkRuns.flatMap(r =>
+                    r.results
+                        .filter(res => res.explicit_group === result.explicit_group)
+                        .map(res => res.label)
+                )
+            );
+
+            // Check if this group compares different layers
+            const uniqueLayers = new Set();
+            labelsInGroup.forEach(label => {
+                const labelMetadata = metadataForLabel(label, 'benchmark');
+                const layerTags = getLayerTags(label, labelMetadata);
+                layerTags.forEach(tag => uniqueLayers.add(tag));
+            });
+
+            // Only process groups that compare different layers
+            if (uniqueLayers.size <= 1) return;
+
+            if (!groupedResults[result.explicit_group]) {
+                groupedResults[result.explicit_group] = {
+                    label: result.explicit_group,
+                    suite: result.suite,
+                    unit: result.unit,
+                    lower_is_better: result.lower_is_better,
+                    runs: {},
+                    benchmarkLabels: [],
+                    description: metadata?.description || null,
+                    notes: metadata?.notes || null,
+                    unstable: metadata?.unstable || null
+                };
+            }
+
+            const group = groupedResults[result.explicit_group];
+            const name = result.label + ' (' + run.name + ')';
+
+            // Add the benchmark label if it's not already in the array
+            if (!group.benchmarkLabels.includes(result.label)) {
+                group.benchmarkLabels.push(result.label);
+            }
+
+            addRunDataPoint(group, run, result, name);
+        });
+    });
+
+    return Object.values(groupedResults);
+}
+
+function createRunDataStructure(run, result, label) {
+    return {
+        runName: run.name,
+        points: [{
+            date: new Date(run.date),
+            value: result.value,
+            stddev: result.stddev,
+            git_hash: run.git_hash,
+            github_repo: run.github_repo,
+            label: label || result.label
+        }]
+    };
+}
+
+function addRunDataPoint(group, run, result, name = null) {
+    const runKey = name || result.label + ' (' + run.name + ')';
+
+    if (!group.runs[runKey]) {
+        group.runs[runKey] = {
+            runName: run.name,
+            points: []
+        };
+    }
+
+    group.runs[runKey].points.push({
+        date: new Date(run.date),
+        value: result.value,
+        stddev: result.stddev,
+        git_hash: run.git_hash,
+        github_repo: run.github_repo,
+    });
+
+    return group;
 }
 
 // Setup functions
@@ -709,6 +863,7 @@ function initializeCharts() {
     // Process raw data
     timeseriesData = processTimeseriesData(benchmarkRuns);
     barChartsData = processBarChartsData(benchmarkRuns);
+    layerComparisonsData = processLayerComparisonsData(benchmarkRuns);
     allRunNames = [...new Set(benchmarkRuns.map(run => run.name))];
 
     // Set up active runs
