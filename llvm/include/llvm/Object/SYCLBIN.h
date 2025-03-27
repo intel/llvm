@@ -106,13 +106,11 @@ private:
     uint64_t BinaryBytesSize;
   };
 
-  static Expected<std::optional<IRModuleHeaderType>>
-  createIRModuleHeader(const ModuleDesc &Desc,
-                       const module_split::SplitModule &SM,
-                       SmallString<0> &MetadataByteTable,
-                       raw_svector_ostream &MetadataByteTableOS,
-                       SmallString<0> &BinaryByteTable,
-                       raw_svector_ostream &BinaryByteTableOS);
+  static Expected<std::optional<IRModuleHeaderType>> createIRModuleHeader(
+      const ModuleDesc &Desc, const module_split::SplitModule &SM,
+      SmallString<0> &MetadataByteTable,
+      raw_svector_ostream &MetadataByteTableOS, SmallString<0> &BinaryByteTable,
+      raw_svector_ostream &BinaryByteTableOS);
   static Expected<std::optional<NativeDeviceCodeImageHeaderType>>
   createNativeDeviceCodeImageHeader(const ModuleDesc &Desc,
                                     const module_split::SplitModule &SM,
