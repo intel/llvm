@@ -23,11 +23,11 @@
 #endif // __clang__
 
 // See vec::DataType definitions for more details
-#ifndef __SYCL_USE_NEW_VEC_IMPL
+#ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#define __SYCL_USE_NEW_VEC_IMPL 1
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
 #else
-#define __SYCL_USE_NEW_VEC_IMPL 0
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
 #endif
 #endif
 
@@ -171,9 +171,9 @@ template <typename DataT, int NumElements> class vec_base {
   //
   // To play it safe, we only switch to use plain array if both its size and
   // alignment match those of std::array, or unless the new behavior is forced
-  // via __SYCL_USE_NEW_VEC_IMPL or preview breaking changes mode.
+  // via __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE or preview breaking changes mode.
   using DataType = std::conditional_t<
-#if __SYCL_USE_NEW_VEC_IMPL
+#if __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
       true,
 #else
       sizeof(std::array<DataT, AdjustedNum>) == sizeof(DataT[AdjustedNum]) &&

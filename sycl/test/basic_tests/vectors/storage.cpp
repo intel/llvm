@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only
 // RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -fpreview-breaking-changes
-// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_NEW_VEC_IMPL=1
+// RUN: %clangxx -fsycl -Xclang -verify %s -fsyntax-only -D__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE=1
 // expected-no-diagnostics
 
 #include <sycl/vector.hpp>
@@ -21,7 +21,8 @@ public:
         sizeof(std::array<T, N>) == sizeof(T[N]) &&
         alignof(std::array<T, N>) == alignof(T[N]);
 
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES) || __SYCL_USE_NEW_VEC_IMPL
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES) ||                               \
+    __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
     static_assert(uses_plain_array,
                   "We must use plain array regardless of "
                   "layout, because user is opted-in for a potential ABI-break");
