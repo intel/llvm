@@ -12,8 +12,8 @@
  */
 
 #include "tsan_buffer.hpp"
-#include "tsan_interceptor.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
+#include "tsan_interceptor.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {

@@ -21,9 +21,8 @@ int main() {
 
     q.submit([&](sycl::handler &cgh) {
        auto accessor = sub_buf.get_access<sycl::access::mode::read_write>(cgh);
-       cgh.parallel_for<class Test>(
-           sycl::nd_range<1>(size_x / 2, 1),
-           [=](sycl::nd_item<1>) { accessor[0]++; });
+       cgh.parallel_for<class Test>(sycl::nd_range<1>(size_x / 2, 1),
+                                    [=](sycl::nd_item<1>) { accessor[0]++; });
      }).wait();
     // CHECK: WARNING: DeviceSanitizer: data race
     // CHECK-NEXT: When write of size 4 at 0x{{.*}} in kernel <{{.*}}Test>
@@ -32,4 +31,3 @@ int main() {
 
   return 0;
 }
-
