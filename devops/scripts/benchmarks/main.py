@@ -454,13 +454,13 @@ if __name__ == "__main__":
         default=options.current_run_name,
     )
     parser.add_argument(
-        "--cudnn_directory",
+        "--cudnn-directory",
         type=str,
         help="Directory for cudnn library",
         default=None,
     )
     parser.add_argument(
-        "--cublas_directory",
+        "--cublas-directory",
         type=str,
         help="Directory for cublas library",
         default=None,
@@ -483,6 +483,12 @@ if __name__ == "__main__":
         type=int,
         help="Number of build jobs to run simultaneously",
         default=options.build_jobs,
+    )
+    parser.add_argument(
+        "--hip-arch",
+        type=str,
+        help="HIP device architecture",
+        default=None,
     )
 
     args = parser.parse_args()
@@ -512,6 +518,7 @@ if __name__ == "__main__":
     options.preset = args.preset
     options.custom_results_dir = args.results_dir
     options.build_jobs = args.build_jobs
+    options.hip_arch = args.hip_arch
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
