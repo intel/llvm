@@ -2,7 +2,7 @@
 // `remoteDataUrl` (etc.) is not defined in config.js, the dashboard will
 // attempt to load data from variables defined here instead.
 //
-// These variables are empty by default, and is populated by main.py if
+// These variables are empty by default, and are populated by main.py if
 // `--output-html local` is specified.
 
 benchmarkRuns = [];
