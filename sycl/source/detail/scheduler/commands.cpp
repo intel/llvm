@@ -3529,7 +3529,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     Properties.flags = 0;
     if (Barrier->MEventMode ==
         ext::oneapi::experimental::event_mode_enum::low_power)
-      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
@@ -3563,7 +3563,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     Properties.flags = 0;
     if (Barrier->MEventMode ==
         ext::oneapi::experimental::event_mode_enum::low_power)
-      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+      Properties.flags |= UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT;
 
     const AdapterPtr &Adapter = MQueue->getAdapter();
     if (MEvent != nullptr)
@@ -3732,6 +3732,36 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         ->call_nocheck<UrApiKind::urBindlessImagesSignalExternalSemaphoreExp>(
             MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
             OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
+  }
+  case CGType::AsyncAlloc: {
+    // NO-OP. Async alloc calls adapter immediately in order to return a valid
+    // ptr directly. Any explicit/implicit dependencies are handled at that
+    // point, including in order queue deps.
+
+    // Set event carried from async alloc execution.
+    CGAsyncAlloc *AsyncAlloc = (CGAsyncAlloc *)MCommandGroup.get();
+    if (Event)
+      *Event = AsyncAlloc->getEvent();
+
+    SetEventHandleOrDiscard();
+
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::AsyncFree: {
+    CGAsyncFree *AsyncFree = (CGAsyncFree *)MCommandGroup.get();
+    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    void *ptr = AsyncFree->getPtr();
+
+    if (auto Result =
+            Adapter->call_nocheck<sycl::detail::UrApiKind::urEnqueueUSMFreeExp>(
+                MQueue->getHandleRef(), nullptr, ptr, RawEvents.size(),
+                RawEvents.data(), Event);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    SetEventHandleOrDiscard();
+
+    return UR_RESULT_SUCCESS;
   }
   case CGType::None: {
     if (RawEvents.empty()) {
