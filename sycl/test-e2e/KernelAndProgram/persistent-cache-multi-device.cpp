@@ -1,4 +1,4 @@
-// REQUIRES: (level_zero || opencl) && linux && gpu
+// REQUIRES: (level_zero || opencl) && linux && gpu && multi-device-emulation
 
 // RUN: %{build} -o %t.out
 // RUN: rm -rf %t/cache_dir

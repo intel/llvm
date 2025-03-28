@@ -1,4 +1,4 @@
-// REQUIRES: gpu && linux && (opencl || level_zero)
+// REQUIRES: gpu && linux && (opencl || level_zero) && multi-device-emulation
 
 // RUN: %{build} -o %t.out
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 %{run} %t.out

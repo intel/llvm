@@ -762,6 +762,37 @@ for target in config.sycl_build_targets:
 # discovered already.
 config.sycl_dev_features = {}
 
+
+# Function to check if multi-device-emulation feature is available
+def check_multi_device_emulation(device):
+    try:
+        with test_env():
+            cmd = "{} {}".format(config.run_launcher or "", sycl_ls)
+            mod_env = os.environ.copy()
+            mod_env["ONEAPI_DEVICE_SELECTOR"] = device
+            sp = subprocess.run(
+                cmd, env=mod_env, text=True, shell=True, capture_output=True
+            )
+            sp.check_returncode()
+            regular_device_count = sum(
+                1 for line in sp.stdout.splitlines() if line.startswith("[")
+            )
+            mod_env["NEOReadDebugKeys"] = "1"
+            mod_env["CreateMultipleRootDevices"] = str(regular_device_count * 2)
+            sp = subprocess.run(
+                cmd, env=mod_env, text=True, shell=True, capture_output=True
+            )
+            sp.check_returncode()
+            emulated_device_count = sum(
+                1 for line in sp.stdout.splitlines() if line.startswith("[")
+            )
+            if emulated_device_count == regular_device_count * 2:
+                return True
+            return False
+    except Exception as e:
+        return False
+
+
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
 for full_name, sycl_device in zip(
@@ -910,6 +941,9 @@ for full_name, sycl_device in zip(
     # Add corresponding target feature
     target = config.backend_to_target[be]
     features.add(target)
+    if sycl_device == "opencl:gpu" or sycl_device == "level_zero:gpu":
+        if check_multi_device_emulation(sycl_device):
+            features.add("multi-device-emulation")
 
     if be == "hip":
         if not config.amd_arch:
