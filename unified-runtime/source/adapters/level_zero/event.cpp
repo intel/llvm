@@ -1489,7 +1489,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
   // the native driver implementation will already ensure in-order semantics.
   // The only exception is when a different immediate command was last used on
   // the same UR Queue.
-  if (CurQueue->Device->Platform->allowDriverInOrderLists() &&
+  if (CurQueue->Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
       CurQueue->isInOrderQueue() && CurQueue->UsingImmCmdLists) {
     auto QueueGroup = CurQueue->getQueueGroup(UseCopyEngine);
     uint32_t QueueGroupOrdinal, QueueIndex;
@@ -1519,7 +1520,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
     // For in-order queue and wait-list which is empty or has events only from
     // the same queue then we don't need to wait on any other additional events
-    if (CurQueue->Device->Platform->allowDriverInOrderLists() &&
+    if (CurQueue->Device->Platform->allowDriverInOrderLists(
+            true /*Only Allow Driver In Order List if requested*/) &&
         CurQueue->isInOrderQueue() &&
         WaitListEmptyOrAllEventsFromSameQueue(CurQueue, EventListLength,
                                               EventList)) {

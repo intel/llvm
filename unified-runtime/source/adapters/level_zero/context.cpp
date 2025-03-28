@@ -207,7 +207,8 @@ ur_result_t ur_context_handle_t_::initialize() {
 
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  if (Device->Platform->allowDriverInOrderLists() &&
+  if (Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
       Device->useDriverCounterBasedEvents()) {
     logger::debug(
         "L0 Synchronous Immediate Command List needed with In Order property.");
@@ -673,7 +674,8 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
       // If this is an InOrder Queue, then only allow lists which are in order.
-      if (Queue->Device->Platform->allowDriverInOrderLists() &&
+      if (Queue->Device->Platform->allowDriverInOrderLists(
+              true /*Only Allow Driver In Order List if requested*/) &&
           Queue->isInOrderQueue() && !(ZeCommandListIt->second.InOrderList)) {
         continue;
       }
@@ -740,7 +742,8 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
       continue;
 
     // If this is an InOrder Queue, then only allow lists which are in order.
-    if (Queue->Device->Platform->allowDriverInOrderLists() &&
+    if (Queue->Device->Platform->allowDriverInOrderLists(
+            true /*Only Allow Driver In Order List if requested*/) &&
         Queue->isInOrderQueue() && !(it->second.IsInOrderList)) {
       continue;
     }
