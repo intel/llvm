@@ -597,7 +597,7 @@ if (
     if "amdgcn" in sp[1]:
         config.sycl_build_targets.add("target-amd")
 
-cmd = ("{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls)
+cmd = "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
 sycl_ls_output = subprocess.check_output(cmd, text=True, shell=True)
 
 # In contrast to `cpu` feature this is a compile-time feature, which is needed
