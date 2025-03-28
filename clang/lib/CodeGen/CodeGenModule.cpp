@@ -2594,38 +2594,39 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
 
   bool IsEsimdFunction = FD && FD->hasAttr<SYCLSimdAttr>();
 
-  if (LangOpts.SYCLIsDevice && !IsEsimdFunction) {
-    Fn->setMetadata("kernel_arg_buffer_location",
-                    llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
-    // Generate this metadata only if atleast one kernel argument is an
-    // accessor.
-    if (isKernelArgAnAccessor) {
-      Fn->setMetadata("kernel_arg_runtime_aligned",
+  if (getLangOpts().SYCLIsDevice) {
+    if (IsEsimdFunction) {
+      Fn->setMetadata("kernel_arg_accessor_ptr",
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
-      Fn->setMetadata("kernel_arg_exclusive_ptr",
-                      llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
-    }
-  } else {
-    if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
-      Fn->setMetadata("kernel_arg_addr_space",
-                      llvm::MDNode::get(VMContext, addressQuals));
-      Fn->setMetadata("kernel_arg_access_qual",
-                      llvm::MDNode::get(VMContext, accessQuals));
-      Fn->setMetadata("kernel_arg_type",
-                      llvm::MDNode::get(VMContext, argTypeNames));
-      Fn->setMetadata("kernel_arg_base_type",
-                      llvm::MDNode::get(VMContext, argBaseTypeNames));
-      Fn->setMetadata("kernel_arg_type_qual",
-                      llvm::MDNode::get(VMContext, argTypeQuals));
-      if (IsEsimdFunction)
-        Fn->setMetadata("kernel_arg_accessor_ptr",
+    } else {
+      Fn->setMetadata("kernel_arg_buffer_location",
+                      llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
+      // Generate this metadata only if atleast one kernel argument is an
+      // accessor.
+      if (isKernelArgAnAccessor) {
+        Fn->setMetadata("kernel_arg_runtime_aligned",
                         llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
+        Fn->setMetadata("kernel_arg_exclusive_ptr",
+                        llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
+      }
     }
-    if (getCodeGenOpts().EmitOpenCLArgMetadata ||
-        getCodeGenOpts().HIPSaveKernelArgName)
-      Fn->setMetadata("kernel_arg_name",
-                      llvm::MDNode::get(VMContext, argNames));
   }
+  if (getLangOpts().OpenCL) {
+    Fn->setMetadata("kernel_arg_addr_space",
+                    llvm::MDNode::get(VMContext, addressQuals));
+    Fn->setMetadata("kernel_arg_access_qual",
+                    llvm::MDNode::get(VMContext, accessQuals));
+    Fn->setMetadata("kernel_arg_type",
+                    llvm::MDNode::get(VMContext, argTypeNames));
+    Fn->setMetadata("kernel_arg_base_type",
+                    llvm::MDNode::get(VMContext, argBaseTypeNames));
+    Fn->setMetadata("kernel_arg_type_qual",
+                    llvm::MDNode::get(VMContext, argTypeQuals));
+  }
+  if (getCodeGenOpts().EmitOpenCLArgMetadata ||
+      getCodeGenOpts().HIPSaveKernelArgName)
+    Fn->setMetadata("kernel_arg_name",
+                    llvm::MDNode::get(VMContext, argNames));
 }
 
 /// Determines whether the language options require us to model
