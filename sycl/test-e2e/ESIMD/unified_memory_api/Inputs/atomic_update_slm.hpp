@@ -588,11 +588,8 @@ template <int N, template <class, int> class Op, bool UseMask,
 bool test_fp_types(queue &q) {
   bool passed = true;
 
-  // TODO: Enable 'half' FADD/FSUB on DG2 when the error in GPU driver is fixed.
   if constexpr (Features == TestFeatures::PVC ||
-                (Features == TestFeatures::DG2 &&
-                 !std::is_same_v<Op<sycl::half, N>, ImplFadd<sycl::half, N>> &&
-                 !std::is_same_v<Op<sycl::half, N>, ImplFsub<sycl::half, N>>)) {
+                Features == TestFeatures::DG2) {
     if (q.get_device().has(sycl::aspect::fp16)) {
       passed &= run_test<UseAcc, sycl::half, N, Op, UseMask>(q);
     }
@@ -691,9 +688,8 @@ int test_with_mask(queue &q) {
     passed &=
         test_fp_types_and_sizes<ImplLSCFmin, UseMask, Features, UseAcc>(q);
   }
-  // TODO: GPU driver promised to support FADD/FSUB on DG2, but it doesn't.
-  // Report the issue to driver, enable FADD/FSUB for DG2 when it is fixed.
-  if constexpr (Features == TestFeatures::PVC) {
+  if constexpr (Features == TestFeatures::DG2 ||
+                Features == TestFeatures::PVC) {
     passed &= test_fp_types_and_sizes<ImplFadd, UseMask, Features, UseAcc>(q);
     passed &= test_fp_types_and_sizes<ImplFsub, UseMask, Features, UseAcc>(q);
   }
