@@ -5,6 +5,12 @@ on:
     - cron: '0 1 * * *'  # 2 hrs earlier than sycl-nightly.yml
   workflow_call:
     inputs:
+      preset:
+        type: string
+        description: |
+          Benchmark presets to run: See /devops/scripts/benchmarks/presets.py
+        required: false
+        default: 'Minimal'  # Only compute-benchmarks
       pr_no:
         type: string
         description: |
@@ -40,6 +46,17 @@ on:
 
   workflow_dispatch:
     inputs:
+      preset:
+        type: choice
+        description: |
+          Benchmark presets to run, See /devops/scripts/benchmarks/presets.py. Hint: Minimal is compute-benchmarks only.
+        options:
+          - Full
+          - SYCL
+          - Minimal
+          - Normal
+          - Test
+        default: 'Minimal'  # Only compute-benchmarks
       pr_no:
         type: string
         description: |
@@ -125,6 +142,7 @@ jobs:
       tests_selector: benchmark_v2
       benchmark_upload_results: ${{ inputs.upload_results }}
       benchmark_save_name: ${{ matrix.save_name }}
+      benchmark_preset: ${{ inputs.preset }}
       repo_ref: ${{ matrix.ref }}
       devops_ref: ${{ github.ref }}
       sycl_toolchain_artifact: sycl_linux_default
@@ -154,4 +172,5 @@ jobs:
       tests_selector: benchmark_v2
       benchmark_save_name: Baseline
       benchmark_upload_results: ${{ inputs.upload_results }}
+      benchmark_preset: ${{ inputs.preset }}
       repo_ref: ${{ github.ref }} # TODO figure out nightly commit hash

@@ -22,7 +22,9 @@ inputs:
   save_name:
     type: string
     required: True
-    default: ''
+  preset:
+    type: string
+    required: True
 
 runs:
   using: "composite"
@@ -32,6 +34,7 @@ runs:
     env:
       TARGET_DEVICE: ${{ inputs.target_devices }}
       RUNNER_NAME: ${{ runner.name }}
+      PRESET: ${{ inputs.preset }}
     run: |
       case "$RUNNER_TAG" in
         '["PVC_PERF"]' ) ;;
@@ -61,6 +64,10 @@ runs:
       esac
       echo "ONEAPI_DEVICE_SELECTOR=$TARGET_DEVICE" >> $GITHUB_ENV 
 
+      # Make sure specified preset is a known value and is not malicious
+      python3 ./devops/scripts/benchmarks/preset.py "$PRESET"
+      [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
+      echo "PRESET=$PRESET" >> $GITHUB_ENV
   - name: Compute CPU core range to run benchmarks on
     shell: bash
     run: |
@@ -117,7 +124,7 @@ runs:
         --output-html remote \
         --results-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
         --output-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
-        --preset Minimal \
+        --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP"
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
