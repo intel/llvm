@@ -49,7 +49,7 @@ namespace pi {
 void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
-  auto impl = getSyclObjImpl(context);
+  const auto &impl = getSyclObjImpl(context);
   const auto &Adapter = impl->getAdapter();
   Adapter->call<UrApiKind::urContextSetExtendedDeleter>(
       impl->getHandleRef(),

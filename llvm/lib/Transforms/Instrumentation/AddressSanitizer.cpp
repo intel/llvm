@@ -723,11 +723,11 @@ public:
       }
 
       BasicBlock *Color = Colors.front();
-      Instruction *EHPad = Color->getFirstNonPHI();
+      BasicBlock::iterator EHPadIt = Color->getFirstNonPHIIt();
 
-      if (EHPad && EHPad->isEHPad()) {
+      if (EHPadIt != Color->end() && EHPadIt->isEHPad()) {
         // Replace CI with a clone with an added funclet OperandBundle
-        OperandBundleDef OB("funclet", EHPad);
+        OperandBundleDef OB("funclet", &*EHPadIt);
         auto *NewCall = CallBase::addOperandBundle(CI, LLVMContext::OB_funclet,
                                                    OB, CI->getIterator());
         NewCall->copyMetadata(*CI);
@@ -1830,7 +1830,8 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(
 // Instument dynamic local memory
 bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
     Function &F, ArrayRef<Instruction *> RetVec) {
-  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
+  InstrumentationIRBuilder IRB(&F.getEntryBlock(),
+                               F.getEntryBlock().getFirstNonPHIIt());
 
   SmallVector<Argument *> LocalArgs;
   for (auto &Arg : F.args()) {
@@ -1868,7 +1869,8 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
 // "__asan_launch" if it's an extended kernel, and store 0 if not
 void AddressSanitizer::instrumentInitAsanLaunchInfo(
     Function &F, const TargetLibraryInfo *TLI) {
-  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
+  InstrumentationIRBuilder IRB(&F.getEntryBlock(),
+                               F.getEntryBlock().getFirstNonPHIIt());
   if (F.arg_size()) {
     auto *LastArg = F.getArg(F.arg_size() - 1);
     if (LastArg->getName() == "__asan_launch") {
@@ -2215,7 +2217,7 @@ void AddressSanitizer::instrumentMaskedLoadOrStore(
   if (Stride)
     Stride = IB.CreateZExtOrTrunc(Stride, IntptrTy);
 
-  SplitBlockAndInsertForEachLane(EVL, LoopInsertBefore,
+  SplitBlockAndInsertForEachLane(EVL, LoopInsertBefore->getIterator(),
                                  [&](IRBuilderBase &IRB, Value *Index) {
     Value *MaskElem = IRB.CreateExtractElement(Mask, Index);
     if (auto *MaskElemC = dyn_cast<ConstantInt>(MaskElem)) {
@@ -2891,6 +2893,11 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
 
   for (auto &G : M.globals()) {
+    // DeviceSanitizers cannot handle nameless globals, therefore we set a name
+    // for them so that we can handle them like regular globals.
+    if (G.getName().empty() && G.hasInternalLinkage())
+      G.setName("nameless_global");
+
     if (isUnsupportedDeviceGlobal(&G))
       continue;
 
@@ -4203,7 +4210,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
   assert(InsBeforeB == &F.getEntryBlock());
   for (auto *AI : StaticAllocasToMoveUp)
     if (AI->getParent() == InsBeforeB)
-      AI->moveBefore(InsBefore);
+      AI->moveBefore(InsBefore->getIterator());
 
   // Move stores of arguments into entry-block allocas as well. This prevents
   // extra stack slots from being generated (to house the argument values until
@@ -4212,10 +4219,11 @@ void FunctionStackPoisoner::processStaticAllocas() {
   SmallVector<Instruction *, 8> ArgInitInsts;
   findStoresToUninstrumentedArgAllocas(ASan, *InsBefore, ArgInitInsts);
   for (Instruction *ArgInitInst : ArgInitInsts)
-    ArgInitInst->moveBefore(InsBefore);
+    ArgInitInst->moveBefore(InsBefore->getIterator());
 
   // If we have a call to llvm.localescape, keep it in the entry block.
-  if (LocalEscapeCall) LocalEscapeCall->moveBefore(InsBefore);
+  if (LocalEscapeCall)
+    LocalEscapeCall->moveBefore(InsBefore->getIterator());
 
   SmallVector<ASanStackVariableDescription, 16> SVD;
   SVD.reserve(AllocaVec.size());

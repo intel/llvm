@@ -18,18 +18,18 @@ declare noundef i32 @llvm.nvvm.read.ptx.sreg.ntid.x() #0
 declare noundef i32 @llvm.nvvm.read.ptx.sreg.tid.x() #0
 declare ptr @llvm.nvvm.implicit.offset() #1
 
-define void @fused_0(ptr addrspace(1) nocapture noundef align 16 %KernelOne__arg_accTmp,
-    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %KernelOne__arg_accTmp3,
-    ptr addrspace(1) nocapture noundef readonly align 4 %KernelOne__arg_accIn,
-    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %KernelOne__arg_accIn6,
-    ptr addrspace(1) nocapture noundef align 1 %KernelOne__arg_accTmp27,
-    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %KernelOne__arg_accTmp210,
-    ptr addrspace(1) nocapture noundef writeonly align 4 %KernelTwo__arg_accOut,
-    ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 %KernelTwo__arg_accOut3)
+define void @fused_0(ptr addrspace(1) noundef align 16 %KernelOne__arg_accTmp,
+    ptr noundef readonly byval(%"class.sycl::_V1::range") align 8 captures(none)%KernelOne__arg_accTmp3,
+    ptr addrspace(1) noundef readonly align 4 %KernelOne__arg_accIn,
+    ptr noundef readonly byval(%"class.sycl::_V1::range") align 8 captures(none)%KernelOne__arg_accIn6,
+    ptr addrspace(1) noundef align 1 %KernelOne__arg_accTmp27,
+    ptr noundef readonly byval(%"class.sycl::_V1::range") align 8 captures(none)%KernelOne__arg_accTmp210,
+    ptr addrspace(1) noundef writeonly align 4 %KernelTwo__arg_accOut,
+    ptr noundef readonly byval(%"class.sycl::_V1::range") align 8 captures(none)%KernelTwo__arg_accOut3)
       local_unnamed_addr #3 !sycl.kernel.promote !13 !sycl.kernel.promote.localsize !14 !sycl.kernel.promote.elemsize !15 {
-; CHECK-LABEL: define void @fused_0(
-; CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 [[KERNELONE__ARG_ACCTMP3:%[^,]*accTmp3]],
-; CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::range") align 8 [[KERNELONE__ARG_ACCTMP210:%[^,]*accTmp210]]
+; CHECK-LABEL: define ptx_kernel void @fused_0(
+; CHECK-SAME: ptr noundef readonly byval(%"class.sycl::_V1::range") align 8 captures(none) [[KERNELONE__ARG_ACCTMP3:%[^,]*accTmp3]],
+; CHECK-SAME: ptr noundef readonly byval(%"class.sycl::_V1::range") align 8 captures(none) [[KERNELONE__ARG_ACCTMP210:%[^,]*accTmp210]]
 ; CHECK:         entry:
 ; CHECK:           [[TMP0:%.*]] = alloca i8, i64 3, align 1
 ; CHECK:           [[TMP1:%.*]] = alloca i8, i64 96, align 16

@@ -12,9 +12,9 @@ else()
 endif()
 
 if (UR_BUILD_ADAPTER_CUDA)
-    find_package(CUDA 10.1 REQUIRED)
+    find_package(CUDAToolkit 10.1 REQUIRED)
     set(UMF_BUILD_CUDA_PROVIDER ON CACHE INTERNAL "Build UMF CUDA provider")
-    set(UMF_CUDA_INCLUDE_DIR "${CUDA_INCLUDE_DIRS}" CACHE INTERNAL "CUDA headers")
+    set(UMF_CUDA_INCLUDE_DIR "${CUDAToolkit_INCLUDE_DIRS}" CACHE INTERNAL "CUDA headers")
 else()
     set(UMF_BUILD_CUDA_PROVIDER OFF CACHE INTERNAL "Build UMF CUDA provider")
 endif()
@@ -40,11 +40,11 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # commit 5a515c56c92be75944c8246535c408cee7711114
-    # Author: Lukasz Dorau <lukasz.dorau@intel.com>
-    # Date:   Mon Feb 17 10:56:05 2025 +0100
-    # Merge pull request #1086 from vinser52/svinogra_l0_linking
-    set(UMF_TAG 5a515c56c92be75944c8246535c408cee7711114)
+    # commit cbaf24ae0cf33356ddb1bdafe7197b2a90556cd7
+    # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+    # Date:   Tue Mar 18 15:41:37 2025 +0100
+    # 0.11.0-rc1 release
+    set(UMF_TAG v0.11.0-rc1)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -127,5 +127,4 @@ add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
 target_link_libraries(ur_umf INTERFACE
     umf::umf
     umf::headers
-    umf::disjoint_pool
 )

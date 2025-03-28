@@ -29,8 +29,3 @@ ur_result_t urGetLastResult(ur_platform_handle_t, const char **ppMessage) {
   *ppMessage = &ErrorMessage[0];
   return ErrorMessageCode;
 }
-
-void detail::ur::die(const char *pMessage) {
-  logger::always("ur_die: {}", pMessage);
-  std::terminate();
-}

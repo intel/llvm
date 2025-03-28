@@ -33,6 +33,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include "sycl/ext/oneapi/experimental/graph.hpp"
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
@@ -97,6 +98,8 @@ fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
     UrDesc.type =
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+        : Desc.type == sycl::ext::oneapi::experimental::image_type::gather
+            ? UR_MEM_TYPE_IMAGE_GATHER_EXP
             : UrDesc.type;
 
     return Desc.array_size;
@@ -315,7 +318,7 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(Graph)) {}
+    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -466,12 +469,10 @@ event handler::finalize() {
     }
 
     if (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-        !MQueue->getCommandGraph() && !impl->CGData.MRequirements.size() &&
+        !MQueue->hasCommandGraph() && !impl->CGData.MRequirements.size() &&
         !MStreamStorage.size() &&
-        (!impl->CGData.MEvents.size() ||
-         (MQueue->isInOrder() &&
-          detail::Scheduler::areEventsSafeForSchedulerBypass(
-              impl->CGData.MEvents, MQueue->getContextImplPtr())))) {
+        detail::Scheduler::areEventsSafeForSchedulerBypass(
+            impl->CGData.MEvents, MQueue->getContextImplPtr())) {
       // if user does not add a new dependency to the dependency graph, i.e.
       // the graph is not changed, then this faster path is used to submit
       // kernel bypassing scheduler and avoiding CommandGroup, Command objects
@@ -532,22 +533,23 @@ event handler::finalize() {
 
       if (DiscardEvent) {
         EnqueueKernel();
-        auto EventImpl = std::make_shared<detail::event_impl>(
-            detail::event_impl::HES_Discarded);
-        MLastEvent = detail::createSyclObjFromImpl<event>(EventImpl);
+        const auto &EventImpl = detail::getSyclObjImpl(MLastEvent);
+        EventImpl->setStateDiscarded();
       } else {
-        NewEvent = std::make_shared<detail::event_impl>(MQueue);
+        NewEvent = detail::getSyclObjImpl(MLastEvent);
+        NewEvent->setQueue(MQueue);
         NewEvent->setWorkerQueue(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
         NewEvent->setSubmissionTime();
 
         EnqueueKernel();
-        if (NewEvent->isHost() || NewEvent->getHandle() == nullptr)
-          NewEvent->setComplete();
         NewEvent->setEnqueued();
-
-        MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+        // connect returned event with dependent events
+        if (!MQueue->isInOrder()) {
+          NewEvent->getPreparedDepsEvents() = impl->CGData.MEvents;
+          NewEvent->cleanDepEventsThroughOneLevel();
+        }
       }
       return MLastEvent;
     }
@@ -711,6 +713,15 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGSemaphoreSignal(
         impl->MExternalSemaphore, impl->MSignalValue, std::move(impl->CGData),
         MCodeLoc));
+    break;
+  case detail::CGType::AsyncAlloc:
+    CommandGroup.reset(new detail::CGAsyncAlloc(
+        impl->MAllocSize, impl->MMemPool, impl->MAsyncAllocEvent,
+        std::move(impl->CGData), MCodeLoc));
+    break;
+  case detail::CGType::AsyncFree:
+    CommandGroup.reset(new detail::CGAsyncFree(
+        impl->MFreePtr, std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::None:
     CommandGroup.reset(new detail::CG(detail::CGType::None,
@@ -999,6 +1010,21 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     break;
   }
+  case kernel_param_kind_t::kind_dynamic_work_group_memory: {
+
+    auto *DynBase = static_cast<
+        ext::oneapi::experimental::detail::dynamic_parameter_base *>(Ptr);
+
+    auto *DynWorkGroupBase = static_cast<
+        ext::oneapi::experimental::detail::dynamic_work_group_memory_base *>(
+        Ptr);
+
+    registerDynamicParameter(*DynBase, Index + IndexShift);
+
+    addArg(kernel_param_kind_t::kind_std_layout, nullptr,
+           DynWorkGroupBase->BufferSize, Index + IndexShift);
+    break;
+  }
   case kernel_param_kind_t::kind_work_group_memory: {
     addArg(kernel_param_kind_t::kind_std_layout, nullptr,
            static_cast<detail::work_group_memory_impl *>(Ptr)->buffer_size,
@@ -1027,6 +1053,19 @@ void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
       std::make_shared<detail::work_group_memory_impl>(Arg));
   addArg(detail::kernel_param_kind_t::kind_work_group_memory,
          impl->MWorkGroupMemoryObjects.back().get(), 0, ArgIndex);
+}
+
+void handler::setArgHelper(
+    int ArgIndex,
+    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+        &DynWorkGroupBase) {
+
+  addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
+         &DynWorkGroupBase, 0, ArgIndex);
+
+  // Register the dynamic parameter with the handler for later association
+  // with the node being added
+  registerDynamicParameter(DynWorkGroupBase, ArgIndex);
 }
 
 // The argument can take up more space to store additional information about
@@ -1557,17 +1596,21 @@ void handler::ext_oneapi_wait_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (ExtSemaphore.handle_type !=
-          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-              opaque_fd &&
-      ExtSemaphore.handle_type !=
-          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-              win32_nt_handle) {
+
+  switch (ExtSemaphore.handle_type) {
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      opaque_fd:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_handle:
+    break;
+  default:
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Invalid type of semaphore for this operation. The "
         "type of semaphore used needs a user passed wait value.");
+    break;
   }
+
   impl->MExternalSemaphore =
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MWaitValue = {};
@@ -1580,14 +1623,23 @@ void handler::ext_oneapi_wait_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (ExtSemaphore.handle_type !=
-      sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-          win32_nt_dx12_fence) {
+
+  switch (ExtSemaphore.handle_type) {
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_dx12_fence:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      timeline_fd:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      timeline_win32_nt_handle:
+    break;
+  default:
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Invalid type of semaphore for this operation. The "
         "type of semaphore does not support user passed wait values.");
+    break;
   }
+
   impl->MExternalSemaphore =
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MWaitValue = WaitValue;
@@ -1599,17 +1651,21 @@ void handler::ext_oneapi_signal_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (ExtSemaphore.handle_type !=
-          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-              opaque_fd &&
-      ExtSemaphore.handle_type !=
-          sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-              win32_nt_handle) {
+
+  switch (ExtSemaphore.handle_type) {
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      opaque_fd:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_handle:
+    break;
+  default:
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Invalid type of semaphore for this operation. The "
         "type of semaphore used needs a user passed signal value.");
+    break;
   }
+
   impl->MExternalSemaphore =
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MSignalValue = {};
@@ -1622,14 +1678,23 @@ void handler::ext_oneapi_signal_external_semaphore(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (ExtSemaphore.handle_type !=
-      sycl::ext::oneapi::experimental::external_semaphore_handle_type::
-          win32_nt_dx12_fence) {
+
+  switch (ExtSemaphore.handle_type) {
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      win32_nt_dx12_fence:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      timeline_fd:
+  case sycl::ext::oneapi::experimental::external_semaphore_handle_type::
+      timeline_win32_nt_handle:
+    break;
+  default:
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Invalid type of semaphore for this operation. The "
         "type of semaphore does not support user passed signal values.");
+    break;
   }
+
   impl->MExternalSemaphore =
       (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MSignalValue = SignalValue;
@@ -1679,6 +1744,15 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   if (EventImpl->isDiscarded()) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
+  }
+
+  // Async alloc calls adapter immediately. Any explicit/implicit dependencies
+  // are handled at that point, including in order queue deps. Further calls to
+  // depends_on after an async alloc are explicitly disallowed.
+  if (getType() == CGType::AsyncAlloc) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot submit a dependency after an asynchronous "
+                          "allocation has already been executed!");
   }
 
   auto EventGraph = EventImpl->getCommandGraph();
@@ -2012,7 +2086,7 @@ void handler::setNDRangeUsed(bool Value) { (void)Value; }
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
     int ArgIndex) {
-  if (MQueue && MQueue->getCommandGraph()) {
+  if (MQueue && MQueue->hasCommandGraph()) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Dynamic Parameters cannot be used with Graph Queue recording.");
@@ -2024,7 +2098,7 @@ void handler::registerDynamicParameter(
   }
 
   auto Paraimpl = detail::getSyclObjImpl(DynamicParamBase);
-  if (Paraimpl->MGraph != this->impl->MGraph) {
+  if (Paraimpl->MGraph.lock() != this->impl->MGraph) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Cannot use a Dynamic Parameter with a node associated with a graph "

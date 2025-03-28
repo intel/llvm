@@ -143,12 +143,14 @@ bool cupti_table_t_::isInitialized() const {
 }
 
 bool loadCUDATracingLibrary(cuda_tracing_context_t_ *Ctx) {
-#if defined(XPTI_ENABLE_INSTRUMENTATION) && defined(CUPTI_LIB_PATH)
+#if defined(XPTI_ENABLE_INSTRUMENTATION) && !defined(_WIN32)
+  const char *CuptiLibName = "libcupti.so";
+
   if (!Ctx)
     return false;
   if (Ctx->Library)
     return true;
-  auto Lib{ur_loader::LibLoader::loadAdapterLibrary(CUPTI_LIB_PATH)};
+  auto Lib{ur_loader::LibLoader::loadAdapterLibrary(CuptiLibName)};
   if (!Lib)
     return false;
   cupti_table_t_ Table;
@@ -165,7 +167,7 @@ bool loadCUDATracingLibrary(cuda_tracing_context_t_ *Ctx) {
 #else
   (void)Ctx;
   return false;
-#endif // XPTI_ENABLE_INSTRUMENTATION && CUPTI_LIB_PATH
+#endif // defined(XPTI_ENABLE_INSTRUMENTATION) && !defined(_WIN32)
 }
 
 void unloadCUDATracingLibrary(cuda_tracing_context_t_ *Ctx) {

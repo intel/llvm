@@ -30,7 +30,7 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    impl->getAdapter()->call<detail::UrApiKind::urKernelRetain>(hKernel);
+    __SYCL_OCL_CALL(clRetainKernel, ClKernel);
   }
 }
 
@@ -98,6 +98,14 @@ kernel::get_info(const device &Device, const range<3> &WGSize) const {
       const device &) const;
 
 #include <sycl/info/kernel_device_specific_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
+  template __SYCL_EXPORT ReturnT                                               \
+  kernel::get_info<Namespace::info::DescType::Desc>(const device &) const;
+
+#include <sycl/info/ext_intel_kernel_info_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

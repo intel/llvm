@@ -14,6 +14,7 @@
 #pragma once
 
 #include "logger/ur_logger.hpp"
+#include "sanitizer_common/sanitizer_options.hpp"
 #include "ur_proxy_layer.hpp"
 
 #define SANITIZER_COMP_NAME "sanitizer layer"
@@ -34,6 +35,7 @@ public:
   ur_dditable_t urDdiTable = {};
   logger::Logger logger;
   SanitizerType enabledType = SanitizerType::None;
+  SanitizerOptions Options;
 
   context_t();
   ~context_t();

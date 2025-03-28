@@ -71,6 +71,8 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
     return node_type::host_task;
   case sycl::detail::CGType::ExecCommandBuffer:
     return node_type::subgraph;
+  case sycl::detail::CGType::EnqueueNativeCommand:
+    return node_type::native_command;
   default:
     assert(false && "Invalid Graph Node Type");
     return node_type::empty;
@@ -100,8 +102,8 @@ public:
   /// subgraph node.
   std::shared_ptr<exec_graph_impl> MSubGraphImpl;
 
-  /// Used for tracking visited status during cycle checks.
-  bool MVisited = false;
+  /// Used for tracking visited status during cycle checks and node scheduling.
+  size_t MTotalVisitedEdges = 0;
 
   /// Partition number needed to assign a Node to a a partition.
   /// Note : This number is only used during the partitionning process and
@@ -304,6 +306,10 @@ public:
       return createCGCopy<sycl::detail::CGProfilingTag>();
     case sycl::detail::CGType::ExecCommandBuffer:
       return createCGCopy<sycl::detail::CGExecCommandBuffer>();
+    case sycl::detail::CGType::AsyncAlloc:
+      return createCGCopy<sycl::detail::CGAsyncAlloc>();
+    case sycl::detail::CGType::AsyncFree:
+      return createCGCopy<sycl::detail::CGAsyncFree>();
     case sycl::detail::CGType::None:
       return nullptr;
     }
@@ -704,6 +710,9 @@ private:
     case sycl::detail::CGType::ExecCommandBuffer:
       Stream << "CGExecCommandBuffer \\n";
       break;
+    case sycl::detail::CGType::EnqueueNativeCommand:
+      Stream << "CGNativeCommand \\n";
+      break;
     default:
       Stream << "Other \\n";
       break;
@@ -865,7 +874,7 @@ public:
   /// @param NodeImpl Node to associate with event in map.
   void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (!(EventImpl->getCommandGraph()))
+    if (!(EventImpl->hasCommandGraph()))
       EventImpl->setCommandGraph(shared_from_this());
     MEventsMap[EventImpl] = NodeImpl;
   }
@@ -1125,17 +1134,6 @@ public:
   unsigned long long getID() const { return MID; }
 
 private:
-  /// Iterate over the graph depth-first and run \p NodeFunc on each node.
-  /// @param NodeFunc A function which receives as input a node in the graph to
-  /// perform operations on as well as the stack of nodes encountered in the
-  /// current path. The return value of this function determines whether an
-  /// early exit is triggered, if true the depth-first search will end
-  /// immediately and no further nodes will be visited.
-  void
-  searchDepthFirst(std::function<bool(std::shared_ptr<node_impl> &,
-                                      std::deque<std::shared_ptr<node_impl>> &)>
-                       NodeFunc);
-
   /// Check the graph for cycles by performing a depth-first search of the
   /// graph. If a node is visited more than once in a given path through the
   /// graph, a cycle is present and the search ends immediately.
@@ -1303,7 +1301,30 @@ public:
   void update(std::shared_ptr<node_impl> Node);
   void update(const std::vector<std::shared_ptr<node_impl>> &Nodes);
 
-  void updateImpl(std::shared_ptr<node_impl> NodeImpl);
+  /// Calls UR entry-point to update nodes in command-buffer.
+  /// @param CommandBuffer The UR command-buffer to update commands in.
+  /// @param Nodes List of nodes to update. Only nodes which can be updated
+  /// through UR should be included in this list, currently this is only
+  /// nodes of kernel type.
+  void updateURImpl(ur_exp_command_buffer_handle_t CommandBuffer,
+                    const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+
+  /// Update host-task nodes
+  /// @param Nodes List of nodes to update, any node that is not a host-task
+  /// will be ignored.
+  void updateHostTasksImpl(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
+
+  /// Splits a list of nodes into separate lists of nodes for each
+  /// command-buffer partition.
+  ///
+  /// Only nodes that can be updated through the UR interface are included
+  /// in the list. Currently this is only kernel node types.
+  ///
+  /// @param Nodes List of nodes to split
+  /// @return Map of partition indexes to nodes
+  std::map<int, std::vector<std::shared_ptr<node_impl>>> getURUpdatableNodes(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
 
   unsigned long long getID() const { return MID; }
 
@@ -1373,6 +1394,34 @@ private:
     Stream.close();
   }
 
+  /// Determines if scheduler needs to be used for node update.
+  /// @param[in] Nodes List of nodes to be updated
+  /// @param[out] UpdateRequirements Accessor requirements found in /p Nodes.
+  /// return True if update should be done through the scheduler.
+  bool needsScheduledUpdate(
+      const std::vector<std::shared_ptr<node_impl>> &Nodes,
+      std::vector<sycl::detail::AccessorImplHost *> &UpdateRequirements);
+
+  /// Sets the UR struct values required to update a graph node.
+  /// @param[in] Node The node to be updated.
+  /// @param[out] BundleObjs UR objects created from kernel bundle.
+  /// Responsibility of the caller to release.
+  /// @param[out] MemobjDescs Memory object arguments to update.
+  /// @param[out] MemobjProps Properties used in /p MemobjDescs structs.
+  /// @param[out] PtrDescs Pointer arguments to update.
+  /// @param[out] ValueDescs Value arguments to update.
+  /// @param[out] NDRDesc ND-Range to update.
+  /// @param[out] UpdateDesc Base struct in the pointer chain.
+  void populateURKernelUpdateStructs(
+      const std::shared_ptr<node_impl> &Node,
+      std::pair<ur_program_handle_t, ur_kernel_handle_t> &BundleObjs,
+      std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t> &MemobjDescs,
+      std::vector<ur_kernel_arg_mem_obj_properties_t> &MemobjProps,
+      std::vector<ur_exp_command_buffer_update_pointer_arg_desc_t> &PtrDescs,
+      std::vector<ur_exp_command_buffer_update_value_arg_desc_t> &ValueDescs,
+      sycl::detail::NDRDescT &NDRDesc,
+      ur_exp_command_buffer_update_kernel_launch_desc_t &UpdateDesc) const;
+
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
@@ -1430,6 +1479,9 @@ private:
 
 class dynamic_parameter_impl {
 public:
+  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl)
+      : MGraph(GraphImpl) {}
+
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
                          size_t ParamSize, const void *Data)
       : MGraph(GraphImpl), MValueStorage(ParamSize),
@@ -1497,6 +1549,22 @@ public:
   /// @param Acc The new accessor value
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
 
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes and dynamic CGs. Should only be
+  /// called for dynamic_work_group_memory arguments parameter.
+  /// @param BufferSize The total size in bytes of the new work_group_memory
+  /// array
+  void updateWorkGroupMem(size_t BufferSize);
+
+  /// Static helper function for updating command-group
+  /// dynamic_work_group_memory arguments.
+  /// @param CG The command-group to update the argument information for.
+  /// @param ArgIndex The argument index to update.
+  /// @param BufferSize The total size in bytes of the new work_group_memory
+  /// array
+  static void updateCGWorkGroupMem(std::shared_ptr<sycl::detail::CG> CG,
+                                   int ArgIndex, size_t BufferSize);
+
   /// Static helper function for updating command-group value arguments.
   /// @param CG The command-group to update the argument information for.
   /// @param ArgIndex The argument index to update.
@@ -1520,7 +1588,7 @@ public:
   // Dynamic command-groups which will be updated
   std::vector<DynamicCGInfo> MDynCGs;
 
-  std::shared_ptr<graph_impl> MGraph;
+  std::weak_ptr<graph_impl> MGraph;
   std::vector<std::byte> MValueStorage;
 
 private:

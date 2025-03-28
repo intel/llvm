@@ -729,15 +729,40 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
 ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
     uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = size;
-  std::ignore = offset;
-  std::ignore = hExternalMem;
-  std::ignore = phRetMem;
-  logger::error("[UR][L0] {} function not implemented!",
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  UR_ASSERT(hContext && hDevice && hExternalMem,
+            UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(offset && size, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
+
+  struct ur_ze_external_memory_data *externalMemoryData =
+      reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
+  UR_ASSERT(externalMemoryData && externalMemoryData->importExtensionDesc,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  ze_device_mem_alloc_desc_t allocDesc = {};
+  allocDesc.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
+  allocDesc.flags = 0;
+  allocDesc.pNext = externalMemoryData->importExtensionDesc;
+  void *mappedMemory;
+
+  ze_result_t zeResult = zeMemAllocDevice(hContext->ZeContext, &allocDesc, size,
+                                          1, hDevice->ZeDevice, &mappedMemory);
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  }
+
+  zeResult = zeContextMakeMemoryResident(hContext->ZeContext, hDevice->ZeDevice,
+                                         mappedMemory, size);
+  if (zeResult != ZE_RESULT_SUCCESS) {
+    zeMemFree(hContext->ZeContext, mappedMemory);
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  *phRetMem = reinterpret_cast<void *>(
+      reinterpret_cast<uintptr_t>(mappedMemory) + offset);
+
+  externalMemoryData->urMemoryHandle =
+      reinterpret_cast<ur_mem_handle_t>(*phRetMem);
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesReleaseExternalMemoryExp(
@@ -782,49 +807,125 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
                   " {} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
-  ze_intel_external_semaphore_exp_desc_t SemDesc = {
-      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_EXP_DESC, nullptr,
-      ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD};
-  ze_intel_external_semaphore_exp_handle_t ExtSemaphoreHandle;
-  ze_intel_external_semaphore_desc_fd_exp_desc_t FDExpDesc = {
-      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_FD_EXP_DESC, nullptr, 0};
-  _ze_intel_external_semaphore_win32_exp_desc_t Win32ExpDesc = {
-      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WIN32_EXP_DESC, nullptr,
-      nullptr, nullptr};
-  void *pNext = const_cast<void *>(pExternalSemaphoreDesc->pNext);
-  while (pNext != nullptr) {
-    const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
-    if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
-      auto FileDescriptor =
-          static_cast<const ur_exp_file_descriptor_t *>(pNext);
-      FDExpDesc.fd = FileDescriptor->fd;
-      SemDesc.pNext = &FDExpDesc;
-      SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD;
-    } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
-      SemDesc.pNext = &Win32ExpDesc;
-      auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
-      switch (semHandleType) {
-      case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT:
-        SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_WIN32;
-        break;
-      case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
-        SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_D3D12_FENCE;
-        break;
-      case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
-        SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD;
-        break;
-      default:
-        return UR_RESULT_ERROR_INVALID_VALUE;
+  if (UrPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
+    ze_external_semaphore_ext_desc_t SemDesc = {
+        ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_EXT_DESC, nullptr,
+        ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_OPAQUE_FD};
+    ze_external_semaphore_ext_handle_t ExtSemaphoreHandle;
+    ze_external_semaphore_fd_ext_desc_t FDExpDesc = {
+        ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_FD_EXT_DESC, nullptr, 0};
+    ze_external_semaphore_win32_ext_desc_t Win32ExpDesc = {
+        ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WIN32_EXT_DESC, nullptr, nullptr,
+        nullptr};
+    void *pNext = const_cast<void *>(pExternalSemaphoreDesc->pNext);
+    while (pNext != nullptr) {
+      const ur_base_desc_t *BaseDesc =
+          static_cast<const ur_base_desc_t *>(pNext);
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
+        auto FileDescriptor =
+            static_cast<const ur_exp_file_descriptor_t *>(pNext);
+        FDExpDesc.fd = FileDescriptor->fd;
+        SemDesc.pNext = &FDExpDesc;
+        switch (semHandleType) {
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
+          SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_OPAQUE_FD;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD:
+          SemDesc.flags =
+              ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_VK_TIMELINE_SEMAPHORE_FD;
+          break;
+        default:
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+      } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+        SemDesc.pNext = &Win32ExpDesc;
+        auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+        switch (semHandleType) {
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT:
+          SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_OPAQUE_WIN32;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
+          SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_D3D12_FENCE;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
+          SemDesc.flags =
+              ZE_EXTERNAL_SEMAPHORE_EXT_FLAG_VK_TIMELINE_SEMAPHORE_WIN32;
+          break;
+        default:
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        Win32ExpDesc.handle = Win32Handle->handle;
       }
-      Win32ExpDesc.handle = Win32Handle->handle;
+      pNext = const_cast<void *>(BaseDesc->pNext);
     }
-    pNext = const_cast<void *>(BaseDesc->pNext);
-  }
+    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
+               (hDevice->ZeDevice, &SemDesc, &ExtSemaphoreHandle));
+    *phExternalSemaphoreHandle =
+        (ur_exp_external_semaphore_handle_t)ExtSemaphoreHandle;
 
-  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
-             (hDevice->ZeDevice, &SemDesc, &ExtSemaphoreHandle));
-  *phExternalSemaphoreHandle =
-      (ur_exp_external_semaphore_handle_t)ExtSemaphoreHandle;
+  } else {
+    ze_intel_external_semaphore_exp_desc_t SemDesc = {
+        ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_EXP_DESC, nullptr,
+        ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD};
+    ze_intel_external_semaphore_exp_handle_t ExtSemaphoreHandle;
+    ze_intel_external_semaphore_desc_fd_exp_desc_t FDExpDesc = {
+        ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_FD_EXP_DESC, nullptr, 0};
+    _ze_intel_external_semaphore_win32_exp_desc_t Win32ExpDesc = {
+        ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WIN32_EXP_DESC, nullptr,
+        nullptr, nullptr};
+    void *pNext = const_cast<void *>(pExternalSemaphoreDesc->pNext);
+    while (pNext != nullptr) {
+      const ur_base_desc_t *BaseDesc =
+          static_cast<const ur_base_desc_t *>(pNext);
+      if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
+        auto FileDescriptor =
+            static_cast<const ur_exp_file_descriptor_t *>(pNext);
+        FDExpDesc.fd = FileDescriptor->fd;
+        SemDesc.pNext = &FDExpDesc;
+        switch (semHandleType) {
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD:
+          SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD:
+          SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_TIMELINE_SEMAPHORE_FD;
+          break;
+        default:
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+      } else if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE) {
+        SemDesc.pNext = &Win32ExpDesc;
+        auto Win32Handle = static_cast<const ur_exp_win32_handle_t *>(pNext);
+        switch (semHandleType) {
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT:
+          SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_WIN32;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE:
+          SemDesc.flags = ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_D3D12_FENCE;
+          break;
+        case UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT:
+          SemDesc.flags =
+              ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_TIMELINE_SEMAPHORE_WIN32;
+          break;
+        default:
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
+        Win32ExpDesc.handle = Win32Handle->handle;
+      }
+      pNext = const_cast<void *>(BaseDesc->pNext);
+    }
+
+    ze_device_handle_t translatedDevice;
+    ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DEVICE, hDevice->ZeDevice,
+                                          (void **)&translatedDevice));
+    // If the L0 loader is not aware of the extension, the handles need to be
+    // translated
+    ZE2UR_CALL(
+        UrPlatform->ZeExternalSemaphoreExt.zexExpImportExternalSemaphoreExp,
+        (translatedDevice, &SemDesc, &ExtSemaphoreHandle));
+
+    *phExternalSemaphoreHandle =
+        (ur_exp_external_semaphore_handle_t)ExtSemaphoreHandle;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -839,9 +940,15 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
                   " {} function not supported!", __FUNCTION__);
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
-  ZE2UR_CALL(
-      UrPlatform->ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp,
-      ((ze_intel_external_semaphore_exp_handle_t)hExternalSemaphore));
+  if (UrPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
+    ZE2UR_CALL(
+        UrPlatform->ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp,
+        ((ze_external_semaphore_ext_handle_t)hExternalSemaphore));
+  } else {
+    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                   .zexExpDeviceReleaseExternalSemaphoreExp,
+               ((ze_intel_external_semaphore_exp_handle_t)hExternalSemaphore));
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -888,15 +995,44 @@ ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  ze_intel_external_semaphore_wait_exp_params_t WaitParams = {
-      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP, nullptr, 0};
-  WaitParams.value = hasValue ? waitValue : 0;
-  const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
-      reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
-  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                 .zexCommandListAppendWaitExternalSemaphoresExp,
-             (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
-              WaitList.Length, WaitList.ZeEventList));
+  if (UrPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
+    ze_external_semaphore_wait_params_ext_t WaitParams = {
+        ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXT, nullptr, 0};
+    WaitParams.value = hasValue ? waitValue : 0;
+    ze_external_semaphore_ext_handle_t hExtSemaphore =
+        reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
+    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                   .zexCommandListAppendWaitExternalSemaphoresExp,
+               (ZeCommandList, 1, &hExtSemaphore, &WaitParams, ZeEvent,
+                WaitList.Length, WaitList.ZeEventList));
+  } else {
+    ze_command_list_handle_t translatedCommandList;
+    ZE2UR_CALL(zelLoaderTranslateHandle,
+               (ZEL_HANDLE_COMMAND_LIST, ZeCommandList,
+                (void **)&translatedCommandList));
+    ze_event_handle_t translatedEvent = ZeEvent;
+    if (ZeEvent) {
+      ZE2UR_CALL(zelLoaderTranslateHandle,
+                 (ZEL_HANDLE_EVENT, ZeEvent, (void **)&translatedEvent));
+    }
+    std::vector<ze_event_handle_t> EventHandles(WaitList.Length + 1, nullptr);
+    if (WaitList.Length > 0) {
+      for (size_t i = 0; i < WaitList.Length; i++) {
+        ze_event_handle_t ZeEvent = WaitList.ZeEventList[i];
+        ZE2UR_CALL(zelLoaderTranslateHandle,
+                   (ZEL_HANDLE_EVENT, ZeEvent, (void **)&EventHandles[i + 1]));
+      }
+    }
+    ze_intel_external_semaphore_wait_params_exp_t WaitParams = {
+        ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP, nullptr, 0};
+    WaitParams.value = hasValue ? waitValue : 0;
+    const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
+        reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
+    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                   .zexExpCommandListAppendWaitExternalSemaphoresExp,
+               (translatedCommandList, 1, &hExtSemaphore, &WaitParams,
+                translatedEvent, WaitList.Length, EventHandles.data()));
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -905,13 +1041,6 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
     bool hasValue, uint64_t signalValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hSemaphore;
-  std::ignore = hasValue;
-  std::ignore = signalValue;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
   auto UrPlatform = hQueue->Context->getPlatform();
   if (UrPlatform->ZeExternalSemaphoreExt.Supported == false) {
     logger::error(logger::LegacyMessage("[UR][L0] "),
@@ -950,16 +1079,47 @@ ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  ze_intel_external_semaphore_signal_exp_params_t SignalParams = {
-      ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXP, nullptr, 0};
-  SignalParams.value = hasValue ? signalValue : 0;
-  const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
-      reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
+  if (UrPlatform->ZeExternalSemaphoreExt.LoaderExtension) {
+    ze_external_semaphore_signal_params_ext_t SignalParams = {
+        ZE_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXT, nullptr, 0};
+    SignalParams.value = hasValue ? signalValue : 0;
+    ze_external_semaphore_ext_handle_t hExtSemaphore =
+        reinterpret_cast<ze_external_semaphore_ext_handle_t>(hSemaphore);
 
-  ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
-                 .zexCommandListAppendSignalExternalSemaphoresExp,
-             (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
-              WaitList.Length, WaitList.ZeEventList));
+    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                   .zexCommandListAppendSignalExternalSemaphoresExp,
+               (ZeCommandList, 1, &hExtSemaphore, &SignalParams, ZeEvent,
+                WaitList.Length, WaitList.ZeEventList));
+  } else {
+    ze_intel_external_semaphore_signal_params_exp_t SignalParams = {
+        ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXP, nullptr,
+        0};
+    SignalParams.value = hasValue ? signalValue : 0;
+    const ze_intel_external_semaphore_exp_handle_t hExtSemaphore =
+        reinterpret_cast<ze_intel_external_semaphore_exp_handle_t>(hSemaphore);
+
+    ze_command_list_handle_t translatedCommandList;
+    ZE2UR_CALL(zelLoaderTranslateHandle,
+               (ZEL_HANDLE_COMMAND_LIST, ZeCommandList,
+                (void **)&translatedCommandList));
+    ze_event_handle_t translatedEvent = ZeEvent;
+    if (ZeEvent) {
+      ZE2UR_CALL(zelLoaderTranslateHandle,
+                 (ZEL_HANDLE_EVENT, ZeEvent, (void **)&translatedEvent));
+    }
+    std::vector<ze_event_handle_t> EventHandles(WaitList.Length + 1, nullptr);
+    if (WaitList.Length > 0) {
+      for (size_t i = 0; i < WaitList.Length; i++) {
+        ze_event_handle_t ZeEvent = WaitList.ZeEventList[i];
+        ZE2UR_CALL(zelLoaderTranslateHandle,
+                   (ZEL_HANDLE_EVENT, ZeEvent, (void **)&EventHandles[i + 1]));
+      }
+    }
+    ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt
+                   .zexExpCommandListAppendSignalExternalSemaphoresExp,
+               (translatedCommandList, 1, &hExtSemaphore, &SignalParams,
+                translatedEvent, WaitList.Length, EventHandles.data()));
+  }
 
   return UR_RESULT_SUCCESS;
 }

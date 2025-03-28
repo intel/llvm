@@ -290,7 +290,9 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
           CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
           Device->getMaxChosenLocalMem()));
 
-    } else {
+    } else if (LocalSize > 48 * 1024) {
+      // CUDA requires explicit carveout of dynamic shared memory size if larger
+      // than 48 kB, otherwise cuLaunchKernel fails.
       UR_CHECK_ERROR(cuFuncSetAttribute(
           CuFunc, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, LocalSize));
     }
@@ -1102,7 +1104,7 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
   case CU_AD_FORMAT_FLOAT:
     return 4;
   default:
-    detail::ur::die("Invalid image format.");
+    die("Invalid image format.");
     return 0;
   }
 }

@@ -27,6 +27,8 @@ __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInNumWorkgroups;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupSize;
 
+__SPIRV_VAR_QUALIFIERS uint32_t __spirv_BuiltInSubgroupSize;
+
 // FIXME: change DEVICE_EXTERNAL to static and rename the functions,
 //        when #3311 is fixed.
 //        These are just internal functions used within libdevice.

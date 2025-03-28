@@ -210,10 +210,24 @@ static Function *getReplaceFunc(Module &M, StringRef Name, const Use &U,
 }
 
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
-  // Todo: we should probably cache the state thread local load here
-  // to avoid re-emitting it for each builtin
   if (StateTLS) {
-    IRBuilder<> BB(&*F->getEntryBlock().getFirstInsertionPt());
+    // Find previous read from thread_local, if any
+    const auto IP = F->getEntryBlock().getFirstInsertionPt();
+    if (IP.isValid()) {
+      if (const CallInst *I = dyn_cast<CallInst>(&*IP)) {
+        if (I->getIntrinsicID() == Intrinsic::threadlocal_address &&
+            I->getOperand(0) == StateTLS) {
+          const auto Next = std::next(IP);
+          if (Next.isValid()) {
+            if (LoadInst *LI = dyn_cast<LoadInst>(&*Next)) {
+              if (LI->getPointerOperand() == I)
+                return LI;
+            }
+          }
+        }
+      }
+    }
+    IRBuilder<> BB(&*IP);
     llvm::Value *V = BB.CreateThreadLocalAddress(StateTLS);
     return BB.CreateLoad(StateTLS->getType(), V);
   }
@@ -336,7 +350,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 #ifdef NATIVECPU_USE_OCK
   {
     SmallSet<Function *, 5> RemovableFuncs;
-    SmallVector<Function *, 5> WrapperFuncs;
 
     for (auto &OldF : OldKernels) {
       // If vectorization occurred, at this point we have a wrapper function

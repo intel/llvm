@@ -12,11 +12,11 @@
 #include <clc/clcmacro.h>
 #include <clc/integer/clc_abs.h>
 #include <clc/math/clc_mad.h>
+#include <clc/math/clc_subnormal_config.h>
+#include <clc/math/math.h>
 #include <clc/relational/clc_isnan.h>
 #include <clc/shared/clc_clamp.h>
-#include <config.h>
 #include <math/clc_hypot.h>
-#include <math/math.h>
 
 // Returns sqrt(x*x + y*y) with no overflow or underflow unless the result
 // warrants it
@@ -95,6 +95,6 @@ _CLC_BINARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_hypot, double,
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(half, __clc_hypot, __builtin_hypot, half, half)
+_CLC_DEFINE_BINARY_BUILTIN(half, __clc_hypot, __builtin_hypotf, half, half)
 
 #endif

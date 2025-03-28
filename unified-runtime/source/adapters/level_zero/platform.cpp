@@ -66,7 +66,11 @@ ur_result_t urPlatformGetInfo(
   switch (ParamName) {
   case UR_PLATFORM_INFO_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero V2");
+#else
     return ReturnValue("Intel(R) oneAPI Unified Runtime over Level-Zero");
+#endif
   case UR_PLATFORM_INFO_VENDOR_NAME:
     // TODO: Query Level Zero driver when relevant info is added there.
     return ReturnValue("Intel(R) Corporation");
@@ -223,6 +227,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
 
   bool MutableCommandListSpecExtensionSupported = false;
   bool ZeIntelExternalSemaphoreExtensionSupported = false;
+  bool ZeExternalSemaphoreExtensionSupported = false;
   bool ZeImmediateCommandListAppendExtensionFound = false;
   for (auto &extension : ZeExtensions) {
     // Check if global offset extension is available
@@ -263,11 +268,18 @@ ur_result_t ur_platform_handle_t_::initialize() {
         MutableCommandListSpecExtensionSupported = true;
       }
     }
-    // Check if extension is available for External Sempahores
+    // Check if extension is available for Exp External Sempahores
     if (strncmp(extension.name, ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME,
                 strlen(ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_1_0) {
         ZeIntelExternalSemaphoreExtensionSupported = true;
+      }
+    }
+    // Check if extension is available for Spec External Sempahores
+    if (strncmp(extension.name, ZE_EXTERNAL_SEMAPHORES_EXTENSION_NAME,
+                strlen(ZE_EXTERNAL_SEMAPHORES_EXTENSION_NAME) + 1) == 0) {
+      if (extension.version == ZE_EXTERNAL_SEMAPHORE_EXT_VERSION_1_0) {
+        ZeExternalSemaphoreExtensionSupported = true;
       }
     }
     if (strncmp(extension.name, ZE_EU_COUNT_EXT_NAME,
@@ -319,13 +331,59 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
 
-  if (ZeIntelExternalSemaphoreExtensionSupported) {
+  if (ZeExternalSemaphoreExtensionSupported) {
+#ifdef UR_STATIC_LEVEL_ZERO
+    ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp =
+        zeDeviceImportExternalSemaphoreExt;
+    ZeExternalSemaphoreExt.zexCommandListAppendWaitExternalSemaphoresExp =
+        zeCommandListAppendWaitExternalSemaphoreExt;
+    ZeExternalSemaphoreExt.zexCommandListAppendSignalExternalSemaphoresExp =
+        zeCommandListAppendSignalExternalSemaphoreExt;
+    ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp =
+        zeDeviceReleaseExternalSemaphoreExt;
+#else
+    ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp =
+        (ze_pfnDeviceImportExternalSemaphoreExt_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeDeviceImportExternalSemaphoreExt");
+
+    ZeExternalSemaphoreExt.zexCommandListAppendWaitExternalSemaphoresExp =
+        (ze_pfnCommandListAppendWaitExternalSemaphoreExt_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListAppendWaitExternalSemaphoreExt");
+
+    ZeExternalSemaphoreExt.zexCommandListAppendSignalExternalSemaphoresExp =
+        (ze_pfnCommandListAppendSignalExternalSemaphoreExt_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListAppendSignalExternalSemaphoreExt");
+
+    ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp =
+        (ze_pfnDeviceReleaseExternalSemaphoreExt_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeDeviceReleaseExternalSemaphoreExt");
+#endif
+    ZeExternalSemaphoreExt.Supported |=
+        ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp != nullptr;
+    ZeExternalSemaphoreExt.Supported |=
+        ZeExternalSemaphoreExt.zexCommandListAppendWaitExternalSemaphoresExp !=
+        nullptr;
+    ZeExternalSemaphoreExt.Supported |=
+        ZeExternalSemaphoreExt
+            .zexCommandListAppendSignalExternalSemaphoresExp != nullptr;
+    ZeExternalSemaphoreExt.Supported |=
+        ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp != nullptr;
+    ZeExternalSemaphoreExt.LoaderExtension = true;
+  } else if (ZeIntelExternalSemaphoreExtensionSupported) {
     ZeExternalSemaphoreExt.Supported |=
         (ZE_CALL_NOCHECK(
              zeDriverGetExtensionFunctionAddress,
              (ZeDriver, "zeIntelDeviceImportExternalSemaphoreExp",
               reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp))) ==
+                  &ZeExternalSemaphoreExt.zexExpImportExternalSemaphoreExp))) ==
          0);
     ZeExternalSemaphoreExt.Supported |=
         (ZE_CALL_NOCHECK(
@@ -333,73 +391,89 @@ ur_result_t ur_platform_handle_t_::initialize() {
              (ZeDriver, "zeIntelCommandListAppendWaitExternalSemaphoresExp",
               reinterpret_cast<void **>(
                   &ZeExternalSemaphoreExt
-                       .zexCommandListAppendWaitExternalSemaphoresExp))) == 0);
+                       .zexExpCommandListAppendWaitExternalSemaphoresExp))) ==
+         0);
     ZeExternalSemaphoreExt.Supported |=
         (ZE_CALL_NOCHECK(
              zeDriverGetExtensionFunctionAddress,
              (ZeDriver, "zeIntelCommandListAppendSignalExternalSemaphoresExp",
               reinterpret_cast<void **>(
                   &ZeExternalSemaphoreExt
-                       .zexCommandListAppendSignalExternalSemaphoresExp))) ==
+                       .zexExpCommandListAppendSignalExternalSemaphoresExp))) ==
          0);
     ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                         (ZeDriver, "zeIntelDeviceReleaseExternalSemaphoreExp",
-                          reinterpret_cast<void **>(
-                              &ZeExternalSemaphoreExt
-                                   .zexDeviceReleaseExternalSemaphoreExp))) ==
-         0);
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeIntelDeviceReleaseExternalSemaphoreExp",
+              reinterpret_cast<void **>(
+                  &ZeExternalSemaphoreExt
+                       .zexExpDeviceReleaseExternalSemaphoreExp))) == 0);
   }
 
   // Check if mutable command list extension is supported and initialize
   // function pointers.
   if (MutableCommandListSpecExtensionSupported) {
+#ifdef UR_STATIC_LEVEL_ZERO
+    ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp =
+        zeCommandListGetNextCommandIdExp;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp =
+        zeCommandListUpdateMutableCommandsExp;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp =
+        zeCommandListUpdateMutableCommandSignalEventExp;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp =
+        zeCommandListUpdateMutableCommandWaitEventsExp;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp =
+        zeCommandListUpdateMutableCommandKernelsExp;
+    ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp =
+        zeCommandListGetNextCommandIdWithKernelsExp;
+#else
     ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp =
         (ze_pfnCommandListGetNextCommandIdExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListGetNextCommandIdExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp != nullptr;
     ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp =
         (ze_pfnCommandListUpdateMutableCommandsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListUpdateMutableCommandsExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp != nullptr;
     ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp =
         (ze_pfnCommandListUpdateMutableCommandSignalEventExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListUpdateMutableCommandSignalEventExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp !=
-        nullptr;
     ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp =
         (ze_pfnCommandListUpdateMutableCommandWaitEventsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListUpdateMutableCommandWaitEventsExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp !=
-        nullptr;
     ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp =
         (ze_pfnCommandListUpdateMutableCommandKernelsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListUpdateMutableCommandKernelsExp");
-    ZeMutableCmdListExt.Supported |=
-        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp !=
-        nullptr;
     ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp =
         (ze_pfnCommandListGetNextCommandIdWithKernelsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListGetNextCommandIdWithKernelsExp");
+#endif
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp != nullptr;
     ZeMutableCmdListExt.Supported |=
         ZeMutableCmdListExt.zexCommandListGetNextCommandIdWithKernelsExp !=
         nullptr;
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandKernelsExp !=
+        nullptr;
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp !=
+        nullptr;
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp !=
+        nullptr;
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp != nullptr;
     ZeMutableCmdListExt.LoaderExtension = true;
   } else {
     ZeMutableCmdListExt.Supported |=
@@ -455,12 +529,18 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // Check if ImmediateAppendCommandList is supported and initialize the
   // function pointer.
   if (ZeImmediateCommandListAppendExtensionFound) {
+#ifdef UR_STATIC_LEVEL_ZERO
+    ZeCommandListImmediateAppendExt
+        .zeCommandListImmediateAppendCommandListsExp =
+        zeCommandListImmediateAppendCommandListsExp;
+#else
     ZeCommandListImmediateAppendExt
         .zeCommandListImmediateAppendCommandListsExp =
         (ze_pfnCommandListImmediateAppendCommandListsExp_t)
             ur_loader::LibLoader::getFunctionPtr(
                 GlobalAdapter->processHandle,
                 "zeCommandListImmediateAppendCommandListsExp");
+#endif
     ZeCommandListImmediateAppendExt.Supported =
         ZeCommandListImmediateAppendExt
             .zeCommandListImmediateAppendCommandListsExp != nullptr;

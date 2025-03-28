@@ -1,7 +1,7 @@
 // Test that llvm.bitreverse is lowered correctly by llvm-spirv for 2/4-bit
 // types.
 
-// UNSUPPORTED: target-amd || target-nvidia
+// REQUIRES: target-spir
 
 // UNSUPPORTED: gpu
 // UNSUPPORTED-TRACKER: https://github.com/intel/intel-graphics-compiler/issues/330

@@ -8,9 +8,9 @@
 
 #include <libspirv/spirv.h>
 
-#include <libspirv/math/tables.h>
+#include <clc/math/tables.h>
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_atan2(float y, float x) {
   const float pi = 0x1.921fb6p+1f;
@@ -250,6 +250,6 @@ _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_atan2, double,
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_atan2, __builtin_atan2, half, half)
+_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_atan2, __builtin_atan2f16, half, half)
 
 #endif
