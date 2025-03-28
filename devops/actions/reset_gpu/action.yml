@@ -23,7 +23,7 @@ runs:
          # Then reset all i915 devices. We don't do a PCI FLR because
          # it seems to fail on some older GPUs.
          sudo mount -t debugfs none /sys/kernel/debug || true
-         dirs=$(sudo bash -c 'ls -d /sys/kernel/debug/dri/*')
+         dirs=$(sudo bash -c 'ls -d /sys/kernel/debug/dri/*') || true
          for dir in $dirs; do
             if sudo test -e "${dir}/i915_wedged"; then
                sudo bash -c 'echo 1 > ${dir}/i915_wedged' $dir
