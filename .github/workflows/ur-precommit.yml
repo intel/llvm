@@ -87,7 +87,7 @@ jobs:
           - name: OPENCL
             runner: UR_OPENCL
             platform: "Intel(R) OpenCL"
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
           - name: OPENCL
             runner: UR_OPENCL
