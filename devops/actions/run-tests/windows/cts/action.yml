@@ -67,7 +67,7 @@ runs:
         # SYCL_CTS_EXCLUDE_TEST_CATEGORIES - Optional file specifying a list
         # of test categories to be excluded from the build.
         echo "::group::Excluded test categories"
-        cat $cts_exclude_filter
+        [ -f "$cts_exclude_filter" ] && cat "$cts_exclude_filter"
         echo "::endgroup::"
       fi
 
