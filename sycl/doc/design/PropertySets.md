@@ -58,6 +58,8 @@ unsigned Offset;
 unsigned Size;
 ```
 
+See also [SYCL2020-SpecializationConstants.md](./SYCL2020-SpecializationConstants.md).
+
 
 ### [SYCL/specialization constants default values]
 
@@ -67,6 +69,8 @@ __Value type:__ Byte array. ("2")
 
 __Value:__ Byte representation of the default value for the specialization
 constant.
+
+See also [SYCL2020-SpecializationConstants.md](./SYCL2020-SpecializationConstants.md).
 
 
 ### [SYCL/devicelib req mask]
@@ -143,6 +147,8 @@ __Value type:__ 32 bit integer. ("1")
 
 __Value:__ 1 if the symbol is exported by the binary and 0 or missing otherwise.
 
+See also [SharedLibraries.md](SharedLibraries.md).
+
 
 ### [SYCL/imported symbols]
 
@@ -151,6 +157,8 @@ __Key:__ Symbol name.
 __Value type:__ 32 bit integer. ("1")
 
 __Value:__ 1 if the symbol is imported by the binary and 0 or missing otherwise.
+
+See also [SharedLibraries.md](SharedLibraries.md).
 
 
 ### [SYCL/device globals]
@@ -177,6 +185,8 @@ __Notes:__
 
 1. If this property set is missing, the binary does not contain any device
 global variables.
+
+See also [DeviceGlobal.md](./DeviceGlobal.md).
 
 
 ### [SYCL/device requirements]

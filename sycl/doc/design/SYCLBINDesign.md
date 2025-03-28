@@ -154,7 +154,10 @@ name "SYCLBIN/ir module metadata", as described in the
 
 An native device code image contains the binary data for the corresponding
 module AOT compiled for a specific device, identified by the architecture
-string.
+string.  The runtime library will attempt to map these to the architecture
+enumerators in the
+[sycl_ext_oneapi_device_architecture](../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
+extension.
 
 
 ##### Native device code image header
@@ -220,7 +223,7 @@ If this option is set, the output of the invocation is a SYCLBIN file with the
 `-fsycl` pipeline, instead passing the output of the clang-offload-packager
 invocation to clang-linker-wrapper together with the new `--syclbin` flag.
 
-Setting this option will imply `-fsycl` and override `-fsycl-device-only`.
+Setting this option implies `-fsycl` and `-fsycl-device-only`.
 
 The behavior is dependent on using the clang-linker-wrapper. As the current default
 offload compilation behavior is using the old offload model (driver based), this
