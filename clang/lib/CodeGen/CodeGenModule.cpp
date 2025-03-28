@@ -2592,16 +2592,14 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
       }
     }
 
-  bool IsEsimdFunction = FD && FD->hasAttr<SYCLSimdAttr>();
-
   if (getLangOpts().SYCLIsDevice) {
-    if (IsEsimdFunction) {
+    if (FD && FD->hasAttr<SYCLSimdAttr>()) {
       Fn->setMetadata("kernel_arg_accessor_ptr",
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
     } else {
       Fn->setMetadata("kernel_arg_buffer_location",
                       llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
-      // Generate this metadata only if atleast one kernel argument is an
+      // Generate this metadata only if at least one kernel argument is an
       // accessor.
       if (isKernelArgAnAccessor) {
         Fn->setMetadata("kernel_arg_runtime_aligned",
@@ -2611,6 +2609,7 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
       }
     }
   }
+
   if (getLangOpts().OpenCL) {
     Fn->setMetadata("kernel_arg_addr_space",
                     llvm::MDNode::get(VMContext, addressQuals));
@@ -2625,8 +2624,7 @@ void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
   }
   if (getCodeGenOpts().EmitOpenCLArgMetadata ||
       getCodeGenOpts().HIPSaveKernelArgName)
-    Fn->setMetadata("kernel_arg_name",
-                    llvm::MDNode::get(VMContext, argNames));
+    Fn->setMetadata("kernel_arg_name", llvm::MDNode::get(VMContext, argNames));
 }
 
 /// Determines whether the language options require us to model
