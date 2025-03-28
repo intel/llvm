@@ -29,7 +29,6 @@ public:
   MemoryBufferRef getMemoryBufferRef() const { return Data; }
 
   enum class BundleState : uint8_t { Input = 0, Object = 1, Executable = 2 };
-  enum class IRType : uint8_t { SPIRV = 0, PTX = 1, AMDGCN = 2 };
 
   struct ModuleDesc {
     BundleState State;
