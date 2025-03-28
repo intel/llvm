@@ -65,55 +65,12 @@ static std::string FindVisualStudioExecutable(const ToolChain &TC,
   return std::string(canExecute(TC.getVFS(), FilePath) ? FilePath.str() : Exe);
 }
 
-// Add a call to lib.exe to create an archive.  This is used to embed host
-// objects into the bundled fat FPGA device binary.
-void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
-                                                   const JobAction &JA,
-                                                   const InputInfo &Output,
-                                                   const InputInfoList &Input,
-                                                   const ArgList &Args) const {
-  ArgStringList CmdArgs;
-  for (const auto &II : Input) {
-    if (II.getType() == types::TY_Tempfilelist) {
-      // Take the list file and pass it in with '@'.
-      std::string FileName(II.getFilename());
-      const char *ArgFile = Args.MakeArgString("@" + FileName);
-      CmdArgs.push_back(ArgFile);
-      continue;
-    }
-    CmdArgs.push_back(II.getFilename());
-  }
-  if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
-      Args.hasArg(options::OPT_fintelfpga))
-    CmdArgs.push_back("/IGNORE:4221");
-
-  // Suppress multiple section warning LNK4078
-  if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
-    CmdArgs.push_back("/IGNORE:4078");
-
-  CmdArgs.push_back(
-      C.getArgs().MakeArgString(Twine("-OUT:") + Output.getFilename()));
-
-  SmallString<128> ExecPath(getToolChain().GetProgramPath("lib.exe"));
-  const char *Exec = C.getArgs().MakeArgString(ExecPath);
-  C.addCommand(std::make_unique<Command>(
-      JA, *this, ResponseFileSupport::AtFileUTF16(), Exec, CmdArgs, std::nullopt));
-}
-
 void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                         const InputInfo &Output,
                                         const InputInfoList &Inputs,
                                         const ArgList &Args,
                                         const char *LinkingOutput) const {
   ArgStringList CmdArgs;
-
-  // Create a library with -fsycl-link
-  if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
-      JA.getType() == types::TY_Archive) {
-    constructMSVCLibCommand(C, JA, Output, Inputs, Args);
-    return;
-  }
-
   auto &TC = static_cast<const toolchains::MSVCToolChain &>(getToolChain());
 
   assert((Output.isFilename() || Output.isNothing()) && "invalid output");
