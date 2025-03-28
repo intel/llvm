@@ -85,7 +85,7 @@ bool kernel_impl::isCreatedFromSource() const {
 std::string_view kernel_impl::getName() const {
   if (MName.empty())
     MName = get_info<info::kernel::function_name>();
-  return MName;  
+  return MName;
 }
 
 bool kernel_impl::isBuiltInKernel(const device &Device) const {
