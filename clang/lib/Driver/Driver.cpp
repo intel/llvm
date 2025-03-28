@@ -8437,8 +8437,8 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
         C.MakeAction<OffloadPackagerJobAction>(OffloadActions, types::TY_Image);
     ActionList PackagerActions;
     PackagerActions.push_back(PackagerAction);
-    Action *LinkAction = C.MakeAction<LinkerWrapperJobAction>(
-        PackagerActions, types::TY_Image);
+    Action *LinkAction =
+        C.MakeAction<LinkerWrapperJobAction>(PackagerActions, types::TY_Image);
     DDep.add(*LinkAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
              nullptr, C.getActiveOffloadKinds());
     return C.MakeAction<OffloadAction>(DDep, types::TY_Nothing);
