@@ -47,5 +47,8 @@ class Options:
     custom_results_dir = None
     build_jobs: int = multiprocessing.cpu_count()
 
+    regression_threshold: float = 0.01
+    timestamp_override: str = None
+
 
 options = Options()

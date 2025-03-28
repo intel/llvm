@@ -17,6 +17,7 @@ from output_html import generate_html
 from history import BenchmarkHistory
 from utils.utils import prepare_workdir
 from utils.compute_runtime import *
+from utils.validate import Validate
 from presets import enabled_suites, presets
 
 import argparse
@@ -487,6 +488,11 @@ if __name__ == "__main__":
         help="Number of build jobs to run simultaneously",
         default=options.build_jobs,
     )
+    parser.add_argument(
+        "--timestamp-override",
+        type=str,
+        help="Used in CI to enforce use of same timestamp across scripts",
+    )
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -525,6 +531,10 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
+    if args.timestamp_override is not None:
+        if not Validate.timestamp(args.timestamp_override):
+            parser.error("--timestamp_override is not a valid timestamp")
+        options.timestamp_override = args.timestamp_override
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

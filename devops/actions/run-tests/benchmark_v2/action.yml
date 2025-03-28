@@ -19,10 +19,12 @@ inputs:
   upload_results:
     type: string
     required: True
-  build_hash:
+  save_name:
     type: string
-    required: False
-    default: ''
+    required: True
+  preset:
+    type: string
+    required: True
 
 runs:
   using: "composite"
@@ -32,6 +34,7 @@ runs:
     env:
       TARGET_DEVICE: ${{ inputs.target_devices }}
       RUNNER_NAME: ${{ runner.name }}
+      PRESET: ${{ inputs.preset }}
     run: |
       case "$RUNNER_TAG" in
         '["PVC_PERF"]' ) ;;
@@ -61,6 +64,10 @@ runs:
       esac
       echo "ONEAPI_DEVICE_SELECTOR=$TARGET_DEVICE" >> $GITHUB_ENV 
 
+      # Make sure specified preset is a known value and is not malicious
+      python3 ./devops/scripts/benchmarks/presets.py query "$PRESET"
+      [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
+      echo "PRESET=$PRESET" >> $GITHUB_ENV
   - name: Compute CPU core range to run benchmarks on
     shell: bash
     run: |
@@ -86,7 +93,9 @@ runs:
       git clone -b unify-ci https://github.com/intel/llvm-ci-perf-results
   - name: Run compute-benchmarks
     env:
-      BUILD_HASH: ${{ inputs.build_hash }}
+      # Need to append "_<device>_<backend>" to save name in order to follow
+      # conventions:
+      SAVE_PREFIX: ${{ inputs.save_name }}
     shell: bash
     run: |
       # TODO generate summary + display helpful message here
@@ -98,11 +107,15 @@ runs:
       echo "-----"
       mkdir -p "./llvm-ci-perf-results/$RUNNER_NAME"
 
+      case "$ONEAPI_DEVICE_SELECTOR" in
+        level_zero:*) SAVE_SUFFIX="L0" ;;
+        level_zero_v2:*) SAVE_SUFFIX="L0v2" ;;
+        opencl:*) SAVE_SUFFIX="OCL" ;;
+        *) SAVE_SUFFIX="${ONEAPI_DEVICE_SELECTOR%%:*}";;
+      esac
       # TODO accomodate for different GPUs and backends
-      SAVE_NAME="Baseline_PVC_L0"
-      if [ -n "$BUILD_HASH" ]; then
-          SAVE_NAME="Commit_PVC_$BUILD_HASH"
-      fi
+      SAVE_NAME="${SAVE_PREFIX}_PVC_${SAVE_SUFFIX}"
+      SAVE_TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
 
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \
@@ -111,15 +124,18 @@ runs:
         --output-html remote \
         --results-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
         --output-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
-        --preset Minimal
+        --preset "$PRESET" \
+        --timestamp-override "$SAVE_TIMESTAMP"
       echo "-----"
+      python3 ./devops/scripts/benchmarks/compare.py to_hist \
+        --name Baseline_PVC_L0 \
+        --compare-file "./llvm-ci-perf-results/$RUNNER_NAME/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
+        --results-dir "./llvm-ci-perf-results/$RUNNER_NAME/results/"
+
   - name: Push compute-benchmarks results
     if: inputs.upload_results == 'true' && always()
     shell: bash
     run: |
-      # TODO redo configuration
-      # $(python ./devops/scripts/benchmarking/load_config.py ./devops constants)
-
       cd "./llvm-ci-perf-results"
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
