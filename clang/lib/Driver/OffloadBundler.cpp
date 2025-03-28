@@ -716,7 +716,10 @@ class ObjectFileHandler final : public FileHandler {
         if (SF->isIR() &&
             (Name == "llvm.used" || Name == "llvm.compiler.used" ||
              Name == "__AsanDeviceGlobalMetadata" ||
-             Name == "__AsanKernelMetadata" || Name == "__MsanKernelMetadata"))
+             Name == "__MsanDeviceGlobalMetadata" ||
+             Name == "__TsanDeviceGlobalMetadata" ||
+             Name == "__AsanKernelMetadata" || Name == "__MsanKernelMetadata" ||
+             Name == "__TsanKernelMetadata"))
           continue;
 
         // Add symbol name with the target prefix to the buffer.

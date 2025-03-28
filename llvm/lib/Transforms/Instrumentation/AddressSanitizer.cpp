@@ -1871,7 +1871,8 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(
 // Instument dynamic local memory
 bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
     Function &F, ArrayRef<Instruction *> RetVec) {
-  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
+  InstrumentationIRBuilder IRB(&F.getEntryBlock(),
+                               F.getEntryBlock().getFirstNonPHIIt());
 
   SmallVector<Argument *> LocalArgs;
   for (auto &Arg : F.args()) {
@@ -1909,7 +1910,8 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
 // "__asan_launch" if it's an extended kernel, and store 0 if not
 void AddressSanitizer::instrumentInitAsanLaunchInfo(
     Function &F, const TargetLibraryInfo *TLI) {
-  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
+  InstrumentationIRBuilder IRB(&F.getEntryBlock(),
+                               F.getEntryBlock().getFirstNonPHIIt());
   if (F.arg_size()) {
     auto *LastArg = F.getArg(F.arg_size() - 1);
     if (LastArg->getName() == "__asan_launch") {
@@ -2932,6 +2934,11 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
 
   for (auto &G : M.globals()) {
+    // DeviceSanitizers cannot handle nameless globals, therefore we set a name
+    // for them so that we can handle them like regular globals.
+    if (G.getName().empty() && G.hasInternalLinkage())
+      G.setName("nameless_global");
+
     if (isUnsupportedDeviceGlobal(&G))
       continue;
 

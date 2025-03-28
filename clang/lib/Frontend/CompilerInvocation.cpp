@@ -4213,6 +4213,9 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.IncludeDefaultHeader = Args.hasArg(OPT_finclude_default_header);
   Opts.DeclareOpenCLBuiltins = Args.hasArg(OPT_fdeclare_opencl_builtins);
 
+  Opts.SYCLCUDACompat =
+      Args.hasArg(OPT_fsycl_cuda_compat, OPT_fno_sycl_cuda_compat, false);
+
   LangOptions::setLangDefaults(Opts, IK.getLanguage(), T, Includes, LangStd);
 
   // The key paths of codegen options defined in Options.td start with

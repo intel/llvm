@@ -230,7 +230,7 @@ Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">
 
 def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
   Flags<[WrapperOnlyOption]>,
-  HelpText<"Path to the folder where the tool dumps SPIR-V device code. Other formats aren't dumped.">;
+  HelpText<"Directory to dump offloading images to.">;
 
 // Options to enable/disable device dynamic linking.
 def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-image-dependencies">,
