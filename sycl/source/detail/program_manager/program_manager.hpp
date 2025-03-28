@@ -376,11 +376,15 @@ private:
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, const device &Dev);
 
+  bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage);
+  bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
+                                        const device &Dev);
+
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
-
+  using DynRTDeviceBinaryImageUPtr = std::unique_ptr<DynRTDeviceBinaryImage>;
   /// Maps names of kernels to their unique kernel IDs.
   /// TODO: Use std::unordered_set with transparent hash and equality functions
   ///       when C++20 is enabled for the runtime library.
@@ -502,7 +506,7 @@ protected:
   // and 1 for native version. These bfloat16 device library images are
   // provided by compiler long time ago, we expect no further update, so
   // keeping 1 copy should be OK.
-  std::unordered_map<uint32_t, RTDeviceBinaryImageUPtr>
+  std::unordered_map<uint32_t, DynRTDeviceBinaryImageUPtr>
       m_Bfloat16DeviceLibImages;
 
   friend class ::ProgramManagerTest;
