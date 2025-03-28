@@ -479,10 +479,9 @@ private:
 #endif
   /// Extracts and prepares kernel arguments from the lambda using information
   /// from the built-ins or integration header.
-  void
-  extractArgsAndReqsFromLambda(char *LambdaPtr,
-                               detail::kernel_param_desc_t (*ParamDescGetter)(int),
-                               size_t NumKernelParams, bool IsESIMD);
+  void extractArgsAndReqsFromLambda(
+      char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+      size_t NumKernelParams, bool IsESIMD);
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
@@ -751,10 +750,10 @@ private:
       // TODO support ESIMD in no-integration-header case too.
 
       clearArgs();
-      extractArgsAndReqsFromLambda(
-          MHostKernel->getPtr(), &(detail::getKernelParamDesc<KernelName>),
-          detail::getKernelNumParams<KernelName>(),
-          detail::isKernelESIMD<KernelName>());
+      extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
+                                   &(detail::getKernelParamDesc<KernelName>),
+                                   detail::getKernelNumParams<KernelName>(),
+                                   detail::isKernelESIMD<KernelName>());
       MKernelName = detail::getKernelName<KernelName>();
     } else {
       // In case w/o the integration header it is necessary to process
