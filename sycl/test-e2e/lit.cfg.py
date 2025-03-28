@@ -442,7 +442,10 @@ with test_env():
         config.substitutions.append(("%cuda_options", cuda_options))
     else:
         config.substitutions.append(("%cuda_options", ""))
-
+print(config.available_features)
+print(config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options)
+print(sp)
+sys.stdout.flush()
 # Check for HIP SDK
 check_hip_file = "hip_include.cpp"
 with open_check_file(check_hip_file) as fp:
@@ -490,9 +493,6 @@ with test_env():
         config.substitutions.append(("%hip_options", hip_options))
     else:
         config.substitutions.append(("%hip_options", ""))
-print(config.available_features)
-print(sp)
-sys.stdout.flush()
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
     if cl_options:
