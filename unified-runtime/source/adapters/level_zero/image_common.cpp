@@ -470,12 +470,15 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
 
   UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
+  std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
   auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
 
   if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
     ZE2UR_CALL(zeImageDestroy, (item->second));
     hDevice->ZeOffsetToImageHandleMap.erase(item);
+    Lock.release();
   } else {
+    Lock.release();
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
 
@@ -790,8 +793,9 @@ ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
   allocDesc.pNext = externalMemoryData->importExtensionDesc;
   void *mappedMemory;
 
-  ze_result_t zeResult = zeMemAllocDevice(hContext->getZeHandle(), &allocDesc, size,
-                                          1, hDevice->ZeDevice, &mappedMemory);
+  ze_result_t zeResult =
+      zeMemAllocDevice(hContext->getZeHandle(), &allocDesc, size, 1,
+                       hDevice->ZeDevice, &mappedMemory);
   if (zeResult != ZE_RESULT_SUCCESS) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
