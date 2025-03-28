@@ -47,32 +47,26 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   isFinalized = true;
   return UR_RESULT_SUCCESS;
 }
-ur_result_t ur_exp_command_buffer_handle_t_::awaitExecution(
-    locked<ur_command_list_manager> &commandList) {
-  std::ignore = commandList;
+ur_event_handle_t ur_exp_command_buffer_handle_t_::getCurrentExecutionEvent(
+    [[maybe_unused]] locked<ur_command_list_manager> &commandList) {
+  assert(
+      commandList->getZeCommandList() ==
+          commandListManager.get_no_lock()->getZeCommandList() &&
+      "Provided command list is not the same as the one in the command buffer");
+  return currentExecution;
+}
+
+ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEvent(
+    [[maybe_unused]] locked<ur_command_list_manager> &commandList,
+    ur_event_handle_t nextExecutionEvent) {
   assert(
       commandList->getZeCommandList() ==
           commandListManager.get_no_lock()->getZeCommandList() &&
       "Provided command list is not the same as the one in the command buffer");
   if (currentExecution) {
-    ZE2UR_CALL(zeEventHostSynchronize,
-               (currentExecution->getZeEvent(), UINT64_MAX));
     UR_CALL(currentExecution->release());
     currentExecution = nullptr;
   }
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEvent(
-    locked<ur_command_list_manager> &commandList,
-    ur_event_handle_t nextExecutionEvent) {
-  std::ignore = commandList;
-  assert(
-      commandList->getZeCommandList() ==
-          commandListManager.get_no_lock()->getZeCommandList() &&
-      "Provided command list is not the same as the one in the command buffer");
-  assert(currentExecution == nullptr &&
-         "Current execution event is not null, it should be awaited first");
   if (nextExecutionEvent) {
     currentExecution = nextExecutionEvent;
     UR_CALL(nextExecutionEvent->retain());
