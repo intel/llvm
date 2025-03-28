@@ -186,9 +186,10 @@ jobs:
         export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} ${{ inputs.extra_lit_opts }}"
         cmake --build build-e2e --target check-sycl-e2e
 
-    # There are issues with running the tests with the same CMakeCache.txt, or
-    # even rebuilding it on top of an existing one in gen12, so we remove the
-    # configuration files before packing
+    # Github CI doesn't support containers on Windows, so we cannot guarantee
+    # that paths are the same between building and running systems. To avoid
+    # CMake issues related to absolute paths we reconfigure the build-e2e
+    # folder on the run system.
     - name: Remove E2E configuration files
       if: ${{ always() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
       shell: bash
