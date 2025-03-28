@@ -42,13 +42,7 @@ inline auto create_exception_handler() {
   };
 }
 
-struct usm_deleter {
-  queue q;
-  void operator()(void *ptr) {
-    if (ptr)
-      sycl::free(ptr, q);
-  }
-};
+using ext::oneapi::experimental::usm_deleter;
 
 void init(unsigned *in1, unsigned *in2, unsigned *in3, unsigned *res,
           size_t size) {

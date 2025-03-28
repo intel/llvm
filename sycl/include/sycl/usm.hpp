@@ -349,6 +349,16 @@ __SYCL_EXPORT void release_from_device_copy(const void *Ptr,
 __SYCL_EXPORT void release_from_device_copy(const void *Ptr,
                                             const queue &Queue);
 
+class usm_deleter {
+  context ctx;
+
+public:
+  usm_deleter(const context &ctx) : ctx(ctx) {}
+  usm_deleter(const queue &q) : ctx(q.get_context()) {}
+
+  template <typename T> void operator()(T *ptr) const { sycl::free(ptr, ctx); }
+};
+
 } // namespace ext::oneapi::experimental
 
 } // namespace _V1

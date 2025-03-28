@@ -36,13 +36,7 @@ inline auto create_exception_handler() {
   };
 }
 
-struct usm_deleter {
-  queue q;
-  void operator()(void *ptr) {
-    if (ptr)
-      sycl::free(ptr, q);
-  }
-};
+using ext::oneapi::experimental::usm_deleter;
 
 // Res = A * B.
 // Assume the HW is PVC.
