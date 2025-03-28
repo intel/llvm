@@ -148,7 +148,8 @@ __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr) {
 
 __SYCL_EXPORT void async_free(const sycl::queue &q, void *ptr,
                               const sycl::detail::code_location &CodeLoc) {
-  submit(q, [&](sycl::handler &h) { async_free(h, ptr); }, CodeLoc);
+  submit(
+      q, [&](sycl::handler &h) { async_free(h, ptr); }, CodeLoc);
 }
 
 } // namespace ext::oneapi::experimental

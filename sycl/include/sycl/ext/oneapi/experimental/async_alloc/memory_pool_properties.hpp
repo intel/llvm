@@ -23,7 +23,7 @@ namespace property::memory_pool {
 struct initial_threshold : public sycl::detail::PropertyWithData<
                                sycl::detail::MemPoolInitialThreshold> {
   initial_threshold(size_t initialThreshold)
-      : initialThreshold(initialThreshold) {};
+      : initialThreshold(initialThreshold){};
   size_t get_initial_threshold() { return initialThreshold; }
 
 private:
@@ -33,7 +33,7 @@ private:
 // Property that determines the maximum size of a memory pool.
 struct maximum_size
     : public sycl::detail::PropertyWithData<sycl::detail::MemPoolMaximumSize> {
-  maximum_size(size_t maxSize) : maxSize(maxSize) {};
+  maximum_size(size_t maxSize) : maxSize(maxSize){};
   size_t get_maximum_size() { return maxSize; }
 
 private:
