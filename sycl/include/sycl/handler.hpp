@@ -18,6 +18,7 @@
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
@@ -509,7 +510,7 @@ private:
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
     const std::string LambdaName = detail::getKernelName<LambdaNameT>();
-    detail::string KernelName = getKernelName();
+    detail::ABINeutralKernelNameStrT KernelName = getKernelName();
     return KernelName == LambdaName;
   }
 

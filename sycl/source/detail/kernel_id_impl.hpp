@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 
 namespace sycl {
 inline namespace _V1 {

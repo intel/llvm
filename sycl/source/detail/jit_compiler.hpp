@@ -11,7 +11,7 @@
 #include <detail/jit_device_binaries.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
-#include <sycl/detail/common.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/feature_test.hpp>
 #if SYCL_EXT_JIT_ENABLE
 #include <KernelFusion.h>

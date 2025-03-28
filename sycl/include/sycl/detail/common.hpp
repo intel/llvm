@@ -381,15 +381,6 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
 // classes.
 struct AllowCTADTag;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-using KernelNameStrT = std::string_view;
-using KernelNameStrRefT = std::string_view;
-using ABINeutralKernelNameStrT = detail::string_view;
-#else
-using KernelNameStrT = std::string;
-using KernelNameStrRefT = const std::string &;
-using ABINeutralKernelNameStrT = detail::string;
-#endif
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
