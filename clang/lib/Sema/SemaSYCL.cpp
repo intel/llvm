@@ -2090,7 +2090,9 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
+    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) &&
+        !SemaSYCL::isSyclType(ParamTy,
+                              SYCLTypeAttr::dynamic_work_group_memory)) {
       Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
           << ParamTy;
       IsInvalid = true;
@@ -2246,7 +2248,8 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
+    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) &&
+        !SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::dynamic_work_group_memory))
       unsupportedFreeFunctionParamType(); // TODO
     return true;
   }
@@ -3033,7 +3036,9 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) ||
+        SemaSYCL::isSyclType(ParamTy,
+                             SYCLTypeAttr::dynamic_work_group_memory)) {
       const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
       assert(RecordDecl && "The type must be a RecordDecl");
       CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
@@ -4545,7 +4550,9 @@ public:
   // TODO: Revisit this approach once https://github.com/intel/llvm/issues/16061
   // is closed.
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) ||
+        SemaSYCL::isSyclType(ParamTy,
+                             SYCLTypeAttr::dynamic_work_group_memory)) {
       const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
       AccessSpecifier DefaultConstructorAccess;
       auto DefaultConstructor =
@@ -4824,6 +4831,10 @@ public:
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
       addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
                offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
+    } else if (SemaSYCL::isSyclType(FieldTy,
+                                    SYCLTypeAttr::dynamic_work_group_memory)) {
+      addParam(FieldTy, SYCLIntegrationHeader::kind_dynamic_work_group_memory,
+               offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
     }
     return true;
   }
@@ -4846,6 +4857,10 @@ public:
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
       addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
+               offsetOf(FD, FieldTy));
+    } else if (SemaSYCL::isSyclType(FieldTy,
+                                    SYCLTypeAttr::dynamic_work_group_memory)) {
+      addParam(FieldTy, SYCLIntegrationHeader::kind_dynamic_work_group_memory,
                offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
@@ -4871,6 +4886,10 @@ public:
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
       addParam(PD, ParamTy, SYCLIntegrationHeader::kind_work_group_memory);
+    else if (SemaSYCL::isSyclType(ParamTy,
+                                  SYCLTypeAttr::dynamic_work_group_memory))
+      addParam(PD, ParamTy,
+               SYCLIntegrationHeader::kind_dynamic_work_group_memory);
     else
       unsupportedFreeFunctionParamType(); // TODO
     return true;
@@ -5994,6 +6013,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(specialization_constants_buffer);
     CASE(pointer);
     CASE(work_group_memory);
+    CASE(dynamic_work_group_memory);
   }
   return "<ERROR>";
 

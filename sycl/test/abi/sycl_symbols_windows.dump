@@ -505,10 +505,14 @@
 ??1exception@_V1@sycl@@UEAA@XZ
 ??1exception_list@_V1@sycl@@QEAA@XZ
 ??1executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@@Z
+?updateWorkGroupMem@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAX_K@Z
 ??1filter_selector@ONEAPI@_V1@sycl@@UEAA@XZ
 ??1filter_selector@oneapi@ext@_V1@sycl@@UEAA@XZ
 ??1fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAA@XZ
 ??1gpu_selector@_V1@sycl@@UEAA@XZ
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
+?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVdynamic_work_group_memory_base@detail@experimental@oneapi@ext@23@@Z
 ??1handler@_V1@sycl@@AEAA@XZ
 ??1image_mem@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
 ??1image_mem_impl@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ

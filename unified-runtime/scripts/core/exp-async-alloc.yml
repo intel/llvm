@@ -392,8 +392,6 @@ params:
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
         - "If `propName` is not supported by the adapter."
-    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-        - "`pPropValue == NULL`"
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
     - $X_RESULT_ERROR_INVALID_DEVICE
