@@ -122,7 +122,6 @@ TEST_P(urCommandBufferFillCommandsTest, Buffer) {
   verifyData(output, size);
 }
 
-
 TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
   ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
       cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,

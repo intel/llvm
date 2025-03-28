@@ -55,7 +55,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::awaitExecution(
           commandListManager.get_no_lock()->getZeCommandList() &&
       "Provided command list is not the same as the one in the command buffer");
   if (currentExecution) {
-    ZE2UR_CALL(zeEventHostSynchronize, (currentExecution->getZeEvent(), UINT64_MAX));
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (currentExecution->getZeEvent(), UINT64_MAX));
     UR_CALL(currentExecution->release());
     currentExecution = nullptr;
   }
