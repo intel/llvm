@@ -303,9 +303,10 @@ endfunction()
 #      Prefix to give the final builtin library aliases
 #  * ALIASES <string> ...
 #      List of aliases
-#  * INTERNAL_LINK_DEPENDENCIES <string> ...
-#      A list of extra bytecode files to link into the builtin library. Symbols
-#      from these link dependencies will be internalized during linking.
+#  * INTERNAL_LINK_DEPENDENCIES <target> ...
+#      A list of extra bytecode file's targets. The bitcode files will be linked
+#      into the builtin library. Symbols from these link dependencies will be
+#      internalized during linking.
 function(add_libclc_builtin_set)
   cmake_parse_arguments(ARG
     "CLC_INTERNAL"
@@ -404,13 +405,17 @@ function(add_libclc_builtin_set)
       RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
       DEPENDENCIES ${builtins_comp_lib_tgt}
     )
+    set( internal_link_depend_files )
+    foreach( tgt ${ARG_INTERNAL_LINK_DEPENDENCIES} )
+      list( APPEND internal_link_depend_files $<TARGET_PROPERTY:${tgt},TARGET_FILE> )
+    endforeach()
     link_bc(
       INTERNALIZE
       TARGET ${builtins_link_lib_tgt}
       INPUTS $<TARGET_PROPERTY:${builtins_link_lib_tmp_tgt},TARGET_FILE>
         ${ARG_INTERNAL_LINK_DEPENDENCIES}
       RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
-      DEPENDENCIES ${builtins_link_lib_tmp_tgt}
+      DEPENDENCIES ${builtins_link_lib_tmp_tgt} ${ARG_INTERNAL_LINK_DEPENDENCIES}
     )
   endif()
 

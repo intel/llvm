@@ -155,7 +155,7 @@ void initializeLegacyLICMPassPass(PassRegistry &);
 void initializeLegalizerPass(PassRegistry &);
 void initializeGISelCSEAnalysisWrapperPassPass(PassRegistry &);
 void initializeGISelKnownBitsAnalysisPass(PassRegistry &);
-void initializeLiveDebugValuesPass(PassRegistry &);
+void initializeLiveDebugValuesLegacyPass(PassRegistry &);
 void initializeLiveDebugVariablesWrapperLegacyPass(PassRegistry &);
 void initializeLiveIntervalsWrapperPassPass(PassRegistry &);
 void initializeLiveRangeShrinkPass(PassRegistry &);
