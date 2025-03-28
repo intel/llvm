@@ -1,7 +1,4 @@
-// REQUIRES: opencl-aot, cpu, target-spir
-
-// XFAIL: windows && !(build-mode && run-mode)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17515
+// REQUIRES: opencl-aot, cpu, target-spir, opencl-cpu-rt
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64 %S/Inputs/common.cpp -o %t_spv_cpu.out
 // RUN: %{run} %t_spv_cpu.out

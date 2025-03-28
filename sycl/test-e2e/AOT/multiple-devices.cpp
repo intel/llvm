@@ -6,10 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: opencl-aot, ocloc, cpu, gpu, target-spir
-
-// XFAIL: windows && !(build-mode && run-mode)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17515
+// REQUIRES: opencl-aot, ocloc, cpu, gpu, target-spir, opencl-cpu-rt
 
 // Produce a fat object for all targets (generic SPIR-V, CPU, GPU)
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_gen %S/Inputs/aot.cpp -c -o %t.o

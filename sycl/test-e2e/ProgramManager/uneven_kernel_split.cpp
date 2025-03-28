@@ -1,7 +1,4 @@
-// REQUIRES: any-device-is-cpu, gpu, opencl-aot, ocloc, target-spir
-
-// XFAIL: windows && !(build-mode && run-mode)
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17515
+// REQUIRES: any-device-is-cpu, gpu, opencl-aot, ocloc, target-spir, opencl-cpu-rt
 
 // UNSUPPORTED: linux
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17305
