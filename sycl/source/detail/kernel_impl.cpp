@@ -81,6 +81,13 @@ bool kernel_impl::isCreatedFromSource() const {
   return MCreatedFromSource;
 }
 
+// TODO this is how kernel_impl::get_info<function_name> should behave instead.
+std::string_view kernel_impl::getName() const {
+  if (MName.empty())
+    MName = get_info<info::kernel::function_name>();
+  return MName;  
+}
+
 bool kernel_impl::isBuiltInKernel(const device &Device) const {
   auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
   if (BuiltInKernels.empty())

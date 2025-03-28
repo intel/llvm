@@ -256,9 +256,6 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::string MKernelNameStorage;
-#endif
   KernelNameStrT MKernelName;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
@@ -292,31 +289,6 @@ public:
         MKernelWorkGroupMemorySize(KernelWorkGroupMemorySize) {
     assert(getType() == CGType::Kernel && "Wrong type of exec kernel CG.");
   }
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
-               std::shared_ptr<detail::kernel_impl> SyclKernel,
-               std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
-               CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName,
-               std::vector<std::shared_ptr<detail::stream_impl>> Streams,
-               std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-               CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
-               bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
-               size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
-        MSyclKernel(std::move(SyclKernel)),
-        MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelNameStorage(std::move(KernelName)),
-        MKernelName(MKernelNameStorage), MStreams(std::move(Streams)),
-        MAuxiliaryResources(std::move(AuxiliaryResources)),
-        MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
-        MKernelIsCooperative(KernelIsCooperative),
-        MKernelUsesClusterLaunch(MKernelUsesClusterLaunch),
-        MKernelWorkGroupMemorySize(KernelWorkGroupMemorySize) {
-    assert(getType() == CGType::Kernel && "Wrong type of exec kernel CG.");
-  }
-#endif
 
   CGExecKernel(const CGExecKernel &CGExec) = default;
 

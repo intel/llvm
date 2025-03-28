@@ -560,27 +560,14 @@ event handler::finalize() {
     // Copy kernel name here instead of move so that it's available after
     // running of this method by reductions implementation. This allows for
     // assert feature to check if kernel uses assertions
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (!MKernelNameStorage.empty())
       CommandGroup.reset(new detail::CGExecKernel(
           std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
           std::move(impl->MKernelBundle), std::move(impl->CGData),
-          std::move(impl->MArgs), std::string(MKernelName.data()),
+          std::move(impl->MArgs), MKernelName.data(),
           std::move(MStreamStorage), std::move(impl->MAuxiliaryResources),
           getType(), impl->MKernelCacheConfig, impl->MKernelIsCooperative,
           impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-          MCodeLoc));
-    else
-#endif
-      CommandGroup.reset(new detail::CGExecKernel(
-          std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
-          std::move(impl->MKernelBundle), std::move(impl->CGData),
-          std::move(impl->MArgs), detail::KernelNameStrT(MKernelName.data()),
-          std::move(MStreamStorage), std::move(impl->MAuxiliaryResources),
-          getType(), impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-          impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
-          MCodeLoc));
-
+	  MCodeLoc));
     break;
   }
   case detail::CGType::CopyAccToPtr:
@@ -1130,19 +1117,11 @@ void handler::extractArgsAndReqsFromLambda(
   extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
 }
 
-void handler::setKernelName() {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  MKernelNameStorage = MKernel->get_info<info::kernel::function_name>();
-  MKernelName = MKernelNameStorage;
-#else
-  MKernelName = getKernelName();
-#endif
-}
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-detail::string handler::getKernelName() {
-  return detail::string{MKernel->get_info<info::kernel::function_name>()};
+detail::ABINeutralKernelNameStrT handler::getKernelName() {
+  return MKernel->getName();
 }
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
