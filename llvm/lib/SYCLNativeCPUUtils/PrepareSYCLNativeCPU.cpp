@@ -380,6 +380,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
           OldF->takeName(OrigF);
           if (OrigF->use_empty()) {
             RemovableFuncs.insert(OrigF);
+          } else {
+            OrigF->setName(Name + ".orig");
           }
         } else {
           OldF->setName(Name);
