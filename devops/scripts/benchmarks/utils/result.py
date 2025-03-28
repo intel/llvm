@@ -29,6 +29,7 @@ class Result:
     lower_is_better: bool = True
     suite: str = "Unknown"
 
+
 @dataclass_json
 @dataclass
 class BenchmarkRun:
