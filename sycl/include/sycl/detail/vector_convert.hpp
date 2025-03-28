@@ -57,9 +57,7 @@
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/exception.hpp>                  // for errc
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/memcpy.hpp>
-#endif
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 #include <sycl/vector.hpp>
 
