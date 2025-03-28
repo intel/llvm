@@ -919,6 +919,10 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
+  const DeviceImplPtr &getDeviceImplPtr() const {
+    return getSyclObjImpl(MDevice);
+  }
+
   /// Query for the device tied to this graph.
   /// @return Device associated with graph.
   sycl::device getDevice() const { return MDevice; }
