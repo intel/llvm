@@ -77,7 +77,8 @@ bool checkCounterBasedEventsSupport(ur_device_handle_t Device) {
   }();
 
   return Device->ImmCommandListUsed &&
-         Device->Platform->allowDriverInOrderLists() &&
+         Device->Platform->allowDriverInOrderLists(
+             true /*Only Allow Driver In Order List if requested*/) &&
          useDriverCounterBasedEvents &&
          Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
 }
@@ -649,7 +650,8 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 bool canBeInOrder(ur_context_handle_t Context,
                   const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
   bool CanUseDriverInOrderLists =
-      Context->getPlatform()->allowDriverInOrderLists();
+      Context->getPlatform()->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/);
   return CanUseDriverInOrderLists ? CommandBufferDesc->isInOrder : false;
 }
 
