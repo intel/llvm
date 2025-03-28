@@ -756,12 +756,8 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
     if (!ImageFileOrErr)
       return ImageFileOrErr.takeError();
 
-    // Arbitrary values are used for the testing of SYCL Offload Wrapping.
-    auto Properties = util::PropertySetRegistry();
-    Properties.add(util::PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS, "key",
-                   util::PropertyValue(uint32_t(0)));
     std::vector Modules = {module_split::SplitModule(
-        *ImageFileOrErr, std::move(Properties), "entry1\nentry2")};
+        *ImageFileOrErr, util::PropertySetRegistry(), "")};
     return Modules;
   }
 

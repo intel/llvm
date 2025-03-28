@@ -3,7 +3,7 @@
 //
 // Generate .o file as linker wrapper input.
 //
-// touch %t.device.bc
+// RUN: %clang -cc1 -fsycl-is-device -disable-llvm-passes -triple=spir64-unknown-unknown %s -emit-llvm-bc -o %t.device.bc
 // RUN: clang-offload-packager -o %t.fat --image=file=%t.device.bc,kind=sycl,triple=spir64-unknown-unknown
 // RUN: %clang -cc1 %s -triple=x86_64-unknown-linux-gnu -emit-obj -o %t.o -fembed-offload-object=%t.fat
 //
@@ -12,44 +12,98 @@
 // RUN: touch %t.devicelib.cpp
 // RUN: %clang %t.devicelib.cpp -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t.devicelib.o
 //
-// Run clang-linker-wrapper test and check the output of SYCL Offload Wrapping.
+// Check SYCL Offload Wrapper in non-dry-mode since we need to cover every it's function.
+//
+// RUN: clang-linker-wrapper --print-wrapped-module --host-triple=x86_64-unknown-linux-gnu \
+// RUN:                      -sycl-device-libraries=%t.devicelib.o \
+// RUN:                      -sycl-post-link-options="-split=auto -symbols -properties" %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-FULL
+
+template <typename t, typename Func>
+__attribute__((sycl_kernel)) void kernel(const Func &func) {
+    func();
+}
+
+extern "C" {
+// symbols so that linker find them and doesn't fail.
+void __sycl_register_lib(void *) {}
+void __sycl_unregister_lib(void *) {}
+}
+
+int main() {
+    kernel<class fake_kernel>([](){});
+}
+
+//#endif
+
+//     CHECK-FULL: %_pi_device_binary_property_struct = type { ptr, ptr, i32, i64 }
+// CHECK-FULL-NEXT: %_pi_device_binary_property_set_struct = type { ptr, ptr, ptr }
+// CHECK-FULL-NEXT: %struct.__tgt_offload_entry = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
+// CHECK-FULL-NEXT: %__sycl.tgt_device_image = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
+// CHECK-FULL-NEXT: %__sycl.tgt_bin_desc = type { i16, i16, ptr, ptr, ptr }
+
+//     CHECK-FULL: @.sycl_offloading.target.0 = internal unnamed_addr constant [7 x i8] c"spir64\00"
+// CHECK-FULL-NEXT: @.sycl_offloading.opts.compile.0 = internal unnamed_addr constant [1 x i8] zeroinitializer
+// CHECK-FULL-NEXT: @.sycl_offloading.opts.link.0 = internal unnamed_addr constant [1 x i8] zeroinitializer
+// CHECK-FULL-NEXT: @prop = internal unnamed_addr constant [17 x i8] c"DeviceLibReqMask\00"
+// CHECK-FULL-NEXT: @__sycl_offload_prop_sets_arr = internal constant [1 x %_pi_device_binary_property_struct] [%_pi_device_binary_property_struct { ptr @prop, ptr null, i32 1, i64 0 }]
+// CHECK-FULL-NEXT: @SYCL_PropSetName = internal unnamed_addr constant [24 x i8] c"SYCL/devicelib req mask\00"
+// CHECK-FULL-NEXT: @prop.1 = internal unnamed_addr constant [8 x i8] c"aspects\00"
+// CHECK-FULL-NEXT: @prop_val = internal unnamed_addr constant [8 x i8] zeroinitializer
+// CHECK-FULL-NEXT: @__sycl_offload_prop_sets_arr.2 = internal constant [1 x %_pi_device_binary_property_struct] [%_pi_device_binary_property_struct { ptr @prop.1, ptr @prop_val, i32 2, i64 8 }]
+// CHECK-FULL-NEXT: @SYCL_PropSetName.3 = internal unnamed_addr constant [25 x i8] c"SYCL/device requirements\00"
+// CHECK-FULL-NEXT: @SYCL_PropSetName.4 = internal unnamed_addr constant [22 x i8] c"SYCL/kernel param opt\00"
+// CHECK-FULL-NEXT: @__sycl_offload_prop_sets_arr.5 = internal constant [3 x %_pi_device_binary_property_set_struct] [%_pi_device_binary_property_set_struct { ptr @SYCL_PropSetName, ptr @__sycl_offload_prop_sets_arr, ptr getelementptr ([1 x %_pi_device_binary_property_struct], ptr @__sycl_offload_prop_sets_arr, i64 0, i64 1) }, %_pi_device_binary_property_set_struct { ptr @SYCL_PropSetName.3, ptr @__sycl_offload_prop_sets_arr.2, ptr getelementptr ([1 x %_pi_device_binary_property_struct], ptr @__sycl_offload_prop_sets_arr.2, i64 0, i64 1) }, %_pi_device_binary_property_set_struct { ptr @SYCL_PropSetName.4, ptr null, ptr null }]
+// CHECK-FULL-NEXT: @.sycl_offloading.0.data = internal unnamed_addr constant [912 x i8]
+// CHECK-FULL-NEXT: @__sycl_offload_entry_name = internal unnamed_addr constant [25 x i8] c"_ZTSZ4mainE11fake_kernel\00"
+// CHECK-FULL-NEXT: @__sycl_offload_entries_arr = internal constant [1 x %struct.__tgt_offload_entry] [%struct.__tgt_offload_entry { i64 0, i16 1, i16 4, i32 0, ptr null, ptr @__sycl_offload_entry_name, i64 0, i64 0, ptr null }]
+// CHECK-FULL-NEXT: @.sycl_offloading.0.info = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr @.sycl_offloading.0.data to i64), i64 912], section ".tgtimg", align 16
+// CHECK-FULL-NEXT: @llvm.used = appending global [1 x ptr] [ptr @.sycl_offloading.0.info], section "llvm.metadata"
+// CHECK-FULL-NEXT: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__sycl.tgt_device_image] [%__sycl.tgt_device_image { i16 2, i8 4, i8 0, ptr @.sycl_offloading.target.0, ptr @.sycl_offloading.opts.compile.0, ptr @.sycl_offloading.opts.link.0, ptr null, ptr null, ptr @.sycl_offloading.0.data, ptr getelementptr ([912 x i8], ptr @.sycl_offloading.0.data, i64 0, i64 912), ptr @__sycl_offload_entries_arr, ptr getelementptr ([1 x %struct.__tgt_offload_entry], ptr @__sycl_offload_entries_arr, i64 0, i64 1), ptr @__sycl_offload_prop_sets_arr.5, ptr getelementptr ([3 x %_pi_device_binary_property_set_struct], ptr @__sycl_offload_prop_sets_arr.5, i64 0, i64 3) }]
+// CHECK-FULL-NEXT: @.sycl_offloading.descriptor = internal constant %__sycl.tgt_bin_desc { i16 1, i16 1, ptr @.sycl_offloading.device_images, ptr null, ptr null }
+// CHECK-FULL-NEXT: @llvm.global_ctors = {{.*}} { i32 1, ptr @sycl.descriptor_reg, ptr null }]
+// CHECK-FULL-NEXT: @llvm.global_dtors = {{.*}} { i32 1, ptr @sycl.descriptor_unreg, ptr null }]
+
+//      CHECK-FULL: define internal void @sycl.descriptor_reg() section ".text.startup" {
+// CHECK-FULL-NEXT: entry:
+// CHECK-FULL-NEXT:   call void @__sycl_register_lib(ptr @.sycl_offloading.descriptor)
+// CHECK-FULL-NEXT:   ret void
+// CHECK-FULL-NEXT: }
+
+//      CHECK-FULL: define internal void @sycl.descriptor_unreg() section ".text.startup" {
+// CHECK-FULL-NEXT: entry:
+// CHECK-FULL-NEXT:   call void @__sycl_unregister_lib(ptr @.sycl_offloading.descriptor)
+// CHECK-FULL-NEXT:   ret void
+// CHECK-FULL-NEXT: }
+
+
+// Run Check SYCL Offload Wrapping in dry-run mode.
 //
 // RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple=x86_64-unknown-linux-gnu \
 // RUN:                      -sycl-device-libraries=%t.devicelib.o \
-// RUN:                       %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s
+// RUN:                       %t.o -o %t.out 2>&1 --linker-path="/usr/bin/ld" | FileCheck %s --check-prefix=CHECK-DRY
 
-// CHECK: %_pi_device_binary_property_struct = type { ptr, ptr, i32, i64 }
-// CHECK-NEXT: %_pi_device_binary_property_set_struct = type { ptr, ptr, ptr }
-// CHECK-NEXT: %struct.__tgt_offload_entry = type { i64, i16, i16, i32, ptr, ptr, i64, i64, ptr }
-// CHECK-NEXT: %__sycl.tgt_device_image = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
-// CHECK-NEXT: %__sycl.tgt_bin_desc = type { i16, i16, ptr, ptr, ptr }
+//     CHECK-DRY: %__sycl.tgt_device_image = type { i16, i8, i8, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr }
+// CHECK-DRY-NEXT: %__sycl.tgt_bin_desc = type { i16, i16, ptr, ptr, ptr }
 
-// CHECK: @.sycl_offloading.target.0 = internal unnamed_addr constant [7 x i8] c"spir64\00"
-// CHECK-NEXT: @.sycl_offloading.opts.compile.0 = internal unnamed_addr constant [1 x i8] zeroinitializer
-// CHECK-NEXT: @.sycl_offloading.opts.link.0 = internal unnamed_addr constant [1 x i8] zeroinitializer
-// CHECK-NEXT: @prop = internal unnamed_addr constant [4 x i8] c"key\00"
-// CHECK-NEXT: @__sycl_offload_prop_sets_arr = internal constant [1 x %_pi_device_binary_property_struct] [%_pi_device_binary_property_struct { ptr @prop, ptr null, i32 1, i64 0 }]
-// CHECK-NEXT: @SYCL_PropSetName = internal unnamed_addr constant [25 x i8] c"SYCL/device requirements\00"
-// CHECK-NEXT: @__sycl_offload_prop_sets_arr.1 = internal constant [1 x %_pi_device_binary_property_set_struct] [%_pi_device_binary_property_set_struct { ptr @SYCL_PropSetName, ptr @__sycl_offload_prop_sets_arr, ptr getelementptr ([1 x %_pi_device_binary_property_struct], ptr @__sycl_offload_prop_sets_arr, i64 0, i64 1) }]
-// CHECK-NEXT: @.sycl_offloading.0.data = internal unnamed_addr constant [0 x i8] zeroinitializer, section "spir64"
-// CHECK-NEXT: @__sycl_offload_entry_name = internal unnamed_addr constant [7 x i8] c"entry1\00"
-// CHECK-NEXT: @__sycl_offload_entry_name.2 = internal unnamed_addr constant [7 x i8] c"entry2\00"
-// CHECK-NEXT: @__sycl_offload_entries_arr = internal constant [2 x %struct.__tgt_offload_entry] [%struct.__tgt_offload_entry { i64 0, i16 1, i16 4, i32 0, ptr null, ptr @__sycl_offload_entry_name, i64 0, i64 0, ptr null }, %struct.__tgt_offload_entry { i64 0, i16 1, i16 4, i32 0, ptr null, ptr @__sycl_offload_entry_name.2, i64 0, i64 0, ptr null }]
-// CHECK-NEXT: @.sycl_offloading.0.info = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr @.sycl_offloading.0.data to i64), i64 0], section ".tgtimg", align 16
-// CHECK-NEXT: @llvm.used = appending global [1 x ptr] [ptr @.sycl_offloading.0.info], section "llvm.metadata"
-// CHECK-NEXT: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__sycl.tgt_device_image] [%__sycl.tgt_device_image { i16 2, i8 4, i8 0, ptr @.sycl_offloading.target.0, ptr @.sycl_offloading.opts.compile.0, ptr @.sycl_offloading.opts.link.0, ptr null, ptr null, ptr @.sycl_offloading.0.data, ptr @.sycl_offloading.0.data, ptr @__sycl_offload_entries_arr, ptr getelementptr ([2 x %struct.__tgt_offload_entry], ptr @__sycl_offload_entries_arr, i64 0, i64 2), ptr @__sycl_offload_prop_sets_arr.1, ptr getelementptr ([1 x %_pi_device_binary_property_set_struct], ptr @__sycl_offload_prop_sets_arr.1, i64 0, i64 1) }]
-// CHECK-NEXT: @.sycl_offloading.descriptor = internal constant %__sycl.tgt_bin_desc { i16 1, i16 1, ptr @.sycl_offloading.device_images, ptr null, ptr null }
-// CHECK-NEXT: @llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 1, ptr @sycl.descriptor_reg, ptr null }]
-// CHECK-NEXT: @llvm.global_dtors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 1, ptr @sycl.descriptor_unreg, ptr null }]
+//     CHECK-DRY: @.sycl_offloading.target.0 = internal unnamed_addr constant [7 x i8] c"spir64\00"
+// CHECK-DRY-NEXT: @.sycl_offloading.opts.compile.0 = internal unnamed_addr constant [1 x i8] zeroinitializer
+// CHECK-DRY-NEXT: @.sycl_offloading.opts.link.0 = internal unnamed_addr constant [1 x i8] zeroinitializer
+// CHECK-DRY-NEXT: @.sycl_offloading.0.data = internal unnamed_addr constant [0 x i8] zeroinitializer, section "spir64"
+// CHECK-DRY-NEXT: @.sycl_offloading.0.info = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr @.sycl_offloading.0.data to i64), i64 0], section ".tgtimg", align 16
+// CHECK-DRY-NEXT: @llvm.used = appending global [1 x ptr] [ptr @.sycl_offloading.0.info], section "llvm.metadata"
+// CHECK-DRY-NEXT: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__sycl.tgt_device_image] [%__sycl.tgt_device_image { i16 2, i8 4, i8 0, ptr @.sycl_offloading.target.0, ptr @.sycl_offloading.opts.compile.0, ptr @.sycl_offloading.opts.link.0, ptr null, ptr null, ptr @.sycl_offloading.0.data, ptr @.sycl_offloading.0.data, ptr null, ptr null, ptr null, ptr null }]
+// CHECK-DRY-NEXT: @.sycl_offloading.descriptor = internal constant %__sycl.tgt_bin_desc { i16 1, i16 1, ptr @.sycl_offloading.device_images, ptr null, ptr null }
+// CHECK-DRY-NEXT: @llvm.global_ctors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 1, ptr @sycl.descriptor_reg, ptr null }]
+// CHECK-DRY-NEXT: @llvm.global_dtors = appending global [1 x { i32, ptr, ptr }] [{ i32, ptr, ptr } { i32 1, ptr @sycl.descriptor_unreg, ptr null }]
 
-// CHECK: define internal void @sycl.descriptor_reg() section ".text.startup" {
-// CHECK-NEXT: entry:
-// CHECK-NEXT:   call void @__sycl_register_lib(ptr @.sycl_offloading.descriptor)
-// CHECK-NEXT:   ret void
-// CHECK-NEXT: }
+//      CHECK-DRY: define internal void @sycl.descriptor_reg() section ".text.startup" {
+// CHECK-DRY-NEXT: entry:
+// CHECK-DRY-NEXT:   call void @__sycl_register_lib(ptr @.sycl_offloading.descriptor)
+// CHECK-DRY-NEXT:   ret void
+// CHECK-DRY-NEXT: }
 
-// CHECK: define internal void @sycl.descriptor_unreg() section ".text.startup" {
-// CHECK-NEXT: entry:
-// CHECK-NEXT:   call void @__sycl_unregister_lib(ptr @.sycl_offloading.descriptor)
-// CHECK-NEXT:   ret void
-// CHECK-NEXT: }
+//      CHECK-DRY: define internal void @sycl.descriptor_unreg() section ".text.startup" {
+// CHECK-DRY-NEXT: entry:
+// CHECK-DRY-NEXT:   call void @__sycl_unregister_lib(ptr @.sycl_offloading.descriptor)
+// CHECK-DRY-NEXT:   ret void
+// CHECK-DRY-NEXT: }
