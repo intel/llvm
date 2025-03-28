@@ -48,12 +48,12 @@ def main():
         "query",
         help="Query benchmarks ran by a preset (as defined in presets.py)"
     )
-    validate_parser.add_argument(
+    query_parser.add_argument(
         "preset_to_query",
         type=str,
         help="preset name to query"
     )
-    validate_parser.add_argument(
+    query_parser.add_argument(
         "-q", "--quiet",
         action="store_true",
         help="Disable stdout messages: Useful if you want to check if a preset exists within a shell script."
