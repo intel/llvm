@@ -11,7 +11,7 @@
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
-#include "helpers/image_helpers.hpp"
+#include "image_common.hpp"
 #include "logger/ur_logger.hpp"
 #include "memory.hpp"
 #include "sampler.hpp"

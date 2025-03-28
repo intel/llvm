@@ -10,7 +10,7 @@
 
 #include "common.hpp"
 
-#include "../helpers/image_helpers.hpp"
+#include "../image_common.hpp"
 #include "../ur_interface_loader.hpp"
 #include "../v2/context.hpp"
 #include "../v2/memory.hpp"

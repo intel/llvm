@@ -1,6 +1,7 @@
-//===--------- image_helpers.hpp - Level Zero Adapter --------------------===//
+//===--------- image_common.hpp - Level Zero Adapter
+//--------------------===//
 //
-// Copyright (C) 2024 Intel Corporation
+// Copyright (C) 2024-2025 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -13,7 +14,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include "../v2/common.hpp"
+#include "v2/common.hpp"
 
 struct ur_bindless_mem_handle_t {
 
