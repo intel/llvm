@@ -7,6 +7,7 @@ import re
 import subprocess
 import textwrap
 import shutil
+import sys
 
 import lit.formats
 import lit.util
@@ -428,7 +429,8 @@ if cl_options:
         + " /I"
         + config.cuda_include
     )
-
+config.cuda_libs_dir = '\"' + config.cuda_libs_dir + '\"'
+config.cuda_include = '\"' + config.cuda_include + '\"'
 config.substitutions.append(("%cuda_options", cuda_options))
 
 with test_env():
@@ -459,7 +461,8 @@ config.hip_include = lit_config.params.get(
     "hip_include",
     (config.hip_include if config.hip_include else config.sycl_include),
 )
-
+config.hip_libs_dir = '\"' + config.hip_libs_dir + '\"'
+config.hip_include = '\"' + config.hip_include + '\"'
 hip_options = hip_options = (
     (" -L" + config.hip_libs_dir if config.hip_libs_dir else "")
     + " -lamdhip64 "
@@ -487,7 +490,9 @@ with test_env():
         config.substitutions.append(("%hip_options", hip_options))
     else:
         config.substitutions.append(("%hip_options", ""))
-
+print(config.available_features)
+print(sp)
+sys.stdout.flush()
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
     if cl_options:
