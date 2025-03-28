@@ -60,29 +60,29 @@ jobs:
         include:
           - name: L0
             runner: UR_L0
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
           - name: L0_V2
             runner: UR_L0
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
           - name: L0
             runner: UR_L0
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             static: ON
           - name: L0
             runner: UR_L0
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             other_adapter: NATIVE_CPU
           - name: HIP
             runner: UR_HIP
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --cap-add=SYS_ADMIN 
           - name: CUDA
             runner: UR_CUDA
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
+            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
           - name: OPENCL
             runner: UR_OPENCL
