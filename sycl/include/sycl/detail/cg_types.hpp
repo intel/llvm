@@ -65,6 +65,8 @@ enum class CGType : unsigned int {
   SemaphoreSignal = 25,
   ProfilingTag = 26,
   EnqueueNativeCommand = 27,
+  AsyncAlloc = 28,
+  AsyncFree = 29,
 };
 
 template <typename, typename T> struct check_fn_signature {
@@ -167,7 +169,8 @@ class HostKernel : public HostKernelBase {
   KernelType MKernel;
 
 public:
-  HostKernel(KernelType Kernel) : MKernel(Kernel) {}
+  HostKernel(const KernelType &Kernel) : MKernel(Kernel) {}
+  HostKernel(KernelType &&Kernel) : MKernel(std::move(Kernel)) {}
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 

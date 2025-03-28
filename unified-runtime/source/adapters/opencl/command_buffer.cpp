@@ -36,8 +36,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
   ur_queue_handle_t Queue = nullptr;
   ur_queue_properties_t QueueProperties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
                                            nullptr, 0};
-  const bool IsInOrder =
-      pCommandBufferDesc ? pCommandBufferDesc->isInOrder : false;
+  const bool IsInOrder = pCommandBufferDesc->isInOrder;
   if (!IsInOrder) {
     QueueProperties.flags = UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
   }
