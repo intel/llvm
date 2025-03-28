@@ -401,9 +401,16 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
     }
   }
 
-  // Emit error if type is bfloat. LLVM native bfloat type is not supported.
-  BM->getErrorLog().checkError(!T->isBFloatTy(),
-                               SPIRVEC_UnsupportedLLVMBFloatType);
+  if (T->isBFloatTy()) {
+    BM->getErrorLog().checkError(
+        BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_bfloat16),
+        SPIRVEC_RequiresExtension,
+        "SPV_KHR_bfloat16\n"
+        "NOTE: LLVM module contains bfloat type, translation of which "
+        "requires this extension");
+    return mapType(T, BM->addFloatType(16, FPEncodingBFloat16KHR));
+  }
+
   if (T->isFloatingPointTy())
     return mapType(T, BM->addFloatType(T->getPrimitiveSizeInBits()));
 
