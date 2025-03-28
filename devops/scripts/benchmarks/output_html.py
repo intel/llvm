@@ -11,7 +11,7 @@ import mpld3
 from collections import defaultdict
 from dataclasses import dataclass
 import matplotlib.dates as mdates
-from benches.result import BenchmarkRun, Result
+from utils.result import BenchmarkRun, Result
 import numpy as np
 from string import Template
 
