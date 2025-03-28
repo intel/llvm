@@ -8,6 +8,8 @@
 /// Check tool invocation contents.
 // RUN: %clangxx -fsycl -fsyclbin --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS
+// RUN: %clangxx -fsyclbin --offload-new-driver %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_TOOLS
 // RUN: %clang_cl -fsycl -fsyclbin --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS
 // CHECK_TOOLS: clang-offload-packager
@@ -18,6 +20,9 @@
 
 /// Check compilation phases, only device compile should be performed
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl -fsyclbin \
+// RUN:   --offload-new-driver %s -ccc-print-phases 2>&1 \
+// RUN: | FileCheck %s --check-prefix=CHECK_PHASES
+// RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsyclbin \
 // RUN:   --offload-new-driver %s -ccc-print-phases 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_PHASES
 // CHECK_PHASES: 0: input, "{{.*}}", c++, (device-sycl)
