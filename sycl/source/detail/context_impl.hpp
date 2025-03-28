@@ -9,6 +9,7 @@
 #pragma once
 #include <detail/device_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
+#include <detail/memory_pool_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
@@ -247,6 +248,10 @@ public:
 
   const property_list &getPropList() const { return MPropList; }
 
+  std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
+  get_default_memory_pool(const context &Context, const device &Device,
+                          const usm::alloc &Kind);
+
 private:
   bool MOwnedByRuntime;
   async_handler MAsyncHandler;
@@ -258,6 +263,14 @@ private:
   std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;
   mutable PropertySupport MSupportBufferLocationByDevices;
+
+  // Device pools.
+  // Weak_ptr preventing circular dependency between memory_pool_impl and
+  // context_impl.
+  std::vector<std::pair<
+      device,
+      std::weak_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>>>
+      MMemPoolImplPtrs;
 
   std::set<const void *> MAssociatedDeviceGlobals;
   std::mutex MAssociatedDeviceGlobalsMutex;

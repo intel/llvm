@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import collections
-from benches.result import Result
+from utils.result import Result
 from options import options, MarkdownSize
 import ast
 

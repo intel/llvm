@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
+import multiprocessing
 
 
 class Compare(Enum):
@@ -21,6 +22,7 @@ class Options:
     ur_adapter: str = None
     umf: str = None
     rebuild: bool = True
+    redownload: bool = False
     benchmark_cwd: str = "INVALID"
     timeout: float = 600
     iterations: int = 3
@@ -40,6 +42,7 @@ class Options:
     compute_runtime_tag: str = "25.05.32567.12"
     build_igc: bool = False
     current_run_name: str = "This PR"
-
+    custom_results_dir = None
+    build_jobs: int = multiprocessing.cpu_count()
 
 options = Options()
