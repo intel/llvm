@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/string.hpp> 
-#include <sycl/detail/string_view.hpp> 
+#include <sycl/detail/string.hpp>
+#include <sycl/detail/string_view.hpp>
 
 namespace sycl {
 inline namespace _V1 {
