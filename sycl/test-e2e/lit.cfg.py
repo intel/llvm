@@ -415,7 +415,8 @@ config.cuda_include = lit_config.params.get(
     "cuda_include",
     (config.cuda_include if config.cuda_include else config.sycl_include),
 )
-
+config.cuda_libs_dir = '\"' + config.cuda_libs_dir + '\"'
+config.cuda_include = '\"' + config.cuda_include + '\"'
 cuda_options = cuda_options = (
     (" -L" + config.cuda_libs_dir if config.cuda_libs_dir else "")
     + " -lcuda "
@@ -429,8 +430,6 @@ if cl_options:
         + " /I"
         + config.cuda_include
     )
-config.cuda_libs_dir = '\"' + config.cuda_libs_dir + '\"'
-config.cuda_include = '\"' + config.cuda_include + '\"'
 config.substitutions.append(("%cuda_options", cuda_options))
 
 with test_env():
