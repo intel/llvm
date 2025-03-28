@@ -1,8 +1,6 @@
 name: Benchmarks Reusable
 
 # This workflow is a WIP: This workflow file acts as a placeholder.
-#
-# This workflow is set to be merged into benchmark.yml
 
 on: [ workflow_call ]
 

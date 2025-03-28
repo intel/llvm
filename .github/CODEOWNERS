@@ -128,9 +128,6 @@ devops/ @intel/dpcpp-devops-reviewers
 # dev-igc driver update
 devops/dependencies-igc-dev.json @intel/sycl-matrix-reviewers @intel/dpcpp-esimd-reviewers @intel/dpcpp-devops-reviewers
 
-# Benchmarking scripts
-devops/scripts/benchmarks/ @intel/llvm-reviewers-benchmarking
-
 # Kernel fusion JIT compiler
 sycl-jit/ @intel/dpcpp-kernel-fusion-reviewers
 sycl/doc/design/KernelFusionJIT.md @intel/dpcpp-kernel-fusion-reviewers
@@ -211,4 +208,3 @@ llvm/test/Instrumentation/MemorySanitizer/ @intel/dpcpp-sanitizers-review
 llvm/test/Instrumentation/ThreadSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
 sycl/test-e2e/MemorySanitizer/ @intel/dpcpp-sanitizers-review
-sycl/test-e2e/ThreadSanitizer/ @intel/dpcpp-sanitizers-review
