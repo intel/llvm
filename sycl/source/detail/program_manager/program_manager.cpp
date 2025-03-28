@@ -2884,9 +2884,9 @@ static void mergeImageData(const std::vector<device_image_plain> &Imgs,
         getSyclObjImpl(Img);
     // Duplicates are not expected here, otherwise urProgramLink should fail
     if (DeviceImageImpl->get_kernel_ids_ptr())
-    KernelIDs.insert(KernelIDs.end(),
-                     DeviceImageImpl->get_kernel_ids_ptr()->begin(),
-                     DeviceImageImpl->get_kernel_ids_ptr()->end());
+      KernelIDs.insert(KernelIDs.end(),
+                       DeviceImageImpl->get_kernel_ids_ptr()->begin(),
+                       DeviceImageImpl->get_kernel_ids_ptr()->end());
     // To be able to answer queries about specialziation constants, the new
     // device image should have the specialization constants from all the linked
     // images.
