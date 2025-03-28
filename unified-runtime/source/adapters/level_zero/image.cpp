@@ -115,20 +115,6 @@ ur_result_t urBindlessImagesImageCopyExp(
   return res;
 }
 
-ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
-    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = size;
-  std::ignore = offset;
-  std::ignore = hExternalMem;
-  std::ignore = phRetMem;
-  logger::error("[UR][L0] {} function not implemented!",
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
     bool hasValue, uint64_t waitValue, uint32_t numEventsInWaitList,
