@@ -4,6 +4,7 @@ import multiprocessing
 
 from presets import presets
 
+
 class Compare(Enum):
     LATEST = "latest"
     AVERAGE = "average"
@@ -45,5 +46,6 @@ class Options:
     preset: str = "Full"
     custom_results_dir = None
     build_jobs: int = multiprocessing.cpu_count()
+
 
 options = Options()

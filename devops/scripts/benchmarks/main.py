@@ -424,7 +424,7 @@ if __name__ == "__main__":
         "--output-dir",
         type=str,
         help="Location for output files, if --output-html or --output-markdown was specified.",
-		default=options.output_directory,
+        default=options.output_directory,
     )
     parser.add_argument(
         "--dry-run",
