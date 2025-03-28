@@ -6,6 +6,7 @@ import copy
 import re
 import subprocess
 import textwrap
+import shlex
 import shutil
 
 import lit.formats
@@ -304,13 +305,13 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
-config.level_zero_libs_dir = lit_config.params.get(
+config.level_zero_libs_dir = shlex.quote(lit_config.params.get(
     "level_zero_libs_dir", config.level_zero_libs_dir
-)
-config.level_zero_include = lit_config.params.get(
+))
+config.level_zero_include = shlex.quote(lit_config.params.get(
     "level_zero_include",
     (config.level_zero_include if config.level_zero_include else config.sycl_include),
-)
+))
 
 level_zero_options = level_zero_options = (
     (" -L" + config.level_zero_libs_dir if config.level_zero_libs_dir else "")
@@ -409,11 +410,11 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
-config.cuda_libs_dir = lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
-config.cuda_include = lit_config.params.get(
+config.cuda_libs_dir = shlex.quote(lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir))
+config.cuda_include = shlex.quote(lit_config.params.get(
     "cuda_include",
     (config.cuda_include if config.cuda_include else config.sycl_include),
-)
+))
 
 cuda_options = cuda_options = (
     (" -L" + config.cuda_libs_dir if config.cuda_libs_dir else "")
@@ -454,11 +455,11 @@ with open_check_file(check_hip_file) as fp:
         ),
         file=fp,
     )
-config.hip_libs_dir = lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
-config.hip_include = lit_config.params.get(
+config.hip_libs_dir = shlex.quote(lit_config.params.get("hip_libs_dir", config.hip_libs_dir))
+config.hip_include = shlex.quote(lit_config.params.get(
     "hip_include",
     (config.hip_include if config.hip_include else config.sycl_include),
-)
+))
 
 hip_options = hip_options = (
     (" -L" + config.hip_libs_dir if config.hip_libs_dir else "")
