@@ -65,7 +65,7 @@ runs:
       echo "ONEAPI_DEVICE_SELECTOR=$TARGET_DEVICE" >> $GITHUB_ENV 
 
       # Make sure specified preset is a known value and is not malicious
-      python3 ./devops/scripts/benchmarks/preset.py "$PRESET"
+      python3 ./devops/scripts/benchmarks/presets.py "$PRESET"
       [ "$?" -ne 0 ] && exit 1  # Stop workflow if invalid preset
       echo "PRESET=$PRESET" >> $GITHUB_ENV
   - name: Compute CPU core range to run benchmarks on
