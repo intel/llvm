@@ -929,7 +929,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
   ze_command_list_handle_t commandBufferCommandList =
       commandListLocked->getZeCommandList();
   ur_event_handle_t internalEvent = nullptr;
-  if (!phEvent) {
+  if (phEvent == nullptr) {
     phEvent = &internalEvent;
   }
   UR_CALL(hCommandBuffer->awaitExecution(commandListLocked));
@@ -937,6 +937,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
                                         numEventsInWaitList, phEventWaitList,
                                         UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP));
   UR_CALL(hCommandBuffer->registerExecutionEvent(commandListLocked, *phEvent));
+  if (internalEvent != nullptr) {
+    internalEvent->release();
+  }
   return UR_RESULT_SUCCESS;
 }
 
