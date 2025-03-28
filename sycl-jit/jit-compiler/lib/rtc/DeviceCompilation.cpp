@@ -29,11 +29,11 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
-#include <llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h>
 #include <llvm/SYCLLowerIR/ESIMD/LowerESIMD.h>
 #include <llvm/SYCLLowerIR/LowerInvokeSimd.h>
-#include <llvm/SYCLLowerIR/ModuleSplitter.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
+#include <llvm/SYCLPostLink/ComputeModuleRuntimeInfo.h>
+#include <llvm/SYCLPostLink/ModuleSplitter.h>
 #include <llvm/Support/BLAKE3.h>
 #include <llvm/Support/Base64.h>
 #include <llvm/Support/PropertySetIO.h>

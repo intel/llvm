@@ -2,7 +2,8 @@
 // RUN: FileCheck -input-file=%t.h %s
 // 
 // This test checks integration header contents for free functions with scalar,
-// pointer, non-decomposed struct parameters and work group memory parameters.
+// pointer, non-decomposed struct parameters, work group memory parameters and
+// dynamic work group memory parameters.
 
 #include "mock_properties.hpp"
 #include "sycl.hpp"
@@ -101,6 +102,7 @@ __attribute__((sycl_device))
 void ff_8(sycl::work_group_memory<int>) {
 }
 
+<<<<<<< HEAD
 // function in namespace
 namespace free_functions {
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
@@ -143,6 +145,13 @@ void ff_13(int start, int *ptr) {
 }
 }
 
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]] 
+void ff_9(sycl::dynamic_work_group_memory<int>) {
+}
+
+
+
 // CHECK:      const char* const kernel_names[] = {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piii
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piiii
@@ -153,12 +162,16 @@ void ff_13(int start, int *ptr) {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_6I3Agg7DerivedEvT_T0_i
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE
+
 // CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions4ff_9EiPi
 // CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5tests5ff_10EiPi
 // CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5tests2V15ff_11EiPi
 // CHECK-NEXT:   {{.*}}__sycl_kernel__GLOBAL__N_15ff_12EiPi
 // CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5ff_13EiPi
 // CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5tests5ff_13EiPi
+
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
+
 // CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
@@ -205,6 +218,7 @@ void ff_13(int start, int *ptr) {
 // CHECK:  //--- _Z18__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_work_group_memory, 8, 0 },
 
+
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions4ff_9EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
@@ -228,6 +242,10 @@ void ff_13(int start, int *ptr) {
 // CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_13EiPi
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 }, 
 // CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+
+// CHECK:  //--- _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
+// CHECK-NEXT:  { kernel_param_kind_t::kind_dynamic_work_group_memory, 8, 0 },
+
 
 // CHECK:        { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
@@ -395,6 +413,7 @@ void ff_13(int start, int *ptr) {
 // CHECK-NEXT: };
 // CHECK-NEXT: }
 
+
 // CHECK: Definition of _ZN28__sycl_kernel_free_functions4ff_9EiPi as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: namespace free_functions {
@@ -406,6 +425,18 @@ void ff_13(int start, int *ptr) {
 // CHECK-NEXT: }
 
 // CHECK: namespace sycl {
+
+// CHECK:  // Definition of _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE as a free function kernel 
+//
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: template <typename DataT> class dynamic_work_group_memory;
+
+// CHECK: void ff_9(sycl::dynamic_work_group_memory<int>);
+// CHECK-NEXT: static constexpr auto __sycl_shim10() {
+// CHECK-NEXT: return (void (*)(class sycl::dynamic_work_group_memory<int>))ff_9;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+
 // CHECK-NEXT: template <>
 // CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim10()> {
 // CHECK-NEXT: static constexpr bool value = true;
@@ -415,6 +446,7 @@ void ff_13(int start, int *ptr) {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 // CHECK-NEXT: }
+
 
 // CHECK: Definition of _ZN28__sycl_kernel_free_functions5tests5ff_10EiPi as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
@@ -524,6 +556,8 @@ void ff_13(int start, int *ptr) {
 // CHECK-NEXT:  };
 // CHECK-NEXT:  }
 
+
+
 // CHECK: #include <sycl/kernel_bundle.hpp>
 
 // CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_2Piii
@@ -598,6 +632,7 @@ void ff_13(int start, int *ptr) {
 // CHECK-NEXT: }
 // CHECK-NEXT: }
 
+
 // CHECK: Definition of kernel_id of _ZN28__sycl_kernel_free_functions4ff_9EiPi
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT:  template <>
@@ -645,3 +680,13 @@ void ff_13(int start, int *ptr) {
 // CHECK-NEXT:    return sycl::detail::get_kernel_id_impl(std::string_view{"_ZN28__sycl_kernel_free_functions5tests5ff_13EiPi"});
 // CHECK-NEXT:  }
 // CHECK-NEXT:  }
+
+//
+// CHECK: // Definition of kernel_id of _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim10()>() {
+// CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE"});
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
