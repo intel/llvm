@@ -19,9 +19,9 @@ inputs:
   upload_results:
     type: string
     required: True
-  build_hash:
+  save_name:
     type: string
-    required: False
+    required: True
     default: ''
 
 runs:
@@ -86,7 +86,9 @@ runs:
       git clone -b unify-ci https://github.com/intel/llvm-ci-perf-results
   - name: Run compute-benchmarks
     env:
-      BUILD_HASH: ${{ inputs.build_hash }}
+      # Need to append "_<device>_<backend>" to save name in order to follow
+      # conventions:
+      SAVE_PREFIX: ${{ inputs.save_name }}
     shell: bash
     run: |
       # TODO generate summary + display helpful message here
@@ -98,12 +100,15 @@ runs:
       echo "-----"
       mkdir -p "./llvm-ci-perf-results/$RUNNER_NAME"
 
+      case "$ONEAPI_DEVICE_SELECTOR" in
+        level_zero:*) SAVE_SUFFIX="L0" ;;
+        level_zero_v2:*) SAVE_SUFFIX="L0v2" ;;
+        opencl:*) SAVE_SUFFIX="OCL" ;;
+        *) SAVE_SUFFIX="${ONEAPI_DEVICE_SELECTOR%%:*}";;
+      esac
       # TODO accomodate for different GPUs and backends
-      SAVE_NAME="Baseline_PVC_L0"
+      SAVE_NAME="${SAVE_PREFIX}_PVC_${SAVE_SUFFIX}"
       SAVE_TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
-      if [ -n "$BUILD_HASH" ]; then
-          SAVE_NAME="Commit_PVC_$BUILD_HASH"
-      fi
 
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \

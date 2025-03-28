@@ -118,7 +118,7 @@ on:
         type: string
         default: 'false'
         required: False
-      benchmark_build_hash:
+      benchmark_save_name:
         type: string
         default: ''
         required: False
@@ -355,7 +355,7 @@ jobs:
       with:
         target_devices: ${{ inputs.target_devices }}
         upload_results: ${{ inputs.benchmark_upload_results }}
-        build_hash: ${{ inputs.benchmark_build_hash }}
+        save_name: ${{ inputs.benchmark_save_name }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
