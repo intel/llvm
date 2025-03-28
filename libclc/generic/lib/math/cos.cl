@@ -7,15 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
+#include <clc/clc_convert.h>
 #include <clc/clcmacro.h>
 #include <libspirv/spirv.h>
+#include <clc/math/clc_fabs.h>
+#include <clc/math/clc_sincos_helpers.h>
+#include <clc/math/math.h>
+#include <clc/relational/clc_isinf.h>
+#include <clc/relational/clc_isnan.h>
+#include <clc/relational/clc_select.h>
 
-_CLC_OVERLOAD _CLC_DEF float cos(float x)
-{
-    return __spirv_ocl_cos(x);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, cos, float);
+// FP32 and FP16 versions.
+#define __CLC_BODY <cos.inc>
+#include <clc/math/gentype.inc>
 
 #ifdef cl_khr_fp64
 
@@ -27,12 +31,11 @@ _CLC_OVERLOAD _CLC_DEF double cos(double x) {
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, cos, double);
 
-#endif
+_CLC_OVERLOAD _CLC_DEF float cos(float x)
+{
+    return __spirv_ocl_cos(x);
+}
 
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-_CLC_DEFINE_UNARY_BUILTIN_FP16(cos)
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, cos, float);
 
 #endif
