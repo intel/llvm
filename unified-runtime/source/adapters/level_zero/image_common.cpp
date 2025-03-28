@@ -752,7 +752,8 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
   }
 
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
-             (hDevice->ZeDevice, &SemDesc, &ExtSemaphoreHandle));
+             (hDevice->ZeDevice, (ze_external_semaphore_ext_desc_t *)&SemDesc,
+             (ze_external_semaphore_ext_handle_t *)&ExtSemaphoreHandle));
   *phExternalSemaphoreHandle =
       (ur_exp_external_semaphore_handle_t)ExtSemaphoreHandle;
 
@@ -770,7 +771,7 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
   }
   ZE2UR_CALL(
       UrPlatform->ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp,
-      ((ze_intel_external_semaphore_exp_handle_t)hExternalSemaphore));
+      ((ze_external_semaphore_ext_handle_t)hExternalSemaphore));
 
   return UR_RESULT_SUCCESS;
 }

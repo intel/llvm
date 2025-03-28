@@ -17,6 +17,8 @@
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
 
+#include "loader/ze_loader.h"
+
 namespace {
 
 bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
