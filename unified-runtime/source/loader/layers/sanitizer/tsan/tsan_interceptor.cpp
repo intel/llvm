@@ -116,7 +116,8 @@ ur_result_t TsanInterceptor::registerProgram(ur_program_handle_t Program) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
+ur_result_t
+TsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
   std::vector<ur_device_handle_t> Devices = GetDevices(Program);
   assert(Devices.size() != 0 && "No devices in registerDeviceGlobals");
   auto Context = GetContext(Program);
