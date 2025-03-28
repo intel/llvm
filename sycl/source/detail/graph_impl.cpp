@@ -985,9 +985,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       // and potential hangs. We have therefore to expliclty wait in the host
       // for previous submission to complete before resubmitting the
       // command-buffer for level-zero backend.
-      // TODO : add a check to release this constraint and allow multiple
-      // concurrent submissions if the exec_graph has been updated since the
-      // last submission.
+      // TODO https://github.com/intel/llvm/issues/17734
+      // Remove this backend specific behavior and allow multiple concurrent
+      // submissions of the UR command-buffer.
       for (std::vector<sycl::detail::EventImplPtr>::iterator It =
                MExecutionEvents.begin();
            It != MExecutionEvents.end();) {
