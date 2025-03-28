@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_virtual_mem, linux, (gpu && level_zero) && multi-device-emulation
+// REQUIRES: aspect-ext_oneapi_virtual_mem, linux, (gpu && level_zero)
 // RUN: %{build} -o %t.out
 // RUN: %{run} NEOReadDebugKeys=1 CreateMultipleRootDevices=2 %t.out
 
