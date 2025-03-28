@@ -102,7 +102,6 @@ __attribute__((sycl_device))
 void ff_8(sycl::work_group_memory<int>) {
 }
 
-<<<<<<< HEAD
 // function in namespace
 namespace free_functions {
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
