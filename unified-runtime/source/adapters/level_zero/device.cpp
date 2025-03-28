@@ -1119,8 +1119,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP: {
-    // L0 does not support importing external memory.
-    return ReturnValue(false);
+    // L0 supports importing external memory.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
     return ReturnValue(Device->Platform->ZeExternalSemaphoreExt.Supported);

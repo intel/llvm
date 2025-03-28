@@ -36,7 +36,7 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
         (void *)Report.Origin);
   } else {
     URLOG_CTX_ALWAYS(
-        "====WARNING: DeviceSanitizer: use-of-uninitialized-value)");
+        "====WARNING: DeviceSanitizer: use-of-uninitialized-value");
   }
 
   URLOG_CTX_ALWAYS("use of size {} at kernel <{}> LID({}, {}, {}) GID({}, "

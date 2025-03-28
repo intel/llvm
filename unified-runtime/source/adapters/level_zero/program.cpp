@@ -913,10 +913,8 @@ ur_result_t urProgramSetSpecializationConstant(
   std::ignore = SpecId;
   std::ignore = SpecSize;
   std::ignore = SpecValue;
-  logger::get_logger().log(
-      logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-      logger::Level::ERR, SHORT_FILE, UR_STR(__LINE__),
-      "{} function not implemented!");
+  URLOG_L(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+          "{} function not implemented!");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

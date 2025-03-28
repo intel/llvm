@@ -1018,10 +1018,8 @@ ur_result_t urEventSetCallback(
   std::ignore = ExecStatus;
   std::ignore = Notify;
   std::ignore = UserData;
-  logger::get_logger().log(
-      logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-      logger::Level::ERR, SHORT_FILE, UR_STR(__LINE__),
-      "{} function not implemented!", __FUNCTION__);
+  URLOG_L(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+          "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

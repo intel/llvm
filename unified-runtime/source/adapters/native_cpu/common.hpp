@@ -21,23 +21,21 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 
 #define DIE_NO_IMPLEMENTATION                                                  \
   do {                                                                         \
-    URLOG(ERR, "Not Implemented : {} - File : {} / Line : {}", __FUNCTION__,   \
-          __FILE__, __LINE__);                                                 \
+    URLOG(ERR, "Not Implemented : {} - File : {} / Line : {}", __FUNCTION__)   \
                                                                                \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;                                \
   } while (false)
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   do {                                                                         \
-    URLOG(WARN, "Not Implemented : {} - File : {} / Line : {}", __FUNCTION__,  \
-          __FILE__, __LINE__);                                                 \
+    URLOG(WARN, "Not Implemented : {} - File : {} / Line : {}", __FUNCTION__)  \
     return UR_RESULT_SUCCESS;                                                  \
   } while (false)
 
 #define CASE_UR_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
     URLOG(ERR, "Unsupported UR case : {} in {}:{}({})", #not_supported,        \
-          __FUNCTION__, __LINE__, __FILE__);                                   \
+          __FUNCTION__)                                                        \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
 // Todo: replace this with a common helper once it is available

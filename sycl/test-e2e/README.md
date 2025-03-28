@@ -190,6 +190,10 @@ at the full path specified by this variable.
 
 ***CUDA_LIBS_DIR*** - path to CUDA libraries (autodetected).
 
+***HIP_INCLUDE*** - path to HIP headers (autodetected).
+
+***HIP_LIBS_DIR*** - path to HIP libraries (autodetected).
+
 ***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
 may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
 parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line
@@ -297,6 +301,10 @@ configure specific single test execution in the command line:
   CMake variable CUDA_INCLUDE (autodetected).
 * **cuda_libs_dir** - directory containing CUDA SDK libraries, can be also set
   by CMake variable CUDA_LIBS_DIR (autodetected).
+* **hip_include** - directory containing HIP SDK headers, can be also set by
+  CMake variable HIP_INCLUDE (autodetected).
+* **hip_libs_dir** - directory containing HIP SDK libraries, can be also set
+  by CMake variable HIP_LIBS_DIR (autodetected).
 * **run_launcher** - part of `%{run*}` expansion/substitution to alter execution
   of the test by, e.g., running it through Valgrind.
 

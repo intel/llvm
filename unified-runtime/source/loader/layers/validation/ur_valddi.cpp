@@ -7030,9 +7030,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
     if (NULL == pPropValue)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (pPropValue == NULL)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
     if (NULL == hPool)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
