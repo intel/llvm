@@ -23,7 +23,7 @@ jobs:
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
 
-  ubuntu2204_shared_build:
+  linux_shared_build:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
