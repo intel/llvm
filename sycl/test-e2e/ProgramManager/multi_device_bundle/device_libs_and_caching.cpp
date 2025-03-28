@@ -1,4 +1,4 @@
-// REQUIRES: ocloc && gpu && linux && target-spir
+// REQUIRES: ocloc && gpu && linux && target-spir && multi-device-emulation
 
 // Test to check several use cases for multi-device kernel bundles.
 // Test covers AOT and JIT cases. Kernel is using some math functions to enforce

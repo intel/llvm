@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero) && ocloc
+// REQUIRES: (opencl || level_zero) && ocloc && multi-device-emulation
 // UNSUPPORTED: accelerator
 // UNSUPPORTED-INTENDED: while accelerator is AoT only, this cannot run there.
 

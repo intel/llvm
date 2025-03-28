@@ -1,4 +1,4 @@
-// REQUIRES: gpu && linux && (opencl || level_zero)
+// REQUIRES: gpu && linux && (opencl || level_zero) && multi-device-emulation
 
 // Test to check that we can create input kernel bundle and call build twice for
 // overlapping set of devices and execute the kernel on each device.
