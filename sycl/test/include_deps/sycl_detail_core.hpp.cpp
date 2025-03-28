@@ -118,6 +118,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.def
 // CHECK-NEXT: ext/oneapi/experimental/detail/properties/node_properties.def
+// CHECK-NEXT: ext/oneapi/experimental/work_group_memory.hpp
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/cl.h
 // CHECK-NEXT: CL/cl.h
