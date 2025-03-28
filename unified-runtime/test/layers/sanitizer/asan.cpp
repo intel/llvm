@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2024 Intel Corporation
+ * Copyright (C) 2024-2025 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions. See LICENSE.TXT
@@ -10,6 +10,9 @@
  * @file asan.cpp
  *
  */
+
+// RUN: UR_LOG_SANITIZER="level:debug;flush:debug;output:stdout" asan-test
+// REQUIRES: sanitizer
 
 #include <gtest/gtest.h>
 #include <ur_api.h>

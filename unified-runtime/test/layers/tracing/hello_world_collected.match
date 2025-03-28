@@ -1,0 +1,27 @@
+RUN: %use-mock %xptienable XPTI_SUBSCRIBERS=%{shlibpre}collector%{shlibext} hello_world 2>&1 | FileCheck %s
+
+REQUIRES: tracing
+
+CHECK: Platform initialized.
+CHECK: function_with_args_begin(1) - urAdapterGet(.NumEntries = 0, .phAdapters = {{.*}}, .pNumAdapters = {{.*}});
+CHECK: function_with_args_end(1) - urAdapterGet(...) -> ur_result_t(0);
+CHECK: function_with_args_begin(2) - urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}}, .pNumAdapters = {{.*}});
+CHECK: function_with_args_end(2) - urAdapterGet(...) -> ur_result_t(0);
+CHECK: function_with_args_begin(3) - urPlatformGet(unimplemented);
+CHECK: function_with_args_end(3) - urPlatformGet(...) -> ur_result_t(0);
+CHECK: function_with_args_begin(4) - urPlatformGet(unimplemented);
+CHECK: function_with_args_end(4) - urPlatformGet(...) -> ur_result_t(0);
+CHECK: function_with_args_begin(5) - urPlatformGetApiVersion(unimplemented);
+CHECK: function_with_args_end(5) - urPlatformGetApiVersion(...) -> ur_result_t(0);
+CHECK: API version: {{0\.[0-9]+}}
+CHECK: function_with_args_begin(6) - urDeviceGet(unimplemented);
+CHECK: function_with_args_end(6) - urDeviceGet(...) -> ur_result_t(0);
+CHECK: function_with_args_begin(7) - urDeviceGet(unimplemented);
+CHECK: function_with_args_end(7) - urDeviceGet(...) -> ur_result_t(0);
+CHECK: function_with_args_begin(8) - urDeviceGetInfo(unimplemented);
+CHECK: function_with_args_end(8) - urDeviceGetInfo(...) -> ur_result_t(0);
+CHECK: function_with_args_begin(9) - urDeviceGetInfo(unimplemented);
+CHECK: function_with_args_end(9) - urDeviceGetInfo(...) -> ur_result_t(0);
+CHECK: Found a Mock Device gpu.
+CHECK: function_with_args_begin(10) - urAdapterRelease(unimplemented);
+CHECK: function_with_args_end(10) - urAdapterRelease(...) -> ur_result_t(0);
