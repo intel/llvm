@@ -42,13 +42,13 @@ inline namespace _V1 {
 
 namespace detail {
 
-const DeviceImplPtr &getDeviceImplFromHandler(handler &cgh) {
-  assert((cgh.MQueue || getSyclObjImpl(cgh)->MGraph) &&
+const DeviceImplPtr &getDeviceImplFromHandler(handler &CGH) {
+  assert((CGH.MQueue || getSyclObjImpl(CGH)->MGraph) &&
          "One of MQueue or MGraph should be nonnull!");
-  if (cgh.MQueue)
-    return cgh.MQueue->getDeviceImplPtr();
+  if (CGH.MQueue)
+    return CGH.MQueue->getDeviceImplPtr();
 
-  return getSyclObjImpl(cgh)->MGraph->getDeviceImplPtr();
+  return getSyclObjImpl(CGH)->MGraph->getDeviceImplPtr();
 }
 
 bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
