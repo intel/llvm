@@ -753,7 +753,7 @@ ur_result_t urBindlessImagesImportExternalSemaphoreExp(
 
   ZE2UR_CALL(UrPlatform->ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp,
              (hDevice->ZeDevice, (ze_external_semaphore_ext_desc_t *)&SemDesc,
-             (ze_external_semaphore_ext_handle_t *)&ExtSemaphoreHandle));
+              (ze_external_semaphore_ext_handle_t *)&ExtSemaphoreHandle));
   *phExternalSemaphoreHandle =
       (ur_exp_external_semaphore_handle_t)ExtSemaphoreHandle;
 
