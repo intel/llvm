@@ -6797,10 +6797,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (FirstParam)
         FirstParam = false;
-      else
-      {
+      else {
         ParmList += ", ";
-        ParmListWithNamesOstream << ", "; 
+        ParmListWithNamesOstream << ", ";
       }
       Policy.SuppressTagKeyword = true;
       Param->getType().print(ParmListWithNamesOstream, Policy);
