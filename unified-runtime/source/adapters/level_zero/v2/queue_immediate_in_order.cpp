@@ -928,9 +928,16 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   ze_command_list_handle_t commandBufferCommandList =
       commandListLocked->getZeCommandList();
-  return enqueueGenericCommandListsExp(1, &commandBufferCommandList, phEvent,
-                                       numEventsInWaitList, phEventWaitList,
-                                       UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP);
+  ur_event_handle_t internalEvent = nullptr;
+  if (!phEvent) {
+    phEvent = &internalEvent;
+  }
+  UR_CALL(hCommandBuffer->awaitExecution(commandListLocked));
+  UR_CALL(enqueueGenericCommandListsExp(1, &commandBufferCommandList, phEvent,
+                                        numEventsInWaitList, phEventWaitList,
+                                        UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP));
+  UR_CALL(hCommandBuffer->registerExecutionEvent(commandListLocked, *phEvent));
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
