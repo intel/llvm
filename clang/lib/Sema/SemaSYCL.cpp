@@ -6495,9 +6495,8 @@ public:
     O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
     O << "  return (void (*)(" << ParmList << "))";
 
-    if (NSInserted) {
-      PrintNamespaces(O, FD, true);
-    }
+    if (NSInserted)
+      PrintNamespaces(O, FD, /*isPrintNamesOnly=*/true);
     O << FD->getIdentifier()->getName().data();
   }
 };
