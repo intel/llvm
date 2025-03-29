@@ -567,7 +567,7 @@ void context_impl::verifyProps(const property_list &Props) const {
 std::shared_ptr<sycl::ext::oneapi::experimental::detail::memory_pool_impl>
 context_impl::get_default_memory_pool(const context &Context,
                                       const device &Device,
-                                      const usm::alloc &Kind) {
+                                      [[maybe_unused]] const usm::alloc &Kind) {
 
   assert(Kind == usm::alloc::device);
 
