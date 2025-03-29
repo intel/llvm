@@ -161,6 +161,24 @@ private:
                               size_t size);
 };
 
+struct ur_shared_buffer_handle_t : ur_mem_buffer_t {
+  ur_shared_buffer_handle_t(ur_context_handle_t hContext, void *devicePtr,
+                            size_t size, device_access_mode_t accesMode,
+                            bool ownDevicePtr);
+
+  void *
+  getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
+               size_t size,
+               std::function<void(void *src, void *dst, size_t)>) override;
+  void *mapHostPtr(ur_map_flags_t, size_t offset, size_t size,
+                   std::function<void(void *src, void *dst, size_t)>) override;
+  void unmapHostPtr(void *pMappedPtr,
+                    std::function<void(void *src, void *dst, size_t)>) override;
+
+private:
+  usm_unique_ptr_t ptr;
+};
+
 struct ur_mem_sub_buffer_t : ur_mem_buffer_t {
   ur_mem_sub_buffer_t(ur_mem_handle_t hParent, size_t offset, size_t size,
                       device_access_mode_t accesMode);
@@ -263,6 +281,7 @@ private:
       : mem(std::in_place_type<T>, std::forward<Args>(args)...) {}
 
   std::variant<ur_usm_handle_t, ur_integrated_buffer_handle_t,
-               ur_discrete_buffer_handle_t, ur_mem_sub_buffer_t, ur_mem_image_t>
+               ur_discrete_buffer_handle_t, ur_shared_buffer_handle_t,
+               ur_mem_sub_buffer_t, ur_mem_image_t>
       mem;
 };
