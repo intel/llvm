@@ -163,7 +163,7 @@ struct urQueueGetInfoDeviceQueueTestWithInfoParam : public uur::urQueueTest {
 
   ur_queue_handle_t queue = nullptr;
   const ur_queue_properties_t queueProperties = {
-      UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr,
+      nullptr, UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
       UR_QUEUE_FLAG_ON_DEVICE | UR_QUEUE_FLAG_ON_DEVICE_DEFAULT |
           UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE};
 };

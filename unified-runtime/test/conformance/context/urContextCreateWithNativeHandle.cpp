@@ -39,7 +39,7 @@ TEST_P(urContextCreateWithNativeHandleTest,
 
   ur_context_handle_t ctx = nullptr;
   ur_context_native_properties_t props{
-      UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, false};
+      nullptr, UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, false};
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urContextCreateWithNativeHandle(
       native_context, adapter, 1, &device, &props, &ctx));
   ASSERT_NE(ctx, nullptr);

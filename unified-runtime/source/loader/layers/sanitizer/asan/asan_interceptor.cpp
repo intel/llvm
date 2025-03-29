@@ -942,7 +942,7 @@ ContextInfo::~ContextInfo() {
 
 ur_usm_pool_handle_t ContextInfo::getUSMPool() {
   std::call_once(PoolInit, [this]() {
-    ur_usm_pool_desc_t Desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr, 0};
+    ur_usm_pool_desc_t Desc{nullptr, UR_STRUCTURE_TYPE_USM_POOL_DESC, 0};
     auto URes =
         getContext()->urDdiTable.USM.pfnPoolCreate(Handle, &Desc, &USMPool);
     if (URes != UR_RESULT_SUCCESS &&

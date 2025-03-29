@@ -36,8 +36,8 @@ TEST_P(urMemImageCreateWithNativeHandleTest, SuccessWithProperties) {
       urMemGetNativeHandle(image, device, &native_handle));
 
   ur_mem_handle_t mem = nullptr;
-  ur_mem_native_properties_t props = {UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES,
-                                      nullptr, false};
+  ur_mem_native_properties_t props = {nullptr,
+                                      UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, false};
   // We can't pass isNativeHandleOwned = true in the generic tests since
   // we always get the native handle from a UR object, and transferring
   // ownership from one UR object to another isn't allowed.
