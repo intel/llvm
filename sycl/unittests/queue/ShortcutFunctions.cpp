@@ -34,8 +34,10 @@ ur_result_t redefinedEnqueueMemBufferWrite(void *) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t redefinedEnqueueMemBufferRead(void *) {
+ur_result_t redefinedEnqueueMemBufferRead(void *pParams) {
   TestContext->BufferReadCalled = true;
+  auto params = *static_cast<ur_enqueue_mem_buffer_read_params_t *>(pParams);
+  **params.pphEvent = mock::createDummyHandle<ur_event_handle_t>();
   return UR_RESULT_SUCCESS;
 }
 
