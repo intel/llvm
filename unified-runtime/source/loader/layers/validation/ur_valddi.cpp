@@ -4807,7 +4807,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     if (phEventWaitList != NULL && numEventsInWaitList == 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
-    if (region.width == 0 || region.height == 0 || region.width == 0)
+    if (region.width == 0 || region.height == 0 || region.depth == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
 
     if (bufferRowPitch != 0 && bufferRowPitch < region.width)
@@ -4932,7 +4932,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     if (phEventWaitList != NULL && numEventsInWaitList == 0)
       return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
 
-    if (region.width == 0 || region.height == 0 || region.width == 0)
+    if (region.width == 0 || region.height == 0 || region.depth == 0)
       return UR_RESULT_ERROR_INVALID_SIZE;
 
     if (bufferRowPitch != 0 && bufferRowPitch < region.width)
