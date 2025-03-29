@@ -102,10 +102,53 @@ __attribute__((sycl_device))
 void ff_8(sycl::work_group_memory<int>) {
 }
 
+// function in namespace
+namespace free_functions {
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_9(int start, int *ptr) {
+}
+}
+
+// function in nested namespace
+namespace free_functions::tests {
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_10(int start, int *ptr) {
+}
+}
+
+// function in inline namespace
+namespace free_functions::tests {
+inline namespace V1 {
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_11(int start, int *ptr) {
+}
+}
+}
+
+//function in anonymous namespace
+namespace {
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_12(int start, int *ptr) {
+}
+}
+
+// functions with the same name but in different namespaces
+namespace free_functions {
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_13(int start, int *ptr) {
+}
+}
+namespace free_functions::tests {
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_13(int start, int *ptr) {
+}
+}
+
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]] 
 void ff_9(sycl::dynamic_work_group_memory<int>) {
 }
+
 
 
 // CHECK:      const char* const kernel_names[] = {
@@ -118,7 +161,16 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_6I3Agg7DerivedEvT_T0_i
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE
+
+// CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions4ff_9EiPi
+// CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5tests5ff_10EiPi
+// CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5tests2V15ff_11EiPi
+// CHECK-NEXT:   {{.*}}__sycl_kernel__GLOBAL__N_15ff_12EiPi
+// CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5ff_13EiPi
+// CHECK-NEXT:   {{.*}}__sycl_kernel_free_functions5tests5ff_13EiPi
+
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
+
 // CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
@@ -165,15 +217,41 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK:  //--- _Z18__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_work_group_memory, 8, 0 },
 
+
+// CHECK:  //--- _ZN28__sycl_kernel_free_functions4ff_9EiPi
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+
+// CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_10EiPi
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+
+// CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests2V15ff_11EiPi
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+
+// CHECK:  //--- _ZN26__sycl_kernel__GLOBAL__N_15ff_12EiPi
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+
+// CHECK:  //--- _ZN28__sycl_kernel_free_functions5ff_13EiPi
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+
+// CHECK:  //--- _ZN28__sycl_kernel_free_functions5tests5ff_13EiPi
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 0 }, 
+// CHECK-NEXT:  { kernel_param_kind_t::kind_pointer, 8, 4 },
+
 // CHECK:  //--- _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_dynamic_work_group_memory, 8, 0 },
+
 
 // CHECK:        { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_2Piii as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: void ff_2(int *ptr, int start, int end);
+// CHECK: void ff_2(int * ptr, int start, int end);
 // CHECK-NEXT: static constexpr auto __sycl_shim1() {
 // CHECK-NEXT:   return (void (*)(int *, int, int))ff_2;
 // CHECK-NEXT: }
@@ -190,7 +268,7 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_2Piiii as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: void ff_2(int *ptr, int start, int end, int value);
+// CHECK: void ff_2(int * ptr, int start, int end, int value);
 // CHECK-NEXT: static constexpr auto __sycl_shim2() {
 // CHECK-NEXT:   return (void (*)(int *, int, int, int))ff_2;
 // CHECK-NEXT: }
@@ -319,7 +397,7 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK: template <typename DataT> class work_group_memory;
 
-// CHECK: void ff_8(sycl::work_group_memory<int>);
+// CHECK: void ff_8(sycl::work_group_memory<int> );
 // CHECK-NEXT: static constexpr auto __sycl_shim9() {
 // CHECK-NEXT: return (void (*)(class sycl::work_group_memory<int>))ff_8;
 // CHECK-NEXT: }
@@ -334,6 +412,19 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK-NEXT: };
 // CHECK-NEXT: }
 
+
+// CHECK: Definition of _ZN28__sycl_kernel_free_functions4ff_9EiPi as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: namespace free_functions {
+// CHECK-NEXT: void ff_9(int start, int * ptr);
+// CHECK-NEXT: } // namespace free_functions
+
+// CHECK: static constexpr auto __sycl_shim10() {
+// CHECK-NEXT:   return (void (*)(int, int *))free_functions::ff_9;
+// CHECK-NEXT: }
+
+// CHECK: namespace sycl {
+
 // CHECK:  // Definition of _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE as a free function kernel 
 //
 // CHECK: Forward declarations of kernel and its argument types:
@@ -344,6 +435,7 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK-NEXT: return (void (*)(class sycl::dynamic_work_group_memory<int>))ff_9;
 // CHECK-NEXT: }
 // CHECK-NEXT: namespace sycl {
+
 // CHECK-NEXT: template <>
 // CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim10()> {
 // CHECK-NEXT: static constexpr bool value = true;
@@ -353,6 +445,117 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK-NEXT: static constexpr bool value = true;
 // CHECK-NEXT: };
 // CHECK-NEXT: }
+
+
+// CHECK: Definition of _ZN28__sycl_kernel_free_functions5tests5ff_10EiPi as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+
+// CHECK: namespace free_functions {
+// CHECK-NEXT: namespace tests {
+// CHECK-NEXT: void ff_10(int start, int * ptr);
+// CHECK-NEXT: } // namespace tests
+// CHECK-NEXT: } // namespace free_functions
+// CHECK: static constexpr auto __sycl_shim11() {
+// CHECK-NEXT: return (void (*)(int, int *))free_functions::tests::ff_10;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim11()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim11()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
+
+// CHECK: Definition of _ZN28__sycl_kernel_free_functions5tests2V15ff_11EiPi as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+
+// CHECK: namespace free_functions {
+// CHECK-NEXT:  namespace tests {
+// CHECK-NEXT:  inline namespace V1 {
+// CHECK-NEXT:  void ff_11(int start, int * ptr);
+// CHECK-NEXT:  } // inline namespace V1
+// CHECK-NEXT:  } // namespace tests
+// CHECK-NEXT:  } // namespace free_functions
+// CHECK:  static constexpr auto __sycl_shim12() {
+// CHECK-NEXT:    return (void (*)(int, int *))free_functions::tests::V1::ff_11;
+// CHECK-NEXT:  }
+// CHECK-NEXT:  namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_kernel<__sycl_shim12()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim12()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  }
+
+// CHECK: Definition of _ZN26__sycl_kernel__GLOBAL__N_15ff_12EiPi as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+
+// CHECK: namespace {
+// CHECK-NEXT:  void ff_12(int start, int * ptr);
+// CHECK-NEXT:  } // namespace 
+// CHECK:  static constexpr auto __sycl_shim13() {
+// CHECK-NEXT:    return (void (*)(int, int *))ff_12;
+// CHECK-NEXT:  }
+// CHECK-NEXT:  namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_kernel<__sycl_shim13()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim13()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  }
+
+// CHECK: Definition of _ZN28__sycl_kernel_free_functions5ff_13EiPi as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+
+// CHECK: namespace free_functions {
+// CHECK-NEXT:  void ff_13(int start, int * ptr);
+// CHECK-NEXT:  } // namespace free_functions
+// CHECK:  static constexpr auto __sycl_shim14() {
+// CHECK-NEXT:    return (void (*)(int, int *))free_functions::ff_13;
+// CHECK-NEXT:  }
+// CHECK-NEXT:  namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_kernel<__sycl_shim14()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim14()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  }
+ 
+// CHECK: Definition of _ZN28__sycl_kernel_free_functions5tests5ff_13EiPi as a free function kernel
+// CHECK: Forward declarations of kernel and its argument types:
+
+// CHECK: namespace free_functions {
+// CHECK-NEXT:  namespace tests {
+// CHECK-NEXT:  void ff_13(int start, int * ptr);
+// CHECK-NEXT:  } // namespace tests
+// CHECK-NEXT:  } // namespace free_functions
+// CHECK:  static constexpr auto __sycl_shim15() {
+// CHECK-NEXT:    return (void (*)(int, int *))free_functions::tests::ff_13;
+// CHECK-NEXT:  }
+// CHECK-NEXT:  namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_kernel<__sycl_shim15()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim15()> {
+// CHECK-NEXT:    static constexpr bool value = true;
+// CHECK-NEXT:  };
+// CHECK-NEXT:  }
+
+
 
 // CHECK: #include <sycl/kernel_bundle.hpp>
 
@@ -427,6 +630,56 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK-NEXT: return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE"});
 // CHECK-NEXT: }
 // CHECK-NEXT: }
+
+
+// CHECK: Definition of kernel_id of _ZN28__sycl_kernel_free_functions4ff_9EiPi
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim10()>() {
+// CHECK-NEXT:    return sycl::detail::get_kernel_id_impl(std::string_view{"_ZN28__sycl_kernel_free_functions4ff_9EiPi"});
+// CHECK-NEXT:  }
+// CHECK-NEXT:  }
+
+// CHECK: Definition of kernel_id of _ZN28__sycl_kernel_free_functions5tests5ff_10EiPi
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim11()>() {
+// CHECK-NEXT:    return sycl::detail::get_kernel_id_impl(std::string_view{"_ZN28__sycl_kernel_free_functions5tests5ff_10EiPi"});
+// CHECK-NEXT:  }
+// CHECK-NEXT:  } 
+
+// CHECK: Definition of kernel_id of _ZN28__sycl_kernel_free_functions5tests2V15ff_11EiPi
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim12()>() {
+// CHECK-NEXT:    return sycl::detail::get_kernel_id_impl(std::string_view{"_ZN28__sycl_kernel_free_functions5tests2V15ff_11EiPi"});
+// CHECK-NEXT:  }
+// CHECK-NEXT:  }
+
+// CHECK: Definition of kernel_id of _ZN26__sycl_kernel__GLOBAL__N_15ff_12EiPi
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim13()>() {
+// CHECK-NEXT:    return sycl::detail::get_kernel_id_impl(std::string_view{"_ZN26__sycl_kernel__GLOBAL__N_15ff_12EiPi"});
+// CHECK-NEXT:  }
+// CHECK-NEXT:  }
+
+// CHECK: Definition of kernel_id of _ZN28__sycl_kernel_free_functions5ff_13EiPi
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim14()>() {
+// CHECK-NEXT:    return sycl::detail::get_kernel_id_impl(std::string_view{"_ZN28__sycl_kernel_free_functions5ff_13EiPi"});
+// CHECK-NEXT:  }
+// CHECK-NEXT:  }
+
+// CHECK: Definition of kernel_id of _ZN28__sycl_kernel_free_functions5tests5ff_13EiPi
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:  template <>
+// CHECK-NEXT:  kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim15()>() {
+// CHECK-NEXT:    return sycl::detail::get_kernel_id_impl(std::string_view{"_ZN28__sycl_kernel_free_functions5tests5ff_13EiPi"});
+// CHECK-NEXT:  }
+// CHECK-NEXT:  }
+
 //
 // CHECK: // Definition of kernel_id of _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
 // CHECK-NEXT: namespace sycl {
@@ -435,3 +688,4 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE"});
 // CHECK-NEXT: }
 // CHECK-NEXT: }
+
