@@ -48,21 +48,20 @@ struct _ur_platform_handle_t;
         (zeDriverGet_t)GetProcAddress(zeLoader, "zeDriverGet");
     if (zeDriverGetLoader) {
       ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
+      URLOG(DEBUG,
+            "ZE ---> checkL0LoaderTeardown result = {} driver count = {}",
+            result, ZeDriverCount);
       if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
         loaderStable = false;
       }
     } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
+      URLOG(DEBUG, "ZE ---> checkL0LoaderTeardown: Failed to get address of "
+                   "zeDriverGet");
       loaderStable = false;
     }
     FreeLibrary(zeLoader);
   } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load ze_loader.dll");
+    URLOG(DEBUG, "ZE ---> checkL0LoaderTeardown: Failed to load ze_loader.dll");
     loaderStable = false;
   }
 #else
@@ -74,26 +73,27 @@ struct _ur_platform_handle_t;
         (zeDriverGet_t)dlsym(zeLoader, "zeDriverGet");
     if (zeDriverGetLoader) {
       ze_result_t result = zeDriverGetLoader(&ZeDriverCount, nullptr);
-      logger::debug(
-          "ZE ---> checkL0LoaderTeardown result = {} driver count = {}", result,
-          ZeDriverCount);
+      URLOG(DEBUG,
+            "ZE ---> checkL0LoaderTeardown result = {} driver count = {}",
+            result, ZeDriverCount);
       if (result != ZE_RESULT_SUCCESS || ZeDriverCount == 0) {
         loaderStable = false;
       }
     } else {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Failed to get address of "
-                    "zeDriverGet");
+      URLOG(DEBUG, "ZE ---> checkL0LoaderTeardown: Failed to get address of "
+                   "zeDriverGet");
       loaderStable = false;
     }
     dlclose(zeLoader);
   } else {
-    logger::debug(
-        "ZE ---> checkL0LoaderTeardown: Failed to load libze_loader.so.1");
+    URLOG(DEBUG,
+          "ZE ---> checkL0LoaderTeardown: Failed to load libze_loader.so.1");
     loaderStable = false;
   }
 #endif
   if (!loaderStable) {
-    logger::debug(
+    URLOG(
+        DEBUG,
         "ZE ---> checkL0LoaderTeardown: Loader is not stable, returning false");
   }
   return loaderStable;

@@ -33,8 +33,7 @@ context_t::~context_t() {}
       result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)                           \
     return UR_RESULT_SUCCESS;                                                  \
   if (result != UR_RESULT_SUCCESS) {                                           \
-    getContext()->logger.error("Unexpected non-success result code from {}",   \
-                               #result);                                       \
+    URLOG_CTX(ERR, "Unexpected non-success result code from {}", #result);     \
     assert(0);                                                                 \
     return result;                                                             \
   }

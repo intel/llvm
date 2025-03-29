@@ -22,16 +22,16 @@ ManagedQueue::ManagedQueue(ur_context_handle_t Context,
   [[maybe_unused]] auto Result = getContext()->urDdiTable.Queue.pfnCreate(
       Context, Device, nullptr, &Handle);
   assert(Result == UR_RESULT_SUCCESS && "Failed to create ManagedQueue");
-  getContext()->logger.debug(">>> ManagedQueue {}", (void *)Handle);
+  URLOG_CTX(DEBUG, ">>> ManagedQueue {}", (void *)Handle);
 }
 
 ManagedQueue::~ManagedQueue() {
-  getContext()->logger.debug("<<< ~ManagedQueue {}", (void *)Handle);
+  URLOG_CTX(DEBUG, "<<< ~ManagedQueue {}", (void *)Handle);
 
   [[maybe_unused]] ur_result_t Result;
   Result = getContext()->urDdiTable.Queue.pfnFinish(Handle);
   if (Result != UR_RESULT_SUCCESS) {
-    getContext()->logger.error("Failed to finish ManagedQueue: {}", Result);
+    URLOG_CTX(ERR, "Failed to finish ManagedQueue: {}", Result);
   }
   assert(Result == UR_RESULT_SUCCESS && "Failed to finish ManagedQueue");
   Result = getContext()->urDdiTable.Queue.pfnRelease(Handle);
@@ -149,7 +149,7 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     [[maybe_unused]] ur_result_t Result =
         getContext()->urDdiTable.USM.pfnDeviceAlloc(Context, Device, nullptr,
                                                     nullptr, 4, (void **)&Ptr);
-    getContext()->logger.debug("GetDeviceType: {}", (void *)Ptr);
+    URLOG_CTX(DEBUG, "GetDeviceType: {}", (void *)Ptr);
     assert(Result == UR_RESULT_SUCCESS &&
            "getDeviceType() failed at allocating device USM");
     // FIXME: There's no API querying the address bits of device, so we guess it

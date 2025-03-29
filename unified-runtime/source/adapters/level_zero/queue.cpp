@@ -455,7 +455,8 @@ ur_result_t urQueueGetInfo(
     return ReturnValue(true);
   }
   default:
-    logger::error(
+    URLOG(
+        ERR,
         "Unsupported ParamName in urQueueGetInfo: ParamName=ParamName={}(0x{})",
         ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -930,8 +931,8 @@ ur_result_t urEnqueueKernelLaunchCustomExp(
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
 
-  logger::error("[UR][L0] {} function not implemented!",
-                "{} function not implemented!", __FUNCTION__);
+  URLOG(ERR, "[UR][L0] {} function not implemented!",
+        "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -1011,9 +1012,9 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           Val = std::stoi(BatchConfig.substr(Pos));
         } catch (...) {
           if (IsCopy)
-            logger::error("UR_L0_COPY_BATCH_SIZE: failed to parse value");
+            URLOG(ERR, "UR_L0_COPY_BATCH_SIZE: failed to parse value")
           else
-            logger::error("UR_L0_BATCH_SIZE: failed to parse value");
+            URLOG(ERR, "UR_L0_BATCH_SIZE: failed to parse value")
           break;
         }
         switch (Ord) {
@@ -1036,20 +1037,19 @@ static const zeCommandListBatchConfig ZeCommandListBatchConfig(bool IsCopy) {
           die("Unexpected batch config");
         }
         if (IsCopy)
-          logger::error("UR_L0_COPY_BATCH_SIZE: dynamic batch param "
-                        "#{}: {}",
-                        (int)Ord, (int)Val);
+          URLOG(ERR, "UR_L0_COPY_BATCH_SIZE: dynamic batch param #{}: {}",
+                (int)Ord, (int)Val)
         else
-          logger::error("UR_L0_BATCH_SIZE: dynamic batch param #{}: {}",
-                        (int)Ord, (int)Val);
+          URLOG(ERR, "UR_L0_BATCH_SIZE: dynamic batch param #{}: {}", (int)Ord,
+                (int)Val)
       };
 
     } else {
       // Negative batch sizes are silently ignored.
       if (IsCopy)
-        logger::warning("UR_L0_COPY_BATCH_SIZE: ignored negative value");
+        URLOG(WARN, "UR_L0_COPY_BATCH_SIZE: ignored negative value")
       else
-        logger::warning("UR_L0_BATCH_SIZE: ignored negative value");
+        URLOG(WARN, "UR_L0_BATCH_SIZE: ignored negative value")
     }
   }
   return Config;
@@ -1225,7 +1225,7 @@ void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
           ZeCommandListBatchConfig.NumTimesClosedFullThreshold) {
     if (QueueBatchSize < ZeCommandListBatchConfig.DynamicSizeMax) {
       QueueBatchSize += ZeCommandListBatchConfig.DynamicSizeStep;
-      logger::debug("Raising QueueBatchSize to {}", QueueBatchSize);
+      URLOG(DEBUG, "Raising QueueBatchSize to {}", QueueBatchSize);
     }
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
@@ -1252,7 +1252,7 @@ void ur_queue_handle_t_::adjustBatchSizeForPartialBatch(bool IsCopy) {
     QueueBatchSize = CommandBatch.OpenCommandList->second.size() - 1;
     if (QueueBatchSize < 1)
       QueueBatchSize = 1;
-    logger::debug("Lowering QueueBatchSize to {}", QueueBatchSize);
+    URLOG(DEBUG, "Lowering QueueBatchSize to {}", QueueBatchSize);
     CommandBatch.NumTimesClosedEarly = 0;
     CommandBatch.NumTimesClosedFull = 0;
   }
@@ -1617,14 +1617,15 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
 
   Queue->clearEndTimeRecordings();
 
-  logger::debug("urQueueRelease(compute) NumTimesClosedFull {}, "
-                "NumTimesClosedEarly {}",
-                Queue->ComputeCommandBatch.NumTimesClosedFull,
-                Queue->ComputeCommandBatch.NumTimesClosedEarly);
-  logger::debug(
-      "urQueueRelease(copy) NumTimesClosedFull {}, NumTimesClosedEarly {}",
-      Queue->CopyCommandBatch.NumTimesClosedFull,
-      Queue->CopyCommandBatch.NumTimesClosedEarly);
+  URLOG(DEBUG,
+        "urQueueRelease(compute) NumTimesClosedFull {}, "
+        "NumTimesClosedEarly {}",
+        Queue->ComputeCommandBatch.NumTimesClosedFull,
+        Queue->ComputeCommandBatch.NumTimesClosedEarly);
+  URLOG(DEBUG,
+        "urQueueRelease(copy) NumTimesClosedFull {}, NumTimesClosedEarly {}",
+        Queue->CopyCommandBatch.NumTimesClosedFull,
+        Queue->CopyCommandBatch.NumTimesClosedEarly);
 
   delete Queue;
 
@@ -2241,10 +2242,11 @@ ur_queue_handle_t_::ur_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
     ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
-                "(round robin in [{}, {}]) priority = {}",
-                ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
-                LowerIndex, UpperIndex, Priority);
+  URLOG(DEBUG,
+        "[getZeQueue]: create queue ordinal = {}, index = {} "
+        "(round robin in [{}, {}]) priority = {}",
+        ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+        UpperIndex, Priority);
 
   auto ZeResult = ZE_CALL_NOCHECK(
       zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
@@ -2302,7 +2304,8 @@ ur_result_t ur_queue_handle_t_::createCommandList(
     IsInOrderList = true;
   }
 
-  logger::debug(
+  URLOG(
+      DEBUG,
       "create command list ordinal: {}, type: regular, device: {}, inOrder: {}",
       QueueGroupOrdinal, Device->ZeDevice, IsInOrderList);
 
@@ -2468,14 +2471,15 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
 
   // If cache didn't contain a command list, create one.
   if (!ZeCommandList) {
-    logger::debug("[getZeQueue]: create queue ordinal = {}, index = {} "
-                  "(round robin in [{}, {}]) priority = {}",
-                  ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index,
-                  LowerIndex, UpperIndex, Priority);
-    logger::debug("create command list ordinal: {}, type: immediate, device: "
-                  "{}, inOrder: {}",
-                  ZeCommandQueueDesc.ordinal, Queue->Device->ZeDevice,
-                  isInOrderList);
+    URLOG(DEBUG,
+          "[getZeQueue]: create queue ordinal = {}, index = {} "
+          "(round robin in [{}, {}]) priority = {}",
+          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
+          UpperIndex, Priority);
+    URLOG(DEBUG,
+          "create command list ordinal: {}, type: immediate, device: "
+          "{}, inOrder: {}",
+          ZeCommandQueueDesc.ordinal, Queue->Device->ZeDevice, isInOrderList);
 
     ZE_CALL_NOCHECK(zeCommandListCreateImmediate,
                     (Queue->Context->ZeContext, Queue->Device->ZeDevice,

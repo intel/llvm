@@ -37,10 +37,10 @@
 #define UR_CALL(Call)                                                          \
   {                                                                            \
     if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
+      URLOG_ALWAYS("UR ---> {}", #Call);                                       \
     ur_result_t Result = (Call);                                               \
     if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
+      URLOG_ALWAYS("UR <--- {}({})", #Call, getUrResultString(Result));        \
     if (Result != UR_RESULT_SUCCESS)                                           \
       return Result;                                                           \
   }
@@ -49,10 +49,10 @@
 #define UR_CALL_THROWS(Call)                                                   \
   {                                                                            \
     if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
+      URLOG_ALWAYS("UR ---> {}", #Call);                                       \
     ur_result_t Result = (Call);                                               \
     if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
+      URLOG_ALWAYS("UR <--- {}({})", #Call, getUrResultString(Result));        \
     if (Result != UR_RESULT_SUCCESS)                                           \
       throw Result;                                                            \
   }
@@ -61,10 +61,10 @@
 #define UR_CALL_NOCHECK(Call)                                                  \
   {                                                                            \
     if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
+      URLOG_ALWAYS("UR ---> {}", #Call);                                       \
     (void)(Call);                                                              \
     if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call);                                 \
+      URLOG_ALWAYS("UR <--- {}({})", #Call);                                   \
   }
 
 static auto getUrResultString = [](ur_result_t Result) {
@@ -244,7 +244,7 @@ const ur_command_t UR_EXT_COMMAND_TYPE_USER =
 
 // Terminates the process with a catastrophic error message.
 [[noreturn]] inline void die(const char *Message) {
-  logger::always("ur_die: {}", Message);
+  URLOG_ALWAYS("ur_die: {}", Message);
   std::terminate();
 }
 

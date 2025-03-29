@@ -25,14 +25,21 @@ inline bool isTearDowned = false;
 class Sink {
 public:
   template <typename... Args>
-  void log(logger::Level level, const char *fmt, Args &&...args) {
+  void log(Level level, const char *filename, const char *lineno,
+           const char *fmt, Args &&...args) {
     std::ostringstream buffer;
-    if (!skip_prefix && level != logger::Level::QUIET) {
+    if (!skip_prefix && level != Level::QUIET) {
       buffer << "<" << logger_name << ">"
              << "[" << level_to_str(level) << "]: ";
     }
 
     format(buffer, fmt, std::forward<Args &&>(args)...);
+    if (add_fileline) {
+      buffer << " <" << filename << ":" << lineno << ">";
+    }
+    if (!skip_linebreak) {
+      buffer << "\n";
+    }
 // This is a temporary workaround on windows, where UR adapter is teardowned
 // before the UR loader, which will result in access violation when we use print
 // function as the overrided print function was already released with the UR
@@ -50,23 +57,24 @@ public:
 #endif
   }
 
-  void setFlushLevel(logger::Level level) { this->flush_level = level; }
+  void setFlushLevel(Level level) { this->flush_level = level; }
+  void setFileLine(bool fileline) { add_fileline = fileline; }
 
   virtual ~Sink() = default;
 
 protected:
   std::ostream *ostream;
-  logger::Level flush_level;
+  Level flush_level;
 
   Sink(std::string logger_name, bool skip_prefix = false,
        bool skip_linebreak = false)
       : logger_name(std::move(logger_name)), skip_prefix(skip_prefix),
-        skip_linebreak(skip_linebreak) {
+        skip_linebreak(skip_linebreak), add_fileline(false) {
     ostream = nullptr;
-    flush_level = logger::Level::ERR;
+    flush_level = Level::ERR;
   }
 
-  virtual void print(logger::Level level, const std::string &msg) {
+  virtual void print(Level level, const std::string &msg) {
     std::scoped_lock<std::mutex> lock(output_mutex);
     *ostream << msg;
     if (level >= flush_level) {
@@ -76,8 +84,9 @@ protected:
 
 private:
   std::string logger_name;
-  bool skip_prefix;
-  bool skip_linebreak;
+  const bool skip_prefix;
+  const bool skip_linebreak;
+  bool add_fileline;
   std::mutex output_mutex;
   const char *error_prefix = "Log message syntax error: ";
 
@@ -103,9 +112,6 @@ private:
                     << std::endl;
         }
       }
-    }
-    if (!skip_linebreak) {
-      buffer << "\n";
     }
   }
 
@@ -138,7 +144,8 @@ private:
       }
 
       if (*fmt == '\0') {
-        std::cerr << error_prefix << "Too many arguments!" << std::endl;
+        std::cerr << error_prefix
+                  << "Too many arguments! first excessive:" << arg << std::endl;
         // ignore all left arguments and finalize message
         format(buffer, fmt);
         return;
@@ -217,14 +224,14 @@ inline std::unique_ptr<Sink> sink_from_str(std::string logger_name,
                                            bool skip_prefix = false,
                                            bool skip_linebreak = false) {
   if (name == "stdout" && file_path.empty()) {
-    return std::make_unique<logger::StdoutSink>(logger_name, skip_prefix,
-                                                skip_linebreak);
+    return std::make_unique<StdoutSink>(logger_name, skip_prefix,
+                                        skip_linebreak);
   } else if (name == "stderr" && file_path.empty()) {
-    return std::make_unique<logger::StderrSink>(logger_name, skip_prefix,
-                                                skip_linebreak);
+    return std::make_unique<StderrSink>(logger_name, skip_prefix,
+                                        skip_linebreak);
   } else if (name == "file" && !file_path.empty()) {
-    return std::make_unique<logger::FileSink>(logger_name, file_path,
-                                              skip_prefix, skip_linebreak);
+    return std::make_unique<FileSink>(logger_name, file_path, skip_prefix,
+                                      skip_linebreak);
   }
 
   throw std::invalid_argument(
