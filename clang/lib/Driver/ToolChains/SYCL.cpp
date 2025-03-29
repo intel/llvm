@@ -1607,6 +1607,12 @@ void SYCLToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
+
+  if (DeviceOffloadingKind == Action::OFK_SYCL &&
+      !getTriple().isSPIROrSPIRV()) {
+    SYCLInstallation.addLibspirvLinkArgs(getEffectiveTriple(), DriverArgs,
+                                         HostTC.getTriple(), CC1Args);
+  }
 }
 
 llvm::opt::DerivedArgList *
