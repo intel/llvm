@@ -116,7 +116,7 @@ bool CompilerInstance::createTarget() {
   // Check whether AuxTarget exists, if not, then create TargetInfo for the
   // other side of CUDA/OpenMP/SYCL compilation.
   if (!getAuxTarget() &&
-      (getLangOpts().CUDA || getLangOpts().OpenMPIsTargetDevice ||
+      (getLangOpts().CUDA || getLangOpts().isTargetDevice() ||
        getLangOpts().isSYCL()) &&
       !getFrontendOpts().AuxTriple.empty()) {
     auto TO = std::make_shared<TargetOptions>();
