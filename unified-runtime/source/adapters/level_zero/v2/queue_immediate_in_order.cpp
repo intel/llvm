@@ -928,9 +928,29 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   ze_command_list_handle_t commandBufferCommandList =
       commandListLocked->getZeCommandList();
-  return enqueueGenericCommandListsExp(1, &commandBufferCommandList, phEvent,
-                                       numEventsInWaitList, phEventWaitList,
-                                       UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP);
+  ur_event_handle_t internalEvent = nullptr;
+  if (phEvent == nullptr) {
+    phEvent = &internalEvent;
+  }
+  ur_event_handle_t executionEvent =
+      hCommandBuffer->getCurrentExecutionEvent(commandListLocked);
+  std::vector<ur_event_handle_t> extendedWaitList;
+  if (executionEvent != nullptr) {
+    extendedWaitList.resize(numEventsInWaitList + 1);
+    std::copy(phEventWaitList, phEventWaitList + numEventsInWaitList,
+              extendedWaitList.begin());
+    extendedWaitList[numEventsInWaitList] = executionEvent;
+    phEventWaitList = extendedWaitList.data();
+    numEventsInWaitList++;
+  }
+  UR_CALL(enqueueGenericCommandListsExp(1, &commandBufferCommandList, phEvent,
+                                        numEventsInWaitList, phEventWaitList,
+                                        UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP));
+  UR_CALL(hCommandBuffer->registerExecutionEvent(commandListLocked, *phEvent));
+  if (internalEvent != nullptr) {
+    internalEvent->release();
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(
