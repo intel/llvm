@@ -234,6 +234,7 @@ public:
 
   const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
   std::mutex *getCacheMutex() const { return MCacheMutex; }
+  std::string_view getName() const;
 
 private:
   ur_kernel_handle_t MKernel = nullptr;
@@ -246,6 +247,7 @@ private:
   std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
+  mutable std::string MName;
 
   bool isBuiltInKernel(const device &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;

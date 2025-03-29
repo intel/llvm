@@ -10,6 +10,8 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/string.hpp>             // for detail::string
+#include <sycl/detail/string_view.hpp>        // for detail::string_view
 
 #include <array>       // for array
 #include <cassert>     // for assert
