@@ -87,17 +87,17 @@ bool ur_event_handle_t_::isCompleted() const noexcept try {
 
 uint64_t ur_event_handle_t_::getQueuedTime() const {
   assert(isStarted());
-  return Queue->get_device()->getElapsedTime(EvQueued);
+  return Queue->getDevice()->getElapsedTime(EvQueued);
 }
 
 uint64_t ur_event_handle_t_::getStartTime() const {
   assert(isStarted());
-  return Queue->get_device()->getElapsedTime(EvStart);
+  return Queue->getDevice()->getElapsedTime(EvStart);
 }
 
 uint64_t ur_event_handle_t_::getEndTime() const {
   assert(isStarted() && isRecorded());
-  return Queue->get_device()->getElapsedTime(EvEnd);
+  return Queue->getDevice()->getElapsedTime(EvEnd);
 }
 
 ur_result_t ur_event_handle_t_::record() {
@@ -111,7 +111,7 @@ ur_result_t ur_event_handle_t_::record() {
   UR_ASSERT(Queue, UR_RESULT_ERROR_INVALID_QUEUE);
 
   try {
-    EventID = Queue->getNextEventID();
+    EventID = Queue->getNextEventId();
     if (EventID == 0) {
       die("Unrecoverable program state reached in event identifier overflow");
     }

@@ -32,93 +32,17 @@ void ur_queue_handle_t_::transferStreamWaitForBarrierIfNeeded(
   }
 }
 
-CUstream ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
-  if (getThreadLocalStream() != CUstream{0})
-    return getThreadLocalStream();
-  uint32_t StreamI;
-  uint32_t Token;
-  while (true) {
-    if (NumComputeStreams < ComputeStreams.size()) {
-      // the check above is for performance - so as not to lock mutex every time
-      std::lock_guard<std::mutex> guard(ComputeStreamMutex);
-      // The second check is done after mutex is locked so other threads can not
-      // change NumComputeStreams after that
-      if (NumComputeStreams < ComputeStreams.size()) {
-        UR_CHECK_ERROR(cuStreamCreateWithPriority(
-            &ComputeStreams[NumComputeStreams], Flags, Priority));
-        ++NumComputeStreams;
-      }
-    }
-    Token = ComputeStreamIndex++;
-    StreamI = Token % ComputeStreams.size();
-    // if a stream has been reused before it was next selected round-robin
-    // fashion, we want to delay its next use and instead select another one
-    // that is more likely to have completed all the enqueued work.
-    if (DelayCompute[StreamI]) {
-      DelayCompute[StreamI] = false;
-    } else {
-      break;
-    }
-  }
-  if (StreamToken) {
-    *StreamToken = Token;
-  }
-  CUstream res = ComputeStreams[StreamI];
-  computeStreamWaitForBarrierIfNeeded(res, StreamI);
-  return res;
+ur_queue_handle_t ur_queue_handle_t_::getEventQueue(const ur_event_handle_t e) {
+  return e->getQueue();
 }
 
-CUstream ur_queue_handle_t_::getNextComputeStream(
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_stream_guard_ &Guard, uint32_t *StreamToken) {
-  if (getThreadLocalStream() != CUstream{0})
-    return getThreadLocalStream();
-  for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-    uint32_t Token = EventWaitList[i]->getComputeStreamToken();
-    if (reinterpret_cast<ur_queue_handle_t>(EventWaitList[i]->getQueue()) ==
-            this &&
-        canReuseStream(Token)) {
-      std::unique_lock<std::mutex> ComputeSyncGuard(ComputeStreamSyncMutex);
-      // redo the check after lock to avoid data races on
-      // LastSyncComputeStreams
-      if (canReuseStream(Token)) {
-        uint32_t StreamI = Token % DelayCompute.size();
-        DelayCompute[StreamI] = true;
-        if (StreamToken) {
-          *StreamToken = Token;
-        }
-        Guard = ur_stream_guard_{std::move(ComputeSyncGuard)};
-        CUstream Result = EventWaitList[i]->getStream();
-        computeStreamWaitForBarrierIfNeeded(Result, StreamI);
-        return Result;
-      }
-    }
-  }
-  Guard = {};
-  return getNextComputeStream(StreamToken);
+uint32_t
+ur_queue_handle_t_::getEventComputeStreamToken(const ur_event_handle_t e) {
+  return e->getComputeStreamToken();
 }
 
-CUstream ur_queue_handle_t_::getNextTransferStream() {
-  if (getThreadLocalStream() != CUstream{0})
-    return getThreadLocalStream();
-  if (TransferStreams.empty()) { // for example in in-order queue
-    return getNextComputeStream();
-  }
-  if (NumTransferStreams < TransferStreams.size()) {
-    // the check above is for performance - so as not to lock mutex every time
-    std::lock_guard<std::mutex> Guuard(TransferStreamMutex);
-    // The second check is done after mutex is locked so other threads can not
-    // change NumTransferStreams after that
-    if (NumTransferStreams < TransferStreams.size()) {
-      UR_CHECK_ERROR(cuStreamCreateWithPriority(
-          &TransferStreams[NumTransferStreams], Flags, Priority));
-      ++NumTransferStreams;
-    }
-  }
-  uint32_t StreamI = TransferStreamIndex++ % TransferStreams.size();
-  CUstream Result = TransferStreams[StreamI];
-  transferStreamWaitForBarrierIfNeeded(Result, StreamI);
-  return Result;
+CUstream ur_queue_handle_t_::getEventStream(const ur_event_handle_t e) {
+  return e->getStream();
 }
 
 /// Creates a `ur_queue_handle_t` object on the CUDA backend.
