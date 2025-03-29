@@ -6,6 +6,7 @@ add_sycl_unittest(ProgramManagerTests OBJECT
   SubDevices.cpp
   passing_link_and_compile_options.cpp
   Cleanup.cpp
+  MultipleDevsKernelBundle.cpp
 )
 
 add_subdirectory(arg_mask)
