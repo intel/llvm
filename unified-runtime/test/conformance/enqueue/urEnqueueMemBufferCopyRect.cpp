@@ -240,7 +240,7 @@ TEST_P(urEnqueueMemBufferCopyRectTest, InvalidNullPtrEventWaitList) {
 TEST_P(urEnqueueMemBufferCopyRectTest, InvalidSize) {
   UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
 
-  // region.width == 0 || region.height == 0 || region.width == 0
+  // region.width == 0 || region.height == 0 || region.depth == 0
   src_region.width = 0;
   ASSERT_EQ_RESULT(urEnqueueMemBufferCopyRect(
                        queue, src_buffer, dst_buffer, src_origin, dst_origin,

@@ -328,7 +328,7 @@ returns:
         - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
-        - "`region.width == 0 || region.height == 0 || region.width == 0`"
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
         - "`bufferRowPitch != 0 && bufferRowPitch < region.width`"
         - "`hostRowPitch != 0 && hostRowPitch < region.width`"
         - "`bufferSlicePitch != 0 && bufferSlicePitch < region.height * (bufferRowPitch != 0 ? bufferRowPitch : region.width)`"
@@ -406,7 +406,7 @@ returns:
         - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
-        - "`region.width == 0 || region.height == 0 || region.width == 0`"
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
         - "`bufferRowPitch != 0 && bufferRowPitch < region.width`"
         - "`hostRowPitch != 0 && hostRowPitch < region.width`"
         - "`bufferSlicePitch != 0 && bufferSlicePitch < region.height * (bufferRowPitch != 0 ? bufferRowPitch : region.width)`"

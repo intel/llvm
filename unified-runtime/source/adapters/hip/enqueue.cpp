@@ -506,7 +506,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(region.width == 0 || region.height == 0 || region.width == 0),
+  UR_ASSERT(!(region.width == 0 || region.height == 0 || region.depth == 0),
             UR_RESULT_ERROR_INVALID_SIZE);
   UR_ASSERT(!(bufferRowPitch != 0 && bufferRowPitch < region.width),
             UR_RESULT_ERROR_INVALID_SIZE);
