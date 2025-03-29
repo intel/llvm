@@ -9,6 +9,10 @@
 // UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
 // other triples
 
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-INTENDED: SG size = 32 is not currently supported for SYCL Joint
+// Matrix by IGC on DG2
+
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
@@ -16,7 +20,7 @@
 // RUN: %{run} %t.out
 
 // This tests support of col major layout for matrix B which does transpose and
-// then VNNI transform. This is currently only available on AMX
+// then VNNI transform. This is currently only available on AMX and PVC
 
 // XFAIL: arch-intel_gpu_bmg_g21
 // XFAIL-TRACKER: GSD-5768
