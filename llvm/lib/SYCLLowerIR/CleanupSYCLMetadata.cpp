@@ -24,14 +24,21 @@
 using namespace llvm;
 
 namespace {
-
-void cleanupSYCLCompilerMetadata(const Module &M, llvm::StringRef MD) {
+void cleanupSYCLCompilerModuleMetadata(const Module &M, llvm::StringRef MD) {
   NamedMDNode *Node = M.getNamedMetadata(MD);
   if (!Node)
     return;
   Node->clearOperands();
   Node->dropAllReferences();
   Node->eraseFromParent();
+}
+
+void cleanupSYCLCompilerFunctionMetadata(Function &F,
+                                         llvm::StringRef MD) {
+  MDNode *Node = F.getMetadata(MD);
+  if (!Node)
+    return;
+  F.setMetadata(MD, nullptr);
 }
 
 // GV is supposed to be either llvm.compiler.used or llvm.used.
@@ -65,7 +72,13 @@ PreservedAnalyses CleanupSYCLMetadataPass::run(Module &M,
   SmallVector<StringRef, 2> ModuleMDToRemove = {"sycl_aspects",
                                                 "sycl_types_that_use_aspects"};
   for (const auto &MD : ModuleMDToRemove)
-    cleanupSYCLCompilerMetadata(M, MD);
+    cleanupSYCLCompilerModuleMetadata(M, MD);
+
+  SmallVector<StringRef, 1> FunctionMDToRemove = {"srcloc"};
+  for (auto &F : M) {
+    for (const auto &MD : FunctionMDToRemove)
+      cleanupSYCLCompilerFunctionMetadata(F, MD);
+  }
 
   return PreservedAnalyses::all();
 }
