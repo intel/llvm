@@ -26,7 +26,7 @@
 /// Check the toolflow for SYCL compilation using new offload model
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s
 // CHK-FLOW: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "--offload-new-driver" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
-// CHK-FLOW-NEXT: clang-offload-packager{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=,kind=sycl{{.*}}"
+// CHK-FLOW-NEXT: clang-offload-packager{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=generic,kind=sycl{{.*}}"
 // CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-include-internal-footer" "[[FOOTER]].h" "-dependency-filter" "[[FOOTER]].h"{{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
 // CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu"{{.*}} "--linker-path={{.*}}/ld" {{.*}} "[[CC1FINALOUT]]"
 
@@ -102,7 +102,7 @@
 // RUN:              -DTRIPLE=nvptx64-nvidia-cuda -DARCH=sm_50 %s
 // CHK_ARCH: clang{{.*}} "-triple" "[[TRIPLE]]"
 // CHK_ARCH-SAME: "-fsycl-is-device" {{.*}} "--offload-new-driver"{{.*}} "-o" "[[CC1DEVOUT:.+\.bc]]"
-// CHK_ARCH-NEXT: clang-offload-packager{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]],kind=sycl{{.*}}"
+// CHK_ARCH-NEXT: clang-offload-packager{{.*}} "--image=file=[[CC1DEVOUT]],triple=[[TRIPLE]],arch=[[ARCH]]{{.*}},kind=sycl{{.*}}"
 
 // Verify offload-packager option values
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl \
@@ -115,7 +115,7 @@
 // RUN:  | FileCheck -check-prefix=CHK_PACKAGER_OPTS %s
 // CHK_PACKAGER_OPTS: clang-offload-packager{{.*}} "-o"
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
-// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
+// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=generic,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
 
 /// Check phases with multiple intel_gpu settings
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl \
@@ -194,7 +194,7 @@
 // RUN:          --cuda-gpu-arch=sm_20 --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s \
 // RUN:          --offload-new-driver 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_CUDA_PATH %s
-// NVPTX_CUDA_PATH: clang-linker-wrapper{{.*}} "--cuda-path={{.*}}Inputs/CUDA_80/usr/local/cuda"
+// NVPTX_CUDA_PATH: clang-linker-wrapper{{.*}}--cuda-path={{.*}}Inputs/CUDA_80/usr/local/cuda"
 
 /// Check for -sycl-allow-device-image-dependencies transmission to clang-linker-wrapper tool
 // RUN: %clangxx -fsycl -###  --offload-new-driver \

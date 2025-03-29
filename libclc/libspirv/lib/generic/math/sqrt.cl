@@ -7,9 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <libspirv/spirv.h>
+#include <clc/math/clc_sqrt.h>
 
-#include <math/clc_sqrt.h>
+#define FUNCTION spirv_ocl_sqrt
+#define __CLC_FUNCTION(x) __clc_sqrt
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-#define __CLC_BUILTIN __clc_sqrt
-#define __CLC_FUNCTION __spirv_ocl_sqrt
-#include <clc/math/unary_builtin_scalarize.inc>
+#include <clc/math/gentype.inc>

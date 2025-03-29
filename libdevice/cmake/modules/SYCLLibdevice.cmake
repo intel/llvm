@@ -86,7 +86,7 @@ endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND devicelib_arch amdgcn-amd-amdhsa)
   set(compile_opts_amdgcn-amd-amdhsa "-nogpulib" "-fsycl-targets=amdgcn-amd-amdhsa"
-  "-Xsycl-target-backend" "--offload-arch=gfx940")
+  "-Xsycl-target-backend" "--offload-arch=gfx942")
   set(opt_flags_amdgcn-amd-amdhsa "-O3" "--amdgpu-oclc-reflect-enable=false")
 endif()
 
