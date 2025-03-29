@@ -382,16 +382,6 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   return true;
 }
 
-template <typename KernelNameType>
-std::vector<kernel_param_desc_t> getKernelParamDescs() {
-  std::vector<kernel_param_desc_t> Result;
-  int NumParams = getKernelNumParams<KernelNameType>();
-  Result.reserve(NumParams);
-  for (int I = 0; I < NumParams; ++I) {
-    Result.push_back(getKernelParamDesc<KernelNameType>(I));
-  }
-  return Result;
-}
 } // namespace detail
 
 /// Command group handler class.
@@ -483,16 +473,22 @@ private:
                             "a single kernel or explicit memory operation.");
   }
 
-  /// Extracts and prepares kernel arguments from the lambda using information
-  /// from the built-ins or integration header.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: Those functions are not used anymore, remove it in the next
+  // ABI-breaking window.
   void extractArgsAndReqsFromLambda(
       char *LambdaPtr,
       const std::vector<detail::kernel_param_desc_t> &ParamDescs, bool IsESIMD);
-  // TODO Unused, remove during ABI breaking window
   void
   extractArgsAndReqsFromLambda(char *LambdaPtr, size_t KernelArgsNum,
                                const detail::kernel_param_desc_t *KernelArgs,
                                bool IsESIMD);
+#endif
+  /// Extracts and prepares kernel arguments from the lambda using information
+  /// from the built-ins or integration header.
+  void extractArgsAndReqsFromLambda(
+      char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+      size_t NumKernelParams, bool IsESIMD);
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
@@ -768,9 +764,11 @@ private:
     // header, so don't perform things that require it.
     if constexpr (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
+
       clearArgs();
       extractArgsAndReqsFromLambda(MHostKernel->getPtr(),
-                                   detail::getKernelParamDescs<KernelName>(),
+                                   &(detail::getKernelParamDesc<KernelName>),
+                                   detail::getKernelNumParams<KernelName>(),
                                    detail::isKernelESIMD<KernelName>());
       MKernelName = detail::getKernelName<KernelName>();
     } else {
