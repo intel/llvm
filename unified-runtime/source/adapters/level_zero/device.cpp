@@ -670,35 +670,35 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceImageProperties->maxImageArraySlices});
-  // Handle SIMD widths.
-  // TODO: can we do better than this?
+  // Handle SIMD widths, matching compute-runtime OpenCL implementation:
+  // https://github.com/intel/compute-runtime/blob/291745cdf76d83f5dc40e7ef41d347366235ccdb/opencl/source/cl_device/cl_device_caps.cpp#L236
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 1);
+    return ReturnValue(uint32_t{16});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 2);
+    return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 4);
+    return ReturnValue(uint32_t{4});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 8);
+    return ReturnValue(uint32_t{1});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 4);
+    return ReturnValue(uint32_t{1});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
     // Must return 0 for *vector_width_double* if the device does not have fp64.
     if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP64))
       return ReturnValue(uint32_t{0});
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 8);
+    return ReturnValue(uint32_t{1});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
     // Must return 0 for *vector_width_half* if the device does not have fp16.
     if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP16))
       return ReturnValue(uint32_t{0});
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 2);
+    return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Max_num_sub_Groups = maxTotalGroupSize/min(set of subGroupSizes);
     uint32_t MinSubGroupSize =
