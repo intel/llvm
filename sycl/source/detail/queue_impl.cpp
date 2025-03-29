@@ -315,8 +315,10 @@ void queue_impl::addEvent(const event &Event) {
   }
   // As long as the queue supports urQueueFinish we only need to store events
   // for undiscarded, unenqueued commands and host tasks.
-  else if (MEmulateOOO ||
-           (EImpl->getHandle() == nullptr && !EImpl->isDiscarded())) {
+  // Event->isHost can be false for L0 on user events but we still need to sync
+  // host tasks explicitly.
+  else if (MEmulateOOO || ((EImpl->getHandle() == nullptr || EImpl->isHost()) &&
+                           !EImpl->isDiscarded())) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -637,7 +639,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
             EventImplWeakPtrIt->lock()) {
       // A nullptr UR event indicates that urQueueFinish will not cover it,
       // either because it's a host task event or an unenqueued one.
-      if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandle()) {
+      if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandle() ||
+          EventImplSharedPtr->isHost()) {
         EventImplSharedPtr->wait(EventImplSharedPtr);
       }
     }

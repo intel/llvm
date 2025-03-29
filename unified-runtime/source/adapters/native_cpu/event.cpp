@@ -121,6 +121,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   DIE_NO_IMPLEMENTATION;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urEventHostSignal(ur_event_handle_t) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 ur_event_handle_t_::ur_event_handle_t_(ur_queue_handle_t queue,
                                        ur_command_t command_type)
     : queue(queue), context(queue->getContext()), command_type(command_type),

@@ -54,7 +54,7 @@ event_impl::~event_impl() {
 
 void event_impl::waitInternal(bool *Success) {
   auto Handle = this->getHandle();
-  if (!MIsHostEvent && Handle) {
+  if (Handle) {
     // Wait for the native event
     ur_result_t Err =
         getAdapter()->call_nocheck<UrApiKind::urEventWait>(1, &Handle);
@@ -92,7 +92,7 @@ void event_impl::waitInternal(bool *Success) {
 }
 
 void event_impl::setComplete() {
-  if (MIsHostEvent || !this->getHandle()) {
+  if (!this->getHandle()) {
     {
       std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
@@ -138,7 +138,6 @@ const AdapterPtr &event_impl::getAdapter() {
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
-  MIsHostEvent = Context == nullptr;
   MContext = Context;
 }
 
@@ -159,6 +158,14 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
   }
 }
 
+void event_impl::allocateHostProfilingInfo() {
+  MHostProfilingInfo.reset(new HostProfilingInfo());
+  if (!MHostProfilingInfo)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Out of host memory " +
+                              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
+}
+
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue}, MIsProfilingEnabled{!Queue || Queue->MIsProfilingEnabled},
       MFallbackProfiling{MIsProfilingEnabled && Queue &&
@@ -167,12 +174,7 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     this->setContextImpl(Queue->getContextImplPtr());
   else {
     MState.store(HES_NotComplete);
-    MHostProfilingInfo.reset(new HostProfilingInfo());
-    if (!MHostProfilingInfo)
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::runtime),
-          "Out of host memory " +
-              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
+    allocateHostProfilingInfo();
     return;
   }
   MState.store(HES_Complete);
@@ -400,7 +402,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   auto Handle = this->getHandle();
-  if (!MIsHostEvent && Handle) {
+  if (Handle) {
     return get_event_info<info::event::reference_count>(Handle,
                                                         this->getAdapter());
   }
@@ -496,18 +498,20 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 ur_native_handle_t event_impl::getNative() {
-  if (isHost())
-    return {};
-  initContextIfNeeded();
-
-  auto Adapter = getAdapter();
   auto Handle = getHandle();
+  if (MIsHostEvent && !Handle)
+    return {};
+
+  initContextIfNeeded();
+  auto Adapter = getAdapter();
+
   if (MIsDefaultConstructed && !Handle) {
     auto TempContext = MContext.get()->getHandleRef();
     ur_event_native_properties_t NativeProperties{};
     ur_event_handle_t UREvent = nullptr;
     Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
         0, TempContext, &NativeProperties, &UREvent);
+    Adapter->call<UrApiKind::urEventHostSignal>(UREvent);
     this->setHandle(UREvent);
     Handle = UREvent;
   }
@@ -627,8 +631,14 @@ bool event_impl::isCompleted() {
 void event_impl::setCommand(void *Cmd) {
   MCommand = Cmd;
   auto TypedCommand = static_cast<Command *>(Cmd);
-  if (TypedCommand)
-    MIsHostEvent = TypedCommand->getWorkerContext() == nullptr;
+  if (TypedCommand && TypedCommand->getWorkerContext() == nullptr)
+    markAsHost();
+}
+
+void event_impl::markAsHost() {
+  MIsHostEvent = true;
+  if (!MHostProfilingInfo)
+    allocateHostProfilingInfo();
 }
 
 } // namespace detail
