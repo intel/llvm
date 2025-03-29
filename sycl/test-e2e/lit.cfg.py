@@ -7,6 +7,7 @@ import re
 import subprocess
 import textwrap
 import shutil
+import sys
 
 import lit.formats
 import lit.util
@@ -414,7 +415,8 @@ config.cuda_include = lit_config.params.get(
     "cuda_include",
     (config.cuda_include if config.cuda_include else config.sycl_include),
 )
-
+config.cuda_libs_dir = '\"' + config.cuda_libs_dir + '\"'
+config.cuda_include = '\"' + config.cuda_include + '\"'
 cuda_options = cuda_options = (
     (" -L" + config.cuda_libs_dir if config.cuda_libs_dir else "")
     + " -lcuda "
@@ -428,7 +430,6 @@ if cl_options:
         + " /I"
         + config.cuda_include
     )
-
 config.substitutions.append(("%cuda_options", cuda_options))
 
 with test_env():
@@ -440,7 +441,10 @@ with test_env():
         config.substitutions.append(("%cuda_options", cuda_options))
     else:
         config.substitutions.append(("%cuda_options", ""))
-
+print(config.available_features)
+print(config.dpcpp_compiler + " -fsycl  " + check_cuda_file + cuda_options)
+print(sp)
+sys.stdout.flush()
 # Check for HIP SDK
 check_hip_file = "hip_include.cpp"
 with open_check_file(check_hip_file) as fp:
@@ -459,7 +463,8 @@ config.hip_include = lit_config.params.get(
     "hip_include",
     (config.hip_include if config.hip_include else config.sycl_include),
 )
-
+config.hip_libs_dir = '\"' + config.hip_libs_dir + '\"'
+config.hip_include = '\"' + config.hip_include + '\"'
 hip_options = hip_options = (
     (" -L" + config.hip_libs_dir if config.hip_libs_dir else "")
     + " -lamdhip64 "
@@ -487,7 +492,6 @@ with test_env():
         config.substitutions.append(("%hip_options", hip_options))
     else:
         config.substitutions.append(("%hip_options", ""))
-
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
     if cl_options:
