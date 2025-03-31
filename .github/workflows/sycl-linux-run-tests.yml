@@ -281,6 +281,7 @@ jobs:
     - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
       uses: ./devops/actions/run-tests/e2e
+      timeout-minutes: 65
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}

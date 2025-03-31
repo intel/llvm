@@ -21,7 +21,6 @@ inputs:
 
 runs:
   using: "composite"
-  timeout-minutes: 65
   steps:
   - name: Checkout E2E tests
     uses: ./devops/actions/cached_checkout
