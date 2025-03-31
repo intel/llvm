@@ -264,7 +264,7 @@ public:
                  std::make_index_sequence<NumElements>()} {}
 };
 
-#if __SYCL_USE_PREVIEW_VEC_IMPL
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
 template <typename DataT> class vec_base<DataT, 1> {
   using DataType = std::conditional_t<
 #if __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE

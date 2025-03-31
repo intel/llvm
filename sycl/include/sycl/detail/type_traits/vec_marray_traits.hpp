@@ -13,15 +13,15 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-#ifndef __SYCL_USE_PREVIEW_VEC_IMPL
+#ifndef __SYCL_USE_LIBSYCL8_VEC_IMPL
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 // Several specification changes need to be implemented together to keep CTS
 // passing. We'll switch to `1` once they all land.
 // `__SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE` needs to be changed to use this
-// `__SYCL_USE_PREVIEW_VEC_IMPL` at that time as well.
-#define __SYCL_USE_PREVIEW_VEC_IMPL 0
+// `__SYCL_USE_LIBSYCL8_VEC_IMPL` at that time as well.
+#define __SYCL_USE_LIBSYCL8_VEC_IMPL 1
 #else
-#define __SYCL_USE_PREVIEW_VEC_IMPL 0
+#define __SYCL_USE_LIBSYCL8_VEC_IMPL 1
 #endif
 #endif
 
