@@ -6513,42 +6513,6 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolDestroyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urUSMPoolSetThresholdExp
-__urdlllocal ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-  auto pfnPoolSetThresholdExp = dditable->ur.USMExp.pfnPoolSetThresholdExp;
-  if (nullptr == pfnPoolSetThresholdExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
-
-  // convert loader handle to platform handle
-  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
-
-  // convert loader handle to platform handle
-  hPool = reinterpret_cast<ur_usm_pool_object_t *>(hPool)->handle;
-
-  // forward to device-platform
-  result = pfnPoolSetThresholdExp(hContext, hDevice, hPool, newThreshold);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPoolGetDefaultDevicePoolExp
 __urdlllocal ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
     /// [in] handle of the context object
@@ -6617,6 +6581,36 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfoExp(
 
   // forward to device-platform
   result = pfnPoolGetInfoExp(hPool, propName, pPropValue, pPropSizeRet);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urUSMPoolSetInfoExp
+__urdlllocal ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize) {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  [[maybe_unused]] auto context = getContext();
+
+  // extract platform's function pointer table
+  auto dditable = reinterpret_cast<ur_usm_pool_object_t *>(hPool)->dditable;
+  auto pfnPoolSetInfoExp = dditable->ur.USMExp.pfnPoolSetInfoExp;
+  if (nullptr == pfnPoolSetInfoExp)
+    return UR_RESULT_ERROR_UNINITIALIZED;
+
+  // convert loader handle to platform handle
+  hPool = reinterpret_cast<ur_usm_pool_object_t *>(hPool)->handle;
+
+  // forward to device-platform
+  result = pfnPoolSetInfoExp(hPool, propName, pPropValue, propSize);
 
   return result;
 }
@@ -11099,10 +11093,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
       // return pointers to loader's DDIs
       pDdiTable->pfnPoolCreateExp = ur_loader::urUSMPoolCreateExp;
       pDdiTable->pfnPoolDestroyExp = ur_loader::urUSMPoolDestroyExp;
-      pDdiTable->pfnPoolSetThresholdExp = ur_loader::urUSMPoolSetThresholdExp;
       pDdiTable->pfnPoolGetDefaultDevicePoolExp =
           ur_loader::urUSMPoolGetDefaultDevicePoolExp;
       pDdiTable->pfnPoolGetInfoExp = ur_loader::urUSMPoolGetInfoExp;
+      pDdiTable->pfnPoolSetInfoExp = ur_loader::urUSMPoolSetInfoExp;
       pDdiTable->pfnPoolSetDevicePoolExp = ur_loader::urUSMPoolSetDevicePoolExp;
       pDdiTable->pfnPoolGetDevicePoolExp = ur_loader::urUSMPoolGetDevicePoolExp;
       pDdiTable->pfnPoolTrimToExp = ur_loader::urUSMPoolTrimToExp;

@@ -94,7 +94,10 @@ etors:
       value: "1"
       desc: "The default device type as preferred by the runtime"
     - name: ALL
-      desc: "Devices of all types"
+      desc: |
+            Devices of all types, for use with $xDeviceGet() and 
+            $xDeviceGetSelected(). This value will never be returned when
+            querying about a device.
     - name: GPU
       desc: "Graphics Processing Unit"
     - name: CPU
