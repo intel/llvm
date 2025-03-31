@@ -37,25 +37,25 @@ PreservedAnalyses FixABIMuxBuiltinsPass::run(Module &M,
           return false;
         }
         Updates.clear();
-        auto LIDvPos = F.getName().find("ELIDv");
+        auto LIDvPos = F.getName().find("ELDv");
         llvm::StringRef NameToMatch;
         if (LIDvPos != llvm::StringRef::npos) {
           // Add sizeof ELIDv to get num characters to match against
-          NameToMatch = F.getName().take_front(LIDvPos + 5);
+          NameToMatch = F.getName().take_front(LIDvPos + 4);
         } else {
           return false;
         }
 
         unsigned int StartIdx = 0;
         unsigned int EndIdx = 1;
-        if (NameToMatch == "_Z32__spirv_SubgroupShuffleDownINTELIDv") {
+        if (NameToMatch == "_Z32__spirv_SubgroupShuffleDownINTELDv") {
           MuxFuncNameToCall = "__mux_sub_group_shuffle_down_";
-        } else if (NameToMatch == "_Z30__spirv_SubgroupShuffleUpINTELIDv") {
+        } else if (NameToMatch == "_Z30__spirv_SubgroupShuffleUpINTELDv") {
           MuxFuncNameToCall = "__mux_sub_group_shuffle_up_";
-        } else if (NameToMatch == "_Z28__spirv_SubgroupShuffleINTELIDv") {
+        } else if (NameToMatch == "_Z28__spirv_SubgroupShuffleINTELDv") {
           MuxFuncNameToCall = "__mux_sub_group_shuffle_";
           EndIdx = 0;
-        } else if (NameToMatch == "_Z31__spirv_SubgroupShuffleXorINTELIDv") {
+        } else if (NameToMatch == "_Z31__spirv_SubgroupShuffleXorINTELDv") {
           MuxFuncNameToCall = "__mux_sub_group_shuffle_xor_";
           EndIdx = 0;
         } else {
