@@ -80,7 +80,8 @@ SYCLBIN::createIRModuleHeader(const SYCLBIN::ModuleDesc &Desc,
                               raw_svector_ostream &MetadataByteTableOS,
                               SmallString<0> &BinaryByteTable,
                               raw_svector_ostream &BinaryByteTableOS) {
-  // If no arch string is present, the module must be IR.
+  // If there is an arch string, the module must be a native device code image.
+  // Return with no IR module in this case.
   if (!Desc.ArchString.empty())
     return std::nullopt;
 
@@ -116,8 +117,8 @@ SYCLBIN::createNativeDeviceCodeImageHeader(
     const SYCLBIN::ModuleDesc &Desc, const module_split::SplitModule &SM,
     SmallString<0> &MetadataByteTable, raw_svector_ostream &MetadataByteTableOS,
     SmallString<0> &BinaryByteTable, raw_svector_ostream &BinaryByteTableOS) {
-  // If arch string is present, the module must be a native device code
-  // image.
+  // If there is no arch string, the module must be an IR module.
+  // Return with no native device code image in this case.
   if (Desc.ArchString.empty())
     return std::nullopt;
 
