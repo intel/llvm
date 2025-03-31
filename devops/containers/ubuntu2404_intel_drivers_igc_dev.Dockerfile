@@ -1,28 +1,23 @@
 ARG base_tag=latest
-ARG base_image=ghcr.io/intel/llvm/ubuntu2204_base
+ARG base_image=ghcr.io/intel/llvm/ubuntu2404_base
 
 FROM $base_image:$base_tag
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG use_unstable_driver=true
-
 USER root
 
-RUN apt update && apt install -yqq wget
+RUN apt update && apt install -yqq libllvm14
 
 COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
 COPY dependencies.json /
+COPY dependencies-igc-dev.json /
 
 RUN mkdir /runtimes
 ENV INSTALL_LOCATION=/runtimes
 RUN --mount=type=secret,id=github_token \
-    if [ "$use_unstable_driver" = "true" ]; then \
-      install_driver_opt=" --use-latest"; \
-    else \
-      install_driver_opt=" dependencies.json"; \
-    fi && \
+    install_driver_opt="dependencies.json dependencies-igc-dev.json --use-dev-igc"; \
     GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh $install_driver_opt --all
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
