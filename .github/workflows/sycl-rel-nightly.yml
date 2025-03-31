@@ -38,7 +38,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda'
+      build_configure_extra_args: '--no-assertions --add_security_flags=sanitize --hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       build_ref: sycl-rel-6_1_0
 
@@ -98,6 +98,7 @@ jobs:
     uses: ./.github/workflows/sycl-windows-build.yml
     with:
       ref: sycl-rel-6_1_0
+      build_configure_extra_args: '--no-assertions --add_security_flags=sanitize'
 
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
