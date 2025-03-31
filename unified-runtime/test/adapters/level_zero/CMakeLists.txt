@@ -94,6 +94,15 @@ function(add_adapter_tests adapter)
         ENVIRONMENT
             "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_${adapter}>\""
         )
+
+    add_adapter_test(${adapter}_mem_buffer_create_with_native_handle
+        FIXTURE DEVICES
+        SOURCES
+            urMemBufferCreateWithNativeHandleShared.cpp
+        ENVIRONMENT
+            "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_${adapter}>\""
+        )
+    target_link_libraries(test-adapter-${adapter}_mem_buffer_create_with_native_handle PRIVATE LevelZeroLoader LevelZeroLoader-Headers)
 endfunction()
 
 if(UR_BUILD_ADAPTER_L0)
