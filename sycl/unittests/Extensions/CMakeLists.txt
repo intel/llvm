@@ -21,6 +21,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   BFloat16.cpp
   LaunchQueries.cpp
   EventMode.cpp
+  DeviceInfo.cpp
 )
 
 add_subdirectory(CommandGraph)
@@ -28,3 +29,4 @@ add_subdirectory(VirtualFunctions)
 add_subdirectory(VirtualMemory)
 add_subdirectory(NumComputeUnits)
 add_subdirectory(FreeFunctionCommands)
+add_subdirectory(KernelQueries)
