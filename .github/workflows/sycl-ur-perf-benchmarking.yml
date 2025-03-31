@@ -39,10 +39,6 @@ on:
       backend:
         type: string
         required: true
-      reset_intel_gpu:
-        type: string  # true/false: workflow_dispatch does not support booleans
-        required: true
-        default: true
 
   workflow_dispatch:
     inputs:
@@ -91,13 +87,6 @@ on:
           - 'level_zero:gpu'
           - 'level_zero_v2:gpu'
             # As of #17407, sycl-linux-build now builds v2 by default
-      reset_intel_gpu:
-        description: Reset Intel GPUs
-        type: choice
-        options:
-          - false
-          - true
-        default: true
 
 permissions: read-all
 
@@ -128,17 +117,14 @@ jobs:
             # Set default values if not specified:
             runner: ${{ inputs.runner || '["PVC_PERF"]' }}
             backend: ${{ inputs.backend || 'level_zero:gpu' }}
-            reset_intel_gpu: ${{ inputs.reset_intel_gpu || 'true' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
-      # TODO support other benchmarks
       name: Run compute-benchmarks (${{ matrix.save_name }}, ${{ matrix.runner }}, ${{ matrix.backend }})
       runner: ${{ matrix.runner }}
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       target_devices: ${{ matrix.backend }}
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       tests_selector: benchmark_v2
       benchmark_upload_results: ${{ inputs.upload_results }}
       benchmark_save_name: ${{ matrix.save_name }}
@@ -158,7 +144,6 @@ jobs:
         include:
           - runner: ${{ inputs.runner || '["PVC_PERF"]' }}
             backend: ${{ inputs.backend || 'level_zero:gpu' }}
-            reset_intel_gpu: ${{ inputs.reset_intel_gpu || 'true' }}
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
@@ -168,7 +153,6 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       target_devices: ${{ matrix.backend }}
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       tests_selector: benchmark_v2
       benchmark_save_name: Baseline
       benchmark_upload_results: ${{ inputs.upload_results }}
