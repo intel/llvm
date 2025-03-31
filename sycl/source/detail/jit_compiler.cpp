@@ -137,7 +137,7 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   }
 }
 
-::jit_compiler::BinaryFormat getTargetFormat(QueueImplPtr &Queue) {
+::jit_compiler::BinaryFormat getTargetFormat(const QueueImplPtr &Queue) {
   auto Backend = Queue->getDeviceImplPtr()->getBackend();
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
@@ -154,7 +154,7 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   }
 }
 
-::jit_compiler::TargetInfo getTargetInfo(QueueImplPtr &Queue) {
+::jit_compiler::TargetInfo getTargetInfo(const QueueImplPtr &Queue) {
   ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
   return ::jit_compiler::TargetInfo::get(
       Format, static_cast<::jit_compiler::DeviceArchitecture>(
@@ -180,6 +180,8 @@ translateArgType(kernel_param_kind_t Kind) {
     return PK::Stream;
   case kind::kind_work_group_memory:
     return PK::WorkGroupMemory;
+  case kind::kind_dynamic_work_group_memory:
+    return PK::DynamicWorkGroupMemory;
   case kind::kind_invalid:
     return PK::Invalid;
   }
@@ -659,7 +661,7 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
 }
 
 ur_kernel_handle_t jit_compiler::materializeSpecConstants(
-    QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
+    const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
     const std::string &KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
 #ifndef _WIN32
@@ -1042,16 +1044,13 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       FusedOrCachedKernelName);
 
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
-  if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
-    detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
-        Queue->get_context(), {Queue->get_device()}, {FusedKernelId}));
-  }
 
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
-      CGType::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
+      std::move(CGData), std::move(FusedArgs),
+      std::move(FusedOrCachedKernelName), {}, {}, CGType::Kernel,
+      KernelCacheConfig, false /* KernelIsCooperative */,
       false /* KernelUsesClusterLaunch*/, 0 /* KernelWorkGroupMemorySize */));
   return FusedCG;
 }

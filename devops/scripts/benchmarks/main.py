@@ -423,8 +423,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output-dir",
         type=str,
-        help="Location for output files, if --output-html or --output_markdown was specified.",
-        default=None,
+        help="Location for output files, if --output-html or --output-markdown was specified.",
+        default=options.output_directory,
     )
     parser.add_argument(
         "--dry-run",
@@ -457,13 +457,13 @@ if __name__ == "__main__":
         default=options.current_run_name,
     )
     parser.add_argument(
-        "--cudnn_directory",
+        "--cudnn-directory",
         type=str,
         help="Directory for cudnn library",
         default=None,
     )
     parser.add_argument(
-        "--cublas_directory",
+        "--cublas-directory",
         type=str,
         help="Directory for cublas library",
         default=None,
@@ -472,13 +472,13 @@ if __name__ == "__main__":
         "--preset",
         type=str,
         choices=[p for p in presets.keys()],
-        help="Benchmark preset to run.",
+        help="Benchmark preset to run",
         default=options.preset,
     )
     parser.add_argument(
         "--results-dir",
         type=str,
-        help="Specify a custom results directory",
+        help="Specify a custom directory to load/store (historical) results from",
         default=options.custom_results_dir,
     )
     parser.add_argument(
@@ -486,6 +486,12 @@ if __name__ == "__main__":
         type=int,
         help="Number of build jobs to run simultaneously",
         default=options.build_jobs,
+    )
+    parser.add_argument(
+        "--hip-arch",
+        type=str,
+        help="HIP device architecture",
+        default=None,
     )
 
     args = parser.parse_args()
@@ -515,6 +521,7 @@ if __name__ == "__main__":
     options.preset = args.preset
     options.custom_results_dir = args.results_dir
     options.build_jobs = args.build_jobs
+    options.hip_arch = args.hip_arch
 
     if args.build_igc and args.compute_runtime is None:
         parser.error("--build-igc requires --compute-runtime to be set")
@@ -525,6 +532,10 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
+    if args.results_dir is not None:
+        if not os.path.isdir(args.results_dir):
+            parser.error("Specified --results-dir is not a valid path")
+        options.custom_results_dir = os.path.abspath(args.results_dir)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

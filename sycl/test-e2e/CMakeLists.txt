@@ -78,6 +78,12 @@ if(NOT DEFINED CUDA_LIBS_DIR AND NOT DEFINED CUDA_INCLUDE)
   endif()
 endif()
 
+find_package(hip HINTS ENV ROCM_PATH "/opt/rocm")
+if(hip_FOUND)
+  set(HIP_LIBS_DIR "${hip_LIB_INSTALL_DIR}")
+  set(HIP_INCLUDE "${hip_INCLUDE_DIRS}")
+endif()
+
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
                  "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py")

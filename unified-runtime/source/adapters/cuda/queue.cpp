@@ -279,7 +279,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   else if (CuFlags == CU_STREAM_NON_BLOCKING)
     Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   else
-    detail::ur::die("Unknown cuda stream");
+    die("Unknown cuda stream");
 
   std::vector<CUstream> ComputeCuStreams(1, CuStream);
   std::vector<CUstream> TransferCuStreams(0);

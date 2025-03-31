@@ -1307,11 +1307,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolDestroyExp_t)(
     ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urUSMPoolSetThresholdExp
-typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolSetThresholdExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t, size_t);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMPoolGetDefaultDevicePoolExp
 typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetDefaultDevicePoolExp_t)(
     ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *);
@@ -1321,6 +1316,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetDefaultDevicePoolExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetInfoExp_t)(ur_usm_pool_handle_t,
                                                            ur_usm_pool_info_t,
                                                            void *, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolSetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolSetInfoExp_t)(ur_usm_pool_handle_t,
+                                                           ur_usm_pool_info_t,
+                                                           void *, size_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMPoolSetDevicePoolExp
@@ -1360,9 +1361,9 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMReleaseExp_t)(ur_context_handle_t,
 typedef struct ur_usm_exp_dditable_t {
   ur_pfnUSMPoolCreateExp_t pfnPoolCreateExp;
   ur_pfnUSMPoolDestroyExp_t pfnPoolDestroyExp;
-  ur_pfnUSMPoolSetThresholdExp_t pfnPoolSetThresholdExp;
   ur_pfnUSMPoolGetDefaultDevicePoolExp_t pfnPoolGetDefaultDevicePoolExp;
   ur_pfnUSMPoolGetInfoExp_t pfnPoolGetInfoExp;
+  ur_pfnUSMPoolSetInfoExp_t pfnPoolSetInfoExp;
   ur_pfnUSMPoolSetDevicePoolExp_t pfnPoolSetDevicePoolExp;
   ur_pfnUSMPoolGetDevicePoolExp_t pfnPoolGetDevicePoolExp;
   ur_pfnUSMPoolTrimToExp_t pfnPoolTrimToExp;

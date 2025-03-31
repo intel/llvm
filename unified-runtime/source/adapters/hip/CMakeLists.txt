@@ -110,12 +110,21 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     # Import HIP runtime library
     add_library(rocmdrv SHARED IMPORTED GLOBAL)
 
-    set_target_properties(
-    rocmdrv PROPERTIES
-        IMPORTED_LOCATION                    "${UR_HIP_LIB_DIR}/libamdhip64.so"
-        INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
-        INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
-    )
+    if(WIN32)
+      set_target_properties(
+      rocmdrv PROPERTIES
+          IMPORTED_IMPLIB                      "${UR_HIP_LIB_DIR}/amdhip64.lib"
+          INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
+          INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
+      )
+    else()
+      set_target_properties(
+      rocmdrv PROPERTIES
+          IMPORTED_LOCATION                    "${UR_HIP_LIB_DIR}/libamdhip64.so"
+          INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
+          INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
+      )
+    endif()
 
     if(UR_ENABLE_COMGR)
         set(UR_COMGR_VERSION5_HEADER "${UR_HIP_INCLUDE_DIR}/amd_comgr/amd_comgr.h")

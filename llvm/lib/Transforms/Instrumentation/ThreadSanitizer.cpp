@@ -118,12 +118,18 @@ struct ThreadSanitizerOnSpirv {
 
   void initialize();
 
-  void instrumentKernelsMetadata();
+  void instrumentModule();
 
   void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
 
 private:
+  void instrumentGlobalVariables();
+
+  void instrumentKernelsMetadata();
+
   bool isSupportedSPIRKernel(Function &F);
+
+  bool isUnsupportedDeviceGlobal(const GlobalVariable &G);
 
   GlobalVariable *GetOrCreateGlobalString(StringRef Name, StringRef Value,
                                           unsigned AddressSpace);
@@ -243,7 +249,7 @@ PreservedAnalyses ModuleThreadSanitizerPass::run(Module &M,
     return PreservedAnalyses::all();
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     ThreadSanitizerOnSpirv Spirv(M);
-    Spirv.instrumentKernelsMetadata();
+    Spirv.instrumentModule();
   } else
     insertModuleCtor(M);
   return PreservedAnalyses::none();
@@ -325,6 +331,70 @@ bool ThreadSanitizerOnSpirv::isSupportedSPIRKernel(Function &F) {
   }
 
   return true;
+}
+
+bool ThreadSanitizerOnSpirv::isUnsupportedDeviceGlobal(
+    const GlobalVariable &G) {
+  if (G.user_empty())
+    return true;
+  // Skip instrumenting on "__TsanKernelMetadata" etc.
+  if (G.getName().starts_with("__Tsan"))
+    return true;
+  if (G.getName().starts_with("__tsan_"))
+    return true;
+  if (G.getName().starts_with("__spirv_BuiltIn"))
+    return true;
+  if (G.getName().starts_with("__usid_str"))
+    return true;
+  // TODO: Will support global variable with local address space later.
+  if (G.getAddressSpace() == kSpirOffloadLocalAS)
+    return true;
+  // Global variables have constant value or constant address space will not
+  // trigger race condition.
+  if (G.isConstant() || G.getAddressSpace() == kSpirOffloadConstantAS)
+    return true;
+  return false;
+}
+
+void ThreadSanitizerOnSpirv::instrumentModule() {
+  instrumentGlobalVariables();
+  instrumentKernelsMetadata();
+}
+
+void ThreadSanitizerOnSpirv::instrumentGlobalVariables() {
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  // Device global metadata is described by a structure
+  //  size_t device_global_size
+  //  size_t beginning address of the device global
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+  for (auto &G : M.globals()) {
+    if (isUnsupportedDeviceGlobal(G)) {
+      for (auto *User : G.users())
+        if (auto *Inst = dyn_cast<Instruction>(User))
+          Inst->setNoSanitizeMetadata();
+      continue;
+    }
+
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy,
+        ConstantInt::get(IntptrTy, DL.getTypeAllocSize(G.getValueType())),
+        ConstantExpr::getPointerCast(&G, IntptrTy)));
+  }
+
+  if (DeviceGlobalMetadata.empty())
+    return;
+
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__TsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
 }
 
 void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {

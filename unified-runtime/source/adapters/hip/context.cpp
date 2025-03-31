@@ -61,7 +61,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  switch (uint32_t{propName}) {
+  switch (propName) {
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(static_cast<uint32_t>(hContext->Devices.size()));
   case UR_CONTEXT_INFO_DEVICES:

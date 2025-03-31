@@ -106,11 +106,6 @@ ur_result_t mapCLErrorToUR(cl_int Result) {
   }
 }
 
-void cl_adapter::die(const char *Message) {
-  logger::always("ur_die: {}", Message);
-  std::terminate();
-}
-
 /// Common API for getting the native handle of a UR object
 ///
 /// \param URObj is the UR object to get the native handle of

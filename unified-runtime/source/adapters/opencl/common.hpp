@@ -157,8 +157,6 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 [[maybe_unused]] void setErrorMessage(const char *Message,
                                       ur_result_t ErrorCode);
 
-[[noreturn]] void die(const char *Message);
-
 template <class To, class From> To cast(From Value) {
 
   if constexpr (std::is_pointer_v<From>) {

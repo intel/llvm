@@ -270,7 +270,7 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
     if (map.find(key) != map.end()) {
       map[key].insert(map[key].end(), values_vec.begin(), values_vec.end());
     } else {
-      map[key] = values_vec;
+      map[key] = std::move(values_vec);
     }
   }
   return map;

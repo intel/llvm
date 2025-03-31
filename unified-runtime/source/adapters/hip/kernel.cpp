@@ -328,8 +328,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
       if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
           Format != HIP_AD_FORMAT_SIGNED_INT32 &&
           Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
-        detail::ur::die(
-            "UR HIP kernels only support images with channel types int32, "
+        die("UR HIP kernels only support images with channel types int32, "
             "uint32, float, and half.");
       }
       hipSurfaceObject_t hipSurf =

@@ -18,23 +18,6 @@
 #include <memory>
 #include <unordered_set>
 
-// Trace an internal UR call
-#define UR_TRACE(Call)                                                         \
-  {                                                                            \
-    ur_result_t Result;                                                        \
-    UR_CALL(Call, Result);                                                     \
-  }
-
-// Trace an internal UR call and return the result to the user.
-#define UR_CALL(Call, Result)                                                  \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
-    Result = (Call);                                                           \
-    if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, Result);                         \
-  }
-
 enum class CommandType {
   Kernel,
   USMMemcpy,

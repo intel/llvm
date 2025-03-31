@@ -939,6 +939,11 @@ void MemorySanitizerOnSpirv::instrumentGlobalVariables() {
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
 
   for (auto &G : M.globals()) {
+    // DeviceSanitizers cannot handle nameless globals, therefore we set a name
+    // for them so that we can handle them like regular globals.
+    if (G.getName().empty() && G.hasInternalLinkage())
+      G.setName("nameless_global");
+
     if (isUnsupportedDeviceGlobal(&G)) {
       for (auto *User : G.users())
         if (auto *Inst = dyn_cast<Instruction>(User))
@@ -5844,7 +5849,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (isa<CallInst>(CB) && cast<CallInst>(CB).isMustTailCall())
       return;
 
-    if (MayCheckCall && CB.hasRetAttr(Attribute::NoUndef)) {
+    // Since Spirv always does eager checking, the shadow of retval must be
+    // zeros
+    if (SpirOrSpirv || (MayCheckCall && CB.hasRetAttr(Attribute::NoUndef))) {
       setShadow(&CB, getCleanShadow(&CB));
       setOrigin(&CB, getCleanOrigin());
       return;
@@ -5919,7 +5926,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     // The caller may still expect information passed over TLS if we pass our
     // check
-    if (StoreShadow) {
+    if (StoreShadow && !SpirOrSpirv) {
       IRB.CreateAlignedStore(Shadow, ShadowPtr, kShadowTLSAlignment);
       if (MS.TrackOrigins && StoreOrigin)
         IRB.CreateStore(getOrigin(RetVal), getOriginPtrForRetval());

@@ -126,20 +126,36 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Structure with function pointers for External Semaphore Extension.
   struct ZeExternalSemaphoreExtension {
     bool Supported = false;
-    ze_result_t (*zexImportExternalSemaphoreExp)(
+    // If LoaderExtension is true, the L0 loader is aware of the External
+    // Semaphore Extension. If it is false, the extension has to be loaded
+    // directly from the driver using zeDriverGetExtensionFunctionAddress. If it
+    // is loaded directly from the driver, any handles passed to it must be
+    // translated using zelLoaderTranslateHandle.
+    bool LoaderExtension = false;
+    // Spec Functions
+    ze_pfnDeviceImportExternalSemaphoreExt_t zexImportExternalSemaphoreExp =
+        nullptr;
+    ze_pfnCommandListAppendWaitExternalSemaphoreExt_t
+        zexCommandListAppendWaitExternalSemaphoresExp = nullptr;
+    ze_pfnCommandListAppendSignalExternalSemaphoreExt_t
+        zexCommandListAppendSignalExternalSemaphoresExp = nullptr;
+    ze_pfnDeviceReleaseExternalSemaphoreExt_t
+        zexDeviceReleaseExternalSemaphoreExp = nullptr;
+    // Driver EXP Functions
+    ze_result_t (*zexExpImportExternalSemaphoreExp)(
         ze_device_handle_t, const ze_intel_external_semaphore_exp_desc_t *,
         ze_intel_external_semaphore_exp_handle_t *);
-    ze_result_t (*zexCommandListAppendWaitExternalSemaphoresExp)(
+    ze_result_t (*zexExpCommandListAppendWaitExternalSemaphoresExp)(
         ze_command_list_handle_t, unsigned int,
         const ze_intel_external_semaphore_exp_handle_t *,
         const ze_intel_external_semaphore_wait_params_exp_t *,
         ze_event_handle_t, uint32_t, ze_event_handle_t *);
-    ze_result_t (*zexCommandListAppendSignalExternalSemaphoresExp)(
+    ze_result_t (*zexExpCommandListAppendSignalExternalSemaphoresExp)(
         ze_command_list_handle_t, size_t,
         const ze_intel_external_semaphore_exp_handle_t *,
         const ze_intel_external_semaphore_signal_params_exp_t *,
         ze_event_handle_t, uint32_t, ze_event_handle_t *);
-    ze_result_t (*zexDeviceReleaseExternalSemaphoreExp)(
+    ze_result_t (*zexExpDeviceReleaseExternalSemaphoreExp)(
         ze_intel_external_semaphore_exp_handle_t);
   } ZeExternalSemaphoreExt;
 

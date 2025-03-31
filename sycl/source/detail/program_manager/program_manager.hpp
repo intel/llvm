@@ -350,7 +350,7 @@ private:
 
   using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
                                      decltype(&::urProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
+  ProgramPtr build(ProgramPtr Program, const ContextImplPtr &Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions,
                    std::vector<ur_device_handle_t> &Devices,

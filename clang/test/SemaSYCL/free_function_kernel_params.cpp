@@ -1,7 +1,8 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
 // RUN: %s -o - | FileCheck %s
 // This test checks parameter rewriting for free functions with parameters
-// of type scalar, pointer, non-decomposed struct and work group memory.
+// of type scalar, pointer, non-decomposed struct, work group memory and 
+// dynamic work group memory.
 
 #include "sycl.hpp"
 
@@ -191,3 +192,23 @@ void ff_7(sycl::work_group_memory<int> mem) {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::work_group_memory<int>)' <FunctionToPointerDecay>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (sycl::work_group_memory<int>)' lvalue Function {{.*}} 'ff_7' 'void (sycl::work_group_memory<int>)'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::work_group_memory<int>' Var {{.*}} 'mem' 'sycl::work_group_memory<int>'
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_8(sycl::dynamic_work_group_memory<int> DynMem) {
+}
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__local int *)'
+// CHECK-NEXT: ParmVarDecl {{.*}} used __arg_Ptr '__local int *'
+// CHECK-NEXT: CompoundStmt
+// CHECK-NEXT: DeclStmt
+// CHECK-NEXT: VarDecl {{.*}} used DynMem 'sycl::dynamic_work_group_memory<int>' callinit
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::dynamic_work_group_memory<int>' 'void () noexcept'
+// CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT: MemberExpr {{.*}} 'void (__local int *)' lvalue .__init
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::dynamic_work_group_memory<int>' Var {{.*}} 'DynMem' 'sycl::dynamic_work_group_memory<int>'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} '__local int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr {{.*}} '__local int *' lvalue ParmVar {{.*}} '__arg_Ptr' '__local int *'
+// CHECK-NEXT: CallExpr {{.*}} 'void'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::dynamic_work_group_memory<int>)' <FunctionToPointerDecay>
+// CHECK-NEXT: DeclRefExpr {{.*}} 'void (sycl::dynamic_work_group_memory<int>)' lvalue Function {{.*}} 'ff_8' 'void (sycl::dynamic_work_group_memory<int>)'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::dynamic_work_group_memory<int>' Var {{.*}} 'DynMem' 'sycl::dynamic_work_group_memory<int>'

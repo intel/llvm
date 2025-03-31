@@ -23,6 +23,8 @@ config.level_zero_libs_dir = "@LEVEL_ZERO_LIBS_DIR@"
 config.level_zero_include = "@LEVEL_ZERO_INCLUDE@"
 config.cuda_libs_dir = "@CUDA_LIBS_DIR@"
 config.cuda_include = "@CUDA_INCLUDE@"
+config.hip_libs_dir = "@HIP_LIBS_DIR@"
+config.hip_include = "@HIP_INCLUDE@"
 
 config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
 
