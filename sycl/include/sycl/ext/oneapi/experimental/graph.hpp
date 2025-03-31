@@ -549,15 +549,16 @@ class dynamic_work_group_memory_base
 {
 public:
   dynamic_work_group_memory_base() = default;
-  dynamic_work_group_memory_base(
-      [[maybe_unused]] experimental::command_graph<graph_state::modifiable>
-          Graph,
-      [[maybe_unused]] size_t Size)
 #ifndef __SYCL_DEVICE_ONLY__
-      : dynamic_parameter_base(Graph), BufferSize(Size)
+  dynamic_work_group_memory_base(
+      experimental::command_graph<graph_state::modifiable> Graph, size_t Size)
+      : dynamic_parameter_base(Graph), BufferSize(Size) {}
+#else
+  dynamic_work_group_memory_base(
+      experimental::command_graph<graph_state::modifiable> /*Graph*/,
+      size_t Size)
+      : BufferSize(Size) {}
 #endif
-  {
-  }
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
