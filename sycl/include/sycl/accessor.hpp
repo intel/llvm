@@ -288,7 +288,7 @@ sycl::range<1> GetZeroDimAccessRange(BufferT Buffer) {
   return std::min(Buffer.size(), size_t{1});
 }
 
-__SYCL_EXPORT device getDeviceFromHandler(handler &CommandGroupHandlerRef);
+bool handlerDeviceHasAspect(handler &cgh, aspect Aspect);
 
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
