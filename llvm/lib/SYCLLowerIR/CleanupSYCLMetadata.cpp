@@ -67,11 +67,9 @@ PreservedAnalyses CleanupSYCLMetadataPass::run(Module &M,
     cleanupSYCLCompilerModuleMetadata(M, MD);
 
   // Cleanup no longer needed function metadata.
-  SmallVector<StringRef, 1> FunctionMDToRemove = {"srcloc"};
   for (auto &F : M) {
-    for (const auto &MD : FunctionMDToRemove)
-      if (F.getMetadata(MD))
-        F.setMetadata(MD, nullptr);
+    if (F.getMetadata("srcloc"))
+      F.setMetadata("srcloc", nullptr);
   }
 
   return PreservedAnalyses::all();
