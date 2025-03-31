@@ -19,7 +19,3 @@ template SYCL_EXTERNAL sycl::vec<int, 4> sycl::vec<float, 4>::as<sycl::vec<int, 
 // CHECK-NEXT:    tail call void @llvm.memcpy.p0.p4.i64(ptr noundef nonnull align 16 dereferenceable(16) [[AGG_RESULT]], ptr addrspace(4) noundef align 16 dereferenceable(16) [[THIS]], i64 16, i1 false)
 // CHECK-NEXT:    ret void
 //
-//.
-// CHECK: [[META6]] = !{i32 8106399}
-// CHECK: [[META7]] = !{}
-//.
