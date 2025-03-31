@@ -696,6 +696,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "SubgroupRequirementsINTEL");
   add(internal::CapabilityTaskSequenceINTEL, "TaskSequenceINTEL");
   add(internal::CapabilityBindlessImagesINTEL, "BindlessImagesINTEL");
+  add(internal::CapabilityTernaryBitwiseFunctionINTEL,
+      "TernaryBitwiseFunctionINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 
