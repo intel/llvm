@@ -2,10 +2,7 @@
 // XFAIL: (opencl && !cpu && !accelerator)
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/14641
 
-// TODO: Currently using the -Wno-deprecated-declarations flag due to issue
-// https://github.com/intel/llvm/issues/16451. Rewrite testRootGroup() amd
-// remove the flag once the issue is resolved.
-// RUN: %{build} -I . -o %t.out -Wno-deprecated-declarations %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
+// RUN: %{build} -I . -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
 // RUN: %{run} %t.out
 
 // Disabled temporarily while investigation into the failure is ongoing.
@@ -73,14 +70,15 @@ void testRootGroup() {
           .ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::
                                    kernel_queue_specific::max_num_work_groups>(
               q, WorkGroupSize, 0);
-  const auto props = sycl::ext::oneapi::experimental::properties{
-      sycl::ext::oneapi::experimental::use_root_sync};
   sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
-  q.submit([&](sycl::handler &h) {
-    sycl::accessor data{dataBuf, h};
-    h.parallel_for<
-        class RootGroupKernel>(range, props, [=](sycl::nd_item<1> it) {
+  struct TestKernel1 {
+    sycl::buffer<int> *m_dataBuf;
+    sycl::handler *m_h;
+    TestKernel1(sycl::buffer<int> *dataBuf, sycl::handler *h)
+        : m_dataBuf(dataBuf), m_h(h) {}
+    void operator()(sycl::nd_item<1> it) const {
+      sycl::accessor data{*m_dataBuf, *m_h};
       volatile float X = 1.0f;
       volatile float Y = 1.0f;
       auto root = it.ext_oneapi_get_root_group();
@@ -98,7 +96,15 @@ void testRootGroup() {
                 data[root.get_local_range() - root.get_local_id() - 1];
       sycl::group_barrier(root);
       data[root.get_local_id()] = sum;
-    });
+    }
+    auto get(sycl::ext::oneapi::experimental::properties_tag) {
+      return sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::use_root_sync};
+      ;
+    }
+  };
+  q.submit([&](sycl::handler &h) {
+    h.parallel_for<class RootGroupKernel>(range, TestKernel1(&dataBuf, &h));
   });
   sycl::host_accessor data{dataBuf};
   const int workItemCount = static_cast<int>(range.get_global_range().size());
