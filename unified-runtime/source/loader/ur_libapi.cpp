@@ -7072,7 +7072,6 @@ ur_result_t UR_APICALL urUSMPoolGetInfoExp(
 ///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
-///         + `pPropValue == NULL`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
