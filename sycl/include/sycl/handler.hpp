@@ -150,6 +150,7 @@ class pipe;
 
 namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
+template <typename, typename> class dynamic_work_group_memory;
 struct image_descriptor;
 __SYCL_EXPORT void async_free(sycl::handler &h, void *ptr);
 __SYCL_EXPORT void *async_malloc(sycl::handler &h, sycl::usm::alloc kind,
@@ -160,6 +161,8 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
+class dynamic_parameter_base;
+class dynamic_work_group_memory_base;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
@@ -210,6 +213,7 @@ class HandlerAccess;
 class HostTask;
 
 using EventImplPtr = std::shared_ptr<event_impl>;
+using DeviceImplPtr = std::shared_ptr<device_impl>;
 
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
@@ -246,6 +250,7 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 };
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
+const DeviceImplPtr &getDeviceImplFromHandler(handler &);
 
 // Checks if a device_global has any registered kernel usage.
 __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
@@ -679,6 +684,12 @@ private:
     // with the node being added
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
+
+  // setArgHelper for graph dynamic_work_group_memory
+  void
+  setArgHelper(int ArgIndex,
+               ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+                   &DynWorkGroupBase);
 
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
@@ -1877,6 +1888,18 @@ public:
   void set_arg(int argIndex,
                ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
     setArgHelper(argIndex, dynamicParam);
+  }
+
+  // set_arg for graph dynamic_work_group_memory
+  template <typename DataT, typename PropertyListT =
+                                ext::oneapi::experimental::empty_properties_t>
+  void set_arg(
+      int argIndex,
+      ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
+          &dynWorkGroupMem) {
+    ext::oneapi::experimental::detail::dynamic_work_group_memory_base
+        &dynWorkGroupBase = dynWorkGroupMem;
+    setArgHelper(argIndex, dynWorkGroupBase);
   }
 
   // set_arg for the raw_kernel_arg extension type.
@@ -3460,6 +3483,8 @@ private:
             typename PropertyListT>
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
+  friend const detail::DeviceImplPtr &
+  detail::getDeviceImplFromHandler(handler &);
 
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
@@ -3754,13 +3779,13 @@ private:
   /// According to section 4.7.6.11. of the SYCL specification, a local accessor
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
-  template <typename KernelName, typename KernelType>
-  void throwOnKernelParameterMisuse() const {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    for (unsigned I = 0; I < detail::getKernelNumParams<NameT>(); ++I) {
-      const detail::kernel_param_desc_t ParamDesc =
-          detail::getKernelParamDesc<NameT>(I);
+  //
+  // Exception handling generates lots of code, outline it out of template
+  // method to improve compilation times.
+  void throwOnKernelParameterMisuseHelper(
+      int N, detail::kernel_param_desc_t (*f)(int)) const {
+    for (int I = 0; I < N; ++I) {
+      detail::kernel_param_desc_t ParamDesc = (*f)(I);
       const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
       const access::target AccTarget =
           static_cast<access::target>(ParamDesc.info & AccessTargetMask);
@@ -3771,13 +3796,21 @@ private:
             "A local accessor must not be used in a SYCL kernel function "
             "that is invoked via single_task or via the simple form of "
             "parallel_for that takes a range parameter.");
-      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
+      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory ||
+          Kind == detail::kernel_param_kind_t::kind_dynamic_work_group_memory)
         throw sycl::exception(
             make_error_code(errc::kernel_argument),
             "A work group memory object must not be used in a SYCL kernel "
             "function that is invoked via single_task or via the simple form "
             "of parallel_for that takes a range parameter.");
     }
+  }
+  template <typename KernelName, typename KernelType>
+  void throwOnKernelParameterMisuse() const {
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    throwOnKernelParameterMisuseHelper(detail::getKernelNumParams<NameT>(),
+                                       &detail::getKernelParamDesc<NameT>);
   }
 
   template <typename T, int Dims, access::mode AccessMode,
