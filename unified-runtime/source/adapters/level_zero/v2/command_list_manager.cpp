@@ -162,7 +162,7 @@ wait_list_view ur_command_list_manager::getWaitListView(
     ur_event_handle_t additionalWaitEvent) {
 
   uint32_t totalNumWaitEvents =
-      numWaitEvents + additionalWaitEvent != nullptr ? 1 : 0;
+      numWaitEvents + (additionalWaitEvent != nullptr ? 1 : 0);
   waitList.resize(totalNumWaitEvents);
   for (uint32_t i = 0; i < numWaitEvents; i++) {
     waitList[i] = phWaitEvents[i]->getZeEvent();
