@@ -177,14 +177,22 @@ jobs:
 
     - name: Run End-to-End tests
       if: inputs.tests_selector == 'e2e'
-      shell: bash
+      shell: bash {0}
       run: |
         # Run E2E tests.
         if [[ ${{inputs.compiler}} == 'icx' ]]; then
            export LIT_FILTER_OUT="compile_on_win_with_mdd"
         fi
         export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param test-mode=${{ inputs.e2e_testing_mode }} ${{ inputs.extra_lit_opts }}"
-        cmake --build build-e2e --target check-sycl-e2e
+        cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
+
+        exit_code=$?
+        cat e2e.log
+        if [ $exit_code -ne 0 ]; then
+          # This is duplicated between lin/win, updates must change both.
+          awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+        fi
+        exit $exit_code
 
     # Github CI doesn't support containers on Windows, so we cannot guarantee
     # that paths are the same between building and running systems. To avoid

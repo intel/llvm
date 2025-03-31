@@ -1089,8 +1089,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     unsigned long long ClocksEventReasons;
+#if (CUDA_VERSION >= 12060)
     UR_CHECK_ERROR(nvmlDeviceGetCurrentClocksEventReasons(hDevice->getNVML(),
                                                           &ClocksEventReasons));
+#else
+    UR_CHECK_ERROR(nvmlDeviceGetCurrentClocksThrottleReasons(
+        hDevice->getNVML(), &ClocksEventReasons));
+#endif
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
     constexpr unsigned long long NVMLThrottleFlags[] = {
         nvmlClocksThrottleReasonSwPowerCap,
