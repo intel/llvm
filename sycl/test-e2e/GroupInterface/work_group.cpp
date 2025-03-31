@@ -47,14 +47,18 @@ int main() {
   queue q;
   sycl::buffer<bool, 1> result(1);
 
-  const int sz = 16;
+  {
+    sycl::host_accessor<bool, 0> acc{result};
+    acc = true;
+  }
+
+  const int sz = 2;
   q.submit([&](handler &h) {
     sycl::accessor<bool, 0> acc{result, h};
     h.parallel_for(nd_range<1>{sz, sz}, [=](nd_item<1> item) {
       group<1> g = item.get_group();
 
       khr::work_group<1> wg = g;
-      acc = true;
       acc &= (wg.id() == g.get_group_id());
       acc &= (wg.linear_id() == g.get_group_linear_id());
       acc &= (wg.range() == g.get_group_range());
