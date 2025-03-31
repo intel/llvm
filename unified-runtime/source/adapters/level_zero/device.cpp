@@ -1219,6 +1219,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
     if (!ParamValue) {
