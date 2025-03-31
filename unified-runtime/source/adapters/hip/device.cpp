@@ -13,6 +13,7 @@
 #include "context.hpp"
 #include "event.hpp"
 
+#include <array>
 #include <hip/hip_runtime.h>
 #include <sstream>
 
