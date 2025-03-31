@@ -40,6 +40,8 @@ def enabled_suites(preset: str) -> list[str]:
         raise ValueError(f"Preset '{preset}' not found.")
 
 
+# Utility scripts to validate a given preset, useful for e.g. CI:
+
 def main():
     parser = argparse.ArgumentParser(description="Benchmark Preset Utilities")
     subparsers = parser.add_subparsers(dest="command", required=True)
