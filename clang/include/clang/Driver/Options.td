@@ -7190,6 +7190,9 @@ defm sycl_allow_device_image_dependencies: BoolOptionWithoutMarshalling<"f", "sy
 def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
   Flags<[NoXarchOption]>,
   HelpText<"Dump device code into the user provided directory.">;
+def fno_spirv : Flag<["-"], "fno-spirv">,
+  HelpText<"Disable inclusion of default spir64 target when performing SYCL "
+           "offloading.">;
 } // let Group = sycl_Group
 
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.

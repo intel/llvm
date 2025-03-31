@@ -439,6 +439,12 @@ and not recommended to use in production environment.
     When this option is used in conjunction with -fsycl, the driver will link
     against an alternate form of libsycl, libsycl-preview.
 
+**`-fno-spirv`**
+
+    By default, the use of -fsycl will always perform a device compilation
+    that targets spir64 for JIT compilation.  Use -fno-spirv to disable this
+    behavior.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.
