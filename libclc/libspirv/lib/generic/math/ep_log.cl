@@ -57,9 +57,8 @@ _CLC_DEF void __clc_ep_log(double x, int *xexp, double *r1, double *r2) {
   double f2 = f - f1;
   double u2 = MATH_DIVIDE(f2, __spirv_ocl_fma(0.5, f2, f1));
 
-  double2 tv = USE_TABLE(ln_tbl, (index - 64));
-  double z1 = tv.s0;
-  double q = tv.s1;
+  double z1 = USE_TABLE(ln_tbl_lo, (index - 64));;
+  double q = USE_TABLE(ln_tbl_hi, (index - 64));
 
   z1 = near_one ? r : z1;
   q = near_one ? 0.0 : q;

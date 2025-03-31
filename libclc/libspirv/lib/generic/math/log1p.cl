@@ -110,9 +110,8 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_log1p(double x) {
   double f2 = xexp <= MANTLENGTH_DP64 - 1 ? f2l : f2g;
   f2 = (xexp <= -2) || (xexp >= MANTLENGTH_DP64 + 8) ? f2temp : f2;
 
-  double2 tv = USE_TABLE(ln_tbl, j);
-  double z1 = tv.s0;
-  double q = tv.s1;
+  double z1 = USE_TABLE(ln_tbl_lo, j);
+  double q = USE_TABLE(ln_tbl_hi, j);
 
   double u = MATH_DIVIDE(f2, __spirv_ocl_fma(0.5, f2, f1));
   double v = u * u;
