@@ -97,7 +97,7 @@ void testRootGroup() {
       sycl::group_barrier(root);
       data[root.get_local_id()] = sum;
     }
-    auto get(sycl::ext::oneapi::experimental::properties_tag) {
+    auto get(sycl::ext::oneapi::experimental::properties_tag) const {
       return sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::use_root_sync};
       ;
