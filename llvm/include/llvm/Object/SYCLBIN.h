@@ -25,6 +25,10 @@ public:
   SYCLBIN(MemoryBufferRef Source) : Data{Source} {}
 
   SYCLBIN(const SYCLBIN &Other) = delete;
+  SYCLBIN(SYCLBIN &&Other) = default;
+
+  SYCLBIN &operator=(const SYCLBIN &Other) = delete;
+  SYCLBIN &operator=(SYCLBIN &&Other) = default;
 
   MemoryBufferRef getMemoryBufferRef() const { return Data; }
 

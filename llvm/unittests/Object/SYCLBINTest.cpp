@@ -29,6 +29,9 @@ public:
   ManagedBinaryFile(ManagedBinaryFile &&) = default;
   ManagedBinaryFile(const ManagedBinaryFile &) = delete;
 
+  ManagedBinaryFile &operator=(ManagedBinaryFile &&) = default;
+  ManagedBinaryFile &operator=(const ManagedBinaryFile &) = delete;
+
   ~ManagedBinaryFile() { fs::remove(FileName); }
 
   static Expected<ManagedBinaryFile> create(StringRef FileName,
