@@ -2092,7 +2092,17 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
+<<<<<<< HEAD
     IsInvalid |= checkSyclSpecialType(ParamTy, PD->getLocation());
+=======
+    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) &&
+        !SemaSYCL::isSyclType(ParamTy,
+                              SYCLTypeAttr::dynamic_work_group_memory)) {
+      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
+          << ParamTy;
+      IsInvalid = true;
+    }
+>>>>>>> 8113cb9ccb03a97ae7f7c01cd107d549ebcbb322
     return isValid();
   }
 
@@ -2243,7 +2253,14 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
+<<<<<<< HEAD
     return checkType(PD->getLocation(), ParamTy);
+=======
+    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) &&
+        !SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::dynamic_work_group_memory))
+      unsupportedFreeFunctionParamType(); // TODO
+    return true;
+>>>>>>> 8113cb9ccb03a97ae7f7c01cd107d549ebcbb322
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -3027,6 +3044,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
+<<<<<<< HEAD
     const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
@@ -3043,6 +3061,29 @@ public:
         Params.back()->addAttr(AddIRAttr->clone(SemaSYCLRef.getASTContext()));
     }
     LastParamIndex = ParamIndex;
+=======
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) ||
+        SemaSYCL::isSyclType(ParamTy,
+                             SYCLTypeAttr::dynamic_work_group_memory)) {
+      const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
+      assert(RecordDecl && "The type must be a RecordDecl");
+      CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+      assert(InitMethod && "The type must have the __init method");
+      // Don't do -1 here because we count on this to be the first parameter
+      // added (if any).
+      size_t ParamIndex = Params.size();
+      for (const ParmVarDecl *Param : InitMethod->parameters()) {
+        QualType ParamTy = Param->getType();
+        addParam(Param, ParamTy.getCanonicalType());
+        // Propagate add_ir_attributes_kernel_parameter attribute.
+        if (const auto *AddIRAttr =
+                Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
+          Params.back()->addAttr(AddIRAttr->clone(SemaSYCLRef.getASTContext()));
+      }
+      LastParamIndex = ParamIndex;
+    } else // TODO
+      unsupportedFreeFunctionParamType();
+>>>>>>> 8113cb9ccb03a97ae7f7c01cd107d549ebcbb322
     return true;
   }
 
@@ -4536,6 +4577,7 @@ public:
   // TODO: Revisit this approach once https://github.com/intel/llvm/issues/16061
   // is closed.
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
+<<<<<<< HEAD
     const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;
     auto DefaultConstructor =
@@ -4543,6 +4585,18 @@ public:
                      [](auto it) { return it->isDefaultConstructor(); });
     DefaultConstructorAccess = DefaultConstructor->getAccess();
     DefaultConstructor->setAccess(AS_public);
+=======
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) ||
+        SemaSYCL::isSyclType(ParamTy,
+                             SYCLTypeAttr::dynamic_work_group_memory)) {
+      const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
+      AccessSpecifier DefaultConstructorAccess;
+      auto DefaultConstructor =
+          std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
+                       [](auto it) { return it->isDefaultConstructor(); });
+      DefaultConstructorAccess = DefaultConstructor->getAccess();
+      DefaultConstructor->setAccess(AS_public);
+>>>>>>> 8113cb9ccb03a97ae7f7c01cd107d549ebcbb322
 
     QualType Ty = PD->getOriginalType();
     ASTContext &Ctx = SemaSYCLRef.SemaRef.getASTContext();
@@ -4812,6 +4866,10 @@ public:
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
       addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
                offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
+    } else if (SemaSYCL::isSyclType(FieldTy,
+                                    SYCLTypeAttr::dynamic_work_group_memory)) {
+      addParam(FieldTy, SYCLIntegrationHeader::kind_dynamic_work_group_memory,
+               offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
     }
     return true;
   }
@@ -4834,6 +4892,10 @@ public:
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
       addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
+               offsetOf(FD, FieldTy));
+    } else if (SemaSYCL::isSyclType(FieldTy,
+                                    SYCLTypeAttr::dynamic_work_group_memory)) {
+      addParam(FieldTy, SYCLIntegrationHeader::kind_dynamic_work_group_memory,
                offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
@@ -4874,6 +4936,7 @@ public:
       addParam(PD, ParamTy, SYCLIntegrationHeader::kind_stream);
     } else if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
       addParam(PD, ParamTy, SYCLIntegrationHeader::kind_work_group_memory);
+<<<<<<< HEAD
     } else if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::sampler) ||
                SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::annotated_ptr) ||
                SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::annotated_arg)) {
@@ -4892,6 +4955,14 @@ public:
       llvm_unreachable(
           "Unexpected SYCL special class when generating integration header");
     }
+=======
+    else if (SemaSYCL::isSyclType(ParamTy,
+                                  SYCLTypeAttr::dynamic_work_group_memory))
+      addParam(PD, ParamTy,
+               SYCLIntegrationHeader::kind_dynamic_work_group_memory);
+    else
+      unsupportedFreeFunctionParamType(); // TODO
+>>>>>>> 8113cb9ccb03a97ae7f7c01cd107d549ebcbb322
     return true;
   }
 
@@ -6013,6 +6084,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(specialization_constants_buffer);
     CASE(pointer);
     CASE(work_group_memory);
+    CASE(dynamic_work_group_memory);
   }
   return "<ERROR>";
 
