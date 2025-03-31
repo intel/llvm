@@ -135,7 +135,7 @@ TEST_P(urCommandBufferAppendMemBufferReadRectTestWithParam, Success) {
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
   ASSERT_SUCCESS(
-    urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   // Do host side equivalent.
   std::vector<uint8_t> expected(host_size, 0x0);
