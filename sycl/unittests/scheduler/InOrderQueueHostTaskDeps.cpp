@@ -83,8 +83,7 @@ template <sycl::backend Backend> void InOrderQueueHostTaskDepsTestBody() {
   InOrderQueue.submit([&](sycl::handler &CGH) { CGH.host_task([=] {}); })
       .wait();
   EXPECT_EQ(EventCreated, Backend == sycl::backend::ext_oneapi_level_zero);
-  EXPECT_EQ(GEventsWaitCounter,
-            1u + size_t(Backend == sycl::backend::ext_oneapi_level_zero));
+  EXPECT_EQ(GEventsWaitCounter, 1u);
   EXPECT_EQ(EventSignaled, Backend == sycl::backend::ext_oneapi_level_zero);
 }
 

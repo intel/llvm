@@ -54,7 +54,7 @@ event_impl::~event_impl() {
 
 void event_impl::waitInternal(bool *Success) {
   auto Handle = this->getHandle();
-  if (Handle) {
+  if (!MIsHostEvent && Handle) {
     // Wait for the native event
     ur_result_t Err =
         getAdapter()->call_nocheck<UrApiKind::urEventWait>(1, &Handle);
@@ -92,7 +92,7 @@ void event_impl::waitInternal(bool *Success) {
 }
 
 void event_impl::setComplete() {
-  if (!this->getHandle()) {
+  if (MIsHostEvent || !this->getHandle()) {
     {
       std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
