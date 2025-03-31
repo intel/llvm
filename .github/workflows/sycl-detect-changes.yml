@@ -75,6 +75,8 @@ jobs:
             ur:
               - 'unified-runtime/**'
               - .github/workflows/ur-*
+            ur_cuda_adapter:
+              - 'unified-runtime/source/adapters/cuda/**'
 
       - name: Set output
         id: result
@@ -87,7 +89,7 @@ jobs:
               return '${{ steps.changes.outputs.changes }}';
             }
             // Treat everything as changed for huge PRs.
-            return ["llvm", "llvm_spirv", "clang", "sycl_jit", "xptifw", "libclc", "sycl", "ci", "esimd", "ur"];
+            return ["llvm", "llvm_spirv", "clang", "sycl_jit", "xptifw", "libclc", "sycl", "ci", "esimd", "ur", "ur_cuda_adapter"];
 
       - run: echo '${{ steps.result.outputs.result }}'
      
