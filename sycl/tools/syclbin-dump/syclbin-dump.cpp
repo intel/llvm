@@ -63,19 +63,6 @@ std::string_view StateToString(llvm::object::SYCLBIN::BundleState State) {
   }
 }
 
-std::string_view IRTypeToString(llvm::object::SYCLBIN::IRType IRType) {
-  switch (IRType) {
-  case llvm::object::SYCLBIN::IRType::SPIRV:
-    return "SPIR-V";
-  case llvm::object::SYCLBIN::IRType::PTX:
-    return "PTX";
-  case llvm::object::SYCLBIN::IRType::AMDGCN:
-    return "AMDGCN";
-  default:
-    return "UNKNOWN";
-  }
-}
-
 std::string PropertyValueToString(const llvm::util::PropertyValue &PropVal) {
   switch (PropVal.getType()) {
   case llvm::util::PropertyValue::UINT32:
