@@ -135,7 +135,7 @@ TEST_P(urCommandBufferMemcpyCommandsTest, Buffer) {
                                          output.data(), 0, nullptr, nullptr));
 
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+    urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   verifyData(output, input);
@@ -160,7 +160,7 @@ TEST_P(urCommandBufferMemcpyCommandsTest, USM) {
                                     size, 0, nullptr, nullptr));
 
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+    urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   verifyData(output, input);

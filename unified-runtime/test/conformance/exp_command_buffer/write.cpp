@@ -110,7 +110,7 @@ TEST_P(urCommandBufferWriteCommandsTest, Buffer) {
   ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                          output.data(), 0, nullptr, nullptr));
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+    urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, true, 0, size,

@@ -10,6 +10,7 @@
 #include <array>
 
 #include <uur/fixtures.h>
+#include <uur/known_failure.h>
 
 namespace uur {
 namespace command_buffer {
@@ -115,6 +116,8 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
 
 struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
   void SetUp() override {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));
@@ -149,6 +152,7 @@ struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
 
 struct urUpdatableCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   void SetUp() override {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
     UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,

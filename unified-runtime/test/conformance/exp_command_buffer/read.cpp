@@ -61,7 +61,7 @@ struct urCommandBufferReadCommandsTest
   ur_mem_handle_t buffer = nullptr;
 };
 
-static std::vector<testParametersRead> test_cases{
+static std::vector<testParametersRead> test_cases {
     // read whole buffer
     {1, 0, 1},
     {256, 0, 256},
@@ -103,7 +103,7 @@ TEST_P(urCommandBufferReadCommandsTest, Buffer) {
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+    urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
 
   verifyData(output, input);

@@ -117,7 +117,7 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
         urCommandBufferAppendMemBufferReadRectTestWithParam>);
 
 TEST_P(urCommandBufferAppendMemBufferReadRectTestWithParam, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
 
   // The input will just be sequentially increasing values.
   std::vector<uint8_t> input(buffer_size, 0x0);
@@ -135,7 +135,7 @@ TEST_P(urCommandBufferAppendMemBufferReadRectTestWithParam, Success) {
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
   ASSERT_SUCCESS(
-      urCommandBufferEnqueueExp(cmd_buf_handle, queue, 0, nullptr, nullptr));
+    urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));
   // Do host side equivalent.
   std::vector<uint8_t> expected(host_size, 0x0);
