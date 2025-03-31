@@ -38,7 +38,6 @@
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/group_utils.hpp>
-#include <syclcompat/memory.hpp>
 
 void StripedToBlockedKernel(int *d_data, const sycl::nd_item<3> &item_ct1,
                             uint8_t *load_temp_storage,
@@ -139,11 +138,11 @@ bool test_striped_to_blocked() {
       std::ostream_iterator<int> Iter(std::cout, ", ");
       std::copy(d_data, d_data + 512, Iter);
       std::cout << std::endl;
-      syclcompat::wait_and_free(d_data, q_ct1);
+      sycl::free(d_data, q_ct1);
       return false;
     }
   }
-  syclcompat::wait_and_free(d_data, q_ct1);
+  sycl::free(d_data, q_ct1);
   std::cout << "test_striped_to_blocked pass\n";
   return true;
 }
@@ -183,11 +182,11 @@ bool test_blocked_to_striped() {
       std::ostream_iterator<int> Iter(std::cout, ", ");
       std::copy(d_data, d_data + 512, Iter);
       std::cout << std::endl;
-      syclcompat::wait_and_free(d_data, q_ct1);
+      sycl::free(d_data, q_ct1);
       return false;
     }
   }
-  syclcompat::wait_and_free(d_data, q_ct1);
+  sycl::free(d_data, q_ct1);
   std::cout << "test_blocked_to_striped pass\n";
   return true;
 }
@@ -230,13 +229,13 @@ bool test_scatter_to_blocked() {
       std::ostream_iterator<int> Iter(std::cout, ", ");
       std::copy(d_data, d_data + 512, Iter);
       std::cout << std::endl;
-      syclcompat::wait_and_free(d_data, q_ct1);
-      syclcompat::wait_and_free(d_rank, q_ct1);
+      sycl::free(d_data, q_ct1);
+      sycl::free(d_rank, q_ct1);
       return false;
     }
   }
-  syclcompat::wait_and_free(d_data, q_ct1);
-  syclcompat::wait_and_free(d_rank, q_ct1);
+  sycl::free(d_data, q_ct1);
+  sycl::free(d_rank, q_ct1);
   std::cout << "test_scatter_to_blocked pass\n";
   return true;
 }
@@ -289,13 +288,13 @@ bool test_scatter_to_striped() {
       std::ostream_iterator<int> Iter(std::cout, ", ");
       std::copy(d_data, d_data + 512, Iter);
       std::cout << std::endl;
-      syclcompat::wait_and_free(d_data, q_ct1);
-      syclcompat::wait_and_free(d_rank, q_ct1);
+      sycl::free(d_data, q_ct1);
+      sycl::free(d_rank, q_ct1);
       return false;
     }
   }
-  syclcompat::wait_and_free(d_data, q_ct1);
-  syclcompat::wait_and_free(d_rank, q_ct1);
+  sycl::free(d_data, q_ct1);
+  sycl::free(d_rank, q_ct1);
   std::cout << "test_blocked_to_striped pass\n";
   return true;
 }
