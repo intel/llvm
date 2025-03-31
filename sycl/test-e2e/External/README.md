@@ -76,4 +76,3 @@ cmake \
 make check-sycl-e2e
 
 ```
-

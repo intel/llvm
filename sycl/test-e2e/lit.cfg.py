@@ -168,6 +168,8 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
+# Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
+llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
 # Temporarily modify environment to be the same that we use when running tests
 class test_env:
