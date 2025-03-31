@@ -91,7 +91,10 @@ inline void matrix_mem_copy(void *to_ptr, const void *from_ptr, int to_ld,
                             int from_ld, int rows, int cols, int elem_size,
                             sycl::queue queue = syclcompat::get_default_queue(),
                             bool async = false) {
-  static_assert(std::is_same_v<T, void>, "syclcompat::matrix_mem_copy only accepts a dummy template parameter.");
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::matrix_mem_copy only accepts a dummy template parameter, T "
+      "= void, which prevents SYCL kernel generation by default.");
   if (to_ptr == from_ptr && to_ld == from_ld) {
     return;
   }
