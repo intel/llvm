@@ -9,9 +9,32 @@ let chartInstances = new Map();
 let suiteNames = new Set();
 let timeseriesData, barChartsData, allRunNames;
 let activeTags = new Set();
+let layerComparisonsData;
 
 // DOM Elements
 let runSelect, selectedRunsDiv, suiteFiltersContainer, tagFiltersContainer;
+
+const colorPalette = [
+    'rgb(255, 50, 80)',
+    'rgb(255, 145, 15)',
+    'rgb(255, 220, 0)',
+    'rgb(20, 200, 50)',
+    'rgb(0, 130, 255)',
+    'rgb(180, 60, 255)',
+    'rgb(255, 40, 200)',
+    'rgb(0, 210, 180)',
+    'rgb(255, 90, 0)',
+    'rgb(110, 220, 0)',
+    'rgb(240, 100, 170)',
+    'rgb(30, 175, 255)',
+    'rgb(180, 210, 0)',
+    'rgb(130, 0, 220)',
+    'rgb(255, 170, 0)',
+    'rgb(0, 170, 110)',
+    'rgb(220, 80, 60)',
+    'rgb(80, 115, 230)',
+    'rgb(210, 190, 0)',
+];
 
 // Run selector functions
 function updateSelectedRuns(forceUpdate = true) {
@@ -67,7 +90,7 @@ function createChart(data, containerId, type) {
                         if (type === 'time') {
                             const point = context.raw;
                             return [
-                                `${data.label}:`,
+                                `${point.seriesName}:`,
                                 `Value: ${point.y.toFixed(2)} ${data.unit}`,
                                 `Stddev: ${point.stddev.toFixed(2)} ${data.unit}`,
                                 `Git Hash: ${point.gitHash}`,
@@ -136,15 +159,18 @@ function createChart(data, containerId, type) {
 }
 
 function createTimeseriesDatasets(data) {
-    return Object.entries(data.runs).map(([name, points]) => ({
+    return Object.entries(data.runs).map(([name, runData], index) => ({
         label: name,
-        data: points.map(p => ({
-            x: new Date(p.date),
+        data: runData.points.map(p => ({
+            seriesName: name,
+            x: p.date,
             y: p.value,
             gitHash: p.git_hash,
             gitRepo: p.github_repo,
             stddev: p.stddev
         })),
+        borderColor: colorPalette[index % colorPalette.length],
+        backgroundColor: colorPalette[index % colorPalette.length],
         borderWidth: 1,
         pointRadius: 3,
         pointStyle: 'circle',
@@ -153,13 +179,17 @@ function createTimeseriesDatasets(data) {
 }
 
 function updateCharts() {
-    // Filter data by active runs
-    const filteredTimeseriesData = timeseriesData.map(chart => ({
+    const filterRunData = (chart) => ({
         ...chart,
         runs: Object.fromEntries(
-            Object.entries(chart.runs).filter(([name]) => activeRuns.has(name))
+            Object.entries(chart.runs).filter(([_, data]) => 
+                activeRuns.has(data.runName)
+            )
         )
-    }));
+    });
+
+    const filteredTimeseriesData = timeseriesData.map(filterRunData);
+    const filteredLayerComparisonsData = layerComparisonsData.map(filterRunData);
 
     const filteredBarChartsData = barChartsData.map(chart => ({
         ...chart,
@@ -170,11 +200,10 @@ function updateCharts() {
         }))
     }));
 
-    // Draw charts with filtered data
-    drawCharts(filteredTimeseriesData, filteredBarChartsData);
+    drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayerComparisonsData);
 }
 
-function drawCharts(filteredTimeseriesData, filteredBarChartsData) {
+function drawCharts(filteredTimeseriesData, filteredBarChartsData, filteredLayerComparisonsData) {
     // Clear existing charts
     document.querySelectorAll('.charts').forEach(container => container.innerHTML = '');
     chartInstances.forEach(chart => chart.destroy());
@@ -185,6 +214,14 @@ function drawCharts(filteredTimeseriesData, filteredBarChartsData) {
         const containerId = `timeseries-${index}`;
         const container = createChartContainer(data, containerId, 'benchmark');
         document.querySelector('.timeseries .charts').appendChild(container);
+        createChart(data, containerId, 'time');
+    });
+
+    // Create layer comparison charts
+    filteredLayerComparisonsData.forEach((data, index) => {
+        const containerId = `layer-comparison-${index}`;
+        const container = createChartContainer(data, containerId, 'group');
+        document.querySelector('.layer-comparisons .charts').appendChild(container);
         createChart(data, containerId, 'time');
     });
 
@@ -324,16 +361,31 @@ function createLatestRunsLookup(benchmarkRuns) {
     return latestRunsMap;
 }
 
-function generateExtraInfo(latestRunsLookup, data, type) {
-    const labels = data.datasets ? data.datasets.map(dataset => dataset.label) : [data.label];
+function extractLabels(data) {
+    // For layer comparison charts
+    if (data.benchmarkLabels) {
+        return data.benchmarkLabels;
+    }
+
+    // For bar charts
+    if (data.datasets) {
+        return data.datasets.map(dataset => dataset.label);
+    }
+
+    // For time series charts
+    return [data.label];
+}
+
+function generateExtraInfo(latestRunsLookup, data) {
+    const labels = extractLabels(data);
 
     return labels.map(label => {
-        const metadata = metadataForLabel(label, type);
+        const metadata = metadataForLabel(label, 'benchmark');
         const latestRun = latestRunsLookup.get(label);
 
         let html = '<div class="extra-info-entry">';
 
-        if (metadata) {
+        if (metadata && latestRun) {
             html += `<strong>${label}:</strong> ${formatCommand(latestRun.result)}<br>`;
 
             if (metadata.description) {
@@ -374,6 +426,12 @@ function downloadChart(canvasId, label) {
 }
 
 // URL and filtering functions
+//
+// Information about currently displayed charts, filters, etc. are preserved in
+// the URL query string: This allows users to save/share links reproducing exact
+// queries, filters, settings, etc. Therefore, for consistency, the URL needs to
+// be reconstruted everytime queries, filters, etc. are changed.
+
 function getQueryParam(param) {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get(param);
@@ -423,8 +481,17 @@ function updateURL() {
     }
 
     // Add toggle states to URL
-    url.searchParams.set('notes', isNotesEnabled());
-    url.searchParams.set('unstable', isUnstableEnabled());
+    if (isNotesEnabled()) {
+        url.searchParams.delete('notes');
+    } else {
+        url.searchParams.set('notes', 'false');
+    }
+
+    if (!isUnstableEnabled()) {
+        url.searchParams.delete('unstable');
+    } else {
+        url.searchParams.set('unstable', 'true');
+    }
 
     history.replaceState(null, '', url);
 }
@@ -467,7 +534,6 @@ function processTimeseriesData(benchmarkRuns) {
     const resultsByLabel = {};
 
     benchmarkRuns.forEach(run => {
-        const runDate = run.date ? new Date(run.date) : null;
         run.results.forEach(result => {
             if (!resultsByLabel[result.label]) {
                 resultsByLabel[result.label] = {
@@ -479,17 +545,7 @@ function processTimeseriesData(benchmarkRuns) {
                 };
             }
 
-            if (!resultsByLabel[result.label].runs[run.name]) {
-                resultsByLabel[result.label].runs[run.name] = [];
-            }
-
-            resultsByLabel[result.label].runs[run.name].push({
-                date: runDate,
-                value: result.value,
-                stddev: result.stddev,
-                git_hash: run.git_hash,
-                github_repo: run.github_repo
-            });
+            addRunDataPoint(resultsByLabel[result.label], run, result, run.name);
         });
     });
 
@@ -499,7 +555,7 @@ function processTimeseriesData(benchmarkRuns) {
 function processBarChartsData(benchmarkRuns) {
     const groupedResults = {};
 
-    benchmarkRuns.reverse().forEach(run => {
+    benchmarkRuns.forEach(run => {
         run.results.forEach(result => {
             if (!result.explicit_group) return;
 
@@ -529,19 +585,131 @@ function processBarChartsData(benchmarkRuns) {
 
             let dataset = group.datasets.find(d => d.label === result.label);
             if (!dataset) {
+                const datasetIndex = group.datasets.length;
                 dataset = {
                     label: result.label,
-                    data: new Array(group.labels.length).fill(null)
+                    data: new Array(group.labels.length).fill(null),
+                    backgroundColor: colorPalette[datasetIndex % colorPalette.length],
+                    borderColor: colorPalette[datasetIndex % colorPalette.length],
+                    borderWidth: 1
                 };
                 group.datasets.push(dataset);
             }
 
             const runIndex = group.labels.indexOf(run.name);
-            dataset.data[runIndex] = result.value;
+            if (dataset.data[runIndex] == null)
+                dataset.data[runIndex] = result.value;
         });
     });
 
     return Object.values(groupedResults);
+}
+
+function getLayerTags(metadata) {
+    const layerTags = new Set();
+    if (metadata?.tags) {
+        metadata.tags.forEach(tag => {
+            if (tag.startsWith('SYCL') || tag.startsWith('UR') || tag === 'L0') {
+                layerTags.add(tag);
+            }
+        });
+    }
+    return layerTags;
+}
+
+function processLayerComparisonsData(benchmarkRuns) {
+    const groupedResults = {};
+
+    benchmarkRuns.forEach(run => {
+        run.results.forEach(result => {
+            if (!result.explicit_group) return;
+
+            // Skip if no metadata available
+            const metadata = metadataForLabel(result.explicit_group, 'group');
+            if (!metadata) return;
+
+            // Get all benchmark labels in this group
+            const labelsInGroup = new Set(
+                benchmarkRuns.flatMap(r =>
+                    r.results
+                        .filter(res => res.explicit_group === result.explicit_group)
+                        .map(res => res.label)
+                )
+            );
+
+            // Check if this group compares different layers
+            const uniqueLayers = new Set();
+            labelsInGroup.forEach(label => {
+                const labelMetadata = metadataForLabel(label, 'benchmark');
+                const layerTags = getLayerTags(labelMetadata);
+                layerTags.forEach(tag => uniqueLayers.add(tag));
+            });
+
+            // Only process groups that compare different layers
+            if (uniqueLayers.size <= 1) return;
+
+            if (!groupedResults[result.explicit_group]) {
+                groupedResults[result.explicit_group] = {
+                    label: result.explicit_group,
+                    suite: result.suite,
+                    unit: result.unit,
+                    lower_is_better: result.lower_is_better,
+                    runs: {},
+                    benchmarkLabels: [],
+                    description: metadata?.description || null,
+                    notes: metadata?.notes || null,
+                    unstable: metadata?.unstable || null
+                };
+            }
+
+            const group = groupedResults[result.explicit_group];
+            const name = result.label + ' (' + run.name + ')';
+
+            // Add the benchmark label if it's not already in the array
+            if (!group.benchmarkLabels.includes(result.label)) {
+                group.benchmarkLabels.push(result.label);
+            }
+
+            addRunDataPoint(group, run, result, name);
+        });
+    });
+
+    return Object.values(groupedResults);
+}
+
+function createRunDataStructure(run, result, label) {
+    return {
+        runName: run.name,
+        points: [{
+            date: new Date(run.date),
+            value: result.value,
+            stddev: result.stddev,
+            git_hash: run.git_hash,
+            github_repo: run.github_repo,
+            label: label || result.label
+        }]
+    };
+}
+
+function addRunDataPoint(group, run, result, name = null) {
+    const runKey = name || result.label + ' (' + run.name + ')';
+
+    if (!group.runs[runKey]) {
+        group.runs[runKey] = {
+            runName: run.name,
+            points: []
+        };
+    }
+
+    group.runs[runKey].points.push({
+        date: new Date(run.date),
+        value: result.value,
+        stddev: result.stddev,
+        git_hash: run.git_hash,
+        github_repo: run.github_repo,
+    });
+
+    return group;
 }
 
 // Setup functions
@@ -601,6 +769,7 @@ function setupToggles() {
         document.querySelectorAll('.benchmark-note').forEach(note => {
             note.style.display = isNotesEnabled() ? 'block' : 'none';
         });
+        updateURL();
     });
 
     unstableToggle.addEventListener('change', function() {
@@ -699,6 +868,7 @@ function initializeCharts() {
     // Process raw data
     timeseriesData = processTimeseriesData(benchmarkRuns);
     barChartsData = processBarChartsData(benchmarkRuns);
+    layerComparisonsData = processLayerComparisonsData(benchmarkRuns);
     allRunNames = [...new Set(benchmarkRuns.map(run => run.name))];
 
     // Set up active runs
@@ -785,7 +955,10 @@ function loadData() {
     if (typeof remoteDataUrl !== 'undefined' && remoteDataUrl !== '') {
         // Fetch data from remote URL
         fetch(remoteDataUrl)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) { throw new Error(`Got response status ${response.status}.`) }
+                return response.json();
+            })
             .then(data => {
                 benchmarkRuns = data.runs || data;
                 benchmarkMetadata = data.metadata || benchmarkMetadata || {};

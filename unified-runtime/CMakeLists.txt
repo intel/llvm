@@ -1,14 +1,22 @@
-# Copyright (C) 2022-2023 Intel Corporation
+# Copyright (C) 2022-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.20.0 FATAL_ERROR)
 project(unified-runtime VERSION 0.12.0)
+cmake_policy(SET CMP0083 NEW) # PROPERTY POSITION_INDEPENDENT_CODE
 
 # Check if unified runtime is built as a standalone project.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR UR_STANDALONE_BUILD)
     set(UR_STANDALONE_BUILD TRUE)
+endif()
+
+# Ubuntu's gcc uses --enable-default-pie. For the sake of a consistent build
+# across different gcc versions, set it globally for all targets
+# https://wiki.ubuntu.com/ToolChain/CompilerFlags#A-fPIE
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
 include(GNUInstallDirs)
@@ -150,9 +158,6 @@ if(UR_ENABLE_TRACING)
         endif()
 
         FetchContent_MakeAvailable(xpti)
-
-        # set -fPIC for xpti since we are linking it with a shared library
-        set_target_properties(xpti PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
         # fetch the xptifw dispatcher, mostly used for testing
         # these variables need to be set for xptifw to compile

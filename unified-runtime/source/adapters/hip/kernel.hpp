@@ -11,6 +11,7 @@
 
 #include <ur_api.h>
 
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <numeric>

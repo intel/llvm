@@ -313,7 +313,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   else if (HIPFlags == hipStreamNonBlocking)
     Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   else
-    detail::ur::die("Unknown hip stream");
+    die("Unknown hip stream");
 
   std::vector<hipStream_t> ComputeHIPStreams(1, HIPStream);
   std::vector<hipStream_t> TransferHIPStreams(0);

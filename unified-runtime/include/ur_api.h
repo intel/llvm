@@ -441,8 +441,6 @@ typedef enum ur_function_t {
   UR_FUNCTION_USM_POOL_CREATE_EXP = 254,
   /// Enumerator for ::urUSMPoolDestroyExp
   UR_FUNCTION_USM_POOL_DESTROY_EXP = 255,
-  /// Enumerator for ::urUSMPoolSetThresholdExp
-  UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP = 256,
   /// Enumerator for ::urUSMPoolGetDefaultDevicePoolExp
   UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP = 257,
   /// Enumerator for ::urUSMPoolSetDevicePoolExp
@@ -457,6 +455,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP = 263,
   /// Enumerator for ::urCommandBufferGetNativeHandleExp
   UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP = 264,
+  /// Enumerator for ::urUSMPoolSetInfoExp
+  UR_FUNCTION_USM_POOL_SET_INFO_EXP = 265,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -1820,7 +1820,9 @@ typedef struct ur_device_binary_t {
 typedef enum ur_device_type_t {
   /// The default device type as preferred by the runtime
   UR_DEVICE_TYPE_DEFAULT = 1,
-  /// Devices of all types
+  /// Devices of all types, for use with ::urDeviceGet() and
+  /// ::urDeviceGetSelected(). This value will never be returned when
+  /// querying about a device.
   UR_DEVICE_TYPE_ALL = 2,
   /// Graphics Processing Unit
   UR_DEVICE_TYPE_GPU = 3,
@@ -1997,7 +1999,7 @@ typedef enum ur_device_info_t {
   /// [uint64_t] max memory allocation size
   UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 28,
   /// [::ur_bool_t] images are supported
-  UR_DEVICE_INFO_IMAGE_SUPPORTED = 29,
+  UR_DEVICE_INFO_IMAGE_SUPPORT = 29,
   /// [uint32_t] max number of image objects arguments of a kernel declared
   /// with the read_only qualifier
   UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS = 30,
@@ -2195,7 +2197,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,
   /// [::ur_bool_t] Return true if the device supports enqueueing commands
   /// to read and write pipes from the host.
-  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,
+  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT = 111,
   /// [uint32_t][optional-query] The maximum number of registers available
   /// per block.
   UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,
@@ -2252,7 +2254,7 @@ typedef enum ur_device_info_t {
   /// command-buffer as a command inside another command-buffer.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP = 0x1003,
   /// [::ur_bool_t] return true if enqueue Cluster Launch is supported
-  UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP = 0x1111,
+  UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP = 0x1111,
   /// [::ur_bool_t] returns true if the device supports the creation of
   /// bindless images
   UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,
@@ -2303,19 +2305,19 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP = 0x2012,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP = 0x2012,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP = 0x2013,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP = 0x2013,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP = 0x2014,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP = 0x2014,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP = 0x2015,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP = 0x2015,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 3D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP = 0x2017,
   /// [::ur_bool_t] returns true if the device supports timestamp recording
   UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,
   /// [::ur_bool_t] returns true if the device supports allocating and
@@ -2323,27 +2325,27 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP = 0x2019,
   /// [::ur_bool_t] returns true if the device supports unique addressing
   /// per dimension.
-  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP = 0x201A,
+  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP = 0x201A,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP = 0x201B,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP = 0x201B,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP = 0x201C,
   /// [::ur_bool_t] returns true if the device supports sampled image
   /// gather.
-  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP = 0x201D,
+  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP = 0x201D,
   /// [::ur_bool_t] returns true if the device supports enqueueing of native
   /// work
   UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,
   /// [::ur_bool_t] returns true if the device supports low-power events.
-  UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP = 0x2021,
+  UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP = 0x2021,
   /// [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
   /// of Intel GPU 2D block array capabilities
   UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,
   /// [::ur_bool_t] returns true if the device supports enqueueing of
   /// allocations and frees.
-  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP = 0x2050,
+  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
   /// [::ur_bool_t] Returns true if the device supports the use of kernel
   /// launch properties.
   UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP = 0x3000,
@@ -6758,7 +6760,7 @@ typedef enum ur_queue_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP = UR_BIT(11),
+  UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP = UR_BIT(11),
   /// @cond
   UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -9315,35 +9317,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroyExp(
     ur_usm_pool_handle_t hPool);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Set a new release threshold for a USM memory pool.
-///
-/// @details
-///     - Set a new release threshold for a USM memory pool.
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
-///         + `NULL == hDevice`
-///         + `NULL == hPool`
-///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
-///         + If any device associated with `hContext` reports `false` for
-///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] handle to USM memory pool for the threshold to be set
-    ur_usm_pool_handle_t hPool,
-    /// [in] release threshold to be set
-    size_t newThreshold);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Get the default pool for a device.
 ///
 /// @details
@@ -9390,7 +9363,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
-///     - ::UR_RESULT_ERROR_INVALID_DEVICE
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(
@@ -9402,6 +9374,41 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(
     void *pPropValue,
     /// [out][optional] returned query value size
     size_t *pPropSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a property for a USM memory pool.
+///
+/// @details
+///     - Set a property for a USM memory pool.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Set the current pool for a device.
@@ -12334,10 +12341,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(
 typedef enum ur_exp_peer_info_t {
   /// [int] 1 if P2P access is supported otherwise P2P access is not
   /// supported.
-  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED = 0,
+  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT = 0,
   /// [int] 1 if atomic operations are supported over the P2P link,
   /// otherwise such operations are not supported.
-  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED = 1,
+  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT = 1,
   /// @cond
   UR_EXP_PEER_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12447,7 +12454,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName`
+///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -12494,7 +12501,7 @@ typedef enum ur_exp_enqueue_ext_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS = UR_BIT(11),
+  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT = UR_BIT(11),
   /// @cond
   UR_EXP_ENQUEUE_EXT_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -14324,17 +14331,6 @@ typedef struct ur_usm_pool_destroy_exp_params_t {
 } ur_usm_pool_destroy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMPoolSetThresholdExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_pool_set_threshold_exp_params_t {
-  ur_context_handle_t *phContext;
-  ur_device_handle_t *phDevice;
-  ur_usm_pool_handle_t *phPool;
-  size_t *pnewThreshold;
-} ur_usm_pool_set_threshold_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMPoolGetDefaultDevicePoolExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -14354,6 +14350,17 @@ typedef struct ur_usm_pool_get_info_exp_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_usm_pool_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolSetInfoExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_set_info_exp_params_t {
+  ur_usm_pool_handle_t *phPool;
+  ur_usm_pool_info_t *ppropName;
+  void **ppPropValue;
+  size_t *ppropSize;
+} ur_usm_pool_set_info_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUSMPoolSetDevicePoolExp

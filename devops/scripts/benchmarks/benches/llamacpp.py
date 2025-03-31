@@ -82,7 +82,7 @@ class LlamaCppBench(Suite):
         if options.sycl is None:
             return []
 
-        if options.ur_adapter == "cuda":
+        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
             return []
 
         return [LlamaBench(self)]
