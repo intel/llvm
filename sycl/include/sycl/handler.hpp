@@ -213,6 +213,7 @@ class HandlerAccess;
 class HostTask;
 
 using EventImplPtr = std::shared_ptr<event_impl>;
+using DeviceImplPtr = std::shared_ptr<device_impl>;
 
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
@@ -249,6 +250,7 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 };
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
+const DeviceImplPtr &getDeviceImplFromHandler(handler &);
 
 // Checks if a device_global has any registered kernel usage.
 __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
@@ -3481,6 +3483,8 @@ private:
             typename PropertyListT>
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
+  friend const detail::DeviceImplPtr &
+  detail::getDeviceImplFromHandler(handler &);
 
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
