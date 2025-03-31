@@ -33,7 +33,6 @@ runs:
     shell: bash
     env:
       TARGET_DEVICE: ${{ inputs.target_devices }}
-      RUNNER_NAME: ${{ runner.name }}
       PRESET: ${{ inputs.preset }}
     run: |
       case "$RUNNER_TAG" in
@@ -51,7 +50,6 @@ runs:
           echo "Bad runner name, please ensure runner name is [a-zA-Z0-9_-]."
           exit 1
       fi
-      echo "RUNNER_NAME=$RUNNER_NAME" >> $GITHUB_ENV 
 
       # input.target_devices is not directly used, as this allows code injection
       case "$TARGET_DEVICE" in
