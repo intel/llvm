@@ -830,9 +830,6 @@ private:
     constexpr bool UsesRootSync = PropertiesT::template has_property<
         sycl::ext::oneapi::experimental::use_root_sync_key>();
     if (UsesRootSync) {
-      std::cout << "-----------------------------Successfully entered "
-                   "UsesRootSync-----------------------"
-                << std::endl;
       setKernelIsCooperative(UsesRootSync);
     }
     if constexpr (PropertiesT::template has_property<
