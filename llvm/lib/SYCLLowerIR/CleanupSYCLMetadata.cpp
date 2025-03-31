@@ -33,14 +33,6 @@ void cleanupSYCLCompilerModuleMetadata(const Module &M, llvm::StringRef MD) {
   Node->eraseFromParent();
 }
 
-void cleanupSYCLCompilerFunctionMetadata(Function &F,
-                                         llvm::StringRef MD) {
-  MDNode *Node = F.getMetadata(MD);
-  if (!Node)
-    return;
-  F.setMetadata(MD, nullptr);
-}
-
 // GV is supposed to be either llvm.compiler.used or llvm.used.
 SmallVector<Constant *>
 eraseGlobalVariableAndReturnOperands(GlobalVariable *GV) {
@@ -74,10 +66,12 @@ PreservedAnalyses CleanupSYCLMetadataPass::run(Module &M,
   for (const auto &MD : ModuleMDToRemove)
     cleanupSYCLCompilerModuleMetadata(M, MD);
 
+  // Cleanup no longer needed function metadata.
   SmallVector<StringRef, 1> FunctionMDToRemove = {"srcloc"};
   for (auto &F : M) {
     for (const auto &MD : FunctionMDToRemove)
-      cleanupSYCLCompilerFunctionMetadata(F, MD);
+      if (F.getMetadata(MD))
+        F.setMetadata(MD, nullptr);
   }
 
   return PreservedAnalyses::all();

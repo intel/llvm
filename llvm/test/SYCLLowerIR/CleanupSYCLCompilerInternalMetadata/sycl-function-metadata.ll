@@ -1,6 +1,6 @@
 ; RUN: opt -passes=cleanup-sycl-metadata -S < %s | FileCheck %s
 ;
-; Test checks that the pass is able to cleanup sycl_declared_aspects and srcloc 
+; Test checks that the pass is able to cleanup srcloc metadata
 ; function metadata
 
 ; CHECK-NOT: srcloc
