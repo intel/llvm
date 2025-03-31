@@ -188,6 +188,11 @@ ProgramManager &GlobalHandler::getProgramManager() {
 
 std::unordered_map<PlatformImplPtr, ContextImplPtr> &
 GlobalHandler::getPlatformToDefaultContextCache() {
+  // The optimization with static reference is not done because
+  // there are public methods of the GlobalHandler
+  // that can set the MPlatformToDefaultContextCache back to nullptr.
+  // So one time initialization is not possible and we need
+  // to call getOrCreate on every access.
   return getOrCreate(MPlatformToDefaultContextCache);
 }
 
