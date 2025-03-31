@@ -515,7 +515,8 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  /// TODO: remove the first version of this func (the one without the IsTopCodeLoc arg)
+  /// TODO: remove the first version of this func (the one without the
+  /// IsTopCodeLoc arg)
   ///   at the next ABI breaking window since removing it breaks ABI on windows.
   void saveCodeLoc(detail::code_location CodeLoc);
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
@@ -664,6 +665,8 @@ private:
     addArg(detail::kernel_param_kind_t::kind_sampler, StoredArg,
            sizeof(sampler), ArgIndex);
   }
+
+  void setArgHelper(int ArgIndex, stream &&Str);
 
   // setArgHelper for graph dynamic_parameters
   template <typename T>
@@ -1834,7 +1837,8 @@ public:
         || is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
-        || is_same_type<cl_mem, T>::value;         // Interop
+        || is_same_type<cl_mem, T>::value          // Interop
+        || is_same_type<stream, T>::value;         // Stream
   };
 
   /// Sets argument for OpenCL interoperability kernels.
