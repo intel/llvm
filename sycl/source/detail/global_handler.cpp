@@ -208,7 +208,9 @@ Sync &GlobalHandler::getSync() {
 }
 
 std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
-  return getOrCreate(MPlatformCache);
+  static std::vector<PlatformImplPtr> &PlatformCache =
+      getOrCreate(MPlatformCache);
+  return PlatformCache;
 }
 
 std::mutex &GlobalHandler::getPlatformMapMutex() {
