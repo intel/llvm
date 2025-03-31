@@ -47,12 +47,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   isFinalized = true;
   return UR_RESULT_SUCCESS;
 }
-ur_event_handle_t ur_exp_command_buffer_handle_t_::getCurrentExecutionEvent(
-    [[maybe_unused]] locked<ur_command_list_manager> &commandList) {
-  assert(
-      commandList->getZeCommandList() ==
-          commandListManager.get_no_lock()->getZeCommandList() &&
-      "Provided command list is not the same as the one in the command buffer");
+ur_event_handle_t ur_exp_command_buffer_handle_t_::getExecutionEventUnlocked() {
   return currentExecution;
 }
 
