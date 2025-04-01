@@ -267,9 +267,14 @@ ur_result_t ze2urImageFormat(const ze_image_format_t &ZeImageFormat,
 }
 
 /// Construct UR bindless image struct from ZE image handle and desc.
-ur_result_t createUrImgFromZeImage(ze_image_handle_t ZeImage,
+ur_result_t createUrImgFromZeImage(ze_context_handle_t hContext,
+                                   ze_device_handle_t hDevice,
                                    const ZeStruct<ze_image_desc_t> &ZeImageDesc,
                                    ur_exp_image_mem_native_handle_t *pImg) {
+  ze_image_handle_t ZeImage;
+  ZE2UR_CALL(zeImageCreate, (hContext, hDevice, &ZeImageDesc, &ZeImage));
+  ZE2UR_CALL(zeContextMakeImageResident, (hContext, hDevice, ZeImage));
+
   try {
     ur_bindless_mem_handle_t *urImg =
         new ur_bindless_mem_handle_t(ZeImage, ZeImageDesc);
@@ -951,12 +956,8 @@ ur_result_t urBindlessImagesImageAllocateExp(
   ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &ZeImageBindlessDesc;
 
-  ze_image_handle_t ZeImage;
-  ZE2UR_CALL(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
-                             &ZeImageDesc, &ZeImage));
-  ZE2UR_CALL(zeContextMakeImageResident,
-             (hContext->getZeHandle(), hDevice->ZeDevice, ZeImage));
-  UR_CALL(createUrImgFromZeImage(ZeImage, ZeImageDesc, phImageMem));
+  UR_CALL(createUrImgFromZeImage(hContext->getZeHandle(), hDevice->ZeDevice,
+                                 ZeImageDesc, phImageMem));
   return UR_RESULT_SUCCESS;
 }
 
@@ -990,9 +991,9 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
   auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
 
   if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
-    ZE2UR_CALL(zeImageDestroy, (item->second));
     hDevice->ZeOffsetToImageHandleMap.erase(item);
     Lock.release();
+    ZE2UR_CALL(zeImageDestroy, (item->second));
   } else {
     Lock.release();
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
@@ -1165,12 +1166,9 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
   ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &ZeImageBindlessDesc;
 
-  ze_image_handle_t ZeImage;
-  ZE2UR_CALL(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
-                             &ZeImageDesc, &ZeImage));
-  ZE2UR_CALL(zeContextMakeImageResident,
-             (hContext->getZeHandle(), hDevice->ZeDevice, ZeImage));
-  UR_CALL(createUrImgFromZeImage(ZeImage, ZeImageDesc, phImageMem));
+  UR_CALL(createUrImgFromZeImage(hContext->getZeHandle(), hDevice->ZeDevice,
+                                 ZeImageDesc, phImageMem));
+
   externalMemoryData->urMemoryHandle =
       reinterpret_cast<ur_mem_handle_t>(*phImageMem);
   return UR_RESULT_SUCCESS;
