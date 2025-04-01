@@ -207,8 +207,8 @@ public:
   /// potential logging.
   /// Event computed from async alloc which is passed through for processing.
   std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl> MMemPool;
-  size_t MAllocSize;
-  ur_event_handle_t MAsyncAllocEvent;
+  size_t MAllocSize = 0;
+  ur_event_handle_t MAsyncAllocEvent = nullptr;
 
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;
