@@ -233,6 +233,7 @@ set(SYCL_COMMON_SOURCES
     "builtins/math_functions.cpp"
     "builtins/native_math_functions.cpp"
     "builtins/relational_functions.cpp"
+    "cg_types.cpp"
     "detail/accessor_impl.cpp"
     "detail/allowlist.cpp"
     "detail/bindless_images.cpp"

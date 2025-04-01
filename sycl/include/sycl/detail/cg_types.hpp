@@ -34,6 +34,10 @@ inline namespace _V1 {
 class interop_handle;
 class handler;
 namespace detail {
+// Prevent argument from being removed by the optimized. Needed for different
+// host functions referencing kernel that we instantiate but don't intend to
+// call on host (e.g. to preserve symbols for the debugger).
+__SYCL_EXPORT bool do_not_dce(void (*)(void *));
 class HostTask;
 
 /// Type of the command group.
@@ -163,6 +167,55 @@ public:
   virtual void InstantiateKernelOnHost() = 0;
 };
 
+template <class KernelType, class KernelArgType, int Dims>
+void InstantiateKernelOnHost(void *p) {
+  auto &MKernel = *static_cast<KernelType *>(p);
+  using IDBuilder = sycl::detail::Builder;
+  if constexpr (std::is_same_v<KernelArgType, void>) {
+    runKernelWithoutArg(MKernel);
+  } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
+    sycl::id ID = InitializedVal<Dims, id>::template get<0>();
+    runKernelWithArg<const KernelArgType &>(MKernel, ID);
+  } else if constexpr (std::is_same_v<KernelArgType, item<Dims, true>> ||
+                       std::is_same_v<KernelArgType, item<Dims, false>>) {
+    constexpr bool HasOffset = std::is_same_v<KernelArgType, item<Dims, true>>;
+    if constexpr (!HasOffset) {
+      KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
+          InitializedVal<Dims, range>::template get<1>(),
+          InitializedVal<Dims, id>::template get<0>());
+      runKernelWithArg<KernelArgType>(MKernel, Item);
+    } else {
+      KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
+          InitializedVal<Dims, range>::template get<1>(),
+          InitializedVal<Dims, id>::template get<0>(),
+          InitializedVal<Dims, id>::template get<0>());
+      runKernelWithArg<KernelArgType>(MKernel, Item);
+    }
+  } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
+    sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
+    sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
+    sycl::group<Dims> Group =
+        IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
+    sycl::item<Dims, true> GlobalItem =
+        IDBuilder::createItem<Dims, true>(Range, ID, ID);
+    sycl::item<Dims, false> LocalItem =
+        IDBuilder::createItem<Dims, false>(Range, ID);
+    KernelArgType NDItem =
+        IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
+    runKernelWithArg<const KernelArgType>(MKernel, NDItem);
+  } else if constexpr (std::is_same_v<KernelArgType, sycl::group<Dims>>) {
+    sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
+    sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
+    KernelArgType Group = IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
+    runKernelWithArg<KernelArgType>(MKernel, Group);
+  } else {
+    // Assume that anything else can be default-constructed. If not, this
+    // should fail to compile and the implementor should implement a generic
+    // case for the new argument type.
+    runKernelWithArg<KernelArgType>(MKernel, KernelArgType{});
+  }
+}
+
 // Class which stores specific lambda object.
 template <class KernelType, class KernelArgType, int Dims>
 class HostKernel : public HostKernelBase {
@@ -181,54 +234,31 @@ public:
   // kernel code instructions with source code lines.
   // NOTE: InstatiateKernelOnHost() should not be called.
   void InstantiateKernelOnHost() override {
-    using IDBuilder = sycl::detail::Builder;
-    if constexpr (std::is_same_v<KernelArgType, void>) {
-      runKernelWithoutArg(MKernel);
-    } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
-      sycl::id ID = InitializedVal<Dims, id>::template get<0>();
-      runKernelWithArg<const KernelArgType &>(MKernel, ID);
-    } else if constexpr (std::is_same_v<KernelArgType, item<Dims, true>> ||
-                         std::is_same_v<KernelArgType, item<Dims, false>>) {
-      constexpr bool HasOffset =
-          std::is_same_v<KernelArgType, item<Dims, true>>;
-      if constexpr (!HasOffset) {
-        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
-            InitializedVal<Dims, range>::template get<1>(),
-            InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(MKernel, Item);
-      } else {
-        KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
-            InitializedVal<Dims, range>::template get<1>(),
-            InitializedVal<Dims, id>::template get<0>(),
-            InitializedVal<Dims, id>::template get<0>());
-        runKernelWithArg<KernelArgType>(MKernel, Item);
-      }
-    } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
-      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
-      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
-      sycl::group<Dims> Group =
-          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
-      sycl::item<Dims, true> GlobalItem =
-          IDBuilder::createItem<Dims, true>(Range, ID, ID);
-      sycl::item<Dims, false> LocalItem =
-          IDBuilder::createItem<Dims, false>(Range, ID);
-      KernelArgType NDItem =
-          IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
-      runKernelWithArg<const KernelArgType>(MKernel, NDItem);
-    } else if constexpr (std::is_same_v<KernelArgType, sycl::group<Dims>>) {
-      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
-      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
-      KernelArgType Group =
-          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
-      runKernelWithArg<KernelArgType>(MKernel, Group);
-    } else {
-      // Assume that anything else can be default-constructed. If not, this
-      // should fail to compile and the implementor should implement a generic
-      // case for the new argument type.
-      runKernelWithArg<KernelArgType>(MKernel, KernelArgType{});
-    }
+    detail::InstantiateKernelOnHost<KernelType, KernelArgType, Dims>(&MKernel);
   }
 };
+
+class SimpleHostKernel : public HostKernelBase {
+  std::unique_ptr<char[]> KernelBytes;
+
+public:
+  template <typename KernelType, typename KernelArgType, int Dims>
+  SimpleHostKernel(const KernelType &KernelFunc, KernelArgType *, std::integral_constant<int, Dims>)
+      : KernelBytes(new(
+            std::align_val_t(alignof(KernelType))) char[sizeof(KernelType)]) {
+    std::memcpy(KernelBytes.get(), &KernelFunc, sizeof(KernelType));
+    // Hopefully, minimal run-time overhead:
+    static thread_local auto ignore = do_not_dce(
+        &detail::InstantiateKernelOnHost<KernelType, KernelArgType, Dims>);
+    (void)ignore;
+  }
+  char *getPtr() override { return KernelBytes.get(); }
+  ~SimpleHostKernel() override = default;
+  void InstantiateKernelOnHost() override {
+    // We do this in the ctor instead.
+  }
+};
+
 
 } // namespace detail
 } // namespace _V1

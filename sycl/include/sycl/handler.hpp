@@ -739,8 +739,24 @@ private:
     // Not using `std::make_unique` to avoid unnecessary instantiations of
     // `std::unique_ptr<HostKernel<...>>`. Only
     // `std::unique_ptr<HostKernelBase>` is necessary.
-    MHostKernel.reset(new detail::HostKernel<KernelType, LambdaArgType, Dims>(
-        std::forward<KernelTypeUniversalRef>(KernelFunc)));
+
+#if __has_builtin(__is_trivially_copyable) &&                                  \
+    __has_builtin(__is_trivially_destructible)
+    // libstdc++ implementation of std::is_trivially_[copyable|destructible]_v
+    // has more compile time impact than the benefits of using single
+    // `SimpleHostKernel` vs. intstantiating `HostKernel` for each
+    // `KernelFunc`. As such, only do this optimization of the compilation time
+    // when using `clang` as host compiler.
+    if constexpr (__is_trivially_copyable(KernelType) &&
+                  __is_trivially_destructible(KernelType))
+      MHostKernel.reset(new detail::SimpleHostKernel(
+          std::forward<KernelTypeUniversalRef>(KernelFunc),
+          static_cast<LambdaArgType *>(nullptr),
+          std::integral_constant<int, Dims>{}));
+    else
+#endif
+      MHostKernel.reset(new detail::HostKernel<KernelType, LambdaArgType, Dims>(
+          std::forward<KernelTypeUniversalRef>(KernelFunc)));
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
