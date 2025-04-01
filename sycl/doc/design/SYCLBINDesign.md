@@ -242,10 +242,10 @@ SYCLBIN files are linked together is yet to be specified.
 
 ## clang-linker-wrapper changes
 
-The clang-linker-wrapper is responsible for doing post-processing and linking of
-device binaries, as described in [OffloadDesign.md](OffloadDesign.md).
-However, to support SYCLBIN files, the clang-linker-wrapper must be able to
-unpack an offload binary (as described in
+The clang-linker-wrapper is responsible for doing module-splitting, metadata
+extraction and linking of device binaries, as described in
+[OffloadDesign.md](OffloadDesign.md). However, to support SYCLBIN files, the
+clang-linker-wrapper must be able to unpack an offload binary (as described in
 [ClangOffloadPackager.rst](https://github.com/intel/llvm/blob/sycl/clang/docs/ClangOffloadPackager.rst))
 directly, instead of extracting it from a host binary. This should be done when
 a new flag, `--syclbin`, is passed. In this case, the clang-linker-wrapper is
