@@ -338,6 +338,11 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (CurrentStatePointerTLS == nullptr) {
       for (const auto &Use : Glob->uses()) {
         auto *I = cast<CallBase>(Use.getUser());
+        if (I->getNumUses() == 0 &&
+           !Entry.first.contains("_set")) {
+          // Ignore unused getters
+          continue;
+        }
         if (IsNonKernelCalledByNativeCPUKernel(I->getFunction())) {
           // only use the threadlocal if we have kernels calling builtins
           // indirectly, or if the kernel is called by some other func.
@@ -361,7 +366,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     }
     UsedBuiltins.push_back({Glob, Entry.second});
   }
-
 #ifdef NATIVECPU_USE_OCK
   {
     SmallSet<Function *, 5> RemovableFuncs;
