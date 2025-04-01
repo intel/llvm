@@ -423,30 +423,6 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK-NEXT:   return (void (*)(int, int *))free_functions::ff_9;
 // CHECK-NEXT: }
 
-// CHECK: namespace sycl {
-
-// CHECK:  // Definition of _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE as a free function kernel 
-//
-// CHECK: Forward declarations of kernel and its argument types:
-// CHECK: template <typename DataT> class dynamic_work_group_memory;
-
-// CHECK: void ff_9(sycl::dynamic_work_group_memory<int>);
-// CHECK-NEXT: static constexpr auto __sycl_shim10() {
-// CHECK-NEXT: return (void (*)(class sycl::dynamic_work_group_memory<int>))ff_9;
-// CHECK-NEXT: }
-// CHECK-NEXT: namespace sycl {
-
-// CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim10()> {
-// CHECK-NEXT: static constexpr bool value = true;
-// CHECK-NEXT: };
-// CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim10()> {
-// CHECK-NEXT: static constexpr bool value = true;
-// CHECK-NEXT: };
-// CHECK-NEXT: }
-
-
 // CHECK: Definition of _ZN28__sycl_kernel_free_functions5tests5ff_10EiPi as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
 
@@ -556,6 +532,27 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK-NEXT:  }
 
 
+// CHECK:  // Definition of _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE as a free function kernel 
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK-NEXT: namespace sycl { inline namespace _V1 {
+// CHECK-NEXT: template <typename DataT> class dynamic_work_group_memory;
+// CHECK-NEXT: }}
+
+// CHECK: void ff_9(sycl::dynamic_work_group_memory<int> );
+// CHECK-NEXT: static constexpr auto __sycl_shim16() {
+// CHECK-NEXT: return (void (*)(class sycl::dynamic_work_group_memory<int>))ff_9;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim16()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim16()> {
+// CHECK-NEXT: static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
 
 // CHECK: #include <sycl/kernel_bundle.hpp>
 
@@ -684,7 +681,7 @@ void ff_9(sycl::dynamic_work_group_memory<int>) {
 // CHECK: // Definition of kernel_id of _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: template <>
-// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim10()>() {
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim16()>() {
 // CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE"});
 // CHECK-NEXT: }
 // CHECK-NEXT: }
