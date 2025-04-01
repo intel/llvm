@@ -38,10 +38,10 @@ bool CheckResult(sycl::vec<T1, N> V, T2 Ref) {
     constexpr T RefVal = 2;                                                    \
     VecT InVec{static_cast<T>(RefVal)};                                        \
     {                                                                          \
-      VecT OutVecsDevice[2];                                                   \
+      ResT OutVecsDevice[2];                                                   \
       T OutRefsDevice[2];                                                      \
       {                                                                        \
-        sycl::buffer<VecT, 1> OutVecsBuff{OutVecsDevice, 2};                   \
+        sycl::buffer<ResT, 1> OutVecsBuff{OutVecsDevice, 2};                   \
         sycl::buffer<T, 1> OutRefsBuff{OutRefsDevice, 2};                      \
         Q.submit([&](sycl::handler &CGH) {                                     \
           sycl::accessor OutVecsAcc{OutVecsBuff, CGH, sycl::read_write};       \
