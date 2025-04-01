@@ -80,6 +80,23 @@ class BenchmarkHistory:
         except:
             git_hash = "unknown"
             github_repo = None
+        
+        # Check if RUNNER_NAME environment variable has been declared.
+        #
+        # RUNNER_NAME is always present in github runner environments. Because
+        # github runners obfusicate hostnames, using socket.gethostname()
+        # produces different hostnames when ran on the same machine multiple
+        # times. Thus, we rely on the RUNNER_NAME variable when running on
+        # github runners.
+        hostname = os.getenv("RUNNER_NAME")
+        if hostname is None:
+            hostname = socket.gethostname()
+        else if not Validate.runner_name(hostname):
+            # However, nothing stops github runner env variables (including
+            # RUNNER_NAME) from being modified by external actors. Ensure
+            # RUNNER_NAME contains nothing malicious:
+            # TODO is this overkill?
+            raise ValueError("Illegal characters found in specified RUNNER_NAME.")
 
         return BenchmarkRun(
             name=name,
@@ -87,7 +104,7 @@ class BenchmarkHistory:
             github_repo=github_repo,
             date=datetime.now(tz=timezone.utc),
             results=results,
-            hostname=socket.gethostname(),
+            hostname=hostname,
         )
 
     def save(self, save_name, results: list[Result], to_file=True):

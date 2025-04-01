@@ -39,8 +39,8 @@ class Compare:
     """Class containing logic for comparisons between results"""
     @staticmethod
     def get_hist_avg(
-        result_name: str, result_dir: str, cutoff: str, aggregator=SimpleMedian,
-        exclude: list[str] = []
+        result_name: str, result_dir: str, hostname: str, cutoff: str,
+        aggregator: Aggregator = SimpleMedian, exclude: list[str] = []
     ) -> dict[str, BenchmarkHistoricAverage]:
         """
         Create a historic average for results named result_name in result_dir
@@ -51,6 +51,7 @@ class Compare:
             result_dir (str): Path to folder containing benchmark results
             cutoff (str): Timestamp in YYYYMMDD_HHMMSS of oldest results used in
             average calcultaion
+            hostname (str): Hostname of machine on which results ran on 
             aggregator (Aggregator): The aggregator to use for calculating the
             historic average
             exclude (list[str]): List of filenames (only the stem) to exclude
@@ -60,6 +61,9 @@ class Compare:
             A dictionary mapping benchmark names to BenchmarkHistoricAverage
             objects
         """
+        if not Validate.timestamp(cutoff):
+            raise ValueError("Provided cutoff time is not a proper timestamp.")
+
         def get_timestamp(f: str) -> str:
             """Extract timestamp from result filename"""
             return str(f)[-len("YYYYMMDD_HHMMSS.json") : -len(".json")]
@@ -67,7 +71,11 @@ class Compare:
         def get_result_paths() -> list[str]:
             """
             Get a list of all results matching result_name in result_dir that is
-            newer than the timestamp specified by cutoff
+            newer than the timestamp specified by cutoff based off of filename.
+
+            This function assumes filenames of benchmark result files are
+            accurate; files returned by this function will be checked a second
+            time once their contents are actually loaded.
             """
             cache_dir = Path(f"{result_dir}")
 
@@ -84,6 +92,23 @@ class Compare:
                     cache_dir.glob(f"{result_name}_*_*.json")
                 )
             )
+        
+        def check_benchmark_result(result: BenchmarkRun) -> bool:
+            """
+            Returns True if result file:
+            - Was ran on the target machine/hostname specified
+            - Sanity check: ensure metadata are all expected values:
+              - Date is truly before cutoff timestamp
+              - Name truly matches up with specified result_name
+            """
+            if result.hostname != hostname:
+                return False
+            if result.name != result_name:
+                print(f"Warning: Result file {result_path} does not match specified result name {result.name}.")
+                return False
+            if result.date < datetime.strptime(cutoff, "%Y%m%d_%H%M%S"):
+                return False
+            return True
 
         # key: name of the benchmark test result
         # value: { command_args: set[str], aggregate: Aggregator }
@@ -95,9 +120,13 @@ class Compare:
         for result_path in get_result_paths():
             with result_path.open('r') as result_f:
                 result = BenchmarkRun.from_json(json.load(result_f))
-            
-            if result.name != result_name:
-                print(f"Warning: Result file {result_path} has mismatching name {result.name}. Skipping file.")
+
+            # Perform another check on result file here, as get_result_paths()
+            # only filters out result files via filename, which:
+            # - does not contain enough information to filter out results, i.e.
+            #   no hostname information.
+            # - information in filename may be mismatched from metadata.
+            if not check_benchmark_result(result):
                 continue
 
             for test_run in result.results:
@@ -139,26 +168,25 @@ class Compare:
     
 
     def to_hist_avg(
-        hist_avg: dict[str, BenchmarkHistoricAverage], compare_file: str
+        hist_avg: dict[str, BenchmarkHistoricAverage], target: BenchmarkRun
     ) -> tuple:
         """
-        Compare results in compare_file to a pre-existing map of historic
-        averages
+        Compare results in target to a pre-existing map of historic average.
+
+        Caution: Ensure the generated hist_avg is for results running on the
+        same host as target.hostname.
 
         Args:
             hist_avg (dict): A historic average map generated from get_hist_avg
-            compare_file (str): Full filepath of result to compare against
+            target (BenchmarkRun): results to compare against hist_avg
 
         Returns:
             A tuple returning (list of improved tests, list of regressed tests).
         """
-        with open(compare_file, 'r') as compare_f:
-            compare_result = BenchmarkRun.from_json(json.load(compare_f))
-
         improvement = []
         regression = []
 
-        for test in compare_result.results:
+        for test in target.results:
             if test.name not in hist_avg:
                 continue
             if hist_avg[test.name].command_args != set(test.command[1:]):
@@ -186,10 +214,9 @@ class Compare:
         return improvement, regression
 
 
-
     def to_hist(
-        avg_type: str, result_name: str, compare_file: str, result_dir: str, cutoff: str,
-        
+        avg_type: str, result_name: str, compare_file: str, result_dir: str,
+        cutoff: str,
     ) -> tuple:
         """
         Pregenerate a historic average from results named result_name in
@@ -213,17 +240,33 @@ class Compare:
         """ 
 
         if avg_type != "median":
-            print("Only median is currently supported: refusing to continue.")
+            print("Only median is currently supported: Refusing to continue.")
             exit(1)
 
-        # TODO call validator on cutoff timestamp
+        try:
+            with open(compare_file, 'r') as compare_f:
+                compare_result = BenchmarkRun.from_json(json.load(compare_f))
+        except:
+            print(f"Unable to open {compare_file}.")
+            exit(1)
+
+        # Sanity checks:
+        if compare_result.hostname == "Unknown":
+            print("Hostname for results in {compare_file} unknown, unable to build a historic average: Refusing to continue.")
+            exit(1)
+        if not Validate.timestamp(cutoff):
+            print("Invalid timestamp provided, please follow YYYYMMDD_HHMMSS.")
+            exit(1)
+
+        # Build historic average and compare results against historic average:
         hist_avg = Compare.get_hist_avg(
             result_name,
             result_dir,
+            compare_result.hostname,
             cutoff,
             exclude=[Path(compare_file).stem]
         )
-        return Compare.to_hist_avg(hist_avg, compare_file)
+        return Compare.to_hist_avg(hist_avg, compare_result)
 
 
 if __name__ == "__main__":

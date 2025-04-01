@@ -4,12 +4,12 @@ class Validate:
     """Static class containing methods for validating various fields"""
 
     @staticmethod
-    def filepath(path: str) -> bool:
+    def runner_name(runner_name: str) -> bool:
         """
-        Returns True if path is clean (no illegal characters), otherwise False.
+        Returns True if runner_name is clean (no illegal characters).
         """
-        filepath_re = re.compile(r"[a-zA-Z0-9\/\._\-]+")
-        return filepath_re.match(path) is not None
+        runner_name_re = re.compile(r"[a-zA-Z0-9_]+")
+        return runner_name_re.match(runner_name) is not None
 
     @staticmethod
     def timestamp(t: str) -> bool:

@@ -103,7 +103,6 @@ runs:
       echo "-----"
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
       echo "-----"
-      mkdir -p "./llvm-ci-perf-results/$RUNNER_NAME"
 
       case "$ONEAPI_DEVICE_SELECTOR" in
         level_zero:*) SAVE_SUFFIX="L0" ;;
@@ -120,8 +119,8 @@ runs:
         --sycl "$(realpath ./toolchain)" \
         --save "$SAVE_NAME" \
         --output-html remote \
-        --results-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
-        --output-dir "./llvm-ci-perf-results/$RUNNER_NAME" \
+        --results-dir "./llvm-ci-perf-results/" \
+        --output-dir "./llvm-ci-perf-results/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP"
       echo "-----"
