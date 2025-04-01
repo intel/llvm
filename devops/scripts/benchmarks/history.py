@@ -91,7 +91,7 @@ class BenchmarkHistory:
         hostname = os.getenv("RUNNER_NAME")
         if hostname is None:
             hostname = socket.gethostname()
-        else if not Validate.runner_name(hostname):
+        elif not Validate.runner_name(hostname):
             # However, nothing stops github runner env variables (including
             # RUNNER_NAME) from being modified by external actors. Ensure
             # RUNNER_NAME contains nothing malicious:
