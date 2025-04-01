@@ -2,7 +2,7 @@ name: Update GPU driver
 
 on:
   schedule:
-    - cron:  '0 3 * * 2'
+    - cron:  '0-9 */2 * * *'
   workflow_dispatch:
 
 permissions: read-all
@@ -10,15 +10,15 @@ permissions: read-all
 jobs:
   update_driver_linux:
     permissions:
-      contents: write  # for Git to git push
-    runs-on: ubuntu-latest
+      contents: write
+    runs-on: ubuntu-Alpine
     if: github.repository == 'intel/llvm'
     steps:
     - uses: actions/checkout@v4
     - name: Update dependencies file
       run: |
         version="$(python3 devops/scripts/update_drivers.py linux)"
-        echo 'NEW_DRIVER_VERSION='$version >> $GITHUB_ENV
+        echo 'NEW_DRIVER_VERSION='$version >> ${{ secrets.GITHUB_TOKEN }}
     - name: Create Pull Request
       env:
         BRANCH: ci/update_gpu_driver-linux-${{ env.NEW_DRIVER_VERSION }}
