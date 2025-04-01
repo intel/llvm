@@ -38,26 +38,6 @@ __clc__get_group_scratch_float() __asm("__clc__get_group_scratch_float");
 __local double *
 __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
 
-#define __CLC_DECLARE_SHUFFLES(TYPE)                             \
-  _CLC_OVERLOAD _CLC_DECL TYPE __spirv_SubgroupShuffleINTEL(     \
-      TYPE, unsigned int);                                       \
-  _CLC_OVERLOAD _CLC_DECL TYPE __spirv_SubgroupShuffleUpINTEL(   \
-      TYPE, TYPE, unsigned int);
-
-__CLC_DECLARE_SHUFFLES(char);
-__CLC_DECLARE_SHUFFLES(unsigned char);
-__CLC_DECLARE_SHUFFLES(short);
-__CLC_DECLARE_SHUFFLES(unsigned short);
-__CLC_DECLARE_SHUFFLES(int);
-__CLC_DECLARE_SHUFFLES(unsigned int);
-__CLC_DECLARE_SHUFFLES(half);
-__CLC_DECLARE_SHUFFLES(float);
-__CLC_DECLARE_SHUFFLES(long);
-__CLC_DECLARE_SHUFFLES(unsigned long);
-__CLC_DECLARE_SHUFFLES(double);
-
-#undef __CLC_DECLARE_SHUFFLES
-
 #define __CLC_APPEND(NAME, SUFFIX) NAME##SUFFIX
 
 #define __CLC_ADD(x, y) (x + y)
