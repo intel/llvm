@@ -17,7 +17,7 @@ static constexpr size_t NUM = 1024;
 static constexpr size_t WGSIZE = 16;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
-void func_without_ns(float start, float *ptr) {
+void func(float start, float *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
   ptr[id] = start + static_cast<float>(id);
 }
@@ -27,6 +27,12 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void function_in_ns(float start, float *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
   ptr[id] = start + static_cast<float>(id + 1);
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void func(float start, float *ptr) {
+  size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+  ptr[id] = start + static_cast<float>(id + 2);
 }
 } // namespace free_functions::tests
 
@@ -59,14 +65,13 @@ static void call_kernel_code(sycl::queue &q, sycl::kernel &kernel) {
 
 void test_function_without_ns(sycl::queue &q, sycl::context &ctxt) {
   // Get a kernel bundle that contains the free function kernel
-  // "func_without_ns".
+  // "func".
   auto exe_bndl =
-      syclexp::get_kernel_bundle<func_without_ns,
+      syclexp::get_kernel_bundle<func,
                                  sycl::bundle_state::executable>(ctxt);
-  // Get a kernel object for the "func_without_ns" function from that bundle.
-  sycl::kernel k_func_without_ns =
-      exe_bndl.ext_oneapi_get_kernel<func_without_ns>();
-  call_kernel_code(q, k_func_without_ns);
+  // Get a kernel object for the "func" function from that bundle.
+  sycl::kernel k_func = exe_bndl.ext_oneapi_get_kernel<func>();
+  call_kernel_code(q, k_func);
 }
 
 void test_function_in_ns(sycl::queue &q, sycl::context &ctxt) {
@@ -80,6 +85,19 @@ void test_function_in_ns(sycl::queue &q, sycl::context &ctxt) {
   sycl::kernel k_function_in_ns =
       exe_bndl.ext_oneapi_get_kernel<free_functions::tests::function_in_ns>();
   call_kernel_code(q, k_function_in_ns);
+}
+
+void test_func_in_ns_with_same_name(sycl::queue &q, sycl::context &ctxt) {
+  // Get a kernel bundle that contains the free function kernel
+  // "func".
+  auto exe_bndl =
+      syclexp::get_kernel_bundle<free_functions::tests::func,
+                                 sycl::bundle_state::executable>(ctxt);
+
+  // Get a kernel object for the "func" function from that bundle.
+  sycl::kernel k_func_in_ns =
+      exe_bndl.ext_oneapi_get_kernel<free_functions::tests::func>();
+  call_kernel_code(q, k_func_in_ns);
 }
 
 void test_function_in_inline_ns(sycl::queue &q, sycl::context &ctxt) {
@@ -118,5 +136,6 @@ int main() {
   test_function_in_ns(q, ctxt);
   test_function_in_inline_ns(q, ctxt);
   test_function_in_anonymous_ns(q, ctxt);
+  test_func_in_ns_with_same_name(q, ctxt);
   return 0;
 }
