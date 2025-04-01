@@ -219,15 +219,17 @@ The clang driver needs to accept the following new flags:
 <td>`-fsyclbin`</td>
 <td>
 If this option is set, the output of the invocation is a SYCLBIN file with the
-.syclbin file extension. This skips the host-compilation invocation of the typical
-`-fsycl` pipeline, instead passing the output of the clang-offload-packager
-invocation to clang-linker-wrapper together with the new `--syclbin` flag.
+.syclbin file extension. This skips the host-compilation invocation of the
+typical `-fsycl` pipeline, instead passing the output of the
+clang-offload-packager invocation to clang-linker-wrapper together with the new
+`--syclbin` flag.
 
-Setting this option implies `-fsycl` and `-fsycl-device-only`.
+Setting this option will override `-fsycl`. Passing`-fsycl-device-only` with
+`-fsyclbin` will cause the latter to be ignored.
 
-The behavior is dependent on using the clang-linker-wrapper. As the current default
-offload compilation behavior is using the old offload model (driver based), this
-option currently requires `--offload-new-driver` to be set.
+The behavior is dependent on using the clang-linker-wrapper. As the current
+default offload compilation behavior is using the old offload model (driver
+based), this option currently requires `--offload-new-driver` to be set.
 </td>
 </tr>
 <tr>
