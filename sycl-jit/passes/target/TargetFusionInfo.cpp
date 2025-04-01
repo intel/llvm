@@ -735,7 +735,7 @@ public:
     // Emit a call to llvm.nvvm.barrier0. From the user manual of the NVPTX
     // backend: "The ‘@llvm.nvvm.barrier0()’ intrinsic emits a PTX bar.sync 0
     // instruction, equivalent to the __syncthreads() call in CUDA."
-    Builder.CreateIntrinsic(Intrinsic::NVVMIntrinsics::nvvm_barrier0, {}, {});
+    Builder.CreateIntrinsic(Intrinsic::NVVMIntrinsics::nvvm_barrier0, ArrayRef<Type *>(), {});
   }
 
   // Corresponds to the definitions in the LLVM NVPTX backend user guide:
@@ -843,7 +843,7 @@ public:
     llvm::SyncScope::ID SSID =
         LLVMMod->getContext().getOrInsertSyncScopeID("workgroup");
     Builder.CreateFence(AO, SSID);
-    Builder.CreateIntrinsic(Intrinsic::AMDGCNIntrinsics::amdgcn_s_barrier, {},
+    Builder.CreateIntrinsic(Intrinsic::AMDGCNIntrinsics::amdgcn_s_barrier, ArrayRef<Type *>(),
                             {});
   }
 

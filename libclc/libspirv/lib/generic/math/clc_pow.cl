@@ -1,24 +1,10 @@
-/*
- * Copyright (c) 2014 Advanced Micro Devices, Inc.
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
- */
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
 #include <clc/clc_convert.h>
@@ -119,7 +105,9 @@ _CLC_DEF _CLC_OVERLOAD float __clc_pow(float x, float y) {
             __clc_as_float(0x3f000000 | (ixn & MANTBITS_SP32));
 
   indx = indx >> 16;
-  float2 tv = USE_TABLE(log_inv_tbl_ep, indx);
+  float2 tv;
+  tv.s0 = USE_TABLE(log_inv_tbl_ep_head, indx);
+  tv.s1 = USE_TABLE(log_inv_tbl_ep_tail, indx);
   float rh = f * tv.s0;
   float rt = f * tv.s1;
   r = rh + rt;
@@ -130,7 +118,8 @@ _CLC_DEF _CLC_OVERLOAD float __clc_pow(float x, float y) {
 
   const float LOG2_HEAD = 0x1.62e000p-1f;  /* 0.693115234 */
   const float LOG2_TAIL = 0x1.0bfbe8p-15f; /* 0.0000319461833 */
-  tv = USE_TABLE(loge_tbl, indx);
+  tv.s0 = USE_TABLE(loge_tbl_lo, indx);
+  tv.s1 = USE_TABLE(loge_tbl_hi, indx);
   float lth = -r;
   float ltt = __clc_mad(mfn, LOG2_TAIL, -poly) + tv.s1;
   float lt = lth + ltt;
@@ -177,7 +166,8 @@ _CLC_DEF _CLC_OVERLOAD float __clc_pow(float x, float y) {
                              0x1.000000p-1f),
                    r * r, r);
 
-  tv = USE_TABLE(exp_tbl_ep, j);
+  tv.s0 = USE_TABLE(exp_tbl_ep_head, j);
+  tv.s1 = USE_TABLE(exp_tbl_ep_tail, j);
 
   float expylogx =
       __clc_mad(tv.s0, poly, __clc_mad(tv.s1, poly, tv.s1)) + tv.s0;
@@ -280,7 +270,9 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y) {
     double F = __clc_as_double(rax | 0x3FE0000000000000L);
     double Y = __clc_as_double(mantissa | 0x3FE0000000000000L);
     double f = F - Y;
-    double2 tv = USE_TABLE(log_f_inv_tbl, index);
+    double2 tv;
+    tv.s0 = USE_TABLE(log_f_inv_tbl_head, index);
+    tv.s1 = USE_TABLE(log_f_inv_tbl_tail, index);
     double log_h = tv.s0;
     double log_t = tv.s1;
     double f_inv = (log_h + log_t) * f;
@@ -301,7 +293,8 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y) {
     double poly0t = r1 - poly0h + hr1r1;
     poly = __clc_fma(r1, r2, __clc_fma(0.5 * r2, r2, poly)) + r2 + poly0t;
 
-    tv = USE_TABLE(powlog_tbl, index);
+    tv.s0 = USE_TABLE(powlog_tbl_head, index);
+    tv.s1 = USE_TABLE(powlog_tbl_tail, index);
     log_h = tv.s0;
     log_t = tv.s1;
 
@@ -339,7 +332,9 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y) {
     int j = n & 0x0000003f;
     int m = n >> 6;
 
-    double2 tv = USE_TABLE(two_to_jby64_ep_tbl, j);
+    double2 tv;
+    tv.s0 = USE_TABLE(two_to_jby64_ep_tbl_head, j);
+    tv.s1 = USE_TABLE(two_to_jby64_ep_tbl_tail, j);
     double f1 = tv.s0;
     double f2 = tv.s1;
     double f = f1 + f2;
