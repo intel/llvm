@@ -548,14 +548,14 @@ ur_result_t urBindlessImagesImageCopyExp(
                                       DstRowPitch,
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
-      uint32_t DstSlicePitch = 0;
-      uint32_t SrcSlicePitch = 0;
-      ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
+     ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
                                       (uint32_t)pCopyRegion->srcOffset.y,
                                       (uint32_t)pCopyRegion->srcOffset.z,
                                       SrcRowPitch,
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
+      uint32_t DstSlicePitch = 0;
+      uint32_t SrcSlicePitch = 0;
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
                  (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
                   pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
