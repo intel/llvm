@@ -13,7 +13,6 @@
 // CHECK-NOT: define internal{{.*}}__mux_sub_group_shuffle
 
 #include <sycl/sycl.hpp>
-
 class Test1;
 class Test2;
 class Test3;
