@@ -548,7 +548,7 @@ ur_result_t urBindlessImagesImageCopyExp(
                                       DstRowPitch,
                                       (uint32_t)pCopyRegion->copyExtent.height,
                                       (uint32_t)pCopyRegion->copyExtent.depth};
-     ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
+      ze_copy_region_t ZeSrcRegion = {(uint32_t)pCopyRegion->srcOffset.x,
                                       (uint32_t)pCopyRegion->srcOffset.y,
                                       (uint32_t)pCopyRegion->srcOffset.z,
                                       SrcRowPitch,
