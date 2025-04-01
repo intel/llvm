@@ -23,12 +23,12 @@ name: Appknox
 
 on:
   push:
-    branches: [ "sycl" ]
+    branches: [ "yy" ]
   pull_request:
-    branches: [ "sycl" ]
+    branches: [ "labels" ]
 jobs:
   appknox:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-Alpine
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
