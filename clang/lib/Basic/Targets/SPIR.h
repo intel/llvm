@@ -167,7 +167,9 @@ public:
   // memcpy as per section 3 of the SPIR spec.
   bool useFP16ConversionIntrinsics() const override { return false; }
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return {}; }
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override {
+    return {};
+  }
 
   std::string_view getClobbers() const override { return ""; }
 
@@ -426,7 +428,9 @@ public:
     resetDataLayout("e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-"
                     "v256:256-v512:512-v1024:1024-n8:16:32:64-G1");
   }
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override;
+
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
+
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 };
@@ -477,6 +481,10 @@ public:
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
+
+  const llvm::omp::GV &getGridValue() const override {
+    return llvm::omp::SPIRVGridValues;
+  }
 };
 
 // x86-32 SPIRV32 Windows target
@@ -596,6 +604,8 @@ public:
     HasLegalHalfType = true;
     HasFloat16 = true;
     HalfArgsAndReturns = true;
+
+    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
   }
 
   bool hasBFloat16Type() const override { return true; }
@@ -611,7 +621,7 @@ public:
 
   std::string convertConstraint(const char *&Constraint) const override;
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override;
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;

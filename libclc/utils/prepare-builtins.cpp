@@ -1,3 +1,11 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #if HAVE_LLVM > 0x0390
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
@@ -116,7 +124,7 @@ int main(int argc, char **argv) {
   // functions were inlined prior to incompatible functions pass. Now that the
   // inliner runs later in the pipeline we have to remove all of the target
   // features, so libclc functions will not be earmarked for deletion.
-  if (M->getTargetTriple().find("amdgcn") != std::string::npos) {
+  if (M->getTargetTriple().str().find("amdgcn") != std::string::npos) {
     AttributeMask AM;
     AM.addAttribute("target-features");
     AM.addAttribute("target-cpu");

@@ -196,7 +196,7 @@ int main(int argc, const char **argv) {
     StringRef FileName = Outputs[I];
 
     Module Mod{"offload-deps", Context};
-    Mod.setTargetTriple(Triples[I]);
+    Mod.setTargetTriple(Triple(Triples[I]));
 
     SmallVector<Constant *, 8u> Used;
     Used.reserve(Target2Symbols[Targets[I]].size());

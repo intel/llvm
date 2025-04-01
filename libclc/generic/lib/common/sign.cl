@@ -1,29 +1,16 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
+#include <clc/common/clc_sign.h>
 
-#define SIGN(TYPE, F) \
-_CLC_DEF _CLC_OVERLOAD TYPE sign(TYPE x) { \
-  return __spirv_ocl_sign(x); \
-}
+#define FUNCTION sign
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-SIGN(float, f)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, sign, float)
-
-#ifdef cl_khr_fp64
-
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-SIGN(double, )
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, sign, double)
-
-#endif
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-SIGN(half,)
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, sign, half)
-
-#endif
+#include <clc/math/gentype.inc>

@@ -1452,7 +1452,7 @@ Value *SCEVExpander::expandCodeFor(const SCEV *SH, Type *Ty) {
   // Expand the code for this SCEV.
   Value *V = expand(SH);
 
-  if (Ty) {
+  if (Ty && Ty != V->getType()) {
     assert(SE.getTypeSizeInBits(Ty) == SE.getTypeSizeInBits(SH->getType()) &&
            "non-trivial casts should be done with the SCEVs directly!");
     V = InsertNoopCastOfTo(V, Ty);
@@ -2390,8 +2390,8 @@ void SCEVExpanderCleaner::cleanup() {
 
   auto InsertedInstructions = Expander.getAllInsertedInstructions();
 #ifndef NDEBUG
-  SmallPtrSet<Instruction *, 8> InsertedSet(InsertedInstructions.begin(),
-                                            InsertedInstructions.end());
+  SmallPtrSet<Instruction *, 8> InsertedSet(llvm::from_range,
+                                            InsertedInstructions);
   (void)InsertedSet;
 #endif
   // Remove sets with value handles.
