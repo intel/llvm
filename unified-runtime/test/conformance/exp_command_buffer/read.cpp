@@ -48,7 +48,8 @@ struct urCommandBufferReadCommandsTest
             testParametersRead>::TearDown());
   }
 
-  void verifyData(std::vector<uint8_t> &output, std::vector<uint8_t> &input) {
+  void verifyData(const std::vector<uint8_t> &output,
+                  const std::vector<uint8_t> &input) {
     for (size_t i = 0; i < read_size; ++i) {
       ASSERT_EQ(output[i], input[i + offset])
           << "Result mismatch at index: " << i;

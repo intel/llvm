@@ -60,7 +60,8 @@ struct urCommandBufferMemcpyCommandsTest
             testParametersMemcpy>::TearDown());
   }
 
-  void verifyData(std::vector<uint8_t> &output, std::vector<uint8_t> &input) {
+  void verifyData(const std::vector<uint8_t> &output,
+                  const std::vector<uint8_t> &input) {
     for (size_t i = 0; i < copy_size; ++i) {
       ASSERT_EQ(output[i + offset_dst], input[i + offset_src])
           << "Result mismatch at index: " << i;

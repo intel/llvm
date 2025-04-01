@@ -908,9 +908,15 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp(
 
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList);
+
+  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                  (commandListLocked->getZeCommandList(), 0));
   ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
              (commandListLocked->getZeCommandList(), numCommandLists,
               phCommandLists, zeSignalEvent, numWaitEvents, pWaitEvents));
+
+  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
+                  (commandListLocked->getZeCommandList(), 0));
   return UR_RESULT_SUCCESS;
 }
 
