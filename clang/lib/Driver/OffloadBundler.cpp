@@ -1099,12 +1099,11 @@ class ArchiveFileHandler final : public FileHandler {
     Object,   // Output is a single object file
     Archive   // Output is an archive with extracted objects
   };
-  const OutputType Mode =
-      StringSwitch<OutputType>(BundlerConfig.FilesType)
-          .Case("aoo", OutputType::FileList)
-          .Case("ao", OutputType::Object)
-          .Case("a", OutputType::Archive)
-          .Default(OutputType::Unknown);
+  const OutputType Mode = StringSwitch<OutputType>(BundlerConfig.FilesType)
+                              .Case("aoo", OutputType::FileList)
+                              .Case("ao", OutputType::Object)
+                              .Case("a", OutputType::Archive)
+                              .Default(OutputType::Unknown);
 
   // Set contains indexes of Children that should be skipped during
   // unbundling.

@@ -108,23 +108,24 @@ int main(int argc, const char **argv) {
 
   cl::opt<std::string> FilesType(
       "type", cl::Required,
-      cl::desc("Type of the files to be bundled/unbundled/checked.\n"
-             "Current supported types are:\n"
-             "  i   - cpp-output\n"
-             "  ii  - c++-cpp-output\n"
-             "  cui - cuda/hip-output\n"
-             "  hipi - hip-cpp-output\n"
-             "  d   - dependency\n"
-             "  ll  - llvm\n"
-             "  bc  - llvm-bc\n"
-             "  s   - assembler\n"
-             "  o   - object\n"
-             "  gch - precompiled-header\n"
-             "  ast - clang AST file\n"
-             "  a   - archive of objects\n"
-             "  ao  - archive with one object; output is an unbundled object\n"
-             "  aoo - archive; output file is a list of unbundled objects\n"),
-    cl::cat(ClangOffloadBundlerCategory));
+      cl::desc(
+          "Type of the files to be bundled/unbundled/checked.\n"
+          "Current supported types are:\n"
+          "  i   - cpp-output\n"
+          "  ii  - c++-cpp-output\n"
+          "  cui - cuda/hip-output\n"
+          "  hipi - hip-cpp-output\n"
+          "  d   - dependency\n"
+          "  ll  - llvm\n"
+          "  bc  - llvm-bc\n"
+          "  s   - assembler\n"
+          "  o   - object\n"
+          "  gch - precompiled-header\n"
+          "  ast - clang AST file\n"
+          "  a   - archive of objects\n"
+          "  ao  - archive with one object; output is an unbundled object\n"
+          "  aoo - archive; output file is a list of unbundled objects\n"),
+      cl::cat(ClangOffloadBundlerCategory));
 
   cl::opt<bool>
     Unbundle("unbundle",
