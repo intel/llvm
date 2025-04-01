@@ -172,7 +172,7 @@ ur_command_list_manager::getWaitListView(const ur_event_handle_t *phWaitEvents,
 ze_event_handle_t
 ur_command_list_manager::getSignalEvent(ur_event_handle_t *hUserEvent,
                                         ur_command_t commandType) {
-  if (hUserEvent && queue) {
+  if (hUserEvent) {
     *hUserEvent = eventPool->allocate();
     (*hUserEvent)->resetQueueAndCommand(queue, commandType);
     return (*hUserEvent)->getZeEvent();
