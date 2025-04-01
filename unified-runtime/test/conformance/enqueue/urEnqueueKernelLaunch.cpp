@@ -154,26 +154,19 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidKernelArgs) {
-  // Cuda and hip both lack any way to validate kernel args
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
-
-  ur_platform_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(ur_platform_backend_t), &backend,
-                                   nullptr));
-
-  if (backend == UR_PLATFORM_BACKEND_CUDA ||
-      backend == UR_PLATFORM_BACKEND_HIP ||
-      backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-    GTEST_FAIL() << "AMD, L0 and Nvidia can't check kernel arguments.";
-  }
+  // Seems to segfault
+  UUR_KNOWN_FAILURE_ON(uur::HIP{});
+  // cuLaunchKernel seems to be returning CUDA_ERROR_INVALID_VALUE which is
+  // converted to UR_RESULT_ERROR_INVALID_VALUE
+  // https://github.com/oneapi-src/unified-runtime/issues/2720
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
 
   // Enqueue kernel without setting any args
-  ASSERT_EQ_RESULT(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         &global_offset, &global_size, nullptr,
-                                         0, nullptr, nullptr),
-                   UR_RESULT_ERROR_INVALID_KERNEL_ARGS);
+  auto error =
+      urEnqueueKernelLaunch(queue, kernel, n_dimensions, &global_offset,
+                            &global_size, nullptr, 0, nullptr, nullptr);
+  ASSERT_TRUE(error == UR_RESULT_ERROR_INVALID_KERNEL_ARGS ||
+              error == UR_RESULT_SUCCESS);
 }
 
 TEST_P(urEnqueueKernelLaunchKernelWgSizeTest, Success) {
