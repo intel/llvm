@@ -9857,26 +9857,6 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     const ToolChain *CurTC = &getToolChain();
     const Action *CurDep = JA.getInputs()[I];
 
-    // Special handling for FPGA AOC[RX] binaries that are bundled prior to
-    // being added to the generated archive.
-    llvm::Triple Triple = CurTC->getTriple();
-    bool IsFPGA = Triple.isSPIR() &&
-                  Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
-    Arg *A = TCArgs.getLastArg(options::OPT_fsycl_link_EQ);
-    if (A && IsFPGA) {
-      bool IsFPGAImage = false;
-      IsFPGAImage = A->getValue() == StringRef("image");
-      if (Inputs.size() == 1) {
-        Triples += Action::GetOffloadKindName(CurKind);
-        Triples += "-fpga_";
-        Triples += IsFPGAImage ? "aocx" : "aocr";
-        if (!IsFPGAImage && !C.getDriver().IsFPGAHWMode())
-          Triples += "_emu";
-        Triples += "-intel-unknown";
-        continue;
-      }
-    }
-
     if (const auto *OA = dyn_cast<OffloadAction>(CurDep)) {
       CurTC = nullptr;
       OA->doOnEachDependence([&](Action *A, const ToolChain *TC, const char *) {
@@ -10021,37 +10001,15 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   InputInfoList ForeachInputs;
   if (InputType == types::TY_Tempfilelist)
     ForeachInputs.push_back(Input);
-
-  if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR ||
-      InputType == types::TY_FPGA_AOCR_EMU) {
-    // Override type with AOCX/AOCR which will unbundle to a list containing
-    // binaries with the appropriate extension (.aocx/.aocr)
-    // TODO - representation of the output file from the unbundle for these
-    // types (aocx/aocr) are always list files.  We should represent this
-    // better in the output extension and type for improved understanding
-    // of file contents and debuggability.
-    TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
-    // When the output is a Tempfilelist, we know we are unbundling
-    // the .bc files from the archive.
-    if (!getToolChain().getTriple().isSPIROrSPIRV() ||
-        JA.getType() == types::TY_Tempfilelist)
-      TypeArg = "aoo";
-  }
-  if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle)
-    TypeArg = "aoo";
   if (IsFPGADepUnbundle)
     TypeArg = "o";
 
   bool HasSPIRTarget = false;
-  bool HasFPGATarget = false;
   auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
   for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
     llvm::Triple TT(TI->second->getTriple());
-    if (TT.isSPIROrSPIRV()) {
+    if (TT.isSPIROrSPIRV())
       HasSPIRTarget = true;
-      if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
-        HasFPGATarget = true;
-    }
   }
   if (InputType == types::TY_Archive && HasSPIRTarget)
     TypeArg = "aoo";
@@ -10059,70 +10017,24 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // Get the type.
   CmdArgs.push_back(TCArgs.MakeArgString(Twine("-type=") + TypeArg));
 
-  // For FPGA Archives that contain AOCO in them, we only want to unbundle
-  // the objects from the archive that do not have AOCO associated in that
-  // specific object.  Only do this when in hardware mode.
-  if (InputType == types::TY_Archive && HasFPGATarget && !IsFPGADepUnbundle &&
-      !IsFPGADepLibUnbundle && C.getDriver().IsFPGAHWMode()) {
-    llvm::Triple TT;
-    TT.setArchName(types::getTypeName(types::TY_FPGA_AOCO));
-    TT.setVendorName("intel");
-    TT.setOS(getToolChain().getTriple().getOS());
-    SmallString<128> ExcludedTargets("-excluded-targets=");
-    ExcludedTargets += "sycl-";
-    ExcludedTargets += TT.normalize();
-    CmdArgs.push_back(TCArgs.MakeArgString(ExcludedTargets));
-  }
-
   // Get the targets.
   SmallString<128> Triples;
   Triples += "-targets=";
   auto DepInfo = UA.getDependentActionsInfo();
   for (unsigned I = 0, J = 0; I < DepInfo.size(); ++I) {
     auto &Dep = DepInfo[I];
-    // FPGA device triples are 'transformed' for the bundler when creating
-    // aocx or aocr type bundles.  Also, we only do a specific target
-    // unbundling, skipping the host side or device side.
-    if (types::isFPGA(InputType) || InputType == types::TY_Tempfilelist) {
+    // We only do a specific target unbundling, skipping the host side or
+    // device side.
+    if (InputType == types::TY_Tempfilelist) {
       if (getToolChain().getTriple().isSPIROrSPIRV()) {
-        if (Dep.DependentToolChain->getTriple().getSubArch() ==
-            llvm::Triple::SPIRSubArch_fpga) {
-          StringRef TypeName(types::getTypeName(InputType));
-          types::ID Type = UA.getDependentType();
-          if (InputType == types::TY_Tempfilelist && Type != types::TY_Nothing)
-            TypeName = types::getTypeName(Type);
-          if (J++)
-            Triples += ',';
-          llvm::Triple TT;
-          TT.setArchName(TypeName);
-          TT.setVendorName("intel");
-          TT.setOS(getToolChain().getTriple().getOS());
-          if ((InputType == types::TY_FPGA_AOCX ||
-               InputType == types::TY_FPGA_AOCR ||
-               InputType == types::TY_FPGA_AOCR_EMU) &&
-              JA.getType() == types::TY_Tempfilelist)
-            // AOCX device and AOCR bc info is bundled in the host kind
-            Triples += "host-";
-          else
-            // AOCR device is bundled in the sycl kind
-            Triples += "sycl-";
-          Triples += TT.normalize();
+        if (Dep.DependentOffloadKind == Action::OFK_Host)
           continue;
-        } else if (Dep.DependentOffloadKind == Action::OFK_Host) {
-          // No host unbundle for FPGA binaries.
-          continue;
-        }
       } else if (Dep.DependentOffloadKind == Action::OFK_SYCL)
         continue;
-    } else if (InputType == types::TY_Archive ||
-               (getToolChain().getTriple().getSubArch() ==
-                    llvm::Triple::SPIRSubArch_fpga &&
-                TCArgs.hasArg(options::OPT_fsycl_link_EQ))) {
+    } else if (InputType == types::TY_Archive) {
       // Do not extract host part if we are unbundling archive on Windows
       // because it is not needed. Static offload libraries are added to the
-      // host link command just as normal libraries.  Do not extract the host
-      // part from FPGA -fsycl-link unbundles either, as the full obj
-      // is used in the final link
+      // host link command just as normal libraries.
       if (Dep.DependentOffloadKind == Action::OFK_Host)
         continue;
     }
@@ -10317,8 +10229,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     llvm::Triple TT = getToolChain().getTriple();
     SmallString<128> TargetTripleOpt = TT.getArchName();
-    bool WrapFPGADevice = false;
-    bool FPGAEarly = false;
 
     // Validate and propogate CLI options related to device image compression.
     // -offload-compress
@@ -10332,32 +10242,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
             Twine("-offload-compression-level=") + A->getValue()));
     }
 
-    if (Arg *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
-      WrapFPGADevice = true;
-      FPGAEarly = (A->getValue() == StringRef("early"));
-      // When wrapping an FPGA aocx binary to archive, do not emit registration
-      // functions
-      if (A->getValue() == StringRef("image"))
-        WrapperArgs.push_back(C.getArgs().MakeArgString("--emit-reg-funcs=0"));
-    }
     addRunTimeWrapperOpts(C, OffloadingKind, TCArgs, WrapperArgs,
                           getToolChain(), JA);
 
-    // When wrapping an FPGA device binary, we need to be sure to apply the
-    // appropriate triple that corresponds (fpga_aocr-intel-<os>)
-    // to the target triple setting.
-    if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga && WrapFPGADevice) {
-      SmallString<16> FPGAArch("fpga_");
-      if (FPGAEarly) {
-        FPGAArch += "aocr";
-        if (C.getDriver().IsFPGAEmulationMode())
-          FPGAArch += "_emu";
-      } else
-        FPGAArch += "aocx";
-      TT.setArchName(FPGAArch);
-      TT.setVendorName("intel");
-      TargetTripleOpt = TT.str();
-    }
     const toolchains::SYCLToolChain &TC =
               static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     bool IsEmbeddedIR = cast<OffloadWrapperJobAction>(JA).isEmbeddedIR();
@@ -10387,18 +10274,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       Kind = Action::GetOffloadKindName(OK);
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
-
-    // For FPGA toolchains, we can provide previously wrapped bc input files to
-    // the wrapper step.  This is done for AOCR based files that will need the
-    // Symbols and Properties from a previous compilation step.
-    if (TC.getTriple().isSPIR() && Inputs.size() == 2 &&
-        TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
-      // If there is an additional input argument passed in, that is considered
-      // the .bc file to include in this wrapping job.
-      const InputInfo &I = Inputs[1];
-      WrapperArgs.push_back(C.getArgs().MakeArgString(
-          Twine("--sym-prop-bc-files=") + I.getFilename()));
-    }
 
     assert((Inputs.size() > 0) && "no inputs for clang-offload-wrapper");
     assert(((Inputs[0].getType() != types::TY_Tempfiletable) ||
