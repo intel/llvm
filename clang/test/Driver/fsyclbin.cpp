@@ -5,6 +5,14 @@
 // RUN: | FileCheck %s --check-prefix=UNUSED
 // UNUSED: warning: argument unused during compilation: '-fsyclbin'
 
+/// -fsyclbin -fsycl-device-only usage.  -fsycl-device-only will 'win' and
+/// -fsyclbin is effectively ignored.
+// RUN: %clangxx -fsycl-device-only -fsyclbin --offload-new-driver %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=SYCLBIN_UNUSED
+// RUN: %clang_cl -fsycl-device-only -fsyclbin --offload-new-driver %s -### 2>&1 \
+// RUN: | FileCheck %s --check-prefix=SYCLBIN_UNUSED
+// SYCLBIN_UNUSED: warning: argument unused during compilation: '-fsyclbin'
+
 /// Check tool invocation contents.
 // RUN: %clangxx -fsycl -fsyclbin --offload-new-driver %s -### 2>&1 \
 // RUN: | FileCheck %s --check-prefix=CHECK_TOOLS

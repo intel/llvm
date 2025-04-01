@@ -1204,8 +1204,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Use of -fsyclbin also enables SYCL offloading compialtion.
   bool IsSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                          options::OPT_fno_sycl, false) ||
-                C.getInputArgs().hasArg(options::OPT_fsycl_device_only,
-                                        options::OPT_fsyclbin);
+                C.getInputArgs().hasArgNoClaim(options::OPT_fsycl_device_only,
+                                               options::OPT_fsyclbin);
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!IsSYCL)
@@ -3484,7 +3484,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   Arg *InputTypeArg = nullptr;
   bool IsSYCL =
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
-      Args.hasArg(options::OPT_fsycl_device_only, options::OPT_fsyclbin);
+      Args.hasArgNoClaim(options::OPT_fsycl_device_only, options::OPT_fsyclbin);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
   if (Arg *TCTP = Args.getLastArgNoClaim(options::OPT__SLASH_TC,
