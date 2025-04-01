@@ -160,6 +160,7 @@ jobs:
     #     sudo apt-get update
     #     sudo apt-get install -y libze-intel-gpu1 libze1 libze-dev intel-opencl-icd
     #     # libstdc++-12-dev
+    #
 
     - name: Install OpenCL
       if: ${{ inputs.adapter_name == 'OPENCL' }}
