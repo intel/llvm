@@ -16,6 +16,7 @@
 #else
 #include "context.hpp"
 #endif
+#include "helpers/memory_helpers.hpp"
 #include "image_common.hpp"
 #include "logger/ur_logger.hpp"
 #include "sampler.hpp"
@@ -267,9 +268,14 @@ ur_result_t ze2urImageFormat(const ze_image_format_t &ZeImageFormat,
 }
 
 /// Construct UR bindless image struct from ZE image handle and desc.
-ur_result_t createUrImgFromZeImage(ze_image_handle_t ZeImage,
+ur_result_t createUrImgFromZeImage(ze_context_handle_t hContext,
+                                   ze_device_handle_t hDevice,
                                    const ZeStruct<ze_image_desc_t> &ZeImageDesc,
                                    ur_exp_image_mem_native_handle_t *pImg) {
+  ze_image_handle_t ZeImage;
+  ZE2UR_CALL(zeImageCreate, (hContext, hDevice, &ZeImageDesc, &ZeImage));
+  ZE2UR_CALL(zeContextMakeImageResident, (hContext, hDevice, ZeImage));
+
   try {
     ur_bindless_mem_handle_t *urImg =
         new ur_bindless_mem_handle_t(ZeImage, ZeImageDesc);
@@ -951,12 +957,8 @@ ur_result_t urBindlessImagesImageAllocateExp(
   ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &ZeImageBindlessDesc;
 
-  ze_image_handle_t ZeImage;
-  ZE2UR_CALL(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
-                             &ZeImageDesc, &ZeImage));
-  ZE2UR_CALL(zeContextMakeImageResident,
-             (hContext->getZeHandle(), hDevice->ZeDevice, ZeImage));
-  UR_CALL(createUrImgFromZeImage(ZeImage, ZeImageDesc, phImageMem));
+  UR_CALL(createUrImgFromZeImage(hContext->getZeHandle(), hDevice->ZeDevice,
+                                 ZeImageDesc, phImageMem));
   return UR_RESULT_SUCCESS;
 }
 
@@ -990,9 +992,9 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
   auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
 
   if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
-    ZE2UR_CALL(zeImageDestroy, (item->second));
     hDevice->ZeOffsetToImageHandleMap.erase(item);
     Lock.release();
+    ZE2UR_CALL(zeImageDestroy, (item->second));
   } else {
     Lock.release();
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
@@ -1165,12 +1167,9 @@ ur_result_t urBindlessImagesMapExternalArrayExp(
   ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
   ZeImageDesc.pNext = &ZeImageBindlessDesc;
 
-  ze_image_handle_t ZeImage;
-  ZE2UR_CALL(zeImageCreate, (hContext->getZeHandle(), hDevice->ZeDevice,
-                             &ZeImageDesc, &ZeImage));
-  ZE2UR_CALL(zeContextMakeImageResident,
-             (hContext->getZeHandle(), hDevice->ZeDevice, ZeImage));
-  UR_CALL(createUrImgFromZeImage(ZeImage, ZeImageDesc, phImageMem));
+  UR_CALL(createUrImgFromZeImage(hContext->getZeHandle(), hDevice->ZeDevice,
+                                 ZeImageDesc, phImageMem));
+
   externalMemoryData->urMemoryHandle =
       reinterpret_cast<ur_mem_handle_t>(*phImageMem);
   return UR_RESULT_SUCCESS;
@@ -1186,7 +1185,29 @@ ur_result_t urBindlessImagesReleaseExternalMemoryExp(
   struct ur_ze_external_memory_data *externalMemoryData =
       reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
 
-  UR_CALL(ur::level_zero::urMemRelease(externalMemoryData->urMemoryHandle));
+  // externalMemoryData->urMemoryHandle can be ur_bindless_mem_handle_t or
+  // buffer allocated by zeMemAllocDevice()
+
+  ze_memory_allocation_properties_t allocProperties{
+      ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES, nullptr,
+      ZE_MEMORY_TYPE_UNKNOWN, 0, 0};
+  ZE2UR_CALL(zeMemGetAllocProperties,
+             (hContext->getZeHandle(), externalMemoryData->urMemoryHandle,
+              &allocProperties, nullptr));
+
+  switch (allocProperties.type) {
+  case ZE_MEMORY_TYPE_DEVICE:
+    zeMemFree(hContext->getZeHandle(),
+              externalMemoryData->urMemoryHandle); // Free device memory
+    break;
+  case ZE_MEMORY_TYPE_UNKNOWN:
+  default:
+    auto *bindlessMem = reinterpret_cast<ur_bindless_mem_handle_t *>(
+        externalMemoryData->urMemoryHandle);
+    zeImageDestroy(bindlessMem->getZeImage());
+    delete bindlessMem;
+    break;
+  }
 
   switch (externalMemoryData->type) {
   case UR_ZE_EXTERNAL_OPAQUE_FD:

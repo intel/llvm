@@ -2357,6 +2357,8 @@ ur_result_t ur_mem_handle_t_::getZeHandle(char *&ZeHandle, access_mode_t mode,
   case ur_mem_handle_t_::buffer:
     return reinterpret_cast<_ur_buffer *>(this)->getBufferZeHandle(
         ZeHandle, mode, Device, phWaitEvents, numWaitEvents);
+  default:
+    die("ur_mem_handle_t_::getZeHandle: Unhandled memory type");
   }
   ur::unreachable();
 }
@@ -2371,6 +2373,8 @@ ur_result_t ur_mem_handle_t_::getZeHandlePtr(
   case ur_mem_handle_t_::buffer:
     return reinterpret_cast<_ur_buffer *>(this)->getBufferZeHandlePtr(
         ZeHandlePtr, mode, Device, phWaitEvents, numWaitEvents);
+  default:
+    die("ur_mem_handle_t_::getZeHandle: Unhandled memory type");
   }
   ur::unreachable();
 }

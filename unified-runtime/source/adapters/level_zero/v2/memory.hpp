@@ -15,7 +15,9 @@
 #include <ur_api.h>
 
 #include "../device.hpp"
+#include "../image_common.hpp"
 #include "common.hpp"
+#include "helpers/memory_helpers.hpp"
 
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
 
@@ -214,7 +216,7 @@ private:
   ZeStruct<ze_image_desc_t> zeImageDesc;
 };
 
-struct ur_mem_handle_t_ {
+struct ur_mem_handle_t_ : _ur_object {
   template <typename T, typename... Args>
   static ur_mem_handle_t_ *create(Args &&...args) {
     return new ur_mem_handle_t_(std::in_place_type<T>,

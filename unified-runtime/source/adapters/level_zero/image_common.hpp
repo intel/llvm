@@ -17,10 +17,11 @@
 #include "v2/common.hpp"
 
 struct ur_bindless_mem_handle_t {
-
+  // Constructor for bindless image handle
   ur_bindless_mem_handle_t(ze_image_handle_t zeImage,
                            const ZeStruct<ze_image_desc_t> &zeImageDesc)
       : zeImage(zeImage) {
+
     format = zeImageDesc.format;
     width = zeImageDesc.width;
     height = zeImageDesc.height;
