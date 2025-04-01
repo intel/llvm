@@ -120,7 +120,7 @@ class BenchmarkHistory:
 
         # Use formatted timestamp for the filename
         timestamp = (
-            datetime.now().strftime("%Y%m%d_%H%M%S")
+            datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
             if options.timestamp_override is None else 
             options.timestamp_override
         )

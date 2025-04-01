@@ -1,4 +1,4 @@
-from utils.aggregate import SimpleMedian
+from utils.aggregate import Aggregator, SimpleMedian
 from utils.validate import Validate
 from utils.result import Result, BenchmarkRun
 from options import options
@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import argparse
+from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
@@ -106,7 +107,7 @@ class Compare:
             if result.name != result_name:
                 print(f"Warning: Result file {result_path} does not match specified result name {result.name}.")
                 return False
-            if result.date < datetime.strptime(cutoff, "%Y%m%d_%H%M%S"):
+            if result.date < datetime.strptime(cutoff, "%Y%m%d_%H%M%S").replace(tzinfo=timezone.utc):
                 return False
             return True
 
@@ -183,6 +184,14 @@ class Compare:
         Returns:
             A tuple returning (list of improved tests, list of regressed tests).
         """
+        def halfway_round(value: int, n: int):
+            """
+            Python's default round() does banker's rounding, which doesn't
+            make much sense here. This rounds 0.5 to 1, and -0.5 to -1
+            """
+            if value == 0: return 0
+            return int(value * 10**n + 0.5 * (value / abs(value))) / 10**n
+
         improvement = []
         regression = []
 
@@ -206,9 +215,11 @@ class Compare:
                 res["avg_type"] = hist_avg[test.name].average_type
                 return res
 
-            if delta > options.regression_threshold:
+            # Round to 2 decimal places: not going to fail a test on 0.001% over
+            # regression threshold
+            if halfway_round(delta, 2) > options.regression_threshold:
                 improvement.append(perf_diff_entry())
-            elif delta < -options.regression_threshold:
+            elif halfway_round(delta, 2) < -options.regression_threshold:
                 regression.append(perf_diff_entry())
 
         return improvement, regression
