@@ -30,6 +30,8 @@
 
 #include <memory>
 
+#include "debugging.h"
+
 namespace llvm {
 class Value;
 class ShuffleVectorInst;
@@ -225,6 +227,35 @@ struct PacketInfo {
   }
 };
 
+inline llvm::Type *getWideType(llvm::Type *ty, llvm::ElementCount factor) {
+  if (!ty->isVectorTy()) {
+    // The wide type of a struct literal is the wide type of each of its
+    // elements.
+    if (auto *structTy = llvm::dyn_cast<llvm::StructType>(ty);
+        structTy && structTy->isLiteral()) {
+      llvm::SmallVector<llvm::Type *, 4> wideElts(structTy->elements());
+      for (unsigned i = 0, e = wideElts.size(); i != e; i++) {
+        wideElts[i] = getWideType(wideElts[i], factor);
+      }
+      return llvm::StructType::get(ty->getContext(), wideElts);
+    } else if (structTy) {
+      VECZ_ERROR("Can't create wide type for structure type");
+    }
+    return llvm::VectorType::get(ty, factor);
+  }
+  const bool isScalable = llvm::isa<llvm::ScalableVectorType>(ty);
+  assert((!factor.isScalable() || !isScalable) &&
+         "Can't widen a scalable vector by a scalable amount");
+  auto *vecTy = llvm::cast<llvm::VectorType>(ty);
+  const unsigned elts = vecTy->getElementCount().getKnownMinValue();
+  // If we're widening a scalable type then set the fixed factor to scalable
+  // here.
+  if (isScalable && !factor.isScalable()) {
+    factor = llvm::ElementCount::getScalable(factor.getKnownMinValue());
+  }
+  ty = vecTy->getElementType();
+  return llvm::VectorType::get(ty, factor * elts);
+}
 }  // namespace vecz
 
 #endif  // VECZ_TRANSFORM_PACKETIZATION_HELPERS_H_INCLUDED

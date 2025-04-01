@@ -45,36 +45,6 @@ using namespace llvm;
 using namespace vecz;
 
 namespace {
-inline Type *getWideType(Type *ty, ElementCount factor) {
-  if (!ty->isVectorTy()) {
-    // The wide type of a struct literal is the wide type of each of its
-    // elements.
-    if (auto *structTy = dyn_cast<StructType>(ty);
-        structTy && structTy->isLiteral()) {
-      SmallVector<Type *, 4> wideElts(structTy->elements());
-      for (unsigned i = 0, e = wideElts.size(); i != e; i++) {
-        wideElts[i] = getWideType(wideElts[i], factor);
-      }
-      return StructType::get(ty->getContext(), wideElts);
-    } else if (structTy) {
-      VECZ_ERROR("Can't create wide type for structure type");
-    }
-    return VectorType::get(ty, factor);
-  }
-  const bool isScalable = isa<ScalableVectorType>(ty);
-  assert((!factor.isScalable() || !isScalable) &&
-         "Can't widen a scalable vector by a scalable amount");
-  auto *vecTy = cast<llvm::VectorType>(ty);
-  const unsigned elts = vecTy->getElementCount().getKnownMinValue();
-  // If we're widening a scalable type then set the fixed factor to scalable
-  // here.
-  if (isScalable && !factor.isScalable()) {
-    factor = ElementCount::getScalable(factor.getKnownMinValue());
-  }
-  ty = vecTy->getElementType();
-  return VectorType::get(ty, factor * elts);
-}
-
 Value *scalableBroadcastHelper(Value *subvec, ElementCount factor,
                                const vecz::TargetInfo &TI, IRBuilder<> &B,
                                bool URem);

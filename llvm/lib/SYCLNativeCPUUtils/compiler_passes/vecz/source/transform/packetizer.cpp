@@ -96,16 +96,6 @@ Type *getPaddedType(Type *Ty) {
   }
   return Ty;
 }
-
-Type *getWideType(Type *Ty, ElementCount Factor) {
-  unsigned Elts = 1;
-  if (Ty->isVectorTy()) {
-    auto *VecTy = cast<FixedVectorType>(Ty);
-    Elts = VecTy->getNumElements();
-    Ty = VecTy->getElementType();
-  }
-  return VectorType::get(Ty, Factor * Elts);
-}
 }  // namespace
 
 using ValuePacket = SmallVector<Value *, 16>;
@@ -1998,7 +1988,9 @@ ValuePacket Packetizer::Impl::packetizePHI(PHINode *Phi) {
 
   auto *wideTy = ty;
   unsigned packetWidth = 0;
-  if (ty->isVectorTy() || VectorType::isValidElementType(ty)) {
+  if (auto structTy = dyn_cast<StructType>(ty);
+      ty->isVectorTy() || VectorType::isValidElementType(ty) ||
+      (structTy && structTy->isLiteral())) {
     packetWidth = getPacketWidthForType(ty);
     wideTy =
         getWideType(Phi->getType(), SimdWidth.divideCoefficientBy(packetWidth));
