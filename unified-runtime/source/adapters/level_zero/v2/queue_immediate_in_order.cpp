@@ -942,7 +942,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
   UR_CALL(enqueueGenericCommandListsExp(
       1, &commandBufferCommandList, phEvent, numEventsInWaitList,
       phEventWaitList, UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, executionEvent));
-  UR_CALL(hCommandBuffer->registerExecutionEvent(commandListLocked, *phEvent));
+  UR_CALL(hCommandBuffer->registerExecutionEventUnlocked(*phEvent));
   if (internalEvent != nullptr) {
     internalEvent->release();
   }

@@ -27,8 +27,7 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
 
   ur_event_handle_t getExecutionEventUnlocked();
   ur_result_t
-  registerExecutionEvent(locked<ur_command_list_manager> &commandList,
-                         ur_event_handle_t nextExecutionEvent);
+  registerExecutionEventUnlocked(ur_event_handle_t nextExecutionEvent);
 
   lockable<ur_command_list_manager> commandListManager;
 

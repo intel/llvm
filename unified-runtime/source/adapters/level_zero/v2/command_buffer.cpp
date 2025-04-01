@@ -51,13 +51,8 @@ ur_event_handle_t ur_exp_command_buffer_handle_t_::getExecutionEventUnlocked() {
   return currentExecution;
 }
 
-ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEvent(
-    [[maybe_unused]] locked<ur_command_list_manager> &commandList,
+ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
     ur_event_handle_t nextExecutionEvent) {
-  assert(
-      commandList->getZeCommandList() ==
-          commandListManager.get_no_lock()->getZeCommandList() &&
-      "Provided command list is not the same as the one in the command buffer");
   if (currentExecution) {
     UR_CALL(currentExecution->release());
     currentExecution = nullptr;
