@@ -1068,6 +1068,7 @@ void handler::setArgHelper(int ArgIndex, stream &&Str) {
   void *StoredArg = storePlainArg(Str);
   addArg(detail::kernel_param_kind_t::kind_stream, StoredArg, sizeof(stream),
          ArgIndex);
+}
 
 void handler::setArgHelper(
     int ArgIndex,

@@ -212,3 +212,87 @@ void ff_8(sycl::dynamic_work_group_memory<int> DynMem) {
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'void (*)(sycl::dynamic_work_group_memory<int>)' <FunctionToPointerDecay>
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (sycl::dynamic_work_group_memory<int>)' lvalue Function {{.*}} 'ff_8' 'void (sycl::dynamic_work_group_memory<int>)'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::dynamic_work_group_memory<int>' Var {{.*}} 'DynMem' 'sycl::dynamic_work_group_memory<int>'
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_9(sycl::accessor<int, 1, sycl::access::mode::read> acc) {
+}
+
+// CHECK: ParmVarDecl {{.*}}acc 'sycl::accessor<int, 1, sycl::access::mode::read>'
+// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__global int *'
+// CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Offset 'sycl::id<1>'
+// CHECK: CXXMemberCallExpr
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_9(sycl::local_accessor<int, 1> lacc) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::local_accessor<int, 1>)'
+// CHECK: ParmVarDecl {{.*}}lacc 'sycl::local_accessor<int, 1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__local int *'
+// CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}used __arg_Offset 'sycl::id<1>'
+// CHECK: CXXMemberCallExpr
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_10(sycl::sampler S) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::sampler)'
+// CHECK: ParmVarDecl {{.*}}S 'sycl::sampler'
+// CHECK: FunctionDecl {{.*}}'void (sampler_t)'
+// CHECK: ParmVarDecl {{.*}}__arg_Sampler 'sampler_t'
+// CHECK: CXXMemberCallExpr {{.*}}'void'
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_11(sycl::stream str) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::stream)'
+// CHECK: ParmVarDecl {{.*}}str 'sycl::stream'
+// CHECK: FunctionDecl {{.*}}'void (__global char *, sycl::range<1>, sycl::range<1>, sycl::id<1>, int)'
+// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__global char *'
+// CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Offset 'sycl::id<1>'
+// CHECK: ParmVarDecl {{.*}}__arg__FlushBufferSize 'int'
+// CHECK: CXXMemberCallExpr {{.*}}
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_12(sycl::ext::oneapi::experimental::annotated_arg<int> arg) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::ext::oneapi::experimental::annotated_arg<int>)'
+// CHECK: ParmVarDecl {{.*}}arg 'sycl::ext::oneapi::experimental::annotated_arg<int>'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel_ff_12{{.*}}'void (int)'
+// CHECK: ParmVarDecl {{.*}}__arg__obj 'int'
+// CHECK: CXXMemberCallExpr {{.*}}
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_13(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
+}
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::ext::oneapi::experimental::annotated_ptr<int>)'
+// CHECK: ParmVarDecl {{.*}}ptr 'sycl::ext::oneapi::experimental::annotated_ptr<int>'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel_ff_13{{.*}}'void (int *)'
+// CHECK: ParmVarDecl {{.*}}__arg__obj 'int *'
+// CHECK: CXXMemberCallExpr {{.*}}
+// CHECK-NEXT: MemberExpr {{.*}}.__init
+
