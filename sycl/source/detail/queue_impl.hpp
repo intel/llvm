@@ -710,17 +710,19 @@ public:
   void *getTraceEvent() { return MTraceEvent; }
 
   void setExternalEvent(const event &Event) {
-    MInOrderExternalEvent.put([&Event](std::optional<event> &InOrderExternalEvent){
-      InOrderExternalEvent = Event;
-    });
+    MInOrderExternalEvent.put(
+        [&Event](std::optional<event> &InOrderExternalEvent){
+          InOrderExternalEvent = Event;
+        });
   }
 
   std::optional<event> popExternalEvent() {
     std::optional<event> Result = std::nullopt;
 
-    MInOrderExternalEvent.get([&Result](std::optional<event> &InOrderExternalEvent) {
-      std::swap(Result, InOrderExternalEvent);
-    });
+    MInOrderExternalEvent.get(
+        [&Result](std::optional<event> &InOrderExternalEvent) {
+          std::swap(Result, InOrderExternalEvent);
+        });
     return Result;
   }
 
@@ -836,11 +838,12 @@ protected:
     // dependency so in the case where some commands were not enqueued
     // (blocked), we track them to prevent barrier from being enqueued
     // earlier.
-    MMissedCleanupRequests.get([this](MissedCleanupRequestsType &MissedCleanupRequests){
-      for (auto &UpdatedGraph : MissedCleanupRequests)
-        doUnenqueuedCommandCleanup(UpdatedGraph);
-      MissedCleanupRequests.clear();
-    });
+    MMissedCleanupRequests.get(
+        [this](MissedCleanupRequestsType &MissedCleanupRequests){
+          for (auto &UpdatedGraph : MissedCleanupRequests)
+            doUnenqueuedCommandCleanup(UpdatedGraph);
+          MissedCleanupRequests.clear();
+        });
     auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
     if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
       Handler.depends_on(Deps.UnenqueuedCmdEvents);
@@ -1025,20 +1028,18 @@ protected:
   } MDefaultGraphDeps, MExtGraphDeps;
 
   // implement check-lock-check pattern to not lock empty MData
-  template <typename DataType>
-  class CheckLockCheck {
+  template <typename DataType> class CheckLockCheck {
     DataType MData;
     std::atomic_bool MDataPresent = false;
     mutable std::mutex MDataMtx;
+
   public:
-    template <typename F>
-    void put(F &&func) {
+    template <typename F> void put(F &&func) {
       std::lock_guard<std::mutex> Lock(MDataMtx);
       MDataPresent.store(true, std::memory_order_release);
       func(MData);
     }
-    template <typename F>
-    void get(F &&func) {
+    template <typename F> void get(F &&func) {
       if (MDataPresent.load(std::memory_order_acquire)) {
         std::lock_guard<std::mutex> Lock(MDataMtx);
         if (MDataPresent.load(std::memory_order_acquire)) {
@@ -1047,8 +1048,7 @@ protected:
         }
       }
     }
-    template <typename F>
-    DataType read(F &&func) {
+    template <typename F> DataType read(F &&func) {
       if (!MDataPresent.load(std::memory_order_acquire))
         return DataType{};
       std::lock_guard<std::mutex> Lock(MDataMtx);
@@ -1101,8 +1101,8 @@ protected:
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
 
-  using MissedCleanupRequestsType =
-    std::deque<std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>;
+  using MissedCleanupRequestsType = std::deque<
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>;
   CheckLockCheck<MissedCleanupRequestsType> MMissedCleanupRequests;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;

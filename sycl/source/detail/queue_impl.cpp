@@ -286,10 +286,10 @@ event queue_impl::memcpyFromDeviceGlobal(
 sycl::detail::optional<event> queue_impl::getLastEvent() {
   // The external event is required to finish last if set, so it is considered
   // the last event if present.
-  if (std::optional<event> ExternalEvent =
-          MInOrderExternalEvent.read([](std::optional<event> &InOrderExternalEvent) {
-        return InOrderExternalEvent;
-      }))
+  if (std::optional<event> ExternalEvent = MInOrderExternalEvent.read(
+          [](std::optional<event> &InOrderExternalEvent) {
+            return InOrderExternalEvent;
+          }))
     return ExternalEvent;
 
   std::lock_guard<std::mutex> Lock{MMutex};
@@ -618,11 +618,12 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
 
-    MMissedCleanupRequests.get([this](MissedCleanupRequestsType &MissedCleanupRequests){
-      for (auto &UpdatedGraph : MissedCleanupRequests)
-        doUnenqueuedCommandCleanup(UpdatedGraph);
-      MissedCleanupRequests.clear();
-    });
+    MMissedCleanupRequests.get(
+        [this](MissedCleanupRequestsType &MissedCleanupRequests){
+          for (auto &UpdatedGraph : MissedCleanupRequests)
+            doUnenqueuedCommandCleanup(UpdatedGraph);
+          MissedCleanupRequests.clear();
+        });
   }
   // If the queue is either a host one or does not support OOO (and we use
   // multiple in-order queues as a result of that), wait for each event
@@ -798,9 +799,10 @@ void queue_impl::revisitUnenqueuedCommandsState(
   if (Lock.owns_lock())
     doUnenqueuedCommandCleanup(CompletedHostTask->getCommandGraph());
   else {
-    MMissedCleanupRequests.put([CompletedHostTask](MissedCleanupRequestsType &MissedCleanupRequests){
-      MissedCleanupRequests.push_back(CompletedHostTask->getCommandGraph());
-    });
+    MMissedCleanupRequests.put(
+        [CompletedHostTask](MissedCleanupRequestsType &MissedCleanupRequests){
+          MissedCleanupRequests.push_back(CompletedHostTask->getCommandGraph());
+        });
   }
 }
 
