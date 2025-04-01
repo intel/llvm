@@ -259,8 +259,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         chart_data = {this_name: results}
 
     results_dir = directory
-    if options.custom_results_dir:
-        results_dir = Path(options.custom_results_dir)
+    if options.results_directory_override:
+        results_dir = Path(options.results_directory_override)
     history = BenchmarkHistory(results_dir)
     # limit how many files we load.
     # should this be configurable?
@@ -480,7 +480,7 @@ if __name__ == "__main__":
         "--results-dir",
         type=str,
         help="Specify a custom directory to load/store (historical) results from",
-        default=options.custom_results_dir,
+        default=options.results_directory_override,
     )
     parser.add_argument(
         "--build-jobs",
@@ -526,7 +526,7 @@ if __name__ == "__main__":
     options.cudnn_directory = args.cudnn_directory
     options.cublas_directory = args.cublas_directory
     options.preset = args.preset
-    options.custom_results_dir = args.results_dir
+    options.results_directory_override = args.results_dir
     options.build_jobs = args.build_jobs
     options.hip_arch = args.hip_arch
 
@@ -546,7 +546,7 @@ if __name__ == "__main__":
     if args.results_dir is not None:
         if not os.path.isdir(args.results_dir):
             parser.error("Specified --results-dir is not a valid path")
-        options.custom_results_dir = os.path.abspath(args.results_dir)
+        options.results_directory_override = os.path.abspath(args.results_dir)
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 
