@@ -111,20 +111,21 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    AdapterPtr Adapter;
-    ProgramBuildResult(const AdapterPtr &Adapter) : Adapter(Adapter) {
+    std::weak_ptr<Adapter> AdapterWeakPtr;
+    ProgramBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
       Val = nullptr;
     }
     ProgramBuildResult(const AdapterPtr &Adapter, BuildState InitialState)
-        : Adapter(Adapter) {
+        : AdapterWeakPtr(Adapter) {
       Val = nullptr;
       this->State.store(InitialState);
     }
     ~ProgramBuildResult() {
       try {
         if (Val) {
+          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
           ur_result_t Err =
-              Adapter->call_nocheck<UrApiKind::urProgramRelease>(Val);
+              AdapterSharedPtr->call_nocheck<UrApiKind::urProgramRelease>(Val);
           __SYCL_CHECK_UR_CODE_NO_EXC(Err);
         }
       } catch (std::exception &e) {
@@ -197,15 +198,16 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    AdapterPtr Adapter;
-    KernelBuildResult(const AdapterPtr &Adapter) : Adapter(Adapter) {
+    std::weak_ptr<Adapter> AdapterWeakPtr;
+    KernelBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
       try {
         if (Val.first) {
+          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
           ur_result_t Err =
-              Adapter->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+              AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
           __SYCL_CHECK_UR_CODE_NO_EXC(Err);
         }
       } catch (std::exception &e) {
