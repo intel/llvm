@@ -8,7 +8,7 @@
 # See YaML.md for syntax definition
 #
 # NOTE: device_types must be explictly listed. Refrain from using 
-#       $X_DEVICE_TYPE_ALL. See https://github.com/intel/llvm/issues/17527.
+#       $X_DEVICE_TYPE_ALL.
 --- #--------------------------------------------------------------------------
 type: header
 desc: "Intel $OneApi Unified Runtime adapter manifests"

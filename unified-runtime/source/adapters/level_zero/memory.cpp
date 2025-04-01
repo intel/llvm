@@ -2341,6 +2341,11 @@ _ur_buffer::_ur_buffer(ur_context_handle_t Context, size_t Size,
   LastDeviceWithValidAllocation = Device;
 }
 
+_ur_buffer::~_ur_buffer() {
+  if (isSubBuffer())
+    ur::level_zero::urMemRelease(SubBuffer->Parent);
+}
+
 ur_result_t ur_mem_handle_t_::getZeHandle(char *&ZeHandle, access_mode_t mode,
                                           ur_device_handle_t Device,
                                           const ur_event_handle_t *phWaitEvents,
