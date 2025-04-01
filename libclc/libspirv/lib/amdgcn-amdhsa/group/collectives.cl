@@ -378,8 +378,7 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
       int scope, TYPE x, ulong local_id) {                                    \
     if (scope == Subgroup) {                                                   \
-      return __spirv_SubgroupShuffleINTEL(                                     \
-          x, local_id);                                                        \
+      return __spirv_SubgroupShuffleINTEL(x, local_id);                        \
     }                                                                          \
     bool source = (__spirv_LocalInvocationIndex() == local_id);                \
     __local TYPE *scratch = __CLC_APPEND(__clc__get_group_scratch_, TYPE)();   \
