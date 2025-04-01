@@ -8,14 +8,6 @@
 
 #pragma once
 
-#ifndef __SYCL_USE_NEW_VEC_IMPL
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#define __SYCL_USE_NEW_VEC_IMPL 1
-#else
-#define __SYCL_USE_NEW_VEC_IMPL 0
-#endif
-#endif
-
 #include <cstddef>
 #include <type_traits>
 

@@ -1995,6 +1995,11 @@ void executable_command_graph::update(const std::vector<node> &Nodes) {
 }
 
 dynamic_parameter_base::dynamic_parameter_base(
+    command_graph<graph_state::modifiable> Graph)
+    : impl(std::make_shared<dynamic_parameter_impl>(
+          sycl::detail::getSyclObjImpl(Graph))) {}
+
+dynamic_parameter_base::dynamic_parameter_base(
     command_graph<graph_state::modifiable> Graph, size_t ParamSize,
     const void *Data)
     : impl(std::make_shared<dynamic_parameter_impl>(
@@ -2012,6 +2017,10 @@ void dynamic_parameter_base::updateValue(const raw_kernel_arg *NewRawValue,
 void dynamic_parameter_base::updateAccessor(
     const sycl::detail::AccessorBaseHost *Acc) {
   impl->updateAccessor(Acc);
+}
+
+void dynamic_parameter_base::updateWorkGroupMem(size_t BufferSize) {
+  impl->updateWorkGroupMem(BufferSize);
 }
 
 void dynamic_parameter_impl::updateValue(const raw_kernel_arg *NewRawValue,
@@ -2067,6 +2076,39 @@ void dynamic_parameter_impl::updateAccessor(
 
   std::memcpy(MValueStorage.data(), Acc,
               sizeof(sycl::detail::AccessorBaseHost));
+}
+
+void dynamic_parameter_impl::updateWorkGroupMem(size_t BufferSize) {
+  for (auto &[NodeWeak, ArgIndex] : MNodes) {
+    auto NodeShared = NodeWeak.lock();
+    if (NodeShared) {
+      dynamic_parameter_impl::updateCGWorkGroupMem(NodeShared->MCommandGroup,
+                                                   ArgIndex, BufferSize);
+    }
+  }
+
+  for (auto &DynCGInfo : MDynCGs) {
+    auto DynCG = DynCGInfo.DynCG.lock();
+    if (DynCG) {
+      auto &CG = DynCG->MCommandGroups[DynCGInfo.CGIndex];
+      dynamic_parameter_impl::updateCGWorkGroupMem(CG, DynCGInfo.ArgIndex,
+                                                   BufferSize);
+    }
+  }
+}
+
+void dynamic_parameter_impl::updateCGWorkGroupMem(
+    std::shared_ptr<sycl::detail::CG> CG, int ArgIndex, size_t BufferSize) {
+
+  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
+  for (auto &Arg : Args) {
+    if (Arg.MIndex != ArgIndex) {
+      continue;
+    }
+    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
+    Arg.MSize = BufferSize;
+    break;
+  }
 }
 
 void dynamic_parameter_impl::updateCGArgValue(
