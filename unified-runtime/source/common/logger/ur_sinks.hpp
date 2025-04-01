@@ -15,6 +15,7 @@
 #include "ur_filesystem_resolved.hpp"
 #include "ur_level.hpp"
 #include "ur_print.hpp"
+#include <assert.h>
 
 namespace logger {
 
@@ -100,18 +101,18 @@ private:
         if (*(++fmt) == '{') {
           buffer << *fmt++;
         } else {
-        //   std::cerr << error_prefix
-        //             << "No arguments provided and braces not escaped!"
-        //             << std::endl;
-        assert(false & "No arguments provided and braces not escaped!");
+          //   std::cerr << error_prefix
+          //             << "No arguments provided and braces not escaped!"
+          //             << std::endl;
+          assert(false && "No arguments provided and braces not escaped!");
         }
       } else if (*fmt == '}') {
         if (*(++fmt) == '}') {
           buffer << *fmt++;
         } else {
-        //   std::cerr << error_prefix << "Closing curly brace not escaped!"
-        //             << std::endl;
-        assert(false & "Closing curly brace not escaped!");
+          //   std::cerr << error_prefix << "Closing curly brace not escaped!"
+          //             << std::endl;
+          assert(false && "Closing curly brace not escaped!");
         }
       }
     }

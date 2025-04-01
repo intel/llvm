@@ -22,7 +22,6 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 #define DIE_NO_IMPLEMENTATION                                                  \
   do {                                                                         \
     URLOG(ERR, "Not Implemented : {}", __FUNCTION__)                           \
-                                                                               \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;                                \
   } while (false)
 
@@ -34,8 +33,7 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 
 #define CASE_UR_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
-    URLOG(ERR, "Unsupported UR case : {} in {}", #not_supported,               \
-          __FUNCTION__)                                                        \
+    URLOG(ERR, "Unsupported UR case : {} in {}", #not_supported, __FUNCTION__) \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
 // Todo: replace this with a common helper once it is available
