@@ -609,7 +609,7 @@ OpenCL UR adapter based on
 the presence of `cl_khr_command_buffer`, and the OpenCL device reporting
 support for
 [CL_COMMAND_BUFFER_CAPABILITY_SIMULTANEOUS_USE_KHR](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#CL_COMMAND_BUFFER_CAPABILITY_SIMULTANEOUS_USE_KHR).
-The later is required to enable multiple submissions of the same executable
+The latter is required to enable multiple submissions of the same executable
 `command_graph` object without having to do a blocking wait on prior submissions
 in-between.
 
