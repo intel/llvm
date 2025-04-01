@@ -711,7 +711,7 @@ public:
 
   void setExternalEvent(const event &Event) {
     MInOrderExternalEvent.put(
-        [&Event](std::optional<event> &InOrderExternalEvent){
+        [&Event](std::optional<event> &InOrderExternalEvent) {
           InOrderExternalEvent = Event;
         });
   }
@@ -839,7 +839,7 @@ protected:
     // (blocked), we track them to prevent barrier from being enqueued
     // earlier.
     MMissedCleanupRequests.get(
-        [this](MissedCleanupRequestsType &MissedCleanupRequests){
+        [this](MissedCleanupRequestsType &MissedCleanupRequests) {
           for (auto &UpdatedGraph : MissedCleanupRequests)
             doUnenqueuedCommandCleanup(UpdatedGraph);
           MissedCleanupRequests.clear();
