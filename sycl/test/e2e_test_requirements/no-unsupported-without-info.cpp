@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 283
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 282
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -156,7 +156,6 @@
 // CHECK-NEXT: ESIMD/slm_alloc_many_kernels_many_funcs.cpp
 // CHECK-NEXT: ESIMD/slm_alloc_many_kernels_one_func.cpp
 // CHECK-NEXT: ESIMD/slm_init_no_inline.cpp
-// CHECK-NEXT: Experimental/free_functions/namespace.cpp
 // CHECK-NEXT: Graph/Explicit/buffer_copy_host2target.cpp
 // CHECK-NEXT: Graph/Explicit/buffer_copy_host2target_2d.cpp
 // CHECK-NEXT: Graph/Explicit/buffer_copy_host2target_offset.cpp

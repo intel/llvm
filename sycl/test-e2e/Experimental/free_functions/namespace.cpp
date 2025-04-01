@@ -4,6 +4,7 @@
 
 // The name mangling for free function kernels currently does not work with PTX.
 // UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: Not implemented yet for Nvidia/AMD backends.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
@@ -26,13 +27,13 @@ namespace free_functions::tests {
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void function_in_ns(float start, float *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
-  ptr[id] = start + static_cast<float>(id + 1);
+  ptr[id] = start + static_cast<float>(id);
 }
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void func(float start, float *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
-  ptr[id] = start + static_cast<float>(id + 2);
+  ptr[id] = start + static_cast<float>(id);
 }
 } // namespace free_functions::tests
 
@@ -41,7 +42,7 @@ inline namespace V1 {
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void function_in_inline_ns(float start, float *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
-  ptr[id] = start + static_cast<float>(id + 2);
+  ptr[id] = start + static_cast<float>(id);
 }
 } // namespace V1
 } // namespace free_functions::tests
@@ -50,7 +51,7 @@ namespace {
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void function_in_anonymous_ns(float start, float *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
-  ptr[id] = start + static_cast<float>(id + 3);
+  ptr[id] = start + static_cast<float>(id);
 }
 } // namespace
 
@@ -61,6 +62,12 @@ static void call_kernel_code(sycl::queue &q, sycl::kernel &kernel) {
      sycl::nd_range ndr{{NUM}, {WGSIZE}};
      cgh.parallel_for(ndr, kernel);
    }).wait();
+  // Check the result
+  for (size_t i = 0; i < NUM; ++i) {
+    const float expected = 3.14f + static_cast<float>(i);
+    assert(ptr[i] == expected &&
+           "Kernel execution did not produce the expected result");
+  }
 }
 
 void test_function_without_ns(sycl::queue &q, sycl::context &ctxt) {
