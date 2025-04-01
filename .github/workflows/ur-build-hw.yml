@@ -161,14 +161,14 @@ jobs:
     #     sudo apt-get install -y libze-intel-gpu1 libze1 libze-dev intel-opencl-icd
     #     # libstdc++-12-dev
 
-    # - name: Install OpenCL
-    #   if: ${{ inputs.adapter_name == 'OPENCL' }}
-    #   run: |
-    #     wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-    #     | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
-    #     echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
-    #     sudo apt-get update
-    #     sudo apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
+    - name: Install OpenCL
+      if: ${{ inputs.adapter_name == 'OPENCL' }}
+      run: |
+        wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+        | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+        sudo apt-get update
+        sudo apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
 
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
@@ -187,8 +187,8 @@ jobs:
         ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
-        -DUR_DPCXX=/usr/local/lib/
-        -DUR_SYCL_LIBRARY_DIR=/usr/local/lib/
+        -DUR_DPCXX=./dpcpp_compiler/bin/clang++
+        -DUR_SYCL_LIBRARY_DIR=./dpcpp_compiler/lib
         -DCMAKE_INSTALL_PREFIX=./install
         ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
