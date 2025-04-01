@@ -67,8 +67,7 @@ void test_function_without_ns(sycl::queue &q, sycl::context &ctxt) {
   // Get a kernel bundle that contains the free function kernel
   // "func".
   auto exe_bndl =
-      syclexp::get_kernel_bundle<func,
-                                 sycl::bundle_state::executable>(ctxt);
+        syclexp::get_kernel_bundle<func, sycl::bundle_state::executable>(ctxt);
   // Get a kernel object for the "func" function from that bundle.
   sycl::kernel k_func = exe_bndl.ext_oneapi_get_kernel<func>();
   call_kernel_code(q, k_func);
