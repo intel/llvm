@@ -310,8 +310,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (CurrentStatePointerTLS == nullptr) {
       for (const auto &Use : Glob->uses()) {
         auto *I = cast<CallBase>(Use.getUser());
-        if (I->getNumUses() == 0 &&
-           !Entry.first.contains("_set")) {
+        if (I->getNumUses() == 0 && !Entry.first.contains("_set")) {
           // Ignore unused getters
           continue;
         }
@@ -338,6 +337,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     }
     UsedBuiltins.push_back({Glob, Entry.second});
   }
+
 #ifdef NATIVECPU_USE_OCK
   {
     SmallSet<Function *, 5> RemovableFuncs;
