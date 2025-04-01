@@ -150,12 +150,13 @@ jobs:
     - name: Run End-to-End tests
       if: inputs.tests_selector == 'e2e'
       shell: bash {0}
+      env:
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True ${{ inputs.extra_lit_opts }}
       run: |
         # Run E2E tests.
         if [[ ${{inputs.compiler}} == 'icx' ]]; then
            export LIT_FILTER_OUT="compile_on_win_with_mdd"
         fi
-        export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
         cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
 
         exit_code=$?

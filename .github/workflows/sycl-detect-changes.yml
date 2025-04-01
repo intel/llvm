@@ -17,8 +17,18 @@ jobs:
     outputs:
       filters: ${{ steps.result.outputs.result }}
     steps:
+      - name: Set changed_files
+        id: changed_files
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log("Number of files changed:");
+            console.log(context.payload.pull_request.changed_files);
+            return context.payload.pull_request.changed_files ;
+
       - name: Check file changes
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        if: ${{ steps.changed_files.outputs.changed_files }} < 500
         id: changes
         with:
           filters: |
@@ -81,8 +91,6 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            console.log("Number of files changed:");
-            console.log(context.payload.pull_request.changed_files);
             if (context.payload.pull_request.changed_files < 500) {
               return '${{ steps.changes.outputs.changes }}';
             }
