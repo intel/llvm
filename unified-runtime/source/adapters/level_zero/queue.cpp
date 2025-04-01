@@ -2040,7 +2040,7 @@ ur_result_t ur_queue_handle_t_::resetCommandList(
     // If events in the queue are discarded then we can't check their status.
     // Helper for checking of event completion
     auto EventCompleted = [](ur_event_handle_t Event) -> bool {
-      std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
+      std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
       ze_result_t ZeResult =
           Event->Completed
               ? ZE_RESULT_SUCCESS
