@@ -59,12 +59,12 @@ class GBench(Benchmark):
 
         self.num_cols_with_memory = 13
 
-        self.col_name = "name" 
-        self.col_iterations = "iterations" 
-        self.col_real_time = "real_time" 
-        self.col_cpu_time = "cpu_time" 
-        self.col_time_unit = "time_unit" 
-        self.col_memory_overhead = "memory_overhead" 
+        self.col_name = "name"
+        self.col_iterations = "iterations"
+        self.col_real_time = "real_time"
+        self.col_cpu_time = "cpu_time"
+        self.col_time_unit = "time_unit"
+        self.col_memory_overhead = "memory_overhead"
 
         self.idx_pool = 0
         self.idx_config = 1
