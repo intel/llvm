@@ -1194,8 +1194,7 @@ private:
     // Range rounding is supported only for newer SYCL standards.
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
     !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
-    !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) &&                                 \
-    SYCL_LANGUAGE_VERSION >= 202012L
+    !defined(DPCPP_HOST_DEVICE_PERF_NATIVE)
     auto [RoundedRange, HasRoundedRange] = getRoundedRange(UserRange);
     if (HasRoundedRange) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
@@ -1224,8 +1223,7 @@ private:
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
-       // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE &&
-       // SYCL_LANGUAGE_VERSION >= 202012L
+       // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE
     {
       (void)UserRange;
       (void)Props;
@@ -1838,11 +1836,8 @@ public:
 
   template <typename T> struct ShouldEnableSetArg {
     static constexpr bool value =
-        std::is_trivially_copyable_v<std::remove_reference_t<T>>
-#if SYCL_LANGUAGE_VERSION && SYCL_LANGUAGE_VERSION <= 201707
-            && std::is_standard_layout<std::remove_reference_t<T>>::value
-#endif
-        || is_same_type<sampler, T>::value // Sampler
+        std::is_trivially_copyable_v<std::remove_reference_t<T>> ||
+        is_same_type<sampler, T>::value // Sampler
         || (!is_same_type<cl_mem, T>::value &&
             std::is_pointer_v<remove_cv_ref_t<T>>) // USM
         || is_same_type<cl_mem, T>::value;         // Interop

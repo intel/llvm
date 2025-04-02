@@ -50,12 +50,5 @@ int main() {
         5, ntc);
     h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
         4, NonTriviallyCopyable{});
-#if SYCL_LANGUAGE_VERSION && SYCL_LANGUAGE_VERSION <= 201707
-    NonStdLayout nstd;
-    h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
-        6, nstd);
-    h.set_arg( // expected-error {{no matching member function for call to 'set_arg'}}
-        7, NonStdLayout{});
-#endif
   });
 }
