@@ -1,3 +1,5 @@
+// XFAIL: spirv-backend 
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17813
 // REQUIRES: aspect-fp64
 // UNSUPPORTED: target-amd || target-nvidia
 
