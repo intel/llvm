@@ -710,19 +710,17 @@ public:
   void *getTraceEvent() { return MTraceEvent; }
 
   void setExternalEvent(const event &Event) {
-    MInOrderExternalEvent.push(
-        [&](std::optional<event> &InOrderExternalEvent) {
-          InOrderExternalEvent = Event;
-        });
+    MInOrderExternalEvent.push([&](std::optional<event> &InOrderExternalEvent) {
+      InOrderExternalEvent = Event;
+    });
   }
 
   std::optional<event> popExternalEvent() {
     std::optional<event> Result = std::nullopt;
 
-    MInOrderExternalEvent.pop(
-        [&](std::optional<event> &InOrderExternalEvent) {
-          std::swap(Result, InOrderExternalEvent);
-        });
+    MInOrderExternalEvent.pop([&](std::optional<event> &InOrderExternalEvent) {
+      std::swap(Result, InOrderExternalEvent);
+    });
     return Result;
   }
 
