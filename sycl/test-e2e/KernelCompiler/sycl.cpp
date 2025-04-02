@@ -535,7 +535,7 @@ int main() {
   }
   // Run test_device_libraries twice to verify bfloat16 device library.
   return test_build_and_run(q) || test_device_code_split(q) ||
-         test_device_libraries(q) || test_device_libraries(q) ||
+         test_device_libraries(q) || test_esimd(q) ||
          test_device_libraries(q) || test_unsupported_options(q) ||
          test_error(q) || test_no_visible_ids(q) || test_warning(q);
 #else

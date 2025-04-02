@@ -1945,7 +1945,9 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     // library images will not be erased unless program manager is destroyed.
     {
       if (IsBfloat16DeviceLib) {
-        if (m_Bfloat16DeviceLibImages.count(Bfloat16DeviceLibVersion) > 0)
+        assert((Bfloat16DeviceLibVersion < 2) &&
+               "Invalid Bfloat16 Device Library Index.");
+        if (m_Bfloat16DeviceLibImages[Bfloat16DeviceLibVersion].get())
           continue;
         size_t ImgSize =
             static_cast<size_t>(RawImg->BinaryEnd - RawImg->BinaryStart);
@@ -1960,8 +1962,8 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
           m_ExportedSymbolImages.insert(
               {ESProp->Name, DynBfloat16DeviceLibImg.get()});
         }
-        m_Bfloat16DeviceLibImages.insert(
-            {Bfloat16DeviceLibVersion, std::move(DynBfloat16DeviceLibImg)});
+        m_Bfloat16DeviceLibImages[Bfloat16DeviceLibVersion] =
+            std::move(DynBfloat16DeviceLibImg);
         continue;
       }
     }
@@ -2137,7 +2139,7 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
       continue;
     const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
     const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
-    if ((EntriesB == EntriesE))
+    if (EntriesB == EntriesE)
       continue;
 
     RTDeviceBinaryImage *Img = DevImgIt->second.get();

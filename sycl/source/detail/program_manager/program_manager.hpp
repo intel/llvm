@@ -24,6 +24,7 @@
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -502,12 +503,11 @@ protected:
       std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
   std::unordered_map<std::string, MaterializedEntries> m_MaterializedKernels;
 
-  // Holds bfloat16 device library images, the key is 0 for fallback version
-  // and 1 for native version. These bfloat16 device library images are
-  // provided by compiler long time ago, we expect no further update, so
-  // keeping 1 copy should be OK.
-  std::unordered_map<uint32_t, DynRTDeviceBinaryImageUPtr>
-      m_Bfloat16DeviceLibImages;
+  // Holds bfloat16 device library images, the 1st element is for fallback
+  // version and 2nd is for native version. These bfloat16 device library
+  // images are provided by compiler long time ago, we expect no further
+  // update, so keeping 1 copy should be OK.
+  std::array<DynRTDeviceBinaryImageUPtr, 2> m_Bfloat16DeviceLibImages;
 
   friend class ::ProgramManagerTest;
 };
