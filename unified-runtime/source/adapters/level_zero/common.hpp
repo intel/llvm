@@ -41,7 +41,6 @@ struct _ur_platform_handle_t;
 [[maybe_unused]] static bool checkL0LoaderTeardown() {
   try {
     if (!zelCheckIsLoaderInTearDown()) {
-      logger::debug("ZE ---> checkL0LoaderTeardown: Loader is not in teardown");
       return true;
     }
   } catch (...) {
