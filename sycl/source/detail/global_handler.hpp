@@ -113,7 +113,7 @@ private:
   };
 
   template <typename T, typename... Types>
-  T &getOrCreate(InstWithLock<T> &IWL, Types... Args);
+  T &getOrCreate(InstWithLock<T> &IWL, Types &&...Args);
 
   InstWithLock<Scheduler> MScheduler;
   InstWithLock<ProgramManager> MProgramManager;

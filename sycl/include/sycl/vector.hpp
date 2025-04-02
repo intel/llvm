@@ -125,11 +125,23 @@ public:
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-template <typename Self> class ScalarConversionOperatorMixIn {
-  using T = typename from_incomplete<Self>::element_type;
+template <typename Self> class ScalarConversionOperatorsMixIn {
+  using element_type = typename from_incomplete<Self>::element_type;
 
 public:
-  operator T() const { return (*static_cast<const Self *>(this))[0]; }
+  operator element_type() const {
+    return (*static_cast<const Self *>(this))[0];
+  }
+
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+  template <
+      typename T, typename = std::enable_if_t<!std::is_same_v<T, element_type>>,
+      typename =
+          std::void_t<decltype(static_cast<T>(std::declval<element_type>()))>>
+  explicit operator T() const {
+    return static_cast<T>((*static_cast<const Self *>(this))[0]);
+  }
+#endif
 };
 
 template <typename T>
@@ -137,19 +149,11 @@ inline constexpr bool is_fundamental_or_half_or_bfloat16 =
     std::is_fundamental_v<T> || std::is_same_v<std::remove_const_t<T>, half> ||
     std::is_same_v<std::remove_const_t<T>, ext::oneapi::bfloat16>;
 
-// Proposed SYCL specification changes have sycl::vec having different ctors
-// available based on the number of elements. Without C++20's concepts we'll
-// have to use partial specialization to represent that. This is a helper to do
-// that. An alternative could be to have different specializations of the
-// `sycl::vec` itself but then we'd need to outline all the common interfaces to
-// re-use them.
-//
-// Note: the functional changes haven't been implemented yet, we've split
-// vec_base in advance as a way to make changes easier to review/verify.
-//
-// Another note: `vector_t` is going to be removed, so corresponding ctor was
-// kept inside `sycl::vec` to have all `vector_t` functionality in a single
-// place.
+// Per SYCL specification sycl::vec has different ctors available based on the
+// number of elements. Without C++20's concepts we'd have to use partial
+// specialization to represent that. This is a helper to do that. An alternative
+// could be to have different specializations of the `sycl::vec` itself but then
+// we'd need to outline all the common interfaces to re-use them.
 template <typename DataT, int NumElements> class vec_base {
   // https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#memory-layout-and-alignment
   // It is required by the SPEC to align vec<DataT, 3> with vec<DataT, 4>.
@@ -271,6 +275,43 @@ public:
       : vec_base{VecArgArrayCreator<DataT, argTN...>::Create(args...),
                  std::make_index_sequence<NumElements>()} {}
 };
+
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+template <typename DataT> class vec_base<DataT, 1> {
+  using DataType = std::conditional_t<
+#if __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
+      true,
+#else
+      sizeof(std::array<DataT, 1>) == sizeof(DataT[1]) &&
+          alignof(std::array<DataT, 1>) == alignof(DataT[1]),
+#endif
+      DataT[1], std::array<DataT, 1>>;
+
+protected:
+  static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
+  alignas(alignment) DataType m_Data{};
+
+public:
+  constexpr vec_base() = default;
+  constexpr vec_base(const vec_base &) = default;
+  constexpr vec_base(vec_base &&) = default;
+  constexpr vec_base &operator=(const vec_base &) = default;
+  constexpr vec_base &operator=(vec_base &&) = default;
+
+  // Not `explicit` on purpose, differs from NumElements > 1.
+  constexpr vec_base(const DataT &arg) : m_Data{{arg}} {}
+
+  // FIXME: Temporary workaround because swizzle's `operator DataT` is a
+  // template.
+  template <typename Swizzle,
+            typename = std::enable_if_t<is_swizzle_v<Swizzle>>,
+            typename = std::enable_if_t<Swizzle::size() == 1>,
+            typename = std::enable_if<
+                std::is_convertible_v<typename Swizzle::element_type, DataT>>>
+  constexpr vec_base(const Swizzle &other)
+      : vec_base(static_cast<DataT>(other)) {}
+};
+#endif
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
@@ -281,7 +322,7 @@ class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
       public detail::ApplyIf<
           NumElements == 1,
-          detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>>>,
+          detail::ScalarConversionOperatorsMixIn<vec<DataT, NumElements>>>,
       public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>>,
       // Keep it last to simplify ABI layout test:
       public detail::vec_base<DataT, NumElements> {

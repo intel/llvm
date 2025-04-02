@@ -6,6 +6,7 @@ import copy
 import re
 import subprocess
 import textwrap
+import shlex
 import shutil
 
 import lit.formats
@@ -245,6 +246,12 @@ def check_igc_tag_and_add_feature():
             if "igc-dev" in contents:
                 config.available_features.add("igc-dev")
 
+
+def quote_path(path):
+    if platform.system() == "Windows":
+        return f'"{path}"'
+    return shlex.quote(path)
+
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
 
@@ -304,12 +311,18 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
-config.level_zero_libs_dir = lit_config.params.get(
-    "level_zero_libs_dir", config.level_zero_libs_dir
+config.level_zero_libs_dir = quote_path(
+    lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
-config.level_zero_include = lit_config.params.get(
-    "level_zero_include",
-    (config.level_zero_include if config.level_zero_include else config.sycl_include),
+config.level_zero_include = quote_path(
+    lit_config.params.get(
+        "level_zero_include",
+        (
+            config.level_zero_include
+            if config.level_zero_include
+            else config.sycl_include
+        ),
+    )
 )
 
 level_zero_options = level_zero_options = (
@@ -409,10 +422,14 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
-config.cuda_libs_dir = lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
-config.cuda_include = lit_config.params.get(
-    "cuda_include",
-    (config.cuda_include if config.cuda_include else config.sycl_include),
+config.cuda_libs_dir = quote_path(
+    lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
+)
+config.cuda_include = quote_path(
+    lit_config.params.get(
+        "cuda_include",
+        (config.cuda_include if config.cuda_include else config.sycl_include),
+    )
 )
 
 cuda_options = cuda_options = (
@@ -454,10 +471,14 @@ with open_check_file(check_hip_file) as fp:
         ),
         file=fp,
     )
-config.hip_libs_dir = lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
-config.hip_include = lit_config.params.get(
-    "hip_include",
-    (config.hip_include if config.hip_include else config.sycl_include),
+config.hip_libs_dir = quote_path(
+    lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
+)
+config.hip_include = quote_path(
+    lit_config.params.get(
+        "hip_include",
+        (config.hip_include if config.hip_include else config.sycl_include),
+    )
 )
 
 hip_options = hip_options = (
@@ -1000,6 +1021,10 @@ if lit_config.params.get("print_features", False):
 try:
     import psutil
 
-    lit_config.maxIndividualTestTime = 600
+    if config.test_mode == "run-only":
+        lit_config.maxIndividualTestTime = 300
+    else:
+        lit_config.maxIndividualTestTime = 600
+
 except ImportError:
     pass
