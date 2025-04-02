@@ -101,6 +101,12 @@ runs:
       echo "-----"
       sycl-ls
       echo "-----"
+      # Using --break-system-packages because:
+      # - venv is not installed
+      # - unable to install anything via pip, as python packages in the docker
+      #   container are managed by apt
+      # - apt is unable to install anything due to unresolved dpkg dependencies,
+      #   as a result of how the sycl nightly images are created
       pip install --user --break-system-packages -r ./devops/scripts/benchmarks/requirements.txt
       echo "-----"
 
@@ -112,7 +118,7 @@ runs:
       esac
       # TODO accomodate for different GPUs and backends
       SAVE_NAME="${SAVE_PREFIX}_PVC_${SAVE_SUFFIX}"
-      SAVE_TIMESTAMP="$(date +'%Y%m%d_%H%M%S')"
+      SAVE_TIMESTAMP="$(date -u +'%Y%m%d_%H%M%S')"  # Timestamps are in UTC time
 
       taskset -c "$CORES" ./devops/scripts/benchmarks/main.py \
         "$(realpath ./llvm_test_workdir)" \
@@ -126,8 +132,8 @@ runs:
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
         --name Baseline_PVC_L0 \
-        --compare-file "./llvm-ci-perf-results/$RUNNER_NAME/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
-        --results-dir "./llvm-ci-perf-results/$RUNNER_NAME/results/"
+        --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
+        --results-dir "./llvm-ci-perf-results/results/"
 
   - name: Push compute-benchmarks results
     if: inputs.upload_results == 'true' && always()
