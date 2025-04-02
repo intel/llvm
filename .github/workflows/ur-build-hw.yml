@@ -213,6 +213,7 @@ jobs:
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
+        UR_SYCL_LIBRARY_DIR: "./dpcpp_compiler/lib"
       run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "conformance" --timeout 600
 
     - name: Get information about platform
