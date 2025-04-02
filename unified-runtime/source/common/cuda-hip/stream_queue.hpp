@@ -79,7 +79,7 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
     urContextRetain(Context);
   }
 
-  ~stream_queue_t() { urContextRelease(Context); }
+  virtual ~stream_queue_t() { urContextRelease(Context); }
 
   virtual void computeStreamWaitForBarrierIfNeeded(native_type Strean,
                                                    uint32_t StreamI) = 0;
