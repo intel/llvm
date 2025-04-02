@@ -511,6 +511,8 @@ with test_env():
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
+    config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
+    config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
         config.substitutions.append(
             ("%opencl_lib", " " + config.opencl_libs_dir + "/OpenCL.lib")
@@ -715,9 +717,6 @@ if "cuda:gpu" in config.sycl_devices:
     else:
         config.cuda_libs_dir = os.path.join(os.environ["CUDA_PATH"], r"lib64")
         config.cuda_include = os.path.join(os.environ["CUDA_PATH"], "include")
-
-config.cuda_libs_dir = quote_path(config.cuda_libs_dir)
-config.cuda_include = quote_path(config.cuda_include)
 
 config.substitutions.append(("%threads_lib", config.sycl_threads_lib))
 
