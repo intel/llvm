@@ -210,7 +210,7 @@ jobs:
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
-    - name: Test adapters
+    - name: Test adapters.
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
