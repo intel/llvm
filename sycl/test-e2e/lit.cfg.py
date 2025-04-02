@@ -246,6 +246,12 @@ def check_igc_tag_and_add_feature():
             if "igc-dev" in contents:
                 config.available_features.add("igc-dev")
 
+
+def quote_path(path):
+    if platform.system() == "Windows":
+        return f'"{path}"'
+    return shlex.quote(path)
+
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
 
@@ -305,10 +311,10 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
-config.level_zero_libs_dir = shlex.quote(
+config.level_zero_libs_dir = quote_path(
     lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
-config.level_zero_include = shlex.quote(
+config.level_zero_include = quote_path(
     lit_config.params.get(
         "level_zero_include",
         (
@@ -416,10 +422,10 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
-config.cuda_libs_dir = shlex.quote(
+config.cuda_libs_dir = quote_path(
     lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
 )
-config.cuda_include = shlex.quote(
+config.cuda_include = quote_path(
     lit_config.params.get(
         "cuda_include",
         (config.cuda_include if config.cuda_include else config.sycl_include),
@@ -465,10 +471,10 @@ with open_check_file(check_hip_file) as fp:
         ),
         file=fp,
     )
-config.hip_libs_dir = shlex.quote(
+config.hip_libs_dir = quote_path(
     lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
 )
-config.hip_include = shlex.quote(
+config.hip_include = quote_path(
     lit_config.params.get(
         "hip_include",
         (config.hip_include if config.hip_include else config.sycl_include),
