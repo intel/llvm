@@ -1,6 +1,5 @@
 add_llvm_library(sycl-jit-common
-  lib/NDRangesHelper.cpp
-
+  lib/Dummy.cpp  
   LINK_COMPONENTS
    Support
 )

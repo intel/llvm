@@ -4,15 +4,7 @@ if (NOT WIN32 AND NOT CYGWIN)
   # Module library for usage as library/pass-plugin with LLVM opt.
   add_llvm_library(SYCLKernelJIT MODULE
     SYCLFusionPasses.cpp
-    kernel-fusion/Builtins.cpp
-    kernel-fusion/SYCLKernelFusion.cpp
     kernel-fusion/SYCLSpecConstMaterializer.cpp
-    kernel-info/SYCLKernelInfo.cpp
-    internalization/Internalization.cpp
-    syclcp/SYCLCP.cpp
-    cleanup/Cleanup.cpp
-    debug/PassDebug.cpp
-    target/TargetFusionInfo.cpp
 
     DEPENDS
     intrinsics_gen
@@ -54,15 +46,7 @@ endif()
 # Static library for linking with the jit_compiler
 add_llvm_library(SYCLKernelJITPasses
   SYCLFusionPasses.cpp
-  kernel-fusion/Builtins.cpp
-  kernel-fusion/SYCLKernelFusion.cpp
   kernel-fusion/SYCLSpecConstMaterializer.cpp
-  kernel-info/SYCLKernelInfo.cpp
-  internalization/Internalization.cpp
-  syclcp/SYCLCP.cpp
-  cleanup/Cleanup.cpp
-  debug/PassDebug.cpp
-  target/TargetFusionInfo.cpp
 
   DEPENDS
   intrinsics_gen

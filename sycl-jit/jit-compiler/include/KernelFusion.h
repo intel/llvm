@@ -128,12 +128,6 @@ extern "C" {
 #pragma warning(disable : 4190)
 #endif // _MSC_VER
 
-KF_EXPORT_SYMBOL JITResult
-fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
-            View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
-            View<ParameterInternalization> Internalization,
-            View<jit_compiler::JITConstant> JITConstants);
-
 KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
     const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
     View<unsigned char> SpecConstBlob);
