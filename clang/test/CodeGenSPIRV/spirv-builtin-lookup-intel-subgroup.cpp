@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple=spir64 -fdeclare-spirv-builtins -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple=spirv64 -fdeclare-spirv-builtins -emit-llvm %s -o - | FileCheck %s
 
 template <class T> void test_shuffle() {
   T v;
