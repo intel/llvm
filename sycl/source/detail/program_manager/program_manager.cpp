@@ -629,8 +629,9 @@ bool ProgramManager::isSpecialDeviceImageShouldBeUsed(
   int Bfloat16DeviceLibVersion = -1;
   if (m_Bfloat16DeviceLibImages[0].get() == BinImage)
     Bfloat16DeviceLibVersion = 0;
-  if (m_Bfloat16DeviceLibImages[1].get() == BinImage)
+  else if (m_Bfloat16DeviceLibImages[1].get() == BinImage)
     Bfloat16DeviceLibVersion = 1;
+
   if (Bfloat16DeviceLibVersion != -1) {
     // Currently, only bfloat conversion devicelib are supported, so the prop
     // DeviceLibMeta are only used to represent fallback or native version.
@@ -1850,7 +1851,8 @@ static bool isBfloat16DeviceLibImage(sycl_device_binary RawImg,
       if (!LibVersion)
         return true;
 
-      *LibVersion = 0;
+      // Valid version for bfloat16 device library is 0(fallback), 1(native).
+      *LibVersion = 2;
       sycl_device_binary_property ImgP;
       for (ImgP = ImgPS->PropertiesBegin; ImgP != ImgPS->PropertiesEnd;
            ++ImgP) {
