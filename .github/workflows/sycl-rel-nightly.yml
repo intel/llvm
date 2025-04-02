@@ -48,6 +48,7 @@ jobs:
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       build_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
 
+
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
@@ -92,6 +93,7 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       tests_selector: ${{ matrix.tests_selector }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       devops_ref: sycl
       sycl_toolchain_artifact: sycl_linux_default
@@ -105,6 +107,7 @@ jobs:
     with:
       ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       build_configure_extra_args: '--no-assertions --add_security_flags=sanitize'
+
 
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
@@ -123,6 +126,7 @@ jobs:
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
+      ref: sycl-rel-6_0_0
       repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       devops_ref: sycl
 
@@ -146,6 +150,7 @@ jobs:
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
       target_devices: cuda:gpu
       repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
+
       devops_ref: sycl
 
       sycl_toolchain_artifact: sycl_linux_default
@@ -161,6 +166,7 @@ jobs:
       mode: stop
       ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
 
+
   build-sycl-cts:
     needs: ubuntu2204_build
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
@@ -173,11 +179,9 @@ jobs:
       tests_selector: cts
       repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       devops_ref: sycl
-      tests_ref: ead7474b9cb2189ce48025550912ccad5a72bd30
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
 
   run-sycl-cts:
     needs: [ubuntu2204_build, build-sycl-cts]
@@ -208,4 +212,4 @@ jobs:
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
-      sycl_cts_artifact: sycl_cts_bin_linux
+      sycl_cts_artifact: sycl_cts_bin
