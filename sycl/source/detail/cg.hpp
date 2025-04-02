@@ -686,7 +686,7 @@ public:
       ur_event_handle_t event, CG::StorageInitHelper CGData,
       detail::code_location loc = {})
       : CG(CGType::AsyncAlloc, std::move(CGData), std::move(loc)), MSize(size),
-        MMemPool(MemPool), MEvent(event) {}
+        MMemPool(std::move(MemPool)), MEvent(event) {}
 
   std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl>
   getMemPool() const {

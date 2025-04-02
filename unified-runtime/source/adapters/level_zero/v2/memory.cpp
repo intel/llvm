@@ -233,6 +233,7 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     hDevice = hDevice ? hDevice : hContext->getDevices()[0];
     devicePtr = allocateOnDevice(hDevice, size);
   } else {
+    assert(hDevice);
     this->IsInteropNativeHandle = interopNativeHandle;
     deviceAllocations[hDevice->Id.value()] = usm_unique_ptr_t(
         devicePtr, [this, hContext = this->hContext, ownZePtr](void *ptr) {
@@ -361,6 +362,34 @@ void ur_discrete_buffer_handle_t::unmapHostPtr(
   }
 
   hostAllocations.erase(hostAlloc);
+}
+
+ur_shared_buffer_handle_t::ur_shared_buffer_handle_t(
+    ur_context_handle_t hContext, void *sharedPtr, size_t size,
+    device_access_mode_t accesMode, bool ownDevicePtr)
+    : ur_mem_buffer_t(hContext, size, accesMode),
+      ptr(sharedPtr, [hContext, ownDevicePtr](void *ptr) {
+        if (!ownDevicePtr || !checkL0LoaderTeardown()) {
+          return;
+        }
+        ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+      }) {}
+
+void *ur_shared_buffer_handle_t::getDevicePtr(
+    ur_device_handle_t, device_access_mode_t, size_t offset, size_t,
+    std::function<void(void *src, void *dst, size_t)>) {
+  return reinterpret_cast<char *>(ptr.get()) + offset;
+}
+
+void *ur_shared_buffer_handle_t::mapHostPtr(
+    ur_map_flags_t, size_t offset, size_t,
+    std::function<void(void *src, void *dst, size_t)>) {
+  return reinterpret_cast<char *>(ptr.get()) + offset;
+}
+
+void ur_shared_buffer_handle_t::unmapHostPtr(
+    void *, std::function<void(void *src, void *dst, size_t)>) {
+  // nop
 }
 
 static bool useHostBuffer(ur_context_handle_t hContext) {
@@ -587,6 +616,10 @@ ur_result_t urMemBufferCreateWithNativeHandle(
         hContext, ptr, size, accessMode, ownNativeHandle, true);
     // if useHostBuffer(hContext) is true but the allocation is on device, we'll
     // treat it as discrete memory
+  } else if (memoryAttrs.type == ZE_MEMORY_TYPE_SHARED) {
+    // For shared allocation, we can use it directly
+    *phMem = ur_mem_handle_t_::create<ur_shared_buffer_handle_t>(
+        hContext, ptr, size, accessMode, ownNativeHandle);
   } else {
     if (memoryAttrs.type == ZE_MEMORY_TYPE_HOST) {
       // For host allocation, we need to copy the data to a device buffer
@@ -595,7 +628,8 @@ ur_result_t urMemBufferCreateWithNativeHandle(
           hContext, hDevice, nullptr, size, accessMode, ptr, ownNativeHandle,
           true);
     } else {
-      // For device/shared allocation, we can use it directly
+      // For device allocation, we can use it directly
+      assert(hDevice);
       *phMem = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
           hContext, hDevice, ptr, size, accessMode, nullptr, ownNativeHandle,
           true);

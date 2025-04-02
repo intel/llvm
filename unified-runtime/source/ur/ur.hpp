@@ -64,7 +64,7 @@
       URLOG_ALWAYS("UR ---> {}", #Call);                                       \
     (void)(Call);                                                              \
     if (PrintTrace)                                                            \
-      URLOG_ALWAYS("UR <--- {}({})", #Call);                                   \
+      URLOG_ALWAYS("UR <--- {}", #Call);                                       \
   }
 
 static auto getUrResultString = [](ur_result_t Result) {
