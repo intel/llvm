@@ -8,6 +8,7 @@
 
 #define __SYCL_GRAPH_IMPL_CPP
 
+#include <stack>
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -31,64 +32,47 @@ namespace experimental {
 namespace detail {
 
 namespace {
-/// Visits a node on the graph and it's successors recursively in a depth-first
-/// approach.
-/// @param[in] Node The current node being visited.
-/// @param[in,out] VisitedNodes A set of unique nodes which have already been
-/// visited.
-/// @param[in] NodeStack Stack of nodes which are currently being visited on the
-/// current path through the graph.
-/// @param[in] NodeFunc The function object to be run on each node. A return
-/// value of true indicates the search should be ended immediately and the
-/// function will return.
-/// @return True if the search should end immediately, false if not.
-bool visitNodeDepthFirst(
-    std::shared_ptr<node_impl> Node,
-    std::set<std::shared_ptr<node_impl>> &VisitedNodes,
-    std::deque<std::shared_ptr<node_impl>> &NodeStack,
-    std::function<bool(std::shared_ptr<node_impl> &,
-                       std::deque<std::shared_ptr<node_impl>> &)>
-        NodeFunc) {
-  auto EarlyReturn = NodeFunc(Node, NodeStack);
-  if (EarlyReturn) {
-    return true;
-  }
-  NodeStack.push_back(Node);
-  Node->MVisited = true;
-  VisitedNodes.emplace(Node);
-  for (auto &Successor : Node->MSuccessors) {
-    if (visitNodeDepthFirst(Successor.lock(), VisitedNodes, NodeStack,
-                            NodeFunc)) {
-      return true;
-    }
-  }
-  NodeStack.pop_back();
-  return false;
-}
+/// Topologically sorts the graph in order to schedule nodes for execution.
+/// This implementation is based on Kahn's algorithm which uses a Breadth-first
+/// search approach.
+/// For performance reasons, this function uses the MTotalVisitedEdges
+/// member variable of the node_impl class. It's the caller responsibility to
+/// make sure that MTotalVisitedEdges is set to 0 for all nodes in the graph
+/// before calling this function.
+/// @param[in] Roots List of root nodes.
+/// @param[out] SortedNodes The graph nodes sorted in topological order.
+/// @param[in] PartitionBounded If set to true, the topological sort is stopped
+/// at partition borders. Hence, nodes belonging to a partition different from
+/// the NodeImpl partition are not processed.
+void sortTopological(std::set<std::weak_ptr<node_impl>,
+                              std::owner_less<std::weak_ptr<node_impl>>> &Roots,
+                     std::list<std::shared_ptr<node_impl>> &SortedNodes,
+                     bool PartitionBounded) {
+  std::stack<std::weak_ptr<node_impl>> Source;
 
-/// Recursively add nodes to execution stack.
-/// @param NodeImpl Node to schedule.
-/// @param Schedule Execution ordering to add node to.
-/// @param PartitionBounded If set to true, the topological sort is stopped at
-/// partition borders. Hence, nodes belonging to a partition different from the
-/// NodeImpl partition are not processed.
-void sortTopological(std::shared_ptr<node_impl> NodeImpl,
-                     std::list<std::shared_ptr<node_impl>> &Schedule,
-                     bool PartitionBounded = false) {
-  for (auto &Succ : NodeImpl->MSuccessors) {
-    auto NextNode = Succ.lock();
-    if (PartitionBounded &&
-        (NextNode->MPartitionNum != NodeImpl->MPartitionNum)) {
-      continue;
-    }
-    // Check if we've already scheduled this node
-    if (std::find(Schedule.begin(), Schedule.end(), NextNode) ==
-        Schedule.end()) {
-      sortTopological(NextNode, Schedule, PartitionBounded);
-    }
+  for (auto &Node : Roots) {
+    Source.push(Node);
   }
 
-  Schedule.push_front(NodeImpl);
+  while (!Source.empty()) {
+    auto Node = Source.top().lock();
+    Source.pop();
+    SortedNodes.push_back(Node);
+
+    for (auto &SuccWP : Node->MSuccessors) {
+      auto Succ = SuccWP.lock();
+
+      if (PartitionBounded && (Succ->MPartitionNum != Node->MPartitionNum)) {
+        continue;
+      }
+
+      auto &TotalVisitedEdges = Succ->MTotalVisitedEdges;
+      ++TotalVisitedEdges;
+      if (TotalVisitedEdges == Succ->MPredecessors.size()) {
+        Source.push(Succ);
+      }
+    }
+  }
 }
 
 /// Propagates the partition number `PartitionNum` to predecessors.
@@ -180,9 +164,9 @@ std::vector<node> createNodesFromImpls(
 
 void partition::schedule() {
   if (MSchedule.empty()) {
-    for (auto &Node : MRoots) {
-      sortTopological(Node.lock(), MSchedule, true);
-    }
+    // There is no need to reset MTotalVisitedEdges before calling
+    // sortTopological because this function is only called once per partition.
+    sortTopological(MRoots, MSchedule, true);
   }
 }
 
@@ -311,6 +295,7 @@ static void checkGraphPropertiesAndThrow(const property_list &Properties) {
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
     switch (PropertyKind) {
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.def>
+
     default:
       return false;
     }
@@ -627,44 +612,20 @@ bool graph_impl::clearQueues() {
   return AnyQueuesCleared;
 }
 
-void graph_impl::searchDepthFirst(
-    std::function<bool(std::shared_ptr<node_impl> &,
-                       std::deque<std::shared_ptr<node_impl>> &)>
-        NodeFunc) {
-  // Track nodes visited during the search which can be used by NodeFunc in
-  // depth first search queries. Currently unusued but is an
-  // integral part of depth first searches.
-  std::set<std::shared_ptr<node_impl>> VisitedNodes;
-
-  for (auto &Root : MRoots) {
-    std::deque<std::shared_ptr<node_impl>> NodeStack;
-    if (visitNodeDepthFirst(Root.lock(), VisitedNodes, NodeStack, NodeFunc)) {
-      break;
-    }
-  }
-
-  // Reset the visited status of all nodes encountered in the search.
-  for (auto &Node : VisitedNodes) {
-    Node->MVisited = false;
-  }
-}
-
 bool graph_impl::checkForCycles() {
-  // Using a depth-first search and checking if we vist a node more than once in
-  // the current path to identify if there are cycles.
-  bool CycleFound = false;
-  auto CheckFunc = [&](std::shared_ptr<node_impl> &Node,
-                       std::deque<std::shared_ptr<node_impl>> &NodeStack) {
-    // If the current node has previously been found in the current path through
-    // the graph then we have a cycle and we end the search early.
-    if (std::find(NodeStack.begin(), NodeStack.end(), Node) !=
-        NodeStack.end()) {
-      CycleFound = true;
-      return true;
-    }
-    return false;
-  };
-  searchDepthFirst(CheckFunc);
+  std::list<std::shared_ptr<node_impl>> SortedNodes;
+  sortTopological(MRoots, SortedNodes, false);
+
+  // If after a topological sort, not all the nodes in the graph are sorted,
+  // then there must be at least one cycle in the graph. This is guaranteed
+  // by Kahn's algorithm, which sortTopological() implements.
+  bool CycleFound = SortedNodes.size() != MNodeStorage.size();
+
+  // Reset the MTotalVisitedEdges variable to prepare for the next cycle check.
+  for (auto &Node : MNodeStorage) {
+    Node->MTotalVisitedEdges = 0;
+  }
+
   return CycleFound;
 }
 
@@ -698,8 +659,16 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
                           "Dest must be a node inside the graph.");
   }
 
+  bool DestWasGraphRoot = Dest->MPredecessors.size() == 0;
+
   // We need to add the edges first before checking for cycles
   Src->registerSuccessor(Dest);
+
+  bool DestLostRootStatus = DestWasGraphRoot && Dest->MPredecessors.size() == 1;
+  if (DestLostRootStatus) {
+    // Dest is no longer a Root node, so we need to remove it from MRoots.
+    MRoots.erase(Dest);
+  }
 
   // We can skip cycle checks if either Dest has no successors (cycle not
   // possible) or cycle checks have been disabled with the no_cycle_check
@@ -708,9 +677,13 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
     bool CycleFound = checkForCycles();
 
     if (CycleFound) {
-      // Remove the added successor and predecessor
+      // Remove the added successor and predecessor.
       Src->MSuccessors.pop_back();
       Dest->MPredecessors.pop_back();
+      if (DestLostRootStatus) {
+        // Add Dest back into MRoots.
+        MRoots.insert(Dest);
+      }
 
       throw sycl::exception(make_error_code(sycl::errc::invalid),
                             "Command graphs cannot contain cycles.");
@@ -2022,6 +1995,11 @@ void executable_command_graph::update(const std::vector<node> &Nodes) {
 }
 
 dynamic_parameter_base::dynamic_parameter_base(
+    command_graph<graph_state::modifiable> Graph)
+    : impl(std::make_shared<dynamic_parameter_impl>(
+          sycl::detail::getSyclObjImpl(Graph))) {}
+
+dynamic_parameter_base::dynamic_parameter_base(
     command_graph<graph_state::modifiable> Graph, size_t ParamSize,
     const void *Data)
     : impl(std::make_shared<dynamic_parameter_impl>(
@@ -2039,6 +2017,10 @@ void dynamic_parameter_base::updateValue(const raw_kernel_arg *NewRawValue,
 void dynamic_parameter_base::updateAccessor(
     const sycl::detail::AccessorBaseHost *Acc) {
   impl->updateAccessor(Acc);
+}
+
+void dynamic_parameter_base::updateWorkGroupMem(size_t BufferSize) {
+  impl->updateWorkGroupMem(BufferSize);
 }
 
 void dynamic_parameter_impl::updateValue(const raw_kernel_arg *NewRawValue,
@@ -2094,6 +2076,39 @@ void dynamic_parameter_impl::updateAccessor(
 
   std::memcpy(MValueStorage.data(), Acc,
               sizeof(sycl::detail::AccessorBaseHost));
+}
+
+void dynamic_parameter_impl::updateWorkGroupMem(size_t BufferSize) {
+  for (auto &[NodeWeak, ArgIndex] : MNodes) {
+    auto NodeShared = NodeWeak.lock();
+    if (NodeShared) {
+      dynamic_parameter_impl::updateCGWorkGroupMem(NodeShared->MCommandGroup,
+                                                   ArgIndex, BufferSize);
+    }
+  }
+
+  for (auto &DynCGInfo : MDynCGs) {
+    auto DynCG = DynCGInfo.DynCG.lock();
+    if (DynCG) {
+      auto &CG = DynCG->MCommandGroups[DynCGInfo.CGIndex];
+      dynamic_parameter_impl::updateCGWorkGroupMem(CG, DynCGInfo.ArgIndex,
+                                                   BufferSize);
+    }
+  }
+}
+
+void dynamic_parameter_impl::updateCGWorkGroupMem(
+    std::shared_ptr<sycl::detail::CG> CG, int ArgIndex, size_t BufferSize) {
+
+  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
+  for (auto &Arg : Args) {
+    if (Arg.MIndex != ArgIndex) {
+      continue;
+    }
+    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
+    Arg.MSize = BufferSize;
+    break;
+  }
 }
 
 void dynamic_parameter_impl::updateCGArgValue(

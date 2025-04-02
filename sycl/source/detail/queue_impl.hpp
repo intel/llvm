@@ -273,10 +273,10 @@ public:
   /// \return an OpenCL interoperability queue handle.
 
   cl_command_queue get() {
-    getAdapter()->call<UrApiKind::urQueueRetain>(MQueues[0]);
     ur_native_handle_t nativeHandle = 0;
     getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], nullptr,
                                                           &nativeHandle);
+    __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -809,10 +809,15 @@ protected:
       // Note that host_task events can never be discarded, so this will not
       // insert barriers between host_task enqueues.
       if (EventToBuildDeps->isDiscarded() &&
-          getSyclObjImpl(Handler)->MCGType == CGType::CodeplayHostTask)
+          Handler.getType() == CGType::CodeplayHostTask)
         EventToBuildDeps = insertHelperBarrier(Handler);
 
-      if (!EventToBuildDeps->isDiscarded())
+      // depends_on after an async alloc is explicitly disallowed. Async alloc
+      // handles in order queue dependencies preemptively, so we skip them.
+      // Note: This could be improved by moving the handling of dependencies
+      // to before calling the CGF.
+      if (!EventToBuildDeps->isDiscarded() &&
+          !(Handler.getType() == CGType::AsyncAlloc))
         Handler.depends_on(EventToBuildDeps);
     }
 
@@ -853,13 +858,14 @@ protected:
       Handler.depends_on(Deps.LastBarrier);
 
     auto EventRet = Handler.finalize();
+    const EventImplPtr &EventRetImpl = getSyclObjImpl(EventRet);
     if (Type == CGType::CodeplayHostTask)
-      Deps.UnenqueuedCmdEvents.push_back(getSyclObjImpl(EventRet));
+      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
     else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-      Deps.LastBarrier = getSyclObjImpl(EventRet);
+      Deps.LastBarrier = EventRetImpl;
       Deps.UnenqueuedCmdEvents.clear();
-    } else if (!getSyclObjImpl(EventRet)->isEnqueued()) {
-      Deps.UnenqueuedCmdEvents.push_back(getSyclObjImpl(EventRet));
+    } else if (!EventRetImpl->isEnqueued()) {
+      Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
     }
 
     return EventRet;

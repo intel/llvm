@@ -6,6 +6,7 @@ on:
       name:
         type: string
         required: True
+
       runner:
         type: string
         required: True
@@ -27,19 +28,17 @@ on:
           Extra options to be added to LIT_OPTS.
         type: string
         default: ''
-      ref:
+
+      repo_ref:
         type: string
         required: False
+        description: |
+          Commit SHA or branch to checkout the intel/llvm repo.
       devops_ref:
         type: string
         required: False
         description: |
-          By default we checkout the devops directory from "inputs.ref" branch.
-          devops_ref may be specified to checkout the devops dir from different
-          branch.
-          Note: it doesn't affect ./devops/actions/run-tests/* as these actions
-          call checkout again and therefore override the devops directory, so
-          configs/dependecies from input.ref are used.
+          Commit SHA or branch to checkout the devops directory.
       tests_ref:
         type: string
         required: False
@@ -104,7 +103,7 @@ jobs:
       with:
         sparse-checkout: |
           devops/actions
-        ref: ${{ inputs.devops_ref|| inputs.ref || github.sha }}
+        ref: ${{ inputs.devops_ref|| inputs.repo_ref || github.sha }}
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
       with:
         arch: amd64
@@ -122,7 +121,7 @@ jobs:
       if: inputs.tests_selector == 'e2e'
       with:
         path: llvm
-        ref: ${{ inputs.ref || github.sha }}
+        ref: ${{ inputs.repo_ref || github.sha }}
         cache_path: "D:\\\\github\\\\_work\\\\repo_cache\\\\"
     - name: Download compiler toolchain
       uses: actions/download-artifact@v4
@@ -150,20 +149,30 @@ jobs:
         cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py"
     - name: Run End-to-End tests
       if: inputs.tests_selector == 'e2e'
-      shell: bash
+      shell: bash {0}
+      env:
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True ${{ inputs.extra_lit_opts }}
       run: |
         # Run E2E tests.
         if [[ ${{inputs.compiler}} == 'icx' ]]; then
            export LIT_FILTER_OUT="compile_on_win_with_mdd"
         fi
-        export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
-        cmake --build build-e2e --target check-sycl-e2e
+        cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
+
+        exit_code=$?
+        cat e2e.log
+        if [ $exit_code -ne 0 ]; then
+          # This is duplicated between lin/win, updates must change both.
+          awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+        fi
+        exit $exit_code
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'
       uses: ./devops/actions/run-tests/windows/cts
       with:
         ref: ${{ inputs.tests_ref || 'main' }}
+        cts_exclude_ref: ${{ inputs.repo_ref }}
         extra_cmake_args: ${{ inputs.extra_cmake_args }}
         cts_testing_mode: ${{ inputs.cts_testing_mode }}
         sycl_cts_artifact: ${{ inputs.sycl_cts_artifact }}

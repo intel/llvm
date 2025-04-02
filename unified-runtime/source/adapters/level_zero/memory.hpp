@@ -127,6 +127,8 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   _ur_buffer(ur_context_handle_t Context, size_t Size,
              ur_device_handle_t Device, char *ZeMemHandle, bool OwnZeMemHandle);
 
+  ~_ur_buffer();
+
   // Returns a pointer to the USM allocation representing this PI buffer
   // on the specified Device. If Device is nullptr then the returned
   // USM allocation is on the device where this buffer was used the latest.
