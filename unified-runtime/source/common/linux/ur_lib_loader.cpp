@@ -50,9 +50,20 @@ LibLoader::loadAdapterLibrary(const char *name) {
 #endif
   HMODULE handle = dlopen(name, mode);
   if (!handle) {
-    char *err = dlerror();
-    logger::info("failed to load adapter '{}' with error: {}", name,
-                 err ? err : "unknown error");
+    const char *err = dlerror();
+
+    // Check if the error string does not contain the adapter name or if it
+    // contains a "required by" (missing symbol) message.
+    if (err &&
+        (strstr(err, name) == NULL || strstr(err, "required by") != NULL)) {
+      // If the adapter cannot be loaded due to missing dependencies or any
+      // other related error, it is considered as an error.
+      logger::error("failed to load adapter '{}' with error: {}", name, err);
+    } else {
+      // Simply having the adapter library missing isn't an error.
+      logger::info("failed to load adapter '{}' with error: {}", name,
+                   err ? err : "unknown error");
+    }
   } else {
 #if defined(ADD_FULL_PATH_LOG)
     struct link_map *dlinfo_map;

@@ -15,6 +15,7 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
@@ -131,6 +132,42 @@ ur_native_handle_t context::getNative() const { return impl->getNative(); }
 
 const property_list &context::getPropList() const {
   return impl->getPropList();
+}
+
+sycl::ext::oneapi::experimental::memory_pool
+context::ext_oneapi_get_default_memory_pool(const device &dev,
+                                            sycl::usm::alloc kind) const {
+  if (kind == sycl::usm::alloc::host)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Default host memory pool requested but device supplied!");
+  if (kind == sycl::usm::alloc::unknown)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Unknown allocation kinds are disallowed!");
+
+  if (kind != sycl::usm::alloc::device)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Only device allocated memory pools are supported!");
+
+  return detail::createSyclObjFromImpl<
+      sycl::ext::oneapi::experimental::memory_pool>(
+      impl->get_default_memory_pool(*this, dev, kind));
+}
+
+sycl::ext::oneapi::experimental::memory_pool
+context::ext_oneapi_get_default_memory_pool(sycl::usm::alloc kind) const {
+  if (kind == sycl::usm::alloc::device || kind == sycl::usm::alloc::shared)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Device and shared allocation kinds are disallowed "
+                          "without specifying a device!");
+  if (kind == sycl::usm::alloc::unknown)
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "Unknown allocation kinds are disallowed!");
+
+  throw sycl::exception(
+      sycl::make_error_code(sycl::errc::feature_not_supported),
+      "Host allocated pools are unsupported!");
 }
 
 } // namespace _V1
