@@ -1666,6 +1666,9 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   if (G->getName().starts_with("__Asan"))
     return true;
 
+  if (G->getAddressSpace() == kSpirOffloadLocalAS)
+    return true;
+
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }
@@ -3062,7 +3065,8 @@ void ModuleAddressSanitizer::instrumentSyclStaticLocalMemory(IRBuilder<> &IRB) {
       // Get root spir_kernel of spir_func
       initializeKernelCallerMap(F);
       for (Function *Kernel : FuncToKernelCallerMap[F])
-        Instrument(G, Kernel);
+        if (!InstrumentedFunc.contains(Kernel))
+          Instrument(G, Kernel);
     }
   }
 }
@@ -3945,9 +3949,9 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (ChangedStack || !NoReturnCalls.empty())
     FunctionModified = true;
 
-  // We need to instrument dynamic/static local arguments after stack poisoner
+  // We need to instrument dynamic local arguments after stack poisoner
   if (TargetTriple.isSPIROrSPIRV()) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (ClSpirOffloadLocals && F.getCallingConv() == CallingConv::SPIR_KERNEL) {
       FunctionModified |= instrumentSyclDynamicLocalMemory(F, FSP.RetVec);
     }
   }
