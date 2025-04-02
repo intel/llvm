@@ -1170,9 +1170,7 @@ void SYCL::fpga::BackendCompiler::constructOpenCLAOTCommand(
   ArgStringList CmdArgs{"-device=fpga_fast_emu"};
 
   for (const auto &II : Inputs) {
-    if (II.getType() == types::TY_TempAOCOfilelist ||
-        II.getType() == types::TY_FPGA_Dependencies ||
-        II.getType() == types::TY_FPGA_Dependencies_List)
+    if (II.getType() == types::TY_FPGA_Dependencies)
       continue;
     if (II.getType() == types::TY_Tempfilelist)
       ForeachInputs.push_back(II);
@@ -1238,31 +1236,13 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     std::string Filename(II.getFilename());
     if (II.getType() == types::TY_Tempfilelist)
       ForeachInputs.push_back(II);
-    if (II.getType() == types::TY_TempAOCOfilelist)
-      // Add any FPGA library lists.  These come in as special tempfile lists.
-      CmdArgs.push_back(Args.MakeArgString(Twine("-library-list=") + Filename));
-    else if (II.getType() == types::TY_FPGA_Dependencies ||
-             II.getType() == types::TY_FPGA_Dependencies_List)
+    else if (II.getType() == types::TY_FPGA_Dependencies)
       FPGADepFiles.push_back(II);
     else
       CmdArgs.push_back(C.getArgs().MakeArgString(Filename));
-    // Check for any AOCR input, if found use that as the project report name
     StringRef Ext(llvm::sys::path::extension(Filename));
     if (Ext.empty())
       continue;
-    if (getToolChain().LookupTypeForExtension(Ext.drop_front()) ==
-        types::TY_FPGA_AOCR) {
-      // Keep the base of the .aocr file name.  Input file is a temporary,
-      // so we are stripping off the additional naming information for a
-      // cleaner name.  The suffix being stripped from the name is the
-      // added temporary string and the extension.
-      StringRef SuffixFormat("-XXXXXX.aocr");
-      SmallString<128> NameBase(
-          Filename.substr(0, Filename.length() - SuffixFormat.size()));
-      NameBase.append(".prj");
-      CreatedReportName =
-          Args.MakeArgString(llvm::sys::path::filename(NameBase));
-    }
   }
   CmdArgs.push_back("-sycl");
 
@@ -1312,8 +1292,6 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     for (unsigned I = 0; I < FPGADepFiles.size(); ++I) {
       if (I)
         DepOpt += ',';
-      if (FPGADepFiles[I].getType() == types::TY_FPGA_Dependencies_List)
-        DepOpt += "@";
       DepOpt += FPGADepFiles[I].getFilename();
     }
     CmdArgs.push_back(C.getArgs().MakeArgString(DepOpt));

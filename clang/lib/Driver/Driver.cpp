@@ -5151,9 +5151,6 @@ class OffloadingActionBuilder final {
     /// List of objects to extract FPGA dependency info from
     ActionList FPGAObjectInputs;
 
-    /// List of static archives to extract FPGA dependency info from
-    ActionList FPGAArchiveInputs;
-
     // SYCLInstallation is needed in order to link SYCLDeviceLibs
     SYCLInstallationDetector SYCLInstallation;
 
@@ -5941,8 +5938,6 @@ class OffloadingActionBuilder final {
               // -fintelfpga.
               for (Action *A : FPGAObjectInputs)
                 unbundleAdd(A, types::TY_FPGA_Dependencies);
-              for (Action *A : FPGAArchiveInputs)
-                unbundleAdd(A, types::TY_FPGA_Dependencies_List);
               BuildCodeAction =
                   C.MakeAction<BackendCompileJobAction>(BEInputs, OutType);
             }
@@ -6594,15 +6589,6 @@ class OffloadingActionBuilder final {
         Action *Current = C.MakeAction<InputAction>(*InputArg, Type);
         return Current;
       };
-      // Populate FPGA archives that could contain dep files to be
-      // incorporated into the aoc compilation.
-      if (SYCLfpgaTriple && Args.hasArg(options::OPT_fintelfpga)) {
-        SmallVector<const char *, 16> LinkArgs(getLinkerArgs(C, Args));
-        for (StringRef LA : LinkArgs) {
-          if (isStaticArchiveFile(LA) && hasOffloadSections(C, LA, Args))
-            FPGAArchiveInputs.push_back(makeInputAction(LA, types::TY_Archive));
-        }
-      }
       // Discover any objects and archives that contain final device binaries.
       if (HasValidSYCLRuntime) {
         SmallVector<const char *, 16> LinkArgs(getLinkerArgs(C, Args, true));
@@ -9213,8 +9199,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     // Do a check for a dependency file unbundle for FPGA.  This is out of line
     // from a regular unbundle, so just create and return the name of the
     // unbundled file.
-    if (JA->getType() == types::TY_FPGA_Dependencies ||
-        JA->getType() == types::TY_FPGA_Dependencies_List) {
+    if (JA->getType() == types::TY_FPGA_Dependencies) {
       std::string Ext(types::getTypeTempSuffix(JA->getType()));
       std::string TmpFileName =
           C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput), Ext);

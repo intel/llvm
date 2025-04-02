@@ -9997,7 +9997,6 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   const char *InputFileName = Input.getFilename();
   types::ID InputType(Input.getType());
   bool IsFPGADepUnbundle = JA.getType() == types::TY_FPGA_Dependencies;
-  bool IsFPGADepLibUnbundle = JA.getType() == types::TY_FPGA_Dependencies_List;
   InputInfoList ForeachInputs;
   if (InputType == types::TY_Tempfilelist)
     ForeachInputs.push_back(Input);
@@ -10078,7 +10077,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
       Triples += GPUArchName.str();
     }
   }
-  if (IsFPGADepUnbundle || IsFPGADepLibUnbundle) {
+  if (IsFPGADepUnbundle) {
     // TODO - We are currently using the target triple inputs to slot a location
     // of the dependency information into the bundle.  It would be good to
     // separate this out to an explicit option in the bundler for the dependency
@@ -10106,7 +10105,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   // When dealing with -fintelfpga, there is an additional unbundle step
   // that occurs for the dependency file.  In that case, do not use the
   // dependent information, but just the output file.
-  if (IsFPGADepUnbundle || IsFPGADepLibUnbundle) {
+  if (IsFPGADepUnbundle) {
     SmallString<128> UB;
     UB += "-output=";
     UB += Outputs[0].getFilename();
