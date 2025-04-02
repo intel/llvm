@@ -1,9 +1,9 @@
 {
   "linux": {
     "compute_runtime": {
-      "github_tag": "25.09.32961.5",
-      "version": "25.09.32961.5",
-      "url": "https://github.com/intel/compute-runtime/releases/tag/25.09.32961.5",
+      "github_tag": "25.09.32961.7",
+      "version": "25.09.32961.7",
+      "url": "https://github.com/intel/compute-runtime/releases/tag/25.09.32961.7",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc": {
@@ -19,9 +19,9 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "level_zero": {
-      "github_tag": "v1.20.2",
-      "version": "v1.20.2",
-      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.20.2",
+      "github_tag": "v1.21.7",
+      "version": "v1.21.7",
+      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.21.7",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
