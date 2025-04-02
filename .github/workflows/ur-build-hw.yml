@@ -202,7 +202,7 @@ jobs:
       # This is to check that install command does not fail
       run: cmake --install build
 
-    - name: Test adapter specific
+    - name: Test adapter specific.
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
