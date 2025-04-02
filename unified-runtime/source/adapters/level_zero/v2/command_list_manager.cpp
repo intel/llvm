@@ -157,16 +157,20 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
   return UR_RESULT_SUCCESS;
 }
 
-wait_list_view
-ur_command_list_manager::getWaitListView(const ur_event_handle_t *phWaitEvents,
-                                         uint32_t numWaitEvents) {
+wait_list_view ur_command_list_manager::getWaitListView(
+    const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
+    ur_event_handle_t additionalWaitEvent) {
 
-  waitList.resize(numWaitEvents);
+  uint32_t totalNumWaitEvents =
+      numWaitEvents + (additionalWaitEvent != nullptr ? 1 : 0);
+  waitList.resize(totalNumWaitEvents);
   for (uint32_t i = 0; i < numWaitEvents; i++) {
     waitList[i] = phWaitEvents[i]->getZeEvent();
   }
-
-  return {waitList.data(), static_cast<uint32_t>(numWaitEvents)};
+  if (additionalWaitEvent != nullptr) {
+    waitList[totalNumWaitEvents - 1] = additionalWaitEvent->getZeEvent();
+  }
+  return {waitList.data(), static_cast<uint32_t>(totalNumWaitEvents)};
 }
 
 ze_event_handle_t

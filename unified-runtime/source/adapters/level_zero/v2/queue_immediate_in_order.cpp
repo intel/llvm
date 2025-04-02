@@ -23,8 +23,10 @@ namespace v2 {
 
 wait_list_view ur_queue_immediate_in_order_t::getWaitListView(
     locked<ur_command_list_manager> &commandList,
-    const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents) {
-  return commandList->getWaitListView(phWaitEvents, numWaitEvents);
+    const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
+    ur_event_handle_t additionalWaitEvent) {
+  return commandList->getWaitListView(phWaitEvents, numWaitEvents,
+                                      additionalWaitEvent);
 }
 
 static int32_t getZeOrdinal(ur_device_handle_t hDevice) {
@@ -896,7 +898,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
 ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp(
     uint32_t numCommandLists, ze_command_list_handle_t *phCommandLists,
     ur_event_handle_t *phEvent, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_command_t callerCommand) {
+    const ur_event_handle_t *phEventWaitList, ur_command_t callerCommand,
+    ur_event_handle_t additionalWaitEvent) {
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp");
 
@@ -905,7 +908,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp(
       getSignalEvent(commandListLocked, phEvent, callerCommand);
 
   auto [pWaitEvents, numWaitEvents] =
-      getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList);
+      getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList,
+                      additionalWaitEvent);
   // zeCommandListImmediateAppendCommandListsExp is not working with in-order
   // immediate lists what causes problems with synchronization
   // TODO: remove synchronization when it is not needed
@@ -926,9 +930,21 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
   auto commandListLocked = hCommandBuffer->commandListManager.lock();
   ze_command_list_handle_t commandBufferCommandList =
       commandListLocked->getZeCommandList();
-  return enqueueGenericCommandListsExp(1, &commandBufferCommandList, phEvent,
-                                       numEventsInWaitList, phEventWaitList,
-                                       UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP);
+  ur_event_handle_t internalEvent = nullptr;
+  if (phEvent == nullptr) {
+    phEvent = &internalEvent;
+  }
+  ur_event_handle_t executionEvent =
+      hCommandBuffer->getExecutionEventUnlocked();
+
+  UR_CALL(enqueueGenericCommandListsExp(
+      1, &commandBufferCommandList, phEvent, numEventsInWaitList,
+      phEventWaitList, UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, executionEvent));
+  UR_CALL(hCommandBuffer->registerExecutionEventUnlocked(*phEvent));
+  if (internalEvent != nullptr) {
+    internalEvent->release();
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(

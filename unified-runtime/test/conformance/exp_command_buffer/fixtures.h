@@ -45,7 +45,6 @@ static void checkCommandBufferUpdateSupport(
 
 struct urCommandBufferExpTest : uur::urContextTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
 
@@ -72,7 +71,6 @@ struct urCommandBufferExpTest : uur::urContextTest {
 template <class T>
 struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
 
@@ -97,7 +95,6 @@ struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
 
 struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
