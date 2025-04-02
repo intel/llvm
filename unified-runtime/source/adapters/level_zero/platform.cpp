@@ -503,21 +503,17 @@ bool ur_platform_handle_t_::allowDriverInOrderLists(bool OnlyIfRequested) {
 #define L0_DRIVER_INORDER_MINOR_VERSION 6
 #define L0_DRIVER_INORDER_PATCH_VERSION 32149
 
-  static const bool UseDriverInOrderLists = [&] {
+  static const bool UseEnvVarDriverInOrderLists = [&] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
+    return UrRet ? std::atoi(UrRet) != 0 : false;
+  }();
+  static const bool UseDriverInOrderLists = [this] {
     bool CompatibleDriver = this->isDriverVersionNewerOrSimilar(
         1, L0_DRIVER_INORDER_MINOR_VERSION, L0_DRIVER_INORDER_PATCH_VERSION);
-    bool DriverInOrderRequested = UrRet ? std::atoi(UrRet) != 0 : false;
-    bool CanUseDriverInOrderLists = CompatibleDriver || DriverInOrderRequested;
-    return CanUseDriverInOrderLists;
+    return CompatibleDriver || UseEnvVarDriverInOrderLists;
   }();
 
-  if (OnlyIfRequested) {
-    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    bool DriverInOrderRequested = UrRet ? std::atoi(UrRet) != 0 : false;
-    return DriverInOrderRequested;
-  }
-  return UseDriverInOrderLists;
+  return OnlyIfRequested ? UseEnvVarDriverInOrderLists : UseDriverInOrderLists;
 }
 
 /// Checks the version of the level-zero driver.
