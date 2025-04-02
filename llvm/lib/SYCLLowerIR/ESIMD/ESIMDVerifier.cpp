@@ -97,6 +97,8 @@ public:
   BuffDeleter() = delete;
   BuffDeleter(const BuffDeleter &) = delete;
   BuffDeleter(BuffDeleter &&) = delete;
+  BuffDeleter &operator=(BuffDeleter &) = delete;
+  BuffDeleter &operator=(BuffDeleter &&) = delete;
 
 private:
   char *Buff;
@@ -162,8 +164,8 @@ public:
             continue;
 
           id::OutputBuffer NameBuf;
-          BuffDeleter NameBufDeleter(NameBuf.getBuffer());
           NameNode->print(NameBuf);
+          BuffDeleter NameBufDeleter(NameBuf.getBuffer());
           StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
 
           // We are interested in functions defined in SYCL namespace, but

@@ -1514,6 +1514,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD |
                        UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
   }
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_bfloat16_conversions"}, Supported));
+    return ReturnValue(Supported);
+  }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
     size_t ExtSize = 0;

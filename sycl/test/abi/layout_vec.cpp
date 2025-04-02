@@ -12,8 +12,7 @@ SYCL_EXTERNAL void foo(sycl::vec<int, 4>) {}
 
 // CHECK:      0 | class sycl::vec<int, 4>
 // ignore empty base classes
-// CHECK:      0 |   struct std::array<int, 4> m_Data
-// CHECK-NEXT: 0 |     typename {{.+}}::_Type _M_elems
+// CHECK:      0 |   DataType m_Data
 // CHECK-NEXT:   | [sizeof=16, dsize=16, align=16,
 // CHECK-NEXT:   |  nvsize=16, nvalign=16]
 
@@ -23,7 +22,6 @@ SYCL_EXTERNAL void foo(sycl::vec<bool, 16>) {}
 
 // CHECK:      0 | class sycl::vec<_Bool, 16>
 // ignore empty base classes
-// CHECK:      0 |   struct std::array<_Bool, 16> m_Data
-// CHECK-NEXT: 0 |     typename {{.+}}::_Type _M_elems
+// CHECK:      0 |   DataType m_Data
 // CHECK-NEXT:   | [sizeof=16, dsize=16, align=16,
 // CHECK-NEXT:   |  nvsize=16, nvalign=16]
