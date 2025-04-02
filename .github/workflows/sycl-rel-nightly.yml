@@ -124,6 +124,8 @@ jobs:
         include:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Windows","gen12"]'
+            # 6_1_0 doesn't support the auto-detection, keep it until 6_2_0.
+            extra_lit_opts: --param gpu-intel-gen12=True
           - name: Intel Battlemage Graphics with Level Zero
             runner: '["Windows","bmg"]'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
@@ -131,6 +133,7 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
+      extra_lit_opts: ${{ matrix.extra_lit_opts }}
       repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       devops_ref: sycl
 
