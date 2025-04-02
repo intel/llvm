@@ -511,6 +511,8 @@ with test_env():
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
+    config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
+    config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
         config.substitutions.append(
             ("%opencl_lib", " " + config.opencl_libs_dir + "/OpenCL.lib")
