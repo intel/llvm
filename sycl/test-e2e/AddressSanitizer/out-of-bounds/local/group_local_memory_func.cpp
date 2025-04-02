@@ -20,7 +20,8 @@ __attribute__((noinline)) int check(int *ref, int index) { return ref[index]; }
 // CHECK:   #0 {{.*}} {{.*group_local_memory_func.cpp}}:[[@LINE-3]]
 
 __attribute__((noinline)) int test_local(sycl::nd_item<1> &item) {
-  auto local_mem = sycl::ext::oneapi::group_local_memory<int[group_size]>(item.get_group());
+  auto local_mem =
+      sycl::ext::oneapi::group_local_memory<int[group_size]>(item.get_group());
   // NOTE: direct access will be optimized out
   return check(*local_mem, group_size);
 }
@@ -31,9 +32,8 @@ int main() {
 
   Q.submit([&](sycl::handler &h) {
     h.parallel_for<class MyKernel>(
-        sycl::nd_range<1>(N, group_size), [=](sycl::nd_item<1> item) {
-          data[0] = test_local(item);
-        });
+        sycl::nd_range<1>(N, group_size),
+        [=](sycl::nd_item<1> item) { data[0] = test_local(item); });
   });
   Q.wait();
 
