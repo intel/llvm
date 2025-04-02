@@ -190,8 +190,8 @@ struct urSamplerTest : urContextTest {
     }
 
     sampler_desc = {
-        UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
         nullptr,                          /* pNext */
+        UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
         true,                             /* normalizedCoords */
         UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
         UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
@@ -260,8 +260,8 @@ struct urMemImageTest : urContextTest {
       /*.channelType =*/UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
   };
   ur_image_desc_t image_desc = {
-      /*.stype =*/UR_STRUCTURE_TYPE_IMAGE_DESC,
       /*.pNext =*/nullptr,
+      /*.stype =*/UR_STRUCTURE_TYPE_IMAGE_DESC,
       /*.type =*/UR_MEM_TYPE_IMAGE2D,
       /*.width =*/16,
       /*.height =*/16,
@@ -321,8 +321,8 @@ template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
     }
 
     sampler_desc = {
-        UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
         nullptr,                          /* pNext */
+        UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
         true,                             /* normalizedCoords */
         UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
         UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
@@ -360,8 +360,8 @@ struct urQueueTest : urContextTest {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
   }
 
-  ur_queue_properties_t queue_properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
-                                            nullptr, 0};
+  ur_queue_properties_t queue_properties = {nullptr,
+                                            UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, 0};
   ur_queue_handle_t queue = nullptr;
 };
 
@@ -433,8 +433,8 @@ template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
     }
     UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
   }
-  ur_queue_properties_t queue_properties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
-                                            nullptr, 0};
+  ur_queue_properties_t queue_properties = {nullptr,
+                                            UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, 0};
   ur_queue_handle_t queue = nullptr;
 };
 
@@ -463,8 +463,8 @@ struct urProfilingQueueTest : urContextTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
     ur_queue_properties_t props = {
-        /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
         /*.pNext =*/nullptr,
+        /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
         /*.flags =*/UR_QUEUE_FLAG_PROFILING_ENABLE,
     };
     ASSERT_SUCCESS(urQueueCreate(this->context, this->device, &props, &queue));
@@ -485,8 +485,8 @@ struct urProfilingQueueTestWithParam : urContextTestWithParam<T> {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
     ur_queue_properties_t props = {
-        /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
         /*.pNext =*/nullptr,
+        /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
         /*.flags =*/UR_QUEUE_FLAG_PROFILING_ENABLE,
     };
     ASSERT_SUCCESS(urQueueCreate(this->context, this->device, &props, &queue));
@@ -675,8 +675,8 @@ struct urMemImageQueueTest : urQueueTest {
   ur_rect_offset_t origin{0, 0, 0};
   ur_image_format_t format = {UR_IMAGE_CHANNEL_ORDER_RGBA,
                               UR_IMAGE_CHANNEL_TYPE_FLOAT};
-  ur_image_desc_t desc1D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
-                            nullptr,                      // pNext
+  ur_image_desc_t desc1D = {nullptr,                      // pNext
+                            UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
                             UR_MEM_TYPE_IMAGE1D,          // mem object type
                             width,                        // image width
                             1,                            // image height
@@ -687,8 +687,8 @@ struct urMemImageQueueTest : urQueueTest {
                             0,                            // mip levels
                             0};                           // num samples
 
-  ur_image_desc_t desc2D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
-                            nullptr,                      // pNext
+  ur_image_desc_t desc2D = {nullptr,                      // pNext
+                            UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
                             UR_MEM_TYPE_IMAGE2D,          // mem object type
                             width,                        // image width
                             height,                       // image height
@@ -699,8 +699,8 @@ struct urMemImageQueueTest : urQueueTest {
                             0,                            // mip levels
                             0};                           // num samples
 
-  ur_image_desc_t desc3D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
-                            nullptr,                      // pNext
+  ur_image_desc_t desc3D = {nullptr,                      // pNext
+                            UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
                             UR_MEM_TYPE_IMAGE3D,          // mem object type
                             width,                        // image width
                             height,                       // image height
@@ -759,8 +759,8 @@ struct urMultiDeviceMemImageTest : urMultiDeviceContextTest {
   ur_rect_offset_t origin{0, 0, 0};
   ur_image_format_t format = {UR_IMAGE_CHANNEL_ORDER_RGBA,
                               UR_IMAGE_CHANNEL_TYPE_FLOAT};
-  ur_image_desc_t desc1D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
-                            nullptr,                      // pNext
+  ur_image_desc_t desc1D = {nullptr,                      // pNext
+                            UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
                             UR_MEM_TYPE_IMAGE1D,          // mem object type
                             width,                        // image width
                             1,                            // image height
@@ -771,8 +771,8 @@ struct urMultiDeviceMemImageTest : urMultiDeviceContextTest {
                             0,                            // mip levels
                             0};                           // num samples
 
-  ur_image_desc_t desc2D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
-                            nullptr,                      // pNext
+  ur_image_desc_t desc2D = {nullptr,                      // pNext
+                            UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
                             UR_MEM_TYPE_IMAGE2D,          // mem object type
                             width,                        // image width
                             height,                       // image height
@@ -783,8 +783,8 @@ struct urMultiDeviceMemImageTest : urMultiDeviceContextTest {
                             0,                            // mip levels
                             0};                           // num samples
 
-  ur_image_desc_t desc3D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
-                            nullptr,                      // pNext
+  ur_image_desc_t desc3D = {nullptr,                      // pNext
+                            UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
                             UR_MEM_TYPE_IMAGE3D,          // mem object type
                             width,                        // image width
                             height,                       // image height
@@ -886,7 +886,7 @@ struct urUSMPoolTest : urContextTest {
     if (!poolSupport) {
       GTEST_SKIP() << "USM pools are not supported.";
     }
-    ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr, 0};
+    ur_usm_pool_desc_t pool_desc{nullptr, UR_STRUCTURE_TYPE_USM_POOL_DESC, 0};
     ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
   }
 
@@ -908,7 +908,7 @@ template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
     if (!poolSupport) {
       GTEST_SKIP() << "USM pools are not supported.";
     }
-    ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr, 0};
+    ur_usm_pool_desc_t pool_desc{nullptr, UR_STRUCTURE_TYPE_USM_POOL_DESC, 0};
     ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
   }
 
@@ -983,8 +983,8 @@ struct urPhysicalMemTest : urVirtualMemGranularityTest {
   size_t size = 0;
   ur_physical_mem_handle_t physical_mem = nullptr;
   ur_physical_mem_properties_t properties{
-      UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
       nullptr,
+      UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
       0 /*flags*/,
   };
 };
@@ -996,8 +996,8 @@ struct urPhysicalMemTestWithParam : urVirtualMemGranularityTestWithParam<T> {
         urVirtualMemGranularityTestWithParam<T>::SetUp());
     size = this->granularity * 256;
     ur_physical_mem_properties_t props{
-        UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
         nullptr,
+        UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
         0 /*flags*/,
     };
     ASSERT_SUCCESS(urPhysicalMemCreate(this->context, this->device, size,
@@ -1230,7 +1230,7 @@ struct urProgramTest : urQueueTest {
         program_name, platform, il_binary));
 
     const ur_program_properties_t properties = {
-        UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
+        nullptr, UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
         static_cast<uint32_t>(metadatas.size()),
         metadatas.empty() ? nullptr : metadatas.data()};
     ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
@@ -1269,7 +1269,7 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
         program_name, this->platform, il_binary));
 
     const ur_program_properties_t properties = {
-        UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
+        nullptr, UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
         static_cast<uint32_t>(metadatas.size()),
         metadatas.empty() ? nullptr : metadatas.data()};
 
@@ -1681,7 +1681,7 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
         program_name, platform, il_binary));
 
     const ur_program_properties_t properties = {
-        UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
+        nullptr, UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
         static_cast<uint32_t>(metadatas.size()),
         metadatas.empty() ? nullptr : metadatas.data()};
 
