@@ -115,6 +115,10 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: ./unified-runtime/.github/scripts/get_system_info.sh
+
     # TODO: how other workflows (using dockers) deal with the path change?
     #   also, note: I don't think it's needed anywhere now - I guess we can only use the relative paths...?
     - name: Set working directory as environment variable
@@ -150,25 +154,26 @@ jobs:
     #   or
     #   ghcr.io/intel/llvm/ubuntu2404_build:latest
     # not sure on OpenCL and NativeCPU - to be checked.
-    - name: Install Intel Level Zero GPU
-      # if: ${{ inputs.adapter_name == 'L0' || inputs.adapter_name == 'L0_V2' }}
-      run: |
-        wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | \
-          sudo gpg --yes --dearmor --output /usr/share/keyrings/intel-graphics.gpg
-        echo "deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy unified" | \
-          sudo tee /etc/apt/sources.list.d/intel-gpu-jammy.list
-        sudo apt-get update
-        sudo apt-get install -y libze-intel-gpu1 libze1 libze-dev intel-opencl-icd
-        # libstdc++-12-dev
+    
+    # - name: Install Intel Level Zero GPU
+    #   # if: ${{ inputs.adapter_name == 'L0' || inputs.adapter_name == 'L0_V2' }}
+    #   run: |
+    #     wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | \
+    #       sudo gpg --yes --dearmor --output /usr/share/keyrings/intel-graphics.gpg
+    #     echo "deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy unified" | \
+    #       sudo tee /etc/apt/sources.list.d/intel-gpu-jammy.list
+    #     sudo apt-get update
+    #     sudo apt-get install -y libze-intel-gpu1 libze1 libze-dev intel-opencl-icd
+    #     # libstdc++-12-dev
 
-    - name: Install OpenCL
-      if: ${{ inputs.adapter_name == 'OPENCL' }}
-      run: |
-        wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-        | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
-        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
-        sudo apt-get update
-        sudo apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
+    # - name: Install OpenCL
+    #   if: ${{ inputs.adapter_name == 'OPENCL' }}
+    #   run: |
+    #     wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+    #     | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+    #     echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+    #     sudo apt-get update
+    #     sudo apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
 
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
