@@ -495,6 +495,10 @@ private:
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
 
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+  // TODO: processArg need not to be public
+  __SYCL_DLL_LOCAL
+#endif
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
                   bool IsKernelCreatedFromSource, bool IsESIMD);
