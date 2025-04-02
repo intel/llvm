@@ -710,8 +710,8 @@ public:
   void *getTraceEvent() { return MTraceEvent; }
 
   void setExternalEvent(const event &Event) {
-    MInOrderExternalEvent.put(
-        [&Event](std::optional<event> &InOrderExternalEvent) {
+    MInOrderExternalEvent.push(
+        [&](std::optional<event> &InOrderExternalEvent) {
           InOrderExternalEvent = Event;
         });
   }
@@ -719,8 +719,8 @@ public:
   std::optional<event> popExternalEvent() {
     std::optional<event> Result = std::nullopt;
 
-    MInOrderExternalEvent.get(
-        [&Result](std::optional<event> &InOrderExternalEvent) {
+    MInOrderExternalEvent.pop(
+        [&](std::optional<event> &InOrderExternalEvent) {
           std::swap(Result, InOrderExternalEvent);
         });
     return Result;
@@ -838,8 +838,8 @@ protected:
     // dependency so in the case where some commands were not enqueued
     // (blocked), we track them to prevent barrier from being enqueued
     // earlier.
-    MMissedCleanupRequests.get(
-        [this](MissedCleanupRequestsType &MissedCleanupRequests) {
+    MMissedCleanupRequests.pop(
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
           for (auto &UpdatedGraph : MissedCleanupRequests)
             doUnenqueuedCommandCleanup(UpdatedGraph);
           MissedCleanupRequests.clear();
@@ -853,14 +853,13 @@ protected:
       Handler.depends_on(Deps.LastBarrier);
 
     auto EventRet = Handler.finalize();
-    EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
     if (Type == CGType::CodeplayHostTask)
-      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
+      Deps.UnenqueuedCmdEvents.push_back(getSyclObjImpl(EventRet));
     else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-      Deps.LastBarrier = std::move(EventRetImpl);
+      Deps.LastBarrier = getSyclObjImpl(EventRet);
       Deps.UnenqueuedCmdEvents.clear();
-    } else if (!EventRetImpl->isEnqueued()) {
-      Deps.UnenqueuedCmdEvents.push_back(std::move(EventRetImpl));
+    } else if (!getSyclObjImpl(EventRet)->isEnqueued()) {
+      Deps.UnenqueuedCmdEvents.push_back(getSyclObjImpl(EventRet));
     }
 
     return EventRet;
@@ -1034,12 +1033,12 @@ protected:
     mutable std::mutex MDataMtx;
 
   public:
-    template <typename F> void put(F &&func) {
+    template <typename F> void push(F &&func) {
       std::lock_guard<std::mutex> Lock(MDataMtx);
       MDataPresent.store(true, std::memory_order_release);
       func(MData);
     }
-    template <typename F> void get(F &&func) {
+    template <typename F> void pop(F &&func) {
       if (MDataPresent.load(std::memory_order_acquire)) {
         std::lock_guard<std::mutex> Lock(MDataMtx);
         if (MDataPresent.load(std::memory_order_acquire)) {

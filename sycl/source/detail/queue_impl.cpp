@@ -618,8 +618,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
 
-    MMissedCleanupRequests.get(
-        [this](MissedCleanupRequestsType &MissedCleanupRequests) {
+    MMissedCleanupRequests.pop(
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
           for (auto &UpdatedGraph : MissedCleanupRequests)
             doUnenqueuedCommandCleanup(UpdatedGraph);
           MissedCleanupRequests.clear();
@@ -799,8 +799,8 @@ void queue_impl::revisitUnenqueuedCommandsState(
   if (Lock.owns_lock())
     doUnenqueuedCommandCleanup(CompletedHostTask->getCommandGraph());
   else {
-    MMissedCleanupRequests.put(
-        [CompletedHostTask](MissedCleanupRequestsType &MissedCleanupRequests) {
+    MMissedCleanupRequests.push(
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
           MissedCleanupRequests.push_back(CompletedHostTask->getCommandGraph());
         });
   }
