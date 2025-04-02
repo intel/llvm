@@ -97,7 +97,7 @@ function createChart(data, containerId, type) {
                             ];
                         } else {
                             return [`${context.dataset.label}:`,
-                                `Value: ${context.parsed.y.toFixed(2)} ${data.unit}`,
+                            `Value: ${context.parsed.y.toFixed(2)} ${data.unit}`,
                             ];
                         }
                     }
@@ -111,6 +111,8 @@ function createChart(data, containerId, type) {
                     text: data.unit
                 },
                 grace: '20%',
+                min: isCustomRangesEnabled() ? data.range_min : null,
+                max: isCustomRangesEnabled() ? data.range_max : null
             }
         }
     };
@@ -182,7 +184,7 @@ function updateCharts() {
     const filterRunData = (chart) => ({
         ...chart,
         runs: Object.fromEntries(
-            Object.entries(chart.runs).filter(([_, data]) => 
+            Object.entries(chart.runs).filter(([_, data]) =>
                 activeRuns.has(data.runName)
             )
         )
@@ -276,25 +278,25 @@ function createChartContainer(data, canvasId, type) {
     // Add tags if present
     if (metadata && metadata.tags) {
         container.setAttribute('data-tags', metadata.tags.join(','));
-        
+
         // Add tags display
         const tagsContainer = document.createElement('div');
         tagsContainer.className = 'benchmark-tags';
-        
+
         metadata.tags.forEach(tag => {
             const tagElement = document.createElement('span');
             tagElement.className = 'tag';
             tagElement.textContent = tag;
             tagElement.setAttribute('data-tag', tag);
-            
+
             // Add tooltip with tag description
             if (benchmarkTags[tag]) {
                 tagElement.setAttribute('title', benchmarkTags[tag].description);
             }
-            
+
             tagsContainer.appendChild(tagElement);
         });
-        
+
         container.appendChild(tagsContainer);
     }
 
@@ -493,6 +495,12 @@ function updateURL() {
         url.searchParams.set('unstable', 'true');
     }
 
+    if (!isCustomRangesEnabled()) {
+        url.searchParams.delete('customRange');
+    } else {
+        url.searchParams.set('customRange', 'true');
+    }
+
     history.replaceState(null, '', url);
 }
 
@@ -505,12 +513,12 @@ function filterCharts() {
         const label = container.getAttribute('data-label');
         const suite = container.getAttribute('data-suite');
         const isUnstable = container.getAttribute('data-unstable') === 'true';
-        const tags = container.getAttribute('data-tags') ? 
-                    container.getAttribute('data-tags').split(',') : [];
+        const tags = container.getAttribute('data-tags') ?
+            container.getAttribute('data-tags').split(',') : [];
 
         // Check if benchmark has all active tags (if any are selected)
-        const hasAllActiveTags = activeTags.size === 0 || 
-                               Array.from(activeTags).every(tag => tags.includes(tag));
+        const hasAllActiveTags = activeTags.size === 0 ||
+            Array.from(activeTags).every(tag => tags.includes(tag));
 
         // Hide unstable benchmarks if showUnstable is false
         const shouldShow = regex.test(label) &&
@@ -535,16 +543,19 @@ function processTimeseriesData(benchmarkRuns) {
 
     benchmarkRuns.forEach(run => {
         run.results.forEach(result => {
+            const metadata = metadataForLabel(result.label, 'benchmark');
+
             if (!resultsByLabel[result.label]) {
                 resultsByLabel[result.label] = {
                     label: result.label,
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
+                    range_min: metadata?.range_min ?? null, // can't use || because js treats 0 as null
+                    range_max: metadata?.range_max ?? null,
                     runs: {}
                 };
             }
-
             addRunDataPoint(resultsByLabel[result.label], run, result, run.name);
         });
     });
@@ -568,6 +579,8 @@ function processBarChartsData(benchmarkRuns) {
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
+                    range_min: groupMetadata?.range_min ?? null, // can't use || because js treats 0 as null
+                    range_max: groupMetadata?.range_max ?? null,
                     labels: [],
                     datasets: [],
                     // Add metadata if available
@@ -654,6 +667,8 @@ function processLayerComparisonsData(benchmarkRuns) {
                     suite: result.suite,
                     unit: result.unit,
                     lower_is_better: result.lower_is_better,
+                    range_min: metadata?.range_min ?? null, // can't use || because js treats 0 as null
+                    range_max: metadata?.range_max ?? null,
                     runs: {},
                     benchmarkLabels: [],
                     description: metadata?.description || null,
@@ -760,11 +775,17 @@ function isUnstableEnabled() {
     return unstableToggle.checked;
 }
 
+function isCustomRangesEnabled() {
+    const rangesToggle = document.getElementById('custom-range');
+    return rangesToggle.checked;
+}
+
 function setupToggles() {
     const notesToggle = document.getElementById('show-notes');
     const unstableToggle = document.getElementById('show-unstable');
+    const customRangeToggle = document.getElementById('custom-range');
 
-    notesToggle.addEventListener('change', function() {
+    notesToggle.addEventListener('change', function () {
         // Update all note elements visibility
         document.querySelectorAll('.benchmark-note').forEach(note => {
             note.style.display = isNotesEnabled() ? 'block' : 'none';
@@ -772,12 +793,17 @@ function setupToggles() {
         updateURL();
     });
 
-    unstableToggle.addEventListener('change', function() {
+    unstableToggle.addEventListener('change', function () {
         // Update all unstable warning elements visibility
         document.querySelectorAll('.benchmark-unstable').forEach(warning => {
             warning.style.display = isUnstableEnabled() ? 'block' : 'none';
         });
         filterCharts();
+    });
+
+    customRangeToggle.addEventListener('change', function () {
+        // redraw all charts
+        updateCharts();
     });
 
     // Initialize from URL params if present
@@ -793,13 +819,18 @@ function setupToggles() {
         let showUnstable = unstableParam === 'true';
         unstableToggle.checked = showUnstable;
     }
+
+    const customRangesParam = getQueryParam('customRange');
+    if (customRangesParam !== null) {
+        customRangeToggle.checked = customRangesParam === 'true';
+    }
 }
 
 function setupTagFilters() {
     tagFiltersContainer = document.getElementById('tag-filters');
 
     const allTags = [];
-    
+
     if (benchmarkTags) {
         for (const tag in benchmarkTags) {
             if (!allTags.includes(tag)) {
@@ -812,17 +843,17 @@ function setupTagFilters() {
     allTags.forEach(tag => {
         const tagContainer = document.createElement('div');
         tagContainer.className = 'tag-filter';
-        
+
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.id = `tag-${tag}`;
         checkbox.className = 'tag-checkbox';
         checkbox.dataset.tag = tag;
-        
+
         const label = document.createElement('label');
         label.htmlFor = `tag-${tag}`;
         label.textContent = tag;
-        
+
         // Add info icon with tooltip if tag description exists
         if (benchmarkTags[tag]) {
             const infoIcon = document.createElement('span');
@@ -831,8 +862,8 @@ function setupTagFilters() {
             infoIcon.title = benchmarkTags[tag].description;
             label.appendChild(infoIcon);
         }
-        
-        checkbox.addEventListener('change', function() {
+
+        checkbox.addEventListener('change', function () {
             if (this.checked) {
                 activeTags.add(tag);
             } else {
@@ -840,7 +871,7 @@ function setupTagFilters() {
             }
             filterCharts();
         });
-        
+
         tagContainer.appendChild(checkbox);
         tagContainer.appendChild(label);
         tagFiltersContainer.appendChild(tagContainer);
@@ -849,18 +880,18 @@ function setupTagFilters() {
 
 function toggleAllTags(select) {
     const checkboxes = document.querySelectorAll('.tag-checkbox');
-    
+
     checkboxes.forEach(checkbox => {
         checkbox.checked = select;
         const tag = checkbox.dataset.tag;
-        
+
         if (select) {
             activeTags.add(tag);
         } else {
             activeTags.delete(tag);
         }
     });
-    
+
     filterCharts();
 }
 
