@@ -3976,6 +3976,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::arithmetic_fence:
   case Intrinsic::masked_gather:
   case Intrinsic::masked_scatter:
+  case Intrinsic::modf:
     return true;
   default:
     // Unknown intrinsics' declarations should always be translated
@@ -4076,6 +4077,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Tanh;
   case Intrinsic::trunc:
     return OpenCLLIB::Trunc;
+  case Intrinsic::modf:
+    return OpenCLLIB::Modf;
   default:
     assert(false && "Builtin ID requested for Unhandled intrinsic!");
     return 0;
@@ -4272,6 +4275,50 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
 
     return BM->addExtInst(FTy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
+  }
+  case Intrinsic::modf: {
+    // llvm.modf has a single arg --the number to be decomposed-- and returns a
+    // struct { double, double }, while OpenCLLIB::modf has two args --the
+    // number to be decomposed and a pointer--, returns the fractional part and
+    // the integral part is stored in the pointer argument. Therefore, we can't
+    // use directly the OpenCLLIB::modf intrinsic. However, we can do some
+    // scaffolding to make it work. The idea is to create an alloca instruction
+    // to get a ptr, pass this ptr to OpenCLLIB::modf, and then load the value
+    // from this ptr to place it in the struct.
+
+    // llvm.modf returns the fractional part as the first element of the result,
+    // and the integral part as the second element of the result. Therefore, the
+    // first element is the return value of OpenCLLIB::modf, and the second
+    // element is the value loaded from the ptr of the alloca we created.
+
+    // Create the alloca instruction.
+    SPIRVType *IntegralTy = transType(II->getType()->getStructElementType(1));
+    // IntegralTy is the type of the result. We want to create a pointer to this
+    // that we can pass to OpenCLLIB::modf to store the integral part.
+    SPIRVTypePointer *IntegralPtrTy =
+        BM->addPointerType(StorageClassFunction, IntegralTy);
+    // We need to use the entry BB of the function calling llvm.modf.*, instead
+    // of the current BB. For that, we'll find current BB's parent and get its
+    // first BB, which is the entry BB of the function.
+    SPIRVBasicBlock *EntryBB = BB->getParent()->getBasicBlock(0);
+    SPIRVValue *Ptr = BM->addVariable(
+        IntegralPtrTy, nullptr, false, spv::internal::LinkageTypeInternal,
+        nullptr, "", StorageClassFunction, EntryBB);
+
+    // Create the OpenCLLIB::modf instruction.
+    SPIRVType *FTy = transType(II->getType()->getStructElementType(0));
+    SPIRVValue *Arg = transValue(II->getArgOperand(0), BB);
+    std::vector<SPIRVValue *> Ops{Arg, Ptr};
+    SPIRVValue *Modf = BM->addExtInst(FTy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                                      OpenCLLIB::Modf, Ops, BB);
+
+    // Load the value from the ptr.
+    SPIRVValue *IntegralVal = BM->addLoadInst(Ptr, {}, BB, IntegralTy);
+
+    // Create the struct.
+    SPIRVType *STy = transType(II->getType());
+    std::vector<SPIRVId> StructVals{Modf->getId(), IntegralVal->getId()};
+    return BM->addCompositeConstructInst(STy, StructVals, BB);
   }
   // Binary FP intrinsics
   case Intrinsic::atan2:
