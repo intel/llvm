@@ -51,19 +51,28 @@ command_list_cache_t::command_list_cache_t(ze_context_handle_t ZeContext,
     : ZeContext{ZeContext},
       ZeCopyOffloadExtensionSupported{ZeCopyOffloadExtensionSupported} {}
 
+static bool ForceDisableCopyOffload = [] {
+  return getenv_tobool("UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD");
+}();
+
 raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
   ZeStruct<zex_intel_queue_copy_operations_offload_hint_exp_desc_t> offloadDesc;
   auto requestedCopyOffload =
       std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
 
+  if (ForceDisableCopyOffload && requestedCopyOffload) {
+    logger::info("Copy offload is disabled by the environment variable.");
+    requestedCopyOffload = false;
+  }
+
   if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
     logger::info(
         "Copy offload is requested but is not supported by the driver.");
-    offloadDesc.copyOffloadEnabled = false;
-  } else {
-    offloadDesc.copyOffloadEnabled = requestedCopyOffload;
+    requestedCopyOffload = false;
   }
+
+  offloadDesc.copyOffloadEnabled = requestedCopyOffload;
 
   if (auto ImmCmdDesc =
           std::get_if<immediate_command_list_descriptor_t>(&desc)) {
