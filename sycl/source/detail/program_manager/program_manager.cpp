@@ -73,7 +73,7 @@ ProgramManager &ProgramManager::getInstance() {
 }
 
 static ur_program_handle_t
-createBinaryProgram(const ContextImplPtr Context,
+createBinaryProgram(const ContextImplPtr &Context,
                     const std::vector<device> &Devices,
                     const uint8_t **Binaries, size_t *Lengths,
                     const std::vector<ur_program_metadata_t> &Metadata) {
@@ -104,7 +104,7 @@ createBinaryProgram(const ContextImplPtr Context,
   return Program;
 }
 
-static ur_program_handle_t createSpirvProgram(const ContextImplPtr Context,
+static ur_program_handle_t createSpirvProgram(const ContextImplPtr &Context,
                                               const unsigned char *Data,
                                               size_t DataLen) {
   ur_program_handle_t Program = nullptr;
@@ -369,7 +369,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
 
   appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
-  const auto PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
+  platform Platform = Devs[0].get_platform();
+  const auto &PlatformImpl = detail::getSyclObjImpl(Platform);
 
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
@@ -945,7 +946,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     }
 
     std::vector<ur_device_handle_t> URDevices;
-    for (auto Dev : Devs)
+    for (auto &Dev : Devs)
       URDevices.push_back(getSyclObjImpl(Dev).get()->getHandleRef());
 
     ProgramPtr BuiltProgram =
@@ -1700,7 +1701,7 @@ static inline bool isDeviceImageCompressed(sycl_device_binary Bin) {
 }
 
 ProgramManager::ProgramPtr ProgramManager::build(
-    ProgramPtr Program, const ContextImplPtr Context,
+    ProgramPtr Program, const ContextImplPtr &Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
     std::vector<ur_device_handle_t> &Devices, uint32_t DeviceLibReqMask,
     const std::vector<ur_program_handle_t> &ExtraProgramsToLink,
