@@ -294,11 +294,9 @@ class SubmitKernel(ComputeBenchmark):
         return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}"
 
     def explicit_group(self):
-        return (
-            "SubmitKernel"
-            if self.measure_completion == 0
-            else "SubmitKernel With Completion"
-        )
+        order = "In Order" if self.ioq else "Out Of Order"
+        completion_str = " With Completion" if self.measure_completion else ""
+        return f"SubmitKernel {order}{completion_str}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
