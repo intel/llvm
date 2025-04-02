@@ -358,6 +358,8 @@ def Vec1234     : IntList<"Vec1234", [1, 2, 3, 4]>;
 // Type lists.
 def TLAll           : TypeList<[Char,  UChar, Short,  UShort, Int,  UInt, Long,  ULong, Float, Double, Half]>;
 def TLAllUnsigned   : TypeList<[UChar, UChar, UShort, UShort, UInt, UInt, ULong, ULong, UInt,  ULong,  UShort]>;
+def TLAllWithBool : TypeList<[Bool, Char, UChar, Short, UShort, Int, UInt, Long,
+                              ULong, Float, Double, Half]>;
 def TLFloat         : TypeList<[Float, Double, Half]>;
 // FIXME: handle properly char (signed or unsigned depending on host)
 def TLSignedInts    : TypeList<[Char, Short, Int, Long]>;
@@ -383,6 +385,10 @@ def TLAllInts       : TypeList<[Char, UChar, Short, UShort, Int, UInt, Long, ULo
 def AGenType1              : GenericType<"AGenType1", TLAll, Vec1>;
 def AGenTypeN              : GenericType<"AGenTypeN", TLAll, VecAndScalar>;
 def AGenTypeNNoScalar      : GenericType<"AGenTypeNNoScalar", TLAll, VecNoScalar>;
+def AGenTypeNWithBool
+    : GenericType<"AGenTypeNWithBool", TLAllWithBool, VecAndScalar>;
+// Bool
+def BoolGenTypeN : GenericType<"BoolGenTypeN", TypeList<[Bool]>, VecAndScalar>;
 // All integer
 def AIGenType1             : GenericType<"AIGenType1", TLAllInts, Vec1>;
 def AIGenTypeN             : GenericType<"AIGenTypeN", TLAllInts, VecAndScalar>;
@@ -395,6 +401,7 @@ def AI2UGenTypeN           : GenericType<"AI2UGenTypeN", TLAllUIntsTwice, VecAnd
 def SGenTypeN              : GenericType<"SGenTypeN", TLSignedInts, VecAndScalar>;
 // Unsigned integer
 def UGenTypeN              : GenericType<"UGenTypeN", TLUnsignedInts, VecAndScalar>;
+def UInt4 : GenericType<"UInt4", TypeList<[UInt]>, Vec4>;
 // Float
 def FGenTypeN              : GenericType<"FGenTypeN", TLFloat, VecAndScalar>;
 // (u)int, (u)long, and all floats
@@ -897,66 +904,171 @@ foreach name = ["BitCount"] in {
 // 3.32.20. Barrier Instructions
 
 foreach name = ["ControlBarrier"] in {
-  // TODO: Allow enum flags instead of UInt ?
-  // TODO: We should enforce that the UInt must be a literal.
-  def : SPVBuiltin<name, [Void, UInt, UInt, UInt], Attr.Convergent>;
+  // TODO: Allow enum flags instead of Int ?
+  // TODO: We should enforce that the Int must be a literal.
+  def : SPVBuiltin<name, [Void, Int, Int, Int], Attr.Convergent>;
 }
 
 foreach name = ["MemoryBarrier"] in {
-  // TODO: Allow enum flags instead of UInt ?
-  // TODO: We should enforce that the UInt must be a literal.
-  def : SPVBuiltin<name, [Void, UInt, UInt]>;
+  // TODO: Allow enum flags instead of Int ?
+  // TODO: We should enforce that the Int must be a literal.
+  def : SPVBuiltin<name, [Void, Int, Int]>;
 }
 
 // 3.32.21. Group and Subgroup Instructions
 
 foreach name = ["GroupAsyncCopy"] in {
-  // TODO: Allow enum flags instead of UInt ?
-  // TODO: We should enforce that the UInt must be a literal.
-  def : SPVBuiltin<name, [Event, UInt, PointerType<AGenTypeN, LocalAS>, PointerType<ConstType<AGenTypeN>, GlobalAS>, Size, Size, Event], Attr.Convergent>;
-  def : SPVBuiltin<name, [Event, UInt, PointerType<AGenTypeN, GlobalAS>, PointerType<ConstType<AGenTypeN>, LocalAS>, Size, Size, Event], Attr.Convergent>;
+  // TODO: Allow enum flags instead of Int ?
+  // TODO: We should enforce that the Int must be a literal.
+  def : SPVBuiltin<name,
+                   [Event, Int, PointerType<AGenTypeN, LocalAS>,
+                    PointerType<ConstType<AGenTypeN>, GlobalAS>, Size, Size,
+                    Event],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name,
+                   [Event, Int, PointerType<AGenTypeN, GlobalAS>,
+                    PointerType<ConstType<AGenTypeN>, LocalAS>, Size, Size,
+                    Event],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupWaitEvents"] in {
-  def : SPVBuiltin<name, [Void, UInt, Int, PointerType<Event, DefaultAS>], Attr.Convergent>;
-  def : SPVBuiltin<name, [Void, UInt, Int, PointerType<Event, PrivateAS>], Attr.Convergent>;
-  def : SPVBuiltin<name, [Void, UInt, Int, PointerType<Event, GenericAS>], Attr.Convergent>;
+  def : SPVBuiltin<name, [Void, Int, Int, PointerType<Event, DefaultAS>],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name, [Void, Int, Int, PointerType<Event, PrivateAS>],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name, [Void, Int, Int, PointerType<Event, GenericAS>],
+                   Attr.Convergent>;
 }
 
 foreach name = ["GroupAll", "GroupAny"] in {
-  def : SPVBuiltin<name, [Bool, UInt, Bool], Attr.Convergent>;
+  def : SPVBuiltin<name, [Bool, Int, Bool], Attr.Convergent>;
 }
 
 foreach name = ["GroupBroadcast"] in {
   foreach IDType = TLAllInts.List in {
-    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, IDType], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 2>], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 3>], Attr.Convergent>;
-    def : SPVBuiltin<name, [Bool, UInt, Bool, IDType], Attr.Convergent>;
-    def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 2>], Attr.Convergent>;
-    def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 3>], Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, Int, AGenTypeN, IDType],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, Int, AGenTypeN, VectorType<IDType, 2>],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, Int, AGenTypeN, VectorType<IDType, 3>],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [Bool, Int, Bool, IDType], Attr.Convergent>;
+    def : SPVBuiltin<name, [Bool, Int, Bool, VectorType<IDType, 2>],
+                     Attr.Convergent>;
+    def : SPVBuiltin<name, [Bool, Int, Bool, VectorType<IDType, 3>],
+                     Attr.Convergent>;
   }
 }
 
 foreach name = ["GroupIAdd", "GroupIMulKHR", "GroupBitwiseOrKHR",
                 "GroupBitwiseXorKHR", "GroupBitwiseAndKHR"] in {
-  def : SPVBuiltin<name, [AIGenTypeN, UInt, UInt, AIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupFAdd", "GroupFMin", "GroupFMax",
                 "GroupFMulKHR"] in {
-  def : SPVBuiltin<name, [FGenTypeN, UInt, UInt, FGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupUMin", "GroupUMax"] in {
-  def : SPVBuiltin<name, [AUIGenTypeN, UInt, UInt, AUIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AUIGenTypeN, Int, Int, AUIGenTypeN], Attr.Convergent>;
 }
 
 foreach name = ["GroupSMin", "GroupSMax"] in {
-  def : SPVBuiltin<name, [ASIGenTypeN, UInt, UInt, ASIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [ASIGenTypeN, Int, Int, ASIGenTypeN], Attr.Convergent>;
 }
 
 // TODO: These builtins need to support vectors of bool.
 foreach name = ["GroupLogicalAndKHR", "GroupLogicalOrKHR"] in {
-  def : SPVBuiltin<name, [Bool, UInt, UInt, Bool], Attr.Convergent>;
+  def : SPVBuiltin<name, [Bool, Int, Int, Bool], Attr.Convergent>;
+}
+
+// 3.56.24. Non-Uniform Instructions
+
+foreach name = ["GroupNonUniformElect"] in {
+  def : SPVBuiltin<name, [Bool, Int], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformAll", "GroupNonUniformAny"] in {
+  def : SPVBuiltin<name, [Bool, Int, Bool], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformAllEqual"] in {
+  def : SPVBuiltin<name, [Bool, Int, AGenTypeNWithBool], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBroadcast"] in {
+  foreach IDType = [UInt, ULong] in {
+    def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool, IDType],
+                     Attr.Convergent>;
+  }
+}
+
+foreach name = ["GroupNonUniformBroadcastFirst"] in {
+  def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBallot"] in {
+  def : SPVBuiltin<name, [UInt4, Int, Bool], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformInverseBallot"] in {
+  def : SPVBuiltin<name, [Bool, Int, UInt4], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBallotBitExtract"] in {
+  def : SPVBuiltin<name, [Bool, Int, UInt4, UInt], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBallotBitCount", "GroupNonUniformBallotFindLSB",
+                "GroupNonUniformBallotFindMSB"] in {
+  def : SPVBuiltin<name, [UInt, Int, Int, UInt4], Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformShuffle", "GroupNonUniformShuffleXor",
+                "GroupNonUniformShuffleUp", "GroupNonUniformShuffleDown"] in {
+  def : SPVBuiltin<name, [AGenTypeNWithBool, Int, AGenTypeNWithBool, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformIAdd", "GroupNonUniformIMul"] in {
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformSMin", "GroupNonUniformSMax"] in {
+  def : SPVBuiltin<name, [SGenTypeN, Int, Int, SGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [SGenTypeN, Int, Int, SGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformUMin", "GroupNonUniformUMax"] in {
+  def : SPVBuiltin<name, [UGenTypeN, Int, Int, UGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [UGenTypeN, Int, Int, UGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformFAdd", "GroupNonUniformFMul",
+                "GroupNonUniformFMin", "GroupNonUniformFMax"] in {
+  def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [FGenTypeN, Int, Int, FGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformBitwiseAnd", "GroupNonUniformBitwiseOr",
+                "GroupNonUniformBitwiseXor"] in {
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN], Attr.Convergent>;
+  def : SPVBuiltin<name, [AIGenTypeN, Int, Int, AIGenTypeN, UInt],
+                   Attr.Convergent>;
+}
+
+foreach name = ["GroupNonUniformLogicalAnd", "GroupNonUniformLogicalOr",
+                "GroupNonUniformLogicalXor"] in {
+  def : SPVBuiltin<name, [BoolGenTypeN, Int, Int, BoolGenTypeN],
+                   Attr.Convergent>;
+  def : SPVBuiltin<name, [BoolGenTypeN, Int, Int, BoolGenTypeN, UInt],
+                   Attr.Convergent>;
 }

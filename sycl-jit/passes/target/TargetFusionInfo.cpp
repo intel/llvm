@@ -213,7 +213,7 @@ public:
         {Attribute::get(LLVMMod->getContext(), Attribute::AttrKind::Convergent),
          Attribute::get(LLVMMod->getContext(), Attribute::AttrKind::NoUnwind)});
 
-    static constexpr StringLiteral N{"_Z22__spirv_ControlBarrierjjj"};
+    static constexpr StringLiteral N{"_Z22__spirv_ControlBarrieriii"};
 
     Function *F = LLVMMod->getFunction(N);
     if (!F) {
@@ -458,6 +458,7 @@ public:
     SmallPtrSet<Constant *, 8> DeletedFuncs{Funcs.begin(), Funcs.end()};
     SmallVector<MDNode *> ValidKernels;
     auto *OldAnnotations = LLVMMod->getNamedMetadata(MDName);
+    assert(OldAnnotations && "Failed to retrieve old annotations");
     for (auto *Op : OldAnnotations->operands()) {
       if (auto *TOp = dyn_cast<MDTuple>(Op)) {
         if (auto *COp = dyn_cast_if_present<ConstantAsMetadata>(

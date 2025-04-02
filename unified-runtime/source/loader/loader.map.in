@@ -263,6 +263,7 @@
 		urPrintDeviceReleaseParams;
 		urPrintDeviceRetainParams;
 		urPrintDeviceSelectBinaryParams;
+		urPrintDeviceThrottleReasonsFlags;
 		urPrintDeviceType;
 		urPrintDeviceUsmAccessCapabilityFlags;
 		urPrintEnqueueCommandBufferExpParams;
@@ -508,7 +509,7 @@
 		urPrintUsmPoolReleaseParams;
 		urPrintUsmPoolRetainParams;
 		urPrintUsmPoolSetDevicePoolExpParams;
-		urPrintUsmPoolSetThresholdExpParams;
+		urPrintUsmPoolSetInfoExpParams;
 		urPrintUsmPoolTrimToExpParams;
 		urPrintUsmReleaseExpParams;
 		urPrintUsmSharedAllocParams;
@@ -570,7 +571,7 @@
 		urUSMPoolRelease;
 		urUSMPoolRetain;
 		urUSMPoolSetDevicePoolExp;
-		urUSMPoolSetThresholdExp;
+		urUSMPoolSetInfoExp;
 		urUSMPoolTrimToExp;
 		urUSMReleaseExp;
 		urUSMSharedAlloc;
