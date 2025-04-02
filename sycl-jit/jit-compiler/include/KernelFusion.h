@@ -17,7 +17,6 @@
 
 #include "Kernel.h"
 #include "Options.h"
-#include "Parameter.h"
 #include "View.h"
 #include "sycl/detail/string.hpp"
 

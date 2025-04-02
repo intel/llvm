@@ -17,7 +17,6 @@
 
 #include "Kernel.h"
 #include "Options.h"
-#include "Parameter.h"
 
 namespace llvm {
 class LLVMContext;
