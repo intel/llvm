@@ -112,8 +112,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
   this->IsInteropNativeHandle = interopNativeHandle;
   this->ptr =
       usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr, this](void *ptr) {
-        if (!ownHostPtr ||
-            (this->IsInteropNativeHandle && !checkL0LoaderTeardown())) {
+        if (!ownHostPtr || !checkL0LoaderTeardown()) {
           return;
         }
         ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
@@ -237,8 +236,7 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     this->IsInteropNativeHandle = interopNativeHandle;
     deviceAllocations[hDevice->Id.value()] = usm_unique_ptr_t(
         devicePtr, [this, hContext = this->hContext, ownZePtr](void *ptr) {
-          if (!ownZePtr ||
-              (this->IsInteropNativeHandle && !checkL0LoaderTeardown())) {
+          if (!ownZePtr || !checkL0LoaderTeardown()) {
             return;
           }
           ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));

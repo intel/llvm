@@ -445,16 +445,16 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
 
   // Release the memory allocated to the CommandList stored in the
   // command_buffer
-  if (ZeComputeCommandList) {
+  if (ZeComputeCommandList && checkL0LoaderTeardown()) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeComputeCommandList));
   }
-  if (useCopyEngine() && ZeCopyCommandList) {
+  if (useCopyEngine() && ZeCopyCommandList && checkL0LoaderTeardown()) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCopyCommandList));
   }
 
   // Release the memory allocated to the CommandListResetEvents stored in the
   // command_buffer
-  if (ZeCommandListResetEvents) {
+  if (ZeCommandListResetEvents && checkL0LoaderTeardown()) {
     ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandListResetEvents));
   }
 
@@ -502,7 +502,9 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
   // Release fences allocated to command-buffer
   for (auto &ZeFencePair : ZeFencesMap) {
     auto &ZeFence = ZeFencePair.second;
-    ZE_CALL_NOCHECK(zeFenceDestroy, (ZeFence));
+    if (checkL0LoaderTeardown()) {
+      ZE_CALL_NOCHECK(zeFenceDestroy, (ZeFence));
+    }
   }
 
   auto ReleaseIndirectMem = [](ur_kernel_handle_t Kernel) {

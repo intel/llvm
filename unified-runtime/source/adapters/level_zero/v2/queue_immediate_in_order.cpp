@@ -87,7 +87,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
               [ownZeQueue,
                interopNativeHandle](ze_command_list_handle_t hZeCommandList) {
                 if (ownZeQueue) {
-                  if (!interopNativeHandle) {
+                  if (checkL0LoaderTeardown()) {
                     ZE_CALL_NOCHECK(zeCommandListDestroy, (hZeCommandList));
                   }
                 }
