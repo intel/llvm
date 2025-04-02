@@ -1,3 +1,5 @@
+// XFAIL: cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17812
 // Test with `--offload-new-driver`
 // RUN: %{build} -DSOURCE1 --offload-new-driver -c -o %t1.o
 // RUN: %{build} -DSOURCE2 --offload-new-driver -c -o %t2.o
