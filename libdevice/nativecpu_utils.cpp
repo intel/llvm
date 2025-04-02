@@ -318,9 +318,10 @@ DefShuffleINTEL_All(_Float16, f16, _Float16);
 
 Define2ArgForward(uint64_t, __spirv_ocl_u_min, std::min);
 
+#define GET_PROPS __attribute__((pure))
 #define GEN_u32(bname, muxname)                                                \
-  DEVICE_EXTERN_C uint32_t muxname();                                          \
-  DEVICE_EXTERNAL uint32_t bname() { return muxname(); }                       \
+  DEVICE_EXTERN_C uint32_t GET_PROPS muxname();                                \
+  DEVICE_EXTERNAL uint32_t GET_PROPS bname() { return muxname(); }             \
   static_assert(true)
 // subgroup
 GEN_u32(__spirv_SubgroupLocalInvocationId, __mux_get_sub_group_local_id);
@@ -331,8 +332,8 @@ GEN_u32(__spirv_SubgroupSize, __mux_get_sub_group_size);
 
 // I64_I32
 #define GEN_p(bname, muxname, arg)                                             \
-  DEVICE_EXTERN_C uint64_t muxname(uint32_t);                                  \
-  DEVICE_EXTERNAL uint64_t bname() { return muxname(arg); }                    \
+  DEVICE_EXTERN_C uint64_t GET_PROPS muxname(uint32_t);                        \
+  DEVICE_EXTERNAL uint64_t GET_PROPS bname() { return muxname(arg); }          \
   static_assert(true)
 
 #define GEN_xyz(bname, ncpu_name)                                              \
@@ -365,8 +366,8 @@ DefStateSetWithType(set_sub_group_id, SubGroup_id, uint32_t);
 DefStateSetWithType(set_max_sub_group_size, SubGroup_size, uint32_t);
 
 #define DefineStateGetWithType(name, field, type)                              \
-  DEVICE_EXTERNAL_C type __dpcpp_nativecpu_##name(                             \
-      MakeGlobalType<__nativecpu_state> *s) {                                  \
+  DEVICE_EXTERNAL_C GET_PROPS type __dpcpp_nativecpu_##name(                   \
+      MakeGlobalType<const __nativecpu_state> *s) {                            \
     return s->field;                                                           \
   }                                                                            \
   static_assert(true)
@@ -381,8 +382,8 @@ DefineStateGet_U32(get_max_sub_group_size, SubGroup_size);
 DefineStateGet_U32(get_num_sub_groups, NumSubGroups);
 
 #define DefineStateGetWithType2(name, field, rtype, ptype)                     \
-  DEVICE_EXTERNAL_C rtype __dpcpp_nativecpu_##name(                            \
-      ptype dim, MakeGlobalType<__nativecpu_state> *s) {                       \
+  DEVICE_EXTERNAL_C GET_PROPS rtype __dpcpp_nativecpu_##name(                  \
+      ptype dim, MakeGlobalType<const __nativecpu_state> *s) {                 \
     return s->field[dim];                                                      \
   }                                                                            \
   static_assert(true)

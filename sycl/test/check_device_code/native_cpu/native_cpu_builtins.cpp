@@ -44,7 +44,6 @@ int main() {
     h.parallel_for<Test2>(
         r2, [=](sycl::nd_item<2> ndi) { acc[ndi.get_global_id(1)] = 42; });
     // CHECK: @_ZTS5Test2.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
-    // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 1, ptr addrspace(1) %2)
     // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
   });
   sycl::nd_range<3> r3({1, 1, 1}, {1, 1, 1});
@@ -54,10 +53,6 @@ int main() {
     });
     // CHECK: @_ZTS5Test3.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_range(i32 2, ptr addrspace(1) %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_range(i32 1, ptr addrspace(1) %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_range(i32 0, ptr addrspace(1) %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 2, ptr addrspace(1) %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 1, ptr addrspace(1) %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
   });
 
