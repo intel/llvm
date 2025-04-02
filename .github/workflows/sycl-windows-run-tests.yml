@@ -149,14 +149,23 @@ jobs:
         cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\\github\\level-zero_win-sdk\\lib" -DLEVEL_ZERO_INCLUDE="D:\\github\\level-zero_win-sdk\\include" -DLLVM_LIT="..\\llvm\\llvm\\utils\\lit\\lit.py"
     - name: Run End-to-End tests
       if: inputs.tests_selector == 'e2e'
-      shell: bash
+      shell: bash {0}
+      env:
+        LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests --param print_features=True ${{ inputs.extra_lit_opts }}
       run: |
         # Run E2E tests.
         if [[ ${{inputs.compiler}} == 'icx' ]]; then
            export LIT_FILTER_OUT="compile_on_win_with_mdd"
         fi
-        export LIT_OPTS="-v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}"
-        cmake --build build-e2e --target check-sycl-e2e
+        cmake --build build-e2e --target check-sycl-e2e > e2e.log 2>&1
+
+        exit_code=$?
+        cat e2e.log
+        if [ $exit_code -ne 0 ]; then
+          # This is duplicated between lin/win, updates must change both.
+          awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Timed Out Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+        fi
+        exit $exit_code
 
     - name: Run SYCL CTS Tests
       if: inputs.tests_selector == 'cts'

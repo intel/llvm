@@ -213,6 +213,7 @@ class HandlerAccess;
 class HostTask;
 
 using EventImplPtr = std::shared_ptr<event_impl>;
+using DeviceImplPtr = std::shared_ptr<device_impl>;
 
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
@@ -249,6 +250,7 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 };
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &);
+const DeviceImplPtr &getDeviceImplFromHandler(handler &);
 
 // Checks if a device_global has any registered kernel usage.
 __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
@@ -3481,6 +3483,8 @@ private:
             typename PropertyListT>
   friend class accessor;
   friend device detail::getDeviceFromHandler(handler &);
+  friend const detail::DeviceImplPtr &
+  detail::getDeviceImplFromHandler(handler &);
 
   template <typename DataT, int Dimensions, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
@@ -3775,13 +3779,13 @@ private:
   /// According to section 4.7.6.11. of the SYCL specification, a local accessor
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
-  template <typename KernelName, typename KernelType>
-  void throwOnKernelParameterMisuse() const {
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    for (unsigned I = 0; I < detail::getKernelNumParams<NameT>(); ++I) {
-      const detail::kernel_param_desc_t ParamDesc =
-          detail::getKernelParamDesc<NameT>(I);
+  //
+  // Exception handling generates lots of code, outline it out of template
+  // method to improve compilation times.
+  void throwOnKernelParameterMisuseHelper(
+      int N, detail::kernel_param_desc_t (*f)(int)) const {
+    for (int I = 0; I < N; ++I) {
+      detail::kernel_param_desc_t ParamDesc = (*f)(I);
       const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
       const access::target AccTarget =
           static_cast<access::target>(ParamDesc.info & AccessTargetMask);
@@ -3800,6 +3804,13 @@ private:
             "function that is invoked via single_task or via the simple form "
             "of parallel_for that takes a range parameter.");
     }
+  }
+  template <typename KernelName, typename KernelType>
+  void throwOnKernelParameterMisuse() const {
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    throwOnKernelParameterMisuseHelper(detail::getKernelNumParams<NameT>(),
+                                       &detail::getKernelParamDesc<NameT>);
   }
 
   template <typename T, int Dims, access::mode AccessMode,

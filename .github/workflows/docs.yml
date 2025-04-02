@@ -102,7 +102,7 @@ jobs:
         with:
           fetch-depth: 1
       - name: Setup Python env
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        uses: actions/setup-python@v5.5.0
         with:
           python-version: '3.11'
           cache: 'pip'
