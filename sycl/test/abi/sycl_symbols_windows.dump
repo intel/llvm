@@ -3986,7 +3986,6 @@
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@_KV423@AEBUcode_location@detail@23@@Z
 ?extractArgsAndReqs@handler@_V1@sycl@@AEAAXXZ
-?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEADAEBUkernel_param_desc_t@detail@23@_N_KAEA_K@Z
 ?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEADAEBV?$vector@Ukernel_param_desc_t@detail@_V1@sycl@@V?$allocator@Ukernel_param_desc_t@detail@_V1@sycl@@@std@@@std@@_N@Z
 ?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEADP6A?AUkernel_param_desc_t@detail@23@H@Z_K_N@Z
 ?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z
