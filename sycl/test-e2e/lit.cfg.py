@@ -245,6 +245,8 @@ def check_igc_tag_and_add_feature():
             contents = tag_file.read()
             if "igc-dev" in contents:
                 config.available_features.add("igc-dev")
+
+
 def quote_path(path):
     if platform.system() == "Windows":
         return f'"{path}"'
