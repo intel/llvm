@@ -460,7 +460,7 @@ memory_pool(const queue &que, usm::alloc kind,
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context and
-device from the queue `q``, with the allocation kind `kind` and applying any
+device from the queue `que``, with the allocation kind `kind` and applying any
 properties in `propList`. If `kind` is `usm::alloc::host` this is equivalent to
 calling `memory_pool(queue.get_context(), propList)` otherwise this is
 equivalent to calling
@@ -496,7 +496,7 @@ contains the `maximum_size` or `initial_threshold` properties.
 ~memory_pool();
 ----
 
-_Effects_: If this was the last copy, signals tto the runtime for the memory
+_Effects_: If this was the last copy, signals to the runtime for the memory
 pool to be destroyed after all remaining USM pointer allocations have been
 freed, and returns immediately without waiting.
 
@@ -621,11 +621,11 @@ from the host and may still be the destination of a memory copy operation that
 is submitted to a device. -- end note]
 
 |`zero_init`
-|The `zero_init` property adds the requirement that all memory allocated to the
- memory as it is allocated to the memory pool will be initialised to zero. Note
- there is no guarantee that the memory allocation be re-initialized to zero when
- it is re-allocated from the pool, so users must re-initialize memory to zero if
- they wish for later allocations to have this behavior.
+|The `zero_init` property adds the requirement that all memory reserved by the
+ memory pool will be initialised to zero. Note that there is no guarantee that
+ the memory allocation be re-initialized to zero when it is re-allocated from
+ the pool, so users must re-initialize memory to zero if they wish for later
+ allocations to have this behavior.
 
 |===
 
@@ -688,7 +688,7 @@ asynchronous malloc and free commands which operate with the memory pools also
 introduced in this extension.
 
 All enqueue functions introduced have overloads which take a SYCL `queue` and a
-SYCL `handler`. None of enqueue functions return a SYCL `event` directly, as
+SYCL `handler`. None of the enqueue functions return a SYCL `event` directly, as
 this extension is in line with the
 link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
   sycl_ext_oneapi_enqueue_functions] extension, so events are returned when
@@ -729,19 +729,19 @@ void *async_malloc_from_pool(handler &cgh, size_t size,
   const memory_pool &pool);
 ----
 
-_Effects_: Enqueues a command to `q` or the SYCL queue associated with `h` which
-will asynchronously allocate memory of size `size` in bytes, allocating from the
-memory pool `pool` if provided, otherwise allocation from the default memory
-pool associated with the SYCL context and device associated with `q` or `h`.
-If a memory pool `pool` is provided the allocation kind is that of the memory
-pool, otherwise if an allocation kind `kind` parameter is provided, this is the
-allocation kind which is used. If a memory pool `pool` is provided, this must be
-associated with the same SYCL context and device as `q` or the SYCL queue
-associated with `h`. Memory can either be allocated directly from the memory
-pool or allocated to the memory pool to provide enough memory in the memory pool
-for the allocation. Accessing the memory at the address of the pointer returned
-by asynchronous malloc functions before the command has completed execution is
-undefined behavior.
+_Effects_: Enqueues a command to `que` or the SYCL queue associated with `cgh`
+which will asynchronously allocate memory of size `size` in bytes, allocating
+from the memory pool `pool` if provided, otherwise allocating from the default
+memory pool associated with the SYCL context and device associated with `que` or
+`cgh`. If a memory pool `pool` is provided the allocation kind is that of the
+memory pool, otherwise if an allocation kind `kind` parameter is provided, this
+is the allocation kind which is used. If a memory pool `pool` is provided, this
+must be associated with the same SYCL context and device as `que` or the SYCL
+queue associated with `cgh`. Memory can either be allocated directly from the
+memory pool or allocated to the memory pool to provide enough memory in the
+memory pool for the allocation. Accessing the memory at the address of the
+pointer returned by asynchronous malloc functions before the command has
+completed execution is undefined behavior.
 
 _Returns_: A pointer to the address of a memory reservation. When the allocation
 size is zero bytes, these functions behave in a manner consistent with C++
@@ -761,8 +761,8 @@ void async_free(const queue &que, void *ptr);
 void async_free(handler &cgh, void *ptr);
 ----
 
-_Effects_: Enqueues a command to `q` or the SYCL queue associated with `h` which
-will asynchronously free the memory allocation at the address of `ptr`.
+_Effects_: Enqueues a command to `que` or the SYCL queue associated with `cgh`
+which will asynchronously free the memory allocation at the address of `ptr`.
 Accessing the memory at the address of `ptr` after the asynchronous free command
 has completed execution is undefined behavior. If `ptr` is not the address of a
 memory allocation allocated to a memory pool this is undefined behavior. 
