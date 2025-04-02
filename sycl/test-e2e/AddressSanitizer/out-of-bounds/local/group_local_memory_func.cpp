@@ -16,23 +16,24 @@ constexpr std::size_t group_size = 8;
 
 __attribute__((noinline)) int check(int *ref, int index) { return ref[index]; }
 // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Local Memory
-// CHECK: READ of size 4 at kernel {{<.*MyKernel>}} LID(6, 0, 0) GID({{.*}}, 0, 0)
-// CHECK:   #0 {{.*}} {{.*group_local_memory.cpp}}:[[@LINE-3]]
+// CHECK: READ of size 4 at kernel {{<.*MyKernel>}} LID({{.*}}, 0, 0) GID({{.*}}, 0, 0)
+// CHECK:   #0 {{.*}} {{.*group_local_memory_func.cpp}}:[[@LINE-3]]
+
+__attribute__((noinline)) int test_local(sycl::nd_item<1> &item) {
+  auto local_mem =
+      sycl::ext::oneapi::group_local_memory<int[group_size]>(item.get_group());
+  // NOTE: direct access will be optimized out
+  return check(*local_mem, group_size);
+}
 
 int main() {
   sycl::queue Q;
-  auto data = sycl::malloc_device<int>(1, Q);
+  auto data = sycl::malloc_device<int>(N, Q);
 
   Q.submit([&](sycl::handler &h) {
     h.parallel_for<class MyKernel>(
-        sycl::nd_range<1>(N, group_size), [=](sycl::nd_item<1> item) {
-          sycl::multi_ptr<int[N], sycl::access::address_space::local_space>
-              ptr = sycl::ext::oneapi::group_local_memory<int[N]>(
-                  item.get_group());
-          auto &ref = *ptr;
-          // NOTE: direct access will be optimized out
-          data[0] = check(ref, item.get_local_linear_id() * 2 + 4);
-        });
+        sycl::nd_range<1>(N, group_size),
+        [=](sycl::nd_item<1> item) { data[0] = test_local(item); });
   });
   Q.wait();
 

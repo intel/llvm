@@ -839,8 +839,6 @@ struct AddressSanitizer {
   bool maybeInsertAsanInitAtFunctionEntry(Function &F);
   bool maybeInsertDynamicShadowAtFunctionEntry(Function &F);
   void markEscapedLocalAllocas(Function &F);
-  void instrumentSyclStaticLocalMemory(CallInst *CI,
-                                       ArrayRef<Instruction *> RetVec);
   bool instrumentSyclDynamicLocalMemory(Function &F,
                                         ArrayRef<Instruction *> RetVec);
   void instrumentInitAsanLaunchInfo(Function &F, const TargetLibraryInfo *TLI);
@@ -889,8 +887,6 @@ private:
   ShadowMapping Mapping;
   FunctionCallee AsanHandleNoReturnFunc;
   FunctionCallee AsanPtrCmpFunction, AsanPtrSubFunction;
-  FunctionCallee AsanSetShadowStaticLocalFunc;
-  FunctionCallee AsanUnpoisonShadowStaticLocalFunc;
   FunctionCallee AsanSetShadowDynamicLocalFunc;
   FunctionCallee AsanUnpoisonShadowDynamicLocalFunc;
   Constant *AsanShadowGlobal;
@@ -972,6 +968,10 @@ private:
   void initializeCallbacks();
 
   void instrumentDeviceGlobal(IRBuilder<> &IRB);
+  void instrumentSyclStaticLocalMemory(IRBuilder<> &IRB);
+  void initializeRetVecMap(Function *F);
+  void initializeKernelCallerMap(Function *F);
+
   void instrumentGlobals(IRBuilder<> &IRB, bool *CtorComdat);
   void InstrumentGlobalsCOFF(IRBuilder<> &IRB,
                              ArrayRef<GlobalVariable *> ExtendedGlobals,
@@ -1030,10 +1030,15 @@ private:
   FunctionCallee AsanUnregisterImageGlobals;
   FunctionCallee AsanRegisterElfGlobals;
   FunctionCallee AsanUnregisterElfGlobals;
+  FunctionCallee AsanSetShadowStaticLocalFunc;
+  FunctionCallee AsanUnpoisonShadowStaticLocalFunc;
 
   Function *AsanCtorFunction = nullptr;
   Function *AsanDtorFunction = nullptr;
   GlobalVariable *ModuleName = nullptr;
+
+  DenseMap<Function *, SmallVector<Instruction *, 8>> KernelToRetVecMap;
+  DenseMap<Function *, DenseSet<Function *>> FuncToKernelCallerMap;
 };
 
 // Stack poisoning does not play well with exception handling.
@@ -1661,6 +1666,9 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   if (G->getName().starts_with("__Asan"))
     return true;
 
+  if (G->getAddressSpace() == kSpirOffloadLocalAS)
+    return true;
+
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }
@@ -1763,68 +1771,6 @@ Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB,
     return IRB.CreateOr(Shadow, ShadowBase);
   else
     return IRB.CreateAdd(Shadow, ShadowBase);
-}
-
-static uint64_t getSizeAndRedzoneSizeForLocal(uint64_t Size,
-                                              uint64_t Granularity,
-                                              uint64_t Alignment) {
-  uint64_t Res = 0;
-  if (Size <= 4)
-    Res = 16;
-  else if (Size <= 16)
-    Res = 32;
-  else if (Size <= 128)
-    Res = Size + 32;
-  else if (Size <= 512)
-    Res = Size + 64;
-  else if (Size <= 4096)
-    Res = Size + 128;
-  else
-    Res = Size + 256;
-  return alignTo(std::max(Res, 2 * Granularity), Alignment);
-}
-
-// Instument static local memory
-void AddressSanitizer::instrumentSyclStaticLocalMemory(
-    CallInst *CI, ArrayRef<Instruction *> RetVec) {
-  InstrumentationIRBuilder IRB(CI->getNextNode());
-  auto *Size = cast<ConstantInt>(CI->getArgOperand(0));
-  auto *Alignment = cast<ConstantInt>(CI->getArgOperand(1));
-
-  const auto Granularity = 1 << Mapping.Scale;
-  // The base address of local memory needs to align to granularity
-  const auto Align = alignTo(Alignment->getZExtValue(), Granularity);
-
-  auto *SizeWithRedZone = ConstantInt::get(
-      IntptrTy, getSizeAndRedzoneSizeForLocal(Size->getZExtValue(), Granularity,
-                                              Alignment->getZExtValue()));
-
-  auto *NewCI =
-      IRB.CreateCall(CI->getCalledFunction(),
-                     {SizeWithRedZone, ConstantInt::get(IntptrTy, Align)});
-
-  // __asan_set_shadow_static_local(
-  //   uptr beg,
-  //   size_t size,
-  //   size_t size_with_redzone,
-  // )
-  auto LocalAddr = IRB.CreatePointerCast(NewCI, IntptrTy);
-  IRB.CreateCall(AsanSetShadowStaticLocalFunc,
-                 {LocalAddr, Size, SizeWithRedZone});
-
-  // __asan_unpoison_shadow_static_local(
-  //   uptr beg,
-  //   size_t size,
-  //   size_t size_with_redzone,
-  // )
-  for (Instruction *Ret : RetVec) {
-    IRBuilder<> IRBRet(Ret);
-    IRBRet.CreateCall(AsanUnpoisonShadowStaticLocalFunc,
-                      {LocalAddr, Size, SizeWithRedZone});
-  }
-
-  CI->replaceAllUsesWith(NewCI);
-  CI->eraseFromParent();
 }
 
 // Instument dynamic local memory
@@ -2808,6 +2754,24 @@ void ModuleAddressSanitizer::initializeCallbacks() {
   AsanUnregisterElfGlobals =
       M.getOrInsertFunction(kAsanUnregisterElfGlobalsName, IRB.getVoidTy(),
                             IntptrTy, IntptrTy, IntptrTy);
+
+  // __asan_set_shadow_static_local(
+  //   uptr ptr,
+  //   size_t size,
+  //   size_t size_with_redzone
+  // )
+  AsanSetShadowStaticLocalFunc =
+      M.getOrInsertFunction("__asan_set_shadow_static_local", IRB.getVoidTy(),
+                            IntptrTy, IntptrTy, IntptrTy);
+
+  // __asan_unpoison_shadow_static_local(
+  //   uptr ptr,
+  //   size_t size,
+  //   size_t size_with_redzone
+  // )
+  AsanUnpoisonShadowStaticLocalFunc =
+      M.getOrInsertFunction("__asan_unpoison_shadow_static_local",
+                            IRB.getVoidTy(), IntptrTy, IntptrTy, IntptrTy);
 }
 
 // Put the metadata and the instrumented global in the same group. This ensures
@@ -2940,6 +2904,164 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
 
   for (auto *G : GlobalsToRemove)
     G->eraseFromParent();
+}
+
+static void getFunctionsOfUser(User *User, DenseSet<Function *> &Functions) {
+  if (Instruction *Inst = dyn_cast<Instruction>(User)) {
+    Functions.insert(Inst->getFunction());
+  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(User)) {
+    for (auto *U : CE->users())
+      getFunctionsOfUser(U, Functions);
+  }
+}
+
+void ModuleAddressSanitizer::initializeRetVecMap(Function *F) {
+  if (KernelToRetVecMap.find(F) != KernelToRetVecMap.end())
+    return;
+
+  SmallVector<Instruction *, 8> RetVec;
+  for (auto &BB : *F) {
+    for (auto &Inst : BB) {
+      if (ReturnInst *RI = dyn_cast<ReturnInst>(&Inst)) {
+        if (CallInst *CI = RI->getParent()->getTerminatingMustTailCall())
+          RetVec.push_back(CI);
+        else
+          RetVec.push_back(RI);
+      } else if (ResumeInst *RI = dyn_cast<ResumeInst>(&Inst)) {
+        RetVec.push_back(RI);
+      } else if (CleanupReturnInst *CRI = dyn_cast<CleanupReturnInst>(&Inst)) {
+        RetVec.push_back(CRI);
+      }
+    }
+  }
+
+  KernelToRetVecMap[F] = std::move(RetVec);
+}
+
+void ModuleAddressSanitizer::initializeKernelCallerMap(Function *F) {
+  if (FuncToKernelCallerMap.find(F) != FuncToKernelCallerMap.end())
+    return;
+
+  for (auto *U : F->users()) {
+    if (Instruction *Inst = dyn_cast<Instruction>(U)) {
+      Function *Caller = Inst->getFunction();
+      if (Caller->getCallingConv() == CallingConv::SPIR_KERNEL) {
+        FuncToKernelCallerMap[F].insert(Caller);
+        continue;
+      }
+      initializeKernelCallerMap(Caller);
+      FuncToKernelCallerMap[F].insert(FuncToKernelCallerMap[Caller].begin(),
+                                      FuncToKernelCallerMap[Caller].end());
+    }
+  }
+}
+
+// Instument static local memory
+void ModuleAddressSanitizer::instrumentSyclStaticLocalMemory(IRBuilder<> &IRB) {
+  auto &DL = M.getDataLayout();
+  SmallVector<GlobalVariable *, 8> GlobalsToRemove;
+  SmallVector<GlobalVariable *, 8> LocalGlobals;
+
+  Type *IntptrTy = M.getDataLayout().getIntPtrType(*C, kSpirOffloadGlobalAS);
+
+  // Step1. Create a new global variable with enough space for a redzone.
+  for (auto &G : M.globals()) {
+    if (G.getAddressSpace() != kSpirOffloadLocalAS)
+      continue;
+    if (G.getName().starts_with("__Asan"))
+      continue;
+
+    Type *Ty = G.getValueType();
+    const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
+    const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
+    Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
+    StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
+    Constant *NewInitializer =
+        G.hasInitializer()
+            ? ConstantStruct::get(NewTy, G.getInitializer(),
+                                  Constant::getNullValue(RightRedZoneTy))
+            : nullptr;
+
+    GlobalVariable *NewGlobal = new GlobalVariable(
+        M, NewTy, G.isConstant(), G.getLinkage(), NewInitializer, "", &G,
+        G.getThreadLocalMode(), G.getAddressSpace());
+    NewGlobal->copyAttributesFrom(&G);
+    NewGlobal->setComdat(G.getComdat());
+    NewGlobal->setAlignment(Align(getMinRedzoneSizeForGlobal()));
+    NewGlobal->copyMetadata(&G, 0);
+
+    Value *Indices2[2];
+    Indices2[0] = IRB.getInt32(0);
+    Indices2[1] = IRB.getInt32(0);
+
+    G.replaceAllUsesWith(
+        ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
+    NewGlobal->takeName(&G);
+    GlobalsToRemove.push_back(&G);
+    LocalGlobals.push_back(NewGlobal);
+  }
+
+  if (GlobalsToRemove.empty())
+    return;
+
+  for (auto *G : GlobalsToRemove)
+    G->eraseFromParent();
+
+  // Step2. Instrument initialization functions on kernel
+  DenseMap<Function *, Instruction *> FuncToLaunchInfoMap;
+  auto Instrument = [&](GlobalVariable *G, Function *F) {
+    StructType *Type = cast<StructType>(G->getValueType());
+    const uint64_t Size = DL.getTypeAllocSize(Type->getElementType(0));
+    const uint64_t SizeWithRedZone = DL.getTypeAllocSize(Type);
+
+    // Poison shadow of static local memory
+    if (FuncToLaunchInfoMap.find(F) == FuncToLaunchInfoMap.end()) {
+      for (auto &Inst : F->getEntryBlock()) {
+        auto *SI = dyn_cast<StoreInst>(&Inst);
+        if (SI && (SI->getPointerOperand()->getName() == "__AsanLaunchInfo")) {
+          FuncToLaunchInfoMap[F] = &Inst;
+          break;
+        }
+      }
+    }
+    assert(FuncToLaunchInfoMap.find(F) != FuncToLaunchInfoMap.end() &&
+           "All spir kernels should be instrumented.");
+
+    IRBuilder<> Builder(FuncToLaunchInfoMap[F]->getNextNode());
+    Builder.CreateCall(AsanSetShadowStaticLocalFunc,
+                       {Builder.CreatePointerCast(G, IntptrTy),
+                        ConstantInt::get(IntptrTy, Size),
+                        ConstantInt::get(IntptrTy, SizeWithRedZone)});
+
+    // Unpoison shadow of static local memory, required by CPU device
+    initializeRetVecMap(F);
+    for (auto *RI : KernelToRetVecMap[F]) {
+      IRBuilder<> Builder(RI);
+      Builder.CreateCall(AsanUnpoisonShadowStaticLocalFunc,
+                         {Builder.CreatePointerCast(G, IntptrTy),
+                          ConstantInt::get(IntptrTy, Size),
+                          ConstantInt::get(IntptrTy, SizeWithRedZone)});
+    }
+  };
+
+  // We only instrument on spir_kernel, because local variables are
+  // kind of global variable
+  for (auto *G : LocalGlobals) {
+    DenseSet<Function *> InstrumentedFunc;
+    for (auto *User : G->users())
+      getFunctionsOfUser(User, InstrumentedFunc);
+    for (Function *F : InstrumentedFunc) {
+      if (F->getCallingConv() == CallingConv::SPIR_KERNEL) {
+        Instrument(G, F);
+        continue;
+      }
+      // Get root spir_kernel of spir_func
+      initializeKernelCallerMap(F);
+      for (Function *Kernel : FuncToKernelCallerMap[F])
+        if (!InstrumentedFunc.contains(Kernel))
+          Instrument(G, Kernel);
+    }
+  }
 }
 
 void ModuleAddressSanitizer::InstrumentGlobalsCOFF(
@@ -3405,12 +3527,10 @@ bool ModuleAddressSanitizer::instrumentModule() {
   }
 
   if (TargetTriple.isSPIROrSPIRV()) {
-    // Add module metadata "device.sanitizer" for sycl-post-link
-    LLVMContext &Ctx = M.getContext();
-    auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");
-    Metadata *MDVals[] = {MDString::get(Ctx, "asan")};
-    MD->addOperand(MDNode::get(Ctx, MDVals));
-
+    if (ClSpirOffloadLocals) {
+      IRBuilder<> IRB(*C);
+      instrumentSyclStaticLocalMemory(IRB);
+    }
     if (ClDeviceGlobals) {
       IRBuilder<> IRB(*C);
       instrumentDeviceGlobal(IRB);
@@ -3557,23 +3677,6 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
                                            ArrayType::get(IRB.getInt8Ty(), 0));
 
   if (TargetTriple.isSPIROrSPIRV()) {
-    // __asan_set_shadow_static_local(
-    //   uptr ptr,
-    //   size_t size,
-    //   size_t size_with_redzone
-    // )
-    AsanSetShadowStaticLocalFunc =
-        M.getOrInsertFunction("__asan_set_shadow_static_local", IRB.getVoidTy(),
-                              IntptrTy, IntptrTy, IntptrTy);
-
-    // __asan_unpoison_shadow_static_local(
-    //   uptr ptr,
-    //   size_t size,
-    // )
-    AsanUnpoisonShadowStaticLocalFunc =
-        M.getOrInsertFunction("__asan_unpoison_shadow_static_local",
-                              IRB.getVoidTy(), IntptrTy, IntptrTy, IntptrTy);
-
     // __asan_set_shadow_dynamic_local(
     //   uptr ptr,
     //   uint32_t num_args
@@ -3740,7 +3843,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   SmallVector<Instruction *, 8> NoReturnCalls;
   SmallVector<BasicBlock *, 16> AllBlocks;
   SmallVector<Instruction *, 16> PointerComparisonsOrSubtracts;
-  SmallVector<CallInst *, 8> SyclAllocateLocalMemoryCalls;
 
   // Fill the set of memory operations to instrument.
   for (auto &BB : F) {
@@ -3793,16 +3895,8 @@ bool AddressSanitizer::instrumentFunction(Function &F,
               NoReturnCalls.push_back(CB);
           }
         }
-        if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
-          if (TargetTriple.isSPIROrSPIRV() && CI->getCalledFunction() &&
-              CI->getCalledFunction()->getCallingConv() ==
-                  llvm::CallingConv::SPIR_FUNC &&
-              CI->getCalledFunction()->getName() ==
-                  "__sycl_allocateLocalMemory")
-            SyclAllocateLocalMemoryCalls.push_back(CI);
-          else
-            maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
-        }
+        if (CallInst *CI = dyn_cast<CallInst>(&Inst))
+          maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
       }
       if (NumInsnsPerBB >= ClMaxInsnsToInstrumentPerBB) break;
     }
@@ -3848,13 +3942,9 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (ChangedStack || !NoReturnCalls.empty())
     FunctionModified = true;
 
-  // We need to instrument dynamic/static local arguments after stack poisoner
+  // We need to instrument dynamic local arguments after stack poisoner
   if (TargetTriple.isSPIROrSPIRV()) {
-    for (auto *CI : SyclAllocateLocalMemoryCalls) {
-      instrumentSyclStaticLocalMemory(CI, FSP.RetVec);
-      FunctionModified = true;
-    }
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (ClSpirOffloadLocals && F.getCallingConv() == CallingConv::SPIR_KERNEL) {
       FunctionModified |= instrumentSyclDynamicLocalMemory(F, FSP.RetVec);
     }
   }
