@@ -138,6 +138,7 @@ const AdapterPtr &event_impl::getAdapter() {
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
+  MIsHostEvent = Context == nullptr;
   MContext = Context;
 }
 

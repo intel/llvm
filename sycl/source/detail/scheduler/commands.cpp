@@ -928,8 +928,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
     MEvent->setEnqueued();
+    // Host task is protected by MShouldCompleteEventIfPossible = false
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
-        (MEvent->getHandle() == nullptr))
+        (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();
 
     // Consider the command is successfully enqueued if return code is
