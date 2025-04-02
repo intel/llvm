@@ -17,9 +17,11 @@
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
 #endif
-#include <sycl/device.hpp>                     // for device
+#include <sycl/device.hpp> // for device
 #include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
-#include <sycl/nd_range.hpp>                   // for range, nd_range
+#include <sycl/ext/oneapi/experimental/work_group_memory.hpp> // for dynamic_work_group_memory
+#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properties_t
+#include <sycl/nd_range.hpp>                         // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
 
@@ -47,6 +49,7 @@ enum class graph_state {
 // Forward declare ext::oneapi::experimental classes
 template <graph_state State> class command_graph;
 class raw_kernel_arg;
+template <typename, typename> class work_group_memory;
 
 namespace detail {
 // List of sycl features and extensions which are not supported by graphs. Used
@@ -62,7 +65,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_bindless_images = 7,
   sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
   sycl_ext_codeplay_enqueue_native_command = 9,
-  sycl_ext_oneapi_work_group_scratch_memory = 10
+  sycl_ext_oneapi_work_group_scratch_memory = 10,
+  sycl_ext_oneapi_async_alloc = 11
 };
 
 inline const char *
@@ -91,6 +95,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_codeplay_enqueue_native_command";
   case UGF::sycl_ext_oneapi_work_group_scratch_memory:
     return "sycl_ext_oneapi_work_group_scratch_memory";
+  case UGF::sycl_ext_oneapi_async_alloc:
+    return "sycl_ext_oneapi_async_alloc";
   }
 
   assert(false && "Unhandled graphs feature");
@@ -498,6 +504,10 @@ protected:
 namespace detail {
 class __SYCL_EXPORT dynamic_parameter_base {
 public:
+  dynamic_parameter_base() = default;
+  dynamic_parameter_base(
+      sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
+          Graph);
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
           Graph,
@@ -522,13 +532,98 @@ protected:
   void updateValue(const raw_kernel_arg *NewRawValue, size_t Size);
 
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
+
+  void updateWorkGroupMem(size_t BufferSize);
+
   std::shared_ptr<dynamic_parameter_impl> impl;
 
   template <class Obj>
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
+
+class dynamic_work_group_memory_base
+#ifndef __SYCL_DEVICE_ONLY__
+    : public dynamic_parameter_base
+#endif
+{
+public:
+  dynamic_work_group_memory_base() = default;
+#ifndef __SYCL_DEVICE_ONLY__
+  dynamic_work_group_memory_base(
+      experimental::command_graph<graph_state::modifiable> Graph, size_t Size)
+      : dynamic_parameter_base(Graph), BufferSize(Size) {}
+#else
+  dynamic_work_group_memory_base(
+      experimental::command_graph<graph_state::modifiable> /*Graph*/,
+      size_t Size)
+      : BufferSize(Size) {}
+#endif
+
+private:
+#ifdef __SYCL_DEVICE_ONLY__
+  [[maybe_unused]] unsigned char Padding[sizeof(dynamic_parameter_base)];
+#endif
+  size_t BufferSize{};
+  friend class sycl::handler;
+};
 } // namespace detail
+
+template <typename DataT, typename PropertyListT = empty_properties_t>
+class __SYCL_SPECIAL_CLASS
+__SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory
+    : public detail::dynamic_work_group_memory_base {
+public:
+  // Check that DataT is an unbounded array type.
+  static_assert(std::is_array_v<DataT> && std::extent_v<DataT, 0> == 0);
+  static_assert(std::is_same_v<PropertyListT, empty_properties_t>);
+
+  // Frontend requires special types to have a default constructor in order to
+  // have a uniform way of initializing an object of special type to then call
+  // the __init method on it. This is purely an implementation detail and not
+  // part of the spec.
+  // TODO: Revisit this once https://github.com/intel/llvm/issues/16061 is
+  // closed.
+  dynamic_work_group_memory() = default;
+
+  /// Constructs a new dynamic_work_group_memory object.
+  /// @param Graph The graph associated with this object.
+  /// @param Num Number of elements in the unbounded array DataT.
+  dynamic_work_group_memory(
+      experimental::command_graph<graph_state::modifiable> Graph, size_t Num)
+      : detail::dynamic_work_group_memory_base(
+            Graph, Num * sizeof(std::remove_extent_t<DataT>)) {}
+
+  work_group_memory<DataT, PropertyListT> get() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Error: dynamic_work_group_memory::get() can be only "
+                          "called on the device!");
+#endif
+    return WorkGroupMem;
+  }
+
+  /// Updates on the host this dynamic_work_group_memory and all registered
+  /// nodes with a new buffer size.
+  /// @param Num The new number of elements in the unbounded array.
+  void update([[maybe_unused]] size_t Num) {
+#ifndef __SYCL_DEVICE_ONLY__
+    detail::dynamic_parameter_base::updateWorkGroupMem(
+        Num * sizeof(std::remove_extent_t<DataT>));
+#endif
+  }
+
+private:
+  work_group_memory<DataT, PropertyListT> WorkGroupMem;
+
+#ifdef __SYCL_DEVICE_ONLY__
+  using value_type = std::remove_all_extents_t<DataT>;
+  using decoratedPtr = typename sycl::detail::DecoratedType<
+      value_type, access::address_space::local_space>::type *;
+
+  void __init(decoratedPtr Ptr) { this->WorkGroupMem.__init(Ptr); }
+#endif
+};
 
 template <typename ValueT>
 class dynamic_parameter : public detail::dynamic_parameter_base {
@@ -601,6 +696,16 @@ struct hash<sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>> {
   operator()(const sycl::ext::oneapi::experimental::dynamic_parameter<ValueT>
                  &DynamicParam) const {
     auto ID = sycl::detail::getSyclObjImpl(DynamicParam)->getID();
+    return std::hash<decltype(ID)>()(ID);
+  }
+};
+
+template <typename DataT>
+struct hash<sycl::ext::oneapi::experimental::dynamic_work_group_memory<DataT>> {
+  size_t operator()(
+      const sycl::ext::oneapi::experimental::dynamic_work_group_memory<DataT>
+          &DynWorkGroupMem) const {
+    auto ID = sycl::detail::getSyclObjImpl(DynWorkGroupMem)->getID();
     return std::hash<decltype(ID)>()(ID);
   }
 };

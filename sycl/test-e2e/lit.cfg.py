@@ -6,6 +6,7 @@ import copy
 import re
 import subprocess
 import textwrap
+import shlex
 import shutil
 
 import lit.formats
@@ -304,12 +305,18 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
-config.level_zero_libs_dir = lit_config.params.get(
-    "level_zero_libs_dir", config.level_zero_libs_dir
+config.level_zero_libs_dir = shlex.quote(
+    lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
-config.level_zero_include = lit_config.params.get(
-    "level_zero_include",
-    (config.level_zero_include if config.level_zero_include else config.sycl_include),
+config.level_zero_include = shlex.quote(
+    lit_config.params.get(
+        "level_zero_include",
+        (
+            config.level_zero_include
+            if config.level_zero_include
+            else config.sycl_include
+        ),
+    )
 )
 
 level_zero_options = level_zero_options = (
@@ -409,10 +416,14 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
-config.cuda_libs_dir = lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
-config.cuda_include = lit_config.params.get(
-    "cuda_include",
-    (config.cuda_include if config.cuda_include else config.sycl_include),
+config.cuda_libs_dir = shlex.quote(
+    lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
+)
+config.cuda_include = shlex.quote(
+    lit_config.params.get(
+        "cuda_include",
+        (config.cuda_include if config.cuda_include else config.sycl_include),
+    )
 )
 
 cuda_options = cuda_options = (
@@ -440,6 +451,57 @@ with test_env():
         config.substitutions.append(("%cuda_options", cuda_options))
     else:
         config.substitutions.append(("%cuda_options", ""))
+
+# Check for HIP SDK
+check_hip_file = "hip_include.cpp"
+with open_check_file(check_hip_file) as fp:
+    print(
+        textwrap.dedent(
+            """
+        #define __HIP_PLATFORM_AMD__ 1
+        #include <hip/hip_runtime.h>
+        int main() {  hipError_t r = hipInit(0); return r; }
+        """
+        ),
+        file=fp,
+    )
+config.hip_libs_dir = shlex.quote(
+    lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
+)
+config.hip_include = shlex.quote(
+    lit_config.params.get(
+        "hip_include",
+        (config.hip_include if config.hip_include else config.sycl_include),
+    )
+)
+
+hip_options = hip_options = (
+    (" -L" + config.hip_libs_dir if config.hip_libs_dir else "")
+    + " -lamdhip64 "
+    + " -I"
+    + config.hip_include
+)
+if cl_options:
+    hip_options = (
+        " "
+        + (
+            config.hip_libs_dir + "/amdhip64.lib "
+            if config.hip_libs_dir
+            else "amdhip64.lib"
+        )
+        + " /I"
+        + config.hip_include
+    )
+
+with test_env():
+    sp = subprocess.getstatusoutput(
+        config.dpcpp_compiler + " -fsycl  " + check_hip_file + hip_options
+    )
+    if sp[0] == 0:
+        config.available_features.add("hip_dev_kit")
+        config.substitutions.append(("%hip_options", hip_options))
+    else:
+        config.substitutions.append(("%hip_options", ""))
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
@@ -584,13 +646,6 @@ for d in remove_level_zero_suffix(config.sycl_devices):
     be, dev = d.split(":")
     if be not in available_devices or dev not in available_devices[be]:
         lit_config.error("Unsupported device {}".format(d))
-
-# Set ROCM_PATH to help clang find the HIP installation.
-if "target-amd" in config.sycl_build_targets:
-    llvm_config.with_system_environment("ROCM_PATH")
-    config.substitutions.append(
-        ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
-    )
 
 if "cuda:gpu" in config.sycl_devices:
     if "CUDA_PATH" not in os.environ:
