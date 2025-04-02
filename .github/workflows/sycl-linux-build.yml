@@ -242,7 +242,6 @@ jobs:
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
         cmake --build $GITHUB_WORKSPACE/build --target utils/FileCheck/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/count/install
         cmake --build $GITHUB_WORKSPACE/build --target utils/not/install
