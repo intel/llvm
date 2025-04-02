@@ -117,12 +117,6 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 namespace detail {
 namespace ur {
 
-// Report error and no return (keeps compiler from printing warnings).
-// TODO: Probably change that to throw a catchable exception,
-//       but for now it is useful to see every failure.
-//
-[[noreturn]] void die(const char *pMessage);
-
 // Reports error messages
 void hipPrint(const char *pMessage);
 
@@ -187,7 +181,7 @@ public:
         // HIP error for which it is unclear if the function that reported it
         // succeeded or not. Either way, the state of the program is compromised
         // and likely unrecoverable.
-        detail::ur::die("Unrecoverable program state reached in piMemRelease");
+        die("Unrecoverable program state reached in piMemRelease");
       }
     }
   }

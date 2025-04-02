@@ -70,9 +70,9 @@ Functions
 * ${x}EnqueueUSMFreeExp
 * ${x}USMPoolCreateExp
 * ${x}USMPoolDestroyExp
-* ${x}USMPoolSetThresholdExp
 * ${x}USMPoolGetDefaultDevicePoolExp
 * ${x}USMPoolGetInfoExp
+* ${x}USMPoolSetInfoExp
 * ${x}USMPoolSetDevicePoolExp
 * ${x}USMPoolGetDevicePoolExp
 * ${x}USMPoolTrimToExp
@@ -93,6 +93,9 @@ Changelog
 | 1.2      | Rename DEVICE_INFO_ASYNC_USM_ALLOCATIONS_EXP to          |
 |          | DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP for        |
 |          | better consistency with other UR enums                   |
++----------+----------------------------------------------------------+
+| 1.3      | Remove USMPoolSetThresholdExp                            |
+|          | Replace with USMPoolSetInfoExp                           |
 +----------+----------------------------------------------------------+
 
 Support
