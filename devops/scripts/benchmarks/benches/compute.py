@@ -92,6 +92,7 @@ class ComputeBench(Suite):
                 "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
                 "Work is ongoing to reduce the overhead of the SYCL API\n",
                 tags=["submit", "micro", "SYCL", "UR", "L0"],
+                range_min=0.0,
             ),
             "SinKernelGraph": BenchmarkMetadata(
                 type="group",
@@ -294,11 +295,9 @@ class SubmitKernel(ComputeBenchmark):
         return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}"
 
     def explicit_group(self):
-        return (
-            "SubmitKernel"
-            if self.measure_completion == 0
-            else "SubmitKernel With Completion"
-        )
+        order = "In Order" if self.ioq else "Out Of Order"
+        completion_str = " With Completion" if self.measure_completion else ""
+        return f"SubmitKernel {order}{completion_str}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
@@ -316,6 +315,9 @@ class SubmitKernel(ComputeBenchmark):
             f"Measures CPU time overhead of submitting {order} kernels through {runtime_name} API{completion_desc}. "
             f"Runs 10 simple kernels with minimal execution time to isolate API overhead from kernel execution time. {l0_specific}"
         )
+
+    def range(self) -> tuple[float, float]:
+        return (0.0, None)
 
     def bin_args(self) -> list[str]:
         return [

@@ -1023,6 +1023,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 #else
     return ReturnValue(ur_bool_t{false});
 #endif
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IL_VERSION:
