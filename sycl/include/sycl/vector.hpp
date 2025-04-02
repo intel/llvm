@@ -125,11 +125,23 @@ public:
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-template <typename Self> class ScalarConversionOperatorMixIn {
-  using T = typename from_incomplete<Self>::element_type;
+template <typename Self> class ScalarConversionOperatorsMixIn {
+  using element_type = typename from_incomplete<Self>::element_type;
 
 public:
-  operator T() const { return (*static_cast<const Self *>(this))[0]; }
+  operator element_type() const {
+    return (*static_cast<const Self *>(this))[0];
+  }
+
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+  template <
+      typename T, typename = std::enable_if_t<!std::is_same_v<T, element_type>>,
+      typename =
+          std::void_t<decltype(static_cast<T>(std::declval<element_type>()))>>
+  explicit operator T() const {
+    return static_cast<T>((*static_cast<const Self *>(this))[0]);
+  }
+#endif
 };
 
 template <typename T>
@@ -310,7 +322,7 @@ class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
       public detail::ApplyIf<
           NumElements == 1,
-          detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>>>,
+          detail::ScalarConversionOperatorsMixIn<vec<DataT, NumElements>>>,
       public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>>,
       // Keep it last to simplify ABI layout test:
       public detail::vec_base<DataT, NumElements> {
