@@ -24,7 +24,11 @@
 
 // See vec::DataType definitions for more details
 #ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
-#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE !__SYCL_USE_LIBSYCL8_VEC_IMPL
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
+#else
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
+#endif
 #endif
 
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
