@@ -207,7 +207,8 @@ public:
         if (Val.first) {
           AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
           ur_result_t Err =
-              AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+              AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(
+                  Val.first);
           __SYCL_CHECK_UR_CODE_NO_EXC(Err);
         }
       } catch (std::exception &e) {
