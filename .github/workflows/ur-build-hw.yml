@@ -126,6 +126,10 @@ jobs:
         pwd
         echo "${{github.workspace}}"
 
+    - name: Fix broken install
+      run: |
+        apt --fix-broken install -y
+
     # TODO: move installation of python3-venv to docker
     # Latest distros do not allow global pip installation
     - name: Install UR python dependencies in venv
@@ -154,7 +158,7 @@ jobs:
     #   or
     #   ghcr.io/intel/llvm/ubuntu2404_build:latest
     # not sure on OpenCL and NativeCPU - to be checked.
-    
+
     # - name: Install Intel Level Zero GPU
     #   # if: ${{ inputs.adapter_name == 'L0' || inputs.adapter_name == 'L0_V2' }}
     #   run: |
