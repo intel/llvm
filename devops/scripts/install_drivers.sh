@@ -168,6 +168,15 @@ InstallIGFX () {
   fi
 }
 
+InstallOpenCL () {
+  echo "Installing Intel OpenCL..."
+  wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+  | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+  echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+  sudo apt-get update
+  sudo apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
+}
+
 InstallCPURT () {
   echo "Installing Intel OpenCL CPU Runtime..."
   echo "CPU Runtime version $CPU_TAG"
@@ -234,9 +243,11 @@ while [ "${1:-}" != "" ]; do
       InstallTBB
       InstallCPURT
       InstallFPGAEmu
+      InstallOpenCL
       ;;
     "--igfx")
       InstallIGFX
+      InstallOpenCL
       ;;
     "--cpu")
       InstallTBB
