@@ -285,8 +285,11 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
   if (DestroyZeContext) {
     auto ZeResult = ZE_CALL_NOCHECK(zeContextDestroy, (DestroyZeContext));
     // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED || ZeResult != ZE_RESULT_ERROR_UNKNOWN))
       return ze2urResult(ZeResult);
+    if ( ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+      ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+    }
   }
 
   return Result;
@@ -311,8 +314,11 @@ ur_result_t ur_context_handle_t_::finalize() {
             (Event->IsInteropNativeHandle && checkL0LoaderTeardown())) {
           auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
           // Gracefully handle the case that L0 was already unloaded.
-          if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED || ZeResult != ZE_RESULT_ERROR_UNKNOWN))
             return ze2urResult(ZeResult);
+          if ( ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+            ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+          }
         }
         Event->ZeEvent = nullptr;
         delete Event;
@@ -326,8 +332,11 @@ ur_result_t ur_context_handle_t_::finalize() {
       for (auto &ZePool : ZePoolCache) {
         auto ZeResult = ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED || ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if ( ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
       ZePoolCache.clear();
     }
@@ -336,8 +345,11 @@ ur_result_t ur_context_handle_t_::finalize() {
   // Destroy the command list used for initializations
   auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandListInit));
   // Gracefully handle the case that L0 was already unloaded.
-  if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+  if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED || ZeResult != ZE_RESULT_ERROR_UNKNOWN))
     return ze2urResult(ZeResult);
+  if ( ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+    ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+  }
 
   std::scoped_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   for (auto &List : ZeComputeCommandListCache) {
@@ -346,8 +358,11 @@ ur_result_t ur_context_handle_t_::finalize() {
       if (ZeCommandList) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED || ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if ( ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
     }
   }
@@ -357,8 +372,11 @@ ur_result_t ur_context_handle_t_::finalize() {
       if (ZeCommandList) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED || ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if ( ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
     }
   }
