@@ -61,9 +61,7 @@ extern "C" KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
                      "Available targets are: PTX or AMDGCN.");
   }
 
-  ::jit_compiler::SYCLKernelInfo KernelInfo{
-      KernelName, ::jit_compiler::SYCLArgumentDescriptor{},
-      ::jit_compiler::NDRange{}, BinInfo};
+  ::jit_compiler::SYCLKernelInfo KernelInfo{KernelName, BinInfo};
   SYCLModuleInfo ModuleInfo;
   ModuleInfo.kernels().insert(ModuleInfo.kernels().end(), KernelInfo);
   // Load all input kernels from their respective modules into a single
