@@ -648,12 +648,14 @@ ur_result_t urQueueRelease(
       // runtime. Destroy only if a queue is healthy. Destroying a fence may
       // cause a hang otherwise.
       // If the fence is a nullptr we are using immediate commandlists.
-      if (Queue->Healthy && it->second.ZeFence != nullptr && checkL0LoaderTeardown()) {
+      if (Queue->Healthy && it->second.ZeFence != nullptr &&
+          checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeFenceDestroy, (it->second.ZeFence));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED || ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
-        if ( ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
           ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
         }
       }
@@ -1611,9 +1613,10 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
             if (checkL0LoaderTeardown()) {
               auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
               // Gracefully handle the case that L0 was already unloaded.
-              if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED || ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+              if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+                               ZeResult != ZE_RESULT_ERROR_UNKNOWN))
                 return ze2urResult(ZeResult);
-              if ( ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+              if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
                 ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
               }
             }

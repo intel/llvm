@@ -943,9 +943,10 @@ ur_result_t urKernelRelease(
       if (checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernel));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED || ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
-        if ( ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
           ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
         }
       }

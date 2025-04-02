@@ -312,7 +312,8 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
 
   auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
 
-  if (item != hDevice->ZeOffsetToImageHandleMap.end() && checkL0LoaderTeardown()) {
+  if (item != hDevice->ZeOffsetToImageHandleMap.end() &&
+      checkL0LoaderTeardown()) {
     ZE2UR_CALL(zeImageDestroy, (item->second));
     hDevice->ZeOffsetToImageHandleMap.erase(item);
   } else {

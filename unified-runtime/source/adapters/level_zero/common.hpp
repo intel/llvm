@@ -25,9 +25,9 @@
 #include <unistd.h>
 #endif
 
+#include <loader/ze_loader.h>
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
-#include <loader/ze_loader.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
@@ -46,7 +46,8 @@ struct _ur_platform_handle_t;
     }
   } catch (...) {
   }
-  logger::debug("ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  logger::debug(
+      "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
   return false;
 }
 
