@@ -40,7 +40,7 @@ struct AllocInfoList {
 };
 
 struct DeviceInfo {
-  ur_device_handle_t Handle;
+  ur_device_handle_t Handle = nullptr;
 
   DeviceType Type = DeviceType::UNKNOWN;
   size_t Alignment = 0;
@@ -53,10 +53,6 @@ struct DeviceInfo {
   ur_mutex Mutex;
   std::queue<std::shared_ptr<AllocInfo>> Quarantine;
   size_t QuarantineSize = 0;
-
-  // Device handles are special and alive in the whole process lifetime,
-  // so we needn't retain&release here.
-  explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {}
 };
 
 struct QueueInfo {
@@ -293,10 +289,6 @@ public:
                             std::shared_ptr<ContextInfo> &CI);
   ur_result_t eraseContext(ur_context_handle_t Context);
 
-  ur_result_t insertDevice(ur_device_handle_t Device,
-                           std::shared_ptr<DeviceInfo> &CI);
-  ur_result_t eraseDevice(ur_device_handle_t Device);
-
   ur_result_t insertProgram(ur_program_handle_t Program);
   ur_result_t eraseProgram(ur_program_handle_t Program);
 
@@ -325,11 +317,8 @@ public:
     return m_ContextMap[Context];
   }
 
-  std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
-    std::shared_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
-    assert(m_DeviceMap.find(Device) != m_DeviceMap.end());
-    return m_DeviceMap[Device];
-  }
+  DeviceInfo &getDeviceInfo(ur_device_handle_t Device);
+  ur_result_t eraseDeviceInfo(ur_device_handle_t Device);
 
   std::shared_ptr<ProgramInfo> getProgramInfo(ur_program_handle_t Program) {
     std::shared_lock<ur_shared_mutex> Guard(m_ProgramMapMutex);
@@ -350,24 +339,22 @@ public:
   bool isNormalExit() { return m_NormalExit; }
 
   std::shared_ptr<ShadowMemory>
-  getOrCreateShadowMemory(ur_device_handle_t Device, DeviceType Type);
+  getOrCreateShadowMemory(ur_device_handle_t Device);
 
   ur_shared_mutex KernelLaunchMutex;
 
 private:
   ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
-                                 std::shared_ptr<DeviceInfo> &DeviceInfo,
+                                 DeviceInfo &DeviceInfo,
                                  ur_queue_handle_t Queue);
 
-  ur_result_t enqueueAllocInfo(std::shared_ptr<DeviceInfo> &DeviceInfo,
-                               ur_queue_handle_t Queue,
+  ur_result_t enqueueAllocInfo(DeviceInfo &DeviceInfo, ur_queue_handle_t Queue,
                                std::shared_ptr<AllocInfo> &AI);
 
   /// Initialize Global Variables & Kernel Name at first Launch
   ur_result_t prepareLaunch(std::shared_ptr<ContextInfo> &ContextInfo,
-                            std::shared_ptr<DeviceInfo> &DeviceInfo,
-                            ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-                            LaunchInfo &LaunchInfo);
+                            DeviceInfo &DeviceInfo, ur_queue_handle_t Queue,
+                            ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo);
 
   ur_result_t registerDeviceGlobals(ur_program_handle_t Program);
   ur_result_t registerSpirKernels(ur_program_handle_t Program);
@@ -376,8 +363,7 @@ private:
   std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
       m_ContextMap;
   ur_shared_mutex m_ContextMapMutex;
-  std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
-      m_DeviceMap;
+  std::unordered_map<ur_device_handle_t, DeviceInfo> m_DeviceMap;
   ur_shared_mutex m_DeviceMapMutex;
 
   std::unordered_map<ur_program_handle_t, std::shared_ptr<ProgramInfo>>
@@ -403,7 +389,8 @@ private:
 
   bool m_NormalExit = true;
 
-  std::unordered_map<DeviceType, std::shared_ptr<ShadowMemory>> m_ShadowMap;
+  std::unordered_map<ur_device_handle_t, std::shared_ptr<ShadowMemory>>
+      m_ShadowMap;
   ur_shared_mutex m_ShadowMapMutex;
 };
 

@@ -29,34 +29,57 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
   std::shared_ptr<ContextInfo> CI;
   UR_CALL(getAsanInterceptor()->insertContext(Context, CI));
 
-  if (numDevices > 0) {
-    auto DeviceType = GetDeviceType(Context, phDevices[0]);
-    auto ShadowMemory =
-        getAsanInterceptor()->getOrCreateShadowMemory(phDevices[0], DeviceType);
+  if (!numDevices)
+    return UR_RESULT_SUCCESS;
 
-    for (uint32_t i = 0; i < numDevices; ++i) {
-      auto hDevice = phDevices[i];
-      std::shared_ptr<DeviceInfo> DI;
-      UR_CALL(getAsanInterceptor()->insertDevice(hDevice, DI));
-      DI->Type = GetDeviceType(Context, hDevice);
-      if (DI->Type == DeviceType::UNKNOWN) {
+  for (uint32_t i = 0; i < numDevices; ++i) {
+    ur_device_handle_t hDevice = phDevices[i];
+    DeviceInfo &DI = getAsanInterceptor()->getDeviceInfo(hDevice);
+
+    if (!DI.Handle) {
+      DI.Handle = hDevice;
+
+      DI.Type = GetDeviceType(Context, hDevice);
+      if (DI.Type == DeviceType::UNKNOWN) {
         getContext()->logger.error("Unsupport device");
         return UR_RESULT_ERROR_INVALID_DEVICE;
       }
-      if (DI->Type != DeviceType) {
+
+      DI.IsSupportSharedSystemUSM = GetDeviceUSMCapability(
+          hDevice, UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT);
+
+      // Query alignment
+      getContext()->urDdiTable.Device.pfnGetInfo(
+          hDevice, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(DI.Alignment),
+          &DI.Alignment, nullptr);
+
+      DI.Shadow =
+          getAsanInterceptor()->getOrCreateShadowMemory(hDevice, DI.Type);
+
+      getContext()->logger.info(
+          "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={}, Alignment={})",
+          (void *)DI.Handle, ToString(DI.Type), DI.IsSupportSharedSystemUSM,
+          DI.Alignment);
+    }
+
+    getContext()->logger.info("Add device({}) into context({})",
+                              (void *)DI.Handle, (void *)Context);
+    CI->DeviceList.emplace_back(hDevice);
+    CI->AllocInfosMap[hDevice];
+  }
+
+  // Make sure all device type are same
+  {
+    DeviceInfo &DI1 = getAsanInterceptor()->getDeviceInfo(phDevices[0]);
+    for (uint32_t i = 1; i < numDevices; ++i) {
+      DeviceInfo &DI2 = getAsanInterceptor()->getDeviceInfo(phDevices[i]);
+      if (DI1.Type != DI2.Type) {
         getContext()->logger.error("Different device type in the same context");
         return UR_RESULT_ERROR_INVALID_DEVICE;
       }
-      getContext()->logger.info(
-          "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
-          (void *)DI->Handle, ToString(DI->Type), DI->IsSupportSharedSystemUSM);
-      getContext()->logger.info("Add {} into context {}", (void *)DI->Handle,
-                                (void *)Context);
-      DI->Shadow = ShadowMemory;
-      CI->DeviceList.emplace_back(hDevice);
-      CI->AllocInfosMap[hDevice];
     }
   }
+
   return UR_RESULT_SUCCESS;
 }
 

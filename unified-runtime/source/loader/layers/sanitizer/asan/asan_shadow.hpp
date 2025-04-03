@@ -24,11 +24,7 @@ namespace asan {
 
 struct ShadowMemory {
   ShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device)
-      : Context(Context), Device(Device) {
-    [[maybe_unused]] ur_result_t URes =
-        getContext()->urDdiTable.Device.pfnRetain(Device);
-    assert(URes == UR_RESULT_SUCCESS);
-  }
+      : Context(Context), Device(Device) {}
 
   virtual ~ShadowMemory() {
     [[maybe_unused]] ur_result_t URes =
@@ -163,9 +159,7 @@ struct ShadowMemoryDG2 final : public ShadowMemoryGPU {
   size_t GetShadowSize() override { return 0x100000000000ULL; }
 };
 
-std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
-                                              ur_device_handle_t Device,
-                                              DeviceType Type);
+std::shared_ptr<ShadowMemory> GetShadowMemory(ur_device_handle_t Device);
 
 } // namespace asan
 } // namespace ur_sanitizer_layer
