@@ -1540,7 +1540,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    auto KernelName = ExecCG.MKernelName;
+    const auto &KernelName = ExecCG.MKernelName;
     kernel_id KernelID =
         sycl::detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
     kernel SyclKernel =
