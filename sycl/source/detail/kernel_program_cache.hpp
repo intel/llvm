@@ -26,11 +26,9 @@
 #include <mutex>
 #include <numeric>
 #include <set>
+#include <sstream>
 #include <thread>
 #include <type_traits>
-
-#include <boost/unordered/unordered_flat_map.hpp>
-#include <boost/unordered_map.hpp>
 
 // For testing purposes
 class MockKernelProgramCache;
@@ -39,6 +37,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 class context_impl;
+
+template <class T> inline void hashCombine(size_t &Seed, const T &Val) {
+  std::hash<T> Hasher;
+  Seed ^= Hasher(Val) + 0x9e3779b9 + (Seed << 6) + (Seed >> 2);
+}
 
 // During SYCL program execution SYCL runtime will create internal objects
 // representing kernels and programs, it may also invoke JIT compiler to bring
@@ -141,8 +144,6 @@ public:
    * string*/
   using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
                                      std::set<ur_device_handle_t>>;
-  using CommonProgramKeyT =
-      std::pair<std::uintptr_t, std::set<ur_device_handle_t>>;
 
   // A custom hashing and equality function for ProgramCacheKeyT.
   // These are used to compare and hash the keys in the cache.
@@ -150,15 +151,18 @@ public:
     std::size_t operator()(const ProgramCacheKeyT &Key) const {
       std::size_t Hash = 0;
       // Hash the serialized object, representing spec consts.
-      for (const auto &Elem : Key.first.first)
-        Hash ^= std::hash<unsigned char>{}(Elem);
+      for (const auto &Elem : Key.first.first) {
+        hashCombine(Hash, Elem);
+      }
 
       // Hash the imageId.
-      Hash ^= std::hash<std::uintptr_t>{}(Key.first.second);
+      hashCombine(Hash, Key.first.second);
 
       // Hash the devices.
-      for (const auto &Elem : Key.second)
-        Hash ^= std::hash<void *>{}(static_cast<void *>(Elem));
+      for (const auto &Elem : Key.second) {
+        hashCombine(Hash, Elem);
+      }
+
       return Hash;
     }
   };
@@ -177,9 +181,42 @@ public:
     }
   };
 
+  using CommonProgramKeyT =
+      std::pair<std::uintptr_t, std::set<ur_device_handle_t>>;
+
+  struct CommonProgramKeyHash {
+    std::size_t operator()(const CommonProgramKeyT &Key) const {
+      std::size_t Hash = 0;
+      // Hash the imageId.
+      hashCombine(Hash, Key.first);
+
+      // Hash the devices.
+      for (const auto &Elem : Key.second) {
+        hashCombine(Hash, Elem);
+      }
+
+      return Hash;
+    }
+  };
+
+  struct CommonProgramKeyEqual {
+    bool operator()(const CommonProgramKeyT &LHS,
+                    const CommonProgramKeyT &RHS) const {
+      // Check equality of imageId.
+      return LHS.first == RHS.first &&
+             // Check equality of devices.
+             std::equal(LHS.second.begin(), LHS.second.end(),
+                        RHS.second.begin(), RHS.second.end());
+    }
+  };
+
   struct ProgramCache {
-    ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
-    ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+    std::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr,
+                       ProgramCacheKeyHash, ProgramCacheKeyEqual>
+        Cache;
+    std::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT,
+                            CommonProgramKeyHash, CommonProgramKeyEqual>
+        KeyMap;
     // Mapping between a UR program and its size.
     std::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
 
@@ -215,10 +252,8 @@ public:
   };
   using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
 
-  using KernelByNameT =
-      ::boost::unordered_map<std::string, KernelBuildResultPtr>;
-  using KernelCacheT =
-      ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
+  using KernelByNameT = std::unordered_map<std::string, KernelBuildResultPtr>;
+  using KernelCacheT = std::unordered_map<ur_program_handle_t, KernelByNameT>;
 
   using KernelFastCacheKeyT =
       std::pair<ur_device_handle_t, /* UR device handle pointer */
@@ -233,13 +268,33 @@ public:
                                      kernel. */
                  >;
 
+  struct KernelFastCacheKeyHash {
+    std::size_t operator()(const KernelFastCacheKeyT &Key) const {
+      std::size_t Hash = 0;
+      // Hash the UR device handle pointer.
+      hashCombine(Hash, Key.first);
+
+      // Hash the Kernel Name.
+      hashCombine(Hash, Key.second);
+
+      return Hash;
+    }
+  };
+
+  struct KernelFastCacheKeyEqual {
+    bool operator()(const KernelFastCacheKeyT &LHS,
+                    const KernelFastCacheKeyT &RHS) const {
+      // Check equality of the UR device handle pointer.
+      return LHS.first == RHS.first &&
+             // Check equality of the Kernel Name.
+             LHS.second == RHS.second;
+    }
+  };
+
   // This container is used as a fast path for retrieving cached kernels.
-  // unordered_flat_map is used here to reduce lookup overhead.
-  // The slow path is used only once for each newly created kernel, so the
-  // higher overhead of insertion that comes with unordered_flat_map is more
-  // of an issue there. For that reason, those use regular unordered maps.
   using KernelFastCacheT =
-      ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
+      std::unordered_map<KernelFastCacheKeyT, KernelFastCacheValT,
+                         KernelFastCacheKeyHash, KernelFastCacheKeyEqual>;
 
   // DS to hold data and functions related to Program cache eviction.
   struct EvictionList {
