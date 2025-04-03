@@ -22,6 +22,7 @@ on:
     - '.github/workflows/sycl-macos-*.yml'
     - '.github/workflows/sycl-nightly.yml'
     - '.github/workflows/sycl-rel-nightly.yml'
+    - '.github/workflows/trivy.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
@@ -63,7 +64,6 @@ jobs:
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
           - name: NVIDIA/CUDA
             runner: '["Linux", "cuda"]'
@@ -73,46 +73,39 @@ jobs:
             runner: '["Linux", "amdgpu"]'
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: hip:gpu
-            reset_intel_gpu: false
             extra_lit_opts: -j 1
           - name: Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;level_zero_v2:gpu
-            reset_intel_gpu: true
             extra_lit_opts: --param matrix-xmx8=True
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
-            reset_intel_gpu: true
             extra_lit_opts: --param matrix-xmx8=True
             use_igc_dev: true
           - name: E2E tests on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
-            reset_intel_gpu: true
             extra_lit_opts: -j 50
           - name: Dev IGC on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2404_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
-            reset_intel_gpu: true
             use_igc_dev: true
             extra_lit_opts: -j 50
           - name: Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: true
           - name: SPIR-V Backend / Intel Battlemage Graphics
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            reset_intel_gpu: true
             extra_lit_opts: --param spirv-backend=True
             e2e_binaries_artifact: sycl_e2e_bin_default_spirv_backend
     uses: ./.github/workflows/sycl-linux-run-tests.yml
@@ -123,7 +116,6 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       repo_ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
@@ -159,11 +151,9 @@ jobs:
           - name: Intel GEN12 Graphics system
             runner: '["Linux", "gen12"]'
             image_extra_opts: --device=/dev/dri
-            reset_intel_gpu: true
           - name: Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
             image_extra_opts: --device=/dev/dri
-            reset_intel_gpu: true
           - name: AMD system
             runner: '["Linux", "amdgpu"]'
             image_extra_opts: --device=/dev/dri --device=/dev/kfd
@@ -176,7 +166,6 @@ jobs:
       runner: ${{ matrix. runner }}
       image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
       target_devices: all
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
 
       env: '{"LIT_FILTER":"PerformanceTests/"}'
       extra_lit_opts: -a -j 1 --param enable-perf-tests=True
