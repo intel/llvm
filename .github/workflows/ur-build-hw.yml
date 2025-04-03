@@ -134,7 +134,7 @@ jobs:
     #     echo "${PWD}/.venv/bin" >> $GITHUB_PATH
     #     pip install -r third_party/requirements.txt
 
-    - name: Download DPC++
+    - name: Download DPC++.
       run: |
         wget -O dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2025-03-25/sycl_linux.tar.gz
         mkdir -p dpcpp_compiler
