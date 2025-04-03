@@ -426,7 +426,7 @@ local_accessor: public accessor<dataT,
         access::target::local> {
 public:
 #ifdef __SYCL_DEVICE_ONLY__  
-local_accessor();
+  local_accessor() = default;
 #endif
   void use(void) const {}
   template <typename... T>
