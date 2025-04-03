@@ -61,12 +61,11 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
       return {nullptr, nullptr};
     }
     auto ContextImpl = Queue->getContextImplPtr();
-    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     ur_program_handle_t Program =
         detail::ProgramManager::getInstance().createURProgram(
-            **DeviceImage, Context, {std::move(Device)});
+            **DeviceImage, ContextImpl, {std::move(Device)});
     return {*DeviceImage, Program};
   }
 
@@ -88,13 +87,12 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
     Program = KernelCG->MSyclKernel->getDeviceImage()->get_ur_program_ref();
   } else {
     auto ContextImpl = Queue->getContextImplPtr();
-    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelName, Context, Device);
+        KernelName, ContextImpl, Device);
     Program = detail::ProgramManager::getInstance().createURProgram(
-        *DeviceImage, Context, {std::move(Device)});
+        *DeviceImage, ContextImpl, {std::move(Device)});
   }
   return {DeviceImage, Program};
 }
