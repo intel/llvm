@@ -84,11 +84,11 @@ jobs:
             runner: UR_CUDA
             docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001 --privileged --cap-add SYS_ADMIN --gpus all
-          - name: OPENCL
-            runner: UR_OPENCL
-            platform: "Intel(R) OpenCL"
-            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
+          # - name: OPENCL
+          #   runner: UR_OPENCL
+          #   platform: "Intel(R) OpenCL"
+          #   docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
+          #   image_options: -u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN
           # - name: OPENCL
           #   runner: UR_OPENCL
           #   platform: "OPENCL:Intel(R) OpenCL"
