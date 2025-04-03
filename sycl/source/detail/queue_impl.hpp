@@ -718,9 +718,10 @@ public:
   std::optional<event> popExternalEvent() {
     std::optional<event> Result = std::nullopt;
 
-    MInOrderExternalEvent.unset([&](std::optional<event> &InOrderExternalEvent) {
-      std::swap(Result, InOrderExternalEvent);
-    });
+    MInOrderExternalEvent.unset(
+        [&](std::optional<event> &InOrderExternalEvent) {
+          std::swap(Result, InOrderExternalEvent);
+        });
     return Result;
   }
 
