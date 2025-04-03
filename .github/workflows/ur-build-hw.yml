@@ -174,7 +174,7 @@ jobs:
     #     sudo apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
     - name: check sycl-ls
       run: |
-        sycl-ls
+        ls -al /opt/intel/oneapi/
 
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
