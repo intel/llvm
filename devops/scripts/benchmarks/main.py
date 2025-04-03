@@ -506,22 +506,22 @@ if __name__ == "__main__":
         default=options.timestamp_override,
     )
     parser.add_argument(
-        "--sycl-github-repo",
+        "--github-repo",
         type=lambda gh_repo: Validate.github_repo(
             gh_repo,
-            throw=argparse.ArgumentTypeError("Specified SYCL github repo not in <owner>/<repo> format.")
+            throw=argparse.ArgumentTypeError("Specified github repo not in <owner>/<repo> format.")
         ),
-        help="Manually specify SYCL github repo used in metadata",
-        default=options.sycl_github_repo,
+        help="Manually specify github repo metadata of component tested (e.g. SYCL, UMF)",
+        default=options.github_repo_override,
     )
     parser.add_argument(
-        "--sycl-commit",
+        "--git-commit",
         type=lambda commit: Validate.commit_hash(
             commit,
-            throw=argparse.ArgumentTypeError("Specified SYCL commit is not a valid commit hash.")
+            throw=argparse.ArgumentTypeError("Specified commit is not a valid commit hash.")
         ),
-        help="Manually specify commit hash used to build SYCL in metadata",
-        default=options.sycl_commit,
+        help="Manually specify commit hash metadata of component tested (e.g. SYCL, UMF)",
+        default=options.git_commit_override,
     )
 
     args = parser.parse_args()
@@ -569,11 +569,11 @@ if __name__ == "__main__":
         if not os.path.isdir(args.results_dir):
             parser.error("Specified --results-dir is not a valid path")
         options.results_directory_override = os.path.abspath(args.results_dir)
-    if args.sycl_github_repo is not None or args.sycl_commit is not None:
-        if args.sycl_github_repo is None or args.sycl_commit is None:
-            parser.error("--sycl-github-repo and --sycl-commit must both be defined together")
-        options.sycl_github_repo = args.sycl_github_repo
-        options.sycl_commit = args.sycl_commit
+    if args.github_repo is not None or args.git_commit is not None:
+        if args.github_repo is None or args.git_commit is None:
+            parser.error("--github-repo and --git_commit must both be defined together")
+        options.github_repo_override = args.github_repo
+        options.git_commit_override = args.git_commit
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

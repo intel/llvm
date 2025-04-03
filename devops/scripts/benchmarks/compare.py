@@ -94,7 +94,7 @@ class Compare:
                 )
             )
         
-        def check_benchmark_result(result: BenchmarkRun) -> bool:
+        def validate_benchmark_result(result: BenchmarkRun) -> bool:
             """
             Returns True if result file:
             - Was ran on the target machine/hostname specified
@@ -127,16 +127,13 @@ class Compare:
             # - does not contain enough information to filter out results, i.e.
             #   no hostname information.
             # - information in filename may be mismatched from metadata.
-            if not check_benchmark_result(result):
+            if not validate_benchmark_result(result):
                 continue
 
             for test_run in result.results:
                 def reset_aggregate() -> dict:
                     return { 
                         "command_args": set(test_run.command[1:]),
-                        # The assumption here is that "value" is median
-                        # TODO standardization should happen here on what "value"
-                        # really is
                         "aggregate": aggregator(starting_elements=[test_run.value])
                     }
 

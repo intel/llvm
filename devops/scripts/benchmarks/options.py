@@ -61,8 +61,8 @@ class Options:
     # By default, we fetch SYCL commit info from the folder where main.py is
     # located. This doesn't work right when CI uses different commits for e.g.
     # CI scripts vs SYCl build source.
-    sycl_github_repo: str = None
-    sycl_commit: str = None
+    github_repo_override: str = None
+    git_commit_override: str = None
 
 
 options = Options()

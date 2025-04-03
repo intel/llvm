@@ -90,10 +90,10 @@ class BenchmarkHistory:
             
             return git_hash, github_repo
 
-        if options.sycl_commit is None or options.sycl_github_repo is None:
+        if options.git_commit_override is None or options.github_repo_override is None:
             git_hash, github_repo = git_info_from_path(os.path.dirname(os.path.abspath(__file__)))
         else:
-            git_hash, github_repo = options.sycl_commit, options.sycl_github_repo
+            git_hash, github_repo = options.git_commit_override, options.github_repo_override
         
         # Check if RUNNER_NAME environment variable has been declared.
         #
