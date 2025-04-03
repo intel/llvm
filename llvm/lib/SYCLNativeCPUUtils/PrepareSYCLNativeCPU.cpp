@@ -301,8 +301,12 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   llvm::Constant *CurrentStatePointerTLS = nullptr;
 
+  // Contains the used builtins and kernels that need to be processed to
+  // receive a pointer to the state struct.
+  llvm::SmallVector<std::pair<llvm::Function *, StringRef>>
+      UsedBuiltinsAndKernels;
+
   // Then we iterate over all the supported builtins, find the used ones
-  llvm::SmallVector<std::pair<llvm::Function *, StringRef>> UsedBuiltins;
   for (const auto &Entry : BuiltinNamesMap) {
     auto *Glob = M.getFunction(Entry.first);
     if (!Glob)
@@ -331,7 +335,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         }
       }
     }
-    UsedBuiltins.push_back({Glob, Entry.second});
+    UsedBuiltinsAndKernels.push_back({Glob, Entry.second});
   }
 
 #ifdef NATIVECPU_USE_OCK
@@ -395,9 +399,10 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     OldF->eraseFromParent();
     NewKernels.push_back(NewF);
     if (!CurrentStatePointerTLS && NewF->getNumUses() > 0)
-      // If a thread_local is not used we process called kernels along
-      // with the other builtins.
-      UsedBuiltins.push_back({NewF, ""});
+      // If a thread_local is not used we need to keep track of the called
+      // kernel so we can update its call sites with the pointer to the state
+      // struct like we do for the called builtins.
+      UsedBuiltinsAndKernels.push_back({NewF, ""});
     ModuleChanged = true;
   }
 
@@ -410,7 +415,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   // Then we iterate over all used builtins and
   // replace them with calls to our Native CPU functions.
-  for (const auto &Entry : UsedBuiltins) {
+  // For the used kernels we need to replace calls to them
+  // with calls receiving the state pointer argument.
+  for (const auto &Entry : UsedBuiltinsAndKernels) {
     SmallVector<std::pair<Instruction *, Instruction *>> ToRemove;
     SmallVector<Function *> ToRemove2;
     Function *const Glob = Entry.first;
