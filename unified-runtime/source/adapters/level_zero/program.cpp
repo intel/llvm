@@ -490,15 +490,16 @@ ur_result_t urProgramLinkExp(
       // because the ZeBuildLog tells which symbols are unresolved.
       if (ZeResult == ZE_RESULT_SUCCESS) {
         ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
-        if (ZeResult != ZE_RESULT_SUCCESS) {
-          return ze2urResult(ZeResult);
-        }
+        UrResult = ze2urResult(ZeResult);
       }
       UrProgram->setZeModule(ZeDevice, ZeModule);
       UrProgram->setBuildLog(ZeDevice, ZeBuildLog);
       UrProgram->setState(ZeDevice, (UrResult == UR_RESULT_SUCCESS)
                                         ? ur_program_handle_t_::Exe
                                         : ur_program_handle_t_::Invalid);
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        return UrResult;
+      }
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;

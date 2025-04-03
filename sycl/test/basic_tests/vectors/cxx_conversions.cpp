@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s -fpreview-breaking-changes
+// TODO: Remove `__SYCL_USE_LIBSYCL8_VEC_IMPL` once it's auto-set.
+// RUN: %clangxx -fsycl -fsyntax-only %s -fpreview-breaking-changes -D__SYCL_USE_LIBSYCL8_VEC_IMPL=0
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
 #include <sycl/sycl.hpp>
@@ -36,34 +37,38 @@ using sw_float_2 = decltype(std::declval<vec<float, 4>>().swizzle<1, 2>());
 using sw_double_1 = decltype(std::declval<vec<double, 4>>().swizzle<1>());
 using sw_double_2 = decltype(std::declval<vec<double, 4>>().swizzle<1, 2>());
 
+#if __INTEL_PREVIEW_BREAKING_CHANGES
+#define EXCEPT_IN_PREVIEW !
+#define PREVIEW_ONLY
+#else
+#define EXCEPT_IN_PREVIEW
+#define PREVIEW_ONLY !
+#endif
+
 // clang-format off
-
-// NOTE: Empty space is for the future markup using NOT_IN_PREVIEW/PREVIEW_ONLY
-// macros.
-
 
 //            IN_PREVIEW_ONLY   condition<>
 //            EXCEPT_IN_PREVIEW condition<>
 
 static_assert(                  std::is_invocable_v<decltype(f_half_v1), half>);
-static_assert(                  std::is_invocable_v<decltype(f_half_v1), float>);
-static_assert(                  std::is_invocable_v<decltype(f_half_v1), double>);
+static_assert(EXCEPT_IN_PREVIEW std::is_invocable_v<decltype(f_half_v1), float>);
+static_assert(EXCEPT_IN_PREVIEW std::is_invocable_v<decltype(f_half_v1), double>);
 static_assert(                  std::is_invocable_v<decltype(f_half_v1), sw_half_1>);
 static_assert(                  std::is_invocable_v<decltype(f_half_v1), sw_float_1>);
 static_assert(                  std::is_invocable_v<decltype(f_half_v1), sw_double_1>);
 static_assert(                  std::is_invocable_v<decltype(f_half_v1), vec<half, 1>>);
-static_assert(                  std::is_invocable_v<decltype(f_half_v1), vec<float, 1>>);
-static_assert(                  std::is_invocable_v<decltype(f_half_v1), vec<double, 1>>);
+static_assert(EXCEPT_IN_PREVIEW std::is_invocable_v<decltype(f_half_v1), vec<float, 1>>);
+static_assert(EXCEPT_IN_PREVIEW std::is_invocable_v<decltype(f_half_v1), vec<double, 1>>);
 
-static_assert(                  std::is_invocable_v<decltype(f_float_v1), half>);
+static_assert(EXCEPT_IN_PREVIEW std::is_invocable_v<decltype(f_float_v1), half>);
 static_assert(                  std::is_invocable_v<decltype(f_float_v1), float>);
 static_assert(                  std::is_invocable_v<decltype(f_float_v1), double>);
 static_assert(                  std::is_invocable_v<decltype(f_float_v1), sw_half_1>);
 static_assert(                  std::is_invocable_v<decltype(f_float_v1), sw_float_1>);
 static_assert(                  std::is_invocable_v<decltype(f_float_v1), sw_double_1>);
-static_assert(                  std::is_invocable_v<decltype(f_float_v1), vec<half, 1>>);
+static_assert(EXCEPT_IN_PREVIEW std::is_invocable_v<decltype(f_float_v1), vec<half, 1>>);
 static_assert(                  std::is_invocable_v<decltype(f_float_v1), vec<float, 1>>);
-static_assert(                  std::is_invocable_v<decltype(f_float_v1), vec<double, 1>>);
+static_assert(EXCEPT_IN_PREVIEW std::is_invocable_v<decltype(f_float_v1), vec<double, 1>>);
 
 static_assert(                 !std::is_invocable_v<decltype(f_half_v4), half>);
 static_assert(                 !std::is_invocable_v<decltype(f_half_v4), float>);
@@ -125,8 +130,8 @@ static_assert(                  is_explicitly_convertible_to_v<vec<half, 1>,  ha
 static_assert(                  is_explicitly_convertible_to_v<vec<half, 1>,  float>);
 static_assert(                  is_explicitly_convertible_to_v<vec<half, 1>,  double>);
 #else
-static_assert(                 !is_explicitly_convertible_to_v<vec<half, 1>,  float>);
-static_assert(                 !is_explicitly_convertible_to_v<vec<half, 1>,  double>);
+static_assert(PREVIEW_ONLY      is_explicitly_convertible_to_v<vec<half, 1>,  float>);
+static_assert(PREVIEW_ONLY      is_explicitly_convertible_to_v<vec<half, 1>,  double>);
 #endif
 
 static_assert(                  is_explicitly_convertible_to_v<vec<float, 1>,  half>);

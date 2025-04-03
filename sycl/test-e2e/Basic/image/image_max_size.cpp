@@ -1,5 +1,8 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// RUN: %{build} -o %t.out
+
+// %O0 added because of GSD-10960. Without it, IGC will fail with
+// an access violation error.
+// RUN: %{build} %O0 -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: cuda
@@ -13,100 +16,88 @@
 #include <sycl/detail/core.hpp>
 using namespace sycl;
 
-void init(uint32_t *A, uint32_t *B, size_t NumI32Elts) {
-  for (int I = 0; I < NumI32Elts; I++) {
-    A[I] = I;
-    B[I] = 0;
-  }
-}
+template <int Dimensions> class CopyKernel;
 
-int check(uint32_t *B, size_t NumI32Elts) {
-  for (int I = 0; I < NumI32Elts; I++) {
-    if (B[I] != I) {
-      std::cout << "Failed" << std::endl;
-      std::cerr << "Error for the index: " << I << ", computed: " << B[I]
-                << std::endl;
-      return 1;
+template <int Dimensions>
+bool testND(queue &Q, size_t XSize, size_t YSize, size_t ZSize = 1) {
+
+  static_assert(Dimensions == 2 || Dimensions == 3,
+                "Only 2D and 3D images are supported.");
+
+  if constexpr (Dimensions == 2)
+    std::cout << "Starting the test with size = {" << XSize << ", " << YSize
+              << "} ... ";
+  else
+    std::cout << "Starting the test with size = {" << XSize << ", " << YSize
+              << ", " << ZSize << "} ... ";
+
+  const size_t NumI32Elts = XSize * YSize * ZSize * 4;
+  range<Dimensions> ImgRange;
+  if constexpr (Dimensions == 2)
+    ImgRange = range<Dimensions>{XSize, YSize};
+  else
+    ImgRange = range<Dimensions>{XSize, YSize, ZSize};
+
+  // Allocate input buffer and initialize it with some values.
+  uint32_t *Input = (uint32_t *)malloc(NumI32Elts * sizeof(uint32_t));
+  for (int i = 0; i < NumI32Elts; i++)
+    Input[i] = i;
+
+  // calloc to ensure that the output buffer is initialized to zero.
+  uint32_t *Output = (uint32_t *)calloc(NumI32Elts, sizeof(uint32_t));
+
+  // Create the image and submit the copy kernel.
+  try {
+    image<Dimensions> ImgA(Input, image_channel_order::rgba,
+                           image_channel_type::unsigned_int32, ImgRange);
+    image<Dimensions> ImgB(Output, image_channel_order::rgba,
+                           image_channel_type::unsigned_int32, ImgRange);
+
+    Q.submit([&](handler &CGH) {
+       auto AAcc = ImgA.template get_access<uint4, access::mode::read>(CGH);
+       auto BAcc = ImgB.template get_access<uint4, access::mode::write>(CGH);
+       CGH.parallel_for<CopyKernel<Dimensions>>(
+           ImgRange, [=](id<Dimensions> Id) {
+             // Use int2 for 2D and int4 for 3D images.
+             if constexpr (Dimensions == 3) {
+               sycl::int4 Coord(Id[0], Id[1], Id[2], 0);
+               BAcc.write(Coord, AAcc.read(Coord));
+             } else {
+               sycl::int2 Coord(Id[0], Id[1]);
+               BAcc.write(Coord, AAcc.read(Coord));
+             }
+           });
+     }).wait();
+  } catch (exception const &e) {
+
+    std::cout << "Failed" << std::endl;
+    std::cerr << "SYCL Exception caught: " << e.what();
+    free(Input);
+    free(Output);
+    return 1;
+  }
+
+  // Check the output buffer.
+  bool HasError = false;
+  for (int i = 0; i < NumI32Elts; i++) {
+    if (Output[i] != i) {
+      HasError = true;
+      break;
     }
   }
-  std::cout << "Passed" << std::endl;
-  return 0;
-}
 
-int test2D(queue &Q, size_t XSize, size_t YSize) {
-  std::cout << "Starting the test with size = {" << XSize << ", " << YSize
-            << "} ... ";
-  size_t NumI32Elts = XSize * YSize * 4;
-  uint32_t *A = (uint32_t *)malloc(NumI32Elts * sizeof(uint32_t));
-  uint32_t *B = (uint32_t *)malloc(NumI32Elts * sizeof(uint32_t));
-  init(A, B, NumI32Elts);
-
-  try {
-    image<2> ImgA(A, image_channel_order::rgba,
-                  image_channel_type::unsigned_int32, range<2>{XSize, YSize});
-    image<2> ImgB(B, image_channel_order::rgba,
-                  image_channel_type::unsigned_int32, range<2>{XSize, YSize});
-
-    Q.submit([&](handler &CGH) {
-       auto AAcc = ImgA.get_access<uint4, access::mode::read>(CGH);
-       auto BAcc = ImgB.get_access<uint4, access::mode::write>(CGH);
-       CGH.parallel_for<class I2D>(range<2>{XSize, YSize}, [=](id<2> Id) {
-         sycl::int2 Coord(Id[0], Id[1]);
-         BAcc.write(Coord, AAcc.read(Coord));
-       });
-     }).wait();
-  } catch (exception const &e) {
+  if (!HasError) {
+    std::cout << "Passed" << std::endl;
+  } else {
     std::cout << "Failed" << std::endl;
-    std::cerr << "SYCL Exception caught: " << e.what();
-    return 1;
   }
 
-  int NumErrors = check(B, NumI32Elts);
-  free(A);
-  free(B);
-  return NumErrors;
-}
-
-int test3D(queue &Q, size_t XSize, size_t YSize, size_t ZSize) {
-  std::cout << "Starting the test with size = {" << XSize << ", " << YSize
-            << ", " << ZSize << "} ... ";
-  size_t NumI32Elts = XSize * YSize * ZSize * 4;
-  uint32_t *A = (uint32_t *)malloc(NumI32Elts * sizeof(uint32_t));
-  uint32_t *B = (uint32_t *)malloc(NumI32Elts * sizeof(uint32_t));
-  init(A, B, NumI32Elts);
-
-  try {
-    image<3> ImgA(A, image_channel_order::rgba,
-                  image_channel_type::unsigned_int32,
-                  range<3>{XSize, YSize, ZSize});
-    image<3> ImgB(B, image_channel_order::rgba,
-                  image_channel_type::unsigned_int32,
-                  range<3>{XSize, YSize, ZSize});
-
-    Q.submit([&](handler &CGH) {
-       auto AAcc = ImgA.get_access<uint4, access::mode::read>(CGH);
-       auto BAcc = ImgB.get_access<uint4, access::mode::write>(CGH);
-       CGH.parallel_for<class I3D>(range<3>{XSize, YSize, ZSize},
-                                   [=](id<3> Id) {
-                                     sycl::int4 Coord(Id[0], Id[1], Id[2], 0);
-                                     BAcc.write(Coord, AAcc.read(Coord));
-                                   });
-     }).wait();
-  } catch (exception const &e) {
-    std::cout << "Failed" << std::endl;
-    std::cerr << "SYCL Exception caught: " << e.what();
-    return 1;
-  }
-
-  int NumErrors = check(B, NumI32Elts);
-  free(A);
-  free(B);
-  return NumErrors;
+  free(Input);
+  free(Output);
+  return HasError;
 }
 
 int main() {
-  int NumErrors = 0;
-
   queue Q;
   device Dev = Q.get_device();
   std::cout << "Running on " << Dev.get_info<info::device::name>()
@@ -127,17 +118,18 @@ int main() {
 
   // Using max sizes in one image may require too much memory.
   // Check them one by one.
-  NumErrors += test2D(Q, MaxWidth2D, 2);
-  NumErrors += test2D(Q, 2, MaxHeight2D);
+  bool HasError = false;
+  HasError |= testND<2>(Q, MaxWidth2D, 2);
+  HasError |= testND<2>(Q, 2, MaxHeight2D);
 
-  NumErrors += test3D(Q, MaxWidth3D, 2, 3);
-  NumErrors += test3D(Q, 2, MaxHeight3D, 3);
-  NumErrors += test3D(Q, 2, 3, MaxDepth3D);
+  HasError |= testND<3>(Q, MaxWidth3D, 2, 3);
+  HasError |= testND<3>(Q, 2, MaxHeight3D, 3);
+  HasError |= testND<3>(Q, 2, 3, MaxDepth3D);
 
-  if (NumErrors)
-    std::cerr << "Test failed." << std::endl;
+  if (HasError)
+    std::cout << "Test failed." << std::endl;
   else
     std::cout << "Test passed." << std::endl;
 
-  return NumErrors;
+  return HasError ? 1 : 0;
 }

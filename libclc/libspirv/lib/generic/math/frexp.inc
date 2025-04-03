@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define __CLC_AS_GENTYPE __CLC_XCONCAT(as_, __CLC_GENTYPE)
-#define __CLC_AS_INTN __CLC_XCONCAT(as_, __CLC_INTN)
+#define __CLC_AS_GENTYPE __CLC_XCONCAT(__clc_as_, __CLC_GENTYPE)
+#define __CLC_AS_INTN __CLC_XCONCAT(__clc_as_, __CLC_INTN)
 
 #if __CLC_FPSIZE == 32
 _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE
@@ -29,11 +29,11 @@ __spirv_ocl_frexp(__CLC_GENTYPE x, __CLC_ADDRESS_SPACE __CLC_INTN *ep) {
 
 #if __CLC_FPSIZE == 64
 #ifdef __CLC_SCALAR
-#define __CLC_AS_LONGN as_long
+#define __CLC_AS_LONGN __clc_as_long
 #define __CLC_LONGN long
 #define __CLC_CONVERT_INTN __spirv_SConvert_Rint
 #else
-#define __CLC_AS_LONGN __CLC_XCONCAT(as_long, __CLC_VECSIZE)
+#define __CLC_AS_LONGN __CLC_XCONCAT(__clc_as_long, __CLC_VECSIZE)
 #define __CLC_LONGN __CLC_XCONCAT(long, __CLC_VECSIZE)
 #define __CLC_CONVERT_INTN __CLC_XCONCAT(__spirv_SConvert_Rint, __CLC_VECSIZE)
 #endif
