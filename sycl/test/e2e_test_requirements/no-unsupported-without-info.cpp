@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 280
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 276
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -86,10 +86,6 @@
 // CHECK-NEXT: Assert/check_resource_leak.cpp
 // CHECK-NEXT: Basic/buffer/buffer_create.cpp
 // CHECK-NEXT: Basic/build_log.cpp
-// CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
-// CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
-// CHECK-NEXT: Basic/free_function_queries/free_function_queries_sub_group.cpp
-// CHECK-NEXT: Basic/free_function_queries/free_function_queries_sub_group.cpp
 // CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
 // CHECK-NEXT: Basic/group_async_copy.cpp
 // CHECK-NEXT: Basic/host-task-dependency.cpp
