@@ -127,8 +127,10 @@ void LLVMToSPIRVDbgTran::finalizeDebugDeclare(
   using namespace SPIRVDebug::Operand::DebugDeclare;
   SPIRVWordVec Ops(OperandCount);
   Ops[DebugLocalVarIdx] = transDbgEntry(DbgDecl->getVariable())->getId();
-  Ops[VariableIdx] = Alloca ? SPIRVWriter->transValue(Alloca, BB)->getId()
-                            : getDebugInfoNoneId();
+  unsigned OpVariableId = getDebugInfoNoneId();
+  if (Alloca && !(isa<ConstantPointerNull>(Alloca) || isa<UndefValue>(Alloca)))
+    OpVariableId = SPIRVWriter->transValue(Alloca, BB)->getId();
+  Ops[VariableIdx] = OpVariableId;
   Ops[ExpressionIdx] = transDbgEntry(DbgDecl->getExpression())->getId();
   DD->setArguments(Ops);
 }

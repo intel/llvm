@@ -2678,12 +2678,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         return mapValue(
             BV, cast<Instruction *>(DbgTran->transDebugIntrinsic(ExtInst, BB)));
       } else {
-        auto MaybeRecord = DbgTran->transDebugIntrinsic(ExtInst, BB);
-        if (!MaybeRecord.isNull()) {
-          auto *Record = cast<DbgRecord *>(MaybeRecord);
-          Record->setDebugLoc(
-              DbgTran->transDebugScope(static_cast<SPIRVInstruction *>(BV)));
-        }
+        DbgTran->transDebugIntrinsic(ExtInst, BB);
         return mapValue(BV, nullptr);
       }
     default:

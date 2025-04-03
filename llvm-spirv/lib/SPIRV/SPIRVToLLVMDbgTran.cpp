@@ -1592,8 +1592,9 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
       AI->eraseFromParent();
       return DbgDeclare;
     }
+    DebugLoc Loc = transDebugScope(DebugInst);
     return DIB.insertDeclare(GetValue(Ops[VariableIdx]), LocalVar.first,
-                             GetExpression(Ops[ExpressionIdx]), LocalVar.second,
+                             GetExpression(Ops[ExpressionIdx]), Loc,
                              BB);
   }
   case SPIRVDebug::Value: {
@@ -1601,8 +1602,9 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
     auto LocalVar = GetLocalVar(Ops[DebugLocalVarIdx]);
     Value *Val = GetValue(Ops[ValueIdx]);
     DIExpression *Expr = GetExpression(Ops[ExpressionIdx]);
+    DebugLoc Loc = transDebugScope(DebugInst);
     DbgInstPtr DbgValIntr = getDIBuilder(DebugInst).insertDbgValueIntrinsic(
-        Val, LocalVar.first, Expr, LocalVar.second, BB);
+        Val, LocalVar.first, Expr, Loc, BB);
 
     std::vector<ValueAsMetadata *> MDs;
     for (size_t I = 0; I != Expr->getNumLocationOperands(); ++I) {
