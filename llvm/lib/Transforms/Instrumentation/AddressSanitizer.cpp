@@ -4459,7 +4459,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
     AI->replaceAllUsesWith(NewAllocaPtr);
   }
 
-  auto TargetTriple = Triple(F.getParent()->getTargetTriple());
+  const auto &TargetTriple = Triple(F.getParent()->getTargetTriple());
 
   // The left-most redzone has enough space for at least 4 pointers.
   Value *BasePlus0 = IRB.CreateIntToPtr(LocalStackBase, IntptrPtrTy);
