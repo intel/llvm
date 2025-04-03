@@ -419,7 +419,7 @@ function(add_libclc_builtin_set)
       INTERNALIZE
       TARGET ${builtins_link_lib_tgt}
       INPUTS $<TARGET_PROPERTY:${builtins_link_lib_tmp_tgt},TARGET_FILE>
-        ${ARG_INTERNAL_LINK_DEPENDENCIES}
+        ${internal_link_depend_files}
       RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
       DEPENDENCIES ${builtins_link_lib_tmp_tgt} ${ARG_INTERNAL_LINK_DEPENDENCIES}
     )

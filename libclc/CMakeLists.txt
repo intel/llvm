@@ -608,7 +608,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       ALIASES ${${d}_aliases}
       PARENT_TARGET libspirv-builtins
       # Link in the CLC builtins and internalize their symbols
-      INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
+      INTERNAL_LINK_DEPENDENCIES builtins.link.clc-${arch_suffix}
     )
 
     set( opencl_build_flags ${build_flags} )

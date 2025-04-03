@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
-#include <libspirv/spirv.h>
+#include <clc/math/clc_native_recip.h>
 
 #define __FLOAT_ONLY
 #define FUNCTION native_recip

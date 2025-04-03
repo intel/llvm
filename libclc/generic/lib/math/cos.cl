@@ -31,11 +31,4 @@ _CLC_OVERLOAD _CLC_DEF double cos(double x) {
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, cos, double);
 
-_CLC_OVERLOAD _CLC_DEF float cos(float x)
-{
-    return __spirv_ocl_cos(x);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, cos, float);
-
 #endif
