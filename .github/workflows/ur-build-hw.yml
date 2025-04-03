@@ -135,9 +135,6 @@ jobs:
     #     pip install -r third_party/requirements.txt
 
 
-    - name: check sycl-ls
-      run: |
-        sycl-ls
 
     - name: Download DPC++..
       run: |
@@ -175,6 +172,9 @@ jobs:
     #     echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
     #     sudo apt-get update
     #     sudo apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
+    - name: check sycl-ls
+      run: |
+        sycl-ls
 
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
