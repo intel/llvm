@@ -1,4 +1,4 @@
-// REQUIRES: cuda, cuda_dev_kit
+// REQUIRES: target-nvidia, cuda_dev_kit
 //
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
