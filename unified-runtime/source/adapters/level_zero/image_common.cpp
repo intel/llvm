@@ -1202,10 +1202,10 @@ ur_result_t urBindlessImagesReleaseExternalMemoryExp(
     break;
   case ZE_MEMORY_TYPE_UNKNOWN:
   default:
-    auto *bindlessMem = reinterpret_cast<ur_bindless_mem_handle_t *>(
+    auto imgHandle = reinterpret_cast<ur_exp_image_mem_native_handle_t>(
         externalMemoryData->urMemoryHandle);
-    zeImageDestroy(bindlessMem->getZeImage());
-    delete bindlessMem;
+    UR_CALL(ur::level_zero::urBindlessImagesImageFreeExp(hContext, hDevice,
+                                                         imgHandle));
     break;
   }
 
