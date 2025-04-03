@@ -75,6 +75,7 @@ llvm/include/llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h @intel/llvm-reviewers-
 llvm/lib/SYCLLowerIR/SYCLCreateNVVMAnnotations.cpp @intel/llvm-reviewers-cuda
 llvm/lib/Target/NVPTX @intel/llvm-reviewers-cuda
 llvm/lib/Target/AMDGPU @intel/llvm-reviewers-cuda
+unified-runtime/source/common/cuda-hip @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
