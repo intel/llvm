@@ -320,8 +320,8 @@ Define2ArgForward(uint64_t, __spirv_ocl_u_min, std::min);
 
 #define GET_PROPS __attribute__((pure))
 #define GEN_u32(bname, muxname)                                                \
-  DEVICE_EXTERN_C uint32_t GET_PROPS muxname();                                \
-  DEVICE_EXTERNAL uint32_t GET_PROPS bname() { return muxname(); }             \
+  DEVICE_EXTERN_C GET_PROPS uint32_t muxname();                                \
+  DEVICE_EXTERNAL GET_PROPS uint32_t bname() { return muxname(); }             \
   static_assert(true)
 // subgroup
 GEN_u32(__spirv_SubgroupLocalInvocationId, __mux_get_sub_group_local_id);
@@ -332,8 +332,8 @@ GEN_u32(__spirv_SubgroupSize, __mux_get_sub_group_size);
 
 // I64_I32
 #define GEN_p(bname, muxname, arg)                                             \
-  DEVICE_EXTERN_C uint64_t GET_PROPS muxname(uint32_t);                        \
-  DEVICE_EXTERNAL uint64_t GET_PROPS bname() { return muxname(arg); }          \
+  DEVICE_EXTERN_C GET_PROPS uint64_t muxname(uint32_t);                        \
+  DEVICE_EXTERNAL GET_PROPS uint64_t bname() { return muxname(arg); }          \
   static_assert(true)
 
 #define GEN_xyz(bname, ncpu_name)                                              \
