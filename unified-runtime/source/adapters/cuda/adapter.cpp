@@ -16,7 +16,7 @@
 #include <memory>
 
 namespace ur::cuda {
-std::shared_ptr<ur_adapter_handle_t_> adapter;
+ur_adapter_handle_t adapter;
 } // namespace ur::cuda
 
 class ur_legacy_sink : public logger::Sink {
@@ -47,6 +47,14 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
        std::getenv("UR_SUPPRESS_ERROR_MESSAGE") != nullptr)) {
     logger.setLegacySink(std::make_unique<ur_legacy_sink>());
   }
+
+  TracingCtx = createCUDATracingContext();
+  enableCUDATracing(TracingCtx);
+}
+
+ur_adapter_handle_t_::~ur_adapter_handle_t_() {
+  disableCUDATracing(TracingCtx);
+  freeCUDATracingContext(TracingCtx);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -54,15 +62,10 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
              uint32_t *pNumAdapters) {
   if (NumEntries > 0 && phAdapters) {
     static std::once_flag InitFlag;
-    std::call_once(InitFlag, [=]() {
-      ur::cuda::adapter = std::make_shared<ur_adapter_handle_t_>();
-    });
+    std::call_once(InitFlag,
+                   [=]() { ur::cuda::adapter = new ur_adapter_handle_t_; });
 
-    std::lock_guard<std::mutex> Lock{ur::cuda::adapter->Mutex};
-    ur::cuda::adapter->TracingCtx = createCUDATracingContext();
-    enableCUDATracing(ur::cuda::adapter->TracingCtx);
-
-    *phAdapters = ur::cuda::adapter.get();
+    *phAdapters = ur::cuda::adapter;
   }
 
   if (pNumAdapters) {
@@ -79,11 +82,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  std::lock_guard<std::mutex> Lock{ur::cuda::adapter->Mutex};
   if (--ur::cuda::adapter->RefCount == 0) {
-    disableCUDATracing(ur::cuda::adapter->TracingCtx);
-    freeCUDATracingContext(ur::cuda::adapter->TracingCtx);
-    ur::cuda::adapter.reset();
+    delete ur::cuda::adapter;
   }
   return UR_RESULT_SUCCESS;
 }

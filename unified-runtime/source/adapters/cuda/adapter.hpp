@@ -18,20 +18,20 @@
 
 #include <atomic>
 #include <memory>
-#include <mutex>
 
 struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 1;
-  std::mutex Mutex;
   struct cuda_tracing_context_t_ *TracingCtx = nullptr;
   logger::Logger &logger;
   std::unique_ptr<ur_platform_handle_t_> Platform;
   ur_adapter_handle_t_();
+  ~ur_adapter_handle_t_();
+  ur_adapter_handle_t_(const ur_adapter_handle_t_ &) = delete;
 };
 
 // Keep the global namespace'd
 namespace ur::cuda {
-extern std::shared_ptr<ur_adapter_handle_t_> adapter;
+extern ur_adapter_handle_t adapter;
 } // namespace ur::cuda
 
 #endif // UR_CUDA_ADAPTER_HPP_INCLUDED

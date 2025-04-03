@@ -119,10 +119,6 @@ struct ur_context_handle_t_ {
     void operator()() { Function(UserData); }
   };
 
-  // Retain an additional reference to the adapter as it keeps the devices
-  // alive, which end up being used (indirectly) by our destructor.
-  std::shared_ptr<ur_adapter_handle_t_> Adapter;
-
   std::vector<ur_device_handle_t> Devices;
   std::atomic_uint32_t RefCount;
 
@@ -132,13 +128,13 @@ struct ur_context_handle_t_ {
   umf_memory_pool_handle_t MemoryPoolHost = nullptr;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Adapter(ur::cuda::adapter), Devices{Devs, Devs + NumDevices},
-        RefCount{1} {
+      : Devices{Devs, Devs + NumDevices}, RefCount{1} {
     // Create UMF CUDA memory provider for the host memory
     // (UMF_MEMORY_TYPE_HOST) from any device (Devices[0] is used here, because
     // it is guaranteed to exist).
     UR_CHECK_ERROR(CreateHostMemoryProviderPool(Devices[0], &MemoryProviderHost,
                                                 &MemoryPoolHost));
+    UR_CHECK_ERROR(urAdapterRetain(ur::cuda::adapter));
   };
 
   ~ur_context_handle_t_() {
@@ -148,6 +144,7 @@ struct ur_context_handle_t_ {
     if (MemoryProviderHost) {
       umfMemoryProviderDestroy(MemoryProviderHost);
     }
+    UR_CHECK_ERROR(urAdapterRelease(ur::cuda::adapter));
   }
 
   void invokeExtendedDeleters() {

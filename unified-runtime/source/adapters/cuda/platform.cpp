@@ -100,7 +100,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
     return ReturnValue(UR_PLATFORM_BACKEND_CUDA);
   }
   case UR_PLATFORM_INFO_ADAPTER: {
-    return ReturnValue(ur::cuda::adapter.get());
+    return ReturnValue(ur::cuda::adapter);
   }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
