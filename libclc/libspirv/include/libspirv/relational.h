@@ -1,7 +1,7 @@
 #ifndef CLC_RELATIONAL
 #define CLC_RELATIONAL
 
-#include <as_type.h>
+#include <clc/clc_as_type.h>
 
 /*
  * Contains relational macros that have to return 1 for scalar and -1 for vector
@@ -16,26 +16,26 @@
 
 #define _CLC_DEFINE_RELATIONAL_UNARY_VEC2(RET_TYPE, FUNCTION, ARG_TYPE)        \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG_TYPE x) {                       \
-    return as_##RET_TYPE(                                                      \
+    return __clc_as_##RET_TYPE(                                                \
         ((RET_TYPE){FUNCTION(x.lo), FUNCTION(x.hi)} != (RET_TYPE)0));          \
   }
 
 #define _CLC_DEFINE_RELATIONAL_UNARY_VEC3(RET_TYPE, FUNCTION, ARG_TYPE)        \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG_TYPE x) {                       \
-    return as_##RET_TYPE(((RET_TYPE){FUNCTION(x.s0), FUNCTION(x.s1),           \
+    return __clc_as_##RET_TYPE(((RET_TYPE){FUNCTION(x.s0), FUNCTION(x.s1),     \
                                      FUNCTION(x.s2)} != (RET_TYPE)0));         \
   }
 
 #define _CLC_DEFINE_RELATIONAL_UNARY_VEC4(RET_TYPE, FUNCTION, ARG_TYPE)        \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG_TYPE x) {                       \
-    return as_##RET_TYPE(                                                      \
+    return __clc_as_##RET_TYPE(                                                \
         ((RET_TYPE){FUNCTION(x.s0), FUNCTION(x.s1), FUNCTION(x.s2),            \
                     FUNCTION(x.s3)} != (RET_TYPE)0));                          \
   }
 
 #define _CLC_DEFINE_RELATIONAL_UNARY_VEC8(RET_TYPE, FUNCTION, ARG_TYPE)        \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG_TYPE x) {                       \
-    return as_##RET_TYPE(                                                      \
+    return __clc_as_##RET_TYPE(                                                \
         ((RET_TYPE){FUNCTION(x.s0), FUNCTION(x.s1), FUNCTION(x.s2),            \
                     FUNCTION(x.s3), FUNCTION(x.s4), FUNCTION(x.s5),            \
                     FUNCTION(x.s6), FUNCTION(x.s7)} != (RET_TYPE)0));          \
@@ -43,7 +43,7 @@
 
 #define _CLC_DEFINE_RELATIONAL_UNARY_VEC16(RET_TYPE, FUNCTION, ARG_TYPE)       \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG_TYPE x) {                       \
-    return as_##RET_TYPE(                                                      \
+    return __clc_as_##RET_TYPE(                                                \
         ((RET_TYPE){FUNCTION(x.s0), FUNCTION(x.s1), FUNCTION(x.s2),            \
                     FUNCTION(x.s3), FUNCTION(x.s4), FUNCTION(x.s5),            \
                     FUNCTION(x.s6), FUNCTION(x.s7), FUNCTION(x.s8),            \
@@ -74,7 +74,7 @@
 #define _CLC_DEFINE_RELATIONAL_BINARY_VEC(RET_TYPE, FUNCTION, ARG0_TYPE,       \
                                           ARG1_TYPE)                           \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG0_TYPE x, ARG1_TYPE y) {         \
-    return as_##RET_TYPE(                                                      \
+    return __clc_as_##RET_TYPE(                                                \
         (RET_TYPE)((RET_TYPE){FUNCTION(x.lo, y.lo), FUNCTION(x.hi, y.hi)} !=   \
                    (RET_TYPE)0));                                              \
   }
@@ -82,14 +82,14 @@
 #define _CLC_DEFINE_RELATIONAL_BINARY_VEC2(RET_TYPE, FUNCTION, ARG0_TYPE,      \
                                            ARG1_TYPE)                          \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG0_TYPE x, ARG1_TYPE y) {         \
-    return as_##RET_TYPE(((RET_TYPE){FUNCTION(x.lo, y.lo),                     \
+    return __clc_as_##RET_TYPE(((RET_TYPE){FUNCTION(x.lo, y.lo),               \
                                      FUNCTION(x.hi, y.hi)} != (RET_TYPE)0));   \
   }
 
 #define _CLC_DEFINE_RELATIONAL_BINARY_VEC3(RET_TYPE, FUNCTION, ARG0_TYPE,      \
                                            ARG1_TYPE)                          \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG0_TYPE x, ARG1_TYPE y) {         \
-    return as_##RET_TYPE(                                                      \
+    return __clc_as_##RET_TYPE(                                                \
         ((RET_TYPE){FUNCTION(x.s0, y.s0), FUNCTION(x.s1, y.s1),                \
                     FUNCTION(x.s2, y.s2)} != (RET_TYPE)0));                    \
   }
@@ -97,7 +97,7 @@
 #define _CLC_DEFINE_RELATIONAL_BINARY_VEC4(RET_TYPE, FUNCTION, ARG0_TYPE,      \
                                            ARG1_TYPE)                          \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG0_TYPE x, ARG1_TYPE y) {         \
-    return as_##RET_TYPE(                                                      \
+    return __clc_as_##RET_TYPE(                                                \
         ((RET_TYPE){FUNCTION(x.s0, y.s0), FUNCTION(x.s1, y.s1),                \
                     FUNCTION(x.s2, y.s2),                                      \
                     FUNCTION(x.s3, y.s3)} != (RET_TYPE)0));                    \
@@ -106,7 +106,7 @@
 #define _CLC_DEFINE_RELATIONAL_BINARY_VEC8(RET_TYPE, FUNCTION, ARG0_TYPE,      \
                                            ARG1_TYPE)                          \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG0_TYPE x, ARG1_TYPE y) {         \
-    return as_##RET_TYPE(                                                      \
+    return __clc_as_##RET_TYPE(                                                \
         ((RET_TYPE){                                                           \
              FUNCTION(x.s0, y.s0), FUNCTION(x.s1, y.s1), FUNCTION(x.s2, y.s2), \
              FUNCTION(x.s3, y.s3), FUNCTION(x.s4, y.s4), FUNCTION(x.s5, y.s5), \
@@ -116,7 +116,7 @@
 #define _CLC_DEFINE_RELATIONAL_BINARY_VEC16(RET_TYPE, FUNCTION, ARG0_TYPE,     \
                                             ARG1_TYPE)                         \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG0_TYPE x, ARG1_TYPE y) {         \
-    return as_##RET_TYPE(                                                      \
+    return __clc_as_##RET_TYPE(                                                \
         ((RET_TYPE){                                                           \
              FUNCTION(x.s0, y.s0), FUNCTION(x.s1, y.s1), FUNCTION(x.s2, y.s2), \
              FUNCTION(x.s3, y.s3), FUNCTION(x.s4, y.s4), FUNCTION(x.s5, y.s5), \
