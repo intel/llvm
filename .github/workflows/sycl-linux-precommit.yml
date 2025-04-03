@@ -33,10 +33,6 @@ concurrency:
 
 permissions: read-all
 
-env:
-  ACTIONS_RUNNER_DEBUG: true
-  ACTIONS_STEP_DEBUG: true
-
 jobs:
   detect_changes:
     uses: ./.github/workflows/sycl-detect-changes.yml
@@ -70,6 +66,7 @@ jobs:
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             extra_lit_opts: --param gpu-intel-gen12=True
     uses: ./.github/workflows/sycl-linux-run-tests.yml
+    secrets: inherit
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix.runner }}

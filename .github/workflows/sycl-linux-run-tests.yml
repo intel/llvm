@@ -178,10 +178,6 @@ permissions:
   contents: read
   packages: read
 
-env:
-  ACTIONS_RUNNER_DEBUG: true
-  ACTIONS_STEP_DEBUG: true
-
 jobs:
   run:
     if: github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false'
