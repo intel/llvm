@@ -427,7 +427,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       if (Entry.second == "") {
         if (const Function *CF = I->getCalledFunction()) {
           unsigned numParams = CF->getFunctionType()->getNumParams();
-          auto numArgs = std::distance(I->arg_begin(), I->arg_end());
+          auto numArgs = I->arg_size();
           if (numArgs == numParams)
             continue;
           assert(numArgs + 1 == numParams);
