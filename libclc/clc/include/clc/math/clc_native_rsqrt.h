@@ -6,15 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
-#include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
+#ifndef __CLC_MATH_CLC_NATIVE_RSQRT_H__
+#define __CLC_MATH_CLC_NATIVE_RSQRT_H__
 
-#define __CLC_BUILTIN __spirv_ocl_native_sqrt
-#define __CLC_FUNCTION native_sqrt
-#define __CLC_BODY <native_builtin.inc>
 #define __FLOAT_ONLY
-#define FUNCTION native_sqrt
-#define __CLC_BODY <clc/shared/unary_def.inc>
+#define __CLC_FUNCTION __clc_native_rsqrt
+#define __CLC_BODY <clc/shared/unary_decl.inc>
 
 #include <clc/math/gentype.inc>
+
+#undef __CLC_BODY
+#undef __CLC_FUNCTION
+#undef __FLOAT_ONLY
+
+#endif // __CLC_MATH_CLC_NATIVE_RSQRT_H__

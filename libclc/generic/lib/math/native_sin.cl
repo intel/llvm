@@ -14,4 +14,7 @@
 #define __CLC_FUNCTION native_sin
 #define __CLC_BODY <native_builtin.inc>
 #define __FLOAT_ONLY
+#define FUNCTION native_sin
+#define __CLC_BODY <clc/shared/unary_def.inc>
+
 #include <clc/math/gentype.inc>

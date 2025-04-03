@@ -9,6 +9,8 @@
 #include <clc/clc.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <native_rsqrt.inc>
 #define __FLOAT_ONLY
+#define FUNCTION native_rsqrt
+#define __CLC_BODY <clc/shared/unary_def.inc>
+
 #include <clc/math/gentype.inc>

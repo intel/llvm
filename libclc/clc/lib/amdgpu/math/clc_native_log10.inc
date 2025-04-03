@@ -6,15 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc.h>
-#include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
-
-#define __CLC_BUILTIN __spirv_ocl_native_sqrt
-#define __CLC_FUNCTION native_sqrt
-#define __CLC_BODY <native_builtin.inc>
-#define __FLOAT_ONLY
-#define FUNCTION native_sqrt
-#define __CLC_BODY <clc/shared/unary_def.inc>
-
-#include <clc/math/gentype.inc>
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __clc_native_log10(__CLC_GENTYPE val) {
+  return __clc_native_log2(val) * (M_LN2_F / M_LN10_F);
+}
