@@ -297,6 +297,12 @@ public:
       const context &Ctx, const std::vector<device> &Devs,
       bundle_state TargetState, const std::vector<kernel_id> &KernelIDs = {});
 
+  // Creates a new dependency image for a given dependency binary image.
+  device_image_plain createDependencyImage(const context &Ctx,
+                                           const std::vector<device> &Devs,
+                                           RTDeviceBinaryImage *DepImage,
+                                           bundle_state DepState);
+
   // Bring image to the required state. Does it inplace
   void bringSYCLDeviceImageToState(DevImgPlainWithDeps &DeviceImage,
                                    bundle_state TargetState);
@@ -363,6 +369,12 @@ public:
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
+  std::set<RTDeviceBinaryImage *>
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
+  std::set<RTDeviceBinaryImage *>
+  collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
+                                           const device &Dev);
+
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
@@ -386,11 +398,6 @@ private:
   /// Add info on kernels using local arg into cache
   void cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img);
 
-  std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
-  std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev);
   std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, const device &Dev);

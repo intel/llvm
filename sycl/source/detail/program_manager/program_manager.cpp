@@ -2698,30 +2698,34 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     Images.reserve(Deps.size() + 1);
     Images.push_back(
         createSyclObjFromImpl<device_image_plain>(std::move(MainImpl)));
-    for (RTDeviceBinaryImage *Dep : Deps) {
-      std::shared_ptr<std::vector<sycl::kernel_id>> DepKernelIDs;
-      {
-        std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-        // For device library images, they are not in m_BinImg2KernelIDs since
-        // no kernel is included.
-        auto DepIt = m_BinImg2KernelIDs.find(Dep);
-        if (DepIt != m_BinImg2KernelIDs.end())
-          DepKernelIDs = DepIt->second;
-      }
-
-      assert(ImgInfoPair.second.State == getBinImageState(Dep) &&
-             "State mismatch between main image and its dependency");
-      DeviceImageImplPtr DepImpl = std::make_shared<detail::device_image_impl>(
-          Dep, Ctx, Devs, ImgInfoPair.second.State, DepKernelIDs,
-          /*PIProgram=*/nullptr);
-
+    for (RTDeviceBinaryImage *Dep : Deps)
       Images.push_back(
-          createSyclObjFromImpl<device_image_plain>(std::move(DepImpl)));
-    }
+          createDependencyImage(Ctx, Devs, Dep, ImgInfoPair.second.State));
     SYCLDeviceImages.push_back(std::move(Images));
   }
 
   return SYCLDeviceImages;
+}
+
+device_image_plain ProgramManager::createDependencyImage(
+    const context &Ctx, const std::vector<device> &Devs,
+    RTDeviceBinaryImage *DepImage, bundle_state DepState) {
+  std::shared_ptr<std::vector<sycl::kernel_id>> DepKernelIDs;
+  {
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    // For device library images, they are not in m_BinImg2KernelIDs since
+    // no kernel is included.
+    auto DepIt = m_BinImg2KernelIDs.find(DepImage);
+    if (DepIt != m_BinImg2KernelIDs.end())
+      DepKernelIDs = DepIt->second;
+  }
+
+  assert(DepState == getBinImageState(DepImage) &&
+         "State mismatch between main image and its dependency");
+  DeviceImageImplPtr DepImpl = std::make_shared<detail::device_image_impl>(
+      DepImage, Ctx, Devs, DepState, DepKernelIDs, /*PIProgram=*/nullptr);
+
+  return createSyclObjFromImpl<device_image_plain>(std::move(DepImpl));
 }
 
 void ProgramManager::bringSYCLDeviceImageToState(

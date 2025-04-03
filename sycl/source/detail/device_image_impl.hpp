@@ -746,19 +746,28 @@ public:
           MRTCBinInfo->MIncludePairs, BuildOptions, LogPtr);
 
       auto &PM = detail::ProgramManager::getInstance();
-      std::vector<std::shared_ptr<device_image_impl>> Result;
-      Result.reserve(Binaries->NumDeviceBinaries);
+
+      // Add all binaries and keep the images for processing.
+      std::vector<std::pair<RTDeviceBinaryImage *,
+                            std::shared_ptr<std::vector<kernel_id>>>>
+          NewImages;
+      NewImages.reserve(Binaries->NumDeviceBinaries);
       for (int I = 0; I < Binaries->NumDeviceBinaries; I++) {
         sycl_device_binary Binary = &(Binaries->DeviceBinaries[I]);
-
         RTDeviceBinaryImage *NewImage = nullptr;
         auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
         PM.addImage(Binary, &NewImage, KernelIDs.get());
+        if (NewImage)
+          NewImages.push_back(
+              std::make_pair(std::move(NewImage), std::move(KernelIDs)));
+      }
 
-        // If the image is empty, we can skip it.
-        if (!NewImage)
-          continue;
-
+      // Now bring all images into the proper state. Note that we do this in a
+      // separate pass over NewImages to make sure dependency images have been
+      // registered beforehand.
+      std::vector<std::shared_ptr<device_image_impl>> Result;
+      Result.reserve(NewImages.size());
+      for (auto &[NewImage, KernelIDs] : NewImages) {
         std::set<std::string> KernelNames;
         std::unordered_map<std::string, std::string> MangledKernelNames;
         std::unordered_set<std::string> DeviceGlobalIDSet;
@@ -843,7 +852,26 @@ public:
             std::move(KernelNames), std::move(MangledKernelNames),
             std::string{Prefix}, std::move(DGRegs));
 
-        DevImgPlainWithDeps ImgWithDeps{DevImgImpl};
+        // Resolve dependencies.
+        // TODO: Consider making a collectDeviceImageDeps variant that takes a
+        //       set reference and inserts into that instead.
+        std::set<RTDeviceBinaryImage *> ImgDeps;
+        for (const device &Device : Devices) {
+          std::set<RTDeviceBinaryImage *> DevImgDeps =
+              PM.collectDeviceImageDeps(*NewImage, Device);
+          ImgDeps.insert(DevImgDeps.begin(), DevImgDeps.end());
+        }
+
+        // Pack main image and dependencies together.
+        std::vector<device_image_plain> NewImageAndDeps;
+        NewImageAndDeps.reserve(1 + ImgDeps.size());
+        NewImageAndDeps.push_back(std::move(
+            createSyclObjFromImpl<device_image_plain>(std::move(DevImgImpl))));
+        for (RTDeviceBinaryImage *ImgDep : ImgDeps)
+          NewImageAndDeps.push_back(PM.createDependencyImage(
+              MContext, Devices, ImgDep, bundle_state::input));
+
+        DevImgPlainWithDeps ImgWithDeps(std::move(NewImageAndDeps));
         PM.bringSYCLDeviceImageToState(ImgWithDeps, bundle_state::executable);
         Result.push_back(getSyclObjImpl(ImgWithDeps.getMain()));
       }
