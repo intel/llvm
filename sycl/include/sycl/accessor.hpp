@@ -221,9 +221,9 @@ class AccessorPrivateProxy;
 } // namespace ext::intel::esimd::detail
 
 template <typename DataT, int Dimensions = 1,
-          access::mode AccessMode = sycl::access::mode::read_write,
-          access::target AccessTarget = sycl::access::target::device,
-          access::placeholder IsPlaceholder = sycl::access::placeholder::false_t,
+          access::mode AccessMode = access::mode::read_write,
+          access::target AccessTarget = access::target::device,
+          access::placeholder IsPlaceholder = access::placeholder::false_t,
           typename PropertyListT = ext::oneapi::accessor_property_list<>>
 class accessor;
 

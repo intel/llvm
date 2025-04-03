@@ -227,7 +227,7 @@ local_accessor: public accessor<dataT,
         access::target::local> {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
-local_accessor() = default;
+  local_accessor() = default;
 #endif
   void use(void) const {}
   template <typename... T>
@@ -252,11 +252,13 @@ struct sampler_impl {
 class __attribute__((sycl_special_class)) __SYCL_TYPE(sampler) sampler {
   struct sampler_impl impl;
 #ifdef __SYCL_DEVICE_ONLY__
-sampler() = default;
   void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }
 #endif
 
 public:
+#ifdef __SYCL_DEVICE_ONLY__
+  sampler() = default;
+#endif
   void use(void) const {}
 };
 
@@ -489,19 +491,21 @@ namespace experimental {
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) annotated_arg {
   T obj;
-  #ifdef __SYCL_DEVICE_ONLY__
-annotated_arg() = default;
-    void __init(T _obj) {}
-  #endif
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(T _obj) {}
+public:
+  annotated_arg() = default;
+#endif
 };
 
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_ptr) annotated_ptr {
   T* obj;
-  #ifdef __SYCL_DEVICE_ONLY__
-    annotated_ptr() = default;
-    void __init(T* _obj) {}
-  #endif
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(T* _obj) {}
+public:
+  annotated_ptr() = default;   
+#endif
 };
 
 } // namespace experimental
