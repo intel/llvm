@@ -115,6 +115,7 @@ runs:
 
       # First line of --version is formatted 'clang version ... (<repo> <commit>)'
       # thus we parse for (<repo> <commit>):
+      clang++ --version
       sycl_git_info="$(clang++ --version | head -n 1 | grep -oE '\([^ ]+ [a-f0-9]+\)$')" | tr -d '()'
       if [ -z "$sycl_git_info" ]; then
         echo "Error: Unable to deduce SYCL build source repo/commit: Are you sure dpcpp variable is in PATH?"
