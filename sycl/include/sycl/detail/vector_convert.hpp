@@ -57,6 +57,7 @@
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/exception.hpp>                  // for errc
 
+#include <sycl/detail/memcpy.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 #include <sycl/vector.hpp>
 
@@ -941,7 +942,7 @@ vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
     if constexpr (canUseNativeVectorConvert) {
       auto val = detail::convertImpl<T, R, roundingMode, NumElements,
                                      OpenCLVecT, OpenCLVecR>(NativeVector);
-      Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(val);
+      sycl::detail::memcpy_no_adl(&Result.m_Data, &val, sizeof(Result));
     } else
 #endif // __SYCL_DEVICE_ONLY__
     {
