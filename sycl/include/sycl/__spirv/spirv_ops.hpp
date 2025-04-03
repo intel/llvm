@@ -397,28 +397,8 @@ __SPIRV_ATOMICS(__SPIRV_ATOMIC_MINMAX, Max)
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
-__spirv_SubgroupShuffleINTEL(dataT Data, uint32_t InvocationId) noexcept;
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
-__spirv_SubgroupShuffleDownINTEL(dataT Current, dataT Next,
-                                 uint32_t Delta) noexcept;
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
-__spirv_SubgroupShuffleUpINTEL(dataT Previous, dataT Current,
-                               uint32_t Delta) noexcept;
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
-__spirv_SubgroupShuffleXorINTEL(dataT Data, uint32_t Value) noexcept;
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
 __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
                                uint8_t *Ptr) noexcept;
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint8_t *Ptr,
-                                dataT Data) noexcept;
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
@@ -426,29 +406,14 @@ __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
                                uint16_t *Ptr) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint16_t *Ptr,
-                                dataT Data) noexcept;
-
-template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
 __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
                                uint32_t *Ptr) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint32_t *Ptr,
-                                dataT Data) noexcept;
-
-template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
 __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_global))
                                uint64_t *Ptr) noexcept;
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_global)) uint64_t *Ptr,
-                                dataT Data) noexcept;
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
@@ -456,19 +421,9 @@ __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
                                uint8_t *Ptr) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint8_t *Ptr,
-                                dataT Data) noexcept;
-
-template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
 __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
                                uint16_t *Ptr) noexcept;
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint16_t *Ptr,
-                                dataT Data) noexcept;
 
 template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
@@ -476,19 +431,9 @@ __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
                                uint32_t *Ptr) noexcept;
 
 template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint32_t *Ptr,
-                                dataT Data) noexcept;
-
-template <typename dataT>
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL dataT
 __spirv_SubgroupBlockReadINTEL(const __attribute__((opencl_local))
                                uint64_t *Ptr) noexcept;
-
-template <typename dataT>
-__SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL void
-__spirv_SubgroupBlockWriteINTEL(__attribute__((opencl_local)) uint64_t *Ptr,
-                                dataT Data) noexcept;
 
 template <int W, int rW>
 extern __DPCPP_SYCL_EXTERNAL sycl::detail::ap_int<rW>

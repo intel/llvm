@@ -18,33 +18,33 @@
 static constexpr size_t NumElems = VEC_WIDTH;
 static constexpr size_t NumWorkItems = 64;
 
-// UP_V2_INT: double @_Z30__spirv_SubgroupShuffleUpINTELIDv2_iET_S1_S1_j(double noundef %[[ARG0:[0-9]+]], double noundef %[[ARG1:[0-9]+]]
+// UP_V2_INT: double @_Z30__spirv_SubgroupShuffleUpINTELDv2_iS_j(double noundef %[[ARG0:[0-9]+]], double noundef %[[ARG1:[0-9]+]]
 // UP_V2_INT: %[[UPV2I32_BITCAST_OP0:[0-9]+]] = bitcast double %[[ARG0]] to <2 x i32>
 // UP_V2_INT: %[[UPV2I32_BITCAST_OP1:[0-9]+]] = bitcast double %[[ARG1]] to <2 x i32>
 // UP_V2_INT: %[[UPV2I32_CALL_SHUFFLE:[0-9]+]] = call <2 x i32> @__mux_sub_group_shuffle_up_v2i32(<2 x i32> %[[UPV2I32_BITCAST_OP0]], <2 x i32> %[[UPV2I32_BITCAST_OP1]]
 // UP_V2_INT: %[[UPV2I32_BITCAST_RESULT:[0-9]+]] = bitcast <2 x i32> %[[UPV2I32_CALL_SHUFFLE]] to double
 // UP_V2_INT: ret double %[[UPV2I32_BITCAST_RESULT]]
 
-// DOWN_V4_SHORT: double @_Z32__spirv_SubgroupShuffleDownINTELIDv4_sET_S1_S1_j(double noundef %[[ARG0:[0-9]+]], double noundef %[[ARG1:[0-9]+]]
+// DOWN_V4_SHORT: double @_Z32__spirv_SubgroupShuffleDownINTELDv4_sS_j(double noundef %[[ARG0:[0-9]+]], double noundef %[[ARG1:[0-9]+]]
 // DOWN_V4_SHORT: %[[DOWNV4I16_BITCAST_OP0:[0-9]+]] = bitcast double %[[ARG0]] to <4 x i16>
 // DOWN_V4_SHORT: %[[DOWNV4I16_BITCAST_OP1:[0-9]+]] = bitcast double %[[ARG1]] to <4 x i16>
 // DOWN_V4_SHORT: %[[DOWNV4I16_CALL_SHUFFLE:[0-9]+]] = call <4 x i16> @__mux_sub_group_shuffle_down_v4i16(<4 x i16> %[[DOWNV4I16_BITCAST_OP0]], <4 x i16> %[[DOWNV4I16_BITCAST_OP1]]
 // DOWN_V4_SHORT: %[[DOWNV4I16_BITCAST_RESULT:[0-9]+]] = bitcast <4 x i16> %[[DOWNV4I16_CALL_SHUFFLE]] to double
 // DOWN_V4_SHORT: ret double %[[DOWNV4I16_BITCAST_RESULT]]
 
-// XOR_V4_CHAR: i32 @_Z31__spirv_SubgroupShuffleXorINTELIDv4_aET_S1_j(i32 noundef %[[ARG0:[0-9]+]], i32
+// XOR_V4_CHAR: i32 @_Z31__spirv_SubgroupShuffleXorINTELDv4_aj(i32 noundef %[[ARG0:[0-9]+]], i32
 // XOR_V4_CHAR: %[[XORV4I8_BITCAST_OP0:[0-9]+]] = bitcast i32 %[[ARG0]] to <4 x i8>
 // XOR_V4_CHAR: %[[XORV4I8_CALL_SHUFFLE:[0-9]+]] = call <4 x i8> @__mux_sub_group_shuffle_xor_v4i8(<4 x i8> %[[XORV4I8_BITCAST_OP0]], i32
 // XOR_V4_CHAR: %[[XORV4I8_BITCAST_RESULT:[0-9]+]] = bitcast <4 x i8> %[[XORV4I8_CALL_SHUFFLE]] to i32
 // XOR_V4_CHAR: ret i32 %[[XORV4I8_BITCAST_RESULT]]
 
-// UP_V8_FLOAT: <8 x float> @_Z30__spirv_SubgroupShuffleUpINTELIDv8_fET_S1_S1_j(ptr noundef byval(<8 x float>) align 32 %[[ARG0:[0-9]+]], ptr noundef byval(<8 x float>) align 32 %[[ARG1:[0-9]+]]
+// UP_V8_FLOAT: <8 x float> @_Z30__spirv_SubgroupShuffleUpINTELDv8_fS_j(ptr noundef byval(<8 x float>) align 32 %[[ARG0:[0-9]+]], ptr noundef byval(<8 x float>) align 32 %[[ARG1:[0-9]+]]
 // UP_V8_FLOAT:   %[[UPV8F32_BYVAL_LOAD_OP0:[0-9]+]] = load <8 x float>, ptr %[[ARG0]], align 32
 // UP_V8_FLOAT: %[[UPV8F32_BYVAL_LOAD_OP1:[0-9]+]] = load <8 x float>, ptr %[[ARG1]], align 32
 // UP_V8_FLOAT:   %[[UPV8F32_CALL_SHUFFLE:[0-9]+]] = call <8 x float> @__mux_sub_group_shuffle_up_v8f32(<8 x float> %[[UPV8F32_BYVAL_LOAD_OP0]], <8 x float> %[[UPV8F32_BYVAL_LOAD_OP1]], i32
 // UP_V8_FLOAT:   ret <8 x float> %[[UPV8F32_CALL_SHUFFLE:[0-9]+]]
 
-// SELECT_V8_SELECT_I32: <8 x i32> @_Z28__spirv_SubgroupShuffleINTELIDv8_jET_S1_j(ptr noundef byval(<8 x i32>) align 32 %[[ARG0:[0-9]+]],
+// SELECT_V8_SELECT_I32: <8 x i32> @_Z28__spirv_SubgroupShuffleINTELDv8_jj(ptr noundef byval(<8 x i32>) align 32 %[[ARG0:[0-9]+]],
 // SELECT_V8_SELECT_I32: %[[SELV8I32_BYVAL_LOAD_OP0:[0-9]+]] = load <8 x i32>, ptr %[[ARG0]], align 32
 // SELECT_V8_SELECT_I32:   %[[SELV8I32_CALL_SHUFFLE:[0-9]+]] = call <8 x i32> @__mux_sub_group_shuffle_v8i32(<8 x i32> %[[SELV8I32_BYVAL_LOAD_OP0]], i32
 // SELECT_V8_SELECT_I32:   ret <8 x i32> %[[SELV8I32_CALL_SHUFFLE:[0-9]+]]
