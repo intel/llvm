@@ -38,8 +38,10 @@
 
 #include <core/convert.h>
 
+<<<<<<< HEAD
 #include <clc/integer/clc_add_sat.h>
+=======
+>>>>>>> 62ba344d5515e1251bb661fd256118b80ab8f96a
 #include <core/integer/clc_mad_sat.h>
-#include <core/integer/clc_sub_sat.h>
 
 #pragma OPENCL EXTENSION all : disable
