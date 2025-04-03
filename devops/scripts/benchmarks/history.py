@@ -111,6 +111,10 @@ class BenchmarkHistory:
                 throw=ValueError("Illegal characters found in specified RUNNER_NAME.")
             )
 
+        compute_runtime = (
+            options.compute_runtime_tag if options.build_compute_runtime else None
+        )
+
         return BenchmarkRun(
             name=name,
             git_hash=git_hash,
@@ -118,6 +122,7 @@ class BenchmarkHistory:
             date=datetime.now(tz=timezone.utc),
             results=results,
             hostname=hostname,
+            compute_runtime=compute_runtime,
         )
 
     def save(self, save_name, results: list[Result], to_file=True):
