@@ -120,6 +120,9 @@ struct ThreadSanitizerOnSpirv {
 
   void instrumentModule();
 
+  bool instrumentAllocInst(Function *F,
+                           SmallVectorImpl<Instruction *> &AllocaInsts);
+
   void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
 
 private:
@@ -144,6 +147,7 @@ private:
 
   // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
   static const size_t kNumberOfAccessSizes = 5;
+  FunctionCallee TsanCleanupPrivate;
   FunctionCallee TsanRead[kNumberOfAccessSizes];
   FunctionCallee TsanWrite[kNumberOfAccessSizes];
 
@@ -261,6 +265,10 @@ void ThreadSanitizerOnSpirv::initialize() {
   Attr = Attr.addFnAttribute(C, Attribute::NoUnwind);
   Type *Int8PtrTy = IRB.getInt8PtrTy(kSpirOffloadConstantAS);
 
+  TsanCleanupPrivate =
+      M.getOrInsertFunction("__tsan_cleanup_private", Attr, IRB.getVoidTy(),
+                            IntptrTy, IRB.getInt32Ty());
+
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
     const unsigned ByteSize = 1U << i;
     std::string ByteSizeStr = utostr(ByteSize);
@@ -280,6 +288,28 @@ void ThreadSanitizerOnSpirv::initialize() {
                                          IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
                                          IRB.getInt32Ty(), Int8PtrTy);
   }
+}
+
+bool ThreadSanitizerOnSpirv::instrumentAllocInst(
+    Function *F, SmallVectorImpl<Instruction *> &AllocaInsts) {
+  bool Changed = false;
+
+  EscapeEnumerator EE(*F, "tsan_cleanup", false);
+  while (IRBuilder<> *AtExit = EE.Next()) {
+    InstrumentationIRBuilder::ensureDebugInfo(*AtExit, *F);
+    for (auto *Inst : AllocaInsts) {
+      AllocaInst *AI = cast<AllocaInst>(Inst);
+      if (auto AllocSize = AI->getAllocationSize(DL)) {
+        AtExit->CreateCall(
+            TsanCleanupPrivate,
+            {AtExit->CreatePtrToInt(AI, IntptrTy),
+             ConstantInt::get(AtExit->getInt32Ty(), *AllocSize)});
+        Changed |= true;
+      }
+    }
+  }
+
+  return Changed;
 }
 
 void ThreadSanitizerOnSpirv::appendDebugInfoToArgs(
@@ -793,6 +823,7 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
   SmallVector<Instruction*, 8> LocalLoadsAndStores;
   SmallVector<Instruction*, 8> AtomicAccesses;
   SmallVector<Instruction*, 8> MemIntrinCalls;
+  SmallVector<Instruction *, 8> Allocas;
   bool Res = false;
   bool HasCalls = false;
   bool SanitizeFunction = F.hasFnAttribute(Attribute::SanitizeThread);
@@ -808,6 +839,9 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
         AtomicAccesses.push_back(&Inst);
       else if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
         LocalLoadsAndStores.push_back(&Inst);
+      else if (Spirv && isa<AllocaInst>(Inst) &&
+               cast<AllocaInst>(Inst).getAllocatedType()->isSized())
+        Allocas.push_back(&Inst);
       else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
                isa<InvokeInst>(Inst)) {
         if (CallInst *CI = dyn_cast<CallInst>(&Inst))
@@ -849,6 +883,14 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
     if (HasCalls)
       InsertRuntimeIgnores(F);
   }
+
+  // FIXME: We need to skip the check for private memory, otherwise OpenCL CPU
+  // device may generate false positive reports due to stack re-use in different
+  // threads. However, SPIR-V builts 'ToPrivate' doesn't work as expected on
+  // OpenCL CPU device. So we need to manually cleanup private shadow before
+  // each function exit point.
+  if (Spirv && !Allocas.empty())
+    Res |= Spirv->instrumentAllocInst(&F, Allocas);
 
   // Instrument function entry/exit points if there were instrumented accesses.
   if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {
