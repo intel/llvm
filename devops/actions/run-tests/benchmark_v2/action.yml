@@ -143,7 +143,7 @@ runs:
         --output-dir "./llvm-ci-perf-results/" \
         --preset "$PRESET" \
         --timestamp-override "$SAVE_TIMESTAMP" \
-        --sycl-github-repo "$sycl_git_repo" \ 
+        --sycl-github-repo "$sycl_git_repo" \
         --sycl-commit "$sycl_git_commit"
       echo "-----"
       python3 ./devops/scripts/benchmarks/compare.py to_hist \
