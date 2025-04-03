@@ -8,7 +8,8 @@
 
 // REQUIRES: opencl-aot, cpu
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/aot.cpp -o %t.out
+// CPU AOT targets host isa, so we compile on the run system instead.
+// RUN: %{run-aux} %clangxx -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/aot.cpp -o %t.out
 // RUN: %{run} %t.out
 
 // Test that opencl-aot can handle multiple build options.
