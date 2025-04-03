@@ -217,6 +217,7 @@ static NestedNameSpecifier *getFullyQualifiedNestedNameSpecifier(
     bool WithGlobalNsPrefix) {
   switch (Scope->getKind()) {
     case NestedNameSpecifier::Global:
+    case NestedNameSpecifier::Super:
       // Already fully qualified
       return Scope;
     case NestedNameSpecifier::Namespace:
@@ -237,9 +238,7 @@ static NestedNameSpecifier *getFullyQualifiedNestedNameSpecifier(
       // but use the name of it's prefix.
       return getFullyQualifiedNestedNameSpecifier(
           Ctx, Scope->getPrefix(), WithGlobalNsPrefix);
-    case NestedNameSpecifier::Super:
-    case NestedNameSpecifier::TypeSpec:
-    case NestedNameSpecifier::TypeSpecWithTemplate: {
+    case NestedNameSpecifier::TypeSpec: {
       const Type *Type = Scope->getAsType();
       // Find decl context.
       const TagDecl *TD = nullptr;
@@ -371,8 +370,7 @@ NestedNameSpecifier *createNestedNameSpecifier(const ASTContext &Ctx,
   }
 
   return NestedNameSpecifier::Create(
-      Ctx, createOuterNNS(Ctx, TD, FullyQualify, WithGlobalNsPrefix),
-      false /*No TemplateKeyword*/, TypePtr);
+      Ctx, createOuterNNS(Ctx, TD, FullyQualify, WithGlobalNsPrefix), TypePtr);
 }
 
 /// Return the fully qualified type, including fully-qualified
