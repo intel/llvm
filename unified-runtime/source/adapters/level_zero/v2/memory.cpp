@@ -109,13 +109,12 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
     device_access_mode_t accessMode, bool ownHostPtr)
     : ur_mem_buffer_t(hContext, size, accessMode) {
-  this->ptr =
-      usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr](void *ptr) {
-        if (!ownHostPtr || !checkL0LoaderTeardown()) {
-          return;
-        }
-        ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
-      });
+  this->ptr = usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr](void *ptr) {
+    if (!ownHostPtr || !checkL0LoaderTeardown()) {
+      return;
+    }
+    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+  });
 }
 
 void *ur_integrated_buffer_handle_t::getDevicePtr(
