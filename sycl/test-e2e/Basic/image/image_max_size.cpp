@@ -1,5 +1,8 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// RUN: %{build} -o %t.out
+
+// %O0 added because of GSD-10960. Without it, IGC will fail with
+// an access violation error.
+// RUN: %{build} %O0 -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: cuda
