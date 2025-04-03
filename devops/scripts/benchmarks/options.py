@@ -46,20 +46,23 @@ class Options:
     preset: str = "Full"
     build_jobs: int = multiprocessing.cpu_count()
 
-    # Options applicable to CI only:
+    # Options intended for CI:
     regression_threshold: float = 0.05
-    # In CI, it may be necessary to e.g. compare or redo benchmark runs.
-    # A timestamp is generated at the beginning of the CI run and used through
-    # the entire CI process, instead of scripts generating their own timestamps
-    # every time a script runs (default behavior).
+    # It's necessary in CI to compare or redo benchmark runs. Instead of
+    # generating a new timestamp each run by default, specify a single timestamp
+    # to use across the entire CI run.
     timestamp_override: str = None
-    # By default, the directory to fetch results from is the benchmark working
-    # directory specified in the CLI args, hence a default value of "None" as
-    # the value is decided via runtime.
+    # The default directory to fetch results from is args.benchmark_directory,
+    # hence a default value of "None" as the value is decided during runtime.
     #
     # However, sometimes you may want to fetch results from a different
     # directory, i.e. in CI when you clone the results directory elsewhere.
     results_directory_override: str = None
+    # By default, we fetch SYCL commit info from the folder where main.py is
+    # located. This doesn't work right when CI uses different commits for e.g.
+    # CI scripts vs SYCl build source.
+    sycl_github_repo: str = None
+    sycl_commit: str = None
 
 
 options = Options()

@@ -477,28 +477,51 @@ if __name__ == "__main__":
         default=options.preset,
     )
     parser.add_argument(
-        "--results-dir",
-        type=str,
-        help="Specify a custom directory to load/store (historical) results from",
-        default=options.results_directory_override,
-    )
-    parser.add_argument(
         "--build-jobs",
         type=int,
         help="Number of build jobs to run simultaneously",
         default=options.build_jobs,
     )
     parser.add_argument(
-        "--timestamp-override",
-        type=str,
-        help="Used in CI to enforce use of same timestamp across scripts",
-        default=None,
-    )
-    parser.add_argument(
         "--hip-arch",
         type=str,
         help="HIP device architecture",
         default=None,
+    )
+
+    # Options intended for CI:
+    parser.add_argument(
+        "--results-dir",
+        type=str,
+        help="Specify a custom directory to load/store (historical) results from",
+        default=options.results_directory_override,
+    )
+    parser.add_argument(
+        "--timestamp-override",
+        type=lambda ts: Validate.timestamp(
+            ts,
+            throw=argparse.ArgumentTypeError("Specified timestamp not in YYYYMMDD_HHMMSS format.")
+        ),
+        help="Manually specify timestamp used in metadata",
+        default=options.timestamp_override,
+    )
+    parser.add_argument(
+        "--sycl-github-repo",
+        type=lambda gh_repo: Validate.github_repo(
+            gh_repo,
+            throw=argparse.ArgumentTypeError("Specified SYCL github repo not in <owner>/<repo> format.")
+        ),
+        help="Manually specify SYCL github repo used in metadata",
+        default=options.sycl_github_repo,
+    )
+    parser.add_argument(
+        "--sycl-commit",
+        type=lambda commit: Validate.commit_hash(
+            commit,
+            throw=argparse.ArgumentTypeError("Specified SYCL commit is not a valid commit hash.")
+        ),
+        help="Manually specify commit hash used to build SYCL in metadata",
+        default=options.sycl_commit,
     )
 
     args = parser.parse_args()
@@ -539,14 +562,18 @@ if __name__ == "__main__":
         if not os.path.isdir(args.output_dir):
             parser.error("Specified --output-dir is not a valid path")
         options.output_directory = os.path.abspath(args.output_dir)
-    if args.timestamp_override is not None:
-        if not Validate.timestamp(args.timestamp_override):
-            parser.error("--timestamp_override is not a valid timestamp")
-        options.timestamp_override = args.timestamp_override
+
+    # Options intended for CI:
+    options.timestamp_override = args.timestamp_override
     if args.results_dir is not None:
         if not os.path.isdir(args.results_dir):
             parser.error("Specified --results-dir is not a valid path")
         options.results_directory_override = os.path.abspath(args.results_dir)
+    if args.sycl_github_repo is not None or args.sycl_commit is not None:
+        if args.sycl_github_repo is None or args.sycl_commit is None:
+            parser.error("--sycl-github-repo and --sycl-commit must both be defined together")
+        options.sycl_github_repo = args.sycl_github_repo
+        options.sycl_commit = args.sycl_commit
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

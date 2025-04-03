@@ -58,45 +58,58 @@ class BenchmarkHistory:
         self.runs = benchmark_runs
 
     def create_run(self, name: str, results: list[Result]) -> BenchmarkRun:
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            result = run("git rev-parse --short HEAD", cwd=script_dir)
-            git_hash = result.stdout.decode().strip()
 
-            # Get the GitHub repo URL from git remote
-            remote_result = run("git remote get-url origin", cwd=script_dir)
-            remote_url = remote_result.stdout.decode().strip()
+        def git_info_from_path(path: Path) -> (str, str):
+            """
+            Derives git repo, commit information from git repo located in path.
 
-            # Convert SSH or HTTPS URL to owner/repo format
-            if remote_url.startswith("git@github.com:"):
-                # SSH format: git@github.com:owner/repo.git
-                github_repo = remote_url.split("git@github.com:")[1].rstrip(".git")
-            elif remote_url.startswith("https://github.com/"):
-                # HTTPS format: https://github.com/owner/repo.git
-                github_repo = remote_url.split("https://github.com/")[1].rstrip(".git")
-            else:
+            Returns:
+                (str, str): git_hash, github_repo
+            """
+            try:
+                result = run("git rev-parse --short HEAD", cwd=path)
+                git_hash = result.stdout.decode().strip()
+
+                # Get the GitHub repo URL from git remote
+                remote_result = run("git remote get-url origin", cwd=path)
+                remote_url = remote_result.stdout.decode().strip()
+
+                # Convert SSH or HTTPS URL to owner/repo format
+                if remote_url.startswith("git@github.com:"):
+                    # SSH format: git@github.com:owner/repo.git
+                    github_repo = remote_url.split("git@github.com:")[1].rstrip(".git")
+                elif remote_url.startswith("https://github.com/"):
+                    # HTTPS format: https://github.com/owner/repo.git
+                    github_repo = remote_url.split("https://github.com/")[1].rstrip(".git")
+                else:
+                    github_repo = None
+
+            except:
+                git_hash = "unknown"
                 github_repo = None
+            
+            return git_hash, github_repo
 
-        except:
-            git_hash = "unknown"
-            github_repo = None
+        if options.sycl_commit is None or options.sycl_github_repo is None:
+            git_hash, github_repo = git_info_from_path(os.path.dirname(os.path.abspath(__file__)))
+        else:
+            git_hash, github_repo = options.sycl_commit, options.sycl_github_repo
         
         # Check if RUNNER_NAME environment variable has been declared.
         #
-        # RUNNER_NAME is always present in github runner environments. Because
-        # github runners obfusicate hostnames, using socket.gethostname()
-        # produces different hostnames when ran on the same machine multiple
-        # times. Thus, we rely on the RUNNER_NAME variable when running on
-        # github runners.
+        # Github runners obfusicate hostnames, thus running socket.gethostname()
+        # twice produces two different hostnames. Since github runners always
+        # define a RUNNER_NAME variable, use RUNNER_NAME instead if it exists:
         hostname = os.getenv("RUNNER_NAME")
         if hostname is None:
             hostname = socket.gethostname()
-        elif not Validate.runner_name(hostname):
-            # However, nothing stops github runner env variables (including
-            # RUNNER_NAME) from being modified by external actors. Ensure
-            # RUNNER_NAME contains nothing malicious:
+        else:
+            # Ensure RUNNER_NAME has not been tampered with:
             # TODO is this overkill?
-            raise ValueError("Illegal characters found in specified RUNNER_NAME.")
+            Validate.runner_name(
+                hostname,
+                throw=ValueError("Illegal characters found in specified RUNNER_NAME.")
+            )
 
         return BenchmarkRun(
             name=name,
