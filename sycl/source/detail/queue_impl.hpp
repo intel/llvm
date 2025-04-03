@@ -710,7 +710,7 @@ public:
   void *getTraceEvent() { return MTraceEvent; }
 
   void setExternalEvent(const event &Event) {
-    MInOrderExternalEvent.push([&](std::optional<event> &InOrderExternalEvent) {
+    MInOrderExternalEvent.set([&](std::optional<event> &InOrderExternalEvent) {
       InOrderExternalEvent = Event;
     });
   }
@@ -718,7 +718,7 @@ public:
   std::optional<event> popExternalEvent() {
     std::optional<event> Result = std::nullopt;
 
-    MInOrderExternalEvent.pop([&](std::optional<event> &InOrderExternalEvent) {
+    MInOrderExternalEvent.unset([&](std::optional<event> &InOrderExternalEvent) {
       std::swap(Result, InOrderExternalEvent);
     });
     return Result;
@@ -841,7 +841,7 @@ protected:
     // dependency so in the case where some commands were not enqueued
     // (blocked), we track them to prevent barrier from being enqueued
     // earlier.
-    MMissedCleanupRequests.pop(
+    MMissedCleanupRequests.unset(
         [&](MissedCleanupRequestsType &MissedCleanupRequests) {
           for (auto &UpdatedGraph : MissedCleanupRequests)
             doUnenqueuedCommandCleanup(UpdatedGraph);
@@ -1030,32 +1030,33 @@ protected:
     }
   } MDefaultGraphDeps, MExtGraphDeps;
 
-  // implement check-lock-check pattern to not lock empty MData
+  // Implement check-lock-check pattern to not lock empty MData as the locks
+  // come with runtime overhead.
   template <typename DataType> class CheckLockCheck {
     DataType MData;
-    std::atomic_bool MDataPresent = false;
+    std::atomic_bool MIsSet = false;
     mutable std::mutex MDataMtx;
 
   public:
-    template <typename F> void push(F &&func) {
+    template <typename F> void set(F &&func) {
       std::lock_guard<std::mutex> Lock(MDataMtx);
-      MDataPresent.store(true, std::memory_order_release);
-      func(MData);
+      MIsSet.store(true, std::memory_order_release);
+      std::forward<F>(func)(MData);
     }
-    template <typename F> void pop(F &&func) {
-      if (MDataPresent.load(std::memory_order_acquire)) {
+    template <typename F> void unset(F &&func) {
+      if (MIsSet.load(std::memory_order_acquire)) {
         std::lock_guard<std::mutex> Lock(MDataMtx);
-        if (MDataPresent.load(std::memory_order_acquire)) {
-          func(MData);
-          MDataPresent.store(false, std::memory_order_release);
+        if (MIsSet.load(std::memory_order_acquire)) {
+          std::forward<F>(func)(MData);
+          MIsSet.store(false, std::memory_order_release);
         }
       }
     }
-    template <typename F> DataType read(F &&func) {
-      if (!MDataPresent.load(std::memory_order_acquire))
+    DataType read() {
+      if (!MIsSet.load(std::memory_order_acquire))
         return DataType{};
       std::lock_guard<std::mutex> Lock(MDataMtx);
-      return func(MData);
+      return MData;
     }
   };
 

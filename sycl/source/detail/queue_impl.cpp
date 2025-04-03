@@ -286,10 +286,7 @@ event queue_impl::memcpyFromDeviceGlobal(
 sycl::detail::optional<event> queue_impl::getLastEvent() {
   // The external event is required to finish last if set, so it is considered
   // the last event if present.
-  if (std::optional<event> ExternalEvent = MInOrderExternalEvent.read(
-          [](std::optional<event> &InOrderExternalEvent) {
-            return InOrderExternalEvent;
-          }))
+  if (std::optional<event> ExternalEvent = MInOrderExternalEvent.read())
     return ExternalEvent;
 
   std::lock_guard<std::mutex> Lock{MMutex};
@@ -618,7 +615,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
 
-    MMissedCleanupRequests.pop(
+    MMissedCleanupRequests.unset(
         [&](MissedCleanupRequestsType &MissedCleanupRequests) {
           for (auto &UpdatedGraph : MissedCleanupRequests)
             doUnenqueuedCommandCleanup(UpdatedGraph);
@@ -800,7 +797,7 @@ void queue_impl::revisitUnenqueuedCommandsState(
   if (Lock.owns_lock())
     doUnenqueuedCommandCleanup(CompletedHostTask->getCommandGraph());
   else {
-    MMissedCleanupRequests.push(
+    MMissedCleanupRequests.set(
         [&](MissedCleanupRequestsType &MissedCleanupRequests) {
           MissedCleanupRequests.push_back(CompletedHostTask->getCommandGraph());
         });
