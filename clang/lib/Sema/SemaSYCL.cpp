@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
-#include <iostream>
+
 #include "clang/Sema/SemaSYCL.h"
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
@@ -6739,15 +6739,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       else
         ParmList += ", ";
       ParmList += Param->getType().getCanonicalType().getAsString(Policy);
-      Param->getType()->dump(); 
     }
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.PrintCanonicalTypes = true;
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
     Policy.FullyQualifiedName = true;
-    Policy.EnforceScopeForElaboratedTypes = true;
-    
+    Policy.EnforceScopeForElaboratedTypes = true; 
     // Now we need to print the declaration of the kernel itself.
     // Example:
     // template <typename T, typename = int> struct Arg {

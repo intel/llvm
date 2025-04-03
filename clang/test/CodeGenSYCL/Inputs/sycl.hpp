@@ -34,8 +34,9 @@ struct sampler_impl {
 class __attribute__((sycl_special_class)) __SYCL_TYPE(sampler) sampler {
   struct sampler_impl impl;
 #ifdef __SYCL_DEVICE_ONLY__
-  sampler() = default;
   void __init(__ocl_sampler_t Sampler) { impl.m_Sampler = Sampler; }
+public:
+  sampler() = default;
 #endif
 
 public:
@@ -329,7 +330,7 @@ class __attribute__((sycl_special_class)) __SYCL_TYPE(accessor) accessor {
 
 public:
 #ifdef __SYCL_DEVICE_ONLY__               
-accessor() = default;
+  accessor() = default;
 #endif
   void use(void) const {}
   template <typename... T>
@@ -494,19 +495,21 @@ int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) annotated_arg {
   T obj;
-  #ifdef __SYCL_DEVICE_ONLY__
-    annotated_arg() = default;
+#ifdef __SYCL_DEVICE_ONLY__
     void __init(T _obj) {}
-  #endif
+public:
+    annotated_arg() = default;
+#endif
 };
 
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_ptr) annotated_ptr {
   T* obj;
-  #ifdef __SYCL_DEVICE_ONLY__
-    annotated_ptr() = default;
+#ifdef __SYCL_DEVICE_ONLY__
     void __init(T* _obj) {}
-  #endif
+public:
+    annotated_ptr() = default;
+#endif
 };
 
 } // namespace experimental
