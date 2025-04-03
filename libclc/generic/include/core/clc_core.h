@@ -38,7 +38,7 @@
 
 #include <core/convert.h>
 
-#include <core/integer/clc_add_sat.h>
+#include <clc/integer/clc_add_sat.h>
 #include <core/integer/clc_mad_sat.h>
 #include <core/integer/clc_sub_sat.h>
 
