@@ -15,7 +15,6 @@
 #include "ur_filesystem_resolved.hpp"
 #include "ur_level.hpp"
 #include "ur_print.hpp"
-#include <assert.h>
 
 namespace logger {
 
@@ -91,7 +90,8 @@ private:
   std::mutex output_mutex;
   const char *error_prefix = "Log message syntax error: ";
 
-  void format(std::ostringstream &buffer, const char *filename, const char *lineno, const char *fmt) {
+  void format(std::ostringstream &buffer, const char *filename,
+              const char *lineno, const char *fmt) {
     while (*fmt != '\0') {
       while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
         buffer << *fmt++;
@@ -101,28 +101,24 @@ private:
         if (*(++fmt) == '{') {
           buffer << *fmt++;
         } else {
-            std::cerr << error_prefix
-                      << "No arguments provided and braces not escaped!"
-                      << filename << ":" << lineno
-                      << std::endl;
-          assert(false && "No arguments provided and braces not escaped!");
+          std::cerr << error_prefix
+                    << "No arguments provided and braces not escaped!"
+                    << filename << ":" << lineno << std::endl;
         }
       } else if (*fmt == '}') {
         if (*(++fmt) == '}') {
           buffer << *fmt++;
         } else {
-            std::cerr << error_prefix << "Closing curly brace not escaped!"
-                      << filename << ":" << lineno
-                      << std::endl;
-          assert(false);
+          std::cerr << error_prefix << "Closing curly brace not escaped!"
+                    << filename << ":" << lineno << std::endl;
         }
       }
     }
   }
 
   template <typename Arg, typename... Args>
-  void format(std::ostringstream &buffer, const char *filename, const char *lineno, const char *fmt, Arg &&arg,
-              Args &&...args) {
+  void format(std::ostringstream &buffer, const char *filename,
+              const char *lineno, const char *fmt, Arg &&arg, Args &&...args) {
     bool arg_printed = false;
     while (!arg_printed) {
       while (*fmt != '{' && *fmt != '}' && *fmt != '\0') {
@@ -134,9 +130,7 @@ private:
           buffer << *fmt++;
         } else if (*fmt != '}') {
           std::cerr << error_prefix << "Only empty braces are allowed!"
-                    << filename << ":" << lineno
-                    << std::endl;
-          assert(false);
+                    << filename << ":" << lineno << std::endl;
         } else {
           buffer << arg;
           arg_printed = true;
@@ -146,18 +140,14 @@ private:
           buffer << *fmt++;
         } else {
           std::cerr << error_prefix << "Closing curly brace not escaped!"
-                    << filename << ":" << lineno
-                    << std::endl;
-          assert(false);
+                    << filename << ":" << lineno << std::endl;
         }
       }
 
       if (*fmt == '\0') {
-        std::cerr << error_prefix
-                  << filename << ":" << lineno
+        std::cerr << error_prefix << filename << ":" << lineno
                   << "Too many arguments! first excessive:" << arg << std::endl;
         // ignore all left arguments and finalize message
-          assert(false);
         format(buffer, filename, lineno, fmt);
         return;
       }
