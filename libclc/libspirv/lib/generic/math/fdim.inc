@@ -24,8 +24,8 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_fdim(__CLC_GENTYPE x,
     int##width n = ~((x == x) & (y == y)) & QNANBITPATT_SP32;                  \
     /* Calculate x-y if x>y, otherwise positive 0, again taking */             \
     /* advantage of vector true being all-bits-set. */                         \
-    int##width r = (x > y) & __clc_as_int##width(x - y);                             \
-    return __clc_as_float##width(n | r);                                             \
+    int##width r = (x > y) & __clc_as_int##width(x - y);                       \
+    return __clc_as_float##width(n | r);                                       \
   }
 __CLC_FDIM_VEC(2)
 __CLC_FDIM_VEC(3)
@@ -49,8 +49,8 @@ _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_fdim(__CLC_GENTYPE x,
                                                         double##width y) {     \
     /* See comment in float implementation for explanation. */                 \
     long##width n = ~((x == x) & (y == y)) & QNANBITPATT_DP64;                 \
-    long##width r = (x > y) & __clc_as_long##width(x - y);                           \
-    return __clc_as_double##width(n | r);                                            \
+    long##width r = (x > y) & __clc_as_long##width(x - y);                     \
+    return __clc_as_double##width(n | r);                                      \
   }
 __CLC_FDIM_VEC(2)
 __CLC_FDIM_VEC(3)

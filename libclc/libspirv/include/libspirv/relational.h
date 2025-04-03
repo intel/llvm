@@ -23,7 +23,7 @@
 #define _CLC_DEFINE_RELATIONAL_UNARY_VEC3(RET_TYPE, FUNCTION, ARG_TYPE)        \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG_TYPE x) {                       \
     return __clc_as_##RET_TYPE(((RET_TYPE){FUNCTION(x.s0), FUNCTION(x.s1),     \
-                                     FUNCTION(x.s2)} != (RET_TYPE)0));         \
+                                           FUNCTION(x.s2)} != (RET_TYPE)0));   \
   }
 
 #define _CLC_DEFINE_RELATIONAL_UNARY_VEC4(RET_TYPE, FUNCTION, ARG_TYPE)        \
@@ -82,8 +82,9 @@
 #define _CLC_DEFINE_RELATIONAL_BINARY_VEC2(RET_TYPE, FUNCTION, ARG0_TYPE,      \
                                            ARG1_TYPE)                          \
   _CLC_DEF _CLC_OVERLOAD RET_TYPE FUNCTION(ARG0_TYPE x, ARG1_TYPE y) {         \
-    return __clc_as_##RET_TYPE(((RET_TYPE){FUNCTION(x.lo, y.lo),               \
-                                     FUNCTION(x.hi, y.hi)} != (RET_TYPE)0));   \
+    return __clc_as_##RET_TYPE(                                                \
+        ((RET_TYPE){FUNCTION(x.lo, y.lo), FUNCTION(x.hi, y.hi)} !=             \
+         (RET_TYPE)0));                                                        \
   }
 
 #define _CLC_DEFINE_RELATIONAL_BINARY_VEC3(RET_TYPE, FUNCTION, ARG0_TYPE,      \

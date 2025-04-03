@@ -267,7 +267,8 @@ __spirv_ocl_log(double x)
 
   // Deal with subnormal
   ulong ux = __clc_as_ulong(x);
-  ulong uxs = __clc_as_ulong(__clc_as_double(0x03d0000000000000UL | ux) - 0x1.0p-962);
+  ulong uxs =
+      __clc_as_ulong(__clc_as_double(0x03d0000000000000UL | ux) - 0x1.0p-962);
   int c = ux < IMPBIT_DP64;
   ux = c ? uxs : ux;
   int expadjust = c ? 60 : 0;
