@@ -865,8 +865,8 @@ public:
         // Pack main image and dependencies together.
         std::vector<device_image_plain> NewImageAndDeps;
         NewImageAndDeps.reserve(1 + ImgDeps.size());
-        NewImageAndDeps.push_back(std::move(
-            createSyclObjFromImpl<device_image_plain>(std::move(DevImgImpl))));
+        NewImageAndDeps.push_back(
+            createSyclObjFromImpl<device_image_plain>(std::move(DevImgImpl)));
         for (RTDeviceBinaryImage *ImgDep : ImgDeps)
           NewImageAndDeps.push_back(PM.createDependencyImage(
               MContext, Devices, ImgDep, bundle_state::input));
