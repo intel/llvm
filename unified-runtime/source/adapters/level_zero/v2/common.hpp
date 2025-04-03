@@ -106,7 +106,6 @@ struct ze_handle_wrapper {
 private:
   ZeHandleT handle;
   bool ownZeHandle;
-  bool IsInteropNativeHandle = false;
 };
 
 using ze_kernel_handle_t = HANDLE_WRAPPER_TYPE(::ze_kernel_handle_t,

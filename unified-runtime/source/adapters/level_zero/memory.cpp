@@ -1563,7 +1563,6 @@ ur_result_t urMemImageCreateWithNativeHandle(
   auto OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
   UR_CALL(createUrMemFromZeImage(Context, ZeHImage, OwnNativeHandle,
                                  ZeImageDesc, Mem));
-  (*Mem)->IsInteropNativeHandle = true;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1779,7 +1778,6 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     Buffer = new _ur_buffer(Context, Size, Device, ur_cast<char *>(NativeMem),
                             OwnNativeHandle);
     *Mem = reinterpret_cast<ur_mem_handle_t>(Buffer);
-    (*Mem)->IsInteropNativeHandle = true;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {

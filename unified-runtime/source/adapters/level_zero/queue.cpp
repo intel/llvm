@@ -805,7 +805,6 @@ ur_result_t urQueueCreateWithNativeHandle(
       ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(
           ComputeQueues, CopyQueues, Context, UrDevice, OwnNativeHandle, Flags);
       *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
-      (*RetQueue)->IsInteropNativeHandle = true;
     } catch (const std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {

@@ -1001,7 +1001,6 @@ ur_result_t urEventCreateWithNativeHandle(
   UREvent->CleanedUp = true;
 
   *Event = reinterpret_cast<ur_event_handle_t>(UREvent);
-  UREvent->IsInteropNativeHandle = true;
 
   return UR_RESULT_SUCCESS;
 }

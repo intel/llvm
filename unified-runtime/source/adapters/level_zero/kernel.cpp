@@ -1160,7 +1160,6 @@ ur_result_t urKernelCreateWithNativeHandle(
   }
 
   Kernel->Program = Program;
-  Kernel->IsInteropNativeHandle = true;
 
   UR_CALL(Kernel->initialize());
 
