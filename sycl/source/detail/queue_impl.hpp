@@ -804,10 +804,15 @@ protected:
       // Note that host_task events can never be discarded, so this will not
       // insert barriers between host_task enqueues.
       if (EventToBuildDeps->isDiscarded() &&
-          getSyclObjImpl(Handler)->MCGType == CGType::CodeplayHostTask)
+          Handler.getType() == CGType::CodeplayHostTask)
         EventToBuildDeps = insertHelperBarrier(Handler);
 
-      if (!EventToBuildDeps->isDiscarded())
+      // depends_on after an async alloc is explicitly disallowed. Async alloc
+      // handles in order queue dependencies preemptively, so we skip them.
+      // Note: This could be improved by moving the handling of dependencies
+      // to before calling the CGF.
+      if (!EventToBuildDeps->isDiscarded() &&
+          !(Handler.getType() == CGType::AsyncAlloc))
         Handler.depends_on(EventToBuildDeps);
     }
 

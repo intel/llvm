@@ -24,6 +24,7 @@
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -215,7 +216,7 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr &Context);
 
-  void addImage(sycl_device_binary RawImg, bool IsRTC,
+  void addImage(sycl_device_binary RawImg,
                 RTDeviceBinaryImage **OutImage = nullptr,
                 std::vector<kernel_id> *OutKernelIDs = nullptr);
   void addImages(sycl_device_binaries DeviceImages);
@@ -368,7 +369,7 @@ private:
 
   using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
                                      decltype(&::urProgramRelease)>;
-  ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
+  ProgramPtr build(ProgramPtr Program, const ContextImplPtr &Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions,
                    std::vector<ur_device_handle_t> &Devices,
@@ -394,11 +395,15 @@ private:
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, const device &Dev);
 
+  bool isSpecialDeviceImage(RTDeviceBinaryImage *BinImage);
+  bool isSpecialDeviceImageShouldBeUsed(RTDeviceBinaryImage *BinImage,
+                                        const device &Dev);
+
 protected:
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
-
+  using DynRTDeviceBinaryImageUPtr = std::unique_ptr<DynRTDeviceBinaryImage>;
   /// Maps names of kernels to their unique kernel IDs.
   /// TODO: Use std::unordered_set with transparent hash and equality functions
   ///       when C++20 is enabled for the runtime library.
@@ -515,6 +520,12 @@ protected:
   using MaterializedEntries =
       std::map<std::vector<unsigned char>, ur_kernel_handle_t>;
   std::unordered_map<std::string, MaterializedEntries> m_MaterializedKernels;
+
+  // Holds bfloat16 device library images, the 1st element is for fallback
+  // version and 2nd is for native version. These bfloat16 device library
+  // images are provided by compiler long time ago, we expect no further
+  // update, so keeping 1 copy should be OK.
+  std::array<DynRTDeviceBinaryImageUPtr, 2> m_Bfloat16DeviceLibImages;
 
   friend class ::ProgramManagerTest;
 };

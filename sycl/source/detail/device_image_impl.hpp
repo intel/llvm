@@ -753,7 +753,7 @@ public:
 
         RTDeviceBinaryImage *NewImage = nullptr;
         auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
-        PM.addImage(Binary, /*IsRTC=*/true, &NewImage, KernelIDs.get());
+        PM.addImage(Binary, &NewImage, KernelIDs.get());
 
         // If the image is empty, we can skip it.
         if (!NewImage)
