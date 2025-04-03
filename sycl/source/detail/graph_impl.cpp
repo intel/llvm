@@ -8,7 +8,6 @@
 
 #define __SYCL_GRAPH_IMPL_CPP
 
-#include <stack>
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -16,6 +15,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <stack>
 #include <sycl/detail/common.hpp>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
@@ -1509,7 +1509,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    auto KernelName = ExecCG.MKernelName;
+    const auto &KernelName = ExecCG.MKernelName;
     kernel_id KernelID =
         sycl::detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
     kernel SyclKernel =
