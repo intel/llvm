@@ -9,6 +9,8 @@
 #include <clc/clc.h>
 #include <libspirv/spirv.h>
 
-#define __CLC_BODY <native_divide.inc>
 #define __FLOAT_ONLY
+#define FUNCTION native_divide
+#define __CLC_BODY <clc/shared/binary_def.inc>
+
 #include <clc/math/gentype.inc>
