@@ -414,20 +414,20 @@ void *ur_mem_sub_buffer_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
     size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->getDevicePtr(
-      hDevice, access, offset + this->offset, size, migrate);
+      hDevice, access, offset + this->offset, size, std::move(migrate));
 }
 
 void *ur_mem_sub_buffer_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t size,
     std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
-                                          migrate);
+                                          std::move(migrate));
 }
 
 void ur_mem_sub_buffer_t::unmapHostPtr(
     void *pMappedPtr,
     std::function<void(void *src, void *dst, size_t)> migrate) {
-  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, migrate);
+  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, std::move(migrate));
 }
 
 ur_shared_mutex &ur_mem_sub_buffer_t::getMutex() {
