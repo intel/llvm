@@ -1961,7 +1961,7 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
       size_t ImgSize =
           static_cast<size_t>(RawImg->BinaryEnd - RawImg->BinaryStart);
       std::unique_ptr<char[], std::function<void(void *)>> Data(
-          new char[ImgSize]);
+          new char[ImgSize], std::free);
       std::memcpy(Data.get(), RawImg->BinaryStart, ImgSize);
       auto DynBfloat16DeviceLibImg =
           std::make_unique<DynRTDeviceBinaryImage>(std::move(Data), ImgSize);
