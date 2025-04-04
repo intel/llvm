@@ -64,7 +64,7 @@ static inline latencyValues getValues(const struct hdr_histogram *histogram) {
   auto ret = hdr_value_at_percentiles(histogram, percentiles,
                                       values.percentileValues, numPercentiles);
   if (ret != 0) {
-    logger::error("Failed to get percentiles from latency histogram");
+    URLOG(ERR, "Failed to get percentiles from latency histogram");
   }
 
   return values;
@@ -137,7 +137,7 @@ public:
       auto ret = hdr_init(lowestDiscernibleValue, highestTrackableValue,
                           significantFigures, &cHistogram);
       if (ret != 0) {
-        logger::error("Failed to initialize latency histogram");
+        URLOG(ERR, "Failed to initialize latency histogram");
       }
       histogram = std::unique_ptr<struct hdr_histogram, decltype(&hdr_close)>(
           cHistogram, &hdr_close);
@@ -153,7 +153,7 @@ public:
     }
 
     if (hdr_min(histogram.get()) == std::numeric_limits<int64_t>::max()) {
-      logger::info("[{}] latency: no data", name);
+      URLOG(INFO, "[{}] latency: no data", name);
       return;
     }
 

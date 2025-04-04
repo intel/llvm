@@ -82,7 +82,7 @@ SourceInfo ParseSymbolizerOutput(const std::string &Output) {
 
 void StackTrace::print() const {
   if (!stack.size()) {
-    getContext()->logger.always("  failed to acquire backtrace");
+    URLOG_CTX_ALWAYS("  failed to acquire backtrace");
   }
 
   unsigned index = 0;
@@ -113,21 +113,19 @@ void StackTrace::print() const {
         std::string Result((char *)ResultVector.data());
         SourceInfo SrcInfo = ParseSymbolizerOutput(Result);
         if (SrcInfo.file != "??") {
-          getContext()->logger.always(" #{} in {} {}:{}:{}", index,
-                                      SrcInfo.function, SrcInfo.file,
-                                      SrcInfo.line, SrcInfo.column);
+          URLOG_CTX_ALWAYS(" #{} in {} {}:{}:{}", index, SrcInfo.function,
+                           SrcInfo.file, SrcInfo.line, SrcInfo.column);
         } else {
-          getContext()->logger.always(" #{} in {} ({}+{})", index,
-                                      SrcInfo.function, ModuleName,
-                                      (void *)Offset);
+          URLOG_CTX_ALWAYS(" #{} in {} ({}+{})", index, SrcInfo.function,
+                           ModuleName, (void *)Offset);
         }
       }
     } else {
-      getContext()->logger.always("  #{} {}", index, BI);
+      URLOG_CTX_ALWAYS("  #{} {}", index, BI);
     }
     ++index;
   }
-  getContext()->logger.always("");
+  URLOG_CTX_ALWAYS("");
 
   free(BacktraceSymbols);
 }

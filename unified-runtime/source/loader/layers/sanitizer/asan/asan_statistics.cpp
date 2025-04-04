@@ -46,23 +46,22 @@ private:
 };
 
 void AsanStats::Print(ur_context_handle_t Context) {
-  getContext()->logger.always("Stats: Context {}", (void *)Context);
-  getContext()->logger.always("Stats:   peak memory overhead: {}%",
-                              Overhead * 100);
+  URLOG_CTX_ALWAYS("Stats: Context {}", (void *)Context);
+  URLOG_CTX_ALWAYS("Stats:   peak memory overhead: {}%", Overhead * 100);
 }
 
 void AsanStats::UpdateUSMMalloced(uptr MallocedSize, uptr RedzoneSize) {
   UsmMalloced += MallocedSize;
   UsmMallocedRedzones += RedzoneSize;
-  getContext()->logger.debug(
-      "Stats: UpdateUSMMalloced(UsmMalloced={}, UsmMallocedRedzones={})",
-      UsmMalloced, UsmMallocedRedzones);
+  URLOG_CTX(DEBUG,
+            "Stats: UpdateUSMMalloced(UsmMalloced={}, UsmMallocedRedzones={})",
+            UsmMalloced, UsmMallocedRedzones);
   UpdateOverhead();
 }
 
 void AsanStats::UpdateUSMFreed(uptr FreedSize) {
   UsmFreed += FreedSize;
-  getContext()->logger.debug("Stats: UpdateUSMFreed(UsmFreed={})", UsmFreed);
+  URLOG_CTX(DEBUG, "Stats: UpdateUSMFreed(UsmFreed={})", UsmFreed);
 }
 
 void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
@@ -71,23 +70,23 @@ void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
   if (getContext()->Options.MaxQuarantineSizeMB) {
     UsmFreed -= FreedSize;
   }
-  getContext()->logger.debug(
-      "Stats: UpdateUSMRealFreed(UsmMalloced={}, UsmMallocedRedzones={})",
-      UsmMalloced, UsmMallocedRedzones);
+  URLOG_CTX(DEBUG,
+            "Stats: UpdateUSMRealFreed(UsmMalloced={}, UsmMallocedRedzones={})",
+            UsmMalloced, UsmMallocedRedzones);
   UpdateOverhead();
 }
 
 void AsanStats::UpdateShadowMalloced(uptr ShadowSize) {
   ShadowMalloced += ShadowSize;
-  getContext()->logger.debug("Stats: UpdateShadowMalloced(ShadowMalloced={})",
-                             ShadowMalloced);
+  URLOG_CTX(DEBUG, "Stats: UpdateShadowMalloced(ShadowMalloced={})",
+            ShadowMalloced);
   UpdateOverhead();
 }
 
 void AsanStats::UpdateShadowFreed(uptr ShadowSize) {
   ShadowMalloced -= ShadowSize;
-  getContext()->logger.debug("Stats: UpdateShadowFreed(ShadowMalloced={})",
-                             ShadowMalloced);
+  URLOG_CTX(DEBUG, "Stats: UpdateShadowFreed(ShadowMalloced={})",
+            ShadowMalloced);
   UpdateOverhead();
 }
 

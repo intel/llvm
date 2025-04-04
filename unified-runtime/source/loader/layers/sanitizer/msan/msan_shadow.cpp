@@ -45,7 +45,7 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
         std::make_shared<MsanShadowMemoryDG2>(Context, Device);
     return ShadowDG2;
   } else {
-    getContext()->logger.error("Unsupport device type");
+    URLOG_CTX(ERR, "Unsupport device type");
     return nullptr;
   }
 }
@@ -118,9 +118,9 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
     const uptr ShadowBegin = MemToShadow(Ptr);
     const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
     assert(ShadowBegin <= ShadowEnd);
-    getContext()->logger.debug(
-        "EnqueuePoisonShadow(addr={}, count={}, value={})", (void *)ShadowBegin,
-        ShadowEnd - ShadowBegin + 1, (void *)(size_t)Value);
+    URLOG_CTX(DEBUG, "EnqueuePoisonShadow(addr={}, count={}, value={})",
+              (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+              (void *)(size_t)Value);
     memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
   }
 
@@ -146,9 +146,8 @@ ur_result_t MsanShadowMemoryGPU::Setup() {
     auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
         Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
     if (Result != UR_RESULT_SUCCESS) {
-      getContext()->logger.error(
-          "Shadow memory reserved failed with size {}: {}", (void *)ShadowSize,
-          Result);
+      URLOG_CTX(ERR, "Shadow memory reserved failed with size {}: {}",
+                (void *)ShadowSize, Result);
       return Result;
     }
     ShadowEnd = ShadowBegin + ShadowSize;
@@ -192,7 +191,7 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
       auto URes = getContext()->urDdiTable.PhysicalMem.pfnCreate(
           Context, Device, PageSize, nullptr, &PhysicalMem);
       if (URes != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("urPhysicalMemCreate(): {}", URes);
+        URLOG_CTX(ERR, "urPhysicalMemCreate(): {}", URes);
         return URes;
       }
 
@@ -200,20 +199,20 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
           Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
           UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
       if (URes != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("urVirtualMemMap({}, {}): {}",
-                                   (void *)MappedPtr, PageSize, URes);
+        URLOG_CTX(ERR, "urVirtualMemMap({}, {}): {}", (void *)MappedPtr,
+                  PageSize, URes);
         return URes;
       }
 
-      getContext()->logger.debug("urVirtualMemMap: {} ~ {}", (void *)MappedPtr,
-                                 (void *)(MappedPtr + PageSize - 1));
+      URLOG_CTX(DEBUG, "urVirtualMemMap: {} ~ {}", (void *)MappedPtr,
+                (void *)(MappedPtr + PageSize - 1));
 
       // Initialize to zero
       URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize,
                                    EventWaitList.size(), EventWaitList.data(),
                                    OutEvent);
       if (URes != UR_RESULT_SUCCESS) {
-        getContext()->logger.error("EnqueueUSMSet(): {}", URes);
+        URLOG_CTX(ERR, "EnqueueUSMSet(): {}", URes);
         return URes;
       }
 
@@ -257,10 +256,9 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
                                       ShadowEnd - ShadowBegin + 1,
                                       Events.size(), Events.data(), OutEvent);
 
-  getContext()->logger.debug(
-      "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",
-      (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1, (void *)(size_t)Value,
-      Result);
+  URLOG_CTX(DEBUG, "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",
+            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+            (void *)(size_t)Value, Result);
 
   return Result;
 }
@@ -285,9 +283,8 @@ MsanShadowMemoryGPU::ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) {
           Context, (void *)MappedPtr, PageSize));
       UR_CALL(getContext()->urDdiTable.PhysicalMem.pfnRelease(
           VirtualMemMaps[MappedPtr].first));
-      getContext()->logger.debug("urVirtualMemUnmap: {} ~ {}",
-                                 (void *)MappedPtr,
-                                 (void *)(MappedPtr + PageSize - 1));
+      URLOG_CTX(DEBUG, "urVirtualMemUnmap: {} ~ {}", (void *)MappedPtr,
+                (void *)(MappedPtr + PageSize - 1));
     }
   }
 
