@@ -1,5 +1,5 @@
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} -o %t.out
+// RUN: %{build} %cxx_std_optionc++20 -o %t.out
 // RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
@@ -10,6 +10,7 @@
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
+#include <type_traits>
 
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -60,13 +61,38 @@ struct TestClass {
   TestClass(float d) : data(d) {}
 };
 
+template <typename T> struct TemplatedTestClass {
+  T data;
+  TemplatedTestClass(T d) : data(d) {}
+};
+
+using IntClassAlias = TemplatedTestClass<int>;
+using FloatClassAlias = TemplatedTestClass<float>;
+
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void function_with_test_class(float start, TestClass *ptr) {
   size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
   ptr[id].data = start + static_cast<float>(id);
 }
 
-template <typename T> void check_result(T *ptr) {
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void function_with_int_alias_test_class(float start, IntClassAlias *ptr) {
+  size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+  ptr[id].data = start + static_cast<int>(id);
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void function_with_float_alias_test_class(float start, FloatClassAlias *ptr) {
+  size_t id = syclext::this_work_item::get_nd_item<1>().get_global_linear_id();
+  ptr[id].data = start + static_cast<float>(id);
+}
+
+template <typename T>
+concept NumericType = std::is_arithmetic_v<std::remove_reference_t<T>>;
+
+template <typename T>
+  requires NumericType<T>
+void check_result(T *ptr) {
   for (size_t i = 0; i < NUM; ++i) {
     const float expected = 3.14f + static_cast<float>(i);
     assert(ptr[i] == expected &&
@@ -74,9 +100,17 @@ template <typename T> void check_result(T *ptr) {
   }
 }
 
-template <> void check_result(TestClass *ptr) {
+template <typename T>
+concept HasDataMemeber = requires(T t) {
+  { t.data } -> NumericType;
+};
+
+template <typename T>
+  requires HasDataMemeber<T>
+void check_result(T *ptr) {
+  using DataType = decltype(ptr->data);
   for (size_t i = 0; i < NUM; ++i) {
-    const float expected = 3.14f + static_cast<float>(i);
+    const DataType expected = 3.14f + static_cast<DataType>(i);
     assert(ptr[i].data == expected &&
            "Kernel execution did not produce the expected result");
   }
@@ -90,7 +124,7 @@ static void call_kernel_code(sycl::queue &q, sycl::kernel &kernel) {
      sycl::nd_range ndr{{NUM}, {WGSIZE}};
      cgh.parallel_for(ndr, kernel);
    }).wait();
-  check_result(ptr);
+  check_result<T>(ptr);
 }
 
 void test_function_without_ns(sycl::queue &q, sycl::context &ctxt) {
@@ -168,8 +202,22 @@ void test_function_with_class(sycl::queue &q, sycl::context &ctxt) {
   // bundle.
   sycl::kernel k_function_with_test_class =
       exe_bndl.template ext_oneapi_get_kernel<function_with_test_class>();
-  // call_kernel_code_with_class(q, k_function_with_test_class);
   call_kernel_code<TestClass>(q, k_function_with_test_class);
+}
+
+void test_fucntions_with_int_class_alias(sycl::queue &q, sycl::context &ctxt) {
+  // Get a kernel bundle that contains the free function kernel
+  // "function_with_int_alias_test_class".
+  auto exe_bndl =
+      syclexp::get_kernel_bundle<function_with_int_alias_test_class,
+                                 sycl::bundle_state::executable>(ctxt);
+
+  // Get a kernel object for the "function_with_int_alias_test_class" function
+  // from that bundle.
+  sycl::kernel k_function_with_int_alias_test_class =
+      exe_bndl
+          .template ext_oneapi_get_kernel<function_with_int_alias_test_class>();
+  call_kernel_code<IntClassAlias>(q, k_function_with_int_alias_test_class);
 }
 
 int main() {
@@ -182,5 +230,6 @@ int main() {
   test_function_in_anonymous_ns(q, ctxt);
   test_func_in_ns_with_same_name(q, ctxt);
   test_function_with_class(q, ctxt);
+  test_fucntions_with_int_class_alias(q, ctxt);
   return 0;
 }
