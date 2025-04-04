@@ -104,8 +104,7 @@ jobs:
       # TODO: options may differ for other GPU cards
       options: ${{ inputs.image_options }}
       # options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-      volumes:
-        - /opt/intel:/opt/intel
+
     steps:
     # TODO:
     # - investigate if DUR_CONFORMANCE_AMD_ARCH could be removed
@@ -216,7 +215,7 @@ jobs:
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
-    - name: Test adapters..
+    - name: Test adapters.
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
