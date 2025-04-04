@@ -96,7 +96,7 @@ static std::wstring getCurrentDSODir() {
 #define __SYCL_UNIFIED_RUNTIME_LOADER_NAME "libur_loader.dll"
 #define __SYCL_OPENCL_ADAPTER_NAME "libur_adapter_opencl.dll"
 #define __SYCL_LEVEL_ZERO_ADAPTER_NAME "libur_adapter_level_zero.dll"
-#define __SYCL_LEVEL_ZERO_V2_ADAPTER_NAME "libur_adapter_level_zero.dll"
+#define __SYCL_LEVEL_ZERO_V2_ADAPTER_NAME "libur_adapter_level_zero_v2.dll"
 #define __SYCL_CUDA_ADAPTER_NAME "libur_adapter_cuda.dll"
 #define __SYCL_HIP_ADAPTER_NAME "libur_adapter_hip.dll"
 #define __SYCL_NATIVE_CPU_ADAPTER_NAME "libur_adapter_native_cpu.dll"
