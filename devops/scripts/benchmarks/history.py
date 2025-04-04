@@ -77,6 +77,10 @@ class BenchmarkHistory:
             git_hash = "unknown"
             github_repo = None
 
+        compute_runtime = (
+            options.compute_runtime_tag if options.build_compute_runtime else None
+        )
+
         return BenchmarkRun(
             name=name,
             git_hash=git_hash,
@@ -84,6 +88,7 @@ class BenchmarkHistory:
             date=datetime.now(tz=timezone.utc),
             results=results,
             hostname=socket.gethostname(),
+            compute_runtime=compute_runtime,
         )
 
     def save(self, save_name, results: list[Result], to_file=True):
