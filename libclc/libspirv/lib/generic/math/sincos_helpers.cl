@@ -91,10 +91,10 @@ _CLC_DEF float __clc_cosf_piby4(float x, float y) {
   // if |x| < 0.3
   float qx = 0.0f;
 
-  int ix = as_int(x) & EXSIGNBIT_SP32;
+  int ix = __clc_as_int(x) & EXSIGNBIT_SP32;
 
   //  0.78125 > |x| >= 0.3
-  float xby4 = as_float(ix - 0x01000000);
+  float xby4 = __clc_as_float(ix - 0x01000000);
   qx = (ix >= 0x3e99999a) && (ix <= 0x3f480000) ? xby4 : qx;
 
   // x > 0.78125
@@ -131,7 +131,7 @@ _CLC_DEF void __clc_fullMulS(float *hi, float *lo, float a, float b, float bh,
     *hi = ph;
     *lo = __spirv_ocl_fma(a, b, -ph);
   } else {
-    float ah = as_float(as_uint(a) & 0xfffff000U);
+    float ah = __clc_as_float(__clc_as_uint(a) & 0xfffff000U);
     float at = a - ah;
     float ph = a * b;
     float pt = __spirv_ocl_mad(
@@ -196,8 +196,8 @@ _CLC_DEF int __clc_argReductionSmallS(float *r, float *rr, float x) {
   HI += LO < C
 
 _CLC_DEF int __clc_argReductionLargeS(float *r, float *rr, float x) {
-  int xe = (int)(as_uint(x) >> 23) - 127;
-  uint xm = 0x00800000U | (as_uint(x) & 0x7fffffU);
+  int xe = (int)(__clc_as_uint(x) >> 23) - 127;
+  uint xm = 0x00800000U | (__clc_as_uint(x) & 0x7fffffU);
 
   // 224 bits of 2/PI: . A2F9836E 4E441529 FC2757D1 F534DDC0 DB629599 3C439041
   // FE5163AB
@@ -292,7 +292,7 @@ _CLC_DEF int __clc_argReductionLargeS(float *r, float *rr, float x) {
   p6 = bitalign(p6, p5, shift);
 
   // Most significant part of fraction
-  float q1 = as_float(sign | ((127 - xe) << 23) | (p7 >> 9));
+  float q1 = __clc_as_float(sign | ((127 - xe) << 23) | (p7 >> 9));
 
   // Shift out bits we captured on q1
   p7 = bitalign(p7, p6, 32 - 23);
@@ -301,7 +301,7 @@ _CLC_DEF int __clc_argReductionLargeS(float *r, float *rr, float x) {
   // of zeroes here
   int xxe = __spirv_ocl_clz(p7) + 1;
   p7 = bitalign(p7, p6, 32 - xxe);
-  float q0 = as_float(sign | ((127 - (xe + 23 + xxe)) << 23) | (p7 >> 9));
+  float q0 = __clc_as_float(sign | ((127 - (xe + 23 + xxe)) << 23) | (p7 >> 9));
 
   // At this point, the fraction q1 + q0 is correct to at least 48 bits
   // Now we need to multiply the fraction by pi/2
@@ -320,7 +320,7 @@ _CLC_DEF int __clc_argReductionLargeS(float *r, float *rr, float x) {
     rt = __spirv_ocl_fma(
         q0, pio2h, __spirv_ocl_fma(q1, pio2t, __spirv_ocl_fma(q1, pio2h, -rh)));
   } else {
-    float q1h = as_float(as_uint(q1) & 0xfffff000);
+    float q1h = __clc_as_float(__clc_as_uint(q1) & 0xfffff000);
     float q1t = q1 - q1h;
     rh = q1 * pio2h;
     rt = __spirv_ocl_mad(
@@ -399,7 +399,7 @@ _CLC_DEF void __clc_remainder_piby2_medium(double x, double *r, double *rr,
 _CLC_DEF void __clc_remainder_piby2_large(double x, double *r, double *rr,
                                           int *regn) {
 
-  long ux = as_long(x);
+  long ux = __clc_as_long(x);
   int e = (int)(ux >> 52) - 1023;
   int i = __clc_max(23, (e >> 3) + 17);
   int j = 150 - i;
@@ -460,17 +460,17 @@ _CLC_DEF void __clc_remainder_piby2_large(double x, double *r, double *rr,
   i -= i > 1018 ? 136 : 0;
 
   uint ua = (uint)(1023 + 52 - i) << 20;
-  double a = as_double((uint2)(0, ua));
-  double p0 = as_double((uint2)(v0, ua | (v1 & 0xffffU))) - a;
+  double a = __clc_as_double((uint2)(0, ua));
+  double p0 = __clc_as_double((uint2)(v0, ua | (v1 & 0xffffU))) - a;
   ua += 0x03000000U;
-  a = as_double((uint2)(0, ua));
-  double p1 = as_double((uint2)((v2 << 16) | (v1 >> 16), ua | (v2 >> 16))) - a;
+  a = __clc_as_double((uint2)(0, ua));
+  double p1 = __clc_as_double((uint2)((v2 << 16) | (v1 >> 16), ua | (v2 >> 16))) - a;
   ua += 0x03000000U;
-  a = as_double((uint2)(0, ua));
-  double p2 = as_double((uint2)(v3, ua | (v4 & 0xffffU))) - a;
+  a = __clc_as_double((uint2)(0, ua));
+  double p2 = __clc_as_double((uint2)(v3, ua | (v4 & 0xffffU))) - a;
   ua += 0x03000000U;
-  a = as_double((uint2)(0, ua));
-  double p3 = as_double((uint2)((v5 << 16) | (v4 >> 16), ua | (v5 >> 16))) - a;
+  a = __clc_as_double((uint2)(0, ua));
+  double p3 = __clc_as_double((uint2)((v5 << 16) | (v4 >> 16), ua | (v5 >> 16))) - a;
 
   // Exact multiply
   double f0h = p0 * x;

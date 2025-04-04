@@ -32,12 +32,12 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_acospi(float x) {
   const float piby2_head = 1.5707963267948965580e+00f;  /* 0x3ff921fb54442d18 */
   const float piby2_tail = 6.12323399573676603587e-17f; /* 0x3c91a62633145c07 */
 
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
   uint aux = ux & ~SIGNBIT_SP32;
   int xneg = ux != aux;
   int xexp = (int)(aux >> EXPSHIFTBITS_SP32) - EXPBIAS_SP32;
 
-  float y = as_float(aux);
+  float y = __clc_as_float(aux);
 
   // transform if |x| >= 0.5
   int transform = xexp >= -1;
@@ -60,7 +60,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_acospi(float x) {
 
   float s = __spirv_ocl_sqrt(r);
   y = s;
-  float s1 = as_float(as_uint(s) & 0xffff0000);
+  float s1 = __clc_as_float(__clc_as_uint(s) & 0xffff0000);
   float c = MATH_DIVIDE(r - s1 * s1, s + s1);
   // float rettn = 1.0f - MATH_DIVIDE(2.0f * (s + (y * u - piby2_tail)), pi);
   float rettn =
@@ -73,7 +73,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_acospi(float x) {
       MATH_DIVIDE(piby2_head - (x - __spirv_ocl_mad(x, -u, piby2_tail)), pi);
 
   ret = transform ? rett : ret;
-  ret = aux > 0x3f800000U ? as_float(QNANBITPATT_SP32) : ret;
+  ret = aux > 0x3f800000U ? __clc_as_float(QNANBITPATT_SP32) : ret;
   ret = ux == 0x3f800000U ? 0.0f : ret;
   ret = ux == 0xbf800000U ? 1.0f : ret;
   ret = xexp < -26 ? 0.5f : ret;
@@ -105,8 +105,8 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_acospi(double x) {
   const double piby2_tail = 6.12323399573676603587e-17; /* 0x3c91a62633145c07 */
 
   double y = __spirv_ocl_fabs(x);
-  int xneg = as_int2(x).hi < 0;
-  int xexp = (as_int2(y).hi >> 20) - EXPBIAS_DP64;
+  int xneg = __clc_as_int2(x).hi < 0;
+  int xexp = (__clc_as_int2(y).hi >> 20) - EXPBIAS_DP64;
 
   // abs(x) >= 0.5
   int transform = xexp >= -1;
@@ -150,7 +150,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_acospi(double x) {
   // Reconstruct acos carefully in transformed region
   double res1 = __spirv_ocl_fma(
       -2.0, MATH_DIVIDE(s + __spirv_ocl_fma(y, u, -piby2_tail), pi), 1.0);
-  double s1 = as_double(as_ulong(s) & 0xffffffff00000000UL);
+  double s1 = __clc_as_double(__clc_as_ulong(s) & 0xffffffff00000000UL);
   double c = MATH_DIVIDE(__spirv_ocl_fma(-s1, s1, r), s + s1);
   double res2 = MATH_DIVIDE(
       __spirv_ocl_fma(2.0, s1, __spirv_ocl_fma(2.0, c, 2.0 * y * u)), pi);
@@ -158,7 +158,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_acospi(double x) {
   res2 = 0.5 - __spirv_ocl_fma(x, u, x) / pi;
   res1 = transform ? res1 : res2;
 
-  const double qnan = as_double(QNANBITPATT_DP64);
+  const double qnan = __clc_as_double(QNANBITPATT_DP64);
   res2 = x == 1.0 ? 0.0 : qnan;
   res2 = x == -1.0 ? 1.0 : res2;
   res1 = xexp >= 0 ? res2 : res1;

@@ -9,8 +9,8 @@
 #include <libspirv/spirv.h>
 #include <clc/utils.h>
 
-#define __CLC_AS_GENTYPE __CLC_XCONCAT(as_, __CLC_GENTYPE)
+#define __CLC_AS_GENTYPE __CLC_XCONCAT(__clc_as_, __CLC_GENTYPE)
 #define __CLC_AS_UNSIGNED(TYPE)                                                \
-  __CLC_XCONCAT(as_, __CLC_XCONCAT(TYPE, __CLC_VECSIZE))
+  __CLC_XCONCAT(__clc_as_, __CLC_XCONCAT(TYPE, __CLC_VECSIZE))
 #define __CLC_BODY <nan.inc>
 #include <clc/math/gentype.inc>

@@ -43,6 +43,15 @@ inline namespace _V1 {
 
 namespace detail {
 
+const DeviceImplPtr &getDeviceImplFromHandler(handler &CGH) {
+  assert((CGH.MQueue || getSyclObjImpl(CGH)->MGraph) &&
+         "One of MQueue or MGraph should be nonnull!");
+  if (CGH.MQueue)
+    return CGH.MQueue->getDeviceImplPtr();
+
+  return getSyclObjImpl(CGH)->MGraph->getDeviceImplPtr();
+}
+
 bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
@@ -2059,10 +2068,10 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 }
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
-  auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
+  const auto &DeviceImpl = detail::getDeviceImplFromHandler(*this);
   std::array<size_t, 3> UrResult = {};
-  auto Ret = Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-      Dev->getHandleRef(),
+  auto Ret = DeviceImpl->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      DeviceImpl->getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
       sizeof(UrResult), &UrResult, nullptr);

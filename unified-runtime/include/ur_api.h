@@ -2241,6 +2241,8 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MIN_POWER_LIMIT = 125,
   /// [int32_t][optional-query] return max power limit in milliwatts.
   UR_DEVICE_INFO_MAX_POWER_LIMIT = 126,
+  /// [::ur_bool_t] support for native bfloat16 conversions
+  UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
