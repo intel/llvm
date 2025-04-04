@@ -90,7 +90,7 @@ public:
   const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
-  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+  const PlatformImplPtr &getPlatformImpl() const { return MPlatform; }
 
   /// Queries this context for information.
   ///

@@ -79,7 +79,7 @@ buffer_impl::getNativeVector(backend BackendName) const {
     // doesn't have context and platform
     if (!Ctx)
       continue;
-    PlatformImplPtr Platform = Ctx->getPlatformImpl();
+    const PlatformImplPtr &Platform = Ctx->getPlatformImpl();
     assert(Platform && "Platform must be present for device context");
     if (Platform->getBackend() != BackendName)
       continue;
