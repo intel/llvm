@@ -9457,7 +9457,7 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
         SemaRef.Context, DC, D.getBeginLoc(), NameInfo, R, TInfo, SC,
         SemaRef.getCurFPFeatures().isFPConstrained(), isInline, HasPrototype,
         ConstexprSpecKind::Unspecified,
-        /*TrailingRequiresClause=*/nullptr);
+        /*TrailingRequiresClause=*/{});
     if (D.isInvalidType())
       NewFD->setInvalidDecl();
 
@@ -9465,7 +9465,7 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
   }
 
   ExplicitSpecifier ExplicitSpecifier = D.getDeclSpec().getExplicitSpecifier();
-  Expr *TrailingRequiresClause = D.getTrailingRequiresClause();
+  AssociatedConstraint TrailingRequiresClause(D.getTrailingRequiresClause());
 
   SemaRef.CheckExplicitObjectMemberFunction(DC, D, Name, R);
 
@@ -10635,7 +10635,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
            diag::ext_operator_new_delete_declared_inline)
         << NewFD->getDeclName();
 
-    if (Expr *TRC = NewFD->getTrailingRequiresClause()) {
+    if (const Expr *TRC = NewFD->getTrailingRequiresClause().ConstraintExpr) {
       // C++20 [dcl.decl.general]p4:
       //   The optional requires-clause in an init-declarator or
       //   member-declarator shall be present only if the declarator declares a
@@ -12365,7 +12365,7 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
       if (Method->isVirtual() && NewFD->getTrailingRequiresClause())
         // C++2a [class.virtual]p6
         // A virtual method shall not have a requires-clause.
-        Diag(NewFD->getTrailingRequiresClause()->getBeginLoc(),
+        Diag(NewFD->getTrailingRequiresClause().ConstraintExpr->getBeginLoc(),
              diag::err_constrained_virtual_method);
 
       if (Method->isStatic())
@@ -19221,8 +19221,7 @@ static void SetEligibleMethods(Sema &S, CXXRecordDecl *Record,
   SmallVector<bool, 4> SatisfactionStatus;
 
   for (CXXMethodDecl *Method : Methods) {
-    const Expr *Constraints = Method->getTrailingRequiresClause();
-    if (!Constraints)
+    if (!Method->getTrailingRequiresClause())
       SatisfactionStatus.push_back(true);
     else {
       ConstraintSatisfaction Satisfaction;
@@ -19241,7 +19240,7 @@ static void SetEligibleMethods(Sema &S, CXXRecordDecl *Record,
     if (FunctionDecl *MF = OrigMethod->getInstantiatedFromMemberFunction())
       OrigMethod = cast<CXXMethodDecl>(MF);
 
-    const Expr *Constraints = OrigMethod->getTrailingRequiresClause();
+    AssociatedConstraint Orig = OrigMethod->getTrailingRequiresClause();
     bool AnotherMethodIsMoreConstrained = false;
     for (size_t j = 0; j < Methods.size(); j++) {
       if (i == j || !SatisfactionStatus[j])
@@ -19254,15 +19253,13 @@ static void SetEligibleMethods(Sema &S, CXXRecordDecl *Record,
                                              CSM))
         continue;
 
-      const Expr *OtherConstraints = OtherMethod->getTrailingRequiresClause();
-      if (!OtherConstraints)
+      AssociatedConstraint Other = OtherMethod->getTrailingRequiresClause();
+      if (!Other)
         continue;
-      if (!Constraints) {
+      if (!Orig) {
         AnotherMethodIsMoreConstrained = true;
         break;
       }
-      AssociatedConstraint Other(OtherConstraints);
-      AssociatedConstraint Orig(Constraints);
       if (S.IsAtLeastAsConstrained(OtherMethod, {Other}, OrigMethod, {Orig},
                                    AnotherMethodIsMoreConstrained)) {
         // There was an error with the constraints comparison. Exit the loop

@@ -7082,6 +7082,15 @@ bool ASTContext::hasSameTemplateName(const TemplateName &X,
          getCanonicalTemplateName(Y, IgnoreDeduced);
 }
 
+bool ASTContext::isSameAssociatedConstraint(
+    const AssociatedConstraint &ACX, const AssociatedConstraint &ACY) const {
+  if (ACX.ArgumentPackSubstitutionIndex != ACY.ArgumentPackSubstitutionIndex)
+    return false;
+  if (!isSameConstraintExpr(ACX.ConstraintExpr, ACY.ConstraintExpr))
+    return false;
+  return true;
+}
+
 bool ASTContext::isSameConstraintExpr(const Expr *XCE, const Expr *YCE) const {
   if (!XCE != !YCE)
     return false;
@@ -7398,8 +7407,8 @@ bool ASTContext::isSameEntity(const NamedDecl *X, const NamedDecl *Y) const {
       return false;
     }
 
-    if (!isSameConstraintExpr(FuncX->getTrailingRequiresClause(),
-                              FuncY->getTrailingRequiresClause()))
+    if (!isSameAssociatedConstraint(FuncX->getTrailingRequiresClause(),
+                                    FuncY->getTrailingRequiresClause()))
       return false;
 
     auto GetTypeAsWritten = [](const FunctionDecl *FD) {

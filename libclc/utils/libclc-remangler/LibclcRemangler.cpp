@@ -332,7 +332,7 @@ private:
         *AST, AST->getTranslationUnitDecl(), SourceLocation{},
         DeclarationNameInfo(), VoidFuncType,
         AST->getTrivialTypeSourceInfo(AST->VoidTy), SC_None, false, false,
-        false, ConstexprSpecKind::Unspecified, nullptr);
+        false, ConstexprSpecKind::Unspecified,/*TrailingRequiresClause=*/{});
     FD->setImplicitlyInline(false);
 
     // Set the name.
@@ -378,7 +378,7 @@ private:
         *AST, AST->getTranslationUnitDecl(), SourceLocation{},
         DeclarationNameInfo(), VoidFuncType,
         AST->getTrivialTypeSourceInfo(AST->VoidTy), SC_None, false, false,
-        false, ConstexprSpecKind::Unspecified, nullptr);
+        false, ConstexprSpecKind::Unspecified,/*TrailingRequiresClause=*/{});
     FDSpecialization->setImplicitlyInline(false);
 
     FDSpecialization->setDeclName(&AST->Idents.get(KernelName));

@@ -3125,11 +3125,13 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
   // Friend function defined withing class template may stop being function
   // definition during AST merges from different modules, in this case decl
   // with function body should be used for instantiation.
-  if (isFriend) {
-    const FunctionDecl *Defn = nullptr;
-    if (D->hasBody(Defn)) {
-      D = const_cast<FunctionDecl *>(Defn);
-      FunctionTemplate = Defn->getDescribedFunctionTemplate();
+  if (ExternalASTSource *Source = SemaRef.Context.getExternalSource()) {
+    if (isFriend && Source->wasThisDeclarationADefinition(D)) {
+      const FunctionDecl *Defn = nullptr;
+      if (D->hasBody(Defn)) {
+        D = const_cast<FunctionDecl *>(Defn);
+        FunctionTemplate = Defn->getDescribedFunctionTemplate();
+      }
     }
   }
 
@@ -3190,7 +3192,7 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
       return nullptr;
   }
 
-  Expr *TrailingRequiresClause = D->getTrailingRequiresClause();
+  AssociatedConstraint TrailingRequiresClause = D->getTrailingRequiresClause();
 
   // If we're instantiating a local function declaration, put the result
   // in the enclosing namespace; otherwise we need to find the instantiated
@@ -3621,7 +3623,7 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
   }
 
   CXXRecordDecl *Record = cast<CXXRecordDecl>(DC);
-  Expr *TrailingRequiresClause = D->getTrailingRequiresClause();
+  AssociatedConstraint TrailingRequiresClause = D->getTrailingRequiresClause();
 
   DeclarationNameInfo NameInfo
     = SemaRef.SubstDeclarationNameInfo(D->getNameInfo(), TemplateArgs);
