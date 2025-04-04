@@ -12,6 +12,7 @@
 #include "ur_api.h"
 #include "ur_filesystem_resolved.hpp"
 #include "uur/checks.h"
+#include "uur/known_failure.h"
 
 #ifdef KERNELS_ENVIRONMENT
 #include "kernel_entry_points.h"
@@ -279,34 +280,32 @@ void KernelsEnvironment::LoadSource(
   binary_out = std::move(binary_ptr);
 }
 
-ur_result_t KernelsEnvironment::CreateProgram(
+void KernelsEnvironment::CreateProgram(
     ur_platform_handle_t hPlatform, ur_context_handle_t hContext,
     ur_device_handle_t hDevice, const std::vector<char> &binary,
     const ur_program_properties_t *properties, ur_program_handle_t *phProgram) {
+  // Seems to not support an IR compiler
+  std::tuple<ur_platform_handle_t, ur_device_handle_t> tuple{hPlatform,
+                                                             hDevice};
+  UUR_KNOWN_FAILURE_ON_PARAM(tuple, uur::OpenCL{"gfx1100"});
+
   ur_platform_backend_t backend;
-  if (auto error =
-          urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
-                            sizeof(ur_platform_backend_t), &backend, nullptr)) {
-    return error;
-  }
+  ASSERT_SUCCESS(urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
+                                   sizeof(ur_platform_backend_t), &backend,
+                                   nullptr));
   if (backend == UR_PLATFORM_BACKEND_HIP ||
       backend == UR_PLATFORM_BACKEND_CUDA) {
     // The CUDA and HIP adapters do not support urProgramCreateWithIL so we
     // need to use urProgramCreateWithBinary instead.
     auto size = binary.size();
     auto data = binary.data();
-    if (auto error = urProgramCreateWithBinary(
-            hContext, 1, &hDevice, &size,
-            reinterpret_cast<const uint8_t **>(&data), properties, phProgram)) {
-      return error;
-    }
+    ASSERT_SUCCESS(urProgramCreateWithBinary(
+        hContext, 1, &hDevice, &size, reinterpret_cast<const uint8_t **>(&data),
+        properties, phProgram));
   } else {
-    if (auto error = urProgramCreateWithIL(
-            hContext, binary.data(), binary.size(), properties, phProgram)) {
-      return error;
-    }
+    ASSERT_SUCCESS(urProgramCreateWithIL(hContext, binary.data(), binary.size(),
+                                         properties, phProgram));
   }
-  return UR_RESULT_SUCCESS;
 }
 
 std::vector<std::string> KernelsEnvironment::GetEntryPointNames(
