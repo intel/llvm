@@ -86,16 +86,20 @@ struct ur_context_handle_t_ {
     void operator()() { Function(UserData); }
   };
 
-  std::shared_ptr<ur_adapter_handle_t_> Adapter;
   std::vector<ur_device_handle_t> Devices;
 
   std::atomic_uint32_t RefCount;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Adapter(ur::hip::adapter), Devices{Devs, Devs + NumDevices},
-        RefCount{1} {};
+      : Devices{Devs, Devs + NumDevices}, RefCount{1} {
+    UR_CHECK_ERROR(urAdapterRetain(ur::hip::adapter));
+  };
 
-  ~ur_context_handle_t_() {}
+  ~ur_context_handle_t_() {
+    UR_CHECK_ERROR(urAdapterRelease(ur::hip::adapter));
+  }
+
+  ur_context_handle_t_(const ur_context_handle_t_ &) = delete;
 
   void invokeExtendedDeleters() {
     std::lock_guard<std::mutex> Guard(Mutex);

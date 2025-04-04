@@ -25,7 +25,7 @@ struct ur_adapter_handle_t_ {
 };
 
 namespace ur::hip {
-extern std::shared_ptr<ur_adapter_handle_t_> adapter;
+extern ur_adapter_handle_t adapter;
 }
 
 #endif // UR_HIP_ADAPTER_HPP_INCLUDED

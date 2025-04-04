@@ -16,7 +16,7 @@
 #include <memory>
 
 namespace ur::hip {
-std::shared_ptr<ur_adapter_handle_t_> adapter;
+ur_adapter_handle_t adapter;
 }
 
 class ur_legacy_sink : public logger::Sink {
@@ -54,12 +54,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     uint32_t, ur_adapter_handle_t *phAdapters, uint32_t *pNumAdapters) {
   if (phAdapters) {
     static std::once_flag InitFlag;
-    std::call_once(InitFlag, [=]() {
-      ur::hip::adapter = std::make_shared<ur_adapter_handle_t_>();
-    });
+    std::call_once(InitFlag,
+                   [=]() { ur::hip::adapter = new ur_adapter_handle_t_; });
 
-    ur::hip::adapter->RefCount++;
-    *phAdapters = ur::hip::adapter.get();
+    *phAdapters = ur::hip::adapter;
   }
   if (pNumAdapters) {
     *pNumAdapters = 1;
@@ -69,8 +67,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
-  // No state to clean up so we don't need to check for 0 references
-  ur::hip::adapter->RefCount--;
+  if (--ur::hip::adapter->RefCount == 0) {
+    delete ur::hip::adapter;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 

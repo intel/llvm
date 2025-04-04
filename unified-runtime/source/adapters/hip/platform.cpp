@@ -36,7 +36,7 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
     return ReturnValue("");
   }
   case UR_PLATFORM_INFO_ADAPTER: {
-    return ReturnValue(ur::hip::adapter.get());
+    return ReturnValue(ur::hip::adapter);
   }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
