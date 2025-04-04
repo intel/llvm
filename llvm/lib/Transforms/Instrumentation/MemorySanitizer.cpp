@@ -784,7 +784,7 @@ class MemorySanitizerOnSpirv {
 public:
   MemorySanitizerOnSpirv(Module &M)
       : M(M), C(M.getContext()), DL(M.getDataLayout()) {
-    auto TargetTriple = Triple(M.getTargetTriple());
+    const auto &TargetTriple = Triple(M.getTargetTriple());
     IsSPIRV = TargetTriple.isSPIROrSPIRV();
 
     IntptrTy = DL.getIntPtrType(C);
@@ -1251,7 +1251,7 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
   if (checkIfAlreadyInstrumented(M, "nosanitize_memory"))
     return PreservedAnalyses::all();
   bool Modified = false;
-  auto TargetTriple = Triple(M.getTargetTriple());
+  const auto &TargetTriple = Triple(M.getTargetTriple());
 
   if (!Options.Kernel && !TargetTriple.isSPIROrSPIRV()) {
     insertModuleCtor(M);

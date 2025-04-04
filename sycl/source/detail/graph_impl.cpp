@@ -32,6 +32,36 @@ namespace experimental {
 namespace detail {
 
 namespace {
+/// Return a string representation of a given node_type
+inline const char *nodeTypeToString(node_type NodeType) {
+  switch (NodeType) {
+  case node_type::empty:
+    return "empty";
+  case node_type::subgraph:
+    return "subgraph";
+  case node_type::kernel:
+    return "kernel";
+  case node_type::memcpy:
+    return "memcpy";
+  case node_type::memset:
+    return "memset";
+  case node_type::memfill:
+    return "memfill";
+  case node_type::prefetch:
+    return "prefetch";
+  case node_type::memadvise:
+    return "memadvise";
+  case node_type::ext_oneapi_barrier:
+    return "ext_oneapi_barrier";
+  case node_type::host_task:
+    return "host_task";
+  case node_type::native_command:
+    return "native_command";
+  }
+  assert(false && "Unhandled node type");
+  return {};
+}
+
 /// Topologically sorts the graph in order to schedule nodes for execution.
 /// This implementation is based on Kahn's algorithm which uses a Breadth-first
 /// search approach.
@@ -985,9 +1015,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       // and potential hangs. We have therefore to expliclty wait in the host
       // for previous submission to complete before resubmitting the
       // command-buffer for level-zero backend.
-      // TODO : add a check to release this constraint and allow multiple
-      // concurrent submissions if the exec_graph has been updated since the
-      // last submission.
+      // TODO https://github.com/intel/llvm/issues/17734
+      // Remove this backend specific behavior and allow multiple concurrent
+      // submissions of the UR command-buffer.
       for (std::vector<sycl::detail::EventImplPtr>::iterator It =
                MExecutionEvents.begin();
            It != MExecutionEvents.end();) {
@@ -1398,6 +1428,14 @@ void exec_graph_impl::update(
             this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
 
     MExecutionEvents.push_back(UpdateEvent);
+
+    if (MContainsHostTask) {
+      // If the graph has HostTasks, the update has to be blocking. This is
+      // needed because HostTask nodes (and all the nodes that depend on
+      // HostTasks), are scheduled using a separate thread. This wait call
+      // acts as a synchronization point for that thread.
+      UpdateEvent->wait(UpdateEvent);
+    }
   } else {
     // For each partition in the executable graph, call UR update on the
     // command-buffer with the nodes to update.
@@ -1444,10 +1482,12 @@ bool exec_graph_impl::needsScheduledUpdate(
     }
 
     if (!Node->isUpdatable()) {
-      throw sycl::exception(
-          errc::invalid,
-          "Unsupported node type for update. Only kernel, host_task, "
-          "barrier and empty nodes are supported.");
+      std::string ErrorString = "node_type::";
+      ErrorString += nodeTypeToString(Node->MNodeType);
+      ErrorString +=
+          " nodes are not supported for update. Only kernel, host_task, "
+          "barrier and empty nodes are supported.";
+      throw sycl::exception(errc::invalid, ErrorString);
     }
 
     if (const auto &CG = Node->MCommandGroup;
