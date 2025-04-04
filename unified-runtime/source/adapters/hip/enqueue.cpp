@@ -1410,6 +1410,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       releaseEvent();
       logger::warning("mem_advise ignored as device does not support "
                       "managed memory access.");
+      return UR_RESULT_SUCCESS;
     }
 
     hipPointerAttribute_t attribs;
@@ -1423,7 +1424,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     if (!attribs.isManaged) {
       releaseEvent();
       logger::warning("Prefetch hint ignored as prefetch only works with USM.");
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      return UR_RESULT_SUCCESS;
     }
 
     UR_CHECK_ERROR(
@@ -1480,6 +1481,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       releaseEvent();
       logger::warning("mem_advise ignored as device does not support "
                       "managed memory access.");
+      return UR_RESULT_SUCCESS;
     }
 
     // Passing MEM_ADVICE_SET/MEM_ADVICE_CLEAR_PREFERRED_LOCATION to
@@ -1496,6 +1498,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
         releaseEvent();
         logger::warning("mem_advise ignored as device does not support "
                         "concurrent memory access.");
+        return UR_RESULT_SUCCESS;
       }
 
       // TODO: If pMem points to valid system-allocated pageable memory, we
@@ -1515,7 +1518,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       releaseEvent();
       logger::warning("mem_advise is ignored as the pointer argument is not "
                       "a shared USM pointer.");
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      return UR_RESULT_SUCCESS;
     }
 
     const auto DeviceID = Device->get();
@@ -1544,6 +1547,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
         releaseEvent();
         logger::warning("mem_advise is ignored as the advice argument is not "
                         "supported by this device.");
+        return UR_RESULT_SUCCESS;
       }
       UR_CHECK_ERROR(Result);
     }
