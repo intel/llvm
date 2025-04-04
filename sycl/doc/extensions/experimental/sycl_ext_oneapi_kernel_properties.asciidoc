@@ -374,8 +374,9 @@ To simplify this usage pattern, this extension defines a `kernel_function`
 that encapsulates a kernel function (which may be a lambda expression) and a
 property list.
 
-NOTE: Developers are free to extend `kernel_function` or define their own
-wrapper classes (e.g., to attach commonly used property lists).
+NOTE: Developers are free to create classes that derive from `kernel_function`
+or define their own wrapper classes (e.g., to attach commonly used property
+lists).
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
