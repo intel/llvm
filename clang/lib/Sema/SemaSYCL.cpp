@@ -6878,7 +6878,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     // template-ids, even if the source code doesn't reference them.
     Policy.EnforceDefaultTemplateArgs = true;
     FreeFunctionPrinter FFPrinter(O, Policy);
-    // bool NSInserted{false};
     if (FTD) {
       FTD->print(O, Policy);
       O << ";\n";
