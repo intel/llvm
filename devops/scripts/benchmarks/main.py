@@ -500,7 +500,9 @@ if __name__ == "__main__":
         "--timestamp-override",
         type=lambda ts: Validate.timestamp(
             ts,
-            throw=argparse.ArgumentTypeError("Specified timestamp not in YYYYMMDD_HHMMSS format.")
+            throw=argparse.ArgumentTypeError(
+                "Specified timestamp not in YYYYMMDD_HHMMSS format."
+            ),
         ),
         help="Manually specify timestamp used in metadata",
         default=options.timestamp_override,
@@ -509,7 +511,9 @@ if __name__ == "__main__":
         "--github-repo",
         type=lambda gh_repo: Validate.github_repo(
             gh_repo,
-            throw=argparse.ArgumentTypeError("Specified github repo not in <owner>/<repo> format.")
+            throw=argparse.ArgumentTypeError(
+                "Specified github repo not in <owner>/<repo> format."
+            ),
         ),
         help="Manually specify github repo metadata of component tested (e.g. SYCL, UMF)",
         default=options.github_repo_override,
@@ -518,7 +522,9 @@ if __name__ == "__main__":
         "--git-commit",
         type=lambda commit: Validate.commit_hash(
             commit,
-            throw=argparse.ArgumentTypeError("Specified commit is not a valid commit hash.")
+            throw=argparse.ArgumentTypeError(
+                "Specified commit is not a valid commit hash."
+            ),
         ),
         help="Manually specify commit hash metadata of component tested (e.g. SYCL, UMF)",
         default=options.git_commit_override,

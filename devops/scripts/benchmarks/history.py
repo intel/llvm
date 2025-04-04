@@ -31,7 +31,9 @@ class BenchmarkHistory:
     def load(self, n: int):
         results_dir = Path(self.dir) / "results"
         if not results_dir.exists() or not results_dir.is_dir():
-            print(f"Warning: {results_dir} is not a valid directory: no historic results loaded.")
+            print(
+                f"Warning: {results_dir} is not a valid directory: no historic results loaded."
+            )
             return
 
         # Get all JSON files in the results directory
@@ -40,8 +42,8 @@ class BenchmarkHistory:
         # Extract timestamp and sort files by it
         def extract_timestamp(file_path: Path) -> str:
             try:
-                # Assumes results are stored as <name>_YYYYMMDD_HHMMSS.json 
-                ts = file_path.stem[-len("YYYYMMDD_HHMMSS"):]
+                # Assumes results are stored as <name>_YYYYMMDD_HHMMSS.json
+                ts = file_path.stem[-len("YYYYMMDD_HHMMSS") :]
                 return ts if Validate.timestamp(ts) else ""
             except IndexError:
                 return ""
@@ -80,21 +82,28 @@ class BenchmarkHistory:
                     github_repo = remote_url.split("git@github.com:")[1].rstrip(".git")
                 elif remote_url.startswith("https://github.com/"):
                     # HTTPS format: https://github.com/owner/repo.git
-                    github_repo = remote_url.split("https://github.com/")[1].rstrip(".git")
+                    github_repo = remote_url.split("https://github.com/")[1].rstrip(
+                        ".git"
+                    )
                 else:
                     github_repo = None
 
             except:
                 git_hash = "unknown"
                 github_repo = None
-            
+
             return git_hash, github_repo
 
         if options.git_commit_override is None or options.github_repo_override is None:
-            git_hash, github_repo = git_info_from_path(os.path.dirname(os.path.abspath(__file__)))
+            git_hash, github_repo = git_info_from_path(
+                os.path.dirname(os.path.abspath(__file__))
+            )
         else:
-            git_hash, github_repo = options.git_commit_override, options.github_repo_override
-        
+            git_hash, github_repo = (
+                options.git_commit_override,
+                options.github_repo_override,
+            )
+
         # Check if RUNNER_NAME environment variable has been declared.
         #
         # Github runners obfusicate hostnames, thus running socket.gethostname()
@@ -108,7 +117,7 @@ class BenchmarkHistory:
             # TODO is this overkill?
             Validate.runner_name(
                 hostname,
-                throw=ValueError("Illegal characters found in specified RUNNER_NAME.")
+                throw=ValueError("Illegal characters found in specified RUNNER_NAME."),
             )
 
         compute_runtime = (
@@ -139,8 +148,8 @@ class BenchmarkHistory:
         # Use formatted timestamp for the filename
         timestamp = (
             datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-            if options.timestamp_override is None else 
-            options.timestamp_override
+            if options.timestamp_override is None
+            else options.timestamp_override
         )
         file_path = Path(os.path.join(results_dir, f"{save_name}_{timestamp}.json"))
         with file_path.open("w") as file:

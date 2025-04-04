@@ -42,27 +42,24 @@ def enabled_suites(preset: str) -> list[str]:
 
 # Utility scripts to validate a given preset, useful for e.g. CI:
 
+
 def main():
     parser = argparse.ArgumentParser(description="Benchmark Preset Utilities")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     query_parser = subparsers.add_parser(
-        "query",
-        help="Query benchmarks ran by a preset (as defined in presets.py)"
+        "query", help="Query benchmarks ran by a preset (as defined in presets.py)"
     )
+    query_parser.add_argument("preset_to_query", type=str, help="preset name to query")
     query_parser.add_argument(
-        "preset_to_query",
-        type=str,
-        help="preset name to query"
-    )
-    query_parser.add_argument(
-        "-q", "--quiet",
+        "-q",
+        "--quiet",
         action="store_true",
-        help="Disable stdout messages: Useful if you want to check if a preset exists within a shell script."
+        help="Disable stdout messages: Useful if you want to check if a preset exists within a shell script.",
     )
 
     args = parser.parse_args()
-    if args.command == 'query':
+    if args.command == "query":
         if args.preset_to_query in presets:
             if not args.quiet:
                 print(f"Benchmark suites to be ran in {args.preset_to_query}:")
@@ -70,8 +67,10 @@ def main():
                     print(suite)
             exit(0)
         else:
-            if not args.quiet: print(f"Error: No preset named '{args.preset_to_query}'.")
+            if not args.quiet:
+                print(f"Error: No preset named '{args.preset_to_query}'.")
             exit(1)
+
 
 if __name__ == "__main__":
     main()

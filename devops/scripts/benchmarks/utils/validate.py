@@ -1,5 +1,6 @@
 import re
 
+
 def validate_on_re(val: str, regex: re.Pattern, throw: Exception = None):
     """
     Returns True if val is matched by pattern defined by regex, otherwise False.
@@ -9,9 +10,12 @@ def validate_on_re(val: str, regex: re.Pattern, throw: Exception = None):
     """
     is_matching: bool = re.compile(regex).match(val) is not None
 
-    if throw is None: return is_matching
-    elif not is_matching: raise throw
-    else: return val
+    if throw is None:
+        return is_matching
+    elif not is_matching:
+        raise throw
+    else:
+        return val
 
 
 class Validate:
@@ -35,7 +39,7 @@ class Validate:
         return validate_on_re(
             t,
             r"^\d{4}(0[1-9]|1[0-2])([0-2][0-9]|3[01])_([01][0-9]|2[0-3])[0-5][0-9][0-5][0-9]$",
-            throw=throw
+            throw=throw,
         )
 
     @staticmethod
@@ -49,7 +53,7 @@ class Validate:
         return validate_on_re(
             re.sub(r"^https?://github.com/", "", repo),
             r"^[a-zA-Z0-9_-]{1,39}/[a-zA-Z0-9_.-]{1,100}$",
-            throw=throw
+            throw=throw,
         )
 
     @staticmethod
