@@ -2351,16 +2351,6 @@ ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
     ActiveBarriers.add(Event);
   }
 
-  ur_event_handle_t Event = nullptr;
-  if (auto Res = createEventAndAssociateQueue(
-          reinterpret_cast<ur_queue_handle_t>(this), &Event,
-          UR_EXT_COMMAND_TYPE_USER, CmdList,
-          /* IsInternal */ true, /* IsMultiDevice */ true))
-    return Res;
-
-  Event->WaitList = ActiveBarriersWaitList;
-  Event->OwnNativeHandle = true;
-
   // If there are more active barriers, insert a barrier on the command-list. We
   // do not need an event for finishing so we pass nullptr.
   ZE2UR_CALL(zeCommandListAppendBarrier,
