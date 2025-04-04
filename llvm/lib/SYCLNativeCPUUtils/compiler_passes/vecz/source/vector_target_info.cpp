@@ -21,6 +21,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/TargetParser/Triple.h>
 #include <multi_llvm/intrinsic.h>
+#include <multi_llvm/target_transform_info.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "debugging.h"
@@ -47,22 +48,22 @@ Value *applyEVLToMask(IRBuilder<> &B, Value *EVL, Value *Mask) {
 }
 
 bool isLegalMaskedLoad(const TargetTransformInfo &TTI, Type *Ty,
-                       unsigned Alignment) {
-  return TTI.isLegalMaskedLoad(Ty, Align(Alignment));
+                       unsigned Alignment, unsigned AddrSpace) {
+  return multi_llvm::isLegalMaskedLoad(TTI, Ty, Align(Alignment), AddrSpace);
 }
 
 bool isLegalMaskedStore(const TargetTransformInfo &TTI, Type *Ty,
-                        unsigned Alignment) {
-  return TTI.isLegalMaskedStore(Ty, Align(Alignment));
+                        unsigned Alignment, unsigned AddrSpace) {
+  return multi_llvm::isLegalMaskedStore(TTI, Ty, Align(Alignment), AddrSpace);
 }
 
 bool isLegalMaskedGather(const TargetTransformInfo &TTI, Type *Ty,
-                         unsigned Alignment) {
+                         unsigned Alignment, unsigned) {
   return TTI.isLegalMaskedGather(Ty, Align(Alignment));
 }
 
 bool isLegalMaskedScatter(const TargetTransformInfo &TTI, Type *Ty,
-                          unsigned Alignment) {
+                          unsigned Alignment, unsigned) {
   return TTI.isLegalMaskedScatter(Ty, Align(Alignment));
 }
 }  // namespace
@@ -91,7 +92,8 @@ Value *TargetInfo::createLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
   if (CIntStride && CIntStride->getSExtValue() == 1) {
     if (EVL) {
       const Function *F = B.GetInsertBlock()->getParent();
-      const auto Legality = isVPLoadLegal(F, Ty, Alignment);
+      const auto Legality =
+          isVPLoadLegal(F, Ty, Alignment, PtrTy->getAddressSpace());
       if (!Legality.isVPLegal()) {
         emitVeczRemarkMissed(F,
                              "Could not create a VP load as the target "
@@ -157,7 +159,8 @@ Value *TargetInfo::createStore(IRBuilder<> &B, Value *Data, Value *Ptr,
   if (CIntStride && CIntStride->getSExtValue() == 1) {
     if (EVL) {
       const Function *F = B.GetInsertBlock()->getParent();
-      const auto Legality = isVPStoreLegal(F, VecTy, Alignment);
+      const auto Legality =
+          isVPStoreLegal(F, VecTy, Alignment, PtrTy->getAddressSpace());
       if (!Legality.isVPLegal()) {
         emitVeczRemarkMissed(F,
                              "Could not create a VP store as the target "
@@ -228,7 +231,8 @@ Value *TargetInfo::createMaskedLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
   // Use LLVM intrinsics for masked vector loads.
   if (Ty->isVectorTy()) {
     const Function *F = B.GetInsertBlock()->getParent();
-    const auto Legality = isVPLoadLegal(F, Ty, Alignment);
+    const auto Legality =
+        isVPLoadLegal(F, Ty, Alignment, PtrTy->getAddressSpace());
     if (EVL && Legality.isVPLegal()) {
       const SmallVector<llvm::Value *, 2> Args = {Ptr, Mask, EVL};
       const SmallVector<llvm::Type *, 2> Tys = {Ty, PtrTy};
@@ -333,7 +337,8 @@ Value *TargetInfo::createMaskedStore(IRBuilder<> &B, Value *Data, Value *Ptr,
   // Use LLVM intrinsics for masked vector Stores.
   if (DataTy->isVectorTy()) {
     const Function *F = B.GetInsertBlock()->getParent();
-    const auto Legality = isVPStoreLegal(F, DataTy, Alignment);
+    const auto Legality =
+        isVPStoreLegal(F, DataTy, Alignment, PtrTy->getAddressSpace());
     if (EVL && Legality.isVPLegal()) {
       const SmallVector<llvm::Value *, 3> Args = {Data, Ptr, Mask, EVL};
       const SmallVector<llvm::Type *, 2> Tys = {Data->getType(), PtrTy};
@@ -492,7 +497,8 @@ Value *TargetInfo::createMaskedGatherLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
   Constant *DefaultEleData = UndefValue::get(EleTy);
 
   if (Ty->isVectorTy()) {
-    const auto Legality = isVPGatherLegal(F, Ty, Alignment);
+    const auto Legality =
+        isVPGatherLegal(F, Ty, Alignment, PtrTy->getAddressSpace());
     if (EVL && Legality.isVPLegal()) {
       const SmallVector<llvm::Value *, 2> Args = {Ptr, Mask, EVL};
       const SmallVector<llvm::Type *, 2> Tys = {Ty, VecPtrTy};
@@ -590,7 +596,10 @@ Value *TargetInfo::createMaskedScatterStore(IRBuilder<> &B, Value *Data,
   if (DataTy->isVectorTy()) {
     auto *VecPtrTy = dyn_cast<VectorType>(Ptr->getType());
     VECZ_FAIL_IF(!VecPtrTy);
-    const auto Legality = isVPScatterLegal(F, DataTy, Alignment);
+    auto *PtrTy = dyn_cast<PointerType>(VecPtrTy->getElementType());
+    VECZ_FAIL_IF(!PtrTy);
+    const auto Legality =
+        isVPScatterLegal(F, DataTy, Alignment, PtrTy->getAddressSpace());
     if (EVL && Legality.isVPLegal()) {
       const SmallVector<llvm::Value *, 3> Args = {Data, Ptr, Mask, EVL};
       const SmallVector<llvm::Type *, 2> Tys = {Data->getType(), VecPtrTy};
@@ -896,18 +905,19 @@ bool TargetInfo::isVPVectorLegal(const Function &F, Type *Ty) const {
 
 TargetInfo::VPMemOpLegality TargetInfo::checkMemOpLegality(
     const Function *F,
-    function_ref<bool(const llvm::TargetTransformInfo &, Type *, unsigned)>
+    function_ref<bool(const llvm::TargetTransformInfo &, Type *, unsigned,
+                      unsigned)>
         Checker,
-    Type *Ty, unsigned Alignment) const {
+    Type *Ty, unsigned Alignment, unsigned AddrSpace) const {
   assert(Ty->isVectorTy() && "Expected a vector type");
   const bool isMaskLegal =
       !(isa<ScalableVectorType>(Ty) && TM_) ||
-      Checker(TM_->getTargetTransformInfo(*F), Ty, Alignment);
+      Checker(TM_->getTargetTransformInfo(*F), Ty, Alignment, AddrSpace);
   // Assuming a pointer bit width of 64
   bool isVPLegal = isMaskLegal && isVPVectorLegal(*F, Ty);
   if (isVPLegal) {
     const unsigned PtrBitWidth =
-        TM_ ? TM_->createDataLayout().getPointerSizeInBits(/*AS=*/0) : 64;
+        TM_ ? TM_->createDataLayout().getPointerSizeInBits(AddrSpace) : 64;
     auto &Ctx = Ty->getContext();
     auto *const IntTy = IntegerType::get(Ctx, PtrBitWidth);
     auto *const IntVecTy =
@@ -918,23 +928,23 @@ TargetInfo::VPMemOpLegality TargetInfo::checkMemOpLegality(
 }
 
 TargetInfo::VPMemOpLegality TargetInfo::isVPLoadLegal(
-    const Function *F, Type *Ty, unsigned Alignment) const {
-  return checkMemOpLegality(F, isLegalMaskedLoad, Ty, Alignment);
+    const Function *F, Type *Ty, unsigned Alignment, unsigned AddrSpace) const {
+  return checkMemOpLegality(F, isLegalMaskedLoad, Ty, Alignment, AddrSpace);
 }
 
 TargetInfo::VPMemOpLegality TargetInfo::isVPStoreLegal(
-    const Function *F, Type *Ty, unsigned Alignment) const {
-  return checkMemOpLegality(F, isLegalMaskedStore, Ty, Alignment);
+    const Function *F, Type *Ty, unsigned Alignment, unsigned AddrSpace) const {
+  return checkMemOpLegality(F, isLegalMaskedStore, Ty, Alignment, AddrSpace);
 }
 
 TargetInfo::VPMemOpLegality TargetInfo::isVPGatherLegal(
-    const Function *F, Type *Ty, unsigned Alignment) const {
-  return checkMemOpLegality(F, isLegalMaskedGather, Ty, Alignment);
+    const Function *F, Type *Ty, unsigned Alignment, unsigned AddrSpace) const {
+  return checkMemOpLegality(F, isLegalMaskedGather, Ty, Alignment, AddrSpace);
 }
 
 TargetInfo::VPMemOpLegality TargetInfo::isVPScatterLegal(
-    const Function *F, Type *Ty, unsigned Alignment) const {
-  return checkMemOpLegality(F, isLegalMaskedScatter, Ty, Alignment);
+    const Function *F, Type *Ty, unsigned Alignment, unsigned AddrSpace) const {
+  return checkMemOpLegality(F, isLegalMaskedScatter, Ty, Alignment, AddrSpace);
 }
 
 bool TargetInfo::isLegalVPElementType(Type *) const { return true; }
