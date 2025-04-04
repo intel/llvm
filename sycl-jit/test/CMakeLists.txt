@@ -16,7 +16,7 @@ add_lit_testsuite(check-sycl-jit-lit-tests "Running SYCL-JIT lit tests"
     "${CMAKE_CURRENT_BINARY_DIR}"
 
     DEPENDS
-    SYCLKernelJIT
+    SYCLJITPassesPlugin
     opt
     FileCheck
 )

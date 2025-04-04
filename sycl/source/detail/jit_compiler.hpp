@@ -12,7 +12,8 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/feature_test.hpp>
 #if SYCL_EXT_JIT_ENABLE
-#include <KernelFusion.h>
+#include <Materializer.h>
+#include <RTC.h>
 #endif // SYCL_EXT_JIT_ENABLE
 
 #include <functional>

@@ -9,7 +9,7 @@
 #pragma once
 
 #include "Kernel.h"
-#include "fusion/JITContext.h"
+#include "helper/JITContext.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"

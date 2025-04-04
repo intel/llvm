@@ -1,4 +1,4 @@
-//==- KernelFusion.h - Public interface of JIT compiler for kernel fusion --==//
+//==--- RTC.h - Public interface for SYCL runtime compilation --------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,45 +9,18 @@
 #pragma once
 
 #ifdef _WIN32
-#define KF_EXPORT_SYMBOL __declspec(dllexport)
+#define RTC_EXPORT_SYMBOL __declspec(dllexport)
 #else
-#define KF_EXPORT_SYMBOL
+#define RTC_EXPORT_SYMBOL
 #endif
 
 #include "Kernel.h"
-#include "Options.h"
 #include "View.h"
 #include "sycl/detail/string.hpp"
 
 #include <cassert>
 
 namespace jit_compiler {
-
-class JITResult {
-public:
-  explicit JITResult(const char *ErrorMessage)
-      : Failed{true}, KernelInfo{}, ErrorMessage{ErrorMessage} {}
-
-  explicit JITResult(const SYCLKernelInfo &KernelInfo)
-      : Failed{false}, KernelInfo(KernelInfo), ErrorMessage{} {}
-
-  bool failed() const { return Failed; }
-
-  const char *getErrorMessage() const {
-    assert(failed() && "No error message present");
-    return ErrorMessage.c_str();
-  }
-
-  const SYCLKernelInfo &getKernelInfo() const {
-    assert(!failed() && "No kernel info");
-    return KernelInfo;
-  }
-
-private:
-  bool Failed;
-  SYCLKernelInfo KernelInfo;
-  sycl::detail::string ErrorMessage;
-};
 
 class RTCHashResult {
 public:
@@ -126,26 +99,16 @@ extern "C" {
 #pragma warning(disable : 4190)
 #endif // _MSC_VER
 
-KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
-    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
-    View<unsigned char> SpecConstBlob);
+RTC_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
+                                              View<InMemoryFile> IncludeFiles,
+                                              View<const char *> UserArgs);
 
-KF_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
-                                             View<InMemoryFile> IncludeFiles,
-                                             View<const char *> UserArgs);
+RTC_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
+                                        View<InMemoryFile> IncludeFiles,
+                                        View<const char *> UserArgs,
+                                        View<char> CachedIR, bool SaveIR);
 
-KF_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
-                                       View<InMemoryFile> IncludeFiles,
-                                       View<const char *> UserArgs,
-                                       View<char> CachedIR, bool SaveIR);
-
-KF_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
-
-/// Clear all previously set options.
-KF_EXPORT_SYMBOL void resetJITConfiguration();
-
-/// Add an option to the configuration.
-KF_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt);
+RTC_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
 
 } // end of extern "C"
 

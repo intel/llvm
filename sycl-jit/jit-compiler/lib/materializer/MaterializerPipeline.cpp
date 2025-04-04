@@ -1,4 +1,4 @@
-//==-------------------------- FusionPipeline.cpp --------------------------==//
+//==--------------------- MaterializerPipeline.cpp -------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,33 +6,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "FusionPipeline.h"
+#include "MaterializerPipeline.h"
 
 #include "helper/ConfigHelper.h"
-#include "kernel-fusion/SYCLSpecConstMaterializer.h"
+#include "materializer/SYCLSpecConstMaterializer.h"
 
 #include "llvm/IR/PassManager.h"
-#include "llvm/Transforms/IPO/AlwaysInliner.h"
-#include "llvm/Transforms/Scalar/IndVarSimplify.h"
-#include "llvm/Transforms/Scalar/InferAddressSpaces.h"
-#include "llvm/Transforms/Scalar/LoopUnrollPass.h"
-#ifndef NDEBUG
-#include "llvm/IR/Verifier.h"
-#endif // NDEBUG
 #include "llvm/Passes/PassBuilder.h"
-#include "llvm/TargetParser/Triple.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
+#include "llvm/Transforms/Scalar/IndVarSimplify.h"
+#include "llvm/Transforms/Scalar/LoopUnrollPass.h"
 #include "llvm/Transforms/Scalar/SCCP.h"
 #include "llvm/Transforms/Scalar/SROA.h"
-#include "llvm/Transforms/Scalar/SimplifyCFG.h"
 
 using namespace llvm;
 using namespace jit_compiler;
-using namespace jit_compiler::fusion;
 
-bool FusionPipeline::runMaterializerPasses(
+bool MaterializerPipeline::runMaterializerPasses(
     llvm::Module &Mod, llvm::ArrayRef<unsigned char> SpecConstData) {
   PassBuilder PB;
   LoopAnalysisManager LAM;

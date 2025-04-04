@@ -15,11 +15,6 @@
 #include <unordered_map>
 
 #include "Kernel.h"
-#include "Options.h"
-
-namespace llvm {
-class LLVMContext;
-} // namespace llvm
 
 namespace jit_compiler {
 

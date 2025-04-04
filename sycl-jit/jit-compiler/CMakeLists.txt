@@ -1,13 +1,15 @@
 
 add_llvm_library(sycl-jit
-   lib/KernelFusion.cpp
    lib/translation/KernelTranslation.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
-   lib/fusion/FusionPipeline.cpp
-   lib/fusion/JITContext.cpp
+   lib/materializer/MaterializerPipeline.cpp
+   lib/materializer/Materializer.cpp
    lib/rtc/DeviceCompilation.cpp
    lib/rtc/ESIMD.cpp
+   lib/rtc/RTC.cpp
    lib/helper/ConfigHelper.cpp
+   lib/helper/ErrorHelper.cpp
+   lib/helper/JITContext.cpp
 
    SHARED
 
@@ -76,7 +78,7 @@ target_link_libraries(sycl-jit
   PRIVATE
   sycl-jit-common
   LLVMSPIRVLib
-  SYCLKernelJITPasses
+  SYCLJITPasses
   ${CMAKE_THREAD_LIBS_INIT}
 )
 

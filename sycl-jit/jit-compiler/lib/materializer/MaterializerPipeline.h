@@ -1,4 +1,4 @@
-//==--- FusionPipeline - LLVM pass pipeline definition for kernel fusion ---==//
+//==--- MaterializerPipeline.h - LLVM pass pipeline for materializer -------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,9 +11,8 @@
 #include "llvm/IR/Module.h"
 
 namespace jit_compiler {
-namespace fusion {
 
-class FusionPipeline {
+class MaterializerPipeline {
 public:
   ///
   /// Run the necessary passes in a custom pass pipeline to perform
@@ -22,5 +21,5 @@ public:
   runMaterializerPasses(llvm::Module &Mod,
                         llvm::ArrayRef<unsigned char> SpecConstData);
 };
-} // namespace fusion
+
 } // namespace jit_compiler

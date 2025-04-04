@@ -1,4 +1,4 @@
-//==-------------------------- KernelFusion.cpp ----------------------------==//
+//==----------------------------- RTC.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "KernelFusion.h"
+#include "RTC.h"
 #include "Kernel.h"
-#include "Options.h"
-#include "fusion/FusionPipeline.h"
-#include "helper/ConfigHelper.h"
+#include "helper/ErrorHelper.h"
 #include "rtc/DeviceCompilation.h"
 #include "translation/KernelTranslation.h"
 #include "translation/SPIRVLLVMTranslation.h"
@@ -18,76 +16,16 @@
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/Bitcode/BitcodeReader.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
-#include <llvm/Support/Error.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/TimeProfiler.h>
 
 #include <clang/Driver/Options.h>
 
 #include <chrono>
-#include <sstream>
 
 using namespace jit_compiler;
 
-static std::string formatError(llvm::Error &&Err, const std::string &Msg) {
-  std::stringstream ErrMsg;
-  ErrMsg << Msg << "\nDetailed information:\n";
-  llvm::handleAllErrors(std::move(Err),
-                        [&ErrMsg](const llvm::StringError &StrErr) {
-                          ErrMsg << "\t" << StrErr.getMessage() << "\n";
-                        });
-  return ErrMsg.str();
-}
-
-template <typename ResultType, typename... ExtraArgTypes>
-static ResultType errorTo(llvm::Error &&Err, const std::string &Msg,
-                          ExtraArgTypes... ExtraArgs) {
-  // Cannot throw an exception here if LLVM itself is compiled without exception
-  // support.
-  return ResultType{formatError(std::move(Err), Msg).c_str(), ExtraArgs...};
-}
-
-extern "C" KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
-    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
-    View<unsigned char> SpecConstBlob) {
-  auto &JITCtx = JITContext::getInstance();
-
-  TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
-  BinaryFormat TargetFormat = TargetInfo.getFormat();
-  if (TargetFormat != BinaryFormat::PTX &&
-      TargetFormat != BinaryFormat::AMDGCN) {
-    return JITResult("Output target format not supported by this build. "
-                     "Available targets are: PTX or AMDGCN.");
-  }
-
-  std::vector<::jit_compiler::SYCLKernelInfo> KernelInfos;
-  KernelInfos.emplace_back(KernelName, BinInfo);
-  // Load all input kernels from their respective modules into a single
-  // LLVM IR module.
-  llvm::LLVMContext Ctx;
-  llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
-      translation::KernelTranslator::loadKernels(Ctx, KernelInfos);
-  if (auto Error = ModOrError.takeError()) {
-    return errorTo<JITResult>(std::move(Error), "Failed to load kernels");
-  }
-  std::unique_ptr<llvm::Module> NewMod = std::move(*ModOrError);
-  if (!fusion::FusionPipeline::runMaterializerPasses(
-          *NewMod, SpecConstBlob.to<llvm::ArrayRef>()) ||
-      !NewMod->getFunction(KernelName)) {
-    return JITResult{"Materializer passes should not fail"};
-  }
-
-  SYCLKernelInfo &MaterializerKernelInfo = KernelInfos.front();
-  if (auto Error = translation::KernelTranslator::translateKernel(
-          MaterializerKernelInfo, *NewMod, JITCtx, TargetFormat)) {
-    return errorTo<JITResult>(std::move(Error),
-                              "Translation to output format failed");
-  }
-
-  return JITResult{MaterializerKernelInfo};
-}
-
-extern "C" KF_EXPORT_SYMBOL RTCHashResult
+extern "C" RTC_EXPORT_SYMBOL RTCHashResult
 calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
               View<const char *> UserArgs) {
   auto UserArgListOrErr = parseUserArgs(UserArgs);
@@ -117,7 +55,7 @@ calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   return RTCHashResult::success(Hash.c_str());
 }
 
-extern "C" KF_EXPORT_SYMBOL RTCResult
+extern "C" RTC_EXPORT_SYMBOL RTCResult
 compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
             View<const char *> UserArgs, View<char> CachedIR, bool SaveIR) {
   llvm::LLVMContext Context;
@@ -227,14 +165,6 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   return RTCResult{std::move(BundleInfo), std::move(IR), BuildLog.c_str()};
 }
 
-extern "C" KF_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address) {
+extern "C" RTC_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address) {
   JITContext::getInstance().destroyKernelBinary(Address);
-}
-
-extern "C" KF_EXPORT_SYMBOL void resetJITConfiguration() {
-  ConfigHelper::reset();
-}
-
-extern "C" KF_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt) {
-  ConfigHelper::getConfig().set(std::move(Opt));
 }

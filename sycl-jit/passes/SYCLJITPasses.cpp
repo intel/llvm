@@ -1,4 +1,4 @@
-//==------------------------ SYCLFusionPasses.cpp --------------------------==//
+//==-------------------------- SYCLJITPasses.cpp ---------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,13 +11,13 @@
 
 #include "Kernel.h"
 
-#include "kernel-fusion/SYCLSpecConstMaterializer.h"
+#include "materializer/SYCLSpecConstMaterializer.h"
 
 using namespace llvm;
 using namespace jit_compiler;
 
-llvm::PassPluginLibraryInfo getSYCLKernelFusionPluginInfo() {
-  return {LLVM_PLUGIN_API_VERSION, "SYCL-Module-Info", LLVM_VERSION_STRING,
+llvm::PassPluginLibraryInfo getSYCLJITPassesPluginInfo() {
+  return {LLVM_PLUGIN_API_VERSION, "SYCL-JIT pass library", LLVM_VERSION_STRING,
           [](PassBuilder &PB) {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, ModulePassManager &MPM,
@@ -36,5 +36,5 @@ llvm::PassPluginLibraryInfo getSYCLKernelFusionPluginInfo() {
 
 extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
-  return getSYCLKernelFusionPluginInfo();
+  return getSYCLJITPassesPluginInfo();
 }
