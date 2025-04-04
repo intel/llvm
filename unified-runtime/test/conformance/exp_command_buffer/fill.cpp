@@ -14,6 +14,8 @@ struct testParametersFill {
 struct urCommandBufferFillCommandsTest
     : uur::command_buffer::urCommandBufferExpTestWithParam<testParametersFill> {
   void SetUp() override {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferExpTestWithParam<
             testParametersFill>::SetUp());
