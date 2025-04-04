@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_TRANSLATION_SPIRVLLVMTRANSLATION_H
-#define SYCL_FUSION_JIT_COMPILER_TRANSLATION_SPIRVLLVMTRANSLATION_H
+#pragma once
 
 #include "Kernel.h"
 #include "LLVMSPIRVOpts.h"
@@ -41,5 +40,3 @@ private:
 
 } // namespace translation
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_JIT_COMPILER_TRANSLATION_SPIRVLLVMTRANSLATION_H

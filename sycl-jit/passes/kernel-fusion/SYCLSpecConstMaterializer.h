@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_SPEC_CONST_MATERIALIZER_H
-#define SYCL_SPEC_CONST_MATERIALIZER_H
+#pragma once
 
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
@@ -99,5 +98,3 @@ private:
   std::map<LoadInst *, TypeAtOffset> LoadsToTypes{};
 };
 } // namespace llvm
-
-#endif // SYCL_SPEC_CONST_MATERIALIZER_H

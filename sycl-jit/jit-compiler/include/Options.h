@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_OPTIONS_H
-#define SYCL_FUSION_JIT_COMPILER_OPTIONS_H
+#pragma once
 
 #include "Kernel.h"
 
@@ -104,5 +103,3 @@ struct JITTargetFeatures
 
 } // namespace option
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_JIT_COMPILER_OPTIONS_H

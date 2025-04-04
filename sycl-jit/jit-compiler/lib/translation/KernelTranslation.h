@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#ifndef SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H
-#define SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H
+
+#pragma once
 
 #include "Kernel.h"
 #include "fusion/JITContext.h"
@@ -53,5 +53,3 @@ private:
 };
 } // namespace translation
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H

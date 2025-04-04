@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_COMMON_DYNARRAY_H
-#define SYCL_FUSION_COMMON_DYNARRAY_H
+#pragma once
 
 #include <algorithm>
 #include <cstring>
@@ -99,5 +98,3 @@ private:
 };
 
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_COMMON_DYNARRAY_H

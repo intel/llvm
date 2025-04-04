@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_FUSION_FUSIONPIPELINE_H
-#define SYCL_FUSION_JIT_COMPILER_FUSION_FUSIONPIPELINE_H
+#pragma once
 
 #include "llvm/IR/Module.h"
 
@@ -25,5 +24,3 @@ public:
 };
 } // namespace fusion
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_JIT_COMPILER_FUSION_FUSIONPIPELINE_H

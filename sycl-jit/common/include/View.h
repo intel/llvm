@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_COMMON_VIEW_H
-#define SYCL_FUSION_COMMON_VIEW_H
+#pragma once
 
 #include <cstddef>
 #include <iterator>
@@ -38,5 +37,3 @@ private:
 };
 
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_COMMON_VIEW_H

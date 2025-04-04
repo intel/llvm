@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_COMMON_KERNEL_H
-#define SYCL_FUSION_COMMON_KERNEL_H
+#pragma once
 
 #include "DynArray.h"
 #include "sycl/detail/string.hpp"
@@ -243,5 +242,3 @@ struct RTCBundleInfo {
 using RTCDeviceCodeIR = DynArray<char>;
 
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_COMMON_KERNEL_H

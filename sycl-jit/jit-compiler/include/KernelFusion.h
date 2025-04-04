@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
-#define SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
+#pragma once
 
 #ifdef _WIN32
 #define KF_EXPORT_SYMBOL __declspec(dllexport)
@@ -151,5 +150,3 @@ KF_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt);
 } // end of extern "C"
 
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H

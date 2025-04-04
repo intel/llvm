@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_FUSION_JITCONTEXT_H
-#define SYCL_FUSION_JIT_COMPILER_FUSION_JITCONTEXT_H
+#pragma once
 
 #include <memory>
 #include <mutex>
@@ -86,5 +85,3 @@ private:
   std::unordered_map<BinaryAddress, std::unique_ptr<KernelBinary>> Binaries;
 };
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_JIT_COMPILER_FUSION_JITCONTEXT_H

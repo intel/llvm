@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_JIT_COMPILER_RTC_DEVICE_COMPILATION_H
-#define SYCL_JIT_COMPILER_RTC_DEVICE_COMPILATION_H
+#pragma once
 
 #include "Kernel.h"
 #include "View.h"
@@ -50,5 +49,3 @@ void encodeBuildOptions(RTCBundleInfo &BundleInfo,
 void configureDiagnostics(llvm::LLVMContext &Context, std::string &BuildLog);
 
 } // namespace jit_compiler
-
-#endif // SYCL_JIT_COMPILER_RTC_DEVICE_COMPILATION_H
