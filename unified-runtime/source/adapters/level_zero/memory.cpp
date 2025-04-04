@@ -15,8 +15,8 @@
 
 #include "context.hpp"
 #include "event.hpp"
-#include "helpers/image_helpers.hpp"
 #include "helpers/memory_helpers.hpp"
+#include "image_common.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
 #include "ur_interface_loader.hpp"
