@@ -58,9 +58,7 @@ static bool ForceDisableCopyOffload = [] {
 raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
   ZeStruct<zex_intel_queue_copy_operations_offload_hint_exp_desc_t> offloadDesc;
-  auto requestedCopyOffload =
-      std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
-
+  auto requestedCopyOffload = false;
   if (ForceDisableCopyOffload && requestedCopyOffload) {
     logger::info("Copy offload is disabled by the environment variable.");
     requestedCopyOffload = false;
