@@ -27,8 +27,8 @@ using sw_double_2 = decltype(std::declval<vec<double, 4>>().swizzle<1, 2>());
 //            EXCEPT_IN_PREVIEW condition<>
 
 static_assert(                  std::is_assignable_v<vec<half, 1>, half>);
-static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, float>);
-static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, double>);
+static_assert(                  std::is_assignable_v<vec<half, 1>, float>);
+static_assert(                  std::is_assignable_v<vec<half, 1>, double>);
 static_assert(                  std::is_assignable_v<vec<half, 1>, vec<half, 1>>);
 static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, vec<float, 1>>);
 static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, vec<double, 1>>);
