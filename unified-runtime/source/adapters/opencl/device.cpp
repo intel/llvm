@@ -1514,6 +1514,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD |
                        UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
   }
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_bfloat16_conversions"}, Supported));
+    return ReturnValue(Supported);
+  }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
     size_t ExtSize = 0;
@@ -1524,9 +1531,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     CL_RETURN_ON_FAILURE(clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, ExtSize,
                                          ExtStr.data(), nullptr));
 
-    std::string SupportedExtensions(ExtStr.c_str());
-    return ReturnValue(ExtStr.find("cl_khr_command_buffer") !=
-                       std::string::npos);
+    // cl_khr_command_buffer is required for UR command-buffer support
+    cl_device_command_buffer_capabilities_khr Caps = 0;
+    if (ExtStr.find("cl_khr_command_buffer") != std::string::npos) {
+      // A UR command-buffer user needs to be able to enqueue another
+      // submission of the same UR command-buffer without having to manually
+      // check if the first submission has completed.
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(Dev, CL_DEVICE_COMMAND_BUFFER_CAPABILITIES_KHR,
+                          sizeof(Caps), &Caps, nullptr));
+    }
+
+    return ReturnValue(
+        0 != (Caps & CL_COMMAND_BUFFER_CAPABILITY_SIMULTANEOUS_USE_KHR));
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
     cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
