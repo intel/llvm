@@ -3037,7 +3037,7 @@ ProgramManager::build(const DevImgPlainWithDeps &DevImgWithDeps,
   const std::shared_ptr<device_image_impl> &MainInputImpl =
       getSyclObjImpl(DevImgWithDeps.getMain());
 
-  const context Context = MainInputImpl->get_context();
+  const context &Context = MainInputImpl->get_context();
   const ContextImplPtr &ContextImpl = detail::getSyclObjImpl(Context);
 
   std::vector<const RTDeviceBinaryImage *> BinImgs;
