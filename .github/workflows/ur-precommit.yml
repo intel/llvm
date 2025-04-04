@@ -93,12 +93,12 @@ jobs:
             runner: UR_OPENCL
             platform: "OPENCL:Intel(R) OpenCL"
             docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
-            image_options: -u 1001 --gpus all --device=/dev/dri  -v /dev/dri/by-path:/dev/dri/by-path  --cap-add SYS_ADMIN
+            image_options: -u 1001 --gpus all --device=/dev/dri  --cap-add SYS_ADMIN
             other_adapter: NATIVE_CPU
           - name: NATIVE_CPU
             runner: UR_NATIVE_CPU
             docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
-            image_options: -u 1001 --device=/dev/dri  -v /dev/dri/by-path:/dev/dri/by-path  --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
 
         # Extra native CPU jobs are here to force the loader to be used.
         # UR will not use the loader if there is only one target.
