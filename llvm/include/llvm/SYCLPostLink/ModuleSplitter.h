@@ -16,6 +16,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
 #include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/PropertySetIO.h"
@@ -29,7 +30,6 @@
 namespace llvm {
 
 class Function;
-class Module;
 
 namespace cl {
 class OptionCategory;
