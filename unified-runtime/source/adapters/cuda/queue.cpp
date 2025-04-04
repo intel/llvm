@@ -86,14 +86,8 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       }
     }
 
-    std::vector<CUstream> ComputeCuStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumComputeStreams : 1);
-    std::vector<CUstream> TransferCuStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumTransferStreams : 0);
-
     Queue = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
-        std::move(ComputeCuStreams), std::move(TransferCuStreams), hContext,
-        hDevice, Flags, URFlags, Priority});
+        IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority});
 
     *phQueue = Queue.release();
 
@@ -205,23 +199,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   else
     die("Unknown cuda stream");
 
-  std::vector<CUstream> ComputeCuStreams(1, CuStream);
-  std::vector<CUstream> TransferCuStreams(0);
-
   auto isNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
 
-  // Create queue and set num_compute_streams to 1, as computeCuStreams has
-  // valid stream
-  *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
-                                    std::move(TransferCuStreams),
-                                    hContext,
-                                    hDevice,
-                                    CuFlags,
-                                    Flags,
-                                    /*priority*/ 0,
-                                    /*backend_owns*/ isNativeHandleOwned};
-  (*phQueue)->NumComputeStreams = 1;
+  // Create queue from a native stream
+  *phQueue = new ur_queue_handle_t_{CuStream, hContext, hDevice,
+                                    CuFlags,  Flags,    isNativeHandleOwned};
 
   return UR_RESULT_SUCCESS;
 }

@@ -6,12 +6,5 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clc/clc_as_type.h>
-#include <clc/utils.h>
-#include <libspirv/spirv.h>
-
-#define __CLC_AS_GENTYPE __CLC_XCONCAT(__clc_as_, __CLC_GENTYPE)
-#define __CLC_AS_UNSIGNED(TYPE)                                                \
-  __CLC_XCONCAT(__clc_as_, __CLC_XCONCAT(TYPE, __CLC_VECSIZE))
-#define __CLC_BODY <nan.inc>
-#include <clc/math/gentype.inc>
+_CLC_OVERLOAD _CLC_DECL __CLC_GENTYPE __clc_add_sat(__CLC_GENTYPE x,
+                                                    __CLC_GENTYPE y);
