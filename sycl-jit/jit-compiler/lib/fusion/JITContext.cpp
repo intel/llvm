@@ -22,7 +22,3 @@ jit_compiler::BinaryAddress KernelBinary::address() const {
 size_t KernelBinary::size() const { return Blob.size(); }
 
 BinaryFormat KernelBinary::format() const { return Format; }
-
-JITContext::JITContext() : LLVMCtx{new llvm::LLVMContext}, Binaries{} {}
-
-llvm::LLVMContext *JITContext::getLLVMContext() { return LLVMCtx.get(); }

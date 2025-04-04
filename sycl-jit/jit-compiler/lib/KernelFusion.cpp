@@ -64,9 +64,9 @@ extern "C" KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
   KernelInfos.emplace_back(KernelName, BinInfo);
   // Load all input kernels from their respective modules into a single
   // LLVM IR module.
+  llvm::LLVMContext Ctx;
   llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
-      translation::KernelTranslator::loadKernels(*JITCtx.getLLVMContext(),
-                                                 KernelInfos);
+      translation::KernelTranslator::loadKernels(Ctx, KernelInfos);
   if (auto Error = ModOrError.takeError()) {
     return errorTo<JITResult>(std::move(Error), "Failed to load kernels");
   }

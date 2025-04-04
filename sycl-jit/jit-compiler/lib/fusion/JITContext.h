@@ -53,8 +53,6 @@ public:
     return Instance;
   }
 
-  llvm::LLVMContext *getLLVMContext();
-
   template <typename... Ts> KernelBinary &emplaceKernelBinary(Ts &&...Args) {
     WriteLockT WriteLock{BinariesMutex};
     auto KBUPtr = std::make_unique<KernelBinary>(std::forward<Ts>(Args)...);
@@ -69,7 +67,7 @@ public:
   }
 
 private:
-  JITContext();
+  JITContext() = default;
   ~JITContext() = default;
   JITContext(const JITContext &) = delete;
   JITContext(JITContext &&) = delete;
@@ -82,8 +80,6 @@ private:
   using ReadLockT = std::shared_lock<MutexT>;
 
   using WriteLockT = std::unique_lock<MutexT>;
-
-  std::unique_ptr<llvm::LLVMContext> LLVMCtx;
 
   MutexT BinariesMutex;
 
