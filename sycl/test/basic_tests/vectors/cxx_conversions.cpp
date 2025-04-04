@@ -39,8 +39,10 @@ using sw_double_2 = decltype(std::declval<vec<double, 4>>().swizzle<1, 2>());
 
 #if __INTEL_PREVIEW_BREAKING_CHANGES
 #define EXCEPT_IN_PREVIEW !
+#define PREVIEW_ONLY
 #else
 #define EXCEPT_IN_PREVIEW
+#define PREVIEW_ONLY !
 #endif
 
 // clang-format off
@@ -128,8 +130,8 @@ static_assert(                  is_explicitly_convertible_to_v<vec<half, 1>,  ha
 static_assert(                  is_explicitly_convertible_to_v<vec<half, 1>,  float>);
 static_assert(                  is_explicitly_convertible_to_v<vec<half, 1>,  double>);
 #else
-static_assert(                 !is_explicitly_convertible_to_v<vec<half, 1>,  float>);
-static_assert(                 !is_explicitly_convertible_to_v<vec<half, 1>,  double>);
+static_assert(PREVIEW_ONLY      is_explicitly_convertible_to_v<vec<half, 1>,  float>);
+static_assert(PREVIEW_ONLY      is_explicitly_convertible_to_v<vec<half, 1>,  double>);
 #endif
 
 static_assert(                  is_explicitly_convertible_to_v<vec<float, 1>,  half>);
