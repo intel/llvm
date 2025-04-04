@@ -488,7 +488,19 @@ event handler::finalize() {
       // creation.
       std::vector<ur_event_handle_t> RawEvents =
           detail::Command::getUrEvents(impl->CGData.MEvents, MQueue, false);
-      detail::EventImplPtr NewEvent;
+      const detail::EventImplPtr &LastEventImpl =
+          detail::getSyclObjImpl(MLastEvent);
+
+      bool DiscardEvent = (MQueue->MDiscardEvents || !impl->MEventNeeded) &&
+                          MQueue->supportsDiscardingPiEvents();
+      if (DiscardEvent) {
+        // Kernel only uses assert if it's non interop one
+        bool KernelUsesAssert =
+            !(MKernel && MKernel->isInterop()) &&
+            detail::ProgramManager::getInstance().kernelUsesAssert(
+                MKernelName.c_str());
+        DiscardEvent = !KernelUsesAssert;
+      }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
@@ -511,53 +523,41 @@ event handler::finalize() {
               detail::retrieveKernelBinary(MQueue, MKernelName.c_str());
           assert(BinImage && "Failed to obtain a binary image.");
         }
-        enqueueImpKernel(MQueue, impl->MNDRDesc, impl->MArgs,
-                         KernelBundleImpPtr, MKernel, MKernelName.c_str(),
-                         RawEvents, NewEvent, nullptr, impl->MKernelCacheConfig,
-                         impl->MKernelIsCooperative,
-                         impl->MKernelUsesClusterLaunch,
-                         impl->MKernelWorkGroupMemorySize, BinImage);
+        enqueueImpKernel(
+            MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr, MKernel,
+            MKernelName.c_str(), RawEvents,
+            DiscardEvent ? detail::EventImplPtr{} : LastEventImpl, nullptr,
+            impl->MKernelCacheConfig, impl->MKernelIsCooperative,
+            impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+            BinImage);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
-        if (NewEvent != nullptr) {
+        if (!DiscardEvent) {
           detail::emitInstrumentationGeneral(
               StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
-              static_cast<const void *>(NewEvent->getHandle()));
+              static_cast<const void *>(LastEventImpl->getHandle()));
         }
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_end, nullptr);
 #endif
       };
 
-      bool DiscardEvent = (MQueue->MDiscardEvents || !impl->MEventNeeded) &&
-                          MQueue->supportsDiscardingPiEvents();
-      if (DiscardEvent) {
-        // Kernel only uses assert if it's non interop one
-        bool KernelUsesAssert =
-            !(MKernel && MKernel->isInterop()) &&
-            detail::ProgramManager::getInstance().kernelUsesAssert(
-                MKernelName.c_str());
-        DiscardEvent = !KernelUsesAssert;
-      }
-
       if (DiscardEvent) {
         EnqueueKernel();
-        const auto &EventImpl = detail::getSyclObjImpl(MLastEvent);
-        EventImpl->setStateDiscarded();
+        LastEventImpl->setStateDiscarded();
       } else {
-        NewEvent = detail::getSyclObjImpl(MLastEvent);
-        NewEvent->setQueue(MQueue);
-        NewEvent->setWorkerQueue(MQueue);
-        NewEvent->setContextImpl(MQueue->getContextImplPtr());
-        NewEvent->setStateIncomplete();
-        NewEvent->setSubmissionTime();
+        LastEventImpl->setQueue(MQueue);
+        LastEventImpl->setWorkerQueue(MQueue);
+        LastEventImpl->setContextImpl(MQueue->getContextImplPtr());
+        LastEventImpl->setStateIncomplete();
+        LastEventImpl->setSubmissionTime();
 
         EnqueueKernel();
-        NewEvent->setEnqueued();
+        LastEventImpl->setEnqueued();
         // connect returned event with dependent events
         if (!MQueue->isInOrder()) {
-          NewEvent->getPreparedDepsEvents() = impl->CGData.MEvents;
-          NewEvent->cleanDepEventsThroughOneLevel();
+          LastEventImpl->getPreparedDepsEvents() = impl->CGData.MEvents;
+          LastEventImpl->cleanDepEventsThroughOneLevel();
         }
       }
       return MLastEvent;
