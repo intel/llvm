@@ -16,6 +16,7 @@ struct urCommandBufferFillCommandsTest
   void SetUp() override {
     // This test fails due to a bug in the Level-Zero driver, it can be
     // reenabled after CI machines get their drivers updated
+    // https://github.com/intel/llvm/issues/17856
     UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
 
     UUR_RETURN_ON_FATAL_FAILURE(
