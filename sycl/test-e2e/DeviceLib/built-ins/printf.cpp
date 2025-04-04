@@ -62,7 +62,8 @@ int main() {
         using ocl_int4 = int __attribute__((ext_vector_type(4)));
         {
           static const CONSTANT char format[] = "%v4hld\n";
-          ext::oneapi::experimental::printf(format, sycl::bit_cast<ocl_int4>(v4));
+          ext::oneapi::experimental::printf(format,
+                                            sycl::bit_cast<ocl_int4>(v4));
         }
 
         // However, you are still able to print them by-element:

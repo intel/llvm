@@ -896,8 +896,8 @@ vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
             sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
             sycl::ext::oneapi::bfloat16,
             /*->*/ sycl::ext::oneapi::bfloat16::Bfloat16StorageT, //
-            char, /*->*/ detail::ConvertToOpenCLType_t<char>,   //
-            DataT, /*->*/ DataT                                 //
+            char, /*->*/ detail::ConvertToOpenCLType_t<char>,     //
+            DataT, /*->*/ DataT                                   //
             >::type
 #else
         DataT
