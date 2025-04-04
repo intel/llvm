@@ -570,8 +570,10 @@ class TargetInfo {
   /// @param[in] F The function in which the instruction will be created.
   /// @param[in] Ty Type of the vector to load.
   /// @param[in] Alignment Alignment of the operation.
+  /// @param[in] AddrSpace Address space of the operation.
   virtual VPMemOpLegality isVPLoadLegal(const llvm::Function *F, llvm::Type *Ty,
-                                        unsigned Alignment) const;
+                                        unsigned Alignment,
+                                        unsigned AddrSpace) const;
 
   /// @return A VPMemOpLegality enum stating whether we can create a vp.store or
   /// a masked.store intrinsic.
@@ -579,9 +581,10 @@ class TargetInfo {
   /// @param[in] F The function in which the instruction will be created.
   /// @param[in] Ty Type of the vector to store.
   /// @param[in] Alignment Alignment of the operation.
+  /// @param[in] AddrSpace Address space of the operation.
   virtual VPMemOpLegality isVPStoreLegal(const llvm::Function *F,
-                                         llvm::Type *Ty,
-                                         unsigned Alignment) const;
+                                         llvm::Type *Ty, unsigned Alignment,
+                                         unsigned AddrSpace) const;
 
   /// @return A VPMemOpLegality enum stating whether we can create a vp.gather
   /// or a masked.gather intrinsic.
@@ -589,9 +592,10 @@ class TargetInfo {
   /// @param[in] F The function in which the instruction will be created.
   /// @param[in] Ty Type of the vector to gather.
   /// @param[in] Alignment Alignment of the operation.
+  /// @param[in] AddrSpace Address space of the operation.
   virtual VPMemOpLegality isVPGatherLegal(const llvm::Function *F,
-                                          llvm::Type *Ty,
-                                          unsigned Alignment) const;
+                                          llvm::Type *Ty, unsigned Alignment,
+                                          unsigned AddrSpace) const;
 
   /// @return A VPMemOpLegality enum stating whether we can create a vp.scatter
   /// or a masked.scatter intrinsic.
@@ -599,9 +603,10 @@ class TargetInfo {
   /// @param[in] F The function in which the instruction will be created.
   /// @param[in] Ty Type of the vector to scatter.
   /// @param[in] Alignment Alignment of the operation.
+  /// @param[in] AddrSpace Address space of the operation.
   virtual VPMemOpLegality isVPScatterLegal(const llvm::Function *F,
-                                           llvm::Type *Ty,
-                                           unsigned Alignment) const;
+                                           llvm::Type *Ty, unsigned Alignment,
+                                           unsigned AddrSpace) const;
 
   /// @brief Function to check whether a given type is valid as the element type
   /// of a scalable vector used in a VP intrinsic.
@@ -619,9 +624,9 @@ class TargetInfo {
   VPMemOpLegality checkMemOpLegality(
       const llvm::Function *F,
       llvm::function_ref<bool(const llvm::TargetTransformInfo &, llvm::Type *,
-                              unsigned)>
+                              unsigned, unsigned)>
           Checker,
-      llvm::Type *Ty, unsigned Alignment) const;
+      llvm::Type *Ty, unsigned Alignment, unsigned AddrSpace) const;
 
   /// @brief Create a broadcast of a vector.
   ///
