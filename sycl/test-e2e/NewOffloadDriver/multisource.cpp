@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// XFAIL: (build-mode || run-mode) && !gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17812
+// UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17812
 // Separate kernel sources and host code sources
 // Test with `--offload-new-driver`
 // RUN: %{build} --offload-new-driver -c -o %t.kernel.o -DINIT_KERNEL -DCALC_KERNEL

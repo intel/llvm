@@ -1,5 +1,5 @@
-// XFAIL: (build-mode || run-mode) && !gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17813
+// UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17813
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // RUN: %{build} %{mathflags} -o %t1.out
