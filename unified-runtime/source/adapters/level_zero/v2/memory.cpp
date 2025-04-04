@@ -158,13 +158,15 @@ getSyncCommandListForCopy(ur_context_handle_t hContext,
 
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
                                      ur_device_handle_t hDevice, void *dst,
-                                     const void *src, size_t size) {
+                                     const void *src, size_t size) try {
   auto commandList = getSyncCommandListForCopy(hContext, hDevice);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (commandList.get(), dst, src, size, nullptr, 0, nullptr));
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
