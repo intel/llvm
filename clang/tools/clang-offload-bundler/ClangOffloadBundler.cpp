@@ -123,10 +123,6 @@ int main(int argc, const char **argv) {
              "  ast - clang AST file\n"
              "  a   - archive of objects\n"
              "  ao  - archive with one object; output is an unbundled object\n"
-             "  aocr - AOCR archive; output file is a list of unbundled\n"
-             "         .aocr files\n"
-             "  aocx - AOCX archive; output file is a list of unbundled\n"
-             "         .aocx files\n"
              "  aoo - archive; output file is a list of unbundled objects\n"),
     cl::cat(ClangOffloadBundlerCategory));
 
