@@ -157,13 +157,43 @@ runs:
       cd "./llvm-ci-perf-results"
       git config user.name "SYCL Benchmarking Bot"
       git config user.email "sys_sycl_benchmarks@intel.com"
-      git pull
+      results_branch="unify-ci"
+
       git add .
-      # Make sure changes have been made
       if git diff --quiet && git diff --cached --quiet; then
         echo "No new results added, skipping push."
-      else
-        git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
-        git push "https://$GITHUB_TOKEN@github.com/intel/llvm-ci-perf-results.git" unify-ci
+        exit 0
       fi
 
+      for attempt in 1 2 3; do
+        echo "Attempt $attempt to push new results"
+        git add .
+        git commit -m "[GHA] Upload compute-benchmarks results from https://github.com/intel/llvm/actions/runs/${{ github.run_id }}"
+        results_file="$(git diff HEAD~1 --name-only -- results/ | head -n 1)"
+
+        if git push "https://$GITHUB_TOKEN@github.com/intel/llvm-ci-perf-results.git" "$results_branch"; then
+          echo "Push succeeded"
+          break
+        fi
+
+        echo "Push failed, retrying..."
+        if [ -n "$results_file" ]; then
+          cached_result="$(mktemp -d)/$(basename $results_file)"
+          mv "$results_file" "$cached_result"
+
+          git reset --hard "origin/$results_branch"
+          git pull origin "$results_branch"
+
+          mv "$cached_result" "$results_file"
+        fi
+
+        echo "Regenerating data.json..."
+        cd ../
+        ./devops/scripts/benchmarks/main.py \
+          "$(realpath ./llvm_test_workdir)" \
+          --output-html remote \
+          --results-dir "./llvm-ci-perf-results/" \
+          --output-dir "./llvm-ci-perf-results/" \
+          --dry-run
+        cd -
+      done
