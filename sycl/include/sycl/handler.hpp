@@ -814,7 +814,9 @@ private:
 
     constexpr bool UsesRootSync = PropertiesT::template has_property<
         sycl::ext::oneapi::experimental::use_root_sync_key>();
-    setKernelIsCooperative(UsesRootSync);
+    if (UsesRootSync) {
+      setKernelIsCooperative(UsesRootSync);
+    }
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::oneapi::experimental::
                           work_group_progress_key>()) {
