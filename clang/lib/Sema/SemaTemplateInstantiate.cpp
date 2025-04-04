@@ -1888,11 +1888,10 @@ namespace {
         Sema::ExtParameterInfoBuilder &PInfos);
 
   private:
-    ExprResult
-    transformNonTypeTemplateParmRef(Decl *AssociatedDecl,
-                                    const NonTypeTemplateParmDecl *parm,
-                                    SourceLocation loc, TemplateArgument arg,
-                                    std::optional<unsigned> PackIndex);
+    ExprResult transformNonTypeTemplateParmRef(
+        Decl *AssociatedDecl, const NonTypeTemplateParmDecl *parm,
+        SourceLocation loc, TemplateArgument arg,
+        std::optional<unsigned> PackIndex, bool Final);
   };
 }
 
@@ -2106,10 +2105,8 @@ TemplateName TemplateInstantiator::TransformTemplateName(
       TemplateName Template = Arg.getAsTemplate();
       assert(!Template.isNull() && "Null template template argument");
 
-      if (Final)
-        return Template;
       return getSema().Context.getSubstTemplateTemplateParm(
-          Template, AssociatedDecl, TTP->getIndex(), PackIndex);
+          Template, AssociatedDecl, TTP->getIndex(), PackIndex, Final);
     }
   }
 
@@ -2121,11 +2118,9 @@ TemplateName TemplateInstantiator::TransformTemplateName(
     TemplateArgument Pack = SubstPack->getArgumentPack();
     TemplateName Template =
         getPackSubstitutedTemplateArgument(getSema(), Pack).getAsTemplate();
-    if (SubstPack->getFinal())
-      return Template;
     return getSema().Context.getSubstTemplateTemplateParm(
         Template, SubstPack->getAssociatedDecl(), SubstPack->getIndex(),
-        getPackIndex(Pack));
+        getPackIndex(Pack), SubstPack->getFinal());
   }
 
   return inherited::TransformTemplateName(SS, Name, NameLoc, ObjectType,
@@ -2167,7 +2162,8 @@ TemplateInstantiator::TransformTemplateParmRefExpr(DeclRefExpr *E,
     return Arg.getAsExpr();
   }
 
-  auto [AssociatedDecl, _] = TemplateArgs.getAssociatedDecl(NTTP->getDepth());
+  auto [AssociatedDecl, Final] =
+      TemplateArgs.getAssociatedDecl(NTTP->getDepth());
   std::optional<unsigned> PackIndex;
   if (NTTP->isParameterPack()) {
     assert(Arg.getKind() == TemplateArgument::Pack &&
@@ -2186,17 +2182,15 @@ TemplateInstantiator::TransformTemplateParmRefExpr(DeclRefExpr *E,
       QualType ExprType = TargetType.getNonLValueExprType(SemaRef.Context);
       if (TargetType->isRecordType())
         ExprType.addConst();
-      // FIXME: Pass in Final.
       return new (SemaRef.Context) SubstNonTypeTemplateParmPackExpr(
           ExprType, TargetType->isReferenceType() ? VK_LValue : VK_PRValue,
-          E->getLocation(), Arg, AssociatedDecl, NTTP->getPosition());
+          E->getLocation(), Arg, AssociatedDecl, NTTP->getPosition(), Final);
     }
     PackIndex = getPackIndex(Arg);
     Arg = getPackSubstitutedTemplateArgument(getSema(), Arg);
   }
-  // FIXME: Don't put subst node on Final replacement.
   return transformNonTypeTemplateParmRef(AssociatedDecl, NTTP, E->getLocation(),
-                                         Arg, PackIndex);
+                                         Arg, PackIndex, Final);
 }
 
 const AnnotateAttr *
@@ -2365,8 +2359,8 @@ TemplateInstantiator::TransformOpenACCRoutineDeclAttr(
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
     Decl *AssociatedDecl, const NonTypeTemplateParmDecl *parm,
-    SourceLocation loc, TemplateArgument arg,
-    std::optional<unsigned> PackIndex) {
+    SourceLocation loc, TemplateArgument arg, std::optional<unsigned> PackIndex,
+    bool Final) {
   ExprResult result;
 
   // Determine the substituted parameter type. We can usually infer this from
@@ -2432,10 +2426,9 @@ ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(
     return ExprError();
 
   Expr *resultExpr = result.get();
-  // FIXME: Don't put subst node on final replacement.
   return new (SemaRef.Context) SubstNonTypeTemplateParmExpr(
       resultExpr->getType(), resultExpr->getValueKind(), loc, resultExpr,
-      AssociatedDecl, parm->getIndex(), PackIndex, refParam);
+      AssociatedDecl, parm->getIndex(), PackIndex, refParam, Final);
 }
 
 ExprResult
@@ -2448,10 +2441,9 @@ TemplateInstantiator::TransformSubstNonTypeTemplateParmPackExpr(
 
   TemplateArgument Pack = E->getArgumentPack();
   TemplateArgument Arg = getPackSubstitutedTemplateArgument(getSema(), Pack);
-  // FIXME: Don't put subst node on final replacement.
   return transformNonTypeTemplateParmRef(
       E->getAssociatedDecl(), E->getParameterPack(),
-      E->getParameterPackLocation(), Arg, getPackIndex(Pack));
+      E->getParameterPackLocation(), Arg, getPackIndex(Pack), E->getFinal());
 }
 
 ExprResult
@@ -2493,9 +2485,9 @@ TemplateInstantiator::TransformSubstNonTypeTemplateParmExpr(
               /*PartialOrderingTTP=*/false, Sema::CTAK_Specified)
           .isInvalid())
     return true;
-  return transformNonTypeTemplateParmRef(E->getAssociatedDecl(),
-                                         E->getParameter(), E->getExprLoc(),
-                                         SugaredConverted, E->getPackIndex());
+  return transformNonTypeTemplateParmRef(
+      E->getAssociatedDecl(), E->getParameter(), E->getExprLoc(),
+      SugaredConverted, E->getPackIndex(), E->getFinal());
 }
 
 ExprResult TemplateInstantiator::RebuildVarDeclRefExpr(ValueDecl *PD,
@@ -2651,13 +2643,9 @@ QualType TemplateInstantiator::BuildSubstTemplateTypeParmType(
         SemaRef.Context.getQualifiedType(Replacement.getUnqualifiedType(), RQs);
   }
 
-  if (Final) {
-    TLB.pushTrivial(SemaRef.Context, Replacement, NameLoc);
-    return Replacement;
-  }
   // TODO: only do this uniquing once, at the start of instantiation.
   QualType Result = getSema().Context.getSubstTemplateTypeParmType(
-      Replacement, AssociatedDecl, Index, PackIndex);
+      Replacement, AssociatedDecl, Index, PackIndex, Final);
   SubstTemplateTypeParmTypeLoc NewTL =
       TLB.push<SubstTemplateTypeParmTypeLoc>(Result);
   NewTL.setNameLoc(NameLoc);

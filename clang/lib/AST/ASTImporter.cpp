@@ -1637,8 +1637,8 @@ ExpectedType ASTNodeImporter::VisitSubstTemplateTypeParmType(
     return ToReplacementTypeOrErr.takeError();
 
   return Importer.getToContext().getSubstTemplateTypeParmType(
-      *ToReplacementTypeOrErr, *ReplacedOrErr, T->getIndex(),
-      T->getPackIndex());
+      *ToReplacementTypeOrErr, *ReplacedOrErr, T->getIndex(), T->getPackIndex(),
+      T->getFinal());
 }
 
 ExpectedType ASTNodeImporter::VisitSubstTemplateTypeParmPackType(
@@ -8943,7 +8943,8 @@ ExpectedStmt ASTNodeImporter::VisitSubstNonTypeTemplateParmExpr(
 
   return new (Importer.getToContext()) SubstNonTypeTemplateParmExpr(
       ToType, E->getValueKind(), ToExprLoc, ToReplacement, ToAssociatedDecl,
-      E->getIndex(), E->getPackIndex(), E->isReferenceParameter());
+      E->getIndex(), E->getPackIndex(), E->isReferenceParameter(),
+      E->getFinal());
 }
 
 ExpectedStmt ASTNodeImporter::VisitTypeTraitExpr(TypeTraitExpr *E) {
@@ -9938,7 +9939,7 @@ Expected<TemplateName> ASTImporter::Import(TemplateName From) {
 
     return ToContext.getSubstTemplateTemplateParm(
         *ReplacementOrErr, *AssociatedDeclOrErr, Subst->getIndex(),
-        Subst->getPackIndex());
+        Subst->getPackIndex(), Subst->getFinal());
   }
 
   case TemplateName::SubstTemplateTemplateParmPack: {
