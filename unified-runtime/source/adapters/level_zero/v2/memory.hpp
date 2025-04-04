@@ -20,8 +20,6 @@
 using usm_unique_ptr_t = std::unique_ptr<void, std::function<void(void *)>>;
 
 struct ur_mem_buffer_t : _ur_object {
-  // Indicates if this object is an interop handle.
-  bool IsInteropNativeHandle = false;
 
   enum class device_access_mode_t { read_write, read_only, write_only };
 
@@ -85,7 +83,7 @@ struct ur_integrated_buffer_handle_t : ur_mem_buffer_t {
 
   ur_integrated_buffer_handle_t(ur_context_handle_t hContext, void *hostPtr,
                                 size_t size, device_access_mode_t accesMode,
-                                bool ownHostPtr, bool interopNativeHandle);
+                                bool ownHostPtr);
 
   void *
   getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
@@ -125,8 +123,7 @@ struct ur_discrete_buffer_handle_t : ur_mem_buffer_t {
   ur_discrete_buffer_handle_t(ur_context_handle_t hContext,
                               ur_device_handle_t hDevice, void *devicePtr,
                               size_t size, device_access_mode_t accesMode,
-                              void *writeBackMemory, bool ownDevicePtr,
-                              bool interopNativeHandle);
+                              void *writeBackMemory, bool ownDevicePtr);
 
   void *
   getDevicePtr(ur_device_handle_t, device_access_mode_t, size_t offset,
@@ -206,7 +203,7 @@ struct ur_mem_image_t : _ur_object {
                  const ur_image_desc_t *pImageDesc, void *pHost);
   ur_mem_image_t(ur_context_handle_t, const ur_image_format_t *pImageFormat,
                  const ur_image_desc_t *pImageDesc, ze_image_handle_t zeImage,
-                 bool ownZeImage, bool interopNativeHandle);
+                 bool ownZeImage);
 
   ze_image_handle_t getZeImage() const { return zeImage.get(); }
 
