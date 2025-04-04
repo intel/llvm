@@ -872,7 +872,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
       "ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp");
 
   auto commandListLocked = commandListManager.lock();
-  if (!phEvent && !*phEvent) {
+  if (!phEvent || !*phEvent) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
   getSignalEvent(commandListLocked, phEvent,
