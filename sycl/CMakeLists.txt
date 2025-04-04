@@ -404,6 +404,18 @@ add_custom_target( sycl-toolchain ALL
   COMMENT "Building SYCL compiler toolchain..."
 )
 
+add_custom_target(install-auxiliary-utils
+    DEPENDS
+        utils/FileCheck/install
+        utils/count/install
+        utils/not/install
+        utils/lit/install
+        utils/llvm-lit/install
+        install-llvm-size
+        install-llvm-cov
+        install-llvm-profdata
+)
+
 if (WIN32)
   add_dependencies(sycl-toolchain ur_win_proxy_loader)
 endif()
