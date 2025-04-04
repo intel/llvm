@@ -725,8 +725,7 @@ event handler::finalize() {
     break;
   case detail::CGType::AsyncAlloc:
     CommandGroup.reset(new detail::CGAsyncAlloc(
-        impl->MAllocSize, impl->MMemPool, impl->MAsyncAllocEvent,
-        std::move(impl->CGData), MCodeLoc));
+        impl->MAsyncAllocEvent, std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::AsyncFree:
     CommandGroup.reset(new detail::CGAsyncFree(
