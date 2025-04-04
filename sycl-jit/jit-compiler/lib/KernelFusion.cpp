@@ -8,7 +8,6 @@
 
 #include "KernelFusion.h"
 #include "Kernel.h"
-#include "ModuleInfo.h"
 #include "Options.h"
 #include "fusion/FusionPipeline.h"
 #include "helper/ConfigHelper.h"
@@ -61,14 +60,13 @@ extern "C" KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
                      "Available targets are: PTX or AMDGCN.");
   }
 
-  ::jit_compiler::SYCLKernelInfo KernelInfo{KernelName, BinInfo};
-  SYCLModuleInfo ModuleInfo;
-  ModuleInfo.kernels().insert(ModuleInfo.kernels().end(), KernelInfo);
+  std::vector<::jit_compiler::SYCLKernelInfo> KernelInfos;
+  KernelInfos.emplace_back(KernelName, BinInfo);
   // Load all input kernels from their respective modules into a single
   // LLVM IR module.
   llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
       translation::KernelTranslator::loadKernels(*JITCtx.getLLVMContext(),
-                                                 ModuleInfo.kernels());
+                                                 KernelInfos);
   if (auto Error = ModOrError.takeError()) {
     return errorTo<JITResult>(std::move(Error), "Failed to load kernels");
   }
@@ -79,7 +77,7 @@ extern "C" KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
     return JITResult{"Materializer passes should not fail"};
   }
 
-  SYCLKernelInfo &MaterializerKernelInfo = *ModuleInfo.getKernelFor(KernelName);
+  SYCLKernelInfo &MaterializerKernelInfo = KernelInfos.front();
   if (auto Error = translation::KernelTranslator::translateKernel(
           MaterializerKernelInfo, *NewMod, JITCtx, TargetFormat)) {
     return errorTo<JITResult>(std::move(Error),
