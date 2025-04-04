@@ -18,6 +18,8 @@ using namespace sycl;
 
 template <int Dimensions> class CopyKernel;
 
+bool DeviceLost = false;
+
 template <int Dimensions>
 bool testND(queue &Q, size_t XSize, size_t YSize, size_t ZSize = 1) {
 
@@ -69,6 +71,12 @@ bool testND(queue &Q, size_t XSize, size_t YSize, size_t ZSize = 1) {
            });
      }).wait();
   } catch (exception const &e) {
+
+    if (std::string(e.what()).find("DEVICE_LOST") != std::string::npos ||
+        std::string(e.what()).find("OUT_OF_HOST_MEMORY") != std::string::npos) {
+      DeviceLost = true;
+      std::cout << "Device lost or out of host memory" << std::endl;
+    }
 
     std::cout << "Failed" << std::endl;
     std::cerr << "SYCL Exception caught: " << e.what();
@@ -125,6 +133,19 @@ int main() {
   HasError |= testND<3>(Q, MaxWidth3D, 2, 3);
   HasError |= testND<3>(Q, 2, MaxHeight3D, 3);
   HasError |= testND<3>(Q, 2, 3, MaxDepth3D);
+
+  // This test requires a significant amount of host memory.
+  // It has been observed that sometimes the test may fail with
+  // OUT_OF_HOST_MEMORY error, especially when run in parallel with
+  // other "high-overhead" tests. Refer CMPLRLLVM-66341.
+  // If that happens, ignore the failure. An alternative is to check for
+  // the available host memory and skip the test if it is too low.
+  // However, that approach is still susceptible to race conditions.
+  if (DeviceLost) {
+    std::cout << "\n\n Device lost or ran out of memory\n"
+              << "Ignoring the test result\n";
+    return 0;
+  }
 
   if (HasError)
     std::cout << "Test failed." << std::endl;
