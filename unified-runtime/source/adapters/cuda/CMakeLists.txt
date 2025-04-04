@@ -119,6 +119,7 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::umf
     Threads::Threads
     cudadrv
+    CUDA::nvml
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE

@@ -22,6 +22,15 @@
 #endif
 #endif // __clang__
 
+// See vec::DataType definitions for more details
+#ifndef __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 1
+#else
+#define __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE 0
+#endif
+#endif
+
 #if !defined(__HAS_EXT_VECTOR_TYPE__) && defined(__SYCL_DEVICE_ONLY__)
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif
@@ -86,6 +95,9 @@ struct elem {
 };
 
 namespace detail {
+// To be defined in tests, trick to access vec's private methods
+template <typename T1, int T2> class vec_base_test;
+
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 class SwizzleOp;
@@ -113,11 +125,23 @@ public:
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-template <typename Self> class ScalarConversionOperatorMixIn {
-  using T = typename from_incomplete<Self>::element_type;
+template <typename Self> class ScalarConversionOperatorsMixIn {
+  using element_type = typename from_incomplete<Self>::element_type;
 
 public:
-  operator T() const { return (*static_cast<const Self *>(this))[0]; }
+  operator element_type() const {
+    return (*static_cast<const Self *>(this))[0];
+  }
+
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+  template <
+      typename T, typename = std::enable_if_t<!std::is_same_v<T, element_type>>,
+      typename =
+          std::void_t<decltype(static_cast<T>(std::declval<element_type>()))>>
+  explicit operator T() const {
+    return static_cast<T>((*static_cast<const Self *>(this))[0]);
+  }
+#endif
 };
 
 template <typename T>
@@ -125,35 +149,45 @@ inline constexpr bool is_fundamental_or_half_or_bfloat16 =
     std::is_fundamental_v<T> || std::is_same_v<std::remove_const_t<T>, half> ||
     std::is_same_v<std::remove_const_t<T>, ext::oneapi::bfloat16>;
 
-// Proposed SYCL specification changes have sycl::vec having different ctors
-// available based on the number of elements. Without C++20's concepts we'll
-// have to use partial specialization to represent that. This is a helper to do
-// that. An alternative could be to have different specializations of the
-// `sycl::vec` itself but then we'd need to outline all the common interfaces to
-// re-use them.
-//
-// Note: the functional changes haven't been implemented yet, we've split
-// vec_base in advance as a way to make changes easier to review/verify.
-//
-// Another note: `vector_t` is going to be removed, so corresponding ctor was
-// kept inside `sycl::vec` to have all `vector_t` functionality in a single
-// place.
+// Per SYCL specification sycl::vec has different ctors available based on the
+// number of elements. Without C++20's concepts we'd have to use partial
+// specialization to represent that. This is a helper to do that. An alternative
+// could be to have different specializations of the `sycl::vec` itself but then
+// we'd need to outline all the common interfaces to re-use them.
 template <typename DataT, int NumElements> class vec_base {
   // https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#memory-layout-and-alignment
   // It is required by the SPEC to align vec<DataT, 3> with vec<DataT, 4>.
   static constexpr size_t AdjustedNum = (NumElements == 3) ? 4 : NumElements;
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES) &&                               \
-    defined(__SYCL_USE_NEW_VEC_IMPL)
-  using DataType = DataT[AdjustedNum];
+  //
+  // In intel/llvm#14130 we incorrectly used std::array as an underlying storage
+  // for vec data. The problem with std::array is that it comes from the C++
+  // STL headers which we do not control and they may use something that is
+  // illegal in SYCL device code. One of specific examples is use of debug
+  // assertions in MSVC's STL implementation.
+  //
+  // The better approach is to use plain C++ array, but the problem here is that
+  // C++ specification does not provide any guarantees about the memory layout
+  // of std::array and therefore directly switching to it would technically be
+  // an ABI-break, even though the practical chances of encountering the issue
+  // are low.
+  //
+  // To play it safe, we only switch to use plain array if both its size and
+  // alignment match those of std::array, or unless the new behavior is forced
+  // via __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE or preview breaking changes mode.
+  using DataType = std::conditional_t<
+#if __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
+      true,
 #else
-  using DataType = std::array<DataT, AdjustedNum>;
-  // Assuming that std::array has the same size as the underlying array.
-  // C++ standard does not guarantee that, but it is true for most popular
-  // implementations.
-  static_assert(sizeof(DataType) == sizeof(DataT[AdjustedNum]));
+      sizeof(std::array<DataT, AdjustedNum>) == sizeof(DataT[AdjustedNum]) &&
+          alignof(std::array<DataT, AdjustedNum>) ==
+              alignof(DataT[AdjustedNum]),
 #endif
+      DataT[AdjustedNum], std::array<DataT, AdjustedNum>>;
+
+  // To allow testing of private methods
+  template <typename T1, int T2> friend class detail::vec_base_test;
 
 protected:
   // fields
@@ -241,20 +275,61 @@ public:
       : vec_base{VecArgArrayCreator<DataT, argTN...>::Create(args...),
                  std::make_index_sequence<NumElements>()} {}
 };
+
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+template <typename DataT> class vec_base<DataT, 1> {
+  using DataType = std::conditional_t<
+#if __SYCL_USE_PLAIN_ARRAY_AS_VEC_STORAGE
+      true,
+#else
+      sizeof(std::array<DataT, 1>) == sizeof(DataT[1]) &&
+          alignof(std::array<DataT, 1>) == alignof(DataT[1]),
+#endif
+      DataT[1], std::array<DataT, 1>>;
+
+protected:
+  static constexpr int alignment = (std::min)((size_t)64, sizeof(DataType));
+  alignas(alignment) DataType m_Data{};
+
+public:
+  constexpr vec_base() = default;
+  constexpr vec_base(const vec_base &) = default;
+  constexpr vec_base(vec_base &&) = default;
+  constexpr vec_base &operator=(const vec_base &) = default;
+  constexpr vec_base &operator=(vec_base &&) = default;
+
+  // Not `explicit` on purpose, differs from NumElements > 1.
+  constexpr vec_base(const DataT &arg) : m_Data{{arg}} {}
+
+  // FIXME: Temporary workaround because swizzle's `operator DataT` is a
+  // template.
+  template <typename Swizzle,
+            typename = std::enable_if_t<is_swizzle_v<Swizzle>>,
+            typename = std::enable_if_t<Swizzle::size() == 1>,
+            typename = std::enable_if<
+                std::is_convertible_v<typename Swizzle::element_type, DataT>>>
+  constexpr vec_base(const Swizzle &other)
+      : vec_base(static_cast<DataT>(other)) {}
+};
+#endif
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
 // Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
-class __SYCL_EBO vec
-    : public detail::vec_arith<DataT, NumElements>,
-      public detail::ApplyIf<
-          NumElements == 1,
-          detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>>>,
-      public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>>,
-      // Keep it last to simplify ABI layout test:
-      public detail::vec_base<DataT, NumElements> {
+class __SYCL_EBO vec :
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
+    public detail::vec_arith<DataT, NumElements>,
+#else
+    public detail::VecOperators<vec<DataT, NumElements>>::Combined,
+#endif
+    public detail::ApplyIf<
+        NumElements == 1,
+        detail::ScalarConversionOperatorsMixIn<vec<DataT, NumElements>>>,
+    public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>>,
+    // Keep it last to simplify ABI layout test:
+    public detail::vec_base<DataT, NumElements> {
   static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
                 "DataT must be cv-unqualified");
 
@@ -337,6 +412,7 @@ public:
   constexpr vec &operator=(const vec &) = default;
   constexpr vec &operator=(vec &&) = default;
 
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
   // Template required to prevent ambiguous overload with the copy assignment
   // when NumElements == 1. The template prevents implicit conversion from
   // vec<_, 1> to DataT.
@@ -356,6 +432,14 @@ public:
     *this = Rhs.template as<vec>();
     return *this;
   }
+#else
+  template <typename T>
+  typename std::enable_if_t<std::is_convertible_v<T, DataT>, vec &>
+  operator=(const T &Rhs) {
+    *this = vec{static_cast<DataT>(Rhs)};
+    return *this;
+  }
+#endif
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
   static constexpr size_t get_count() { return size(); }
@@ -465,8 +549,10 @@ public:
             int... T5>
   friend class detail::SwizzleOp;
   template <typename T1, int T2> friend class __SYCL_EBO vec;
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
   // To allow arithmetic operators access private members of vec.
   template <typename T1, int T2> friend class detail::vec_arith;
+#endif
 };
 ///////////////////////// class sycl::vec /////////////////////////
 
