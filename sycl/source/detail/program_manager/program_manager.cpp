@@ -669,7 +669,8 @@ static bool checkLinkingSupport(const device &Dev,
 
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDeviceImageDeps(const RTDeviceBinaryImage &Img,
-                                       const device &Dev) {
+                                       const device &Dev,
+                                       bool ErrorOnUnresolvableImport) {
   // TODO collecting dependencies for virtual functions and imported symbols
   // should be combined since one can lead to new unresolved dependencies for
   // the other.
@@ -677,14 +678,16 @@ ProgramManager::collectDeviceImageDeps(const RTDeviceBinaryImage &Img,
       collectDependentDeviceImagesForVirtualFunctions(Img, Dev);
 
   std::set<RTDeviceBinaryImage *> ImageDeps =
-      collectDeviceImageDepsForImportedSymbols(Img, Dev);
+      collectDeviceImageDepsForImportedSymbols(Img, Dev,
+                                               ErrorOnUnresolvableImport);
   DeviceImagesToLink.insert(ImageDeps.begin(), ImageDeps.end());
   return DeviceImagesToLink;
 }
 
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDeviceImageDepsForImportedSymbols(
-    const RTDeviceBinaryImage &MainImg, const device &Dev) {
+    const RTDeviceBinaryImage &MainImg, const device &Dev,
+    bool ErrorOnUnresolvableImport) {
   std::set<RTDeviceBinaryImage *> DeviceImagesToLink;
   std::set<std::string> HandledSymbols;
   std::queue<std::string> WorkList;
@@ -722,7 +725,7 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
       }
       break;
     }
-    if (!Found)
+    if (ErrorOnUnresolvableImport && !Found)
       throw sycl::exception(make_error_code(errc::build),
                             "No device image found for external symbol " +
                                 Symbol);

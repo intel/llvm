@@ -807,7 +807,6 @@ public:
                               "device does not support source language");
       }
     }
-
     return createSYCLImages(Devices, bundle_state::object, CompileOptions,
                             LogPtr, RegisteredKernelNames, OutDeviceBins);
   }
@@ -1114,23 +1113,40 @@ private:
           std::move(DGRegs));
 
       // Resolve dependencies.
+      // If we are compiling to object, we do not want to error for unresolved
+      // imports.
       // TODO: Consider making a collectDeviceImageDeps variant that takes a
       //       set reference and inserts into that instead.
       std::set<RTDeviceBinaryImage *> ImgDeps;
       for (const device &Device : Devices) {
-        std::set<RTDeviceBinaryImage *> DevImgDeps =
-            PM.collectDeviceImageDeps(*NewImage, Device);
+        std::set<RTDeviceBinaryImage *> DevImgDeps = PM.collectDeviceImageDeps(
+            *NewImage, Device,
+            /*ErrorOnUnresolvableImport=*/State == bundle_state::executable);
         ImgDeps.insert(DevImgDeps.begin(), DevImgDeps.end());
       }
 
       // Pack main image and dependencies together.
       std::vector<device_image_plain> NewImageAndDeps;
-      NewImageAndDeps.reserve(1 + ImgDeps.size());
+      NewImageAndDeps.reserve(
+          1 + ((State == bundle_state::executable) * ImgDeps.size()));
       NewImageAndDeps.push_back(
           createSyclObjFromImpl<device_image_plain>(std::move(DevImgImpl)));
-      for (RTDeviceBinaryImage *ImgDep : ImgDeps)
-        NewImageAndDeps.push_back(PM.createDependencyImage(
-            MContext, Devices, ImgDep, bundle_state::input));
+      if (State == bundle_state::executable) {
+        // If target is executable we bundle the image and dependencies together
+        // and bring it into state.
+        for (RTDeviceBinaryImage *ImgDep : ImgDeps)
+          NewImageAndDeps.push_back(PM.createDependencyImage(
+              MContext, Devices, ImgDep, bundle_state::input));
+      } else if (State == bundle_state::object) {
+        // If the target is object, we bring the dependencies into object state
+        // individually and put them in the bundle.
+        for (RTDeviceBinaryImage *ImgDep : ImgDeps) {
+          DevImgPlainWithDeps ImgDepWithDeps{PM.createDependencyImage(
+              MContext, Devices, ImgDep, bundle_state::input)};
+          PM.bringSYCLDeviceImageToState(ImgDepWithDeps, State);
+          Result.push_back(getSyclObjImpl(ImgDepWithDeps.getMain()));
+        }
+      }
 
       DevImgPlainWithDeps ImgWithDeps(std::move(NewImageAndDeps));
       PM.bringSYCLDeviceImageToState(ImgWithDeps, State);

@@ -370,10 +370,12 @@ public:
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
   std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev,
+                         bool ErrorOnUnresolvableImport = true);
   std::set<RTDeviceBinaryImage *>
   collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev);
+                                           const device &Dev,
+                                           bool ErrorOnUnresolvableImport);
 
 private:
   ProgramManager(ProgramManager const &) = delete;
