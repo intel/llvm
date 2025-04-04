@@ -603,6 +603,16 @@ UniqueStableNameDiscriminator(ASTContext &, const NamedDecl *ND) {
 
 std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
                                                   QualType Ty) {
+<<<<<<< HEAD
+=======
+  auto MangleCallback = [](ASTContext &Ctx,
+                           const NamedDecl *ND) -> UnsignedOrNone {
+    if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
+      return RD->getDeviceLambdaManglingNumber();
+    return std::nullopt;
+  };
+
+>>>>>>> cfee056b4e75cd941591d298e0f8dc303460c57e
   std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
       Context, Context.getDiagnostics(), UniqueStableNameDiscriminator)};
 
