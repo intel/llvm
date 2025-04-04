@@ -1661,8 +1661,8 @@ void Sema::CheckCompleteDecompositionDeclaration(DecompositionDecl *DD) {
     DD->setInvalidDecl();
 }
 
-std::optional<unsigned> Sema::GetDecompositionElementCount(QualType T,
-                                                           SourceLocation Loc) {
+UnsignedOrNone Sema::GetDecompositionElementCount(QualType T,
+                                                  SourceLocation Loc) {
   const ASTContext &Ctx = getASTContext();
   assert(!T->isDependentType());
 
@@ -1672,18 +1672,18 @@ std::optional<unsigned> Sema::GetDecompositionElementCount(QualType T,
   T = Context.getQualifiedType(Unqual, Quals);
 
   if (auto *CAT = Ctx.getAsConstantArrayType(T))
-    return CAT->getSize().getZExtValue();
+    return static_cast<unsigned>(CAT->getSize().getZExtValue());
   if (auto *VT = T->getAs<VectorType>())
     return VT->getNumElements();
   if (T->getAs<ComplexType>())
-    return 2;
+    return 2u;
 
   llvm::APSInt TupleSize(Ctx.getTypeSize(Ctx.getSizeType()));
   switch (isTupleLike(*this, Loc, T, TupleSize)) {
   case IsTupleLike::Error:
     return std::nullopt;
   case IsTupleLike::TupleLike:
-    return TupleSize.getExtValue();
+    return static_cast<unsigned>(TupleSize.getExtValue());
   case IsTupleLike::NotTupleLike:
     break;
   }
