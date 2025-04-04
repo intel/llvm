@@ -738,8 +738,7 @@ public:
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
     if (!FetchedFromCache)
-      UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr,
-                                          RegisteredKernelNames);
+      UrProgram = createProgramFromSource(Devices, BuildOptions, LogPtr);
 
     std::string XsFlags = extractXsFlags(BuildOptions);
     auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
@@ -1143,10 +1142,10 @@ private:
     return Result;
   }
 
-  ur_program_handle_t createProgramFromSource(
-      const std::vector<device> Devices,
-      const std::vector<std::string> &Options, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames) const {
+  ur_program_handle_t
+  createProgramFromSource(const std::vector<device> Devices,
+                          const std::vector<std::string> &Options,
+                          std::string *LogPtr) const {
     const std::shared_ptr<sycl::detail::context_impl> &ContextImpl =
         getSyclObjImpl(MContext);
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
