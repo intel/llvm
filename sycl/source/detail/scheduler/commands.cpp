@@ -2315,6 +2315,8 @@ void SetArgBasedOnType(
     const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
     size_t NextTrueIndex) {
   switch (Arg.MType) {
+  case kernel_param_kind_t::kind_dynamic_work_group_memory:
+    break;
   case kernel_param_kind_t::kind_work_group_memory:
     break;
   case kernel_param_kind_t::kind_stream:
@@ -3753,6 +3755,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     return UR_RESULT_SUCCESS;
   }
   case CGType::AsyncFree: {
+    assert(MQueue && "Async free submissions should have an associated queue");
     CGAsyncFree *AsyncFree = (CGAsyncFree *)MCommandGroup.get();
     const detail::AdapterPtr &Adapter = MQueue->getAdapter();
     void *ptr = AsyncFree->getPtr();

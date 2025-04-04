@@ -875,10 +875,7 @@ protected:
   event finalizeHandlerPostProcess(
       HandlerType &Handler,
       const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    auto HandlerImpl = detail::getSyclObjImpl(Handler);
-    const CGType Type = HandlerImpl->MCGType;
-
-    bool IsKernel = Type == CGType::Kernel;
+    bool IsKernel = Handler.getType() == CGType::Kernel;
     bool KernelUsesAssert = false;
 
     if (IsKernel)
