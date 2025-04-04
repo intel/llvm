@@ -99,6 +99,7 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
     if (URAdviceFlags & UnmappedFlag) {
       logger::warning("Memory advice ignored because the CUDA backend does not "
                       "support some of the specified flags.");
+      return UR_RESULT_SUCCESS;
     }
   }
 
@@ -1613,6 +1614,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
     logger::warning("Prefetch hint ignored as device does not support "
                     "concurrent managed access.");
+    return UR_RESULT_SUCCESS;
   }
 
   unsigned int IsManaged;
@@ -1620,6 +1622,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
   if (!IsManaged) {
     logger::warning("Prefetch hint ignored as prefetch only works with USM.");
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -1671,7 +1674,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
       logger::warning("Mem advise ignored as device does not support "
                       "concurrent managed access.");
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      return UR_RESULT_SUCCESS;
     }
 
     // TODO: If ptr points to valid system-allocated pageable memory we should
