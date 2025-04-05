@@ -1,3 +1,11 @@
+:OpConstantFunctionPointerINTEL_token: 5600
+:OpFunctionPointerCallINTEL_token: 5601
+:ReferencedIndirectlyINTEL_token: 5602
+:FunctionPointersINTEL_token: 5603
+:IndirectReferencesINTEL_token: 5604
+:CodeSectionINTEL_token: 5605
+:ArgumentAttributeINTEL_token: 6409
+
 = SPV_INTEL_function_pointers
 
 == Name Strings
@@ -23,7 +31,7 @@ https://github.com/intel/llvm/issues
 
 == Notice
 
-Copyright (c) 2019 Intel Corporation. All rights reserved.
+Copyright (c) 2019-2023 Intel Corporation. All rights reserved.
 
 == Status
 
@@ -40,31 +48,30 @@ If you are interested in using this feature in your software product, please let
 [width="40%",cols="25,25"]
 |==================================
 | Last Modified Date | {docdate}
-| Revision           | I
+| Revision           | J
 |==================================
 
 == Dependencies
 
-This extension is written against the SPIR-V Specification, Version 1.4
-Revision 1, Unified.
+This extension is written against the SPIR-V Specification, Version 1.6
+Revision 2, Unified.
 
 This extension requires SPIR-V 1.0.
 
 == Overview
 
-The goal of this extension is to allow translation of function pointers into
+The goal of this extension is to allow representation of function pointers in
 SPIR-V.
 
-This extensions brings two "levels" of function pointers support added under
-corresponding capabilities:
+This is done by adding two new instructions: one which correspond to
+"address of" operator and another which allows to perform an indirect call.
+They both are added under *FunctionPointersINTEL* capability.
 
-- Two new instructions added to support "address of" operator and indirect
-  function call under *FunctionPointersINTEL* capability
+On top of that, a couple more things are being added by the extension:
 - One new decoration added under *IndirectReferencesINTEL* to support functions
   which are not referenced directly in the module. The idea is to extract
   pointer to a function from the module and pass it as argument into one of
   entry points where it will be used.
-  See *cl_intel_function_pointers* extension specification for more details.
 - One new decoration added under *FunctionPointersINTEL* to preserve argument
   attributes of *OpFunctionPointerCall*.
 
@@ -77,83 +84,15 @@ must be present in the module:
 OpExtension "SPV_INTEL_function_pointers"
 ----
 
-== New Capabilities
-
-This extension introduces new capabilities:
-
-----
-FunctionPointersINTEL
-IndirectReferencesINTEL
-----
-
-== New Instructions
-
-Instructions added under the *FunctionPointersINTEL* capability:
-
-----
-OpConstantFunctionPointerINTEL
-OpFunctionPointerCallINTEL
-----
-
-== New Decorations
-
-Decorations added under the *IndirectReferencesINTEL* capability:
-
-----
-ReferencedIndirectlyINTEL
-----
-
-Decorations added under the *FunctionPointersINTEL* capability:
-
-----
-ArgumentAttributeINTEL
-----
-
-== New Storage Classes
-
-Storage Classes added under the *FunctionPointersINTEL* capability:
-
-----
-CodeSectionINTEL
-----
-
-
-== Token Number Assignments
-
-[width="40%"]
-[cols="70%,30%"]
-[grid="rows"]
-|====
-|OpConstantFunctionPointerINTEL | 5600
-|OpFunctionPointerCallINTEL     | 5601
-|ReferencedIndirectlyINTEL      | 5602
-|FunctionPointersINTEL          | 5603
-|IndirectReferencesINTEL        | 5604
-|CodeSectionINTEL               | 5605
-|ArgumentAttributeINTEL         | 6409
-|====
-
-== Modifications to the SPIR-V Specification, Version 1.4
+== Modifications to the SPIR-V Specification, Version 1.6
 
 === Terms
 
-[red]*TODO* Should we update _Opaque Type_ definition with function pointers
-which points to functions taking Opaque types as arguments or returning them?
-
 Modify Section 2.2.2, Types, add the following at the end of the section: ::
 
-[[FunctionPointer]]'Function Pointer': A pointer that results from the following
-instruction:
-
-- *OpConstantFunctionPointerINTEL*
-
-Additionally, any *OpSelect*, *OpPhi*, *OpFunctionCall*, *OpPtrAccessChain*,
-*OpLoad*, *OpAccessChain*, *OpInBoundAccessChain*, or *OpCopyObject* thas takes
-a function pointer as an operand also produces a function pointer. An
-*OpFunctionParameter* of pointer type is function pointer if any
-*OpFunctionCall* to the function statically passes a function pointer as the
-value of the parameter. *OpCompositeExtract* and *OpConstantNull* return
-function pointer if 'Result type' is function pointer.
+[[FunctionPointer]]'Function Pointer': A pointer that points to a function, i.e.
+a value of *OpTypePointer* whose _Type_ argument is an id of an
+*OpTypeFunction*.
 
 Modify Section 2.9, Function Calling, add the following after the first sentence: ::
 
@@ -164,6 +103,16 @@ the arguments to pass. All arguments are passed by value into the called
 function. This includes pointers, through which a callee object could be
 modified.
 
+=== Validation Rules
+
+Modify section 2.16.1, Universal Validation Rules by adding new rules: ::
+
+- It is illegal to use <<FunctionPointer, Function Pointer>> as 'Pointer' argument
+of *OpLoad* and *OpStore* instructions.
+
+- It is illegal to use <<FunctionPointer, Function Pointer>> as 'Pointer' and
+'Source' arguments of *OpCopyMemory*, *OpCopyMemorySized* instructions.
+
 === Storage Classes
 
 Modify Section 3.7, Storage Class, adding to the end of the list of storage classes: ::
@@ -171,33 +120,49 @@ Modify Section 3.7, Storage Class, adding to the end of the list of storage clas
 [cols="1,4,4",options="header",width="100%"]
 |====
 2+| Storage Class| <<Capability,Enabling Capabilities>> |
-5605 | *CodeSectionINTEL* +
+{CodeSectionINTEL_token} | *CodeSectionINTEL* +
 This storage represents function pointers. Visible across all functions of
 all invocations of all work groups.
 | *FunctionPointersINTEL*
+|====
+
+Modify Section 3.7, Storage Class, modifying description of *Generic* Storage Class: ::
+
+[cols="1,4,4",options="header",width="100%"]
+|====
+2+| Storage Class| <<Capability,Enabling Capabilities>> |
+8 | *Generic* +
+For generic pointers, which overload the *Function*, *Workgroup*,
+*CrossWorkgroup* and *CodeSectionINTEL* Storage Classes.
+| *GenericPointer*
 |====
 
 === Decorations
 
 Modify Section 3.20, Decorations, adding to the end of the list of decorations: ::
 
-[cols="1,6,1,1,6",options="header",width = "100%"]
+[cols="1,6,1,1,6",options="header",width="100%"]
 |====
 2+^.^| Decoration 2+<.^| Extra Operands
 | <<Capability,Enabling Capabilities>> |
-5602 | *ReferencedIndirectlyINTEL* +
-This mark means that function might not have direct uses within the module,
-but it's address can be obtained and passed into an Entry Point for further
-usage via *OpFunctionPointerCallINTEL*. This function must not be optimized
+{ReferencedIndirectlyINTEL_token} | *ReferencedIndirectlyINTEL* +
+Indicates that a function might not have direct uses within the module,
+but its address can be obtained and passed into an Entry Point and called
+using *OpFunctionPointerCallINTEL*. This function must not be optimized
 out based on call graph/reachability analysis 2+||
 *IndirectReferencesINTEL*|
-6409 | *ArgumentAttributeINTEL* +
-Indicates an attribute of argument of an indirect function call. Apply to an *OpFunctionPointerCallINTEL*. +
-_Index_ is an unsigned 32-bit integer indicating the argument number _N_. The attribute is applied to _Argument N_ of *OpFunctionPointerCallINTEL*. _Argument Attribute_ specifies which attribute is applied, its possible values are enumerated in section "Function Parameter Attribute" of the core SPIR-V specification.
- 2+|
+{ArgumentAttributeINTEL_token} | *ArgumentAttributeINTEL* +
+Indicates an attribute of argument of an indirect function call. Apply to an
+*OpFunctionPointerCallINTEL*. +
+_Index_ is an unsigned 32-bit integer indicating the argument number _N_.
+The attribute is applied to _Argument N_ of *OpFunctionPointerCallINTEL*.
+_Argument Attribute_ specifies which attribute is applied, it should be a value
+which is valid to be used with *FuncParamAttr* Decoration.
+ |
 _<<Literal, Literal>> +
-Index +
-<<Argument Attribute, Argument Attribute>> +
+Index_
+|
+_<<Argument Attribute, Argument Attribute>> +
 Argument Attribute_ |
 *FunctionPointersINTEL*|
 |====
@@ -207,14 +172,14 @@ Argument Attribute_ |
 Modify Section 3.31, Capabilities, adding to the end of the list of capabilities: ::
 
 
-[cols="1,10,8,8",options="header",width = "80%"]
+[cols="1,10,8,8",options="header",width="80%"]
 |====
 2+^.^| Capability | Implicitly Declares | Enabled by Extension
 
-| 5603
+| {FunctionPointersINTEL_token}
 | *FunctionPointersINTEL*
 | *Addresses* | *SPV_INTEL_function_pointers*
-| 5604
+| {IndirectReferencesINTEL_token}
 | *IndirectReferencesINTEL*
 | *Addresses* | *SPV_INTEL_function_pointers*
 
@@ -223,13 +188,7 @@ Modify Section 3.31, Capabilities, adding to the end of the list of capabilities
 
 === Instructions
 
-Modify Section 3.32.6, Type-Declaration Instructions, change the third sentence in the description of *OpTypeFunction* instruction to say: ::
-
-*OpTypeFunction* can be used as operand of *OpTypePointer* to declare function
-pointer type. *OpFunction* and *OpTypePointer* are only valid uses of
-*OpTypeFunction*.
-
-Modify Section 3.32.7, Constant-Creation Instructions, adding to the end of the list of instructions: ::
+Modify Section 3.42.7, Constant-Creation Instructions, adding to the end of the list of instructions: ::
 
 [cols="2*1,3*3",width="100%"]
 |=====
@@ -246,10 +205,10 @@ _Result Type_ must be an *OpTypePointer*. Its _Type_ operand must be the same
 operand. Its _Storage Class_ operand must be *CodeSectionINTEL*
 | <<Capability,Capability>>: +
 *FunctionPointersINTEL*
-| 4 | 5600 | '<id>' 'Result Type' | '<id> Result ' | '<id>' 'Function'
+| 4 | {OpConstantFunctionPointerINTEL_token} | '<id>' 'Result Type' | '<id> Result ' | '<id>' 'Function'
 |=====
 
-Modify Section 3.32.9, Function Instructions, adding to the end of the list of instructions: ::
+Modify Section 3.42.9, Function Instructions, adding to the end of the list of instructions: ::
 
 [cols="2*1,4*3",width="100%"]
 |=====
@@ -268,39 +227,11 @@ was used as _Type_ operand of _Function Pointer_ argument and the calling
 argument types must match the formal parameter types.
 | <<Capability,Capability>>: +
 *FunctionPointersINTEL*
-| 4 + variable | 5601
+| 4 + variable | {OpFunctionPointerCallINTEL_token}
  | '<id>' 'Result Type' | <<ResultId,'Result <id>' >> | '<id>' +
 'Function Pointer' |
 '<id>, <id>, ..., <id>' 'Argument 0', 'Argument 1', ..., 'Argument N'
 |=====
-
-== Validation Rules
-
-It is legal to use <<FunctionPointer, Function Pointer>> as 'Result Type' of
-*OpFunctionArgument*, *OpCompositeExtract*, *OpUndef* and *OpConstantNULL*.
-
-It is legal to use <<FunctionPointer, Function Pointer>> as 'Return Type' of
-*OpTypeFunction*.
-
-It is legal to use <<FunctionPointer, Function Pointer>> as 'Pointer'
-argument of *OpConvertPtrToU* and as 'Result Type' of *OpConvertUToPtr*.
-
-It is legal to use <<FunctionPointer, Function Pointer>> as 'Object'
-argument of *OpCompositeInsert*.
-
-It is illegal to use <<FunctionPointer, Function Pointer>> as 'Pointer'
-argument of *OpPtrCastToGeneric*.
-
-It is illegal to use <<FunctionPointer, Function Pointer>> as 'Pointer' argument
-of *OpLoad* and *OpStore* instructions.
-
-It is illegal to use <<FunctionPointer, Function Pointer>> as 'Pointer' and
-'Source' arguments of *OpCopyMemory*, *OpCopyMemorySized* instructions.
-
-It is legal to compare <<FunctionPointer, Function Pointers>> between each other
-using *OpPtrEqual* or *OpPtrNotEqual*.  However, it is illegal to use
-<<FunctionPointer, Function Pointer>> as any argument of *OpPtrDiff*
-instruction.
 
 == Issues
 
@@ -388,4 +319,6 @@ pointers. Updated validation rules. Misc updates.
 |H|2021-11-15|Nikita Kornev|Added new *ArgumentAttributeINTEL* decoration.
 |I|2022-10-08|Dmitry Sidorov, Alex Bezzubikov, Alexey Sachkov|Replaced *OpFunctionPointerINTEL* with
 *OpConstantFunctionPointerINTEL*
+|J|2022-12-13|Alexey Sachkov|Uplift to SPIR-V 1.6 spec, refactor validation +
+rules section, remove listing of new instructions at the beginning
 |========================================
