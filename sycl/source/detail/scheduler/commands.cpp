@@ -233,7 +233,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
     if (CommandQueue && EventImpl->getWorkerQueue() == CommandQueue &&
-        CommandQueue->isInOrder() && !IsHostTaskCommand)
+        CommandQueue->isInOrder() && (!IsHostTaskCommand))
       continue;
 
     RetUrEvents.push_back(Handle);
@@ -285,7 +285,7 @@ Command::getUrEventsBlocking(const std::vector<EventImplPtr> &EventImpls,
     // kept.
     if (!HasEventMode && MWorkerQueue &&
         EventImpl->getWorkerQueue() == MWorkerQueue &&
-        MWorkerQueue->isInOrder() && !isHostTask())
+        MWorkerQueue->isInOrder() && (!isHostTask()))
       continue;
 
     RetUrEvents.push_back(EventImpl->getHandle());
@@ -502,7 +502,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
                             ur_event_handle_t &Event) {
 #ifndef NDEBUG
   for (const EventImplPtr &Event : EventImpls)
-    assert(!Event->isHost() &&
+    assert(Event->getHandle() &&
            "Only non-host events are expected to be waited for here");
 #endif
   if (!EventImpls.empty()) {
@@ -759,10 +759,11 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   // 2. Some types of commands do not produce UR events after they are
   // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
-  bool PiEventExpected =
-      (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
+  bool PiEventExpected = !DepEvent->isDefaultConstructed();
   if (auto *DepCmd = static_cast<Command *>(DepEvent->getCommand()))
     PiEventExpected &= DepCmd->producesPiEvent();
+  else
+    PiEventExpected &= DepEvent->getHandle() != nullptr;
 
   if (!PiEventExpected) {
     // call to waitInternal() is in waitForPreparedHostEvents() as it's called
@@ -774,7 +775,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   Command *ConnectionCmd = nullptr;
 
   ContextImplPtr DepEventContext = DepEvent->getContextImpl();
-  // If contexts don't match we'll connect them using host task
+  // If contexts don't match we'll connect them using host task.
   if (DepEventContext != WorkerContext && WorkerContext) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep, ToCleanUp);
@@ -785,9 +786,9 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
 }
 
 ContextImplPtr Command::getWorkerContext() const {
-  if (!MQueue)
+  if (!MWorkerQueue)
     return nullptr;
-  return MQueue->getContextImplPtr();
+  return MWorkerQueue->getContextImplPtr();
 }
 
 bool Command::producesPiEvent() const { return true; }
@@ -927,6 +928,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
     MEvent->setEnqueued();
+    // Host task is protected by MShouldCompleteEventIfPossible = false
     if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();
@@ -1059,8 +1061,6 @@ void AllocaCommandBase::emitInstrumentationData() {
 #endif
 }
 
-bool AllocaCommandBase::producesPiEvent() const { return false; }
-
 bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
 bool AllocaCommandBase::readyForCleanup() const { return false; }
@@ -1092,6 +1092,14 @@ void AllocaCommand::emitInstrumentationData() {
 #endif
 }
 
+bool AllocaCommand::producesPiEvent() const {
+  // for reference see enqueueImp()
+  auto TypedSyclMemObj = static_cast<detail::SYCLMemObjT *>(getSYCLMemObj());
+  // Event presence implies interop context esistence
+  return (TypedSyclMemObj->hasInteropEvent() &&
+          (getContext(MQueue) == TypedSyclMemObj->getInteropContext()));
+}
+
 ur_result_t AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1104,7 +1112,8 @@ ur_result_t AllocaCommand::enqueueImp() {
     if (!MQueue) {
       // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue, EventImpls, UREvent);
-      MEvent->setHandle(UREvent);
+      assert(UREvent == nullptr && "AllocaCommand: waitForEvents without Queue "
+                                   "shouldn't produce native event.");
 
       return UR_RESULT_SUCCESS;
     }
@@ -1118,6 +1127,10 @@ ur_result_t AllocaCommand::enqueueImp() {
                                        std::move(EventImpls), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
+
+  assert((!!UREvent == producesPiEvent()) &&
+         "AllocaCommand: native event is expected only when it is for interop "
+         "memory object with native event provided.");
 
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
@@ -1161,6 +1174,8 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
     ToEnqueue.push_back(ConnectionCmd);
 }
 
+bool AllocaSubBufCommand::producesPiEvent() const { return false; }
+
 void AllocaSubBufCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
@@ -1200,8 +1215,8 @@ ur_result_t AllocaSubBufCommand::enqueueImp() {
           MRequirement.MAccessRange, std::move(EventImpls), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
-
-  MEvent->setHandle(UREvent);
+  assert(UREvent == nullptr &&
+         "AllocaSubBufCommand: it shouldn't produce native event.");
 
   XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
                                             MMemAllocation);
@@ -1312,6 +1327,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
     EventImpls.push_back(UnmapEventImpl);
   }
   ur_event_handle_t UREvent = nullptr;
+  // Synchronous wait
   if (SkipRelease)
     Command::waitForEvents(MQueue, EventImpls, UREvent);
   else {
@@ -1322,7 +1338,8 @@ ur_result_t ReleaseCommand::enqueueImp() {
         Result != UR_RESULT_SUCCESS)
       return Result;
   }
-  MEvent->setHandle(UREvent);
+  assert(!UREvent && "ReleaseCommand: release shouldn't produce native event.");
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -1392,6 +1409,7 @@ ur_result_t MapMemObject::enqueueImp() {
           MSrcReq.MElemSize, std::move(RawEvents), UREvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
+  assert(UREvent && "MapMemObject command must produce native event");
 
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
@@ -1440,7 +1458,8 @@ void UnMapMemObject::emitInstrumentationData() {
 #endif
 }
 
-bool UnMapMemObject::producesPiEvent() const {
+static bool checkNativeEventForWA(const QueueImplPtr &Queue,
+                                  const ur_event_handle_t &NativeEvent) {
   // TODO remove this workaround once the batching issue is addressed in Level
   // Zero adapter.
   // Consider the following scenario on Level Zero:
@@ -1456,9 +1475,13 @@ bool UnMapMemObject::producesPiEvent() const {
   // an event waitlist and Level Zero adapter attempts to batch these commands,
   // so the execution of kernel B starts only on step 4. This workaround
   // restores the old behavior in this case until this is resolved.
-  return MQueue && (MQueue->getDeviceImplPtr()->getBackend() !=
-                        backend::ext_oneapi_level_zero ||
-                    MEvent->getHandle() != nullptr);
+  return Queue && (Queue->getDeviceImplPtr()->getBackend() !=
+                       backend::ext_oneapi_level_zero ||
+                   NativeEvent != nullptr);
+}
+
+bool UnMapMemObject::producesPiEvent() const {
+  return checkNativeEventForWA(MQueue, MEvent->getHandle());
 }
 
 ur_result_t UnMapMemObject::enqueueImp() {
@@ -1475,6 +1498,8 @@ ur_result_t UnMapMemObject::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
+  assert((!!UREvent == checkNativeEventForWA(MQueue, UREvent)) &&
+         "UnMapMemObject command must produce native event");
   MEvent->setHandle(UREvent);
 
   return UR_RESULT_SUCCESS;
@@ -1540,32 +1565,9 @@ void MemCpyCommand::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommand::getWorkerContext() const {
-  if (!MWorkerQueue)
-    return nullptr;
-  return MWorkerQueue->getContextImplPtr();
-}
-
 bool MemCpyCommand::producesPiEvent() const {
-  // TODO remove this workaround once the batching issue is addressed in Level
-  // Zero adapter.
-  // Consider the following scenario on Level Zero:
-  // 1. Kernel A, which uses buffer A, is submitted to queue A.
-  // 2. Kernel B, which uses buffer B, is submitted to queue B.
-  // 3. queueA.wait().
-  // 4. queueB.wait().
-  // DPCPP runtime used to treat unmap/write commands for buffer A/B as host
-  // dependencies (i.e. they were waited for prior to enqueueing any command
-  // that's dependent on them). This allowed Level Zero adapter to detect that
-  // each queue is idle on steps 1/2 and submit the command list right away.
-  // This is no longer the case since we started passing these dependencies in
-  // an event waitlist and Level Zero adapter attempts to batch these commands,
-  // so the execution of kernel B starts only on step 4. This workaround
-  // restores the old behavior in this case until this is resolved.
-  return !MQueue ||
-         MQueue->getDeviceImplPtr()->getBackend() !=
-             backend::ext_oneapi_level_zero ||
-         MEvent->getHandle() != nullptr;
+  return checkNativeEventForWA(MSrcQueue ? MSrcQueue : MQueue,
+                               MEvent->getHandle());
 }
 
 ur_result_t MemCpyCommand::enqueueImp() {
@@ -1587,6 +1589,9 @@ ur_result_t MemCpyCommand::enqueueImp() {
           MEvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
+  assert((!!UREvent ==
+          checkNativeEventForWA(MSrcQueue ? MSrcQueue : MQueue, UREvent)) &&
+         "MemCpyCommand must produce native event");
 
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
@@ -1639,7 +1644,8 @@ ur_result_t UpdateHostRequirementCommand::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue, EventImpls, UREvent);
-  MEvent->setHandle(UREvent);
+  assert((!!UREvent == producesPiEvent()) &&
+         "UpdateHostRequirementCommand doesn't produce native event");
 
   assert(MSrcAllocaCmd && "Expected valid alloca command");
   assert(MSrcAllocaCmd->getMemAllocation() && "Expected valid source pointer");
@@ -1672,25 +1678,17 @@ void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
   }
 }
 
-MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
-                                     AllocaCommandBase *SrcAllocaCmd,
-                                     Requirement DstReq, void **DstPtr,
-                                     QueueImplPtr SrcQueue,
-                                     QueueImplPtr DstQueue)
-    : Command(CommandType::COPY_MEMORY, std::move(DstQueue)),
-      MSrcQueue(SrcQueue), MSrcReq(std::move(SrcReq)),
-      MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
-  if (MSrcQueue) {
-    MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
-  }
-
-  MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
-  MEvent->setWorkerQueue(MWorkerQueue);
-
+MemCpyToHostCommand::MemCpyToHostCommand(Requirement SrcReq,
+                                         AllocaCommandBase *SrcAllocaCmd,
+                                         Requirement DstReq, void **DstPtr,
+                                         QueueImplPtr SrcQueue)
+    : Command(CommandType::COPY_MEMORY, std::move(SrcQueue)),
+      MSrcReq(std::move(SrcReq)), MSrcAllocaCmd(SrcAllocaCmd),
+      MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
   emitInstrumentationDataProxy();
 }
 
-void MemCpyCommandHost::emitInstrumentationData() {
+void MemCpyToHostCommand::emitInstrumentationData() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
@@ -1704,9 +1702,8 @@ void MemCpyCommandHost::emitInstrumentationData() {
   xpti::addMetadata(CmdTraceEvent, "memory_object",
                     reinterpret_cast<size_t>(MAddress));
   xpti::addMetadata(CmdTraceEvent, "copy_from",
-                    MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
-  xpti::addMetadata(CmdTraceEvent, "copy_to",
                     MQueue ? deviceToID(MQueue->get_device()) : 0);
+  xpti::addMetadata(CmdTraceEvent, "copy_to", 0);
   // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
   // as this data is mutable and the metadata is supposed to be invariant
   xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
@@ -1714,23 +1711,17 @@ void MemCpyCommandHost::emitInstrumentationData() {
 #endif
 }
 
-ContextImplPtr MemCpyCommandHost::getWorkerContext() const {
-  if (!MWorkerQueue)
-    return nullptr;
-  return MWorkerQueue->getContextImplPtr();
-}
-
-ur_result_t MemCpyCommandHost::enqueueImp() {
+ur_result_t MemCpyToHostCommand::enqueueImp() {
   const QueueImplPtr &Queue = MWorkerQueue;
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
-  ur_event_handle_t UREvent = nullptr;
   // Omit copying if mode is discard one.
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
-  if (MDstReq.MAccessMode == access::mode::discard_read_write ||
+  if (ur_event_handle_t UREvent = nullptr;
+      MDstReq.MAccessMode == access::mode::discard_read_write ||
       MDstReq.MAccessMode == access::mode::discard_write) {
     Command::waitForEvents(Queue, EventImpls, UREvent);
 
@@ -1738,17 +1729,18 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   }
 
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
-
+  ur_event_handle_t UREvent = nullptr;
   if (auto Result = callMemOpHelper(
           MemoryManager::copy, MSrcAllocaCmd->getSYCLMemObj(),
-          MSrcAllocaCmd->getMemAllocation(), MSrcQueue, MSrcReq.MDims,
+          MSrcAllocaCmd->getMemAllocation(), MQueue, MSrcReq.MDims,
           MSrcReq.MMemoryRange, MSrcReq.MAccessRange, MSrcReq.MOffset,
-          MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
+          MSrcReq.MElemSize, *MDstPtr, nullptr, MDstReq.MDims,
           MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
           MDstReq.MElemSize, std::move(RawEvents), UREvent, MEvent);
       Result != UR_RESULT_SUCCESS)
     return Result;
-
+  assert((!!UREvent == producesPiEvent()) &&
+         "MemCpyCommandHost must produce native event");
   MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
@@ -1761,7 +1753,8 @@ ur_result_t EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   ur_event_handle_t UREvent = nullptr;
   waitForEvents(MQueue, MPreparedDepsEvents, UREvent);
-  MEvent->setHandle(UREvent);
+  assert((!!UREvent == producesPiEvent()) &&
+         "EmptyCommand doesn't produce native event");
   return UR_RESULT_SUCCESS;
 }
 
@@ -1826,7 +1819,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
 
 bool EmptyCommand::producesPiEvent() const { return false; }
 
-void MemCpyCommandHost::printDot(std::ostream &Stream) const {
+void MemCpyToHostCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#B6A2EB\", label=\"";
 
   Stream << "ID = " << this << "\\n";
@@ -1844,9 +1837,8 @@ void MemCpyCommandHost::printDot(std::ostream &Stream) const {
 }
 
 UpdateHostRequirementCommand::UpdateHostRequirementCommand(
-    QueueImplPtr Queue, Requirement Req, AllocaCommandBase *SrcAllocaCmd,
-    void **DstPtr)
-    : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
+    Requirement Req, AllocaCommandBase *SrcAllocaCmd, void **DstPtr)
+    : Command(CommandType::UPDATE_REQUIREMENT, nullptr),
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {
 
   emitInstrumentationDataProxy();
@@ -1951,7 +1943,11 @@ ExecCGCommand::ExecCGCommand(
   if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
+    MWorkerQueue = nullptr;
+    MEvent->setWorkerQueue(MWorkerQueue);
+    MEvent->markAsHost();
   }
+
   if (MCommandGroup->getType() == detail::CGType::ProfilingTag)
     MEvent->markAsProfilingTagEvent();
 
@@ -3139,6 +3135,8 @@ ur_result_t ExecCGCommand::enqueueImp() {
   } else {
     return enqueueImpQueue();
   }
+  assert((!!MEvent->getHandle() == producesPiEvent()) &&
+         "ExecCGCommand must produce native event");
 }
 
 ur_result_t ExecCGCommand::enqueueImpQueue() {
@@ -3432,7 +3430,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // Host task is executed asynchronously so we should record where it was
     // submitted to report exception origin properly.
     copySubmissionCodeLocation();
-
+    if (producesPiEvent()) {
+      auto TempContext = getContext(HostTask->MQueue)->getHandleRef();
+      ur_event_native_properties_t NativeProperties{};
+      auto &Adapter = MQueue->getAdapter();
+      Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
+          0, TempContext, &NativeProperties, &UREvent);
+      MEvent->setHandle(UREvent);
+    }
     queue_impl::getThreadPool().submit<DispatchHostTask>(
         DispatchHostTask(this, std::move(ReqToMem), std::move(ReqUrMem)));
 
@@ -3791,7 +3796,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
 bool ExecCGCommand::producesPiEvent() const {
   return !MCommandBuffer &&
-         MCommandGroup->getType() != CGType::CodeplayHostTask;
+         !(
+             MCommandGroup->getType() == CGType::CodeplayHostTask && !MQueue /* MQueue is set only when we have native sync with host task */);
 }
 
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
@@ -3814,11 +3820,17 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
     : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
       MNodes(Nodes) {}
 
+bool UpdateCommandBufferCommand::producesPiEvent() const {
+  return !MPreparedDepsEvents.empty();
+}
+
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   ur_event_handle_t UREvent = nullptr;
   Command::waitForEvents(MQueue, EventImpls, UREvent);
+  assert((!!UREvent == producesPiEvent()) &&
+         "UpdateCommandBufferCommand produces native event");
   MEvent->setHandle(UREvent);
 
   auto CheckAndFindAlloca = [](Requirement *Req, const DepDesc &Dep) {
@@ -3888,7 +3900,6 @@ void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
 }
 
 void UpdateCommandBufferCommand::emitInstrumentationData() {}
-bool UpdateCommandBufferCommand::producesPiEvent() const { return false; }
 
 } // namespace detail
 } // namespace _V1

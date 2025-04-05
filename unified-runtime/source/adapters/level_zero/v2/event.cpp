@@ -232,6 +232,13 @@ ur_result_t urEventRelease(ur_event_handle_t hEvent) try {
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t urEventHostSignal(ur_event_handle_t hEvent) try {
+  auto ZeResult = ZE_CALL_NOCHECK(zeEventHostSignal, (hEvent->getZeEvent()));
+  return ze2urResult(ZeResult);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 ur_result_t urEventWait(uint32_t numEvents,
                         const ur_event_handle_t *phEventWaitList) try {
   for (uint32_t i = 0; i < numEvents; ++i) {
