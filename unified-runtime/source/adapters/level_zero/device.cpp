@@ -1676,22 +1676,6 @@ bool ur_device_handle_t_::useRelaxedAllocationLimits() {
   return EnableRelaxedAllocationLimits;
 }
 
-bool ur_device_handle_t_::useDriverInOrderLists() {
-  // Use in-order lists implementation from L0 driver instead
-  // of adapter's implementation.
-
-  static const bool UseDriverInOrderLists = [&] {
-    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    // bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
-    //     1, 3, L0_DRIVER_INORDER_MIN_VERSION);
-    if (!UrRet)
-      return false;
-    return std::atoi(UrRet) != 0;
-  }();
-
-  return UseDriverInOrderLists;
-}
-
 bool ur_device_handle_t_::useDriverCounterBasedEvents() {
   // Use counter-based events implementation from L0 driver.
 
