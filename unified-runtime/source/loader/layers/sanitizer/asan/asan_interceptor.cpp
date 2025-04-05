@@ -332,7 +332,7 @@ AsanInterceptor::getOrCreateShadowMemory(ur_device_handle_t Device,
     }
     std::shared_ptr<ContextInfo> CI;
     insertContext(InternalContext, CI);
-    m_ShadowMap[Type] = GetShadowMemory(InternalContext, Device, Type);
+    m_ShadowMap[Type] = CreateShadowMemory(InternalContext, Device, Type);
     m_ShadowMap[Type]->Setup();
   }
   return m_ShadowMap[Type];
