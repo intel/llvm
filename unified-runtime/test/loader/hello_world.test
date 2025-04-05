@@ -1,0 +1,1 @@
+RUN: %use-mock hello_world

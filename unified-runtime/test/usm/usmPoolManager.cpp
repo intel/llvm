@@ -4,7 +4,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %use-mock usmPoolManager-test
+
 #include "umf_helpers.hpp"
+
 #include "umf_pools/disjoint_pool_config_parser.hpp"
 #include "ur_pool_manager.hpp"
 
