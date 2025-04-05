@@ -59,7 +59,7 @@ ur_result_t urQueueCreateWithNativeHandle(
   }
 
   *phQueue = ur_queue_handle_t_::create<v2::ur_queue_immediate_in_order_t>(
-      hContext, hDevice, hNativeQueue, flags, ownNativeHandle, true);
+      hContext, hDevice, hNativeQueue, flags, ownNativeHandle);
 
   return UR_RESULT_SUCCESS;
 } catch (...) {
