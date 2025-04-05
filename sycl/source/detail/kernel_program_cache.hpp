@@ -340,15 +340,15 @@ public:
 
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
-  static inline void traceKernel(const std::string &Msg,
-                                 const std::string &KernelName,
+  static inline void traceKernel(std::string_view Msg,
+                                 std::string_view KernelName,
                                  bool IsKernelFastCache = false) {
     if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
       return;
 
     std::string Identifier =
         "[IsFastCache: " + std::to_string(IsKernelFastCache) +
-        "][Key:{Name = " + KernelName + "}]: ";
+        "][Key:{Name = " + KernelName.data() + "}]: ";
 
     std::cerr << "[In-Memory Cache][Thread Id:" << std::this_thread::get_id()
               << "][Kernel Cache]" << Identifier << Msg << std::endl;
