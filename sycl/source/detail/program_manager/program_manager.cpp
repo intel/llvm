@@ -836,22 +836,26 @@ CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 ur_program_handle_t ProgramManager::getBuiltURProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
     const std::string &KernelName, const NDRDescT &NDRDesc) {
+  DeviceImplPtr RootDevImpl;
+  ur_bool_t MustBuildOnSubdevice = true;
+
   // Check if we can optimize program builds for sub-devices by using a program
   // built for the root device
-  DeviceImplPtr RootDevImpl = DeviceImpl;
-  while (!RootDevImpl->isRootDevice()) {
-    auto ParentDev = detail::getSyclObjImpl(
-        RootDevImpl->get_info<info::device::parent_device>());
-    // Sharing is allowed within a single context only
-    if (!ContextImpl->hasDevice(ParentDev))
-      break;
-    RootDevImpl = std::move(ParentDev);
-  }
+  if (!DeviceImpl->isRootDevice()) {
+    RootDevImpl = DeviceImpl;
+    while (!RootDevImpl->isRootDevice()) {
+      auto ParentDev = detail::getSyclObjImpl(
+          RootDevImpl->get_info<info::device::parent_device>());
+      // Sharing is allowed within a single context only
+      if (!ContextImpl->hasDevice(ParentDev))
+        break;
+      RootDevImpl = std::move(ParentDev);
+    }
 
-  ur_bool_t MustBuildOnSubdevice = true;
-  ContextImpl->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-      RootDevImpl->getHandleRef(), UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,
-      sizeof(ur_bool_t), &MustBuildOnSubdevice, nullptr);
+    ContextImpl->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        RootDevImpl->getHandleRef(), UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,
+        sizeof(ur_bool_t), &MustBuildOnSubdevice, nullptr);
+  }
 
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
   auto Device = createSyclObjFromImpl<device>(
