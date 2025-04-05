@@ -20,7 +20,8 @@ inline namespace _V1 {
 namespace access {
 
 enum class target {
-  global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2014,
+  device = 2014,
+  global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = device,
   constant_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2015,
   local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image = 2017,
@@ -28,7 +29,6 @@ enum class target {
   host_image = 2019,
   image_array = 2020,
   host_task = 2021,
-  device = global_buffer,
 };
 
 enum class mode {

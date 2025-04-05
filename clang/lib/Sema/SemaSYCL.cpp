@@ -2090,13 +2090,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) &&
-        !SemaSYCL::isSyclType(ParamTy,
-                              SYCLTypeAttr::dynamic_work_group_memory)) {
-      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
-          << ParamTy;
-      IsInvalid = true;
-    }
+    IsInvalid |= checkSyclSpecialType(ParamTy, PD->getLocation());
     return isValid();
   }
 
@@ -2248,10 +2242,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) &&
-        !SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::dynamic_work_group_memory))
-      unsupportedFreeFunctionParamType(); // TODO
-    return true;
+    return checkType(PD->getLocation(), ParamTy);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -3035,27 +3026,22 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) ||
-        SemaSYCL::isSyclType(ParamTy,
-                             SYCLTypeAttr::dynamic_work_group_memory)) {
-      const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
-      assert(RecordDecl && "The type must be a RecordDecl");
-      CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
-      assert(InitMethod && "The type must have the __init method");
-      // Don't do -1 here because we count on this to be the first parameter
-      // added (if any).
-      size_t ParamIndex = Params.size();
-      for (const ParmVarDecl *Param : InitMethod->parameters()) {
-        QualType ParamTy = Param->getType();
-        addParam(Param, ParamTy.getCanonicalType());
-        // Propagate add_ir_attributes_kernel_parameter attribute.
-        if (const auto *AddIRAttr =
-                Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
-          Params.back()->addAttr(AddIRAttr->clone(SemaSYCLRef.getASTContext()));
-      }
-      LastParamIndex = ParamIndex;
-    } else // TODO
-      unsupportedFreeFunctionParamType();
+    const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
+    assert(RecordDecl && "The type must be a RecordDecl");
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+    assert(InitMethod && "The type must have the __init method");
+    // Don't do -1 here because we count on this to be the first parameter
+    // added (if any).
+    size_t ParamIndex = Params.size();
+    for (const ParmVarDecl *Param : InitMethod->parameters()) {
+      QualType ParamTy = Param->getType();
+      addParam(Param, ParamTy.getCanonicalType());
+      // Propagate add_ir_attributes_kernel_parameter attribute.
+      if (const auto *AddIRAttr =
+              Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
+        Params.back()->addAttr(AddIRAttr->clone(SemaSYCLRef.getASTContext()));
+    }
+    LastParamIndex = ParamIndex;
     return true;
   }
 
@@ -4549,47 +4535,42 @@ public:
   // TODO: Revisit this approach once https://github.com/intel/llvm/issues/16061
   // is closed.
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory) ||
-        SemaSYCL::isSyclType(ParamTy,
-                             SYCLTypeAttr::dynamic_work_group_memory)) {
-      const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
-      AccessSpecifier DefaultConstructorAccess;
-      auto DefaultConstructor =
-          std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
-                       [](auto it) { return it->isDefaultConstructor(); });
-      DefaultConstructorAccess = DefaultConstructor->getAccess();
-      DefaultConstructor->setAccess(AS_public);
+    const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
+    AccessSpecifier DefaultConstructorAccess;
+    auto DefaultConstructor =
+        std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
+                     [](auto it) { return it->isDefaultConstructor(); });
+    DefaultConstructorAccess = DefaultConstructor->getAccess();
+    DefaultConstructor->setAccess(AS_public);
 
-      QualType Ty = PD->getOriginalType();
-      ASTContext &Ctx = SemaSYCLRef.SemaRef.getASTContext();
-      VarDecl *WorkGroupMemoryClone = VarDecl::Create(
-          Ctx, DeclCreator.getKernelDecl(), FreeFunctionSrcLoc,
-          FreeFunctionSrcLoc, PD->getIdentifier(), PD->getType(),
-          Ctx.getTrivialTypeSourceInfo(Ty), SC_None);
-      InitializedEntity VarEntity =
-          InitializedEntity::InitializeVariable(WorkGroupMemoryClone);
-      InitializationKind InitKind =
-          InitializationKind::CreateDefault(FreeFunctionSrcLoc);
-      InitializationSequence InitSeq(SemaSYCLRef.SemaRef, VarEntity, InitKind,
-                                     std::nullopt);
-      ExprResult Init = InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity,
-                                        InitKind, std::nullopt);
-      WorkGroupMemoryClone->setInit(
-          SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
-      WorkGroupMemoryClone->setInitStyle(VarDecl::CallInit);
-      DefaultConstructor->setAccess(DefaultConstructorAccess);
+    QualType Ty = PD->getOriginalType();
+    ASTContext &Ctx = SemaSYCLRef.SemaRef.getASTContext();
+    VarDecl *SpecialObjectClone =
+        VarDecl::Create(Ctx, DeclCreator.getKernelDecl(), FreeFunctionSrcLoc,
+                        FreeFunctionSrcLoc, PD->getIdentifier(), PD->getType(),
+                        Ctx.getTrivialTypeSourceInfo(Ty), SC_None);
+    InitializedEntity VarEntity =
+        InitializedEntity::InitializeVariable(SpecialObjectClone);
+    InitializationKind InitKind =
+        InitializationKind::CreateDefault(FreeFunctionSrcLoc);
+    InitializationSequence InitSeq(SemaSYCLRef.SemaRef, VarEntity, InitKind,
+                                   std::nullopt);
+    ExprResult Init =
+        InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity, InitKind, std::nullopt);
+    SpecialObjectClone->setInit(
+        SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
+    SpecialObjectClone->setInitStyle(VarDecl::CallInit);
+    DefaultConstructor->setAccess(DefaultConstructorAccess);
 
-      Stmt *DS = new (SemaSYCLRef.getASTContext())
-          DeclStmt(DeclGroupRef(WorkGroupMemoryClone), FreeFunctionSrcLoc,
-                   FreeFunctionSrcLoc);
-      BodyStmts.push_back(DS);
-      Expr *MemberBaseExpr = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-          WorkGroupMemoryClone, Ty, VK_PRValue, FreeFunctionSrcLoc);
-      createSpecialMethodCall(RecordDecl, InitMethodName, MemberBaseExpr,
-                              BodyStmts);
-      ArgExprs.push_back(MemberBaseExpr);
-    } else // TODO
-      unsupportedFreeFunctionParamType();
+    Stmt *DS = new (SemaSYCLRef.getASTContext())
+        DeclStmt(DeclGroupRef(SpecialObjectClone), FreeFunctionSrcLoc,
+                 FreeFunctionSrcLoc);
+    BodyStmts.push_back(DS);
+    Expr *MemberBaseExpr = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+        SpecialObjectClone, Ty, VK_PRValue, FreeFunctionSrcLoc);
+    createSpecialMethodCall(RecordDecl, InitMethodName, MemberBaseExpr,
+                            BodyStmts);
+    ArgExprs.push_back(MemberBaseExpr);
     return true;
   }
 
@@ -4883,14 +4864,46 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
+    const auto *ClassTy = ParamTy->getAsCXXRecordDecl();
+    assert(ClassTy && "Type must be a C++ record type");
+    if (isSyclAccessorType(ParamTy)) {
+      const auto *AccTy =
+          cast<ClassTemplateSpecializationDecl>(ParamTy->getAsRecordDecl());
+      assert(AccTy->getTemplateArgs().size() >= 2 &&
+             "Incorrect template args for Accessor Type");
+      int Dims = static_cast<int>(
+          AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
+      int Info = getAccessTarget(ParamTy, AccTy) | (Dims << 11);
+
+      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                          CurOffset);
+    } else if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::stream)) {
+      addParam(PD, ParamTy, SYCLIntegrationHeader::kind_stream);
+    } else if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
       addParam(PD, ParamTy, SYCLIntegrationHeader::kind_work_group_memory);
-    else if (SemaSYCL::isSyclType(ParamTy,
-                                  SYCLTypeAttr::dynamic_work_group_memory))
+    } else if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::sampler) ||
+               SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::annotated_ptr) ||
+               SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::annotated_arg)) {
+      CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
+      assert(InitMethod && "type must have __init method");
+      const ParmVarDecl *InitArg = InitMethod->getParamDecl(0);
+      assert(InitArg && "Init method must have arguments");
+      QualType T = InitArg->getType();
+      SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
+          SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::sampler)
+              ? SYCLIntegrationHeader::kind_sampler
+              : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
+                                    : SYCLIntegrationHeader::kind_std_layout);
+      addParam(PD, ParamTy, ParamKind);
+    } else if (SemaSYCL::isSyclType(ParamTy,
+                                    SYCLTypeAttr::dynamic_work_group_memory))
       addParam(PD, ParamTy,
                SYCLIntegrationHeader::kind_dynamic_work_group_memory);
-    else
-      unsupportedFreeFunctionParamType(); // TODO
+
+    else {
+      llvm_unreachable(
+          "Unexpected SYCL special class when generating integration header");
+    }
     return true;
   }
 
@@ -6432,6 +6445,10 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
+  O << "#include <sycl/access/access.hpp>\n"; // needed when using accessors as
+                                              // free function kernel arguments
+                                              // because we need to have access
+                                              // to mode and target enums
   O << "\n";
 
   LangOptions LO;
@@ -6724,7 +6741,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       ParmList += Param->getType().getCanonicalType().getAsString(Policy);
     }
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
-    Policy.PrintCanonicalTypes = false;
+    Policy.PrintCanonicalTypes = true;
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
     Policy.FullyQualifiedName = true;
