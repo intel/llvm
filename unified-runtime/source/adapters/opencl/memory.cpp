@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory.hpp"
+#include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
 
@@ -348,7 +349,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     RetErr =
         cl_ext::getExtFuncFromContext<clCreateBufferWithPropertiesINTEL_fn>(
             CLContext,
-            cl_ext::ExtFuncPtrCache->clCreateBufferWithPropertiesINTELCache,
+            ur::cl::getExtFnPtrCache().clCreateBufferWithPropertiesINTELCache,
             cl_ext::CreateBufferWithPropertiesName, &FuncPtr);
     if (FuncPtr) {
       std::vector<cl_mem_properties_intel> PropertiesIntel;
