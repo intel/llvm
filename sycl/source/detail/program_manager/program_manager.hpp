@@ -135,15 +135,15 @@ public:
   static ProgramManager &getInstance();
 
   RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
-                                      const context &Context,
+                                      const ContextImplPtr &ContextImpl,
                                       const device &Device);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      const context &Context, const device &Device);
+      const ContextImplPtr &ContextImpl, const device &Device);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
-                                      const context &Context,
+                                      const ContextImplPtr &ContextImpl,
                                       const std::vector<device> &Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
@@ -167,7 +167,7 @@ public:
   std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      const context &Context, const std::vector<device> &Devices,
+      const ContextImplPtr &ContextImpl, const std::vector<device> &Devices,
       const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
@@ -192,7 +192,8 @@ public:
   /// \param SpecConsts is an optional parameter containing spec constant values
   /// the program should be built with.
   ur_program_handle_t
-  getBuiltURProgram(const BinImgWithDeps &ImgWithDeps, const context &Context,
+  getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
+                    const ContextImplPtr &ContextImpl,
                     const std::vector<device> &Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
