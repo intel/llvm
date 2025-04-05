@@ -1,3 +1,5 @@
+// XFAIL: cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17873 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

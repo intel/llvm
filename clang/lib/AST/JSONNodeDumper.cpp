@@ -1003,6 +1003,11 @@ void JSONNodeDumper::VisitRecordDecl(const RecordDecl *RD) {
 void JSONNodeDumper::VisitCXXRecordDecl(const CXXRecordDecl *RD) {
   VisitRecordDecl(RD);
 
+  if (const auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
+    if (CTSD->hasStrictPackMatch())
+      JOS.attribute("strict-pack-match", true);
+  }
+
   // All other information requires a complete definition.
   if (!RD->isCompleteDefinition())
     return;
@@ -1360,6 +1365,9 @@ void JSONNodeDumper::VisitSYCLUniqueStableIdExpr(
 void JSONNodeDumper::VisitOpenACCAsteriskSizeExpr(
     const OpenACCAsteriskSizeExpr *E) {}
 
+void JSONNodeDumper::VisitOpenACCDeclareDecl(const OpenACCDeclareDecl *D) {}
+void JSONNodeDumper::VisitOpenACCRoutineDecl(const OpenACCRoutineDecl *D) {}
+
 void JSONNodeDumper::VisitPredefinedExpr(const PredefinedExpr *PE) {
   JOS.attribute("name", PredefinedExpr::getIdentKindName(PE->getIdentKind()));
 }
@@ -1702,6 +1710,10 @@ void JSONNodeDumper::VisitNullPtrTemplateArgument(const TemplateArgument &TA) {
 }
 void JSONNodeDumper::VisitIntegralTemplateArgument(const TemplateArgument &TA) {
   JOS.attribute("value", TA.getAsIntegral().getSExtValue());
+}
+void JSONNodeDumper::VisitStructuralValueTemplateArgument(
+    const TemplateArgument &TA) {
+  Visit(TA.getAsStructuralValue(), TA.getStructuralValueType());
 }
 void JSONNodeDumper::VisitTemplateTemplateArgument(const TemplateArgument &TA) {
   // FIXME: cannot just call dump() on the argument, as that doesn't specify
