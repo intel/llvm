@@ -1255,6 +1255,42 @@ ur_result_t urPrintBindlessImagesImageGetInfoExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintBindlessImagesGetImageMemoryPointerSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_memory_pointer_support_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesGetImageMemoryOpaqueSupportExpParams(
+    const struct ur_bindless_images_get_image_memory_opaque_support_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_unsampled_handle_support_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesGetImageSampledHandleSupportExpParams(
+    const struct
+    ur_bindless_images_get_image_sampled_handle_support_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintBindlessImagesMipmapGetLevelExpParams(
     const struct ur_bindless_images_mipmap_get_level_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {

@@ -593,6 +593,89 @@ __SYCL_EXPORT unsigned int
 get_image_num_channels(const image_mem_handle memHandle,
                        const sycl::queue &syclQueue);
 
+/**
+ *  @brief   Returns a vector of image-backing memory types supported by the
+ *           device for a given `image_descriptor`. If the returned vector is
+ *           empty, it indicates that the device does not support allocating or
+ *           creating images with the properties described in the
+ *           `image_descriptor`.
+ *
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   syclDevice The device in which we created our image memory handle
+ *  @param   syclContext The context in which we created our image memory handle
+ *  @return  List of supported image-backing memory types
+ */
+__SYCL_EXPORT std::vector<image_memory_handle_type>
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::device &syclDevice,
+                         const sycl::context &syclContext);
+
+/**
+ *  @brief   Returns a vector of image-backing memory types supported by the
+ *           device for a given `image_descriptor`. If the returned vector is
+ *           empty, it indicates that the device does not support allocating or
+ *           creating images with the properties described in the
+ *           `image_descriptor`.
+ *
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   syclQueue The device/context association for which we want to query
+ *                     image memory support.
+ *  @return  List of supported image-backing memory types
+ */
+__SYCL_EXPORT std::vector<image_memory_handle_type>
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::queue &syclQueue);
+
+/**
+ *  @brief   Returns `true` if the device supports creation of images of the
+ *           ImageHandleType, given the combination of `image_descriptor` and
+ *           `image_memory_handle_type`.
+ *
+ *  @tparam  ImageHandleType Either `sampled_image_handle` or
+ *           `unsampled_image_handle`.
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   imageMemoryHandleType Image memory handle type we want to query
+ *                                 support for.
+ *  @param   syclDevice The device in which we want to query image handle
+ *                      support
+ *  @param   syclContext The context in which we want to query image handle
+ *                      support
+ *  @return  Boolean indicating support for image creation with the specified
+ *           parameter.
+ */
+
+template <typename ImageHandleType>
+__SYCL_EXPORT bool
+get_image_handle_supported(const image_descriptor &imageDescriptor,
+                           image_memory_handle_type imageMemoryHandleType,
+                           const sycl::device &syclDevice,
+                           const sycl::context &syclContext);
+
+/**
+ *  @brief   Returns `true` if the device supports creation of images of the
+ *           ImageHandleType, given the combination of `image_descriptor` and
+ *           `image_memory_handle_type`.
+ *
+ *  @tparam  ImageHandleType Either `sampled_image_handle` or
+ *           `unsampled_image_handle`
+ *  @param   imageDescriptor Properties of the image we want to query support
+ *                           for.
+ *  @param   imageMemoryHandleType Image memory handle type we want to query
+ *                                 support for.
+ *  @param   syclQueue The device/context association for which we want to query
+ *                     image handle support.
+ *  @return  Boolean indicating support for image creation with the specified
+ *           parameter.
+ */
+template <typename ImageHandleType>
+__SYCL_EXPORT bool
+get_image_handle_supported(const image_descriptor &imageDescriptor,
+                           image_memory_handle_type imageMemoryHandleType,
+                           const sycl::queue &syclQueue);
+
 namespace detail {
 
 // is sycl::vec

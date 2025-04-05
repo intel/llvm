@@ -8460,6 +8460,240 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageMemoryPointerSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryPointerSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [out] returned indication of support for allocating USM style memory
+    bool *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_get_image_memory_pointer_support_exp_params_t params = {
+      &hContext, &hDevice, &pImageDesc, &pImageFormat, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesGetImageMemoryPointerSupportExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesGetImageMemoryPointerSupportExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesGetImageMemoryPointerSupportExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesGetImageMemoryOpaqueSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryOpaqueSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [out] returned indication of support for allocating opaque handle
+    /// memory
+    bool *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_get_image_memory_opaque_support_exp_params_t params = {
+      &hContext, &hDevice, &pImageDesc, &pImageFormat, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesGetImageMemoryOpaqueSupportExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesGetImageMemoryOpaqueSupportExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesGetImageMemoryOpaqueSupportExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageUnsampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageUnsampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] indicates whether the image memory would be backed by an opaque
+    /// handle allocation
+    bool isOpaqueAllocation,
+    /// [out] returned indication of support for creating unsampled image
+    /// handles
+    bool *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_get_image_unsampled_handle_support_exp_params_t params = {
+      &hContext,           &hDevice,      &pImageDesc, &pImageFormat,
+      &isOpaqueAllocation, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesGetImageUnsampledHandleSupportExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesGetImageUnsampledHandleSupportExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesGetImageUnsampledHandleSupportExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageSampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageSampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] indicates whether the image memory would be backed by an opaque
+    /// handle allocation
+    bool isOpaqueAllocation,
+    /// [out] returned indication of support for creating sampled image
+    /// handles
+    bool *pSupportedRet) try {
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  ur_bindless_images_get_image_sampled_handle_support_exp_params_t params = {
+      &hContext,           &hDevice,      &pImageDesc, &pImageFormat,
+      &isOpaqueAllocation, &pSupportedRet};
+
+  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_before_callback(
+          "urBindlessImagesGetImageSampledHandleSupportExp"));
+  if (beforeCallback) {
+    result = beforeCallback(&params);
+    if (result != UR_RESULT_SUCCESS) {
+      return result;
+    }
+  }
+
+  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_replace_callback(
+          "urBindlessImagesGetImageSampledHandleSupportExp"));
+  if (replaceCallback) {
+    result = replaceCallback(&params);
+  } else {
+
+    result = UR_RESULT_SUCCESS;
+  }
+
+  if (result != UR_RESULT_SUCCESS) {
+    return result;
+  }
+
+  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+      mock::getCallbacks().get_after_callback(
+          "urBindlessImagesGetImageSampledHandleSupportExp"));
+  if (afterCallback) {
+    return afterCallback(&params);
+  }
+
+  return result;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     /// [in] handle of the context object
@@ -11724,6 +11958,18 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   pDdiTable->pfnImageCopyExp = driver::urBindlessImagesImageCopyExp;
 
   pDdiTable->pfnImageGetInfoExp = driver::urBindlessImagesImageGetInfoExp;
+
+  pDdiTable->pfnGetImageMemoryPointerSupportExp =
+      driver::urBindlessImagesGetImageMemoryPointerSupportExp;
+
+  pDdiTable->pfnGetImageMemoryOpaqueSupportExp =
+      driver::urBindlessImagesGetImageMemoryOpaqueSupportExp;
+
+  pDdiTable->pfnGetImageUnsampledHandleSupportExp =
+      driver::urBindlessImagesGetImageUnsampledHandleSupportExp;
+
+  pDdiTable->pfnGetImageSampledHandleSupportExp =
+      driver::urBindlessImagesGetImageSampledHandleSupportExp;
 
   pDdiTable->pfnMipmapGetLevelExp = driver::urBindlessImagesMipmapGetLevelExp;
 

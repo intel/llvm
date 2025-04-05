@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "image_helpers.hpp"
+#include "device.hpp"
 
 /// Construct UR image format from ZE image desc.
 ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
@@ -519,4 +520,91 @@ getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
     ZeImageFormatTypeSize = 0;
   }
   return {ZeImageFormatType, ZeImageFormatTypeSize};
+}
+
+bool verifyCommonImagePropertiesSupport(const ur_device_handle_t ZeDevice,
+                                        const ur_image_desc_t *ZeImageDesc,
+                                        const ur_image_format_t *ZeImageFormat,
+                                        bool isOpaqueAllocation) {
+
+  // Verify image dimensions are within device limits.
+  if (ZeImageDesc->depth != 0 && ZeImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
+    if ((ZeDevice->ZeDeviceImageProperties->maxImageDims3D == 0) ||
+        (ZeImageDesc->width >
+         ZeDevice->ZeDeviceImageProperties->maxImageDims3D) ||
+        (ZeImageDesc->height >
+         ZeDevice->ZeDeviceImageProperties->maxImageDims3D) ||
+        (ZeImageDesc->depth >
+         ZeDevice->ZeDeviceImageProperties->maxImageDims3D)) {
+      return false;
+    }
+  } else if (ZeImageDesc->height != 0 &&
+             ZeImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
+    if (((ZeDevice->ZeDeviceImageProperties->maxImageDims2D == 0) ||
+         (ZeImageDesc->width >
+          ZeDevice->ZeDeviceImageProperties->maxImageDims2D) ||
+         (ZeImageDesc->height >
+          ZeDevice->ZeDeviceImageProperties->maxImageDims2D))) {
+      return false;
+    }
+  } else if (ZeImageDesc->width != 0 &&
+             ZeImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+    if ((ZeDevice->ZeDeviceImageProperties->maxImageDims1D == 0) ||
+        (ZeImageDesc->width >
+         ZeDevice->ZeDeviceImageProperties->maxImageDims1D)) {
+      return false;
+    }
+  }
+
+  // Verify 3-channel format support.
+  // LevelZero allows 3-channel formats for `uchar` and `ushort`.
+  if (Is3ChannelOrder(ZeImageFormat->channelOrder)) {
+    switch (ZeImageFormat->channelType) {
+    default:
+      return false;
+    case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+    case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+      break;
+    }
+  }
+
+  // Verify unnormalized channel type support.
+  // LevelZero currently doesn't support unnormalized channel types.
+  switch (ZeImageFormat->channelType) {
+  default:
+    break;
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+    return false;
+  }
+
+  // Verify support for mipmap images.
+  // LevelZero currently does not support mipmap images.
+  if (ZeImageDesc->numMipLevel > 1) {
+    return false;
+  }
+
+  // Verify support for cubemap images.
+  // LevelZero current does not support cubemap images.
+  if (ZeImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
+    return false;
+  }
+
+  // Verify support for gather images.
+  // LevelZero current does not support gather images.
+  if (ZeImageDesc->type == UR_MEM_TYPE_IMAGE_GATHER_EXP) {
+    return false;
+  }
+
+  // Verify support for layered images.
+  // Bindless Images do not provide support for layered images/image arrays
+  // backed by USM pointers.
+  if (((ZeImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY) ||
+       (ZeImageDesc->type == UR_MEM_TYPE_IMAGE2D_ARRAY)) &&
+      !isOpaqueAllocation) {
+    return false;
+  }
+
+  // All properties have been checked. Return true.
+  return true;
 }

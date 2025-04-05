@@ -259,6 +259,78 @@ type of the returned `image_descriptor` will be `image_type::standard`.
 
 Only array image types support more than one array layer.
 
+==== Querying image support
+
+Not all devices support all combinations of image channel type, the number of 
+channels, the type of backing memory, and dimensionality. We provide functions
+to query device support for the allocation and creation of images for a given
+`image_descriptor` and the type of backing memory.
+
+===== Querying image memory support
+
+Before allocating memory for an image, the user may first query whether their
+desired image backing memory type is supported by the device.
+
+The following query returns a vector of supported `image_memory_handle_type`s
+based on the properties of a given `image_descriptor`.
+
+The `image_memory_handle_type::usm_pointer` relates to USM allocations, while
+the `image_memory_handle_type::opaque_handle` relates to memory allocations of
+the `image_mem_handle` type.
+
+If the returned vector is empty, this indicates that the device does not support
+allocating or creating images for the specified `image_descriptor`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+enum class image_memory_handle_type : /* unspecified */ {
+  usm_pointer,
+  opaque_handle
+};
+
+std::vector<image_memory_handle_type> 
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::device &syclDevice, 
+                         const sycl::context &syclContext);
+
+std::vector<image_memory_handle_type> 
+get_image_memory_support(const image_descriptor &imageDescriptor,
+                         const sycl::queue &syclQueue);
+}
+```
+
+===== Querying image handle support
+
+In order to query what types of image handles are supported for a combination
+of a given `image_descriptor` and `image_memory_handle_type`, the user should
+use the `get_image_handle_supported` query.
+
+The template parameter passed to this query should be either 
+`unsampled_image_handle` or `sampled_image_handle`.
+
+The boolean value returned from the query indicates whether the device supports
+creating the given image handle type (sampled or unsampled) given the specified
+`image_descriptor` and `image_memory_handle_type`.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+template <typename ImageHandleType>
+bool
+get_image_handle_supported(const image_descriptor &imageDescriptor,
+                           image_memory_handle_type imageMemoryHandleType,
+                           const sycl::device &syclDevice,
+                           const sycl::context &syclContext);
+
+template <typename ImageHandleType>
+bool
+get_image_handle_supported(const image_descriptor &imageDescriptor,
+                           image_memory_handle_type imageMemoryHandleType,
+                           const sycl::queue &syclQueue);
+}
+```
+
 === Allocating image memory
 
 The process of creating an image is two-fold:

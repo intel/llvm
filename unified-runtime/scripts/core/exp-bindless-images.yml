@@ -643,6 +643,110 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: function
+desc: "Query support for allocating pointer handle type image memory with specific image properties"
+class: $xBindlessImages
+name: GetImageMemoryPointerSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: bool*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for allocating USM style memory"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query support for allocating opaque handle type image memory with specific image properties"
+class: $xBindlessImages
+name: GetImageMemoryOpaqueSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: bool*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for allocating opaque handle memory"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query support for creating an unsampled image handle with specific image properties"
+class: $xBindlessImages
+name: GetImageUnsampledHandleSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: bool
+      name: isOpaqueAllocation
+      desc: "[in] indicates whether the image memory would be backed by an opaque handle allocation"
+    - type: bool*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for creating unsampled image handles"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Query support for creating an unsampled image handle with specific image properties"
+class: $xBindlessImages
+name: GetImageSampledHandleSupportExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: "const $x_image_desc_t*"
+      name: pImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: bool
+      name: isOpaqueAllocation
+      desc: "[in] indicates whether the image memory would be backed by an opaque handle allocation"
+    - type: bool*
+      name: pSupportedRet
+      desc: "[out] returned indication of support for creating sampled image handles"
+returns:
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+--- #--------------------------------------------------------------------------
+type: function
 desc: "Retrieve individual image from mipmap"
 class: $xBindlessImages
 name: MipmapGetLevelExp

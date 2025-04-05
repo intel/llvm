@@ -107,6 +107,12 @@ enum image_copy_flags : unsigned int {
   DtoD = 2,
 };
 
+// The types of handles to image-backing memory
+enum class image_memory_handle_type : unsigned int {
+  usm_pointer = 0,
+  opaque_handle = 1,
+};
+
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

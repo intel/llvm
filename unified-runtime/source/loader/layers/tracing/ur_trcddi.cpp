@@ -7013,6 +7013,230 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageMemoryPointerSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryPointerSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [out] returned indication of support for allocating USM style memory
+    bool *pSupportedRet) {
+  auto pfnGetImageMemoryPointerSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageMemoryPointerSupportExp;
+
+  if (nullptr == pfnGetImageMemoryPointerSupportExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_bindless_images_get_image_memory_pointer_support_exp_params_t params = {
+      &hContext, &hDevice, &pImageDesc, &pImageFormat, &pSupportedRet};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_POINTER_SUPPORT_EXP,
+      "urBindlessImagesGetImageMemoryPointerSupportExp", &params);
+
+  auto &logger = getContext()->logger;
+  logger.info("   ---> urBindlessImagesGetImageMemoryPointerSupportExp\n");
+
+  ur_result_t result = pfnGetImageMemoryPointerSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, pSupportedRet);
+
+  getContext()->notify_end(
+      UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_POINTER_SUPPORT_EXP,
+      "urBindlessImagesGetImageMemoryPointerSupportExp", &params, &result,
+      instance);
+
+  if (logger.getLevel() <= logger::Level::INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str,
+        UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_POINTER_SUPPORT_EXP,
+        &params);
+    logger.info(
+        "   <--- urBindlessImagesGetImageMemoryPointerSupportExp({}) -> {};\n",
+        args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesGetImageMemoryOpaqueSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageMemoryOpaqueSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [out] returned indication of support for allocating opaque handle
+    /// memory
+    bool *pSupportedRet) {
+  auto pfnGetImageMemoryOpaqueSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageMemoryOpaqueSupportExp;
+
+  if (nullptr == pfnGetImageMemoryOpaqueSupportExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_bindless_images_get_image_memory_opaque_support_exp_params_t params = {
+      &hContext, &hDevice, &pImageDesc, &pImageFormat, &pSupportedRet};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_OPAQUE_SUPPORT_EXP,
+      "urBindlessImagesGetImageMemoryOpaqueSupportExp", &params);
+
+  auto &logger = getContext()->logger;
+  logger.info("   ---> urBindlessImagesGetImageMemoryOpaqueSupportExp\n");
+
+  ur_result_t result = pfnGetImageMemoryOpaqueSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, pSupportedRet);
+
+  getContext()->notify_end(
+      UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_OPAQUE_SUPPORT_EXP,
+      "urBindlessImagesGetImageMemoryOpaqueSupportExp", &params, &result,
+      instance);
+
+  if (logger.getLevel() <= logger::Level::INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str,
+        UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_OPAQUE_SUPPORT_EXP,
+        &params);
+    logger.info(
+        "   <--- urBindlessImagesGetImageMemoryOpaqueSupportExp({}) -> {};\n",
+        args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageUnsampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageUnsampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] indicates whether the image memory would be backed by an opaque
+    /// handle allocation
+    bool isOpaqueAllocation,
+    /// [out] returned indication of support for creating unsampled image
+    /// handles
+    bool *pSupportedRet) {
+  auto pfnGetImageUnsampledHandleSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageUnsampledHandleSupportExp;
+
+  if (nullptr == pfnGetImageUnsampledHandleSupportExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_bindless_images_get_image_unsampled_handle_support_exp_params_t params = {
+      &hContext,           &hDevice,      &pImageDesc, &pImageFormat,
+      &isOpaqueAllocation, &pSupportedRet};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP,
+      "urBindlessImagesGetImageUnsampledHandleSupportExp", &params);
+
+  auto &logger = getContext()->logger;
+  logger.info("   ---> urBindlessImagesGetImageUnsampledHandleSupportExp\n");
+
+  ur_result_t result = pfnGetImageUnsampledHandleSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, isOpaqueAllocation,
+      pSupportedRet);
+
+  getContext()->notify_end(
+      UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP,
+      "urBindlessImagesGetImageUnsampledHandleSupportExp", &params, &result,
+      instance);
+
+  if (logger.getLevel() <= logger::Level::INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str,
+        UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP,
+        &params);
+    logger.info("   <--- urBindlessImagesGetImageUnsampledHandleSupportExp({}) "
+                "-> {};\n",
+                args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for
+/// urBindlessImagesGetImageSampledHandleSupportExp
+__urdlllocal ur_result_t UR_APICALL
+urBindlessImagesGetImageSampledHandleSupportExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to image description
+    const ur_image_desc_t *pImageDesc,
+    /// [in] pointer to image format specification
+    const ur_image_format_t *pImageFormat,
+    /// [in] indicates whether the image memory would be backed by an opaque
+    /// handle allocation
+    bool isOpaqueAllocation,
+    /// [out] returned indication of support for creating sampled image
+    /// handles
+    bool *pSupportedRet) {
+  auto pfnGetImageSampledHandleSupportExp =
+      getContext()
+          ->urDdiTable.BindlessImagesExp.pfnGetImageSampledHandleSupportExp;
+
+  if (nullptr == pfnGetImageSampledHandleSupportExp)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  ur_bindless_images_get_image_sampled_handle_support_exp_params_t params = {
+      &hContext,           &hDevice,      &pImageDesc, &pImageFormat,
+      &isOpaqueAllocation, &pSupportedRet};
+  uint64_t instance = getContext()->notify_begin(
+      UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP,
+      "urBindlessImagesGetImageSampledHandleSupportExp", &params);
+
+  auto &logger = getContext()->logger;
+  logger.info("   ---> urBindlessImagesGetImageSampledHandleSupportExp\n");
+
+  ur_result_t result = pfnGetImageSampledHandleSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, isOpaqueAllocation,
+      pSupportedRet);
+
+  getContext()->notify_end(
+      UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP,
+      "urBindlessImagesGetImageSampledHandleSupportExp", &params, &result,
+      instance);
+
+  if (logger.getLevel() <= logger::Level::INFO) {
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str,
+        UR_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP,
+        &params);
+    logger.info(
+        "   <--- urBindlessImagesGetImageSampledHandleSupportExp({}) -> {};\n",
+        args_str.str(), result);
+  }
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     /// [in] handle of the context object
@@ -9840,6 +10064,26 @@ __urdlllocal ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   dditable.pfnImageGetInfoExp = pDdiTable->pfnImageGetInfoExp;
   pDdiTable->pfnImageGetInfoExp =
       ur_tracing_layer::urBindlessImagesImageGetInfoExp;
+
+  dditable.pfnGetImageMemoryPointerSupportExp =
+      pDdiTable->pfnGetImageMemoryPointerSupportExp;
+  pDdiTable->pfnGetImageMemoryPointerSupportExp =
+      ur_tracing_layer::urBindlessImagesGetImageMemoryPointerSupportExp;
+
+  dditable.pfnGetImageMemoryOpaqueSupportExp =
+      pDdiTable->pfnGetImageMemoryOpaqueSupportExp;
+  pDdiTable->pfnGetImageMemoryOpaqueSupportExp =
+      ur_tracing_layer::urBindlessImagesGetImageMemoryOpaqueSupportExp;
+
+  dditable.pfnGetImageUnsampledHandleSupportExp =
+      pDdiTable->pfnGetImageUnsampledHandleSupportExp;
+  pDdiTable->pfnGetImageUnsampledHandleSupportExp =
+      ur_tracing_layer::urBindlessImagesGetImageUnsampledHandleSupportExp;
+
+  dditable.pfnGetImageSampledHandleSupportExp =
+      pDdiTable->pfnGetImageSampledHandleSupportExp;
+  pDdiTable->pfnGetImageSampledHandleSupportExp =
+      ur_tracing_layer::urBindlessImagesGetImageSampledHandleSupportExp;
 
   dditable.pfnMipmapGetLevelExp = pDdiTable->pfnMipmapGetLevelExp;
   pDdiTable->pfnMipmapGetLevelExp =

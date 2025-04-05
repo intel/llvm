@@ -36,3 +36,8 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
 
 std::pair<ze_image_format_type_t, size_t>
 getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat);
+
+bool verifyCommonImagePropertiesSupport(const ur_device_handle_t ZeDevice,
+                                        const ur_image_desc_t *ZeImageDesc,
+                                        const ur_image_format_t *ZeImageFormat,
+                                        bool isOpaqueAllocation);

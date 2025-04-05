@@ -146,6 +146,10 @@ Enums
     * ${X}_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
     * ${X}_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_POINTER_SUPPORT_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_MEMORY_OPAQUE_SUPPORT_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP
+    * ${X}_FUNCTION_BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP
 
 * ${x}_mem_type_t
     * ${X}_MEM_TYPE_IMAGE_CUBEMAP_EXP
@@ -182,6 +186,10 @@ Functions
    * ${x}BindlessImagesImageGetInfoExp
    * ${x}BindlessImagesMipmapGetLevelExp
    * ${x}BindlessImagesMipmapFreeExp
+   * ${x}BindlessImagesGetImageMemoryPointerSupportExp
+   * ${x}BindlessImagesGetImageMemoryOpaqueSupportExp
+   * ${x}BindlessImagesGetImageUnsampledHandleSupportExp
+   * ${x}BindlessImagesGetImageSampledHandleSupportExp
 
 * Interop
    * ${x}BindlessImagesImportExternalMemoryExp
@@ -269,6 +277,12 @@ Changelog
 |          || to DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP    |
 |          || to be more consistent with other UR enums                         |
 +----------+--------------------------------------------------------------------+
+| 22.0     || Added the following APIs:                                  |
+|          ||  - GetImageMemoryPointerSupportExp                         |
+|          ||  - GetImageMemoryOpaqueSupportExp                          |
+|          ||  - GetImageUnsampledHandleSupportExp                       |
+|          ||  - GetImageSampledHandleSupportExp                         |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
