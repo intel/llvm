@@ -30,6 +30,7 @@ class E2EExpr(BooleanExpression):
         "xptifw",
         "level_zero_dev_kit",
         "cuda_dev_kit",
+        "hip_dev_kit",
         "zstd",
         "vulkan",
         "true",
