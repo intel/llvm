@@ -121,13 +121,14 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   if (Format != SYCL_DEVICE_BINARY_TYPE_SPIRV)
     return true;
 
-  const backend ContextBackend = detail::getSyclObjImpl(C)->getBackend();
+  const ContextImplPtr &ContextImpl = detail::getSyclObjImpl(C);
+  const backend ContextBackend = ContextImpl->getBackend();
 
   // The CUDA backend cannot use SPIR-V
   if (ContextBackend == backend::ext_oneapi_cuda)
     return false;
 
-  std::vector<device> Devices = C.get_devices();
+  const std::vector<device> &Devices = ContextImpl->getDevices();
 
   // Program type is SPIR-V, so we need a device compiler to do JIT.
   for (const device &D : Devices) {
