@@ -753,3 +753,6 @@ etors:
 - name: USM_ALLOC_LOCATION_DESC
   desc: $x_usm_alloc_location_desc_t
   value: '35'
+- name: USM_POOL_BUFFER_DESC
+  desc: $x_usm_pool_buffer_desc_t
+  value: '36'
