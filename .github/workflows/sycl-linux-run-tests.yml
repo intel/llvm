@@ -111,6 +111,19 @@ on:
         default: ''
         required: False
 
+      benchmark_upload_results:
+        type: string
+        default: 'false'
+        required: False
+      benchmark_save_name:
+        type: string
+        default: ''
+        required: False
+      benchmark_preset:
+        type: string
+        default: 'Minimal'
+        required: False
+
   workflow_dispatch:
     inputs:
       runner:
@@ -151,6 +164,7 @@ on:
           - e2e
           - cts
           - compute-benchmarks
+          - benchmark_v2
 
       env:
         description: |
@@ -308,6 +322,18 @@ jobs:
       uses: ./devops/actions/run-tests/benchmark
       with:
         target_devices: ${{ inputs.target_devices }}
+      env:
+        RUNNER_TAG: ${{ inputs.runner }}
+        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
+
+    - name: Run benchmarks
+      if: inputs.tests_selector == 'benchmark_v2'
+      uses: ./devops/actions/run-tests/benchmark_v2
+      with:
+        target_devices: ${{ inputs.target_devices }}
+        upload_results: ${{ inputs.benchmark_upload_results }}
+        save_name: ${{ inputs.benchmark_save_name }}
+        preset: ${{ inputs.benchmark_preset }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
