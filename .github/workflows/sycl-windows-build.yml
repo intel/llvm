@@ -185,14 +185,7 @@ jobs:
       # TODO replace utility installation with a single CMake target
       run: |
         cmake --build build --target deploy-sycl-toolchain
-        cmake --build build --target utils/FileCheck/install
-        cmake --build build --target utils/count/install
-        cmake --build build --target utils/not/install
-        cmake --build build --target utils/lit/install
-        cmake --build build --target utils/llvm-lit/install
-        cmake --build build --target install-llvm-size
-        cmake --build build --target install-llvm-cov
-        cmake --build build --target install-llvm-profdata
+        cmake --build build --target install-auxiliary-utils
         cmake --build build --target install-compiler-rt
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
