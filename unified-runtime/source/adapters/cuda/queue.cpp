@@ -16,32 +16,37 @@
 #include <cassert>
 #include <cuda.h>
 
-void ur_queue_handle_t_::computeStreamWaitForBarrierIfNeeded(CUstream Stream,
-                                                             uint32_t StreamI) {
+template <>
+void cuda_stream_queue::computeStreamWaitForBarrierIfNeeded(CUstream Stream,
+                                                            uint32_t StreamI) {
   if (BarrierEvent && !ComputeAppliedBarrier[StreamI]) {
     UR_CHECK_ERROR(cuStreamWaitEvent(Stream, BarrierEvent, 0));
     ComputeAppliedBarrier[StreamI] = true;
   }
 }
 
-void ur_queue_handle_t_::transferStreamWaitForBarrierIfNeeded(
-    CUstream Stream, uint32_t StreamI) {
+template <>
+void cuda_stream_queue::transferStreamWaitForBarrierIfNeeded(CUstream Stream,
+                                                             uint32_t StreamI) {
   if (BarrierEvent && !TransferAppliedBarrier[StreamI]) {
     UR_CHECK_ERROR(cuStreamWaitEvent(Stream, BarrierEvent, 0));
     TransferAppliedBarrier[StreamI] = true;
   }
 }
 
-ur_queue_handle_t ur_queue_handle_t_::getEventQueue(const ur_event_handle_t e) {
+template <>
+ur_queue_handle_t cuda_stream_queue::getEventQueue(const ur_event_handle_t e) {
   return e->getQueue();
 }
 
+template <>
 uint32_t
-ur_queue_handle_t_::getEventComputeStreamToken(const ur_event_handle_t e) {
+cuda_stream_queue::getEventComputeStreamToken(const ur_event_handle_t e) {
   return e->getComputeStreamToken();
 }
 
-CUstream ur_queue_handle_t_::getEventStream(const ur_event_handle_t e) {
+template <>
+CUstream cuda_stream_queue::getEventStream(const ur_event_handle_t e) {
   return e->getStream();
 }
 
@@ -87,7 +92,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     }
 
     Queue = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
-        IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority});
+        {IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority}});
 
     *phQueue = Queue.release();
 
@@ -203,8 +208,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
       pProperties ? pProperties->isNativeHandleOwned : false;
 
   // Create queue from a native stream
-  *phQueue = new ur_queue_handle_t_{CuStream, hContext, hDevice,
-                                    CuFlags,  Flags,    isNativeHandleOwned};
+  *phQueue = new ur_queue_handle_t_{
+      {CuStream, hContext, hDevice, CuFlags, Flags, isNativeHandleOwned}};
 
   return UR_RESULT_SUCCESS;
 }
