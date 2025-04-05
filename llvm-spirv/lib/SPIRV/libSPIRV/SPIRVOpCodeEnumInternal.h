@@ -44,3 +44,4 @@ _SPIRV_OP_INTERNAL(ConvertHandleToSamplerINTEL,
                    internal::ConvertHandleToSamplerINTEL)
 _SPIRV_OP_INTERNAL(ConvertHandleToSampledImageINTEL,
                    internal::ConvertHandleToSampledImageINTEL)
+_SPIRV_OP_INTERNAL(BitwiseFunctionINTEL, internal::BitwiseFunctionINTEL)

@@ -10852,7 +10852,8 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_latency_control"
       ",+SPV_KHR_shader_clock"
       ",+SPV_INTEL_bindless_images"
-      ",+SPV_INTEL_task_sequence";
+      ",+SPV_INTEL_task_sequence"
+      ",+SPV_INTEL_ternary_bitwise_function";
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
   if (C.getDriver().IsFPGAHWMode())
     // Enable several extensions on FPGA H/W exclusively
