@@ -199,10 +199,8 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -221,8 +219,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == phAdapters)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NumEntries == 0 && phPlatforms != NULL)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -231,8 +229,12 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
       return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  ur_result_t result =
-      pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms, pNumPlatforms);
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+    getContext()->refCountContext->logInvalidReference(hAdapter);
+  }
+
+  ur_result_t result = pfnGet(hAdapter, NumEntries, phPlatforms, pNumPlatforms);
 
   return result;
 }

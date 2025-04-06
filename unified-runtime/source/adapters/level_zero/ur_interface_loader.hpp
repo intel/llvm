@@ -21,8 +21,7 @@ ur_result_t urAdapterGetLastError(ur_adapter_handle_t hAdapter,
 ur_result_t urAdapterGetInfo(ur_adapter_handle_t hAdapter,
                              ur_adapter_info_t propName, size_t propSize,
                              void *pPropValue, size_t *pPropSizeRet);
-ur_result_t urPlatformGet(ur_adapter_handle_t *phAdapters, uint32_t NumAdapters,
-                          uint32_t NumEntries,
+ur_result_t urPlatformGet(ur_adapter_handle_t hAdapter, uint32_t NumEntries,
                           ur_platform_handle_t *phPlatforms,
                           uint32_t *pNumPlatforms);
 ur_result_t urPlatformGetInfo(ur_platform_handle_t hPlatform,
