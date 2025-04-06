@@ -69,7 +69,7 @@ jobs:
     with:
       build_ref: ${{ github.sha }}
       build_cache_root: "/__w/"
-      build_artifact_suffix: "default"
+      build_artifact_suffix: "ubuntu22"
       build_cache_suffix: "default"
       build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest"
       changes: ${{ needs.detect_changes.outputs.filters }}
