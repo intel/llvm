@@ -560,6 +560,22 @@ ur_result_t urBindlessImagesImageCopyExp(
                  (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
                   pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
                   WaitList.Length, WaitList.ZeEventList));
+
+    } else if (pSrcImageDesc->rowPitch == 0 && pDstImageDesc->rowPitch != 0) {
+      // Handle the case where source row pitch is zero and destination row
+      // pitch is non-zero
+      logger::error(
+          "urBindlessImagesImageCopyExp: Source row pitch is zero, but "
+          "destination row pitch is non-zero. Potential "
+          "misconfiguration detected.");
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    } else if (pSrcImageDesc->rowPitch != 0 && pDstImageDesc->rowPitch == 0) {
+      // Handle the case where destination row pitch is zero and source row
+      // pitch is non-zero
+      logger::error(
+          "urBindlessImagesImageCopyExp: Destination row pitch is zero, but "
+          "source row pitch is non-zero. Potential misconfiguration detected.");
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
     } else {
       // Copy from Non-USM memory to Non-USM memory
       // Copy from Non-USM/pitched USM memory to pitched USM/Non-USM memory
