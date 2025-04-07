@@ -9,26 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mutable_helpers.hpp"
-#include "../common.hpp"
 
-
-ur_result_t getMemoryAccessType(ur_mem_flags_t flag,
-    ur_mem_handle_t_::access_mode_t &UrAccessMode) {
-        switch (flag) {
-        case UR_MEM_FLAG_READ_WRITE:
-          UrAccessMode = ur_mem_handle_t_::read_write;
-          break;
-        case UR_MEM_FLAG_WRITE_ONLY:
-          UrAccessMode = ur_mem_handle_t_::write_only;
-          break;
-        case UR_MEM_FLAG_READ_ONLY:
-          UrAccessMode = ur_mem_handle_t_::read_only;
-          break;
-        default:
-          return UR_RESULT_ERROR_INVALID_ARGUMENT;
-        }
-        return UR_RESULT_SUCCESS;
-    }
 
 ur_result_t setMutableOffsetDesc(
     std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>> &Desc,
