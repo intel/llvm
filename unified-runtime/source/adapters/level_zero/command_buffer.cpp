@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 #include "command_buffer.hpp"
 #include "helpers/kernel_helpers.hpp"
+#include "helpers/mutable_helpers.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_api.h"
 #include "ur_interface_loader.hpp"
@@ -1930,55 +1931,6 @@ ur_result_t updateKernelHandle(ur_exp_command_buffer_handle_t CommandBuffer,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t setMutableOffsetDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>> &Desc,
-    uint32_t Dim, size_t *NewGlobalWorkOffset, const void *NextDesc,
-    uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->offsetX = NewGlobalWorkOffset[0];
-  DEBUG_LOG(Desc->offsetX);
-  Desc->offsetY = Dim >= 2 ? NewGlobalWorkOffset[1] : 0;
-  DEBUG_LOG(Desc->offsetY);
-  Desc->offsetZ = Dim == 3 ? NewGlobalWorkOffset[2] : 0;
-  DEBUG_LOG(Desc->offsetZ);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t setMutableGroupSizeDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_group_size_exp_desc_t>> &Desc,
-    uint32_t Dim, uint32_t *NewLocalWorkSize, const void *NextDesc,
-    uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->groupSizeX = NewLocalWorkSize[0];
-  DEBUG_LOG(Desc->groupSizeX);
-  Desc->groupSizeY = Dim >= 2 ? NewLocalWorkSize[1] : 1;
-  DEBUG_LOG(Desc->groupSizeY);
-  Desc->groupSizeZ = Dim == 3 ? NewLocalWorkSize[2] : 1;
-  DEBUG_LOG(Desc->groupSizeZ);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t setMutableGroupCountDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_group_count_exp_desc_t>> &Desc,
-    ze_group_count_t *ZeThreadGroupDimensions, const void *NextDesc,
-    uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->pGroupCount = ZeThreadGroupDimensions;
-  DEBUG_LOG(Desc->pGroupCount->groupCountX);
-  DEBUG_LOG(Desc->pGroupCount->groupCountY);
-  DEBUG_LOG(Desc->pGroupCount->groupCountZ);
-  return UR_RESULT_SUCCESS;
-}
-
 ur_result_t setMutableMemObjArgDesc(
     ur_exp_command_buffer_handle_t CommandBuffer,
     std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>> &Desc,
@@ -1989,19 +1941,7 @@ ur_result_t setMutableMemObjArgDesc(
       NewMemObjArgDesc.pProperties;
   ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
   if (Properties) {
-    switch (Properties->memoryAccess) {
-    case UR_MEM_FLAG_READ_WRITE:
-      UrAccessMode = ur_mem_handle_t_::read_write;
-      break;
-    case UR_MEM_FLAG_WRITE_ONLY:
-      UrAccessMode = ur_mem_handle_t_::write_only;
-      break;
-    case UR_MEM_FLAG_READ_ONLY:
-      UrAccessMode = ur_mem_handle_t_::read_only;
-      break;
-    default:
-      return UR_RESULT_ERROR_INVALID_ARGUMENT;
-    }
+    UR_CALL(getMemoryAccessType(Properties->memoryAccess, UrAccessMode))
   }
 
   ur_mem_handle_t NewMemObjArg = NewMemObjArgDesc.hNewMemObjArg;
@@ -2014,62 +1954,7 @@ ur_result_t setMutableMemObjArgDesc(
                                          CommandBuffer->Device, nullptr, 0u));
   }
 
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->argIndex = NewMemObjArgDesc.argIndex;
-  DEBUG_LOG(Desc->argIndex);
-  Desc->argSize = sizeof(void *);
-  DEBUG_LOG(Desc->argSize);
-  Desc->pArgValue = ZeHandlePtr;
-  DEBUG_LOG(Desc->pArgValue);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t setMutablePointerArgDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>> &Desc,
-    const ur_exp_command_buffer_update_pointer_arg_desc_t &NewPointerArgDesc,
-    const void *NextDesc, uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->argIndex = NewPointerArgDesc.argIndex;
-  DEBUG_LOG(Desc->argIndex);
-  Desc->argSize = sizeof(void *);
-  DEBUG_LOG(Desc->argSize);
-  Desc->pArgValue = NewPointerArgDesc.pNewPointerArg;
-  DEBUG_LOG(Desc->pArgValue);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t setMutableValueArgDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>> &Desc,
-    const ur_exp_command_buffer_update_value_arg_desc_t &NewValueArgDesc,
-    const void *NextDesc, uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->argIndex = NewValueArgDesc.argIndex;
-  DEBUG_LOG(Desc->argIndex);
-  Desc->argSize = NewValueArgDesc.argSize;
-  DEBUG_LOG(Desc->argSize);
-  // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
-  // in which case a NULL value will be used as the value for the argument
-  // declared as a pointer to global or constant memory in the kernel"
-  //
-  // We don't know the type of the argument but it seems that the only time
-  // SYCL RT would send a pointer to NULL in 'arg_value' is when the argument
-  // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
-  const void *ArgValuePtr = NewValueArgDesc.pNewValueArg;
-  if (NewValueArgDesc.argSize == sizeof(void *) && ArgValuePtr &&
-      *(void **)(const_cast<void *>(ArgValuePtr)) == nullptr) {
-    ArgValuePtr = nullptr;
-  }
-  Desc->pArgValue = ArgValuePtr;
-  DEBUG_LOG(Desc->pArgValue);
+  setMutableMemObjArgDesc(Desc, NewMemObjArgDesc.argIndex, ZeHandlePtr, NextDesc, CommandID);
   return UR_RESULT_SUCCESS;
 }
 

@@ -147,6 +147,24 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
     currentExecution->release();
   }
 }
+
+ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
+    uint32_t numUpdateCommands,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands) {
+    std::ignore = numUpdateCommands;
+    std::ignore = updateCommands;
+    if (!isFinalized) {
+      return UR_RESULT_ERROR_INVALID_OPERATION;
+    }
+    auto commandListLocked = commandListManager.lock();
+    if (currentExecution) {
+      ZE2UR_CALL(zeEventHostSynchronize,
+                 (currentExecution->getZeEvent(), UINT64_MAX));
+      currentExecution->release();
+      currentExecution = nullptr;
+    }
+  return UR_RESULT_SUCCESS;
+}
 namespace ur::level_zero {
 
 ur_result_t
@@ -570,11 +588,8 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
-  std::ignore = hCommandBuffer;
-  std::ignore = numKernelUpdates;
-  std::ignore = pUpdateKernelLaunch;
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  UR_CALL(hCommandBuffer->applyUpdateCommands(numKernelUpdates, pUpdateKernelLaunch));
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urCommandBufferUpdateSignalEventExp(

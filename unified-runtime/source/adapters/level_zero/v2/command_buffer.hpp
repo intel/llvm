@@ -45,7 +45,9 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
                       uint32_t numKernelAlternatives,
                       ur_kernel_handle_t *kernelAlternatives,
                       ur_exp_command_buffer_command_handle_t *command);
-
+  ur_result_t applyUpdateCommands(
+    uint32_t numUpdateCommands,
+      const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands);
 private:
   const ur_context_handle_t context;
   const ur_device_handle_t device;
