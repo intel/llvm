@@ -315,7 +315,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   try {
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_guard_ Guard;
+    ur_stream_guard Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
     {
@@ -440,7 +440,7 @@ enqueueKernelLaunch(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
 
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_guard_ Guard;
+    ur_stream_guard Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
@@ -628,7 +628,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_guard_ Guard;
+    ur_stream_guard Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
@@ -1104,7 +1104,7 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
   case CU_AD_FORMAT_FLOAT:
     return 4;
   default:
-    detail::ur::die("Invalid image format.");
+    die("Invalid image format.");
     return 0;
   }
 }
@@ -1517,7 +1517,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   try {
     ScopedContext Active(hQueue->getDevice());
     uint32_t StreamToken;
-    ur_stream_guard_ Guard;
+    ur_stream_guard Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,

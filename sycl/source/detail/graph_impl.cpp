@@ -8,7 +8,6 @@
 
 #define __SYCL_GRAPH_IMPL_CPP
 
-#include <stack>
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -16,6 +15,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <stack>
 #include <sycl/detail/common.hpp>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
@@ -32,6 +32,36 @@ namespace experimental {
 namespace detail {
 
 namespace {
+/// Return a string representation of a given node_type
+inline const char *nodeTypeToString(node_type NodeType) {
+  switch (NodeType) {
+  case node_type::empty:
+    return "empty";
+  case node_type::subgraph:
+    return "subgraph";
+  case node_type::kernel:
+    return "kernel";
+  case node_type::memcpy:
+    return "memcpy";
+  case node_type::memset:
+    return "memset";
+  case node_type::memfill:
+    return "memfill";
+  case node_type::prefetch:
+    return "prefetch";
+  case node_type::memadvise:
+    return "memadvise";
+  case node_type::ext_oneapi_barrier:
+    return "ext_oneapi_barrier";
+  case node_type::host_task:
+    return "host_task";
+  case node_type::native_command:
+    return "native_command";
+  }
+  assert(false && "Unhandled node type");
+  return {};
+}
+
 /// Topologically sorts the graph in order to schedule nodes for execution.
 /// This implementation is based on Kahn's algorithm which uses a Breadth-first
 /// search approach.
@@ -986,9 +1016,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       // and potential hangs. We have therefore to expliclty wait in the host
       // for previous submission to complete before resubmitting the
       // command-buffer for level-zero backend.
-      // TODO : add a check to release this constraint and allow multiple
-      // concurrent submissions if the exec_graph has been updated since the
-      // last submission.
+      // TODO https://github.com/intel/llvm/issues/17734
+      // Remove this backend specific behavior and allow multiple concurrent
+      // submissions of the UR command-buffer.
       for (std::vector<sycl::detail::EventImplPtr>::iterator It =
                MExecutionEvents.begin();
            It != MExecutionEvents.end();) {
@@ -1399,6 +1429,14 @@ void exec_graph_impl::update(
             this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
 
     MExecutionEvents.push_back(UpdateEvent);
+
+    if (MContainsHostTask) {
+      // If the graph has HostTasks, the update has to be blocking. This is
+      // needed because HostTask nodes (and all the nodes that depend on
+      // HostTasks), are scheduled using a separate thread. This wait call
+      // acts as a synchronization point for that thread.
+      UpdateEvent->wait(UpdateEvent);
+    }
   } else {
     // For each partition in the executable graph, call UR update on the
     // command-buffer with the nodes to update.
@@ -1445,10 +1483,12 @@ bool exec_graph_impl::needsScheduledUpdate(
     }
 
     if (!Node->isUpdatable()) {
-      throw sycl::exception(
-          errc::invalid,
-          "Unsupported node type for update. Only kernel, host_task, "
-          "barrier and empty nodes are supported.");
+      std::string ErrorString = "node_type::";
+      ErrorString += nodeTypeToString(Node->MNodeType);
+      ErrorString +=
+          " nodes are not supported for update. Only kernel, host_task, "
+          "barrier and empty nodes are supported.";
+      throw sycl::exception(errc::invalid, ErrorString);
     }
 
     if (const auto &CG = Node->MCommandGroup;
@@ -1501,7 +1541,7 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   // and can therefore not be looked up, but since they are self-contained
   // they can simply be launched directly.
   if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    auto KernelName = ExecCG.MKernelName;
+    const auto &KernelName = ExecCG.MKernelName;
     kernel_id KernelID =
         sycl::detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
     kernel SyclKernel =
@@ -1996,6 +2036,11 @@ void executable_command_graph::update(const std::vector<node> &Nodes) {
 }
 
 dynamic_parameter_base::dynamic_parameter_base(
+    command_graph<graph_state::modifiable> Graph)
+    : impl(std::make_shared<dynamic_parameter_impl>(
+          sycl::detail::getSyclObjImpl(Graph))) {}
+
+dynamic_parameter_base::dynamic_parameter_base(
     command_graph<graph_state::modifiable> Graph, size_t ParamSize,
     const void *Data)
     : impl(std::make_shared<dynamic_parameter_impl>(
@@ -2013,6 +2058,10 @@ void dynamic_parameter_base::updateValue(const raw_kernel_arg *NewRawValue,
 void dynamic_parameter_base::updateAccessor(
     const sycl::detail::AccessorBaseHost *Acc) {
   impl->updateAccessor(Acc);
+}
+
+void dynamic_parameter_base::updateWorkGroupMem(size_t BufferSize) {
+  impl->updateWorkGroupMem(BufferSize);
 }
 
 void dynamic_parameter_impl::updateValue(const raw_kernel_arg *NewRawValue,
@@ -2068,6 +2117,39 @@ void dynamic_parameter_impl::updateAccessor(
 
   std::memcpy(MValueStorage.data(), Acc,
               sizeof(sycl::detail::AccessorBaseHost));
+}
+
+void dynamic_parameter_impl::updateWorkGroupMem(size_t BufferSize) {
+  for (auto &[NodeWeak, ArgIndex] : MNodes) {
+    auto NodeShared = NodeWeak.lock();
+    if (NodeShared) {
+      dynamic_parameter_impl::updateCGWorkGroupMem(NodeShared->MCommandGroup,
+                                                   ArgIndex, BufferSize);
+    }
+  }
+
+  for (auto &DynCGInfo : MDynCGs) {
+    auto DynCG = DynCGInfo.DynCG.lock();
+    if (DynCG) {
+      auto &CG = DynCG->MCommandGroups[DynCGInfo.CGIndex];
+      dynamic_parameter_impl::updateCGWorkGroupMem(CG, DynCGInfo.ArgIndex,
+                                                   BufferSize);
+    }
+  }
+}
+
+void dynamic_parameter_impl::updateCGWorkGroupMem(
+    std::shared_ptr<sycl::detail::CG> CG, int ArgIndex, size_t BufferSize) {
+
+  auto &Args = static_cast<sycl::detail::CGExecKernel *>(CG.get())->MArgs;
+  for (auto &Arg : Args) {
+    if (Arg.MIndex != ArgIndex) {
+      continue;
+    }
+    assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_std_layout);
+    Arg.MSize = BufferSize;
+    break;
+  }
 }
 
 void dynamic_parameter_impl::updateCGArgValue(
