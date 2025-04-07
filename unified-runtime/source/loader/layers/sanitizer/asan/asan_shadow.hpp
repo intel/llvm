@@ -163,9 +163,9 @@ struct ShadowMemoryDG2 final : public ShadowMemoryGPU {
   size_t GetShadowSize() override { return 0x100000000000ULL; }
 };
 
-std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
-                                              ur_device_handle_t Device,
-                                              DeviceType Type);
+std::shared_ptr<ShadowMemory> CreateShadowMemory(ur_context_handle_t Context,
+                                                 ur_device_handle_t Device,
+                                                 DeviceType Type);
 
 } // namespace asan
 } // namespace ur_sanitizer_layer

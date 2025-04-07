@@ -20,21 +20,15 @@
 namespace ur_sanitizer_layer {
 namespace asan {
 
-std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
-                                              ur_device_handle_t Device,
-                                              DeviceType Type) {
+std::shared_ptr<ShadowMemory> CreateShadowMemory(ur_context_handle_t Context,
+                                                 ur_device_handle_t Device,
+                                                 DeviceType Type) {
   if (Type == DeviceType::CPU) {
-    static std::shared_ptr<ShadowMemory> ShadowCPU =
-        std::make_shared<ShadowMemoryCPU>(Context, Device);
-    return ShadowCPU;
+    return std::make_shared<ShadowMemoryCPU>(Context, Device);
   } else if (Type == DeviceType::GPU_PVC) {
-    static std::shared_ptr<ShadowMemory> ShadowPVC =
-        std::make_shared<ShadowMemoryPVC>(Context, Device);
-    return ShadowPVC;
+    return std::make_shared<ShadowMemoryPVC>(Context, Device);
   } else if (Type == DeviceType::GPU_DG2) {
-    static std::shared_ptr<ShadowMemory> ShadowDG2 =
-        std::make_shared<ShadowMemoryDG2>(Context, Device);
-    return ShadowDG2;
+    return std::make_shared<ShadowMemoryDG2>(Context, Device);
   } else {
     getContext()->logger.error("Unsupport device type");
     return nullptr;
