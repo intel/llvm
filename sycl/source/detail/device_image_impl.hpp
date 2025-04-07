@@ -1032,6 +1032,19 @@ private:
     for (auto &[NewImage, KernelIDs] : NewImages) {
       const RTDeviceBinaryImage &NewImageRef = *NewImage;
 
+      // Filter the devices that support the image requirements.
+      std::vector<sycl::device> SupportingDevs = Devices;
+      auto NewSupportingDevsEnd = std::remove_if(
+          SupportingDevs.begin(), SupportingDevs.end(),
+          [&NewImageRef](const sycl::device &SDev) {
+            return !doesDevSupportDeviceRequirements(SDev, NewImageRef);
+          });
+
+      // If there are no devices that support the image, we skip it.
+      if (NewSupportingDevsEnd == SupportingDevs.begin())
+        continue;
+      SupportingDevs.erase(NewSupportingDevsEnd, SupportingDevs.end());
+
       std::set<std::string> KernelNames;
       std::unordered_map<std::string, std::string> MangledKernelNames;
       std::unordered_set<std::string> DeviceGlobalIDSet;
@@ -1105,19 +1118,6 @@ private:
       auto DGRegs = std::make_shared<ManagedDeviceGlobalsRegistry>(
           getSyclObjImpl(MContext), std::string{Prefix},
           std::move(DeviceGlobalNames), std::move(DeviceGlobalAllocations));
-
-      // Filter the devices that support the image requirements.
-      std::vector<sycl::device> SupportingDevs = Devices;
-      auto NewSupportingDevsEnd = std::remove_if(
-          SupportingDevs.begin(), SupportingDevs.end(),
-          [&NewImageRef](const sycl::device &SDev) {
-            return !doesDevSupportDeviceRequirements(SDev, NewImageRef);
-          });
-
-      // If there are no devices that support the image, we skip it.
-      if (NewSupportingDevsEnd == SupportingDevs.begin())
-        continue;
-      SupportingDevs.erase(NewSupportingDevsEnd, SupportingDevs.end());
 
       // Mark the image as input so the program manager will bring it into
       // the right state.
