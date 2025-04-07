@@ -10,6 +10,7 @@ Using oneAPI DPC++ for Application Development
    GetStartedGuide
    Getting Started (Japanese) <https://www.isus.jp/others/get-started-with-oneapi-dpc/>
    UsersManual
+   Releases
    PreprocessorMacros
    cuda/contents
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
