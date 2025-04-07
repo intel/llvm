@@ -85,8 +85,11 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   }
 
   // Reset enqueue status if reattempting
-  if (Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+
+  if (!Cmd->isHostTask() &&
+      Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed) {
     Cmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+  }
 
   // Recursively enqueue all the implicit + explicit backend level dependencies
   // first and exit immediately if any of the commands cannot be enqueued.
