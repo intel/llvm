@@ -15,7 +15,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda --no-assertions'
+      build_configure_extra_args: '--hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       retention-days: 90
 
