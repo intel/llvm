@@ -296,7 +296,7 @@ jobs:
       tests_selector: benchmarks
       benchmark_upload_results: true
       benchmark_save_name: ${{ matrix.save_name }}
-      benchmark_preset: ${{ inputs.preset }}
+      benchmark_preset: ${{ matrix.preset }}
       repo_ref: ${{ matrix.ref }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
