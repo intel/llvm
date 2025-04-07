@@ -402,7 +402,6 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
             v2::EVENT_FLAGS_COUNTER) == 0);
 
     *phEvent = hContext->getNativeEventsPool().allocate();
-    ZE2UR_CALL(zeEventHostSignal, ((*phEvent)->getZeEvent()));
   } else {
     *phEvent = new ur_event_handle_t_(hContext, hNativeEvent, pProperties);
     (*phEvent)->IsInteropNativeHandle = true;
