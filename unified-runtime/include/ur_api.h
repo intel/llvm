@@ -536,6 +536,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,
   /// ::ur_usm_alloc_location_desc_t
   UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,
+  /// ::ur_usm_pool_native_desc_t
+  UR_STRUCTURE_TYPE_USM_POOL_NATIVE_DESC = 36,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -9495,6 +9497,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(
     ur_usm_pool_handle_t hPool,
     /// [in] minimum number of bytes to keep in the pool
     size_t minBytesToKeep);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM native pool descriptor type
+///
+/// @details
+///     - Specify these properties in ::urUSMPoolCreate via ::ur_usm_pool_desc_t
+///       as part of a `pNext` chain.
+typedef struct ur_usm_pool_native_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_USM_POOL_NATIVE_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] USM memory object
+  void *pMem;
+  /// [in] size of USM memory object
+  size_t size;
+  /// [in] type of USM memory object
+  ur_usm_type_t memType;
+  /// [in] device associated with the USM memory object
+  ur_device_handle_t device;
+
+} ur_usm_pool_native_desc_t;
 
 #if !defined(__GNUC__)
 #pragma endregion
