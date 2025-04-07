@@ -39,13 +39,13 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_exp2(float x) {
     float y = 1.0f - (((-lo) - MATH_DIVIDE(t * v, 2.0f - v)) - hi);
 
     // Scale by 2^p
-    float r =  as_float(as_int(y) + (p << 23));
+    float r =  __clc_as_float(__clc_as_int(y) + (p << 23));
 
     const float ulim =  128.0f;
     const float llim = -126.0f;
 
     r = x < llim ? 0.0f : r;
-    r = x < ulim ? r : as_float(0x7f800000);
+    r = x < ulim ? r : __clc_as_float(0x7f800000);
     return __spirv_IsNan(x) ? x : r;
 }
 
