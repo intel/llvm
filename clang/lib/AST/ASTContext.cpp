@@ -5864,8 +5864,7 @@ TemplateArgument ASTContext::getInjectedTemplateArg(NamedDecl *Param) const {
                     T, VK, NTTP->getLocation());
 
     if (NTTP->isParameterPack())
-      E = new (*this)
-          PackExpansionExpr(DependentTy, E, NTTP->getLocation(), std::nullopt);
+      E = new (*this) PackExpansionExpr(E, NTTP->getLocation(), std::nullopt);
     Arg = TemplateArgument(E);
   } else {
     auto *TTP = cast<TemplateTemplateParmDecl>(Param);
@@ -7023,7 +7022,7 @@ TemplateName ASTContext::getCanonicalTemplateName(TemplateName Name,
         getCanonicalTemplateArgument(subst->getArgumentPack());
     return getSubstTemplateTemplateParmPack(
         canonArgPack, subst->getAssociatedDecl()->getCanonicalDecl(),
-        subst->getFinal(), subst->getIndex());
+        subst->getIndex(), subst->getFinal());
   }
   case TemplateName::DeducedTemplate: {
     assert(IgnoreDeduced == false);

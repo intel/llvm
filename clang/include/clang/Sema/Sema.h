@@ -8357,7 +8357,8 @@ public:
                                               DeclarationName Name);
   FunctionDecl *FindDeallocationFunctionForDestructor(SourceLocation StartLoc,
                                                       CXXRecordDecl *RD,
-                                                      DeclarationName Name);
+                                                      DeclarationName Name,
+                                                      bool Diagnose = true);
 
   /// ActOnCXXDelete - Parsed a C++ 'delete' expression (C++ 5.3.5), as in:
   /// @code ::delete ptr; @endcode
@@ -10147,13 +10148,14 @@ public:
 
   /// Contexts in which a converted constant expression is required.
   enum CCEKind {
-    CCEK_CaseValue,    ///< Expression in a case label.
-    CCEK_Enumerator,   ///< Enumerator value with fixed underlying type.
-    CCEK_TemplateArg,  ///< Value of a non-type template parameter.
-    CCEK_InjectedTTP,  ///< Injected parameter of a template template parameter.
-    CCEK_ArrayBound,   ///< Array bound in array declarator or new-expression.
-    CCEK_ExplicitBool, ///< Condition in an explicit(bool) specifier.
-    CCEK_Noexcept,     ///< Condition in a noexcept(bool) specifier.
+    CCEK_CaseValue,     ///< Expression in a case label.
+    CCEK_Enumerator,    ///< Enumerator value with fixed underlying type.
+    CCEK_TemplateArg,   ///< Value of a non-type template parameter.
+    CCEK_TempArgStrict, ///< As above, but applies strict template checking
+                        ///< rules.
+    CCEK_ArrayBound,    ///< Array bound in array declarator or new-expression.
+    CCEK_ExplicitBool,  ///< Condition in an explicit(bool) specifier.
+    CCEK_Noexcept,      ///< Condition in a noexcept(bool) specifier.
     CCEK_StaticAssertMessageSize, ///< Call to size() in a static assert
                                   ///< message.
     CCEK_StaticAssertMessageData, ///< Call to data() in a static assert
@@ -11939,7 +11941,7 @@ public:
                                    QualType InstantiatedParamType, Expr *Arg,
                                    TemplateArgument &SugaredConverted,
                                    TemplateArgument &CanonicalConverted,
-                                   bool MatchingTTP,
+                                   bool StrictCheck,
                                    CheckTemplateArgumentKind CTAK);
 
   /// Check a template argument against its corresponding
