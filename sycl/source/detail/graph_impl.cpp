@@ -1503,18 +1503,10 @@ void exec_graph_impl::populateURKernelUpdateStructs(
   std::shared_ptr<sycl::detail::kernel_impl> SyclKernelImpl = nullptr;
   const sycl::detail::KernelArgMask *EliminatedArgMask = nullptr;
 
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the kernels
-  // in interop kernel bundles (if any) do not have kernel_id
-  // and can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    const auto &KernelName = ExecCG.MKernelName;
-    kernel_id KernelID =
-        sycl::detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-    SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
+  if (auto SyclKernelImpl = KernelBundleImplPtr
+                                ? KernelBundleImplPtr->tryGetKernel(
+                                      ExecCG.MKernelName, KernelBundleImplPtr)
+                                : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Kernel != nullptr) {

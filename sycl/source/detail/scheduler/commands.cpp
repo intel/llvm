@@ -1995,24 +1995,12 @@ void instrumentationAddExtraKernelMetadata(
   std::mutex *KernelMutex = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
-  std::shared_ptr<kernel_impl> SyclKernelImpl;
-  std::shared_ptr<device_image_impl> DeviceImageImpl;
-
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the
-  // kernels in interop kernel bundles (if any) do not have kernel_id and
-  // can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-    std::shared_ptr<kernel_impl> KernelImpl =
-        detail::getSyclObjImpl(SyclKernel);
-
-    EliminatedArgMask = KernelImpl->getKernelArgMask();
-    Program = KernelImpl->getDeviceImage()->get_ur_program_ref();
+  if (auto SyclKernelImpl = KernelBundleImplPtr
+                                ? KernelBundleImplPtr->tryGetKernel(
+                                      KernelName, KernelBundleImplPtr)
+                                : std::shared_ptr<kernel_impl>{nullptr}) {
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
   } else if (nullptr != SyclKernel) {
     Program = SyclKernel->getProgramRef();
     if (!SyclKernel->isCreatedFromSource())
@@ -2528,21 +2516,13 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   ur_kernel_handle_t UrKernel = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
+  auto &KernelBundleImplPtr = CommandGroup.MKernelBundle;
 
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the kernels
-  // in interop kernel bundles (if any) do not have kernel_id
-  // and can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
-      KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    kernel_id KernelID = detail::ProgramManager::getInstance().getSYCLKernelID(
-        CommandGroup.MKernelName);
-
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-
-    auto SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+  if (auto SyclKernelImpl =
+          KernelBundleImplPtr
+              ? KernelBundleImplPtr->tryGetKernel(CommandGroup.MKernelName,
+                                                  KernelBundleImplPtr)
+              : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
@@ -2695,19 +2675,10 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the kernels
-  // in interop kernel bundles (if any) do not have kernel_id
-  // and can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-
-    SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
-
+  if ((SyclKernelImpl = KernelBundleImplPtr
+                            ? KernelBundleImplPtr->tryGetKernel(
+                                  KernelName, KernelBundleImplPtr)
+                            : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
 
@@ -3270,7 +3241,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
       bool KernelUsesAssert =
-          !(SyclKernel && SyclKernel->isInterop()) &&
+          (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
           ProgramManager::getInstance().kernelUsesAssert(KernelName);
       if (KernelUsesAssert) {
         EventImpl = MEvent;
