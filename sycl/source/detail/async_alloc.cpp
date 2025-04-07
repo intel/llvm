@@ -20,7 +20,7 @@ namespace ext::oneapi::experimental {
 
 namespace {
 std::vector<ur_event_handle_t>
-getUrEvents(const std::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
+getUrEvents(const std::pmr::vector<std::shared_ptr<detail::event_impl>> &DepEvents) {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (const std::shared_ptr<detail::event_impl> &EventImpl : DepEvents) {
     ur_event_handle_t Handle = EventImpl->getHandle();
