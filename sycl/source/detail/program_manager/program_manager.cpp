@@ -369,8 +369,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
 
   appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
-  platform Platform = Devs[0].get_platform();
-  const auto &PlatformImpl = detail::getSyclObjImpl(Platform);
+  const detail::DeviceImplPtr &DeviceImpl = detail::getSyclObjImpl(Devs[0]);
+  const detail::PlatformImplPtr &PlatformImpl = DeviceImpl->getPlatformImpl();
 
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
