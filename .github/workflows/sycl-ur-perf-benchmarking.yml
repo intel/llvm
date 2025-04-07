@@ -98,6 +98,7 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
+      build_configure_extra_args: "--no-assertions"
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
       cxx: clang++
@@ -155,4 +156,7 @@ jobs:
       benchmark_save_name: Baseline
       benchmark_upload_results: ${{ inputs.upload_results }}
       benchmark_preset: ${{ inputs.preset }}
-      repo_ref: ${{ github.ref }} # TODO figure out nightly commit hash
+      repo_ref: ${{ github.ref }}
+      sycl_toolchain_artifact: sycl_linux_sprod_shared
+      sycl_toolchain_archive: sycl_linux_shared.tar.zst
+      sycl_toolchain_decompress_command: zstd
