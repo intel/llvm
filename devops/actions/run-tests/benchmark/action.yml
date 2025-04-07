@@ -151,9 +151,11 @@ runs:
         --results-dir "./llvm-ci-perf-results/results/"
 
   - name: Cache changes to benchmark folder for archival purposes
+    if: always()
     shell: bash
     run: | 
       cd "./llvm-ci-perf-results"
+      git add .
       for diff in $(git diff HEAD --name-only); do
         mkdir -p "../cached_changes/$(dirname $diff)"
         cp "$diff" "../cached_changes/$diff"
@@ -167,7 +169,6 @@ runs:
       git config user.email "sys_sycl_benchmarks@intel.com"
       results_branch="unify-ci"
 
-      git add .
       if git diff --quiet && git diff --cached --quiet; then
         echo "No new results added, skipping push."
         exit 0
