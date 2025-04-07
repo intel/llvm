@@ -32,8 +32,7 @@ enum class HandlerSubmissionState : std::uint8_t {
 class handler_impl {
 public:
   handler_impl(queue_impl *SubmissionPrimaryQueue,
-               queue_impl *SubmissionSecondaryQueue,
-               bool EventNeeded)
+               queue_impl *SubmissionSecondaryQueue, bool EventNeeded)
       : MSubmissionPrimaryQueue(SubmissionPrimaryQueue),
         MSubmissionSecondaryQueue(SubmissionSecondaryQueue),
         MEventNeeded(EventNeeded) {};

@@ -993,7 +993,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     auto CurrentPartition = MPartitions[currentPartitionsNum];
     // restore initial MEvents to add only needed additional depenencies
     if (currentPartitionsNum > 0) {
-      CGData.MEvents.assign(BackupCGDataMEvents.begin(), BackupCGDataMEvents.end());
+      CGData.MEvents.assign(BackupCGDataMEvents.begin(),
+                            BackupCGDataMEvents.end());
     }
 
     for (auto const &DepPartition : CurrentPartition->MPredecessors) {

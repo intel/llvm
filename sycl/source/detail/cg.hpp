@@ -180,8 +180,7 @@ public:
           MRequirements(std::move(SIH.MRequirements)),
           MEvents(SIH.MEvents.begin(), SIH.MEvents.end()) {}
     StorageInitHelper(const StorageInitHelper &SIH)
-        : MArgsStorage(SIH.MArgsStorage),
-          MAccStorage(SIH.MAccStorage),
+        : MArgsStorage(SIH.MArgsStorage), MAccStorage(SIH.MAccStorage),
           MSharedPtrStorage(SIH.MSharedPtrStorage),
           MRequirements(SIH.MRequirements),
           MEvents(SIH.MEvents.begin(), SIH.MEvents.end()) {}
@@ -199,8 +198,8 @@ public:
     std::vector<AccessorImplHost *> MRequirements;
 
     std::array<std::byte, 4 * 1024> MEventsBuf;
-    std::pmr::monotonic_buffer_resource MEventsBufRes{
-      MEventsBuf.data(), MEventsBuf.size()};
+    std::pmr::monotonic_buffer_resource MEventsBufRes{MEventsBuf.data(),
+                                                      MEventsBuf.size()};
 
     /// List of events that order the execution of this CG
     std::pmr::vector<detail::EventImplPtr> MEvents{&MEventsBufRes};

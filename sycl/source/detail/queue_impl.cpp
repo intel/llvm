@@ -363,9 +363,10 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  detail::handler_impl HandlerImpl(
-      PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent);
-  handler Handler(&HandlerImpl, const_cast<std::shared_ptr<queue_impl> &>(Self));
+  detail::handler_impl HandlerImpl(PrimaryQueue.get(), SecondaryQueue.get(),
+                                   CallerNeedsEvent);
+  handler Handler(&HandlerImpl,
+                  const_cast<std::shared_ptr<queue_impl> &>(Self));
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {

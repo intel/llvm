@@ -324,7 +324,8 @@ handler::handler(detail::handler_impl *HandlerImpl,
 
 static std::shared_ptr<detail::queue_impl> DummyQueue;
 
-handler::handler(detail::handler_impl *HandlerImpl) : impl(HandlerImpl), MQueue(DummyQueue) {}
+handler::handler(detail::handler_impl *HandlerImpl)
+    : impl(HandlerImpl), MQueue(DummyQueue) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -1713,8 +1714,8 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-  if ((!impl->MGraph &&
-       (impl->MSubmissionPrimaryQueue->get_context() != ExecBundle.get_context())) ||
+  if ((!impl->MGraph && (impl->MSubmissionPrimaryQueue->get_context() !=
+                         ExecBundle.get_context())) ||
       (impl->MGraph &&
        (impl->MGraph->getContext() != ExecBundle.get_context())))
     throw sycl::exception(
@@ -1723,7 +1724,8 @@ void handler::use_kernel_bundle(
         "context associated with the kernel bundle");
 
   if (impl->MSubmissionSecondaryQueue &&
-      impl->MSubmissionSecondaryQueue->get_context() != ExecBundle.get_context())
+      impl->MSubmissionSecondaryQueue->get_context() !=
+          ExecBundle.get_context())
     throw sycl::exception(
         make_error_code(errc::invalid),
         "Context associated with the secondary queue is different from the "
