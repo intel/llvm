@@ -124,9 +124,12 @@ public:
       try {
         if (Val) {
           AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
-          ur_result_t Err =
-              AdapterSharedPtr->call_nocheck<UrApiKind::urProgramRelease>(Val);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+          if (AdapterSharedPtr) {
+            ur_result_t Err =
+                AdapterSharedPtr->call_nocheck<UrApiKind::urProgramRelease>(
+                    Val);
+            __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+          }
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
@@ -206,10 +209,12 @@ public:
       try {
         if (Val.first) {
           AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
-          ur_result_t Err =
-              AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(
-                  Val.first);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+          if (AdapterSharedPtr) {
+            ur_result_t Err =
+                AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(
+                    Val.first);
+            __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+          }
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
