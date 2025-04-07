@@ -1030,6 +1030,8 @@ private:
     std::vector<std::shared_ptr<device_image_impl>> Result;
     Result.reserve(NewImages.size());
     for (auto &[NewImage, KernelIDs] : NewImages) {
+      const RTDeviceBinaryImage &NewImageRef = *NewImage;
+
       std::set<std::string> KernelNames;
       std::unordered_map<std::string, std::string> MangledKernelNames;
       std::unordered_set<std::string> DeviceGlobalIDSet;
@@ -1108,8 +1110,8 @@ private:
       std::vector<sycl::device> SupportingDevs = Devices;
       auto NewSupportingDevsEnd = std::remove_if(
           SupportingDevs.begin(), SupportingDevs.end(),
-          [NewImage](const sycl::device &SDev) {
-            return !doesDevSupportDeviceRequirements(SDev, *NewImage);
+          [&NewImageRef](const sycl::device &SDev) {
+            return !doesDevSupportDeviceRequirements(SDev, NewImageRef);
           });
       SupportingDevs.erase(NewSupportingDevsEnd, SupportingDevs.end());
 
