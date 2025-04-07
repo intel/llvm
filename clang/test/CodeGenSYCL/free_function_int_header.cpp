@@ -379,7 +379,7 @@ void ff_19(free_functions::AliasStruct KArg) {
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IiEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: template <typename T> void ff_3(T *ptr, T start, T end);
+// CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim3() {
 // CHECK-NEXT:   return (void (*)(int *, int, int))ff_3<int>;
 // CHECK-NEXT: }
@@ -396,7 +396,7 @@ void ff_19(free_functions::AliasStruct KArg) {
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IfEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: template <typename T> void ff_3(T *ptr, T start, T end);
+// CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim4() {
 // CHECK-NEXT:   return (void (*)(float *, float, float))ff_3<float>;
 // CHECK-NEXT: }
@@ -413,7 +413,7 @@ void ff_19(free_functions::AliasStruct KArg) {
 
 // CHECK: Definition of _Z18__sycl_kernel_ff_3IdEvPT_S0_S0_ as a free function kernel
 // CHECK: Forward declarations of kernel and its argument types:
-// CHECK: template <typename T> void ff_3(T *ptr, T start, T end);
+// CHECK: template <typename T> void ff_3(T * ptr, T start, T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim5() {
 // CHECK-NEXT:   return (void (*)(double *, double, double))ff_3<double>;
 // CHECK-NEXT: }

@@ -106,17 +106,17 @@ foo(Arg1<int> arg) {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<class ns::ns1::hasDefaultArg<struct ns::notatuple>, int, 12, struct ns::notatuple>))simple1;
 // CHECK-NEXT: }
 
-// CHECK: template <typename T> void templated(ns::Arg<T, float, 3, ns::notatuple>, T end);
+// CHECK: template <typename T> void templated(ns::Arg<T, float, 3, ns::notatuple> , T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim3() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<int, float, 3, struct ns::notatuple>, int))templated<int>;
 // CHECK-NEXT: }
 
-// CHECK: template <typename T> void templated2(ns::Arg<T, ns::notatuple, 12, ns::notatuple>, T end);
+// CHECK: template <typename T> void templated2(ns::Arg<T, ns::notatuple, 12, ns::notatuple> , T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim4() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<int, struct ns::notatuple, 12, struct ns::notatuple>, int))templated2<int>;
 // CHECK-NEXT: }
 
-// CHECK: template <typename T, int a> void templated3(ns::Arg<T, ns::notatuple, a, ns::ns1::hasDefaultArg<ns::notatuple>, int, int>, T end);
+// CHECK: template <typename T, int a> void templated3(ns::Arg<T, ns::notatuple, a, ns::ns1::hasDefaultArg<ns::notatuple>, int, int> , T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim5() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<int, struct ns::notatuple, 3, class ns::ns1::hasDefaultArg<struct ns::notatuple>, int, int>, int))templated3<int, 3>;
 // CHECK-NEXT: }
@@ -131,6 +131,6 @@ foo(Arg1<int> arg) {
 // CHECK-NEXT: template <typename T, typename> struct Arg1;
 
 // CHECK: void foo(Arg1<int, sycl::X<sycl::detail::Y> > arg);
-// CHECK-NEXT: static constexpr auto __sycl_shim6() {
+// CHECK-NEXT: static constexpr auto __sycl_shim7() {
 // CHECK-NEXT:   return (void (*)(struct Arg1<int, struct sycl::X<struct sycl::detail::Y> >))foo;
 // CHECK-NEXT: }
