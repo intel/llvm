@@ -15,6 +15,7 @@ import lit.util
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst, FindTool
 
+
 # Configuration file for the 'lit' test runner.
 config.backend_to_target = {
     "level_zero": "target-spir",
@@ -33,6 +34,8 @@ config.triple_to_target = {v: k for k, v in config.target_to_triple.items()}
 config.backend_to_triple = {
     k: config.target_to_triple.get(v) for k, v in config.backend_to_target.items()
 }
+
+config.available_features = AvailableFeatures()
 
 # name: The name of this test suite.
 config.name = "SYCL"
@@ -270,6 +273,7 @@ if lit_config.params.get("enable-perf-tests", False):
 
 if lit_config.params.get("spirv-backend", False):
     config.available_features.add("spirv-backend")
+
 
 # Use this to make sure that any dynamic checks below are done in the build
 # directory and not where the sources are located. This is important for the
