@@ -440,14 +440,12 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                    // only reserved when it's needed for the
                                    // first time (cuMemAllocFromPoolAsync).
 #else
-      // Only error if the user set a value >0 for the maximum size.
+      // Only warn if the user set a value >0 for the maximum size.
       // Otherwise, do nothing.
-      if (Limits->maxPoolableSize > 0) {
-        setErrorMessage(
-            "The memory pool maximum size feature requires CUDA 12.2 or later.",
-            UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-        throw UsmAllocationException(UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-      }
+      // Set maximum size is effectively ignored.
+      if (Limits->maxPoolableSize > 0)
+        logger::warning("The memory pool maximum size feature requires CUDA "
+                        "12.2 or later.\n");
 #endif
       maxSize = Limits->maxPoolableSize;
       size_t chunkSize = 33554432; // 32MB
