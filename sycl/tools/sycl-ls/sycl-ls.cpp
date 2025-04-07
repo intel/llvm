@@ -28,6 +28,11 @@
 #ifdef _WIN32
 #include <system_error>
 #include <windows.h>
+
+#define setenv(name, var, ignore) _putenv_s(name, var)
+#define unsetenv(name) _putenv_s(name, "")
+#else
+
 #endif
 
 using namespace sycl;
@@ -261,11 +266,7 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
 // ONEAPI_DEVICE_SELECTOR, and SYCL_DEVICE_ALLOWLIST.
 static void unsetFilterEnvVars() {
   for (const auto &it : FilterEnvVars) {
-#ifdef _WIN32
-    _putenv_s(it.c_str(), "");
-#else
     unsetenv(it.c_str());
-#endif
   }
 }
 
@@ -363,7 +364,21 @@ int main(int argc, char **argv) {
     if (DiscardFilters && FilterEnvVars.size())
       unsetFilterEnvVars();
 
+    // In verbose mode, if UR logging has not already been enabled by the user,
+    // enable the printing of any errors related to adapter loading.
+    const char *ur_log_loader_var = std::getenv("UR_LOG_LOADER");
+    if (verbose && ur_log_loader_var == nullptr)
+      setenv("UR_LOG_LOADER", "level:info;output:stderr", 1);
+
     const auto &Platforms = platform::get_platforms();
+
+    if (verbose && ur_log_loader_var == nullptr) {
+      unsetenv("UR_LOG_LOADER");
+    } else if (Platforms.size() == 0) {
+      std::cout
+          << "No platforms found - run with '--verbose' to get more details."
+          << std::endl;
+    }
 
     // Keep track of the number of devices per backend
     std::map<backend, size_t> DeviceNums;

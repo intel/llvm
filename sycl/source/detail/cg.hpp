@@ -15,6 +15,7 @@
 #include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
 #include <sycl/event.hpp>           // for event_impl
 #include <sycl/exception_list.hpp>  // for queue_impl
+#include <sycl/ext/oneapi/experimental/async_alloc/memory_pool.hpp>
 #include <sycl/ext/oneapi/experimental/event_mode_property.hpp>
 #include <sycl/kernel.hpp>        // for kernel_impl
 #include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
@@ -665,6 +666,34 @@ public:
     return MExternalSemaphore;
   }
   std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
+};
+
+/// "Async Alloc" command group class.
+class CGAsyncAlloc : public CG {
+
+  // Resulting event carried from async alloc execution.
+  ur_event_handle_t MEvent;
+
+public:
+  CGAsyncAlloc(ur_event_handle_t event, CG::StorageInitHelper CGData,
+               detail::code_location loc = {})
+      : CG(CGType::AsyncAlloc, std::move(CGData), std::move(loc)),
+        MEvent(event) {}
+
+  ur_event_handle_t getEvent() const { return MEvent; }
+};
+
+/// "Async Free" command group class.
+class CGAsyncFree : public CG {
+  void *MFreePtr;
+
+public:
+  CGAsyncFree(void *ptr, CG::StorageInitHelper CGData,
+              detail::code_location loc = {})
+      : CG(CGType::AsyncFree, std::move(CGData), std::move(loc)),
+        MFreePtr(ptr) {}
+
+  void *getPtr() const { return MFreePtr; }
 };
 
 /// "Execute command-buffer" command group class.

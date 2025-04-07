@@ -16,7 +16,6 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -454,23 +453,17 @@ int test_unsupported_options(sycl::queue q) {
       ctx, syclex::source_language::sycl, "");
   std::vector<sycl::device> devs = kbSrc.get_devices();
 
-  auto CheckUnsupported = [&](const std::vector<std::string> &flags) {
-    try {
-      syclex::build(kbSrc, devs,
-                    syclex::properties{syclex::build_options{flags}});
-      assert(false && "unsupported option not detected");
-    } catch (sycl::exception &e) {
-      assert(e.code() == sycl::errc::build);
-      assert(std::string(e.what()).find("Parsing of user arguments failed") !=
-             std::string::npos);
-    }
-  };
-
-  CheckUnsupported({"-fsanitize=address"});
-  CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
-  CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
-  CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
-  CheckUnsupported({"-fno-sycl-device-code-split-esimd"});
+  try {
+    // Don't attempt to test exhaustively here...
+    syclex::build(kbSrc, devs,
+                  syclex::properties{
+                      syclex::build_options{"-fsycl-targets=intel_gpu_pvc"}});
+    assert(false && "unsupported option not detected");
+  } catch (sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid);
+    assert(std::string(e.what()).find("Parsing of user arguments failed") !=
+           std::string::npos);
+  }
 
   return 0;
 }
@@ -539,11 +532,11 @@ int main() {
   if (!ok) {
     return -1;
   }
-
+  // Run test_device_libraries twice to verify bfloat16 device library.
   return test_build_and_run(q) || test_device_code_split(q) ||
          test_device_libraries(q) || test_esimd(q) ||
-         test_unsupported_options(q) || test_error(q) ||
-         test_no_visible_ids(q) || test_warning(q);
+         test_device_libraries(q) || test_unsupported_options(q) ||
+         test_error(q) || test_no_visible_ids(q) || test_warning(q);
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif

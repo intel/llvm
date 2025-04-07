@@ -202,6 +202,12 @@ public:
   /// Potential event mode for the result event of the command.
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
+
+  /// Event computed from async alloc which is passed through for processing.
+  ur_event_handle_t MAsyncAllocEvent = nullptr;
+
+  // Allocation ptr to be freed asynchronously.
+  void *MFreePtr = nullptr;
 };
 
 } // namespace detail

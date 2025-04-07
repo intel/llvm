@@ -181,7 +181,7 @@ __SYCL_EXPORT event make_event(ur_native_handle_t NativeHandle,
       std::make_shared<event_impl>(UrEvent, Context));
 
   if (Backend == backend::opencl)
-    Adapter->call<UrApiKind::urEventRetain>(UrEvent);
+    __SYCL_OCL_CALL(clRetainEvent, ur::cast<cl_event>(NativeHandle));
   return Event;
 }
 
@@ -205,7 +205,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
         "urProgramCreateWithNativeHandle resulted in a null program handle.");
 
   if (ContextImpl->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urProgramRetain>(UrProgram);
+    __SYCL_OCL_CALL(clRetainProgram, ur::cast<cl_program>(NativeHandle));
 
   std::vector<ur_device_handle_t> ProgramDevices;
   uint32_t NumDevices = 0;
@@ -299,7 +299,8 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   // symbols (e.g. when kernel_bundle is supposed to be joined with another).
   auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
   auto DevImgImpl = std::make_shared<device_image_impl>(
-      nullptr, TargetContext, Devices, State, KernelIDs, UrProgram);
+      nullptr, TargetContext, Devices, State, KernelIDs, UrProgram,
+      ImageOriginInterop);
   device_image_plain DevImg{DevImgImpl};
 
   return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
@@ -319,7 +320,7 @@ kernel make_kernel(const context &TargetContext,
                    backend Backend) {
   const auto &Adapter = getAdapter(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
-  const auto KernelBundleImpl = getSyclObjImpl(KernelBundle);
+  const auto &KernelBundleImpl = getSyclObjImpl(KernelBundle);
 
   // For Level-Zero expect exactly one device image in the bundle. This is
   // natural for interop kernel to get created out of a single native
@@ -352,7 +353,7 @@ kernel make_kernel(const context &TargetContext,
       &UrKernel);
 
   if (Backend == backend::opencl)
-    Adapter->call<UrApiKind::urKernelRetain>(UrKernel);
+    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeHandle));
 
   // Construct the SYCL queue from UR queue.
   return detail::createSyclObjFromImpl<kernel>(

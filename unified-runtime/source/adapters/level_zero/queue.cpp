@@ -612,6 +612,8 @@ ur_result_t urQueueRelease(
       return UR_RESULT_SUCCESS;
     }
 
+    Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+
     // When external reference count goes to zero it is still possible
     // that internal references still exists, e.g. command-lists that
     // are not yet completed. So do full queue synchronization here
@@ -798,6 +800,7 @@ ur_result_t urQueueCreateWithNativeHandle(
       ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(
           ComputeQueues, CopyQueues, Context, UrDevice, OwnNativeHandle, Flags);
       *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+      (*RetQueue)->IsInteropNativeHandle = true;
     } catch (const std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
@@ -895,6 +898,9 @@ ur_result_t urQueueFinish(
     std::unique_lock<ur_shared_mutex> Lock(Queue->Mutex);
     resetCommandLists(Queue);
   }
+
+  Queue->Context->AsyncPool.cleanupPoolsForQueue(Queue);
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -1192,11 +1198,15 @@ ur_queue_handle_t_::ur_queue_handle_t_(
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 
   this->CounterBasedEventsEnabled =
-      UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
+      UsingImmCmdLists && isInOrderQueue() &&
+      Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
       Device->useDriverCounterBasedEvents() &&
       Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
   this->InterruptBasedEventsEnabled =
-      isLowPowerEvents() && isInOrderQueue() && Device->useDriverInOrderLists();
+      isLowPowerEvents() && isInOrderQueue() &&
+      Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/);
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -1599,10 +1609,13 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
       for (auto &QueueGroup : QueueMap)
         for (auto &ZeQueue : QueueGroup.second.ZeQueues)
           if (ZeQueue) {
-            auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
-            // Gracefully handle the case that L0 was already unloaded.
-            if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-              return ze2urResult(ZeResult);
+            if (!Queue->IsInteropNativeHandle ||
+                (Queue->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+              auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
+              // Gracefully handle the case that L0 was already unloaded.
+              if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+                return ze2urResult(ZeResult);
+            }
           }
   }
 
@@ -1655,7 +1668,7 @@ bool ur_queue_handle_t_::isInOrderQueue() const {
 }
 
 bool ur_queue_handle_t_::isLowPowerEvents() const {
-  return ((this->Properties & UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP) != 0);
+  return ((this->Properties & UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP) != 0);
 }
 
 // Helper function to perform the necessary cleanup of the events from reset cmd
@@ -2288,7 +2301,9 @@ ur_result_t ur_queue_handle_t_::createCommandList(
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
 
   bool IsInOrderList = false;
-  if (Device->useDriverInOrderLists() && isInOrderQueue()) {
+  if (Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
+      isInOrderQueue()) {
     ZeCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_IN_ORDER;
     IsInOrderList = true;
   }
@@ -2425,7 +2440,9 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
   }
 
-  if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue()) {
+  if (Queue->Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
+      Queue->isInOrderQueue()) {
     isInOrderList = true;
     ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
   }

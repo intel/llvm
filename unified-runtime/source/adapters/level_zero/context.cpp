@@ -13,6 +13,7 @@
 #include <mutex>
 #include <string.h>
 
+#include "adapters/level_zero/usm.hpp"
 #include "context.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
@@ -151,6 +152,7 @@ ur_result_t urContextCreateWithNativeHandle(
     ur_context_handle_t_ *UrContext = new ur_context_handle_t_(
         ZeContext, NumDevices, Devices, OwnNativeHandle);
     UrContext->initialize();
+    UrContext->IsInteropNativeHandle = true;
     *Context = reinterpret_cast<ur_context_handle_t>(UrContext);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -205,7 +207,8 @@ ur_result_t ur_context_handle_t_::initialize() {
 
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  if (Device->useDriverInOrderLists() &&
+  if (Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
       Device->useDriverCounterBasedEvents()) {
     logger::debug(
         "L0 Synchronous Immediate Command List needed with In Order property.");
@@ -262,7 +265,11 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
       Contexts.erase(It);
   }
   ze_context_handle_t DestroyZeContext =
-      Context->OwnNativeHandle ? Context->ZeContext : nullptr;
+      ((Context->OwnNativeHandle && !Context->IsInteropNativeHandle) ||
+       (Context->OwnNativeHandle && Context->IsInteropNativeHandle &&
+        checkL0LoaderTeardown()))
+          ? Context->ZeContext
+          : nullptr;
 
   // Clean up any live memory associated with Context
   ur_result_t Result = Context->finalize();
@@ -295,15 +302,20 @@ ur_result_t ur_context_handle_t_::finalize() {
   // urContextRelease. There could be some memory that may have not been
   // deallocated. For example, event and event pool caches would be still alive.
 
+  AsyncPool.cleanupPools();
+
   if (!DisableEventsCaching) {
     std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
     for (auto &EventCache : EventCaches) {
       for (auto &Event : EventCache) {
-        auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+        if (!Event->IsInteropNativeHandle ||
+            (Event->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+          auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+          // Gracefully handle the case that L0 was already unloaded.
+          if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+            return ze2urResult(ZeResult);
+        }
         Event->ZeEvent = nullptr;
-        // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-          return ze2urResult(ZeResult);
         delete Event;
       }
       EventCache.clear();
@@ -662,8 +674,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
       // If this is an InOrder Queue, then only allow lists which are in order.
-      if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
-          !(ZeCommandListIt->second.InOrderList)) {
+      if (Queue->Device->Platform->allowDriverInOrderLists(
+              true /*Only Allow Driver In Order List if requested*/) &&
+          Queue->isInOrderQueue() && !(ZeCommandListIt->second.InOrderList)) {
         continue;
       }
       // Only allow to reuse Regular Command Lists
@@ -729,8 +742,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
       continue;
 
     // If this is an InOrder Queue, then only allow lists which are in order.
-    if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
-        !(it->second.IsInOrderList)) {
+    if (Queue->Device->Platform->allowDriverInOrderLists(
+            true /*Only Allow Driver In Order List if requested*/) &&
+        Queue->isInOrderQueue() && !(it->second.IsInOrderList)) {
       continue;
     }
 
