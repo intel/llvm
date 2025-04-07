@@ -332,7 +332,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
                 dev_features = test.config.sycl_dev_features[full_dev_name]
                 if "level_zero_v2_adapter" in dev_features:
-                    expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1"
+                    expanded += " env UR_LOADER_USE_LEVEL_ZERO_V2=1 SYCL_ENABLE_USER_EVENTS_PATH=1"
 
                 expanded += " ONEAPI_DEVICE_SELECTOR={} {}".format(
                     parsed_dev_name, test.config.run_launcher
