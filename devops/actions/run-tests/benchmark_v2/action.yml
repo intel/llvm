@@ -150,7 +150,15 @@ runs:
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/"
 
-  - name: Push compute-benchmarks results
+  - name: Cache changes to benchmark folder for archival purposes
+    shell: bash
+    run: | 
+      cd "./llvm-ci-perf-results"
+      for diff in $(git diff HEAD --name-only); do
+        mkdir -p "../cached_changes/$(dirname $diff)"
+        cp "$diff" "../cached_changes/$diff"
+      done
+  - name: Push benchmarks results
     if: inputs.upload_results == 'true' && always()
     shell: bash
     run: |
@@ -197,3 +205,9 @@ runs:
           --dry-run
         cd -
       done
+  - name: Archive benchmark results
+    if: always()
+    uses: actions/upload-artifact@v4
+    with:
+      name: Benchmark run ${{ github.run_id }} (${{ runner.name }})
+      path: ./cached_changes

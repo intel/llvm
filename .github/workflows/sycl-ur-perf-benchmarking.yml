@@ -1,8 +1,6 @@
 name: Run Benchmarks
 
 on:
-  schedule:
-    - cron: '0 1 * * *'  # 2 hrs earlier than sycl-nightly.yml
   workflow_call:
     inputs:
       preset:
