@@ -6970,10 +6970,10 @@ static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
   case llvm::Triple::riscv64:
     return CGF->EmitRISCVBuiltinExpr(BuiltinID, E, ReturnValue);
   case llvm::Triple::spirv:
-    return CGF->EmitSPIRVBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::spirv32:
   case llvm::Triple::spirv64:
     if (CGF->getTarget().getTriple().getOS() != llvm::Triple::OSType::AMDHSA)
-      return nullptr;
+      return CGF->EmitSPIRVBuiltinExpr(BuiltinID, E);
     return CGF->EmitAMDGPUBuiltinExpr(BuiltinID, E);
   default:
     return nullptr;
@@ -21097,6 +21097,20 @@ Value *CodeGenFunction::EmitSPIRVBuiltinExpr(unsigned BuiltinID,
     return Builder.CreateIntrinsic(
         /*ReturnType=*/I->getType(), Intrinsic::spv_reflect,
         ArrayRef<Value *>{I, N}, nullptr, "spv.reflect");
+  }
+  case SPIRV::BI__builtin_spirv_generic_cast_to_ptr_explicit: {
+    Value *Ptr = EmitScalarExpr(E->getArg(0));
+    assert(E->getArg(0)->getType()->hasPointerRepresentation() &&
+           E->getArg(1)->getType()->hasIntegerRepresentation() &&
+           "GenericCastToPtrExplicit takes a pointer and an int");
+    llvm::Type *Res = getTypes().ConvertType(E->getType());
+    assert(Res->isPointerTy() &&
+           "GenericCastToPtrExplicit doesn't return a pointer");
+    llvm::CallInst *Call = Builder.CreateIntrinsic(
+        /*ReturnType=*/Res, Intrinsic::spv_generic_cast_to_ptr_explicit,
+        ArrayRef<Value *>{Ptr}, nullptr, "spv.generic_cast");
+    Call->addRetAttr(llvm::Attribute::AttrKind::NoUndef);
+    return Call;
   }
   }
   return nullptr;

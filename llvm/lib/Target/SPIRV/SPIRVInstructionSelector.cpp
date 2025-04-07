@@ -3131,6 +3131,19 @@ bool SPIRVInstructionSelector::selectIntrinsic(Register ResVReg,
                .addUse(MemSemReg)
                .constrainAllUses(TII, TRI, RBI);
   }
+  case Intrinsic::spv_generic_cast_to_ptr_explicit: {
+    bool Result = true;
+    Register PtrReg = I.getOperand(I.getNumExplicitDefs() + 1).getReg();
+    SPIRV::StorageClass::StorageClass ResSC = GR.getPointerStorageClass(ResType);
+    Result &= isGenericCastablePtr(ResSC);
+    return Result && BuildMI(BB, I, I.getDebugLoc(),
+                             TII.get(SPIRV::OpGenericCastToPtrExplicit))
+                         .addDef(ResVReg)
+                         .addUse(GR.getSPIRVTypeID(ResType))
+                         .addUse(PtrReg)
+                         .addImm(ResSC)
+                         .constrainAllUses(TII, TRI, RBI);
+  }
   case Intrinsic::spv_lifetime_start:
   case Intrinsic::spv_lifetime_end: {
     unsigned Op = IID == Intrinsic::spv_lifetime_start ? SPIRV::OpLifetimeStart

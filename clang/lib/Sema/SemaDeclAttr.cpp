@@ -53,6 +53,7 @@
 #include "clang/Sema/SemaOpenCL.h"
 #include "clang/Sema/SemaOpenMP.h"
 #include "clang/Sema/SemaRISCV.h"
+#include "clang/Sema/SemaSPIRV.h"
 #include "clang/Sema/SemaSYCL.h"
 #include "clang/Sema/SemaSwift.h"
 #include "clang/Sema/SemaWasm.h"
@@ -5856,14 +5857,16 @@ static void handleBuiltinAliasAttr(Sema &S, Decl *D,
   bool IsAArch64 = S.Context.getTargetInfo().getTriple().isAArch64();
   bool IsARM = S.Context.getTargetInfo().getTriple().isARM();
   bool IsRISCV = S.Context.getTargetInfo().getTriple().isRISCV();
+  bool IsSPIRV = S.Context.getTargetInfo().getTriple().isSPIRV();
   bool IsHLSL = S.Context.getLangOpts().HLSL;
   bool IsSYCL = S.Context.getLangOpts().isSYCL();
+  bool IsTSBuiltin = S.Context.BuiltinInfo.isTSBuiltin(BuiltinID);
   if ((IsAArch64 && !S.ARM().SveAliasValid(BuiltinID, AliasName)) ||
       (IsARM && !S.ARM().MveAliasValid(BuiltinID, AliasName) &&
        !S.ARM().CdeAliasValid(BuiltinID, AliasName)) ||
       (IsRISCV && !S.RISCV().isAliasValid(BuiltinID, AliasName)) ||
-      (IsSYCL && !SYCLAliasValid(S.Context, BuiltinID)) ||
-      (!IsAArch64 && !IsARM && !IsRISCV && !IsHLSL && !IsSYCL)) {
+      (IsSYCL && !IsTSBuiltin && !SYCLAliasValid(S.Context, BuiltinID)) ||
+      (!IsAArch64 && !IsARM && !IsRISCV && !IsHLSL && !IsSYCL && !IsSPIRV)) {
     S.Diag(AL.getLoc(), diag::err_attribute_builtin_alias) << AL;
     return;
   }

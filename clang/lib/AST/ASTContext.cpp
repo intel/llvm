@@ -9988,6 +9988,11 @@ bool ASTContext::canBuiltinBeRedeclared(const FunctionDecl *FD) const {
   if (LangOpts.HLSL && FD->getBuiltinID() != Builtin::NotBuiltin &&
       BuiltinInfo.hasCustomTypechecking(FD->getBuiltinID()))
     return true;
+  // Allow redecl custom type checking builtin for SPIR-V.
+  if (getTargetInfo().getTriple().isSPIRV() &&
+      FD->getBuiltinID() != Builtin::NotBuiltin &&
+      BuiltinInfo.hasCustomTypechecking(FD->getBuiltinID()))
+    return true;
   return BuiltinInfo.canBeRedeclared(FD->getBuiltinID());
 }
 

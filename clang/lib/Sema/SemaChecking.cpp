@@ -1942,6 +1942,8 @@ bool Sema::CheckTSBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case llvm::Triple::mips64el:
     return MIPS().CheckMipsBuiltinFunctionCall(TI, BuiltinID, TheCall);
   case llvm::Triple::spirv:
+  case llvm::Triple::spirv32:
+  case llvm::Triple::spirv64:
     return SPIRV().CheckSPIRVBuiltinFunctionCall(BuiltinID, TheCall);
   case llvm::Triple::systemz:
     return SystemZ().CheckSystemZBuiltinFunctionCall(BuiltinID, TheCall);
