@@ -123,7 +123,7 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       target_devices: ${{ matrix.backend }}
-      tests_selector: benchmark
+      tests_selector: benchmarks
       benchmark_upload_results: ${{ inputs.upload_results }}
       benchmark_save_name: ${{ matrix.save_name }}
       benchmark_preset: ${{ inputs.preset }}
@@ -151,7 +151,7 @@ jobs:
       image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       target_devices: ${{ matrix.backend }}
-      tests_selector: benchmark
+      tests_selector: benchmarks
       benchmark_save_name: Baseline
       benchmark_upload_results: ${{ inputs.upload_results }}
       benchmark_preset: ${{ inputs.preset }}
