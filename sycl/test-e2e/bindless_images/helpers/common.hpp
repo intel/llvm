@@ -20,7 +20,7 @@ namespace bindless_helpers {
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-bool memoryAllocationSupported(syclexp::image_descriptor imgDesc,
+bool memoryAllocationSupported(syclexp::image_descriptor &imgDesc,
                                syclexp::image_memory_handle_type memHandleType,
                                sycl::queue syclQueue) {
   auto supportedMemTypes =
