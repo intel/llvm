@@ -31,7 +31,89 @@ macro(add_link_option_ext flag name)
   endif()
 endmacro()
 
+set(is_gcc FALSE)
+set(is_clang FALSE)
+set(is_msvc FALSE)
+set(is_icpx FALSE)
+
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(is_clang TRUE)
+endif()
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  set(is_gcc TRUE)
+endif()
+if (CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
+  set(is_icpx TRUE)
+endif()
+if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+  set(is_msvc TRUE)
+endif()
+
 macro(append_common_extra_security_flags)
+  # Compiler Warnings and Error Detection
+  if (is_gcc OR is_clang OR (is_icpx AND MSVC))
+    add_compile_option_ext("-Wall" WALL)
+    add_compile_option_ext("-Wextra" WEXTRA)
+  elseif (is_icpx)
+    add_compile_option_ext("/Wall" WALL)
+  elseif (is_msvc)
+    add_compile_option_ext("/W4" WALL)
+  endif()
+
+  if (CMAKE_BUILD_TYPE MATCHES "Release")
+    if (is_gcc OR is_clang OR (is_icpx AND MSVC))
+      add_compile_option_ext("-Wconversion" WCONVERSION)
+      add_compile_option_ext("-Wimplicit-fallthrough" WIMPLICITFALLTHROUGH)
+    endif()
+  endif()
+
+  # Control Flow Integrity
+  if (is_gcc OR is_clang OR (is_icpx AND MSVC))
+    add_compile_option_ext("-fcf-protection=full" FCFPROTECTION)
+  elseif (is_icpx)
+    add_compile_option_ext("/Qcf-protection:full" FCFPROTECTION)
+  elseif (is_msvc)
+    add_compile_option_ext("/LTCG" LTCG)
+    add_compile_option_ext("/sdl" SDL)
+    add_compile_option_ext("/guard:cf" GUARDCF)
+    add_compile_option_ext("/CETCOMPAT" CETCOMPAT)
+  endif()
+
+  # Format String Defense
+  if (is_gcc OR is_clang OR (is_icpx AND MSVC))
+    add_compile_option_ext("-Wformat" WFORMAT)
+    add_compile_option_ext("-Wformat-security" WFORMATSECURITY)
+  elseif (is_icpx)
+    add_compile_option_ext("/Wformat" WFORMAT)
+    add_compile_option_ext("/Wformat-security" WFORMATSECURITY)
+  elseif (is_msvc)
+    add_compile_option_ext("/analyze" ANALYZE)
+  endif()
+
+  if (CMAKE_BUILD_TYPE MATCHES "Release")
+    if (is_gcc OR is_clang OR (is_icpx AND MSVC))
+      add_compile_option_ext("-Werror=format-security" WERRORFORMATSECURITY)
+    endif()
+  endif()
+
+  # Inexecutable Stack
+  if (CMAKE_BUILD_TYPE MATCHES "Release")
+    if (is_gcc OR is_clang OR (is_icpx AND MSVC))
+      add_compile_option_ext("-Wl,-z,noexecstack" NOEXECSTACK)
+    endif()
+  endif()
+
+  # Position Independent Code
+    if (is_gcc OR is_clang OR (is_icpx AND MSVC))
+      add_compile_option_ext("-fPIC" FPIC)
+    elseif (is_msvc)
+      add_compile_option_ext("/Gy" GY)
+    endif()
+
+
+
+
+
   if( LLVM_ON_UNIX )
     # Fortify Source (strongly recommended):
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -53,8 +135,6 @@ macro(append_common_extra_security_flags)
     endif()
 
     # Format String Defense
-    add_compile_option_ext("-Wformat" WFORMAT)
-    add_compile_option_ext("-Wformat-security" WFORMATSECURITY)
     add_compile_option_ext("-Werror=format-security" WERRORFORMATSECURITY)
 
     # Stack Protection
