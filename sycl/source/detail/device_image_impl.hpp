@@ -1113,6 +1113,10 @@ private:
           [&NewImageRef](const sycl::device &SDev) {
             return !doesDevSupportDeviceRequirements(SDev, NewImageRef);
           });
+
+      // If there are no devices that support the image, we skip it.
+      if (NewSupportingDevsEnd == SupportingDevs.begin())
+        continue;
       SupportingDevs.erase(NewSupportingDevsEnd, SupportingDevs.end());
 
       // Mark the image as input so the program manager will bring it into
