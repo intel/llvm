@@ -15,7 +15,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda'
+      build_configure_extra_args: '--hip --cuda --no-assertions'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       retention-days: 90
 
@@ -23,6 +23,7 @@ jobs:
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
 
+  # Build used for performance testing only: not intended for testing
   linux_shared_build:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
@@ -31,7 +32,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
-      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu'
+      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu --no-assertions'
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 
