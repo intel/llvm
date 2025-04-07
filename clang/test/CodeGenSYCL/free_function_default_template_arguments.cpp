@@ -60,6 +60,8 @@ templated3(Arg<T, notatuple, a, ns1::hasDefaultArg<>, int, int>, T end) {
 
 template void templated3(Arg<int, notatuple, 3, ns1::hasDefaultArg<>, int, int>, int);
 
+using AliasType = float;
+template void templated3(Arg<AliasType, notatuple, 3, ns1::hasDefaultArg<>, int, int>, AliasType);
 
 namespace sycl {
 template <typename T> struct X {};
