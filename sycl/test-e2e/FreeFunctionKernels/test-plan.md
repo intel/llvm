@@ -18,9 +18,9 @@ Therefore those tests should be structured in a way that checks are performed on
 Tests in this category may not fully exercise the extension functionality, but are instead they are focused on making sure that all APIs are consistent with respect to other APIs.
 
 Perform tests on new traits for free function kernels which should check the following:
- - that `is_nd_range_kernel_v` trait returns true whose function declaration is decorated with `nd_range_kernel` property and when it is not then it returns false.
+ - that `is_nd_range_kernel_v` trait returns true if function declaration is decorated with `nd_range_kernel` property and false if it is not.
 
- - that `is_single_task_kernel_v` trait returns true function whose declaration is decorated with `single_task_kernel` and when it is not then it returns false.
+ - that `is_single_task_kernel_v` trait returns true function if declaration is decorated with `single_task_kernel` and false if it is not.
 
 - that `is_kernel_v` trait returns true for function whose declaration is decorated with either the `nd_range_kernel` property or the `single_task_kernel` property when it is not then it returns false.
 
@@ -74,7 +74,7 @@ Perform tests on new free functions to query kernel information descriptors whic
     auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>(dev);
     ```
 
-### E2E tests
+### End-to-end tests
 
 Tests in this category perform some meaningful actions with the extension to
 see that the extension works in a scenarios which mimic real-life usage of the
