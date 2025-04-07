@@ -50,7 +50,7 @@ int main() {
             q)) {
       // We cannot allocate the opaque `image_mem` below
       std::cout << "Memory allocation unsupported. Skipping test.\n";
-      return 1;
+      return 0;
     }
 
     // Extension: allocate memory on device and create the handle
@@ -69,7 +69,7 @@ int main() {
       // We cannot create the unsampled handles below
       std::cout << "Unsampled image handle creation unsupported. Skipping "
                    "test.\n";
-      return 1;
+      return 0;
     }
 
     // Extension: create the image and return the handle
