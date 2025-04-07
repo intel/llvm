@@ -76,7 +76,9 @@ bool checkCounterBasedEventsSupport(ur_device_handle_t Device) {
     return std::atoi(UrRet) != 0;
   }();
 
-  return Device->ImmCommandListUsed && Device->useDriverInOrderLists() &&
+  return Device->ImmCommandListUsed &&
+         Device->Platform->allowDriverInOrderLists(
+             true /*Only Allow Driver In Order List if requested*/) &&
          useDriverCounterBasedEvents &&
          Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
 }
@@ -647,12 +649,9 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
  */
 bool canBeInOrder(ur_context_handle_t Context,
                   const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
-  const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-  // In-order command-lists are not available in old driver version.
-  bool DriverInOrderRequested = UrRet ? std::atoi(UrRet) != 0 : false;
-  bool CompatibleDriver = Context->getPlatform()->isDriverVersionNewerOrSimilar(
-      1, 3, L0_DRIVER_INORDER_MIN_VERSION);
-  bool CanUseDriverInOrderLists = CompatibleDriver && DriverInOrderRequested;
+  bool CanUseDriverInOrderLists =
+      Context->getPlatform()->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/);
   return CanUseDriverInOrderLists ? CommandBufferDesc->isInOrder : false;
 }
 
