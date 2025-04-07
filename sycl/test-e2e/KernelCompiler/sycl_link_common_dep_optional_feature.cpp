@@ -118,7 +118,7 @@ int main() {
     }
   }
 
-  {
+  if (Q.get_device().has(sycl::aspect::fp64)) {
     sycl::kernel Kernel = ExecKB.ext_oneapi_get_kernel("TestKernel2");
 
     memset(USMPtr, 0, Range * sizeof(int));
@@ -136,6 +136,11 @@ int main() {
         ++Failed;
       }
     }
+  } else if (ExecKB.ext_oneapi_has_kernel("TestKernel2")) {
+    std::cout << "Device does not support fp64, but the kernel bundle still "
+                 "has the kernel using it."
+              << std::endl;
+    ++Failed;
   }
 
   sycl::free(USMPtr, Q);
