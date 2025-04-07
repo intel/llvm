@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "image_helpers.hpp"
-#include "device.hpp"
+#include "../device.hpp"
 
 /// Construct UR image format from ZE image desc.
 ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
