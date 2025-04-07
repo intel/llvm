@@ -56,17 +56,17 @@ _CLC_DEF _CLC_OVERLOAD float __clc_sw_fma(float a, float b, float c) {
 
   struct fp st_a, st_b, st_c;
 
-  st_a.exponent = a == .0f ? 0 : ((as_uint(a) & 0x7f800000) >> 23) - 127;
-  st_b.exponent = b == .0f ? 0 : ((as_uint(b) & 0x7f800000) >> 23) - 127;
-  st_c.exponent = c == .0f ? 0 : ((as_uint(c) & 0x7f800000) >> 23) - 127;
+  st_a.exponent = a == .0f ? 0 : ((__clc_as_uint(a) & 0x7f800000) >> 23) - 127;
+  st_b.exponent = b == .0f ? 0 : ((__clc_as_uint(b) & 0x7f800000) >> 23) - 127;
+  st_c.exponent = c == .0f ? 0 : ((__clc_as_uint(c) & 0x7f800000) >> 23) - 127;
 
-  st_a.mantissa = a == .0f ? 0 : (as_uint(a) & 0x7fffff) | 0x800000;
-  st_b.mantissa = b == .0f ? 0 : (as_uint(b) & 0x7fffff) | 0x800000;
-  st_c.mantissa = c == .0f ? 0 : (as_uint(c) & 0x7fffff) | 0x800000;
+  st_a.mantissa = a == .0f ? 0 : (__clc_as_uint(a) & 0x7fffff) | 0x800000;
+  st_b.mantissa = b == .0f ? 0 : (__clc_as_uint(b) & 0x7fffff) | 0x800000;
+  st_c.mantissa = c == .0f ? 0 : (__clc_as_uint(c) & 0x7fffff) | 0x800000;
 
-  st_a.sign = as_uint(a) & 0x80000000;
-  st_b.sign = as_uint(b) & 0x80000000;
-  st_c.sign = as_uint(c) & 0x80000000;
+  st_a.sign = __clc_as_uint(a) & 0x80000000;
+  st_b.sign = __clc_as_uint(b) & 0x80000000;
+  st_c.sign = __clc_as_uint(c) & 0x80000000;
 
   // Multiplication.
   // Move the product to the highest bits to maximize precision
@@ -155,13 +155,13 @@ _CLC_DEF _CLC_OVERLOAD float __clc_sw_fma(float a, float b, float c) {
 
   // Flating point range limit
   if (st_fma.exponent > 127)
-    return as_float(as_uint(INFINITY) | st_fma.sign);
+    return __clc_as_float(__clc_as_uint(INFINITY) | st_fma.sign);
 
   // Flush denormals
   if (st_fma.exponent <= -127)
-    return as_float(st_fma.sign);
+    return __clc_as_float(st_fma.sign);
 
-  return as_float(st_fma.sign | ((st_fma.exponent + 127) << 23) |
+  return __clc_as_float(st_fma.sign | ((st_fma.exponent + 127) << 23) |
                   ((uint)st_fma.mantissa & 0x7fffff));
 }
 _CLC_TERNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, float, __clc_sw_fma, float,

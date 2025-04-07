@@ -874,17 +874,15 @@ protected:
   event finalizeHandlerPostProcess(
       HandlerType &Handler,
       const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    auto HandlerImpl = detail::getSyclObjImpl(Handler);
-    const CGType Type = HandlerImpl->MCGType;
-
-    bool IsKernel = Type == CGType::Kernel;
+    bool IsKernel = Handler.getType() == CGType::Kernel;
     bool KernelUsesAssert = false;
 
     if (IsKernel)
       // Kernel only uses assert if it's non interop one
-      KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                         ProgramManager::getInstance().kernelUsesAssert(
-                             Handler.MKernelName.c_str());
+      KernelUsesAssert =
+          (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
+          ProgramManager::getInstance().kernelUsesAssert(
+              Handler.MKernelName.c_str());
 
     auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
                             : finalizeHandlerOutOfOrder(Handler);
