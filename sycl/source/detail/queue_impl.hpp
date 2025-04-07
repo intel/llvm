@@ -842,12 +842,12 @@ protected:
     // dependency so in the case where some commands were not enqueued
     // (blocked), we track them to prevent barrier from being enqueued
     // earlier.
-    MMissedCleanupRequests.unset(
-        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
-          for (auto &UpdatedGraph : MissedCleanupRequests)
-            doUnenqueuedCommandCleanup(UpdatedGraph);
-          MissedCleanupRequests.clear();
-        });
+    {
+      std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+      for (auto &UpdatedGraph : MMissedCleanupRequests)
+        doUnenqueuedCommandCleanup(UpdatedGraph);
+      MMissedCleanupRequests.clear();
+    }
     auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
     if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
       Handler.depends_on(Deps.UnenqueuedCmdEvents);
@@ -1104,9 +1104,9 @@ protected:
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
 
-  using MissedCleanupRequestsType = std::deque<
-      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>;
-  CheckLockCheck<MissedCleanupRequestsType> MMissedCleanupRequests;
+  std::deque<std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>
+      MMissedCleanupRequests;
+  std::mutex MMissedCleanupRequestsMtx;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 
