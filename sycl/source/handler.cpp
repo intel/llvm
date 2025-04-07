@@ -426,8 +426,12 @@ event handler::finalize() {
         getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
-      if (!KernelBundleImpPtr->isInterop() &&
-          !impl->isStateExplicitKernelBundle()) {
+      if (!impl->isStateExplicitKernelBundle() &&
+          !(MKernel && MKernel->isInterop()) &&
+          (KernelBundleImpPtr->empty() ||
+           KernelBundleImpPtr->hasSYCLOfflineImages()) &&
+          !KernelBundleImpPtr->tryGetKernel(MKernelName.c_str(),
+                                            KernelBundleImpPtr)) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
@@ -723,8 +727,7 @@ event handler::finalize() {
     break;
   case detail::CGType::AsyncAlloc:
     CommandGroup.reset(new detail::CGAsyncAlloc(
-        impl->MAllocSize, impl->MMemPool, impl->MAsyncAllocEvent,
-        std::move(impl->CGData), MCodeLoc));
+        impl->MAsyncAllocEvent, std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::AsyncFree:
     CommandGroup.reset(new detail::CGAsyncFree(
