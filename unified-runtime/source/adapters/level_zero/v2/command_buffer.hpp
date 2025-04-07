@@ -17,6 +17,7 @@
 #include "queue_api.hpp"
 #include <unordered_set>
 #include <ze_api.h>
+struct kernel_command_handle;
 
 struct ur_exp_command_buffer_handle_t_ : public ur_object {
   ur_exp_command_buffer_handle_t_(
@@ -49,6 +50,8 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
     uint32_t numUpdateCommands,
       const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands);
 private:
+ur_result_t updateKernelHandle(locked<ur_command_list_manager> &commandListLocked,
+  ur_kernel_handle_t NewKernel, kernel_command_handle *Command);
   const ur_context_handle_t context;
   const ur_device_handle_t device;
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
@@ -65,11 +68,10 @@ struct ur_exp_command_buffer_command_handle_t_ : public ur_object {
 
   ~ur_exp_command_buffer_command_handle_t_();
 
-private:
   // Command-buffer of this command.
-  ur_exp_command_buffer_handle_t commandBuffer;
+  const ur_exp_command_buffer_handle_t commandBuffer;
   // L0 command ID identifying this command
-  uint64_t commandId;
+  const uint64_t commandId;
 };
 
 struct kernel_command_handle : public ur_exp_command_buffer_command_handle_t_ {

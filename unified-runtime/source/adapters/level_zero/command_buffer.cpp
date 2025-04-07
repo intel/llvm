@@ -68,6 +68,31 @@ bool checkImmediateAppendSupport(ur_context_handle_t Context,
   return false;
 }
 
+
+
+ur_result_t getMemoryAccessType(const ur_exp_command_buffer_update_memobj_arg_desc_t NewMemObjArgDesc,
+    ur_mem_handle_t_::access_mode_t &UrAccessMode) {
+      const ur_kernel_arg_mem_obj_properties_t *Properties =
+      NewMemObjArgDesc.pProperties;
+      UrAccessMode = ur_mem_handle_t_::read_write;
+      if (Properties) {
+        switch (Properties->memoryAccess) {
+        case UR_MEM_FLAG_READ_WRITE:
+          UrAccessMode = ur_mem_handle_t_::read_write;
+          break;
+        case UR_MEM_FLAG_WRITE_ONLY:
+          UrAccessMode = ur_mem_handle_t_::write_only;
+          break;
+        case UR_MEM_FLAG_READ_ONLY:
+          UrAccessMode = ur_mem_handle_t_::read_only;
+          break;
+        default:
+          return UR_RESULT_ERROR_INVALID_ARGUMENT;
+        }
+      }
+      return UR_RESULT_SUCCESS;
+
+    }
 // Checks whether counter based events are supported for a given Device.
 bool checkCounterBasedEventsSupport(ur_device_handle_t Device) {
   static const bool useDriverCounterBasedEvents = [] {
@@ -1937,12 +1962,9 @@ ur_result_t setMutableMemObjArgDesc(
     const ur_exp_command_buffer_update_memobj_arg_desc_t &NewMemObjArgDesc,
     const void *NextDesc, uint64_t CommandID) {
 
-  const ur_kernel_arg_mem_obj_properties_t *Properties =
-      NewMemObjArgDesc.pProperties;
-  ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
-  if (Properties) {
-    UR_CALL(getMemoryAccessType(Properties->memoryAccess, UrAccessMode))
-  }
+  ur_mem_handle_t_::access_mode_t UrAccessMode;
+  UR_CALL(getMemoryAccessType(Properties, UrAccessMode));
+  
 
   ur_mem_handle_t NewMemObjArg = NewMemObjArgDesc.hNewMemObjArg;
   // The NewMemObjArg may be a NULL pointer in which case a NULL value is used
