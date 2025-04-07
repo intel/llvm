@@ -36,10 +36,8 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
 # Unified Runtime
 unified-runtime/ @intel/unified-runtime-reviewers
-# TODO: Use specific UR Level Zero adapter team
-unified-runtime/*/adapters/level_zero/ @intel/unified-runtime-reviewers
-# TODO: Use specific UR OpenCL adapter team
-unified-runtime/*/adapters/opencl/ @intel/unified-runtime-reviewers
+unified-runtime/*/adapters/level_zero/ @intel/unified-runtime-reviewers-level-zero
+unified-runtime/*/adapters/opencl/ @intel/unified-runtime-reviewers-opencl
 unified-runtime/*/adapters/cuda/  @intel/llvm-reviewers-cuda
 unified-runtime/*/adapters/hip/  @intel/llvm-reviewers-cuda
 unified-runtime/*/adapters/native_cpu/ @intel/dpcpp-nativecpu-reviewers

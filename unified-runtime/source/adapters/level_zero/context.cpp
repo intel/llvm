@@ -207,7 +207,8 @@ ur_result_t ur_context_handle_t_::initialize() {
 
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  if (Device->useDriverInOrderLists() &&
+  if (Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
       Device->useDriverCounterBasedEvents()) {
     URLOG(
         DEBUG,
@@ -677,8 +678,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
       // If this is an InOrder Queue, then only allow lists which are in order.
-      if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
-          !(ZeCommandListIt->second.InOrderList)) {
+      if (Queue->Device->Platform->allowDriverInOrderLists(
+              true /*Only Allow Driver In Order List if requested*/) &&
+          Queue->isInOrderQueue() && !(ZeCommandListIt->second.InOrderList)) {
         continue;
       }
       // Only allow to reuse Regular Command Lists
@@ -744,8 +746,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
       continue;
 
     // If this is an InOrder Queue, then only allow lists which are in order.
-    if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
-        !(it->second.IsInOrderList)) {
+    if (Queue->Device->Platform->allowDriverInOrderLists(
+            true /*Only Allow Driver In Order List if requested*/) &&
+        Queue->isInOrderQueue() && !(it->second.IsInOrderList)) {
       continue;
     }
 

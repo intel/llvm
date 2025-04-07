@@ -58,11 +58,11 @@ to provide additional properties for how the command-buffer should be
 constructed. The members defined in ${x}_exp_command_buffer_desc_t are:
 
 * ``isUpdatable``, which should be set to ``true`` to support :ref:`updating
-command-buffer commands`.
+  command-buffer commands`.
 * ``isInOrder``, which should be set to ``true`` to enable commands enqueued to
-a command-buffer to be executed in an in-order fashion where possible.
+  a command-buffer to be executed in an in-order fashion where possible.
 * ``enableProfiling``, which should be set to ``true`` to enable profiling of
-the command-buffer.
+  the command-buffer.
 
 Command-buffers are reference counted and can be retained and released by
 calling ${x}CommandBufferRetainExp and ${x}CommandBufferReleaseExp respectively.
@@ -226,14 +226,29 @@ Enqueueing Command-Buffers
 Command-buffers are submitted for execution on a ${x}_queue_handle_t with an
 optional list of dependent events. An event is returned which tracks the
 execution of the command-buffer, and will be complete when all appended commands
-have finished executing. It is adapter specific whether command-buffers can be
-enqueued or executed simultaneously, and submissions may be serialized.
+have finished executing.
 
 .. parsed-literal::
     ${x}_event_handle_t executionEvent;
-
     ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr,
                                 &executionEvent);
+
+A command-buffer can be submitted for execution while a previous submission
+of the same command-buffer is still awaiting completion. That is, the user is not
+required to do a blocking wait on the completion of the first command-buffer
+submission before making a second submission of the command-buffer.
+
+Submissions of the same command-buffer should be synchronized to prevent
+concurrent execution. For example, by using events, barriers, or in-order queue
+dependencies. The behavior of multiple submissions of the same command-buffer
+that can execute concurrently is undefined.
+
+.. parsed-literal::
+    // Valid usage if hQueue is in-order but undefined behavior is out-of-order
+    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr,
+                                nullptr);
+    ${x}EnqueueCommandBufferExp(hQueue, hCommandBuffer, 0, nullptr,
+                                nullptr);
 
 
 Updating Command-Buffer Commands
