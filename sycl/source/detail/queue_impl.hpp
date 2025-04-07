@@ -710,18 +710,14 @@ public:
   void *getTraceEvent() { return MTraceEvent; }
 
   void setExternalEvent(const event &Event) {
-    MInOrderExternalEvent.set([&](std::optional<event> &InOrderExternalEvent) {
-      InOrderExternalEvent = Event;
-    });
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    MInOrderExternalEvent = Event;
   }
 
   std::optional<event> popExternalEvent() {
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
     std::optional<event> Result = std::nullopt;
-
-    MInOrderExternalEvent.unset(
-        [&](std::optional<event> &InOrderExternalEvent) {
-          std::swap(Result, InOrderExternalEvent);
-        });
+    std::swap(Result, MInOrderExternalEvent);
     return Result;
   }
 
@@ -1081,7 +1077,8 @@ protected:
   // an additional dependency for the subsequent submission in to the queue.
   // Access to the event should be guarded with MInOrderExternalEventMtx.
   // NOTE: std::optional must not be exposed in the ABI.
-  CheckLockCheck<std::optional<event>> MInOrderExternalEvent;
+  std::optional<event> MInOrderExternalEvent;
+  mutable std::mutex MInOrderExternalEventMtx;
 
 public:
   // Queue constructed with the discard_events property
