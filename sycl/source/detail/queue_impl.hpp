@@ -1079,7 +1079,7 @@ protected:
 
   // This event can be optionally provided by users for in-order queues to add
   // an additional dependency for the subsequent submission in to the queue.
-  // Access to the event should be guarded with MInOrderExternalEventMtx.
+  // Access to the event should be guarded with mutex.
   // NOTE: std::optional must not be exposed in the ABI.
   CheckLockCheck<std::optional<event>> MInOrderExternalEvent;
 
