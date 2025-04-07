@@ -1192,11 +1192,8 @@ private:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
     // Range rounding can be disabled by the user.
-    // Range rounding is not done on the host device.
     // Range rounding is supported only for newer SYCL standards.
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
-    !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
-    !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) &&                                 \
     SYCL_LANGUAGE_VERSION >= 202012L
     auto [RoundedRange, HasRoundedRange] = getRoundedRange(UserRange);
     if (HasRoundedRange) {
@@ -1226,7 +1223,6 @@ private:
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
-       // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE &&
        // SYCL_LANGUAGE_VERSION >= 202012L
     {
       (void)UserRange;
