@@ -25,7 +25,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Three possible options: "e2e", "cts", and "compute-benchmarks".
+          Three possible options: "e2e", "cts", and "benchmarks".
         type: string
         default: "e2e"
 
@@ -163,8 +163,7 @@ on:
         options:
           - e2e
           - cts
-          - compute-benchmarks
-          - benchmark_v2
+          - benchmarks
 
       env:
         description: |
@@ -317,18 +316,9 @@ jobs:
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
 
-    - name: Run compute-benchmarks on SYCL
-      if: inputs.tests_selector == 'compute-benchmarks'
-      uses: ./devops/actions/run-tests/benchmark
-      with:
-        target_devices: ${{ inputs.target_devices }}
-      env:
-        RUNNER_TAG: ${{ inputs.runner }}
-        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}
-
     - name: Run benchmarks
-      if: inputs.tests_selector == 'benchmark_v2'
-      uses: ./devops/actions/run-tests/benchmark_v2
+      if: inputs.tests_selector == 'benchmarks'
+      uses: ./devops/actions/run-tests/benchmark
       with:
         target_devices: ${{ inputs.target_devices }}
         upload_results: ${{ inputs.benchmark_upload_results }}
