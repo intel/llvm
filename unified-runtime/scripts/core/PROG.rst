@@ -65,7 +65,7 @@ Initialization and Discovery
         ${x}PlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
 
         platforms.reserve(totalPlatformCount + adapterPlatformCount);
-        ${x}PlatformGet(adapter, adapterPlatformCount, &platforms[totalPlatformCount], &platformCount);
+        ${x}PlatformGet(adapter, adapterPlatformCount, &platforms[totalPlatformCount], &adapterPlatformCount);
         totalPlatformCount += adapterPlatformCount;
     }
 
