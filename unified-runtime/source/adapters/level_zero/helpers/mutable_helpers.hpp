@@ -16,12 +16,7 @@
 
 #include "logger/ur_logger.hpp"
 #include "../common.hpp"
-#include "ur_api.h"
-#include "../ur_interface_loader.hpp"
-#include "../ur_level_zero.hpp"
-
-ur_result_t getMemoryAccessType(ur_mem_flags_t flag,
-                                ur_mem_handle_t_::access_mode_t &UrAccessMode);
+#include <ur/ur.hpp>
 
 ur_result_t setMutableOffsetDesc(
     std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>> &Desc,
