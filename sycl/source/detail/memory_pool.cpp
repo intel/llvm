@@ -35,14 +35,30 @@ __SYCL_EXPORT size_t memory_pool::get_reserved_size_current() const {
   return impl->get_reserved_size_current();
 }
 
+__SYCL_EXPORT size_t memory_pool::get_reserved_size_high() const {
+  return impl->get_reserved_size_high();
+}
+
 __SYCL_EXPORT size_t memory_pool::get_used_size_current() const {
   return impl->get_used_size_current();
+}
+
+__SYCL_EXPORT size_t memory_pool::get_used_size_high() const {
+  return impl->get_used_size_high();
 }
 
 __SYCL_EXPORT void memory_pool::increase_threshold_to(size_t newThreshold) {
   // Only increase.
   if (newThreshold > get_threshold())
     impl->set_new_threshold(newThreshold);
+}
+
+__SYCL_EXPORT void memory_pool::reset_reserved_size_high() {
+  impl->reset_reserved_size_high();
+}
+
+__SYCL_EXPORT void memory_pool::reset_used_size_high() {
+  impl->reset_used_size_high();
 }
 
 __SYCL_EXPORT memory_pool::memory_pool(const sycl::context &ctx,
