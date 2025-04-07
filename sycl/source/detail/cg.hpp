@@ -22,7 +22,6 @@
 
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
-#include <memory_resource> // for std::pmr
 #include <stddef.h> // for size_t
 #include <stdint.h> // for int32_t
 #include <string>   // for string
@@ -168,7 +167,7 @@ public:
                       std::vector<detail::AccessorImplPtr> AccStorage,
                       std::vector<std::shared_ptr<const void>> SharedPtrStorage,
                       std::vector<AccessorImplHost *> Requirements,
-                      std::pmr::vector<detail::EventImplPtr> Events)
+                      std::vector<detail::EventImplPtr> Events)
         : MArgsStorage(std::move(ArgsStorage)),
           MAccStorage(std::move(AccStorage)),
           MSharedPtrStorage(std::move(SharedPtrStorage)),
@@ -197,12 +196,8 @@ public:
     /// group to be executed.
     std::vector<AccessorImplHost *> MRequirements;
 
-    std::array<std::byte, 4 * 1024> MEventsBuf;
-    std::pmr::monotonic_buffer_resource MEventsBufRes{MEventsBuf.data(),
-                                                      MEventsBuf.size()};
-
     /// List of events that order the execution of this CG
-    std::pmr::vector<detail::EventImplPtr> MEvents{&MEventsBufRes};
+    std::vector<detail::EventImplPtr> MEvents;
   };
 
   CG(CGType Type, StorageInitHelper D, detail::code_location loc = {},
@@ -238,7 +233,7 @@ public:
   std::vector<AccessorImplHost *> &getRequirements() {
     return MData.MRequirements;
   }
-  std::pmr::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
+  std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
 
   virtual std::vector<std::shared_ptr<const void>>
   getAuxiliaryResources() const {
