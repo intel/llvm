@@ -38,16 +38,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
 
-  ur_queue_handle_t Queue = nullptr;
-  ur_queue_properties_t QueueProperties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
-                                           nullptr, 0};
-  const bool IsInOrder = pCommandBufferDesc->isInOrder;
-  if (!IsInOrder) {
-    QueueProperties.flags = UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
-  }
-  UR_RETURN_ON_FAILURE(
-      urQueueCreate(hContext, hDevice, &QueueProperties, &Queue));
-
   cl_context CLContext = hContext->CLContext;
   cl_ext::clCreateCommandBufferKHR_fn clCreateCommandBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
@@ -71,11 +61,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
       CL_COMMAND_BUFFER_FLAGS_KHR,
       IsUpdatable ? CL_COMMAND_BUFFER_MUTABLE_KHR : 0u, 0};
 
+  ur_queue_handle_t Queue = nullptr;
+  ur_queue_properties_t QueueProperties = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
+                                           nullptr, 0};
+  const bool IsInOrder = pCommandBufferDesc->isInOrder;
+  if (!IsInOrder) {
+    QueueProperties.flags = UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+  }
+  UR_RETURN_ON_FAILURE(
+      urQueueCreate(hContext, hDevice, &QueueProperties, &Queue));
+
   cl_int Res = CL_SUCCESS;
   const cl_command_queue CLQueue = Queue->CLQueue;
   auto CLCommandBuffer =
       clCreateCommandBufferKHR(1, &CLQueue, Properties, &Res);
-  CL_RETURN_ON_FAILURE_AND_SET_NULL(Res, phCommandBuffer);
+  if (Res != CL_SUCCESS) {
+    urQueueRelease(Queue);
+    CL_RETURN_ON_FAILURE_AND_SET_NULL(Res, phCommandBuffer);
+  }
 
   try {
     auto URCommandBuffer = std::make_unique<ur_exp_command_buffer_handle_t_>(
