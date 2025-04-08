@@ -130,9 +130,8 @@ llvm::Expected<JITBinary *> Translator::translateToPTX(llvm::Module &Mod,
     }
   }
 
-  // FIXME: Check whether we can provide more accurate target information here
   std::unique_ptr<TargetMachine> TargetMachine(Target->createTargetMachine(
-      TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      Mod.getTargetTriple(), CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
       llvm::CodeGenOptLevel::Default));
 
   llvm::legacy::PassManager PM;
@@ -210,9 +209,8 @@ Translator::translateToAMDGCN(llvm::Module &Mod, JITContext &JITCtx,
     }
   }
 
-  // FIXME: Check whether we can provide more accurate target information here
   std::unique_ptr<TargetMachine> TargetMachine(Target->createTargetMachine(
-      TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      Mod.getTargetTriple(), CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
       llvm::CodeGenOptLevel::Default));
 
   std::string AMDObj;

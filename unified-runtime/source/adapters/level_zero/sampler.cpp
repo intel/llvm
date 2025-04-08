@@ -129,10 +129,16 @@ ur_result_t urSamplerRelease(
   if (!Sampler->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
-  auto ZeResult = ZE_CALL_NOCHECK(zeSamplerDestroy, (Sampler->ZeSampler));
-  // Gracefully handle the case that L0 was already unloaded.
-  if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-    return ze2urResult(ZeResult);
+  if (checkL0LoaderTeardown()) {
+    auto ZeResult = ZE_CALL_NOCHECK(zeSamplerDestroy, (Sampler->ZeSampler));
+    // Gracefully handle the case that L0 was already unloaded.
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+                     ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+      return ze2urResult(ZeResult);
+    if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+      ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+    }
+  }
   delete Sampler;
 
   return UR_RESULT_SUCCESS;

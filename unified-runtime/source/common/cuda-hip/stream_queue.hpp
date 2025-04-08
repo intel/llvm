@@ -21,7 +21,8 @@ using ur_stream_guard = std::unique_lock<std::mutex>;
 /// backend 'stream' objects.
 ///
 /// This class is specifically designed for the CUDA and HIP adapters.
-template <typename ST, int CS, int TS> struct stream_queue_t {
+template <typename ST, int CS, int TS, typename BarrierEventT>
+struct stream_queue_t {
   using native_type = ST;
   static constexpr int DefaultNumComputeStreams = CS;
   static constexpr int DefaultNumTransferStreams = TS;
@@ -42,14 +43,14 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
   std::vector<bool> TransferAppliedBarrier;
   ur_context_handle_t_ *Context;
   ur_device_handle_t_ *Device;
-  std::atomic_uint32_t RefCount;
-  std::atomic_uint32_t EventCount;
-  std::atomic_uint32_t ComputeStreamIndex;
-  std::atomic_uint32_t TransferStreamIndex;
-  unsigned int NumComputeStreams;
-  unsigned int NumTransferStreams;
-  unsigned int LastSyncComputeStreams;
-  unsigned int LastSyncTransferStreams;
+  std::atomic_uint32_t RefCount{1};
+  std::atomic_uint32_t EventCount{0};
+  std::atomic_uint32_t ComputeStreamIndex{0};
+  std::atomic_uint32_t TransferStreamIndex{0};
+  unsigned int NumComputeStreams{0};
+  unsigned int NumTransferStreams{0};
+  unsigned int LastSyncComputeStreams{0};
+  unsigned int LastSyncTransferStreams{0};
   unsigned int Flags;
   ur_queue_flags_t URFlags;
   int Priority;
@@ -61,35 +62,47 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
   std::mutex TransferStreamMutex;
   std::mutex BarrierMutex;
   bool HasOwnership;
+  BarrierEventT BarrierEvent = nullptr;
+  BarrierEventT BarrierTmpEvent = nullptr;
 
-  stream_queue_t(std::vector<native_type> &&ComputeStreams,
-                 std::vector<native_type> &&TransferStreams,
-                 ur_context_handle_t_ *Context, ur_device_handle_t_ *Device,
-                 unsigned int Flags, ur_queue_flags_t URFlags, int Priority,
-                 bool BackendOwns = true)
-      : ComputeStreams{std::move(ComputeStreams)},
-        TransferStreams{std::move(TransferStreams)},
+  stream_queue_t(bool IsOutOfOrder, ur_context_handle_t_ *Context,
+                 ur_device_handle_t_ *Device, unsigned int Flags,
+                 ur_queue_flags_t URFlags, int Priority)
+      : ComputeStreams(IsOutOfOrder ? DefaultNumComputeStreams : 1),
+        TransferStreams(IsOutOfOrder ? DefaultNumTransferStreams : 0),
         DelayCompute(this->ComputeStreams.size(), false),
         ComputeAppliedBarrier(this->ComputeStreams.size()),
         TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
-        Device{Device}, RefCount{1}, EventCount{0}, ComputeStreamIndex{0},
-        TransferStreamIndex{0}, NumComputeStreams{0}, NumTransferStreams{0},
-        LastSyncComputeStreams{0}, LastSyncTransferStreams{0}, Flags(Flags),
-        URFlags(URFlags), Priority(Priority), HasOwnership{BackendOwns} {
+        Device{Device}, Flags(Flags), URFlags(URFlags), Priority(Priority),
+        HasOwnership{true} {
     urContextRetain(Context);
   }
 
-  virtual ~stream_queue_t() { urContextRelease(Context); }
+  // Create a queue from a native handle
+  stream_queue_t(native_type stream, ur_context_handle_t_ *Context,
+                 ur_device_handle_t_ *Device, unsigned int Flags,
+                 ur_queue_flags_t URFlags, bool BackendOwns)
+      : ComputeStreams(1, stream), TransferStreams(0),
+        DelayCompute(this->ComputeStreams.size(), false),
+        ComputeAppliedBarrier(this->ComputeStreams.size()),
+        TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
+        Device{Device}, NumComputeStreams{1}, Flags(Flags), URFlags(URFlags),
+        Priority(0), HasOwnership{BackendOwns} {
+    urContextRetain(Context);
+  }
 
-  virtual void computeStreamWaitForBarrierIfNeeded(native_type Strean,
-                                                   uint32_t StreamI) = 0;
-  virtual void transferStreamWaitForBarrierIfNeeded(native_type Stream,
-                                                    uint32_t StreamI) = 0;
-  virtual void createStreamWithPriority(native_type *Stream, unsigned int Flags,
-                                        int Priority) = 0;
-  virtual ur_queue_handle_t getEventQueue(const ur_event_handle_t) = 0;
-  virtual uint32_t getEventComputeStreamToken(const ur_event_handle_t) = 0;
-  virtual native_type getEventStream(const ur_event_handle_t) = 0;
+  ~stream_queue_t() { urContextRelease(Context); }
+
+  void computeStreamWaitForBarrierIfNeeded(native_type Strean,
+                                           uint32_t StreamI);
+  void transferStreamWaitForBarrierIfNeeded(native_type Stream,
+                                            uint32_t StreamI);
+  void createStreamWithPriority(native_type *Stream, unsigned int Flags,
+                                int Priority);
+  ur_queue_handle_t getEventQueue(const ur_event_handle_t);
+  uint32_t getEventComputeStreamToken(const ur_event_handle_t);
+  native_type getEventStream(const ur_event_handle_t);
+  void createHostSubmitTimeStream();
 
   // get_next_compute/transfer_stream() functions return streams from
   // appropriate pools in round-robin fashion
