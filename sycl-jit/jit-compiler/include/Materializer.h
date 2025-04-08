@@ -23,12 +23,12 @@
 
 namespace jit_compiler {
 
-class JITResult {
+class SCMResult {
 public:
-  explicit JITResult(const char *ErrorMessage)
+  explicit SCMResult(const char *ErrorMessage)
       : Failed{true}, BinaryInfo{}, ErrorMessage{ErrorMessage} {}
 
-  explicit JITResult(const JITBinaryInfo &BinaryInfo)
+  explicit SCMResult(const JITBinaryInfo &BinaryInfo)
       : Failed{false}, BinaryInfo(BinaryInfo), ErrorMessage{} {}
 
   bool failed() const { return Failed; }
@@ -60,7 +60,7 @@ extern "C" {
 #pragma warning(disable : 4190)
 #endif // _MSC_VER
 
-SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
+SCM_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     const char *KernelName, const jit_compiler::JITBinaryInfo &BinaryInfo,
     View<unsigned char> SpecConstBlob);
 

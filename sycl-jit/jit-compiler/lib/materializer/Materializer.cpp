@@ -19,7 +19,7 @@
 
 using namespace jit_compiler;
 
-extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
+extern "C" SCM_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     const char *KernelName, const JITBinaryInfo &BinaryInfo,
     View<unsigned char> SpecConstBlob) {
   auto &JITCtx = JITContext::getInstance();
@@ -28,7 +28,7 @@ extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
   BinaryFormat TargetFormat = TargetInfo.getFormat();
   if (TargetFormat != BinaryFormat::PTX &&
       TargetFormat != BinaryFormat::AMDGCN) {
-    return JITResult("Output target format not supported by this build. "
+    return SCMResult("Output target format not supported by this build. "
                      "Available targets are: PTX or AMDGCN.");
   }
 
@@ -43,23 +43,23 @@ extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
               ->getMemBufferRef(),
           Ctx);
   if (auto Error = ModOrError.takeError()) {
-    return errorTo<JITResult>(std::move(Error), "Failed to load kernels");
+    return errorTo<SCMResult>(std::move(Error), "Failed to load kernels");
   }
   std::unique_ptr<llvm::Module> NewMod = std::move(*ModOrError);
   if (!MaterializerPipeline::runMaterializerPasses(
           *NewMod, SpecConstBlob.to<llvm::ArrayRef>()) ||
       !NewMod->getFunction(KernelName)) {
-    return JITResult{"Materializer passes should not fail"};
+    return SCMResult{"Materializer passes should not fail"};
   }
 
   auto BinInfoOrErr =
       Translator::translate(*NewMod, JITCtx, TargetFormat, KernelName);
   if (!BinInfoOrErr) {
-    return errorTo<JITResult>(BinInfoOrErr.takeError(),
+    return errorTo<SCMResult>(BinInfoOrErr.takeError(),
                               "Translation to output format failed");
   }
 
-  return JITResult{*BinInfoOrErr};
+  return SCMResult{*BinInfoOrErr};
 }
 
 extern "C" SCM_EXPORT_SYMBOL void resetJITConfiguration() {
