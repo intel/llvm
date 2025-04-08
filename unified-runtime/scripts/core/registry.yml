@@ -645,13 +645,13 @@ etors:
   value: '265'
 - name: BINDLESS_IMAGES_GET_IMAGE_UNSAMPLED_HANDLE_SUPPORT_EXP
   desc: Enumerator for $xBindlessImagesGetImageUnsampledHandleSupportExp
-  value: '268'
+  value: '266'
 - name: BINDLESS_IMAGES_GET_IMAGE_SAMPLED_HANDLE_SUPPORT_EXP
   desc: Enumerator for $xBindlessImagesGetImageSampledHandleSupportExp
-  value: '269'
+  value: '267'
 - name: BINDLESS_IMAGES_GET_IMAGE_MEMORY_HANDLE_TYPE_SUPPORT_EXP
   desc: Enumerator for $xBindlessImagesGetImageMemoryHandleTypeSupportExp
-  value: '270'
+  value: '268'
 ---
 type: enum
 desc: Defines structure types
