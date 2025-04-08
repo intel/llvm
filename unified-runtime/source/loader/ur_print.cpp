@@ -923,6 +923,15 @@ ur_result_t urPrintExpAsyncUsmAllocProperties(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintUsmPoolBufferDesc(const struct ur_usm_pool_buffer_desc_t params,
+                         char *buffer, const size_t buff_size,
+                         size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpImageCopyFlags(enum ur_exp_image_copy_flag_t value,
                                      char *buffer, const size_t buff_size,
                                      size_t *out_size) {
