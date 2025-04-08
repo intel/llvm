@@ -22,8 +22,8 @@ extern "C" JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     View<unsigned char> SpecConstBlob) {
   auto &JITCtx = JITContext::getInstance();
 
-  TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
-  BinaryFormat TargetFormat = TargetInfo.getFormat();
+  // TODO(jopperm): Why is the target format an option instead of an argument?
+  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
   if (TargetFormat != BinaryFormat::PTX &&
       TargetFormat != BinaryFormat::AMDGCN) {
     return SCMResult("Output target format not supported by this build. "

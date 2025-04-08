@@ -139,13 +139,6 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   }
 }
 
-::jit_compiler::TargetInfo getTargetInfo(const QueueImplPtr &Queue) {
-  ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
-  return ::jit_compiler::TargetInfo::get(
-      Format, static_cast<::jit_compiler::DeviceArchitecture>(
-                  Queue->getDeviceImplPtr()->getDeviceArch()));
-}
-
 ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
     const std::string &KernelName,
@@ -178,9 +171,8 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   ::jit_compiler::JITBinaryInfo BinInfo{
       BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
 
-  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
-  AddToConfigHandle(
-      ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
+  ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
+  AddToConfigHandle(::jit_compiler::option::JITTargetFormat::set(Format));
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
   AddToConfigHandle(
