@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "RTC.h"
-#include "Kernel.h"
 #include "helper/ErrorHelper.h"
 #include "rtc/DeviceCompilation.h"
 #include "translation/SPIRVLLVMTranslation.h"

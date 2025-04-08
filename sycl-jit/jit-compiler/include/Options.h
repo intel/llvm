@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include "Kernel.h"
+#include "DynArray.h"
+#include "TargetInfo.h"
 
 namespace jit_compiler {
 

@@ -14,7 +14,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "Kernel.h"
+#include "JITBinaryInfo.h"
 
 namespace jit_compiler {
 

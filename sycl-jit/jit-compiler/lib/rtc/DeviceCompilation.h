@@ -8,8 +8,7 @@
 
 #pragma once
 
-#include "Kernel.h"
-#include "View.h"
+#include "RTC.h"
 
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Module.h>

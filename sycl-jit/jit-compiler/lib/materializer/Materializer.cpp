@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "Materializer.h"
-#include "Kernel.h"
-#include "Options.h"
 #include "helper/ConfigHelper.h"
 #include "helper/ErrorHelper.h"
 #include "materializer/MaterializerPipeline.h"

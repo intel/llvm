@@ -9,12 +9,9 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 
-#include "Kernel.h"
-
 #include "materializer/SYCLSpecConstMaterializer.h"
 
 using namespace llvm;
-using namespace jit_compiler;
 
 llvm::PassPluginLibraryInfo getSYCLJITPassesPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "SYCL-JIT pass library", LLVM_VERSION_STRING,

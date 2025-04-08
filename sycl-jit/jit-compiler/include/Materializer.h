@@ -14,7 +14,7 @@
 #define SCM_EXPORT_SYMBOL
 #endif
 
-#include "Kernel.h"
+#include "JITBinaryInfo.h"
 #include "Options.h"
 #include "View.h"
 #include "sycl/detail/string.hpp"
