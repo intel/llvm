@@ -8,13 +8,8 @@
 
 #pragma once
 
-#ifdef _WIN32
-#define SCM_EXPORT_SYMBOL __declspec(dllexport)
-#else
-#define SCM_EXPORT_SYMBOL
-#endif
-
 #include "JITBinaryInfo.h"
+#include "Macros.h"
 #include "Options.h"
 #include "View.h"
 #include "sycl/detail/string.hpp"
@@ -51,24 +46,9 @@ private:
 
 extern "C" {
 
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
-#endif // __clang__
-
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable : 4190)
-#endif // _MSC_VER
-
-SCM_EXPORT_SYMBOL SCMResult materializeSpecConstants(
+JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     const char *KernelName, const jit_compiler::JITBinaryInfo &BinaryInfo,
     View<unsigned char> SpecConstBlob);
-
-/// Clear all previously set options.
-SCM_EXPORT_SYMBOL void resetJITConfiguration();
-
-/// Add an option to the configuration.
-SCM_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt);
 
 } // end of extern "C"
 

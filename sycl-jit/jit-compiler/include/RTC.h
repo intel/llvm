@@ -8,14 +8,9 @@
 
 #pragma once
 
-#ifdef _WIN32
-#define RTC_EXPORT_SYMBOL __declspec(dllexport)
-#else
-#define RTC_EXPORT_SYMBOL
-#endif
-
 #include "DynArray.h"
 #include "JITBinaryInfo.h"
+#include "Macros.h"
 #include "View.h"
 #include "sycl/detail/string.hpp"
 
@@ -158,25 +153,16 @@ private:
 
 extern "C" {
 
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
-#endif // __clang__
-
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable : 4190)
-#endif // _MSC_VER
-
-RTC_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
+JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
                                               View<InMemoryFile> IncludeFiles,
                                               View<const char *> UserArgs);
 
-RTC_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
+JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                         View<InMemoryFile> IncludeFiles,
                                         View<const char *> UserArgs,
                                         View<char> CachedIR, bool SaveIR);
 
-RTC_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
+JIT_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
 
 } // end of extern "C"
 

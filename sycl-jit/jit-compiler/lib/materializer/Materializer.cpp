@@ -17,7 +17,7 @@
 
 using namespace jit_compiler;
 
-extern "C" SCM_EXPORT_SYMBOL SCMResult materializeSpecConstants(
+extern "C" JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     const char *KernelName, const JITBinaryInfo &BinaryInfo,
     View<unsigned char> SpecConstBlob) {
   auto &JITCtx = JITContext::getInstance();
@@ -58,12 +58,4 @@ extern "C" SCM_EXPORT_SYMBOL SCMResult materializeSpecConstants(
   }
 
   return SCMResult{*BinInfoOrErr};
-}
-
-extern "C" SCM_EXPORT_SYMBOL void resetJITConfiguration() {
-  ConfigHelper::reset();
-}
-
-extern "C" SCM_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt) {
-  ConfigHelper::getConfig().set(std::move(Opt));
 }
