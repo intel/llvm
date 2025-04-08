@@ -24,8 +24,8 @@ on:
         description: |
           Commit hash (within intel/llvm) to build SYCL from if specified.
 
-          If both pr_no and commit_hash are empty, the latest SYCL nightly build
-          will be used.
+          If both pr_no and commit_hash are empty, the latest commit in
+          deployment branch will be used.
         required: false
         default: ''
       upload_results:
@@ -64,7 +64,7 @@ on:
         description: |
           Commit hash (within intel/llvm) to build SYCL from:
 
-          Leave both pr_no and commit_hash empty to use last SYCL nightly build.
+          Leave both pr_no and commit_hash empty to use latest commit.
         required: false
         default: ''
       upload_results:
@@ -90,14 +90,18 @@ permissions: read-all
 
 jobs:
   build_sycl:
-    if: inputs.commit_hash != '' || inputs.pr_no != ''
     name: Build SYCL
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
-      build_ref: ${{ inputs.commit_hash != '' && inputs.commit_hash || format('refs/pull/{0}/head', inputs.pr_no) }}
+      build_ref: |
+        ${{
+          inputs.commit_hash != '' && inputs.commit_hash ||
+          inputs.pr_no != '' && format('refs/pull/{0}/head', inputs.pr_no) ||
+          github.ref
+        }}
       build_cache_root: "/__w/"
-      build_artifact_suffix: "default"
-      build_cache_suffix: "default"
+      build_artifact_suffix: "prod_noassert"
+      build_cache_suffix: "prod_noassert"
       build_configure_extra_args: "--no-assertions"
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest"
       cc: clang
@@ -105,8 +109,7 @@ jobs:
       changes: '[]'
 
   run_benchmarks_build:
-    if: inputs.commit_hash != '' || inputs.pr_no != ''
-    name: Run Benchmarks (on PR Build)
+    name: Run Benchmarks on Build
     needs: [ build_sycl ]
     strategy:
       matrix:
@@ -130,33 +133,6 @@ jobs:
       benchmark_preset: ${{ inputs.preset }}
       repo_ref: ${{ matrix.ref }}
       devops_ref: ${{ github.ref }}
-      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_artifact: sycl_linux_prod_noassert
       sycl_toolchain_archive: ${{ needs.build_sycl.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build_sycl.outputs.artifact_decompress_command }}
-
-  run_benchmarks_nightly:
-    name: Run Benchmarks (on Nightly Build)
-    if: inputs.commit_hash == '' && inputs.pr_no == ''
-    strategy:
-      matrix:
-        # Set default values if not specified:
-        include:
-          - runner: ${{ inputs.runner || '["PVC_PERF"]' }}
-            backend: ${{ inputs.backend || 'level_zero:gpu' }}
-    uses: ./.github/workflows/sycl-linux-run-tests.yml
-    secrets: inherit
-    with:
-      # TODO support other benchmarks
-      name: Run compute-benchmarks (Nightly, ${{ matrix.runner }}, ${{ matrix.backend }})
-      runner: ${{ matrix.runner }}
-      image: ghcr.io/intel/llvm/sycl_ubuntu2404_nightly:latest
-      image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
-      target_devices: ${{ matrix.backend }}
-      tests_selector: benchmarks
-      benchmark_save_name: Baseline
-      benchmark_upload_results: ${{ inputs.upload_results }}
-      benchmark_preset: ${{ inputs.preset }}
-      repo_ref: ${{ github.ref }}
-      sycl_toolchain_artifact: sycl_linux_sprod_shared
-      sycl_toolchain_archive: sycl_linux_shared.tar.zst
-      sycl_toolchain_decompress_command: zstd
