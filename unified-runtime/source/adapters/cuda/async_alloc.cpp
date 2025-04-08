@@ -24,7 +24,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   ScopedContext Active(hQueue->getDevice());
-  uint32_t StreamToken;
+  uint32_t StreamToken = std::numeric_limits<uint32_t>::max();
   ur_stream_guard Guard;
   CUstream CuStream = hQueue->getNextComputeStream(
       numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
@@ -33,9 +33,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
                                    phEventWaitList));
 
   if (phEvent) {
-    RetImplEvent =
-        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-            UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+    RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
+        ur_event_handle_t_::makeNative(UR_COMMAND_ENQUEUE_USM_DEVICE_ALLOC_EXP,
+                                       hQueue, CuStream, StreamToken));
     UR_CHECK_ERROR(RetImplEvent->start());
   }
 
@@ -82,7 +82,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   ScopedContext Active(hQueue->getDevice());
-  uint32_t StreamToken;
+  uint32_t StreamToken = std::numeric_limits<uint32_t>::max();
   ur_stream_guard Guard;
   CUstream CuStream = hQueue->getNextComputeStream(
       numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
@@ -93,7 +93,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
   if (phEvent) {
     RetImplEvent =
         std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-            UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+            UR_COMMAND_ENQUEUE_USM_FREE_EXP, hQueue, CuStream, StreamToken));
     UR_CHECK_ERROR(RetImplEvent->start());
   }
 
