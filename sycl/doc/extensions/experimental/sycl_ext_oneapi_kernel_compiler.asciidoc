@@ -328,7 +328,7 @@ namespace sycl::ext::oneapi::experimental {
 
 template<typename PropertyListT = empty_properties_t>                 (1)
 kernel_bundle<bundle_state::object> compile(
-    const kernel_bundle<bundle_state::ext_oneapi_source>& source,
+    const kernel_bundle<bundle_state::ext_oneapi_source>& sourceBundle,
     const std::vector<device>& devs, PropertyListT props={})
 
 template<typename PropertyListT = empty_properties_t>                 (2)
