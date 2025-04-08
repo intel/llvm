@@ -173,7 +173,7 @@ ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
 ur_result_t urBindlessImagesGetImageMemoryPointerSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    bool *pSupportedRet) {
+    ur_bool_t *pSupportedRet) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -181,7 +181,7 @@ ur_result_t urBindlessImagesGetImageMemoryPointerSupportExp(
 ur_result_t urBindlessImagesGetImageMemoryOpaqueSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    bool *pSupportedRet) {
+    ur_bool_t *pSupportedRet) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -189,7 +189,7 @@ ur_result_t urBindlessImagesGetImageMemoryOpaqueSupportExp(
 ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    bool isOpaqueAllocation, bool *pSupportedRet) {
+    ur_bool_t isOpaqueAllocation, ur_bool_t *pSupportedRet) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -197,7 +197,7 @@ ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
 ur_result_t urBindlessImagesGetImageSampledHandleSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    bool isOpaqueAllocation, bool *pSupportedRet) {
+    ur_bool_t isOpaqueAllocation, ur_bool_t *pSupportedRet) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
