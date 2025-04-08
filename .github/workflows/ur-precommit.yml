@@ -87,12 +87,12 @@ jobs:
           - name: OPENCL
             runner: UR_OPENCL
             platform: "Intel(R) OpenCL"
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_intel_drivers:alldeps"
+            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001  --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add  SYS_ADMIN
           - name: OPENCL
             runner: UR_OPENCL
             platform: "OPENCL:Intel(R) OpenCL"
-            docker_image: "ghcr.io/intel/llvm/ubuntu2204_intel_drivers:alldeps"
+            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001  --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add  SYS_ADMIN
             other_adapter: NATIVE_CPU
           - name: NATIVE_CPU
