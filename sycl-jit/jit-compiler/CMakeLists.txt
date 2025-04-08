@@ -67,7 +67,6 @@ target_include_directories(sycl-jit
   PUBLIC
   $<INSTALL_INTERFACE:include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/include>
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
@@ -76,7 +75,6 @@ find_package(Threads REQUIRED)
 
 target_link_libraries(sycl-jit
   PRIVATE
-  sycl-jit-common
   LLVMSPIRVLib
   SYCLJITPasses
   ${CMAKE_THREAD_LIBS_INIT}

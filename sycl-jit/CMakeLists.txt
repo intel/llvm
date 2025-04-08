@@ -20,7 +20,6 @@ if (NOT WIN32 AND NOT CYGWIN)
 endif()
 
 
-add_subdirectory(common)
 add_subdirectory(jit-compiler)
 add_subdirectory(passes)
 

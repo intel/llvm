@@ -22,13 +22,6 @@ if (NOT WIN32 AND NOT CYGWIN)
   target_include_directories(SYCLJITPassesPlugin
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    PRIVATE
-    ${SYCL_JIT_BASE_DIR}/common/include
-  )
-
-  target_link_libraries(SYCLJITPassesPlugin
-    PRIVATE
-    sycl-jit-common
   )
 
   add_dependencies(SYCLJITPassesPlugin sycl-headers)
@@ -72,13 +65,6 @@ target_include_directories(SYCLJITPasses
 target_include_directories(SYCLJITPasses
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  PRIVATE
-  ${SYCL_JIT_BASE_DIR}/common/include
-)
-
-target_link_libraries(SYCLJITPasses
-  PRIVATE
-  sycl-jit-common
 )
 
 add_dependencies(SYCLJITPasses sycl-headers)
