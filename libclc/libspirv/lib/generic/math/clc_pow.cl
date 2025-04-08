@@ -21,8 +21,10 @@
  */
 
 #include <clc/clc.h>
+#include <clc/clc_convert.h>
 #include <clc/clcmacro.h>
 #include <clc/math/clc_fabs.h>
+#include <clc/math/clc_fma.h>
 #include <clc/math/clc_mad.h>
 #include <clc/math/clc_subnormal_config.h>
 #include <clc/math/math.h>
@@ -156,7 +158,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_pow(float x, float y) {
   /* Extra precise exp of ylogx */
   /* 64/log2 : 92.332482616893657 */
   const float R_64_BY_LOG2 = 0x1.715476p+6f;
-  int n = __spirv_ConvertFToS_Rint(ylogx * R_64_BY_LOG2);
+  int n = __clc_convert_int(ylogx * R_64_BY_LOG2);
   float nf = (float)n;
 
   int j = n & 0x3f;
@@ -262,7 +264,8 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y) {
     double xexp = (double)exp;
     long mantissa = ax & 0x000FFFFFFFFFFFFFL;
 
-    long temp_ux = __clc_as_long(__clc_as_double(0x3ff0000000000000L | mantissa) - 1.0);
+    long temp_ux =
+        __clc_as_long(__clc_as_double(0x3ff0000000000000L | mantissa) - 1.0);
     exp = ((temp_ux & 0x7FF0000000000000L) >> 52) - 2045;
     double xexp1 = (double)exp;
     long mantissa1 = temp_ux & 0x000FFFFFFFFFFFFFL;
@@ -285,29 +288,26 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y) {
     double r2 = __spirv_ocl_fma(-F, r1, f) * (log_h + log_t);
     double r = r1 + r2;
 
-    double poly = __spirv_ocl_fma(
+    double poly = __clc_fma(
         r,
-        __spirv_ocl_fma(
-            r,
-            __spirv_ocl_fma(r, __spirv_ocl_fma(r, 1.0 / 7.0, 1.0 / 6.0),
-                            1.0 / 5.0),
-            1.0 / 4.0),
+        __clc_fma(r,
+                  __clc_fma(r, __clc_fma(r, 1.0 / 7.0, 1.0 / 6.0), 1.0 / 5.0),
+                  1.0 / 4.0),
         1.0 / 3.0);
     poly = poly * r * r * r;
 
     double hr1r1 = 0.5 * r1 * r1;
     double poly0h = r1 + hr1r1;
     double poly0t = r1 - poly0h + hr1r1;
-    poly = __spirv_ocl_fma(r1, r2, __spirv_ocl_fma(0.5 * r2, r2, poly)) + r2 +
-           poly0t;
+    poly = __clc_fma(r1, r2, __clc_fma(0.5 * r2, r2, poly)) + r2 + poly0t;
 
     tv = USE_TABLE(powlog_tbl, index);
     log_h = tv.s0;
     log_t = tv.s1;
 
-    double resT_t = __spirv_ocl_fma(xexp, real_log2_tail, +log_t) - poly;
+    double resT_t = __clc_fma(xexp, real_log2_tail, +log_t) - poly;
     double resT = resT_t - poly0h;
-    double resH = __spirv_ocl_fma(xexp, real_log2_lead, log_h);
+    double resH = __clc_fma(xexp, real_log2_lead, log_h);
     double resT_h = poly0h;
 
     double H = resT + resH;
@@ -318,10 +318,9 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y) {
     double y_head = __clc_as_double(uy & 0xfffffffff8000000L);
     double y_tail = y - y_head;
 
-    double temp =
-        __spirv_ocl_fma(y_tail, H, __spirv_ocl_fma(y_head, T, y_tail * T));
-    v = __spirv_ocl_fma(y_head, H, temp);
-    vt = __spirv_ocl_fma(y_head, H, -v) + temp;
+    double temp = __clc_fma(y_tail, H, __clc_fma(y_head, T, y_tail * T));
+    v = __clc_fma(y_head, H, temp);
+    vt = __clc_fma(y_head, H, -v) + temp;
   }
 
   // Now calculate exp of (v,vt)
@@ -345,23 +344,22 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y) {
     double f2 = tv.s1;
     double f = f1 + f2;
 
-    double r1 = __spirv_ocl_fma(dn, -lnof2_by_64_head, v);
+    double r1 = __clc_fma(dn, -lnof2_by_64_head, v);
     double r2 = dn * lnof2_by_64_tail;
     double r = (r1 + r2) + vt;
 
-    double q = __spirv_ocl_fma(
-        r,
-        __spirv_ocl_fma(
-            r,
-            __spirv_ocl_fma(r,
-                            __spirv_ocl_fma(r, 1.38889490863777199667e-03,
-                                            8.33336798434219616221e-03),
-                            4.16666666662260795726e-02),
-            1.66666666665260878863e-01),
-        5.00000000000000008883e-01);
-    q = __spirv_ocl_fma(r * r, q, r);
+    double q =
+        __clc_fma(r,
+                  __clc_fma(r,
+                            __clc_fma(r,
+                                      __clc_fma(r, 1.38889490863777199667e-03,
+                                                8.33336798434219616221e-03),
+                                      4.16666666662260795726e-02),
+                            1.66666666665260878863e-01),
+                  5.00000000000000008883e-01);
+    q = __clc_fma(r * r, q, r);
 
-    expv = __spirv_ocl_fma(f, q, f2) + f1;
+    expv = __clc_fma(f, q, f2) + f1;
     expv = __spirv_ocl_ldexp(expv, m);
 
     expv = v > max_exp_arg ? __clc_as_double(0x7FF0000000000000L) : expv;

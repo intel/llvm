@@ -135,15 +135,15 @@ public:
   static ProgramManager &getInstance();
 
   RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
-                                      const context &Context,
+                                      const ContextImplPtr &ContextImpl,
                                       const device &Device);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      const context &Context, const device &Device);
+      const ContextImplPtr &ContextImpl, const device &Device);
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
-                                      const context &Context,
+                                      const ContextImplPtr &ContextImpl,
                                       const std::vector<device> &Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
@@ -167,7 +167,7 @@ public:
   std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      const context &Context, const std::vector<device> &Devices,
+      const ContextImplPtr &ContextImpl, const std::vector<device> &Devices,
       const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
@@ -192,7 +192,8 @@ public:
   /// \param SpecConsts is an optional parameter containing spec constant values
   /// the program should be built with.
   ur_program_handle_t
-  getBuiltURProgram(const BinImgWithDeps &ImgWithDeps, const context &Context,
+  getBuiltURProgram(const BinImgWithDeps &ImgWithDeps,
+                    const ContextImplPtr &ContextImpl,
                     const std::vector<device> &Devs,
                     const DevImgPlainWithDeps *DevImgWithDeps = nullptr,
                     const SerializedObj &SpecConsts = {});
@@ -216,6 +217,9 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr &Context);
 
+  void addImage(sycl_device_binary RawImg,
+                RTDeviceBinaryImage **OutImage = nullptr,
+                std::vector<kernel_id> *OutKernelIDs = nullptr);
   void addImages(sycl_device_binaries DeviceImages);
   void removeImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
@@ -233,7 +237,11 @@ public:
                              const std::string &KernelName);
 
   // The function returns the unique SYCL kernel identifier associated with a
-  // kernel name.
+  // kernel name or nullopt if there is no such ID.
+  std::optional<kernel_id> tryGetSYCLKernelID(const std::string &KernelName);
+
+  // The function returns the unique SYCL kernel identifier associated with a
+  // kernel name or throws a sycl exception if there is no such ID.
   kernel_id getSYCLKernelID(const std::string &KernelName);
 
   // The function returns a vector containing all unique SYCL kernel identifiers
@@ -255,6 +263,13 @@ public:
   // The function gets a device_global entry identified by the pointer to the
   // device_global object from the device_global map.
   DeviceGlobalMapEntry *getDeviceGlobalEntry(const void *DeviceGlobalPtr);
+
+  // The function attempts to get a single device_global entry identified by its
+  // unique ID from the device_global map. If no such entry is found, nullptr is
+  // returned.
+  DeviceGlobalMapEntry *
+  tryGetDeviceGlobalEntry(const std::string &UniqueId,
+                          bool ExcludeDeviceImageScopeDecorated = false);
 
   // The function gets multiple device_global entries identified by their unique
   // IDs from the device_global map.
@@ -283,7 +298,17 @@ public:
       const context &Ctx, const std::vector<device> &Devs,
       bundle_state TargetState, const std::vector<kernel_id> &KernelIDs = {});
 
-  // Brind images in the passed vector to the required state. Does it inplace
+  // Creates a new dependency image for a given dependency binary image.
+  device_image_plain createDependencyImage(const context &Ctx,
+                                           const std::vector<device> &Devs,
+                                           RTDeviceBinaryImage *DepImage,
+                                           bundle_state DepState);
+
+  // Bring image to the required state. Does it inplace
+  void bringSYCLDeviceImageToState(DevImgPlainWithDeps &DeviceImage,
+                                   bundle_state TargetState);
+
+  // Bring images in the passed vector to the required state. Does it inplace
   void
   bringSYCLDeviceImagesToState(std::vector<DevImgPlainWithDeps> &DeviceImages,
                                bundle_state TargetState);
@@ -345,6 +370,12 @@ public:
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
 
+  std::set<RTDeviceBinaryImage *>
+  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
+  std::set<RTDeviceBinaryImage *>
+  collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
+                                           const device &Dev);
+
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
@@ -368,11 +399,6 @@ private:
   /// Add info on kernels using local arg into cache
   void cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img);
 
-  std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDeps(const RTDeviceBinaryImage &Img, const device &Dev);
-  std::set<RTDeviceBinaryImage *>
-  collectDeviceImageDepsForImportedSymbols(const RTDeviceBinaryImage &Img,
-                                           const device &Dev);
   std::set<RTDeviceBinaryImage *>
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, const device &Dev);

@@ -28,8 +28,9 @@ struct ur_device_handle_t_ {
     if (Parent) {
       Type = Parent->Type;
     } else {
-      clGetDeviceInfo(CLDevice, CL_DEVICE_TYPE, sizeof(cl_device_type), &Type,
-                      nullptr);
+      [[maybe_unused]] auto Res = clGetDeviceInfo(
+          CLDevice, CL_DEVICE_TYPE, sizeof(cl_device_type), &Type, nullptr);
+      assert(Res == CL_SUCCESS);
     }
   }
 
