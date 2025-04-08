@@ -9,10 +9,11 @@ import shutil
 import subprocess
 
 import tarfile
-import urllib  # nosec B404
 from options import options
 from pathlib import Path
 import hashlib
+from urllib.request import urlopen  # nosec B404
+from shutil import copyfileobj
 
 
 def run(
@@ -147,7 +148,9 @@ def download(dir, url, file, untar=False, unzip=False, checksum=""):
     data_file = os.path.join(dir, file)
     if not Path(data_file).exists():
         print(f"{data_file} does not exist, downloading")
-        urllib.request.urlretrieve(url, data_file)
+        with urlopen(url) as in_stream, open(data_file, "wb") as out_file:
+            copyfileobj(in_stream, out_file)
+
         calculated_checksum = calculate_checksum(data_file)
         if calculated_checksum != checksum:
             print(

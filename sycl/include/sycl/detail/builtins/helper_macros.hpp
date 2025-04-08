@@ -197,7 +197,8 @@
           [](NUM_ARGS##_AUTO_ARG) { return (NS::NAME)(NUM_ARGS##_ARG); },      \
           NUM_ARGS##_ARG);                                                     \
     } else {                                                                   \
-      return __VA_ARGS__(NUM_ARGS##_CONVERTED_ARG);                            \
+      return bit_cast<detail::ENABLER<NUM_ARGS##_TEMPLATE_TYPE>>(              \
+          __VA_ARGS__(NUM_ARGS##_CONVERTED_ARG));                              \
     }                                                                          \
   }
 
