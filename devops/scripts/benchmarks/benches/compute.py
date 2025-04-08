@@ -46,7 +46,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "b5cc46acf61766ab00da04e85bd4da4f7591eb21"
+        return "c10baa895b4364899e253e44127ff128a8efa5d5"
 
     def setup(self):
         if options.sycl is None:
@@ -145,7 +145,7 @@ class ComputeBench(Suite):
             benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
         # Add GraphApiSubmitGraph benchmarks
-        for runtime in self.enabled_runtimes([RUNTIMES.SYCL]):
+        for runtime in self.enabled_runtimes([RUNTIMES.SYCL, RUNTIMES.UR]):
             for in_order_queue in [0, 1]:
                 for num_kernels in [4, 10, 32]:
                     for measure_completion_time in [0, 1]:

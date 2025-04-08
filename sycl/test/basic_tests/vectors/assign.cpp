@@ -56,7 +56,7 @@ static_assert(                  std::is_assignable_v<vec<float, 1>, half>);
 static_assert(                  std::is_assignable_v<vec<float, 1>, float>);
 static_assert(                  std::is_assignable_v<vec<float, 1>, double>);
 #if __SYCL_DEVICE_ONLY__
-static_assert(                  std::is_assignable_v<vec<float, 1>, vec<half, 1>>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<float, 1>, vec<half, 1>>);
 #else
 static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<float, 1>, vec<half, 1>>);
 #endif
@@ -73,7 +73,7 @@ static_assert(                  std::is_assignable_v<vec<float, 2>, half>);
 static_assert(                  std::is_assignable_v<vec<float, 2>, float>);
 static_assert(                  std::is_assignable_v<vec<float, 2>, double>);
 #if __SYCL_DEVICE_ONLY__
-static_assert(                  std::is_assignable_v<vec<float, 2>, vec<half, 1>>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<float, 2>, vec<half, 1>>);
 #else
 static_assert(                 !std::is_assignable_v<vec<float, 2>, vec<half, 1>>);
 #endif
