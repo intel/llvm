@@ -919,17 +919,19 @@ get_image_memory_support(const image_descriptor &imageDescriptor,
   populate_ur_structs(imageDescriptor, urDesc, urFormat);
 
   ur_bool_t supportsPointerAllocation{0};
-  Adapter->call<
-      sycl::errc::runtime,
-      sycl::detail::UrApiKind::urBindlessImagesGetImageMemoryPointerSupportExp>(
+  Adapter->call<sycl::errc::runtime,
+                sycl::detail::UrApiKind::
+                    urBindlessImagesGetImageMemoryHandleTypeSupportExp>(
       CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
+      ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_USM_POINTER,
       &supportsPointerAllocation);
 
   ur_bool_t supportsOpaqueAllocation{0};
-  Adapter->call<
-      sycl::errc::runtime,
-      sycl::detail::UrApiKind::urBindlessImagesGetImageMemoryOpaqueSupportExp>(
+  Adapter->call<sycl::errc::runtime,
+                sycl::detail::UrApiKind::
+                    urBindlessImagesGetImageMemoryHandleTypeSupportExp>(
       CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
+      ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE,
       &supportsOpaqueAllocation);
 
   std::vector<image_memory_handle_type> supportedMemHandleTypes;
@@ -967,15 +969,17 @@ __SYCL_EXPORT bool get_image_handle_supported<unsampled_image_handle>(
   ur_image_format_t urFormat;
   populate_ur_structs(imageDescriptor, urDesc, urFormat);
 
-  const ur_bool_t isOpaqueMemoryHandle =
-      (imageMemoryHandleType == image_memory_handle_type::opaque_handle);
+  const ur_exp_image_mem_type_t memHandleType =
+      (imageMemoryHandleType == image_memory_handle_type::opaque_handle)
+          ? ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE
+          : ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_USM_POINTER;
 
   ur_bool_t supportsUnsampledHandle{0};
   Adapter->call<sycl::errc::runtime,
                 sycl::detail::UrApiKind::
                     urBindlessImagesGetImageUnsampledHandleSupportExp>(
       CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
-      isOpaqueMemoryHandle, &supportsUnsampledHandle);
+      memHandleType, &supportsUnsampledHandle);
 
   return supportsUnsampledHandle;
 }
@@ -1005,15 +1009,17 @@ __SYCL_EXPORT bool get_image_handle_supported<sampled_image_handle>(
   ur_image_format_t urFormat;
   populate_ur_structs(imageDescriptor, urDesc, urFormat);
 
-  const ur_bool_t isOpaqueMemoryHandle =
-      (imageMemoryHandleType == image_memory_handle_type::opaque_handle);
+  const ur_exp_image_mem_type_t memHandleType =
+      (imageMemoryHandleType == image_memory_handle_type::opaque_handle)
+          ? ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_OPAQUE_HANDLE
+          : ur_exp_image_mem_type_t::UR_EXP_IMAGE_MEM_TYPE_USM_POINTER;
 
   ur_bool_t supportsSampledHandle{0};
   Adapter->call<
       sycl::errc::runtime,
       sycl::detail::UrApiKind::urBindlessImagesGetImageSampledHandleSupportExp>(
       CtxImpl->getHandleRef(), DevImpl->getHandleRef(), &urDesc, &urFormat,
-      isOpaqueMemoryHandle, &supportsSampledHandle);
+      memHandleType, &supportsSampledHandle);
 
   return supportsSampledHandle;
 }

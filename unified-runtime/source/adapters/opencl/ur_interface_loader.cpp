@@ -362,10 +362,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       urBindlessImagesWaitExternalSemaphoreExp;
   pDdiTable->pfnSignalExternalSemaphoreExp =
       urBindlessImagesSignalExternalSemaphoreExp;
-  pDdiTable->pfnGetImageMemoryPointerSupportExp =
-      urBindlessImagesGetImageMemoryPointerSupportExp;
-  pDdiTable->pfnGetImageMemoryOpaqueSupportExp =
-      urBindlessImagesGetImageMemoryOpaqueSupportExp;
+  pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+      urBindlessImagesGetImageMemoryHandleTypeSupportExp;
   pDdiTable->pfnGetImageUnsampledHandleSupportExp =
       urBindlessImagesGetImageUnsampledHandleSupportExp;
   pDdiTable->pfnGetImageSampledHandleSupportExp =

@@ -37,7 +37,27 @@ ur_result_t getImageRegionHelper(ze_image_desc_t ZeImageDesc,
 std::pair<ze_image_format_type_t, size_t>
 getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat);
 
-bool verifyCommonImagePropertiesSupport(const ur_device_handle_t ZeDevice,
-                                        const ur_image_desc_t *ZeImageDesc,
-                                        const ur_image_format_t *ZeImageFormat,
-                                        bool isOpaqueAllocation);
+bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
+                                const ur_image_desc_t *pImageDesc,
+                                ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyMipmapImageSupport(const ur_device_handle_t hDevice,
+                              const ur_image_desc_t *pImageDesc,
+                              ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyCubemapImageSupport(const ur_device_handle_t hDevice,
+                               const ur_image_desc_t *pImageDesc,
+                               ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyLayeredImageSupport(const ur_device_handle_t hDevice,
+                               const ur_image_desc_t *pImageDesc,
+                               ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyGatherImageSupport(const ur_device_handle_t hDevice,
+                              const ur_image_desc_t *pImageDesc,
+                              ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyCommonImagePropertiesSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType);

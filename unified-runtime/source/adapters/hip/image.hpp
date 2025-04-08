@@ -33,7 +33,27 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
                             const unsigned int normalized_dtype_flag,
                             ur_exp_image_native_handle_t *phRetImage);
 
-bool verifyCommonImagePropertiesSupport(const ur_device_handle_t hDevice,
-                                        const ur_image_desc_t *pImageDesc,
-                                        const ur_image_format_t *pImageFormat,
-                                        bool isOpaqueAllocation);
+bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
+                                const ur_image_desc_t *pImageDesc,
+                                ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyMipmapImageSupport(const ur_device_handle_t hDevice,
+                              const ur_image_desc_t *pImageDesc,
+                              ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyCubemapImageSupport(const ur_device_handle_t hDevice,
+                               const ur_image_desc_t *pImageDesc,
+                               ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyLayeredImageSupport(const ur_device_handle_t hDevice,
+                               const ur_image_desc_t *pImageDesc,
+                               ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyGatherImageSupport(const ur_device_handle_t hDevice,
+                              const ur_image_desc_t *pImageDesc,
+                              ur_exp_image_mem_type_t imageMemHandleType);
+
+bool verifyCommonImagePropertiesSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    const ur_image_format_t *pImageFormat,
+    ur_exp_image_mem_type_t imageMemHandleType);

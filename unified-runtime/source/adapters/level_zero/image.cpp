@@ -611,10 +611,10 @@ ur_result_t urBindlessImagesImageGetInfoExp(
   }
 }
 
-ur_result_t urBindlessImagesGetImageMemoryPointerSupportExp(
+ur_result_t urBindlessImagesGetImageMemoryHandleTypeSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    ur_bool_t *pSupportedRet) {
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -623,30 +623,14 @@ ur_result_t urBindlessImagesGetImageMemoryPointerSupportExp(
   // Verify support for common image properties (dims, channel types, image
   // types, etc.).
   *pSupportedRet = verifyCommonImagePropertiesSupport(
-      hDevice, pImageDesc, pImageFormat, false /* isOpaqueAllocation */);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urBindlessImagesGetImageMemoryOpaqueSupportExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    ur_bool_t *pSupportedRet) {
-  UR_ASSERT(std::find(hContext->getDevices().begin(),
-                      hContext->getDevices().end(),
-                      hDevice) != hContext->getDevices().end(),
-            UR_RESULT_ERROR_INVALID_CONTEXT);
-
-  // Verify support for common image properties (dims, channel types, image
-  // types, etc.).
-  *pSupportedRet = verifyCommonImagePropertiesSupport(
-      hDevice, pImageDesc, pImageFormat, true /* isOpaqueAllocation */);
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    ur_bool_t isOpaqueAllocation, ur_bool_t *pSupportedRet) {
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -654,7 +638,7 @@ ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
 
   // Currently the Bindless Images extension does not allow creation of
   // unsampled image handles from non-opaque (USM) memory.
-  if (!isOpaqueAllocation) {
+  if (imageMemHandleType == UR_EXP_IMAGE_MEM_TYPE_USM_POINTER) {
     *pSupportedRet = false;
     return UR_RESULT_SUCCESS;
   }
@@ -669,7 +653,7 @@ ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
   // Verify support for common image properties (dims, channel types, image
   // types, etc.).
   *pSupportedRet = verifyCommonImagePropertiesSupport(
-      hDevice, pImageDesc, pImageFormat, isOpaqueAllocation);
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
 
   return UR_RESULT_SUCCESS;
 }
@@ -677,7 +661,7 @@ ur_result_t urBindlessImagesGetImageUnsampledHandleSupportExp(
 ur_result_t urBindlessImagesGetImageSampledHandleSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    ur_bool_t isOpaqueAllocation, ur_bool_t *pSupportedRet) {
+    ur_exp_image_mem_type_t imageMemHandleType, ur_bool_t *pSupportedRet) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -686,7 +670,7 @@ ur_result_t urBindlessImagesGetImageSampledHandleSupportExp(
   // Verify support for common image properties (dims, channel types, image
   // types, etc.).
   *pSupportedRet = verifyCommonImagePropertiesSupport(
-      hDevice, pImageDesc, pImageFormat, isOpaqueAllocation);
+      hDevice, pImageDesc, pImageFormat, imageMemHandleType);
 
   return UR_RESULT_SUCCESS;
 }

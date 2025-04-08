@@ -8461,9 +8461,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for
-/// urBindlessImagesGetImageMemoryPointerSupportExp
+/// urBindlessImagesGetImageMemoryHandleTypeSupportExp
 __urdlllocal ur_result_t UR_APICALL
-urBindlessImagesGetImageMemoryPointerSupportExp(
+urBindlessImagesGetImageMemoryHandleTypeSupportExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
     /// [in] handle of the device object
@@ -8472,16 +8472,20 @@ urBindlessImagesGetImageMemoryPointerSupportExp(
     const ur_image_desc_t *pImageDesc,
     /// [in] pointer to image format specification
     const ur_image_format_t *pImageFormat,
-    /// [out] returned indication of support for allocating USM style memory
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for allocating the given image
+    /// backing memory handle type
     ur_bool_t *pSupportedRet) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_bindless_images_get_image_memory_pointer_support_exp_params_t params = {
-      &hContext, &hDevice, &pImageDesc, &pImageFormat, &pSupportedRet};
+  ur_bindless_images_get_image_memory_handle_type_support_exp_params_t params =
+      {&hContext,           &hDevice,      &pImageDesc, &pImageFormat,
+       &imageMemHandleType, &pSupportedRet};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback(
-          "urBindlessImagesGetImageMemoryPointerSupportExp"));
+          "urBindlessImagesGetImageMemoryHandleTypeSupportExp"));
   if (beforeCallback) {
     result = beforeCallback(&params);
     if (result != UR_RESULT_SUCCESS) {
@@ -8491,7 +8495,7 @@ urBindlessImagesGetImageMemoryPointerSupportExp(
 
   auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_replace_callback(
-          "urBindlessImagesGetImageMemoryPointerSupportExp"));
+          "urBindlessImagesGetImageMemoryHandleTypeSupportExp"));
   if (replaceCallback) {
     result = replaceCallback(&params);
   } else {
@@ -8505,63 +8509,7 @@ urBindlessImagesGetImageMemoryPointerSupportExp(
 
   auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_after_callback(
-          "urBindlessImagesGetImageMemoryPointerSupportExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesGetImageMemoryOpaqueSupportExp
-__urdlllocal ur_result_t UR_APICALL
-urBindlessImagesGetImageMemoryOpaqueSupportExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] pointer to image description
-    const ur_image_desc_t *pImageDesc,
-    /// [in] pointer to image format specification
-    const ur_image_format_t *pImageFormat,
-    /// [out] returned indication of support for allocating opaque handle
-    /// memory
-    ur_bool_t *pSupportedRet) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_bindless_images_get_image_memory_opaque_support_exp_params_t params = {
-      &hContext, &hDevice, &pImageDesc, &pImageFormat, &pSupportedRet};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback(
-          "urBindlessImagesGetImageMemoryOpaqueSupportExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback(
-          "urBindlessImagesGetImageMemoryOpaqueSupportExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback(
-          "urBindlessImagesGetImageMemoryOpaqueSupportExp"));
+          "urBindlessImagesGetImageMemoryHandleTypeSupportExp"));
   if (afterCallback) {
     return afterCallback(&params);
   }
@@ -8584,9 +8532,8 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
     const ur_image_desc_t *pImageDesc,
     /// [in] pointer to image format specification
     const ur_image_format_t *pImageFormat,
-    /// [in] indicates whether the image memory would be backed by an opaque
-    /// handle allocation
-    ur_bool_t isOpaqueAllocation,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
     /// [out] returned indication of support for creating unsampled image
     /// handles
     ur_bool_t *pSupportedRet) try {
@@ -8594,7 +8541,7 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
 
   ur_bindless_images_get_image_unsampled_handle_support_exp_params_t params = {
       &hContext,           &hDevice,      &pImageDesc, &pImageFormat,
-      &isOpaqueAllocation, &pSupportedRet};
+      &imageMemHandleType, &pSupportedRet};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback(
@@ -8645,9 +8592,8 @@ urBindlessImagesGetImageSampledHandleSupportExp(
     const ur_image_desc_t *pImageDesc,
     /// [in] pointer to image format specification
     const ur_image_format_t *pImageFormat,
-    /// [in] indicates whether the image memory would be backed by an opaque
-    /// handle allocation
-    ur_bool_t isOpaqueAllocation,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
     /// [out] returned indication of support for creating sampled image
     /// handles
     ur_bool_t *pSupportedRet) try {
@@ -8655,7 +8601,7 @@ urBindlessImagesGetImageSampledHandleSupportExp(
 
   ur_bindless_images_get_image_sampled_handle_support_exp_params_t params = {
       &hContext,           &hDevice,      &pImageDesc, &pImageFormat,
-      &isOpaqueAllocation, &pSupportedRet};
+      &imageMemHandleType, &pSupportedRet};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback(
@@ -11959,11 +11905,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
   pDdiTable->pfnImageGetInfoExp = driver::urBindlessImagesImageGetInfoExp;
 
-  pDdiTable->pfnGetImageMemoryPointerSupportExp =
-      driver::urBindlessImagesGetImageMemoryPointerSupportExp;
-
-  pDdiTable->pfnGetImageMemoryOpaqueSupportExp =
-      driver::urBindlessImagesGetImageMemoryOpaqueSupportExp;
+  pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+      driver::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
 
   pDdiTable->pfnGetImageUnsampledHandleSupportExp =
       driver::urBindlessImagesGetImageUnsampledHandleSupportExp;

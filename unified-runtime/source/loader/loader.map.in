@@ -5,8 +5,7 @@
 		urAdapterGetLastError;
 		urAdapterRelease;
 		urAdapterRetain;
-		urBindlessImagesGetImageMemoryOpaqueSupportExp;
-		urBindlessImagesGetImageMemoryPointerSupportExp;
+		urBindlessImagesGetImageMemoryHandleTypeSupportExp;
 		urBindlessImagesGetImageSampledHandleSupportExp;
 		urBindlessImagesGetImageUnsampledHandleSupportExp;
 		urBindlessImagesImageAllocateExp;
@@ -186,8 +185,7 @@
 		urPrintApiVersion;
 		urPrintBaseDesc;
 		urPrintBaseProperties;
-		urPrintBindlessImagesGetImageMemoryOpaqueSupportExpParams;
-		urPrintBindlessImagesGetImageMemoryPointerSupportExpParams;
+		urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams;
 		urPrintBindlessImagesGetImageSampledHandleSupportExpParams;
 		urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams;
 		urPrintBindlessImagesImageAllocateExpParams;
@@ -342,6 +340,7 @@
 		urPrintExpFileDescriptor;
 		urPrintExpImageCopyFlags;
 		urPrintExpImageCopyRegion;
+		urPrintExpImageMemType;
 		urPrintExpLaunchProperty;
 		urPrintExpLaunchPropertyId;
 		urPrintExpPeerInfo;

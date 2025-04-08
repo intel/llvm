@@ -965,6 +965,14 @@ urPrintExpExternalSemaphoreType(enum ur_exp_external_semaphore_type_t value,
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpImageMemType(enum ur_exp_image_mem_type_t value,
+                                   char *buffer, const size_t buff_size,
+                                   size_t *out_size) {
+  std::stringstream ss;
+  ss << value;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintExpFileDescriptor(const struct ur_exp_file_descriptor_t params,
                          char *buffer, const size_t buff_size,
@@ -1264,17 +1272,9 @@ ur_result_t urPrintBindlessImagesImageGetInfoExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintBindlessImagesGetImageMemoryPointerSupportExpParams(
+ur_result_t urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams(
     const struct
-    ur_bindless_images_get_image_memory_pointer_support_exp_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintBindlessImagesGetImageMemoryOpaqueSupportExpParams(
-    const struct ur_bindless_images_get_image_memory_opaque_support_exp_params_t
+    ur_bindless_images_get_image_memory_handle_type_support_exp_params_t
         *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
   std::stringstream ss;

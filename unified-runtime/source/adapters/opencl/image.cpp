@@ -98,21 +98,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesGetImageMemoryPointerSupportExp(
+urBindlessImagesGetImageMemoryHandleTypeSupportExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
-    [[maybe_unused]] ur_bool_t *pSupportedRet) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesGetImageMemoryOpaqueSupportExp(
-    [[maybe_unused]] ur_context_handle_t hContext,
-    [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    [[maybe_unused]] const ur_image_format_t *pImageFormat,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType,
     [[maybe_unused]] ur_bool_t *pSupportedRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -123,7 +114,7 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
-    [[maybe_unused]] ur_bool_t isOpaqueAllocation,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType,
     [[maybe_unused]] ur_bool_t *pSupportedRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -134,7 +125,7 @@ urBindlessImagesGetImageSampledHandleSupportExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
-    [[maybe_unused]] ur_bool_t isOpaqueAllocation,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType,
     [[maybe_unused]] ur_bool_t *pSupportedRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

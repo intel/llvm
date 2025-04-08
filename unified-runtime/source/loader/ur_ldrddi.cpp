@@ -7110,9 +7110,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for
-/// urBindlessImagesGetImageMemoryPointerSupportExp
+/// urBindlessImagesGetImageMemoryHandleTypeSupportExp
 __urdlllocal ur_result_t UR_APICALL
-urBindlessImagesGetImageMemoryPointerSupportExp(
+urBindlessImagesGetImageMemoryHandleTypeSupportExp(
     /// [in] handle of the context object
     ur_context_handle_t hContext,
     /// [in] handle of the device object
@@ -7121,7 +7121,10 @@ urBindlessImagesGetImageMemoryPointerSupportExp(
     const ur_image_desc_t *pImageDesc,
     /// [in] pointer to image format specification
     const ur_image_format_t *pImageFormat,
-    /// [out] returned indication of support for allocating USM style memory
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
+    /// [out] returned indication of support for allocating the given image
+    /// backing memory handle type
     ur_bool_t *pSupportedRet) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7129,9 +7132,9 @@ urBindlessImagesGetImageMemoryPointerSupportExp(
 
   // extract platform's function pointer table
   auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-  auto pfnGetImageMemoryPointerSupportExp =
-      dditable->ur.BindlessImagesExp.pfnGetImageMemoryPointerSupportExp;
-  if (nullptr == pfnGetImageMemoryPointerSupportExp)
+  auto pfnGetImageMemoryHandleTypeSupportExp =
+      dditable->ur.BindlessImagesExp.pfnGetImageMemoryHandleTypeSupportExp;
+  if (nullptr == pfnGetImageMemoryHandleTypeSupportExp)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // convert loader handle to platform handle
@@ -7141,47 +7144,9 @@ urBindlessImagesGetImageMemoryPointerSupportExp(
   hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
   // forward to device-platform
-  result = pfnGetImageMemoryPointerSupportExp(hContext, hDevice, pImageDesc,
-                                              pImageFormat, pSupportedRet);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesGetImageMemoryOpaqueSupportExp
-__urdlllocal ur_result_t UR_APICALL
-urBindlessImagesGetImageMemoryOpaqueSupportExp(
-    /// [in] handle of the context object
-    ur_context_handle_t hContext,
-    /// [in] handle of the device object
-    ur_device_handle_t hDevice,
-    /// [in] pointer to image description
-    const ur_image_desc_t *pImageDesc,
-    /// [in] pointer to image format specification
-    const ur_image_format_t *pImageFormat,
-    /// [out] returned indication of support for allocating opaque handle
-    /// memory
-    ur_bool_t *pSupportedRet) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-  auto pfnGetImageMemoryOpaqueSupportExp =
-      dditable->ur.BindlessImagesExp.pfnGetImageMemoryOpaqueSupportExp;
-  if (nullptr == pfnGetImageMemoryOpaqueSupportExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
-
-  // convert loader handle to platform handle
-  hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
-
-  // forward to device-platform
-  result = pfnGetImageMemoryOpaqueSupportExp(hContext, hDevice, pImageDesc,
-                                             pImageFormat, pSupportedRet);
+  result = pfnGetImageMemoryHandleTypeSupportExp(
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
+      pSupportedRet);
 
   return result;
 }
@@ -7199,9 +7164,8 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
     const ur_image_desc_t *pImageDesc,
     /// [in] pointer to image format specification
     const ur_image_format_t *pImageFormat,
-    /// [in] indicates whether the image memory would be backed by an opaque
-    /// handle allocation
-    ur_bool_t isOpaqueAllocation,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
     /// [out] returned indication of support for creating unsampled image
     /// handles
     ur_bool_t *pSupportedRet) {
@@ -7224,7 +7188,7 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
 
   // forward to device-platform
   result = pfnGetImageUnsampledHandleSupportExp(
-      hContext, hDevice, pImageDesc, pImageFormat, isOpaqueAllocation,
+      hContext, hDevice, pImageDesc, pImageFormat, imageMemHandleType,
       pSupportedRet);
 
   return result;
@@ -7243,9 +7207,8 @@ urBindlessImagesGetImageSampledHandleSupportExp(
     const ur_image_desc_t *pImageDesc,
     /// [in] pointer to image format specification
     const ur_image_format_t *pImageFormat,
-    /// [in] indicates whether the image memory would be backed by an opaque
-    /// handle allocation
-    ur_bool_t isOpaqueAllocation,
+    /// [in] type of image backing memory handle to query support for
+    ur_exp_image_mem_type_t imageMemHandleType,
     /// [out] returned indication of support for creating sampled image
     /// handles
     ur_bool_t *pSupportedRet) {
@@ -7268,7 +7231,7 @@ urBindlessImagesGetImageSampledHandleSupportExp(
 
   // forward to device-platform
   result = pfnGetImageSampledHandleSupportExp(hContext, hDevice, pImageDesc,
-                                              pImageFormat, isOpaqueAllocation,
+                                              pImageFormat, imageMemHandleType,
                                               pSupportedRet);
 
   return result;
@@ -10220,10 +10183,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       pDdiTable->pfnImageCopyExp = ur_loader::urBindlessImagesImageCopyExp;
       pDdiTable->pfnImageGetInfoExp =
           ur_loader::urBindlessImagesImageGetInfoExp;
-      pDdiTable->pfnGetImageMemoryPointerSupportExp =
-          ur_loader::urBindlessImagesGetImageMemoryPointerSupportExp;
-      pDdiTable->pfnGetImageMemoryOpaqueSupportExp =
-          ur_loader::urBindlessImagesGetImageMemoryOpaqueSupportExp;
+      pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+          ur_loader::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
       pDdiTable->pfnGetImageUnsampledHandleSupportExp =
           ur_loader::urBindlessImagesGetImageUnsampledHandleSupportExp;
       pDdiTable->pfnGetImageSampledHandleSupportExp =

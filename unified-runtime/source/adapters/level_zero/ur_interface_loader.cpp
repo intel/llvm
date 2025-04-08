@@ -69,10 +69,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   pDdiTable->pfnImageCopyExp = ur::level_zero::urBindlessImagesImageCopyExp;
   pDdiTable->pfnImageGetInfoExp =
       ur::level_zero::urBindlessImagesImageGetInfoExp;
-  pDdiTable->pfnGetImageMemoryPointerSupportExp =
-      ur::level_zero::urBindlessImagesGetImageMemoryPointerSupportExp;
-  pDdiTable->pfnGetImageMemoryOpaqueSupportExp =
-      ur::level_zero::urBindlessImagesGetImageMemoryOpaqueSupportExp;
+  pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+      ur::level_zero::urBindlessImagesGetImageMemoryHandleTypeSupportExp;
   pDdiTable->pfnGetImageUnsampledHandleSupportExp =
       ur::level_zero::urBindlessImagesGetImageUnsampledHandleSupportExp;
   pDdiTable->pfnGetImageSampledHandleSupportExp =
