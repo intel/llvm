@@ -103,8 +103,9 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
     std::shared_ptr<std::vector<char>> il_binary{};
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
         linker_error_program_name, platform, il_binary));
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, device, *il_binary, nullptr, &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, nullptr, &program));
     ASSERT_SUCCESS(urProgramCompile(context, program, nullptr));
   }
 
