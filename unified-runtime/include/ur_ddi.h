@@ -1449,14 +1449,14 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageGetInfoExp_t)(
 typedef ur_result_t(
     UR_APICALL *ur_pfnBindlessImagesGetImageMemoryPointerSupportExp_t)(
     ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
-    const ur_image_format_t *, bool *);
+    const ur_image_format_t *, ur_bool_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesGetImageMemoryOpaqueSupportExp
 typedef ur_result_t(
     UR_APICALL *ur_pfnBindlessImagesGetImageMemoryOpaqueSupportExp_t)(
     ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
-    const ur_image_format_t *, bool *);
+    const ur_image_format_t *, ur_bool_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for
@@ -1464,14 +1464,14 @@ typedef ur_result_t(
 typedef ur_result_t(
     UR_APICALL *ur_pfnBindlessImagesGetImageUnsampledHandleSupportExp_t)(
     ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
-    const ur_image_format_t *, bool, bool *);
+    const ur_image_format_t *, ur_bool_t, ur_bool_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesGetImageSampledHandleSupportExp
 typedef ur_result_t(
     UR_APICALL *ur_pfnBindlessImagesGetImageSampledHandleSupportExp_t)(
     ur_context_handle_t, ur_device_handle_t, const ur_image_desc_t *,
-    const ur_image_format_t *, bool, bool *);
+    const ur_image_format_t *, ur_bool_t, ur_bool_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesMipmapGetLevelExp

@@ -660,7 +660,7 @@ params:
     - type: "const $x_image_format_t*"
       name: pImageFormat
       desc: "[in] pointer to image format specification"
-    - type: bool*
+    - type: $x_bool_t*
       name: pSupportedRet
       desc: "[out] returned indication of support for allocating USM style memory"
 returns:
@@ -684,7 +684,7 @@ params:
     - type: "const $x_image_format_t*"
       name: pImageFormat
       desc: "[in] pointer to image format specification"
-    - type: bool*
+    - type: $x_bool_t*
       name: pSupportedRet
       desc: "[out] returned indication of support for allocating opaque handle memory"
 returns:
@@ -708,10 +708,10 @@ params:
     - type: "const $x_image_format_t*"
       name: pImageFormat
       desc: "[in] pointer to image format specification"
-    - type: bool
+    - type: $x_bool_t
       name: isOpaqueAllocation
       desc: "[in] indicates whether the image memory would be backed by an opaque handle allocation"
-    - type: bool*
+    - type: $x_bool_t*
       name: pSupportedRet
       desc: "[out] returned indication of support for creating unsampled image handles"
 returns:
@@ -736,10 +736,10 @@ params:
     - type: "const $x_image_format_t*"
       name: pImageFormat
       desc: "[in] pointer to image format specification"
-    - type: bool
+    - type: $x_bool_t
       name: isOpaqueAllocation
       desc: "[in] indicates whether the image memory would be backed by an opaque handle allocation"
-    - type: bool*
+    - type: $x_bool_t*
       name: pSupportedRet
       desc: "[out] returned indication of support for creating sampled image handles"
 returns:

@@ -103,7 +103,7 @@ urBindlessImagesGetImageMemoryPointerSupportExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
-    [[maybe_unused]] bool *pSupportedRet) {
+    [[maybe_unused]] ur_bool_t *pSupportedRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -113,7 +113,7 @@ urBindlessImagesGetImageMemoryOpaqueSupportExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
-    [[maybe_unused]] bool *pSupportedRet) {
+    [[maybe_unused]] ur_bool_t *pSupportedRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -123,8 +123,8 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
-    [[maybe_unused]] bool isOpaqueAllocation,
-    [[maybe_unused]] bool *pSupportedRet) {
+    [[maybe_unused]] ur_bool_t isOpaqueAllocation,
+    [[maybe_unused]] ur_bool_t *pSupportedRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -134,8 +134,8 @@ urBindlessImagesGetImageSampledHandleSupportExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
-    [[maybe_unused]] bool isOpaqueAllocation,
-    [[maybe_unused]] bool *pSupportedRet) {
+    [[maybe_unused]] ur_bool_t isOpaqueAllocation,
+    [[maybe_unused]] ur_bool_t *pSupportedRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

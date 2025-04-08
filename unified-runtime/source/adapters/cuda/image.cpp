@@ -1269,7 +1269,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesGetImageMemoryPointerSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    bool *pSupportedRet) {
+    ur_bool_t *pSupportedRet) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1286,7 +1286,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesGetImageMemoryOpaqueSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    bool *pSupportedRet) {
+    ur_bool_t *pSupportedRet) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1303,7 +1303,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesGetImageUnsampledHandleSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    bool isOpaqueAllocation, bool *pSupportedRet) {
+    ur_bool_t isOpaqueAllocation, ur_bool_t *pSupportedRet) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1334,7 +1334,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesGetImageSampledHandleSupportExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc, const ur_image_format_t *pImageFormat,
-    bool isOpaqueAllocation, bool *pSupportedRet) {
+    ur_bool_t isOpaqueAllocation, ur_bool_t *pSupportedRet) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),

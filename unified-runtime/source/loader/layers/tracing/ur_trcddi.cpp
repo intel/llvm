@@ -7026,7 +7026,7 @@ urBindlessImagesGetImageMemoryPointerSupportExp(
     /// [in] pointer to image format specification
     const ur_image_format_t *pImageFormat,
     /// [out] returned indication of support for allocating USM style memory
-    bool *pSupportedRet) {
+    ur_bool_t *pSupportedRet) {
   auto pfnGetImageMemoryPointerSupportExp =
       getContext()
           ->urDdiTable.BindlessImagesExp.pfnGetImageMemoryPointerSupportExp;
@@ -7079,7 +7079,7 @@ urBindlessImagesGetImageMemoryOpaqueSupportExp(
     const ur_image_format_t *pImageFormat,
     /// [out] returned indication of support for allocating opaque handle
     /// memory
-    bool *pSupportedRet) {
+    ur_bool_t *pSupportedRet) {
   auto pfnGetImageMemoryOpaqueSupportExp =
       getContext()
           ->urDdiTable.BindlessImagesExp.pfnGetImageMemoryOpaqueSupportExp;
@@ -7133,10 +7133,10 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
     const ur_image_format_t *pImageFormat,
     /// [in] indicates whether the image memory would be backed by an opaque
     /// handle allocation
-    bool isOpaqueAllocation,
+    ur_bool_t isOpaqueAllocation,
     /// [out] returned indication of support for creating unsampled image
     /// handles
-    bool *pSupportedRet) {
+    ur_bool_t *pSupportedRet) {
   auto pfnGetImageUnsampledHandleSupportExp =
       getContext()
           ->urDdiTable.BindlessImagesExp.pfnGetImageUnsampledHandleSupportExp;
@@ -7192,10 +7192,10 @@ urBindlessImagesGetImageSampledHandleSupportExp(
     const ur_image_format_t *pImageFormat,
     /// [in] indicates whether the image memory would be backed by an opaque
     /// handle allocation
-    bool isOpaqueAllocation,
+    ur_bool_t isOpaqueAllocation,
     /// [out] returned indication of support for creating sampled image
     /// handles
-    bool *pSupportedRet) {
+    ur_bool_t *pSupportedRet) {
   auto pfnGetImageSampledHandleSupportExp =
       getContext()
           ->urDdiTable.BindlessImagesExp.pfnGetImageSampledHandleSupportExp;

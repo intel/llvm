@@ -10117,7 +10117,7 @@ urBindlessImagesGetImageMemoryPointerSupportExp(
     /// [in] pointer to image format specification
     const ur_image_format_t *pImageFormat,
     /// [out] returned indication of support for allocating USM style memory
-    bool *pSupportedRet);
+    ur_bool_t *pSupportedRet);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query support for allocating opaque handle type image memory with
@@ -10148,7 +10148,7 @@ urBindlessImagesGetImageMemoryOpaqueSupportExp(
     const ur_image_format_t *pImageFormat,
     /// [out] returned indication of support for allocating opaque handle
     /// memory
-    bool *pSupportedRet);
+    ur_bool_t *pSupportedRet);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query support for creating an unsampled image handle with specific
@@ -10180,10 +10180,10 @@ urBindlessImagesGetImageUnsampledHandleSupportExp(
     const ur_image_format_t *pImageFormat,
     /// [in] indicates whether the image memory would be backed by an opaque
     /// handle allocation
-    bool isOpaqueAllocation,
+    ur_bool_t isOpaqueAllocation,
     /// [out] returned indication of support for creating unsampled image
     /// handles
-    bool *pSupportedRet);
+    ur_bool_t *pSupportedRet);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Query support for creating an unsampled image handle with specific
@@ -10215,10 +10215,10 @@ urBindlessImagesGetImageSampledHandleSupportExp(
     const ur_image_format_t *pImageFormat,
     /// [in] indicates whether the image memory would be backed by an opaque
     /// handle allocation
-    bool isOpaqueAllocation,
+    ur_bool_t isOpaqueAllocation,
     /// [out] returned indication of support for creating sampled image
     /// handles
-    bool *pSupportedRet);
+    ur_bool_t *pSupportedRet);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Retrieve individual image from mipmap
@@ -14681,7 +14681,7 @@ typedef struct
   ur_device_handle_t *phDevice;
   const ur_image_desc_t **ppImageDesc;
   const ur_image_format_t **ppImageFormat;
-  bool **ppSupportedRet;
+  ur_bool_t **ppSupportedRet;
 } ur_bindless_images_get_image_memory_pointer_support_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -14694,7 +14694,7 @@ typedef struct ur_bindless_images_get_image_memory_opaque_support_exp_params_t {
   ur_device_handle_t *phDevice;
   const ur_image_desc_t **ppImageDesc;
   const ur_image_format_t **ppImageFormat;
-  bool **ppSupportedRet;
+  ur_bool_t **ppSupportedRet;
 } ur_bindless_images_get_image_memory_opaque_support_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -14708,8 +14708,8 @@ typedef struct
   ur_device_handle_t *phDevice;
   const ur_image_desc_t **ppImageDesc;
   const ur_image_format_t **ppImageFormat;
-  bool *pisOpaqueAllocation;
-  bool **ppSupportedRet;
+  ur_bool_t *pisOpaqueAllocation;
+  ur_bool_t **ppSupportedRet;
 } ur_bindless_images_get_image_unsampled_handle_support_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -14723,8 +14723,8 @@ typedef struct
   ur_device_handle_t *phDevice;
   const ur_image_desc_t **ppImageDesc;
   const ur_image_format_t **ppImageFormat;
-  bool *pisOpaqueAllocation;
-  bool **ppSupportedRet;
+  ur_bool_t *pisOpaqueAllocation;
+  ur_bool_t **ppSupportedRet;
 } ur_bindless_images_get_image_sampled_handle_support_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
