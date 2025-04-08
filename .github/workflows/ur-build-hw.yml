@@ -163,6 +163,9 @@ jobs:
           sudo tee /etc/apt/sources.list.d/intel-gpu-jammy.list
         sudo apt-get update
         sudo apt-get install -y libze-intel-gpu1 libze1 libze-dev intel-opencl-icd
+        sudo apt --fix-broken install
+        sudo apt-get update
+        sudo apt-get install -y libze-intel-gpu1 libze1 libze-dev intel-opencl-icd        
         # libstdc++-12-dev
     
 
