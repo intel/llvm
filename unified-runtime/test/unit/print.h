@@ -45,16 +45,16 @@ struct UrLoaderInitParamsInvalidFlags : UrLoaderInitParams {
 
 struct UrPlatformGet {
   ur_platform_get_params_t params;
-  ur_adapter_handle_t *phAdapter;
+  ur_adapter_handle_t adapter;
   uint32_t num_entries;
   uint32_t *pNumPlatforms;
   ur_platform_handle_t *pPlatforms;
   UrPlatformGet() {
-    phAdapter = nullptr;
+    adapter = nullptr;
     num_entries = 0;
     pPlatforms = nullptr;
     pNumPlatforms = nullptr;
-    params.phAdapter = &phAdapter;
+    params.phAdapter = &adapter;
     params.pNumEntries = &num_entries;
     params.pphPlatforms = &pPlatforms;
     params.ppNumPlatforms = &pNumPlatforms;
