@@ -217,6 +217,7 @@ public:
                                                const ContextImplPtr &Context);
 
   void addImage(sycl_device_binary RawImg,
+                bool RegisterImgExports = true,
                 RTDeviceBinaryImage **OutImage = nullptr,
                 std::vector<kernel_id> *OutKernelIDs = nullptr);
   void addImages(sycl_device_binaries DeviceImages);

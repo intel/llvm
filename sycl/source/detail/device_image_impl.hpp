@@ -1018,7 +1018,8 @@ private:
       sycl_device_binary Binary = &(Binaries->DeviceBinaries[I]);
       RTDeviceBinaryImage *NewImage = nullptr;
       auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
-      PM.addImage(Binary, &NewImage, KernelIDs.get());
+      PM.addImage(Binary, /*RegisterImgExports=*/false, &NewImage,
+                  KernelIDs.get());
       if (NewImage)
         NewImages.push_back(
             std::make_pair(std::move(NewImage), std::move(KernelIDs)));

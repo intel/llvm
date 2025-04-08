@@ -1898,6 +1898,7 @@ static bool shouldSkipEmptyImage(sycl_device_binary RawImg) {
 }
 
 void ProgramManager::addImage(sycl_device_binary RawImg,
+                              bool RegisterImgExports,
                               RTDeviceBinaryImage **OutImage,
                               std::vector<kernel_id> *OutKernelIDs) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
@@ -1982,8 +1983,11 @@ void ProgramManager::addImage(sycl_device_binary RawImg,
   }
 
   // Register all exported symbols
-  for (const sycl_device_binary_property &ESProp : Img->getExportedSymbols()) {
-    m_ExportedSymbolImages.insert({ESProp->Name, Img.get()});
+  if (RegisterImgExports) {
+    for (const sycl_device_binary_property &ESProp :
+         Img->getExportedSymbols()) {
+      m_ExportedSymbolImages.insert({ESProp->Name, Img.get()});
+    }
   }
 
   // Record mapping between virtual function sets and device images
