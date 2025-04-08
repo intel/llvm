@@ -332,7 +332,7 @@ kernel_bundle<bundle_state::object> compile(
     const std::vector<device>& devs, PropertyListT props={})
 
 template<typename PropertyListT = empty_properties_t>                 (2)
-kernel_bundle<bundle_state::executable> build(
+kernel_bundle<bundle_state::executable> compile(
   const kernel_bundle<bundle_state::ext_oneapi_source>& sourceBundle,
   PropertyListT props = {})
 
@@ -376,7 +376,7 @@ _Throws:_
   `sourceBundle`.
 
 * An `exception` with the `errc::invalid` error code if `props` contains an
-  `options` property that specifies an invalid option.
+  `build_options` property that specifies an invalid option.
 
 * An `exception` with the `errc::build` error code if the compilation operation
   fails.  In this case, the exception `what` string provides a full build log,
