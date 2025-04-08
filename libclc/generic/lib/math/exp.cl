@@ -7,32 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
-#include <clc/clcmacro.h>
-#include <clc/math/math.h>
-#include <libspirv/spirv.h>
+#include <clc/math/clc_exp.h>
 
-_CLC_OVERLOAD _CLC_DEF float exp(float x) {
-    return __spirv_ocl_exp(x);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, exp, float)
-
-#ifdef cl_khr_fp64
-
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_OVERLOAD _CLC_DEF double exp(double x) {
-    return __spirv_ocl_exp(x);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, exp, double)
-
-#endif
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-_CLC_DEFINE_UNARY_BUILTIN_FP16(exp)
-
-#endif
+#define FUNCTION exp
+#define __CLC_BODY <clc/shared/unary_def.inc>
+#include <clc/math/gentype.inc>

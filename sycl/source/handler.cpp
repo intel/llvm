@@ -429,8 +429,12 @@ event handler::finalize() {
         getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       // Make sure implicit non-interop kernel bundles have the kernel
-      if (!KernelBundleImpPtr->isInterop() &&
-          !impl->isStateExplicitKernelBundle()) {
+      if (!impl->isStateExplicitKernelBundle() &&
+          !(MKernel && MKernel->isInterop()) &&
+          (KernelBundleImpPtr->empty() ||
+           KernelBundleImpPtr->hasSYCLOfflineImages()) &&
+          !KernelBundleImpPtr->tryGetKernel(MKernelName.c_str(),
+                                            KernelBundleImpPtr)) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
@@ -725,8 +729,7 @@ event handler::finalize() {
     break;
   case detail::CGType::AsyncAlloc:
     CommandGroup.reset(new detail::CGAsyncAlloc(
-        impl->MAllocSize, impl->MMemPool, impl->MAsyncAllocEvent,
-        std::move(impl->CGData), MCodeLoc));
+        impl->MAsyncAllocEvent, std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::AsyncFree:
     CommandGroup.reset(new detail::CGAsyncFree(
@@ -1113,6 +1116,43 @@ void handler::extractArgsAndReqs() {
 }
 
 void handler::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, detail::kernel_param_desc_t (*ParamDescGetter)(int),
+    size_t NumKernelParams, bool IsESIMD) {
+  size_t IndexShift = 0;
+  impl->MArgs.reserve(MaxNumAdditionalArgs * NumKernelParams);
+
+  for (size_t I = 0; I < NumKernelParams; ++I) {
+    detail::kernel_param_desc_t ParamDesc = ParamDescGetter(I);
+    void *Ptr = LambdaPtr + ParamDesc.offset;
+    const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
+    const int &Size = ParamDesc.info;
+    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
+      // For args kind of accessor Size is information about accessor.
+      // The first 11 bits of Size encodes the accessor target.
+      const access::target AccTarget =
+          static_cast<access::target>(Size & AccessTargetMask);
+      if ((AccTarget == access::target::device ||
+           AccTarget == access::target::constant_buffer) ||
+          (AccTarget == access::target::image ||
+           AccTarget == access::target::image_array)) {
+        detail::AccessorBaseHost *AccBase =
+            static_cast<detail::AccessorBaseHost *>(Ptr);
+        Ptr = detail::getSyclObjImpl(*AccBase).get();
+      } else if (AccTarget == access::target::local) {
+        detail::LocalAccessorBaseHost *LocalAccBase =
+            static_cast<detail::LocalAccessorBaseHost *>(Ptr);
+        Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
+      }
+    }
+    processArg(Ptr, Kind, Size, I, IndexShift,
+               /*IsKernelCreatedFromSource=*/false, IsESIMD);
+  }
+}
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: Those functions are not used anymore, remove it in the next
+// ABI-breaking window.
+void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
     bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
@@ -1146,7 +1186,6 @@ void handler::extractArgsAndReqsFromLambda(
   }
 }
 
-// TODO Unused, remove during ABI breaking window
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, size_t KernelArgsNum,
     const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
@@ -1154,6 +1193,7 @@ void handler::extractArgsAndReqsFromLambda(
       KernelArgs, KernelArgs + KernelArgsNum);
   extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary

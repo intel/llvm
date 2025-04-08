@@ -1093,6 +1093,12 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-dependency-file");
       CmdArgs.push_back(DepFile);
     }
+    // Cmake generates dependency files using all compilation options specified
+    // by users. Claim those not used for dependency files.
+    if (JA.isOffloading(Action::OFK_HIP)) {
+      Args.ClaimAllArgs(options::OPT_offload_compress);
+      Args.ClaimAllArgs(options::OPT_no_offload_compress);
+    }
 
     bool HasTarget = false;
     for (const Arg *A : Args.filtered(options::OPT_MT, options::OPT_MQ)) {
@@ -5939,8 +5945,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-ffine-grained-bitfield-accesses");
     }
 
-    if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
-                      options::OPT_fno_sycl_unnamed_lambda, true))
+    // '-fsycl-unnamed-lambda' is not supported with '-fsycl-host-compiler'
+    if (Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
+      if (Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
+                       options::OPT_fno_sycl_unnamed_lambda, false))
+        D.Diag(diag::err_drv_cannot_mix_options) << "-fsycl-host-compiler"
+                                                 << "-fsycl-unnamed-lambda";
+      else // '-fsycl-host-compiler' implies '-fno-sycl-unnamed-lambda'
+        CmdArgs.push_back("-fno-sycl-unnamed-lambda");
+    } else if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
+                             options::OPT_fno_sycl_unnamed_lambda, true))
       CmdArgs.push_back("-fno-sycl-unnamed-lambda");
 
     if (!Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
@@ -7818,8 +7832,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << A->getAsString(Args) << TripleStr;
     else if (S.consumeInteger(10, Size) ||
-             (!S.empty() && (!S.consume_front(",") ||
-                             S.consumeInteger(10, Offset) || !S.empty())))
+             (!S.empty() &&
+              (!S.consume_front(",") || S.consumeInteger(10, Offset))) ||
+             (!S.empty() && (!S.consume_front(",") || S.empty())))
       D.Diag(diag::err_drv_invalid_argument_to_option)
           << S0 << A->getOption().getName();
     else if (Size < Offset)
@@ -7828,6 +7843,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back(Args.MakeArgString(A->getSpelling() + Twine(Size)));
       CmdArgs.push_back(Args.MakeArgString(
           "-fpatchable-function-entry-offset=" + Twine(Offset)));
+      if (!S.empty())
+        CmdArgs.push_back(
+            Args.MakeArgString("-fpatchable-function-entry-section=" + S));
     }
   }
 

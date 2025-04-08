@@ -75,14 +75,8 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
         pProps ? pProps->flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE
                : false;
 
-    std::vector<hipStream_t> ComputeHipStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumComputeStreams : 1);
-    std::vector<hipStream_t> TransferHipStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumTransferStreams : 0);
-
     QueueImpl = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
-        std::move(ComputeHipStreams), std::move(TransferHipStreams), hContext,
-        hDevice, Flags, URFlags, Priority});
+        IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority});
 
     *phQueue = QueueImpl.release();
 
@@ -239,23 +233,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   else
     die("Unknown hip stream");
 
-  std::vector<hipStream_t> ComputeHIPStreams(1, HIPStream);
-  std::vector<hipStream_t> TransferHIPStreams(0);
-
   auto isNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
 
   // Create queue and set num_compute_streams to 1, as computeHIPStreams has
   // valid stream
-  *phQueue = new ur_queue_handle_t_{std::move(ComputeHIPStreams),
-                                    std::move(TransferHIPStreams),
-                                    hContext,
-                                    hDevice,
-                                    HIPFlags,
-                                    Flags,
-                                    /*priority*/ 0,
-                                    /*backend_owns*/ isNativeHandleOwned};
-  (*phQueue)->NumComputeStreams = 1;
+  *phQueue = new ur_queue_handle_t_{HIPStream, hContext, hDevice,
+                                    HIPFlags,  Flags,    isNativeHandleOwned};
 
   return UR_RESULT_SUCCESS;
 }

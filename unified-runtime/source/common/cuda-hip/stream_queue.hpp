@@ -42,14 +42,14 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
   std::vector<bool> TransferAppliedBarrier;
   ur_context_handle_t_ *Context;
   ur_device_handle_t_ *Device;
-  std::atomic_uint32_t RefCount;
-  std::atomic_uint32_t EventCount;
-  std::atomic_uint32_t ComputeStreamIndex;
-  std::atomic_uint32_t TransferStreamIndex;
-  unsigned int NumComputeStreams;
-  unsigned int NumTransferStreams;
-  unsigned int LastSyncComputeStreams;
-  unsigned int LastSyncTransferStreams;
+  std::atomic_uint32_t RefCount{1};
+  std::atomic_uint32_t EventCount{0};
+  std::atomic_uint32_t ComputeStreamIndex{0};
+  std::atomic_uint32_t TransferStreamIndex{0};
+  unsigned int NumComputeStreams{0};
+  unsigned int NumTransferStreams{0};
+  unsigned int LastSyncComputeStreams{0};
+  unsigned int LastSyncTransferStreams{0};
   unsigned int Flags;
   ur_queue_flags_t URFlags;
   int Priority;
@@ -62,20 +62,29 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
   std::mutex BarrierMutex;
   bool HasOwnership;
 
-  stream_queue_t(std::vector<native_type> &&ComputeStreams,
-                 std::vector<native_type> &&TransferStreams,
-                 ur_context_handle_t_ *Context, ur_device_handle_t_ *Device,
-                 unsigned int Flags, ur_queue_flags_t URFlags, int Priority,
-                 bool BackendOwns = true)
-      : ComputeStreams{std::move(ComputeStreams)},
-        TransferStreams{std::move(TransferStreams)},
+  stream_queue_t(bool IsOutOfOrder, ur_context_handle_t_ *Context,
+                 ur_device_handle_t_ *Device, unsigned int Flags,
+                 ur_queue_flags_t URFlags, int Priority)
+      : ComputeStreams(IsOutOfOrder ? DefaultNumComputeStreams : 1),
+        TransferStreams(IsOutOfOrder ? DefaultNumTransferStreams : 0),
         DelayCompute(this->ComputeStreams.size(), false),
         ComputeAppliedBarrier(this->ComputeStreams.size()),
         TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
-        Device{Device}, RefCount{1}, EventCount{0}, ComputeStreamIndex{0},
-        TransferStreamIndex{0}, NumComputeStreams{0}, NumTransferStreams{0},
-        LastSyncComputeStreams{0}, LastSyncTransferStreams{0}, Flags(Flags),
-        URFlags(URFlags), Priority(Priority), HasOwnership{BackendOwns} {
+        Device{Device}, Flags(Flags), URFlags(URFlags), Priority(Priority),
+        HasOwnership{true} {
+    urContextRetain(Context);
+  }
+
+  // Create a queue from a native handle
+  stream_queue_t(native_type stream, ur_context_handle_t_ *Context,
+                 ur_device_handle_t_ *Device, unsigned int Flags,
+                 ur_queue_flags_t URFlags, bool BackendOwns)
+      : ComputeStreams(1, stream), TransferStreams(0),
+        DelayCompute(this->ComputeStreams.size(), false),
+        ComputeAppliedBarrier(this->ComputeStreams.size()),
+        TransferAppliedBarrier(this->TransferStreams.size()), Context{Context},
+        Device{Device}, NumComputeStreams{1}, Flags(Flags), URFlags(URFlags),
+        Priority(0), HasOwnership{BackendOwns} {
     urContextRetain(Context);
   }
 

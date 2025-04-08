@@ -14,6 +14,7 @@
 #include "ABIInfo.h"
 #include "CGCUDARuntime.h"
 #include "CGCXXABI.h"
+#include "CGDebugInfo.h"
 #include "CGObjCRuntime.h"
 #include "CGOpenCLRuntime.h"
 #include "CGRecordLayout.h"
@@ -41,6 +42,84 @@
 using namespace clang;
 using namespace CodeGen;
 using namespace llvm;
+
+static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
+                                        unsigned BuiltinID, const CallExpr *E,
+                                        ReturnValueSlot ReturnValue,
+                                        llvm::Triple::ArchType Arch) {
+  // When compiling in HipStdPar mode we have to be conservative in rejecting
+  // target specific features in the FE, and defer the possible error to the
+  // AcceleratorCodeSelection pass, wherein iff an unsupported target builtin is
+  // referenced by an accelerator executable function, we emit an error.
+  // Returning nullptr here leads to the builtin being handled in
+  // EmitStdParUnsupportedBuiltin.
+  if (CGF->getLangOpts().HIPStdPar && CGF->getLangOpts().CUDAIsDevice &&
+      Arch != CGF->getTarget().getTriple().getArch())
+    return nullptr;
+
+  switch (Arch) {
+  case llvm::Triple::arm:
+  case llvm::Triple::armeb:
+  case llvm::Triple::thumb:
+  case llvm::Triple::thumbeb:
+    return CGF->EmitARMBuiltinExpr(BuiltinID, E, ReturnValue, Arch);
+  case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64_32:
+  case llvm::Triple::aarch64_be:
+    return CGF->EmitAArch64BuiltinExpr(BuiltinID, E, Arch);
+  case llvm::Triple::bpfeb:
+  case llvm::Triple::bpfel:
+    return CGF->EmitBPFBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::dxil:
+    return CGF->EmitDirectXBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::x86:
+  case llvm::Triple::x86_64:
+    return CGF->EmitX86BuiltinExpr(BuiltinID, E);
+  case llvm::Triple::ppc:
+  case llvm::Triple::ppcle:
+  case llvm::Triple::ppc64:
+  case llvm::Triple::ppc64le:
+    return CGF->EmitPPCBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::r600:
+  case llvm::Triple::amdgcn:
+    return CGF->EmitAMDGPUBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::systemz:
+    return CGF->EmitSystemZBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::nvptx:
+  case llvm::Triple::nvptx64:
+    return CGF->EmitNVPTXBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::wasm32:
+  case llvm::Triple::wasm64:
+    return CGF->EmitWebAssemblyBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::hexagon:
+    return CGF->EmitHexagonBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::riscv32:
+  case llvm::Triple::riscv64:
+    return CGF->EmitRISCVBuiltinExpr(BuiltinID, E, ReturnValue);
+  case llvm::Triple::spirv:
+    return CGF->EmitSPIRVBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::spirv64:
+    if (CGF->getTarget().getTriple().getOS() != llvm::Triple::OSType::AMDHSA)
+      return nullptr;
+    return CGF->EmitAMDGPUBuiltinExpr(BuiltinID, E);
+  default:
+    return nullptr;
+  }
+}
+
+Value *CodeGenFunction::EmitTargetBuiltinExpr(unsigned BuiltinID,
+                                              const CallExpr *E,
+                                              ReturnValueSlot ReturnValue) {
+  if (getContext().BuiltinInfo.isAuxBuiltinID(BuiltinID)) {
+    assert(getContext().getAuxTargetInfo() && "Missing aux target info");
+    return EmitTargetArchBuiltinExpr(
+        this, getContext().BuiltinInfo.getAuxBuiltinID(BuiltinID), E,
+        ReturnValue, getContext().getAuxTargetInfo()->getTriple().getArch());
+  }
+
+  return EmitTargetArchBuiltinExpr(this, BuiltinID, E, ReturnValue,
+                                   getTarget().getTriple().getArch());
+}
 
 static void initializeAlloca(CodeGenFunction &CGF, AllocaInst *AI, Value *Size,
                              Align AlignmentInBytes) {
@@ -6211,82 +6290,6 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
   // Unknown builtin, for now just dump it out and return undef.
   return GetUndefRValue(E->getType());
-}
-
-static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
-                                        unsigned BuiltinID, const CallExpr *E,
-                                        ReturnValueSlot ReturnValue,
-                                        llvm::Triple::ArchType Arch) {
-  // When compiling in HipStdPar mode we have to be conservative in rejecting
-  // target specific features in the FE, and defer the possible error to the
-  // AcceleratorCodeSelection pass, wherein iff an unsupported target builtin is
-  // referenced by an accelerator executable function, we emit an error.
-  // Returning nullptr here leads to the builtin being handled in
-  // EmitStdParUnsupportedBuiltin.
-  if (CGF->getLangOpts().HIPStdPar && CGF->getLangOpts().CUDAIsDevice &&
-      Arch != CGF->getTarget().getTriple().getArch())
-    return nullptr;
-
-  switch (Arch) {
-  case llvm::Triple::arm:
-  case llvm::Triple::armeb:
-  case llvm::Triple::thumb:
-  case llvm::Triple::thumbeb:
-    return CGF->EmitARMBuiltinExpr(BuiltinID, E, ReturnValue, Arch);
-  case llvm::Triple::aarch64:
-  case llvm::Triple::aarch64_32:
-  case llvm::Triple::aarch64_be:
-    return CGF->EmitAArch64BuiltinExpr(BuiltinID, E, Arch);
-  case llvm::Triple::bpfeb:
-  case llvm::Triple::bpfel:
-    return CGF->EmitBPFBuiltinExpr(BuiltinID, E);
-  case llvm::Triple::x86:
-  case llvm::Triple::x86_64:
-    return CGF->EmitX86BuiltinExpr(BuiltinID, E);
-  case llvm::Triple::ppc:
-  case llvm::Triple::ppcle:
-  case llvm::Triple::ppc64:
-  case llvm::Triple::ppc64le:
-    return CGF->EmitPPCBuiltinExpr(BuiltinID, E);
-  case llvm::Triple::r600:
-  case llvm::Triple::amdgcn:
-    return CGF->EmitAMDGPUBuiltinExpr(BuiltinID, E);
-  case llvm::Triple::systemz:
-    return CGF->EmitSystemZBuiltinExpr(BuiltinID, E);
-  case llvm::Triple::nvptx:
-  case llvm::Triple::nvptx64:
-    return CGF->EmitNVPTXBuiltinExpr(BuiltinID, E);
-  case llvm::Triple::wasm32:
-  case llvm::Triple::wasm64:
-    return CGF->EmitWebAssemblyBuiltinExpr(BuiltinID, E);
-  case llvm::Triple::hexagon:
-    return CGF->EmitHexagonBuiltinExpr(BuiltinID, E);
-  case llvm::Triple::riscv32:
-  case llvm::Triple::riscv64:
-    return CGF->EmitRISCVBuiltinExpr(BuiltinID, E, ReturnValue);
-  case llvm::Triple::spirv:
-    return CGF->EmitSPIRVBuiltinExpr(BuiltinID, E);
-  case llvm::Triple::spirv64:
-    if (CGF->getTarget().getTriple().getOS() != llvm::Triple::OSType::AMDHSA)
-      return nullptr;
-    return CGF->EmitAMDGPUBuiltinExpr(BuiltinID, E);
-  default:
-    return nullptr;
-  }
-}
-
-Value *CodeGenFunction::EmitTargetBuiltinExpr(unsigned BuiltinID,
-                                              const CallExpr *E,
-                                              ReturnValueSlot ReturnValue) {
-  if (getContext().BuiltinInfo.isAuxBuiltinID(BuiltinID)) {
-    assert(getContext().getAuxTargetInfo() && "Missing aux target info");
-    return EmitTargetArchBuiltinExpr(
-        this, getContext().BuiltinInfo.getAuxBuiltinID(BuiltinID), E,
-        ReturnValue, getContext().getAuxTargetInfo()->getTriple().getArch());
-  }
-
-  return EmitTargetArchBuiltinExpr(this, BuiltinID, E, ReturnValue,
-                                   getTarget().getTriple().getArch());
 }
 
 namespace {

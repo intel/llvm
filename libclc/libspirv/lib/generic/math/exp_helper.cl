@@ -39,15 +39,15 @@ _CLC_DEF double __clc_exp_helper(double x, double x_min, double x_max, double r,
 
     int n1 = m >> 2;
     int n2 = m-n1;
-    double z3= z2 * as_double(((long)n1 + 1023) << 52);
-    z3 *= as_double(((long)n2 + 1023) << 52);
+    double z3= z2 * __clc_as_double(((long)n1 + 1023) << 52);
+    z3 *= __clc_as_double(((long)n2 + 1023) << 52);
 
     z2 = __spirv_ocl_ldexp(z2, m);
     z2 = small_value ? z3: z2;
 
     z2 = __spirv_IsNan(x) ? x : z2;
 
-    z2 = x > x_max ? as_double(PINFBITPATT_DP64) : z2;
+    z2 = x > x_max ? __clc_as_double(PINFBITPATT_DP64) : z2;
     z2 = x < x_min ? 0.0 : z2;
 
     return z2;

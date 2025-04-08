@@ -16,6 +16,7 @@
 #include "ABIInfo.h"
 #include "CGCXXABI.h"
 #include "CGCleanup.h"
+#include "CGDebugInfo.h"
 #include "CGVTables.h"
 #include "CodeGenModule.h"
 #include "CodeGenTypes.h"
@@ -2033,6 +2034,9 @@ llvm::Value *MicrosoftCXXABI::EmitVirtualDestructorCall(
   } else {
     ThisTy = D->getDestroyedType();
   }
+
+  while (const ArrayType *ATy = Context.getAsArrayType(ThisTy))
+    ThisTy = ATy->getElementType();
 
   This = adjustThisArgumentForVirtualFunctionCall(CGF, GD, This, true);
   RValue RV =

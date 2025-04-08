@@ -69,7 +69,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_pow(float x, float y) {
    *  First handle case that x is close to 1
    */
   float r = 1.0f - __clc_as_float(ax);
-  int near1 = __clc_fabs(r) < 0x1.0p-4f;
+  int near1 = __spirv_ocl_fabs(r) < 0x1.0p-4f;
   float r2 = r * r;
 
   /* Coefficients are just 1/3, 1/4, 1/5 and 1/6 */
@@ -277,7 +277,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_pow(double x, double y) {
     double log_t = tv.s1;
     double f_inv = (log_h + log_t) * f;
     double r1 = __clc_as_double(__clc_as_long(f_inv) & 0xfffffffff8000000L);
-    double r2 = __clc_fma(-F, r1, f) * (log_h + log_t);
+    double r2 = __spirv_ocl_fma(-F, r1, f) * (log_h + log_t);
     double r = r1 + r2;
 
     double poly = __clc_fma(

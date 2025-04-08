@@ -409,6 +409,13 @@ public:
   static bool isRequired() { return true; }
 };
 
+class AMDGPUSetWavePriorityPass
+    : public PassInfoMixin<AMDGPUSetWavePriorityPass> {
+public:
+  PreservedAnalyses run(MachineFunction &MF,
+                        MachineFunctionAnalysisManager &MFAM);
+};
+
 FunctionPass *createAMDGPUAnnotateUniformValuesLegacy();
 
 ModulePass *createAMDGPUPrintfRuntimeBinding();
@@ -521,7 +528,7 @@ void initializeGCNPreRAOptimizationsLegacyPass(PassRegistry &);
 extern char &GCNPreRAOptimizationsID;
 
 FunctionPass *createAMDGPUSetWavePriorityPass();
-void initializeAMDGPUSetWavePriorityPass(PassRegistry &);
+void initializeAMDGPUSetWavePriorityLegacyPass(PassRegistry &);
 
 void initializeGCNRewritePartialRegUsesLegacyPass(llvm::PassRegistry &);
 extern char &GCNRewritePartialRegUsesID;
