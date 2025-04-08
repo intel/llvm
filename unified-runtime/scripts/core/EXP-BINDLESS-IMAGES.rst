@@ -282,7 +282,7 @@ Changelog
 | 22.0     || Added the following enum:                                  |
 |          ||  - exp_image_mem_type_t                                    |
 |          || Added the following APIs:                                  |
-|          ||  - BindlessImagesGetImageMemoryHandleTypeSupportExp        |
+|          ||  - GetImageMemoryHandleTypeSupportExp                      |
 |          ||  - GetImageUnsampledHandleSupportExp                       |
 |          ||  - GetImageSampledHandleSupportExp                         |
 +----------+-------------------------------------------------------------+
