@@ -12607,7 +12607,7 @@ def err_registered_kernels_name_already_registered : Error<
 def err_not_sycl_free_function : Error<
   "attempting to register a function that is not a SYCL free function as '%0'">;
 def err_variadic_free_function: Error<
-  "free function can not be variadic template function">;
+  "free function can not be a variadic template function">;
 
 // SYCL kernel entry point diagnostics
 def err_sycl_entry_point_invalid : Error<
