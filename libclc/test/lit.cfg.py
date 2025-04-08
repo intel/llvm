@@ -37,7 +37,7 @@ libclc_arch_suffix = lit_config.params.get("libclc-arch-suffix", "")
 # test_exec_root: The root path where tests should be run. We create a unique
 # test directory per libclc target to test to avoid data races when multiple
 # targets try and access the the same libclc test files.
-config.test_exec_root = os.path.join(config.test_run_dir, 'test', libclc_arch_suffix)
+config.test_exec_root = os.path.join(config.test_run_dir, "test", libclc_arch_suffix)
 
 llvm_config.use_default_substitutions()
 
