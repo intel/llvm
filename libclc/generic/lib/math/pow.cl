@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
-#include <libspirv/spirv.h>
+#include <clc/math/clc_pow.h>
 
-#define __CLC_BODY <pow.inc>
+#define FUNCTION pow
+#define __CLC_BODY <clc/shared/binary_def.inc>
 #include <clc/math/gentype.inc>

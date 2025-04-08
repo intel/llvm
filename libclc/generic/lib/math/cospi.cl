@@ -7,30 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
-#include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
+#include <clc/math/clc_cospi.h>
 
-_CLC_OVERLOAD _CLC_DEF float cospi(float x)
-{
-    return __spirv_ocl_cospi(x);
-}
+#define FUNCTION cospi
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, cospi, float);
-
-#ifdef cl_khr_fp64
-
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_OVERLOAD _CLC_DEF double cospi(double x) {
-    return __spirv_ocl_cospi(x);
-}
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, cospi, double);
-#endif
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-_CLC_DEFINE_UNARY_BUILTIN_FP16(cospi)
-
-#endif
+#include <clc/math/gentype.inc>

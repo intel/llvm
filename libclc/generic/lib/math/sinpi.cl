@@ -7,33 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
-#include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
+#include <clc/math/clc_sinpi.h>
 
-_CLC_OVERLOAD _CLC_DEF float sinpi(float x)
-{
-    return __spirv_ocl_sinpi(x);
-}
+#define FUNCTION sinpi
+#define __CLC_BODY <clc/shared/unary_def.inc>
 
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, sinpi, float);
-
-#ifdef cl_khr_fp64
-
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-_CLC_OVERLOAD _CLC_DEF double sinpi(double x)
-{
-    return __spirv_ocl_sinpi(x);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, sinpi, double)
-
-#endif
-
-#ifdef cl_khr_fp16
-
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
-_CLC_DEFINE_UNARY_BUILTIN_FP16(sinpi)
-
-#endif
+#include <clc/math/gentype.inc>

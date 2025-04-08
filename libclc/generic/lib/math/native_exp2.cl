@@ -7,12 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
-#include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
+#include <clc/math/clc_native_exp2.h>
 
-#define __CLC_BUILTIN __spirv_ocl_native_exp2
-#define __CLC_FUNCTION native_exp2
-#define __CLC_BODY <native_builtin.inc>
 #define __FLOAT_ONLY
 #define FUNCTION native_exp2
 #define __CLC_BODY <clc/shared/unary_def.inc>

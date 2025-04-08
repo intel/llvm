@@ -31,11 +31,4 @@ _CLC_OVERLOAD _CLC_DEF double sin(double x) {
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, sin, double);
 
-_CLC_OVERLOAD _CLC_DEF float sin(float x)
-{
-    return __spirv_ocl_sin(x);
-}
-
-_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, sin, float);
-
 #endif
