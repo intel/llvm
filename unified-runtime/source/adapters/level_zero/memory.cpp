@@ -1666,7 +1666,7 @@ ur_result_t urMemRelease(
         auto ZeResult = ZE_CALL_NOCHECK(
             zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                          ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
         if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
