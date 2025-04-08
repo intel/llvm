@@ -1,4 +1,4 @@
-name: Unified Runtime Pre Commit.
+name: Unified Runtime Pre Commit
 # Note: this is the very first version of UR workflow.
 # It was pretty much copy-pasted from UR repository.
 # Over time it will be most likely integrated more into existing workflows.
@@ -138,9 +138,9 @@ jobs:
   #     uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
 
-    - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.0.0
-      with:
-        python-version: 3.9
+    # - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.0.0
+    #   with:
+    #     python-version: 3.9
 
   #   - name: Install prerequisites
   #     working-directory: ${{github.workspace}}/unified-runtime
