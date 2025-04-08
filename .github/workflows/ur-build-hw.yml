@@ -26,6 +26,14 @@ on:
         required: false
         type: string
         default: OFF
+      docker_image:
+        required: true
+        type: string
+        default: ""
+      image_options:
+        required: true
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       adapter_name:
@@ -51,9 +59,16 @@ on:
         required: false
         type: string
         default: OFF
+      docker_image:
+        required: true
+        type: string
+        default: ""
+      image_options:
+        required: true
+        type: string
+        default: ""
 
-permissions:
-  contents: read
+permissions: read-all
 
 env:
   UR_LOG_CUDA: "level:error;flush:error"
@@ -61,12 +76,13 @@ env:
   UR_LOG_LEVEL_ZERO: "level:error;flush:error"
   UR_LOG_NATIVE_CPU: "level:error;flush:error"
   UR_LOG_OPENCL: "level:error;flush:error"
+  CURRENT_DIR: $(pwd)
 
 jobs:
   adapter_build_hw:
     name: Build & CTS
     # run only on upstream; forks won't have the HW
-    if: github.repository == 'intel/llvm'
+    # if: github.repository == 'intel/llvm'
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +99,13 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
 
     runs-on: ${{inputs.runner_name}}
+    container:
+      image: ${{ inputs.docker_image }}
+      # TODO: options may differ for other GPU cards
+      options: ${{ inputs.image_options }}
+      # options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
+      volumes:
+        - /opt/intel:/opt/intel
 
     steps:
     # TODO:
@@ -94,27 +117,73 @@ jobs:
     - name: Checkout LLVM
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    # Latest distros do not allow global pip installation
-    - name: Install UR python dependencies in venv
-      working-directory: ${{github.workspace}}/unified-runtime
+    # TODO: how other workflows (using dockers) deal with the path change?
+    #   also, note: I don't think it's needed anywhere now - I guess we can only use the relative paths...?
+    - name: Set working directory as environment variable
       run: |
-        python3 -m venv .venv
-        . .venv/bin/activate
-        echo "$PATH" >> $GITHUB_PATH
-        pip install -r third_party/requirements.txt
+        pwd
+        echo "${{github.workspace}}"
 
-    - name: Download DPC++
+    # TODO: move installation of python3-venv to docker
+    # Latest distros do not allow global pip installation
+    # - name: Install UR python dependencies in venv
+    #   working-directory: ./unified-runtime
+    #   run: |
+    #     sudo apt update
+    #     sudo apt install -y python3-venv
+    #     python3 -m venv .venv
+    #     . .venv/bin/activate
+    #     echo "${PWD}/.venv/bin" >> $GITHUB_PATH
+    #     pip install -r third_party/requirements.txt
+
+
+
+    - name: Download DPC++..
       run: |
-        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-12-12/sycl_linux.tar.gz
-        mkdir dpcpp_compiler
-        tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
+        wget -O dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2025-03-25/sycl_linux.tar.gz
+        mkdir -p dpcpp_compiler
+        tar -xvf dpcpp_compiler.tar.gz -C dpcpp_compiler
+
+    # TODO_1: move this installation to docker? Perhaps there's other docker that already has these packages? we aren't the only ones using L0 ;-)
+    # TODO_2: if needed here, only install it for level zero jobs; and install required staff for other adapters under other 'if'
+    #
+    # it seems there's image for intel drivers (L0):
+    #   ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps JESLI ZADZIALA TO BEZ INSTAL 
+    # and for other adapters (HIP, CUDA):
+    #   ghcr.io/intel/llvm/ubuntu2204_build:latest
+    #   or
+    #   ghcr.io/intel/llvm/ubuntu2404_build:latest
+    # not sure on OpenCL and NativeCPU - to be checked.
+    # - name: Install Intel Level Zero GPU
+    #   # if: ${{ inputs.adapter_name == 'L0' || inputs.adapter_name == 'L0_V2' }}
+    #   run: |
+    #     wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | \
+    #       sudo gpg --yes --dearmor --output /usr/share/keyrings/intel-graphics.gpg
+    #     echo "deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy unified" | \
+    #       sudo tee /etc/apt/sources.list.d/intel-gpu-jammy.list
+    #     sudo apt-get update
+    #     sudo apt-get install -y libze-intel-gpu1 libze1 libze-dev intel-opencl-icd
+    #     # libstdc++-12-dev
+    #
+
+    # - name: Install OpenCL
+    #   if: ${{ inputs.adapter_name == 'OPENCL' }}
+    #   run: |
+    #     wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+    #     | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+    #     echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+    #     sudo apt-get update
+    #     sudo apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
+    - name: check sycl-ls
+      run: |
+        find . /runtimes
 
     - name: Configure Unified Runtime project
-      working-directory: ${{github.workspace}}/unified-runtime
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
         cmake
-        -B${{github.workspace}}/build
+        -S unified-runtime
+        -B build
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
@@ -126,34 +195,40 @@ jobs:
         ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
-        -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
-        -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
-        -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+        -DUR_DPCXX=./dpcpp_compiler/bin/clang++
+        -DUR_SYCL_LIBRARY_DIR=./dpcpp_compiler/lib
+        -DCMAKE_INSTALL_PREFIX=./install
         ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
-      run: cmake --build ${{github.workspace}}/build -j $(nproc)
+      run: cmake --build build -j $(nproc)
 
     - name: Install
       # This is to check that install command does not fail
-      run: cmake --install ${{github.workspace}}/build
+      run: cmake --install build
 
-    - name: Test adapter specific
+    - name: Test adapter specific.
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
-      run: ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600 -VV
+      run: ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "adapter-specific" -E "memcheck" --timeout 600
       # Don't run adapter specific tests when building multiple adapters
       if: ${{ matrix.adapter.other_name == '' }}
 
-    - name: Test adapters
+    - name: Test adapters.
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
-      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir ${{github.workspace}}/build --output-on-failure -L "conformance" --timeout 600 -VV
+        LD_LIBRARY_PATH: "./dpcpp_compiler/lib ./dpcpp_compiler/bin/sycl-ls"
+        UR_SYCL_LIBRARY_DIR: "./dpcpp_compiler/lib"
+      run: env OpenCL_LIBRARIES=/opt/intel/oneapi/2025.0/lib UR_BUILD_ADAPTER_OPENCL=ON UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "conformance" --timeout 600
 
     - name: Get information about platform
+      env:
+        ZE_ENABLE_LOADER_DEBUG_TRACE: 1
+        ZE_DEBUG: 1
+        UR_SYCL_LIBRARY_DIR: "./dpcpp_compiler/lib"
       if: ${{ always() }}
-      run: ${{github.workspace}}/unified-runtime/.github/scripts/get_system_info.sh
+      run: ./unified-runtime/.github/scripts/get_system_info.sh
