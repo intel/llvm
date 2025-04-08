@@ -1462,7 +1462,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     const cl_device_info info_name = CL_DEVICE_SUB_GROUP_SIZES_INTEL;
-    bool isExtensionSupported;
+    bool isExtensionSupported = false;
     if (cl_adapter::checkDeviceExtensions(
             cl_adapter::cast<cl_device_id>(hDevice),
             {"cl_intel_required_subgroup_size"},
