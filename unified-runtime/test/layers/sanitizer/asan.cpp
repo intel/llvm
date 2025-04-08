@@ -91,14 +91,9 @@ TEST(DeviceAsan, UnsupportedFeature) {
   status = urAdapterGet(0, nullptr, &num_adapters);
   ASSERT_EQ(status, UR_RESULT_SUCCESS);
 
-<<<<<<< HEAD
-  ur_platform_handle_t platform;
-  status = urPlatformGet(adapter, 1, &platform, nullptr);
-=======
   std::vector<ur_adapter_handle_t> adapters;
   adapters.resize(num_adapters);
   status = urAdapterGet(num_adapters, adapters.data(), nullptr);
->>>>>>> sycl
   ASSERT_EQ(status, UR_RESULT_SUCCESS);
 
   for (auto adapter : adapters) {
@@ -114,7 +109,7 @@ TEST(DeviceAsan, UnsupportedFeature) {
     }
 
     ur_platform_handle_t platform;
-    status = urPlatformGet(&adapter, 1, 1, &platform, nullptr);
+    status = urPlatformGet(adapter, 1, &platform, nullptr);
     ASSERT_EQ(status, UR_RESULT_SUCCESS);
 
     ur_device_handle_t device;
