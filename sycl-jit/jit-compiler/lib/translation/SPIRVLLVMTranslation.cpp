@@ -8,17 +8,13 @@
 
 #include "SPIRVLLVMTranslation.h"
 
-#include "Kernel.h"
 #include "LLVMSPIRVLib.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 #include <iostream>
 #include <sstream>
 
 using namespace jit_compiler;
-using namespace jit_compiler::translation;
 using namespace llvm;
 
 SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
@@ -101,36 +97,6 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
     return TransOpt;
   }();
   return Opts;
-}
-
-Expected<std::unique_ptr<llvm::Module>>
-SPIRVLLVMTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                                     const JITBinaryInfo &BinaryInfo) {
-  std::unique_ptr<Module> Result{nullptr};
-
-  assert(BinaryInfo.Format == BinaryFormat::SPIRV &&
-         "Only SPIR-V supported as input");
-
-  // Create an input stream for the SPIR-V binary.
-  std::stringstream SPIRStream(
-      std::string(reinterpret_cast<const char *>(BinaryInfo.BinaryStart),
-                  BinaryInfo.BinarySize),
-      std::ios_base::in | std::ios_base::binary);
-  std::string ErrMsg;
-  // Create a raw pointer. readSpirv accepts a reference to a pointer,
-  // so it will reset the pointer to point to an actual LLVM module.
-  Module *LLVMMod;
-  auto Success =
-      llvm::readSpirv(LLVMCtx, translatorOpts(), SPIRStream, LLVMMod, ErrMsg);
-  if (!Success) {
-    return createStringError(
-        inconvertibleErrorCode(),
-        "Failed to load and translate SPIR-V module with error %s",
-        ErrMsg.c_str());
-  }
-  std::unique_ptr<Module> NewMod{LLVMMod};
-
-  return std::move(NewMod);
 }
 
 Expected<jit_compiler::JITBinary *>

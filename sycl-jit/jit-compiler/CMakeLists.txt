@@ -1,7 +1,7 @@
 
 add_llvm_library(sycl-jit
-   lib/translation/KernelTranslation.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
+   lib/translation/Translation.cpp
    lib/materializer/MaterializerPipeline.cpp
    lib/materializer/Materializer.cpp
    lib/rtc/DeviceCompilation.cpp

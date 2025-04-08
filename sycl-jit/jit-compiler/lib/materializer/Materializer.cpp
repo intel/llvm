@@ -12,7 +12,10 @@
 #include "helper/ConfigHelper.h"
 #include "helper/ErrorHelper.h"
 #include "materializer/MaterializerPipeline.h"
-#include "translation/KernelTranslation.h"
+#include "translation/Translation.h"
+#include <llvm/ADT/StringRef.h>
+#include <llvm/Bitcode/BitcodeReader.h>
+#include <llvm/Support/MemoryBuffer.h>
 
 using namespace jit_compiler;
 
@@ -29,12 +32,16 @@ extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
                      "Available targets are: PTX or AMDGCN.");
   }
 
-  std::vector<JITBinaryInfo> BinaryInfos{BinaryInfo};
-  // Load all input kernels from their respective modules into a single
-  // LLVM IR module.
   llvm::LLVMContext Ctx;
+  llvm::StringRef RawData(
+      reinterpret_cast<const char *>(BinaryInfo.BinaryStart),
+      BinaryInfo.BinarySize);
   llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
-      translation::KernelTranslator::loadKernels(Ctx, BinaryInfos);
+      llvm::parseBitcodeFile(
+          llvm::MemoryBuffer::getMemBuffer(RawData, KernelName,
+                                           /* RequiresNullTermnator*/ false)
+              ->getMemBufferRef(),
+          Ctx);
   if (auto Error = ModOrError.takeError()) {
     return errorTo<JITResult>(std::move(Error), "Failed to load kernels");
   }
@@ -45,8 +52,8 @@ extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
     return JITResult{"Materializer passes should not fail"};
   }
 
-  auto BinInfoOrErr = translation::KernelTranslator::translateKernel(
-      KernelName, *NewMod, JITCtx, TargetFormat);
+  auto BinInfoOrErr =
+      Translator::translate(*NewMod, JITCtx, TargetFormat, KernelName);
   if (!BinInfoOrErr) {
     return errorTo<JITResult>(BinInfoOrErr.takeError(),
                               "Translation to output format failed");

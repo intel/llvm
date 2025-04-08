@@ -1,4 +1,4 @@
-//==----------------------- KernelTranslation.cpp  -------------------------==//
+//==--------------------------- Translation.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,135 +6,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "KernelTranslation.h"
+#include "Translation.h"
 #include "helper/ConfigHelper.h"
 
 #include "SPIRVLLVMTranslation.h"
-#include "llvm/Bitcode/BitcodeReader.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/Linker/Linker.h"
 #include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
 using namespace jit_compiler;
-using namespace jit_compiler::translation;
 using namespace llvm;
 
-llvm::Expected<std::unique_ptr<llvm::Module>>
-KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
-                              const std::vector<JITBinaryInfo> &BinaryInfos) {
-  std::unique_ptr<Module> Result{nullptr};
-  bool First = true;
-  DenseSet<BinaryBlob> ParsedBinaries;
-  size_t AddressBits = 0;
-  for (const auto &BinInfo : BinaryInfos) {
-    // FIXME: Currently, we use the front of the list.
-    // Do we need to iterate to find the most suitable
-    // SPIR-V module?
-
-    const unsigned char *ModulePtr = BinInfo.BinaryStart;
-    size_t ModuleSize = BinInfo.BinarySize;
-    BinaryBlob BinBlob{ModulePtr, ModuleSize};
-    if (!ParsedBinaries.contains(BinBlob)) {
-      // Multiple kernels can be stored in the same SPIR-V or LLVM IR module.
-      // We only load if we did not encounter the same binary module before.
-      // NOTE: We compare the pointer as well as the size, in case
-      // a previous kernel only referenced part of the SPIR-V/LLVM IR module.
-      // Not sure this can actually happen, but better safe than sorry.
-      // Simply load and translate the SPIR-V into the currently still empty
-      // module.
-      std::unique_ptr<llvm::Module> NewMod;
-
-      switch (BinInfo.Format) {
-      case BinaryFormat::LLVM: {
-        auto ModOrError = loadLLVMKernel(LLVMCtx, BinInfo);
-        if (auto Err = ModOrError.takeError()) {
-          return std::move(Err);
-        }
-        NewMod = std::move(*ModOrError);
-        break;
-      }
-      case BinaryFormat::SPIRV: {
-        auto ModOrError = loadSPIRVKernel(LLVMCtx, BinInfo);
-        if (auto Err = ModOrError.takeError()) {
-          return std::move(Err);
-        }
-        NewMod = std::move(*ModOrError);
-        break;
-      }
-      default: {
-        return createStringError(
-            inconvertibleErrorCode(),
-            "Failed to load kernel from unsupported input format");
-      }
-      }
-
-      // We do not assume that the input binary information has the address bits
-      // set, but rather retrieve this information from the SPIR-V/LLVM module's
-      // data-layout.
-      size_t CurAddrBits = NewMod->getDataLayout().getPointerSizeInBits();
-
-      if (First) {
-        // We can simply assign the module we just loaded from SPIR-V to the
-        // empty pointer on the first iteration.
-        Result = std::move(NewMod);
-        // The first module will dictate the address bits for the remaining.
-        AddressBits = CurAddrBits;
-        First = false;
-      } else {
-        // We have already loaded some module, so now we need to
-        // link the module we just loaded with the result so far.
-        // FIXME: We allow duplicates to be overridden by the module
-        // read last. This could cause problems if different modules contain
-        // definitions with the same name, but different body/content.
-        // Check that this is not problematic.
-        const bool HasErrors = Linker::linkModules(
-            *Result, std::move(NewMod), Linker::Flags::OverrideFromSrc);
-        if (HasErrors) {
-          return createStringError(inconvertibleErrorCode(),
-                                   "Failed to link modules");
-        }
-
-        if (AddressBits != CurAddrBits) {
-          return createStringError(
-              inconvertibleErrorCode(),
-              "Number of address bits between SPIR-V modules does not match");
-        }
-      }
-      ParsedBinaries.insert(BinBlob);
-    }
-  }
-  return std::move(Result);
-}
-
-llvm::Expected<std::unique_ptr<llvm::Module>>
-KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
-                                 const JITBinaryInfo &BinaryInfo) {
-  llvm::StringRef RawData(
-      reinterpret_cast<const char *>(BinaryInfo.BinaryStart),
-      BinaryInfo.BinarySize);
-  return llvm::parseBitcodeFile(
-      MemoryBuffer::getMemBuffer(RawData, /*BufferName=*/"",
-                                 /* RequiresNullTermnator*/ false)
-          ->getMemBufferRef(),
-      LLVMCtx);
-}
-
-llvm::Expected<std::unique_ptr<llvm::Module>>
-KernelTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                                  const JITBinaryInfo &BinaryInfo) {
-  return SPIRVLLVMTranslator::loadSPIRVKernel(LLVMCtx, BinaryInfo);
-}
-
-llvm::Expected<JITBinaryInfo>
-KernelTranslator::translateKernel(const char *KernelName, llvm::Module &Mod,
-                                  JITContext &JITCtx, BinaryFormat Format) {
-
+llvm::Expected<JITBinaryInfo> Translator::translate(llvm::Module &Mod,
+                                                    JITContext &JITCtx,
+                                                    BinaryFormat Format,
+                                                    const char *KernelName) {
+  llvm::TimeTraceScope TTS{"translate"};
   JITBinary *JITBin = nullptr;
   switch (Format) {
   case BinaryFormat::SPIRV: {
@@ -147,7 +37,7 @@ KernelTranslator::translateKernel(const char *KernelName, llvm::Module &Mod,
   }
   case BinaryFormat::PTX: {
     llvm::Expected<JITBinary *> BinaryOrError =
-        translateToPTX(KernelName, Mod, JITCtx);
+        translateToPTX(Mod, JITCtx, KernelName);
     if (auto Error = BinaryOrError.takeError()) {
       return Error;
     }
@@ -156,7 +46,7 @@ KernelTranslator::translateKernel(const char *KernelName, llvm::Module &Mod,
   }
   case BinaryFormat::AMDGCN: {
     llvm::Expected<JITBinary *> BinaryOrError =
-        translateToAMDGCN(KernelName, Mod, JITCtx);
+        translateToAMDGCN(Mod, JITCtx, KernelName);
     if (auto Error = BinaryOrError.takeError())
       return Error;
     JITBin = *BinaryOrError;
@@ -180,34 +70,18 @@ KernelTranslator::translateKernel(const char *KernelName, llvm::Module &Mod,
   return BinaryInfo;
 }
 
-llvm::Expected<RTCDevImgBinaryInfo>
-KernelTranslator::translateDevImgToSPIRV(llvm::Module &Mod,
-                                         JITContext &JITCtx) {
-  llvm::TimeTraceScope TTS{"translateDevImgToSPIRV"};
-
-  llvm::Expected<JITBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
-  if (auto Error = BinaryOrError.takeError()) {
-    return Error;
-  }
-  JITBinary *Binary = *BinaryOrError;
-  RTCDevImgBinaryInfo DIBI{BinaryFormat::SPIRV,
-                           Mod.getDataLayout().getPointerSizeInBits(),
-                           Binary->address(), Binary->size()};
-  return DIBI;
-}
-
-llvm::Expected<JITBinary *>
-KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
+llvm::Expected<JITBinary *> Translator::translateToSPIRV(llvm::Module &Mod,
+                                                         JITContext &JITCtx) {
   return SPIRVLLVMTranslator::translateLLVMtoSPIRV(Mod, JITCtx);
 }
 
-llvm::Expected<JITBinary *>
-KernelTranslator::translateToPTX(const char *KernelName, llvm::Module &Mod,
-                                 JITContext &JITCtx) {
+llvm::Expected<JITBinary *> Translator::translateToPTX(llvm::Module &Mod,
+                                                       JITContext &JITCtx,
+                                                       const char *KernelName) {
 #ifndef JIT_SUPPORT_PTX
-  (void)KernelName;
   (void)Mod;
   (void)JITCtx;
+  (void)KernelName;
   return createStringError(inconvertibleErrorCode(),
                            "PTX translation not supported in this build");
 #else  // JIT_SUPPORT_PTX
@@ -239,7 +113,7 @@ KernelTranslator::translateToPTX(const char *KernelName, llvm::Module &Mod,
   llvm::StringRef CPU = CPUVal.begin();
   llvm::StringRef Features = FeaturesVal.begin();
 
-  auto *KernelFunc = Mod.getFunction(KernelName);
+  auto *KernelFunc = KernelName ? Mod.getFunction(KernelName) : nullptr;
   // If they were not set, use default and consult the module for alternatives
   // (if present).
   if (CPU.empty()) {
@@ -285,12 +159,12 @@ KernelTranslator::translateToPTX(const char *KernelName, llvm::Module &Mod,
 }
 
 llvm::Expected<JITBinary *>
-KernelTranslator::translateToAMDGCN(const char *KernelName, llvm::Module &Mod,
-                                    JITContext &JITCtx) {
+Translator::translateToAMDGCN(llvm::Module &Mod, JITContext &JITCtx,
+                              const char *KernelName) {
 #ifndef JIT_SUPPORT_AMDGCN
-  (void)KernelName;
   (void)Mod;
   (void)JITCtx;
+  (void)KernelName;
   return createStringError(inconvertibleErrorCode(),
                            "AMDGPU translation not supported in this build");
 #else  // JIT_SUPPORT_AMDGCN
@@ -320,7 +194,7 @@ KernelTranslator::translateToAMDGCN(const char *KernelName, llvm::Module &Mod,
   llvm::StringRef CPU = CPUVal.begin();
   llvm::StringRef Features = FeaturesVal.begin();
 
-  auto *KernelFunc = Mod.getFunction(KernelName);
+  auto *KernelFunc = KernelName ? Mod.getFunction(KernelName) : nullptr;
   if (CPU.empty()) {
     // Set to the lowest tested target according to the GetStartedGuide, section
     // "Build DPC++ toolchain with support for HIP AMD"

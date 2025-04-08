@@ -10,8 +10,8 @@
 #include "Kernel.h"
 #include "helper/ErrorHelper.h"
 #include "rtc/DeviceCompilation.h"
-#include "translation/KernelTranslation.h"
 #include "translation/SPIRVLLVMTranslation.h"
+#include "translation/Translation.h"
 
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/Bitcode/BitcodeReader.h>
@@ -141,9 +141,8 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
 
   for (auto [DevImgInfo, Module] :
        llvm::zip_equal(BundleInfo.DevImgInfos, Modules)) {
-    auto BinaryInfoOrError =
-        translation::KernelTranslator::translateDevImgToSPIRV(
-            *Module, JITContext::getInstance());
+    auto BinaryInfoOrError = Translator::translate(
+        *Module, JITContext::getInstance(), BinaryFormat::SPIRV);
     if (!BinaryInfoOrError) {
       return errorTo<RTCResult>(BinaryInfoOrError.takeError(),
                                 "SPIR-V translation failed");
