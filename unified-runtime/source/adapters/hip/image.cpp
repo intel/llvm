@@ -1092,9 +1092,10 @@ bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
   return true;
 }
 
-bool verifyMipmapImageSupport([[maybe_unused]] const ur_device_handle_t hDevice,
-                              const ur_image_desc_t *pImageDesc,
-                              ur_exp_image_mem_type_t imageMemHandleType) {
+bool verifyMipmapImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify mipmap image support.
   // Mimpaps are not currently supported for the AMD target.
   if (pImageDesc->numMipLevel > 1) {
@@ -1107,7 +1108,7 @@ bool verifyMipmapImageSupport([[maybe_unused]] const ur_device_handle_t hDevice,
 bool verifyCubemapImageSupport(
     [[maybe_unused]] const ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc,
-    ur_exp_image_mem_type_t imageMemHandleType) {
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify cubemap image support.
   // Cubemaps are not currently supported for the AMD target.
   if (pImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
