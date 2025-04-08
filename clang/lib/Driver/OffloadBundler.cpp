@@ -95,22 +95,57 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
                                      const OffloadBundlerConfig &BC)
     : BundlerConfig(BC) {
 
-  // TODO: Add error checking from ClangOffloadBundler.cpp
-  auto TargetFeatures = Target.split(':');
-  auto TripleOrGPU = TargetFeatures.first.rsplit('-');
+  // <kind>-<triple>[-<target id>[:target features]]
+  // <triple> := <arch>-<vendor>-<os>-<env>
+  SmallVector<StringRef, 6> Components;
+  Target.split(Components, '-', /*MaxSplit=*/5);
+  if (Components.size() < 5) {
+    // Handle target inputs that do not fit the <arch>-<vendor>-<os>-<env>
+    // triple format.
+    auto TargetFeatures = Target.split(':');
+    auto TripleOrGPU = TargetFeatures.first.rsplit('-');
 
-  if (clang::StringToOffloadArch(TripleOrGPU.second) !=
-      clang::OffloadArch::UNKNOWN) {
-    auto KindTriple = TripleOrGPU.first.split('-');
-    this->OffloadKind = KindTriple.first;
-    this->Triple = llvm::Triple(KindTriple.second);
-    this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
-  } else {
-    auto KindTriple = TargetFeatures.first.split('-');
-    this->OffloadKind = KindTriple.first;
-    this->Triple = llvm::Triple(KindTriple.second);
-    this->TargetID = "";
+    if (clang::StringToOffloadArch(TripleOrGPU.second) !=
+        clang::OffloadArch::UNKNOWN) {
+      auto KindTriple = TripleOrGPU.first.split('-');
+      this->OffloadKind = KindTriple.first;
+
+      // Enforce optional env field to standardize bundles
+      llvm::Triple t = llvm::Triple(KindTriple.second);
+      this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                  t.getOSName(), t.getEnvironmentName());
+
+      this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
+    } else {
+      auto KindTriple = TargetFeatures.first.split('-');
+      this->OffloadKind = KindTriple.first;
+
+      // Enforce optional env field to standardize bundles
+      llvm::Triple t = llvm::Triple(KindTriple.second);
+      this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
+                                  t.getOSName(), t.getEnvironmentName());
+
+      this->TargetID = "";
+    }
+    return;
   }
+  assert((Components.size() == 5 || Components.size() == 6) &&
+         "malformed target string");
+
+  StringRef TargetIdWithFeature =
+      Components.size() == 6 ? Components.back() : "";
+  StringRef TargetId = TargetIdWithFeature.split(':').first;
+  if (!TargetId.empty() &&
+      clang::StringToOffloadArch(TargetId) != clang::OffloadArch::UNKNOWN)
+    this->TargetID = TargetIdWithFeature;
+  else
+    this->TargetID = "";
+
+  this->OffloadKind = Components.front();
+  ArrayRef<StringRef> TripleSlice{&Components[1], /*length=*/4};
+  llvm::Triple T = llvm::Triple(llvm::join(TripleSlice, "-"));
+  this->Triple = llvm::Triple(T.getArchName(), T.getVendorName(), T.getOSName(),
+                              T.getEnvironmentName());
 }
 
 bool OffloadTargetInfo::hasHostKind() const {
@@ -152,7 +187,18 @@ bool OffloadTargetInfo::operator==(const OffloadTargetInfo &Target) const {
 }
 
 std::string OffloadTargetInfo::str() const {
-  return Twine(OffloadKind + "-" + Triple.str() + "-" + TargetID).str();
+  std::string NormalizedTriple;
+  // Unfortunately we need some special sauce for AMDGPU because all the runtime
+  // assumes the triple to be "amdgcn-amd-amdhsa-" (empty environment) instead
+  // of "amdgcn-amd-amdhsa-unknown". It's gonna be very tricky to patch
+  // different layers of runtime.
+  if (Triple.isAMDGPU()) {
+    NormalizedTriple = Triple.normalize(Triple::CanonicalForm::THREE_IDENT);
+    NormalizedTriple.push_back('-');
+  } else {
+    NormalizedTriple = Triple.normalize(Triple::CanonicalForm::FOUR_IDENT);
+  }
+  return Twine(OffloadKind + "-" + NormalizedTriple + "-" + TargetID).str();
 }
 
 static Triple getTargetTriple(StringRef Target,
@@ -2056,6 +2102,9 @@ Error OffloadBundler::UnbundleFiles() {
   StringMap<StringRef> Worklist;
   auto Output = BundlerConfig.OutputFileNames.begin();
   for (auto &Triple : BundlerConfig.TargetNames) {
+    if (!checkOffloadBundleID(Triple))
+      return createStringError(errc::invalid_argument,
+                               "invalid bundle id from bundle config");
     Worklist[Triple] = *Output;
     ++Output;
   }
@@ -2075,6 +2124,9 @@ Error OffloadBundler::UnbundleFiles() {
 
     StringRef CurTriple = **CurTripleOrErr;
     assert(!CurTriple.empty());
+    if (!checkOffloadBundleID(CurTriple))
+      return createStringError(errc::invalid_argument,
+                               "invalid bundle id read from the bundle");
 
     auto Output = Worklist.begin();
     for (auto E = Worklist.end(); Output != E; Output++) {
@@ -2132,8 +2184,9 @@ Error OffloadBundler::UnbundleFiles() {
       if (EC)
         return createFileError(E.second, EC);
 
-      // If this entry has a host kind, copy the input file to the output file
-      // except for the archive unbundling where output is a list file.
+      // If this entry has a host kind, copy the input file to the output file.
+      // We don't need to check E.getKey() here through checkOffloadBundleID
+      // because the entire WorkList has been checked above.
       auto OffloadInfo = OffloadTargetInfo(E.getKey(), BundlerConfig);
       if (OffloadInfo.hasHostKind() &&
           !FilesTypeIsArchiveToList(BundlerConfig.FilesType))
@@ -2416,6 +2469,10 @@ Error OffloadBundler::UnbundleArchive() {
     // archive.
     while (!CodeObject.empty()) {
       SmallVector<StringRef> CompatibleTargets;
+      if (!checkOffloadBundleID(CodeObject)) {
+        return createStringError(errc::invalid_argument,
+                                 "Invalid bundle id read from code object");
+      }
       auto CodeObjectInfo = OffloadTargetInfo(CodeObject, BundlerConfig);
       if (getCompatibleOffloadTargets(CodeObjectInfo, CompatibleTargets,
                                       BundlerConfig)) {
@@ -2496,4 +2553,15 @@ Error OffloadBundler::UnbundleArchive() {
   }
 
   return Error::success();
+}
+
+bool clang::checkOffloadBundleID(const llvm::StringRef Str) {
+  // <kind>-<triple>[-<target id>[:target features]]
+  // <triple> := <arch>-<vendor>-<os>-<env>
+  // FIXME: The Intel Compiler does not currently adhere to the strict
+  // component size.  Consider all checks valid.
+  // SmallVector<StringRef, 6> Components;
+  // Str.split(Components, '-', /*MaxSplit=*/5);
+  // return Components.size() == 5 || Components.size() == 6;
+  return true;
 }

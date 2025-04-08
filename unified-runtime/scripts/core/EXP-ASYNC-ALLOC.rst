@@ -23,10 +23,10 @@ Async Allocation Functions
 Motivation
 --------------------------------------------------------------------------------
 
-Asynchronous allocations can allow queues to allocate and free memory between 
-UR command enqueues without forcing synchronization points in the asynchronous 
+Asynchronous allocations can allow queues to allocate and free memory between
+UR command enqueues without forcing synchronization points in the asynchronous
 command DAG associated with a queue. Through the enqueue-ordering semantics,
-memory allocated within a pool can be reused so as to avoid expensive and 
+memory allocated within a pool can be reused so as to avoid expensive and
 redundant calls into the OS, which can improve performance.
 
 API
@@ -60,6 +60,7 @@ Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * ${x}_exp_async_usm_alloc_properties_t
+* ${x}_usm_pool_buffer_desc_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -70,9 +71,9 @@ Functions
 * ${x}EnqueueUSMFreeExp
 * ${x}USMPoolCreateExp
 * ${x}USMPoolDestroyExp
-* ${x}USMPoolSetThresholdExp
 * ${x}USMPoolGetDefaultDevicePoolExp
 * ${x}USMPoolGetInfoExp
+* ${x}USMPoolSetInfoExp
 * ${x}USMPoolSetDevicePoolExp
 * ${x}USMPoolGetDevicePoolExp
 * ${x}USMPoolTrimToExp
@@ -94,6 +95,12 @@ Changelog
 |          | DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP for        |
 |          | better consistency with other UR enums                   |
 +----------+----------------------------------------------------------+
+| 1.3      | Remove USMPoolSetThresholdExp                            |
+|          | Replace with USMPoolSetInfoExp                           |
++----------+----------------------------------------------------------+
+| 1.4      | Introduce usm_pool_buffer_desc_t to enable pool          |
+|          | creation from a USM memory object                        |
++----------+----------------------------------------------------------+
 
 Support
 --------------------------------------------------------------------------------
@@ -107,3 +114,4 @@ Contributors
 
 * Hugh Delaney `hugh.delaney@codeplay.com <hugh.delaney@codeplay.com>`_
 * Sean Stirling `sean.stirling@codeplay.com <sean.stirling@codeplay.com>`_
+* Krzysztof Swiecicki `krzysztof.swiecicki@intel.com <krzysztof.swiecicki@intel.com>`_

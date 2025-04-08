@@ -118,12 +118,21 @@ struct ThreadSanitizerOnSpirv {
 
   void initialize();
 
-  void instrumentKernelsMetadata();
+  void instrumentModule();
+
+  bool instrumentAllocInst(Function *F,
+                           SmallVectorImpl<Instruction *> &AllocaInsts);
 
   void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
 
 private:
+  void instrumentGlobalVariables();
+
+  void instrumentKernelsMetadata();
+
   bool isSupportedSPIRKernel(Function &F);
+
+  bool isUnsupportedDeviceGlobal(const GlobalVariable &G);
 
   GlobalVariable *GetOrCreateGlobalString(StringRef Name, StringRef Value,
                                           unsigned AddressSpace);
@@ -138,6 +147,7 @@ private:
 
   // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
   static const size_t kNumberOfAccessSizes = 5;
+  FunctionCallee TsanCleanupPrivate;
   FunctionCallee TsanRead[kNumberOfAccessSizes];
   FunctionCallee TsanWrite[kNumberOfAccessSizes];
 
@@ -243,7 +253,7 @@ PreservedAnalyses ModuleThreadSanitizerPass::run(Module &M,
     return PreservedAnalyses::all();
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     ThreadSanitizerOnSpirv Spirv(M);
-    Spirv.instrumentKernelsMetadata();
+    Spirv.instrumentModule();
   } else
     insertModuleCtor(M);
   return PreservedAnalyses::none();
@@ -254,6 +264,10 @@ void ThreadSanitizerOnSpirv::initialize() {
   AttributeList Attr;
   Attr = Attr.addFnAttribute(C, Attribute::NoUnwind);
   Type *Int8PtrTy = IRB.getInt8PtrTy(kSpirOffloadConstantAS);
+
+  TsanCleanupPrivate =
+      M.getOrInsertFunction("__tsan_cleanup_private", Attr, IRB.getVoidTy(),
+                            IntptrTy, IRB.getInt32Ty());
 
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
     const unsigned ByteSize = 1U << i;
@@ -274,6 +288,28 @@ void ThreadSanitizerOnSpirv::initialize() {
                                          IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
                                          IRB.getInt32Ty(), Int8PtrTy);
   }
+}
+
+bool ThreadSanitizerOnSpirv::instrumentAllocInst(
+    Function *F, SmallVectorImpl<Instruction *> &AllocaInsts) {
+  bool Changed = false;
+
+  EscapeEnumerator EE(*F, "tsan_cleanup", false);
+  while (IRBuilder<> *AtExit = EE.Next()) {
+    InstrumentationIRBuilder::ensureDebugInfo(*AtExit, *F);
+    for (auto *Inst : AllocaInsts) {
+      AllocaInst *AI = cast<AllocaInst>(Inst);
+      if (auto AllocSize = AI->getAllocationSize(DL)) {
+        AtExit->CreateCall(
+            TsanCleanupPrivate,
+            {AtExit->CreatePtrToInt(AI, IntptrTy),
+             ConstantInt::get(AtExit->getInt32Ty(), *AllocSize)});
+        Changed |= true;
+      }
+    }
+  }
+
+  return Changed;
 }
 
 void ThreadSanitizerOnSpirv::appendDebugInfoToArgs(
@@ -325,6 +361,70 @@ bool ThreadSanitizerOnSpirv::isSupportedSPIRKernel(Function &F) {
   }
 
   return true;
+}
+
+bool ThreadSanitizerOnSpirv::isUnsupportedDeviceGlobal(
+    const GlobalVariable &G) {
+  if (G.user_empty())
+    return true;
+  // Skip instrumenting on "__TsanKernelMetadata" etc.
+  if (G.getName().starts_with("__Tsan"))
+    return true;
+  if (G.getName().starts_with("__tsan_"))
+    return true;
+  if (G.getName().starts_with("__spirv_BuiltIn"))
+    return true;
+  if (G.getName().starts_with("__usid_str"))
+    return true;
+  // TODO: Will support global variable with local address space later.
+  if (G.getAddressSpace() == kSpirOffloadLocalAS)
+    return true;
+  // Global variables have constant value or constant address space will not
+  // trigger race condition.
+  if (G.isConstant() || G.getAddressSpace() == kSpirOffloadConstantAS)
+    return true;
+  return false;
+}
+
+void ThreadSanitizerOnSpirv::instrumentModule() {
+  instrumentGlobalVariables();
+  instrumentKernelsMetadata();
+}
+
+void ThreadSanitizerOnSpirv::instrumentGlobalVariables() {
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  // Device global metadata is described by a structure
+  //  size_t device_global_size
+  //  size_t beginning address of the device global
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+  for (auto &G : M.globals()) {
+    if (isUnsupportedDeviceGlobal(G)) {
+      for (auto *User : G.users())
+        if (auto *Inst = dyn_cast<Instruction>(User))
+          Inst->setNoSanitizeMetadata();
+      continue;
+    }
+
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy,
+        ConstantInt::get(IntptrTy, DL.getTypeAllocSize(G.getValueType())),
+        ConstantExpr::getPointerCast(&G, IntptrTy)));
+  }
+
+  if (DeviceGlobalMetadata.empty())
+    return;
+
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__TsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
 }
 
 void ThreadSanitizerOnSpirv::instrumentKernelsMetadata() {
@@ -554,7 +654,7 @@ static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
     if (GV->hasSection()) {
       StringRef SectionName = GV->getSection();
       // Check if the global is in the PGO counters section.
-      auto OF = Triple(M->getTargetTriple()).getObjectFormat();
+      auto OF = M->getTargetTriple().getObjectFormat();
       if (SectionName.ends_with(
               getInstrProfSectionName(IPSK_cnts, OF, /*AddSegmentInfo=*/false)))
         return false;
@@ -661,7 +761,7 @@ void ThreadSanitizer::chooseInstructionsToInstrument(
     }
 
     if (isa<AllocaInst>(getUnderlyingObject(Addr)) &&
-        !PointerMayBeCaptured(Addr, true, true)) {
+        !PointerMayBeCaptured(Addr, /*ReturnCaptures=*/true)) {
       // The variable is addressable but not captured, so it cannot be
       // referenced from a different thread and participate in a data race
       // (see llvm/Analysis/CaptureTracking.h for details).
@@ -723,6 +823,7 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
   SmallVector<Instruction*, 8> LocalLoadsAndStores;
   SmallVector<Instruction*, 8> AtomicAccesses;
   SmallVector<Instruction*, 8> MemIntrinCalls;
+  SmallVector<Instruction *, 8> Allocas;
   bool Res = false;
   bool HasCalls = false;
   bool SanitizeFunction = F.hasFnAttribute(Attribute::SanitizeThread);
@@ -738,6 +839,9 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
         AtomicAccesses.push_back(&Inst);
       else if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
         LocalLoadsAndStores.push_back(&Inst);
+      else if (Spirv && isa<AllocaInst>(Inst) &&
+               cast<AllocaInst>(Inst).getAllocatedType()->isSized())
+        Allocas.push_back(&Inst);
       else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
                isa<InvokeInst>(Inst)) {
         if (CallInst *CI = dyn_cast<CallInst>(&Inst))
@@ -779,6 +883,14 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
     if (HasCalls)
       InsertRuntimeIgnores(F);
   }
+
+  // FIXME: We need to skip the check for private memory, otherwise OpenCL CPU
+  // device may generate false positive reports due to stack re-use in different
+  // threads. However, SPIR-V builts 'ToPrivate' doesn't work as expected on
+  // OpenCL CPU device. So we need to manually cleanup private shadow before
+  // each function exit point.
+  if (Spirv && !Allocas.empty())
+    Res |= Spirv->instrumentAllocInst(&F, Allocas);
 
   // Instrument function entry/exit points if there were instrumented accesses.
   if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {

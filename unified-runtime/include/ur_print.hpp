@@ -517,6 +517,9 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_exp_async_usm_alloc_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
 inline std::ostream &
@@ -1210,9 +1213,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_USM_POOL_DESTROY_EXP:
     os << "UR_FUNCTION_USM_POOL_DESTROY_EXP";
     break;
-  case UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP:
-    os << "UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP";
-    break;
   case UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP:
     os << "UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP";
     break;
@@ -1233,6 +1233,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP:
     os << "UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP";
+    break;
+  case UR_FUNCTION_USM_POOL_SET_INFO_EXP:
+    os << "UR_FUNCTION_USM_POOL_SET_INFO_EXP";
     break;
   default:
     os << "unknown enumerator";
@@ -1351,6 +1354,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC:
     os << "UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC";
+    break;
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC:
+    os << "UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC";
     break;
   case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
@@ -1613,6 +1619,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC: {
     const ur_usm_alloc_location_desc_t *pstruct =
         (const ur_usm_alloc_location_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC: {
+    const ur_usm_pool_buffer_desc_t *pstruct =
+        (const ur_usm_pool_buffer_desc_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -2953,6 +2965,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     os << "UR_DEVICE_INFO_MAX_POWER_LIMIT";
+    break;
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    os << "UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE";
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -4678,6 +4693,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     if (sizeof(int32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
          << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -10919,6 +10947,46 @@ operator<<(std::ostream &os,
   os << ".flags = ";
 
   ur::details::printFlag<ur_exp_async_usm_alloc_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_buffer_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_pool_buffer_desc_t params) {
+  os << "(struct ur_usm_pool_buffer_desc_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, (params.pMem));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << (params.size);
+
+  os << ", ";
+  os << ".memType = ";
+
+  os << (params.memType);
+
+  os << ", ";
+  os << ".device = ";
+
+  ur::details::printPtr(os, (params.device));
 
   os << "}";
   return os;
@@ -17531,37 +17599,6 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_usm_pool_set_threshold_exp_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &
-operator<<(std::ostream &os,
-           [[maybe_unused]] const struct ur_usm_pool_set_threshold_exp_params_t
-               *params) {
-
-  os << ".hContext = ";
-
-  ur::details::printPtr(os, *(params->phContext));
-
-  os << ", ";
-  os << ".hDevice = ";
-
-  ur::details::printPtr(os, *(params->phDevice));
-
-  os << ", ";
-  os << ".hPool = ";
-
-  ur::details::printPtr(os, *(params->phPool));
-
-  os << ", ";
-  os << ".newThreshold = ";
-
-  os << *(params->pnewThreshold);
-
-  return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the
 /// ur_usm_pool_get_default_device_pool_exp_params_t type
 /// @returns
@@ -17613,6 +17650,36 @@ inline std::ostream &operator<<(
   os << ".pPropSizeRet = ";
 
   ur::details::printPtr(os, *(params->ppPropSizeRet));
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_set_info_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_usm_pool_set_info_exp_params_t *params) {
+
+  os << ".hPool = ";
+
+  ur::details::printPtr(os, *(params->phPool));
+
+  os << ", ";
+  os << ".propName = ";
+
+  os << *(params->ppropName);
+
+  os << ", ";
+  os << ".pPropValue = ";
+
+  ur::details::printPtr(os, *(params->ppPropValue));
+
+  os << ", ";
+  os << ".propSize = ";
+
+  os << *(params->ppropSize);
 
   return os;
 }
@@ -21020,15 +21087,15 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   case UR_FUNCTION_USM_POOL_DESTROY_EXP: {
     os << (const struct ur_usm_pool_destroy_exp_params_t *)params;
   } break;
-  case UR_FUNCTION_USM_POOL_SET_THRESHOLD_EXP: {
-    os << (const struct ur_usm_pool_set_threshold_exp_params_t *)params;
-  } break;
   case UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP: {
     os << (const struct ur_usm_pool_get_default_device_pool_exp_params_t *)
             params;
   } break;
   case UR_FUNCTION_USM_POOL_GET_INFO_EXP: {
     os << (const struct ur_usm_pool_get_info_exp_params_t *)params;
+  } break;
+  case UR_FUNCTION_USM_POOL_SET_INFO_EXP: {
+    os << (const struct ur_usm_pool_set_info_exp_params_t *)params;
   } break;
   case UR_FUNCTION_USM_POOL_SET_DEVICE_POOL_EXP: {
     os << (const struct ur_usm_pool_set_device_pool_exp_params_t *)params;

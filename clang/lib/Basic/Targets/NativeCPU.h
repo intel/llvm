@@ -29,7 +29,7 @@ public:
     DefineStd(Builder, "NativeCPU", Opts);
   }
 
-  ArrayRef<Builtin::Info> getTargetBuiltins() const override { return {}; }
+  SmallVector<Builtin::InfosShard> getTargetBuiltins() const override { return {}; }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     if (HostTarget)

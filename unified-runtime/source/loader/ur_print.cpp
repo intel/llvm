@@ -923,6 +923,15 @@ ur_result_t urPrintExpAsyncUsmAllocProperties(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t
+urPrintUsmPoolBufferDesc(const struct ur_usm_pool_buffer_desc_t params,
+                         char *buffer, const size_t buff_size,
+                         size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpImageCopyFlags(enum ur_exp_image_copy_flag_t value,
                                      char *buffer, const size_t buff_size,
                                      size_t *out_size) {
@@ -2671,14 +2680,6 @@ ur_result_t urPrintUsmPoolDestroyExpParams(
   return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintUsmPoolSetThresholdExpParams(
-    const struct ur_usm_pool_set_threshold_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
 ur_result_t urPrintUsmPoolGetDefaultDevicePoolExpParams(
     const struct ur_usm_pool_get_default_device_pool_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
@@ -2689,6 +2690,14 @@ ur_result_t urPrintUsmPoolGetDefaultDevicePoolExpParams(
 
 ur_result_t urPrintUsmPoolGetInfoExpParams(
     const struct ur_usm_pool_get_info_exp_params_t *params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintUsmPoolSetInfoExpParams(
+    const struct ur_usm_pool_set_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;

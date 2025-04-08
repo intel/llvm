@@ -804,10 +804,15 @@ protected:
       // Note that host_task events can never be discarded, so this will not
       // insert barriers between host_task enqueues.
       if (EventToBuildDeps->isDiscarded() &&
-          getSyclObjImpl(Handler)->MCGType == CGType::CodeplayHostTask)
+          Handler.getType() == CGType::CodeplayHostTask)
         EventToBuildDeps = insertHelperBarrier(Handler);
 
-      if (!EventToBuildDeps->isDiscarded())
+      // depends_on after an async alloc is explicitly disallowed. Async alloc
+      // handles in order queue dependencies preemptively, so we skip them.
+      // Note: This could be improved by moving the handling of dependencies
+      // to before calling the CGF.
+      if (!EventToBuildDeps->isDiscarded() &&
+          !(Handler.getType() == CGType::AsyncAlloc))
         Handler.depends_on(EventToBuildDeps);
     }
 
@@ -865,17 +870,15 @@ protected:
   event finalizeHandlerPostProcess(
       HandlerType &Handler,
       const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    auto HandlerImpl = detail::getSyclObjImpl(Handler);
-    const CGType Type = HandlerImpl->MCGType;
-
-    bool IsKernel = Type == CGType::Kernel;
+    bool IsKernel = Handler.getType() == CGType::Kernel;
     bool KernelUsesAssert = false;
 
     if (IsKernel)
       // Kernel only uses assert if it's non interop one
-      KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                         ProgramManager::getInstance().kernelUsesAssert(
-                             Handler.MKernelName.c_str());
+      KernelUsesAssert =
+          (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
+          ProgramManager::getInstance().kernelUsesAssert(
+              Handler.MKernelName.c_str());
 
     auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
                             : finalizeHandlerOutOfOrder(Handler);

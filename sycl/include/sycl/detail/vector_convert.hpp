@@ -57,9 +57,7 @@
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/exception.hpp>                  // for errc
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/memcpy.hpp>
-#endif
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 #include <sycl/vector.hpp>
 
@@ -884,6 +882,36 @@ using ConvertBoolAndByteT =
 template <typename DataT, int NumElements>
 template <typename convertT, rounding_mode roundingMode>
 vec<convertT, NumElements> vec<DataT, NumElements>::convert() const {
+#if !__SYCL_USE_LIBSYCL8_VEC_IMPL
+  auto getValue = [this](int Index) {
+    using RetType = typename std::conditional_t<
+        detail::is_byte_v<DataT>, int8_t,
+#ifdef __SYCL_DEVICE_ONLY__
+        typename detail::map_type<
+            DataT,
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+            std::byte, /*->*/ std::uint8_t, //
+#endif
+            bool, /*->*/ std::uint8_t,                            //
+            sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
+            sycl::ext::oneapi::bfloat16,
+            /*->*/ sycl::ext::oneapi::bfloat16::Bfloat16StorageT, //
+            char, /*->*/ detail::ConvertToOpenCLType_t<char>,     //
+            DataT, /*->*/ DataT                                   //
+            >::type
+#else
+        DataT
+#endif
+        >;
+
+#ifdef __SYCL_DEVICE_ONLY__
+    if constexpr (std::is_same_v<DataT, sycl::ext::oneapi::bfloat16>)
+      return sycl::bit_cast<RetType>(this->m_Data[Index]);
+    else
+#endif
+      return static_cast<RetType>(this->m_Data[Index]);
+  };
+#endif
   using T = detail::ConvertBoolAndByteT<DataT>;
   using R = detail::ConvertBoolAndByteT<convertT>;
   using bfloat16 = sycl::ext::oneapi::bfloat16;

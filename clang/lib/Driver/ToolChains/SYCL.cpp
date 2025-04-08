@@ -1686,7 +1686,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 // Unsupported options for SYCL device compilation.
 //  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
 //  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
-//  -fcs-profile-generate -forder-file-instrumentation, --coverage
+//  -fcs-profile-generate, --coverage
 static ArrayRef<options::ID> getUnsupportedOpts() {
   static constexpr options::ID UnsupportedOpts[] = {
       options::OPT_fsanitize_EQ,      // -fsanitize
@@ -1706,9 +1706,8 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
       options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate
       options::OPT_fcreate_profile,            // -fcreate-profile
       options::OPT_fprofile_instr_use,
-      options::OPT_fprofile_instr_use_EQ,       // -fprofile-instr-use
-      options::OPT_forder_file_instrumentation, // -forder-file-instrumentation
-      options::OPT_fcs_profile_generate,        // -fcs-profile-generate
+      options::OPT_fprofile_instr_use_EQ, // -fprofile-instr-use
+      options::OPT_fcs_profile_generate,  // -fcs-profile-generate
       options::OPT_fcs_profile_generate_EQ,
   };
   return UnsupportedOpts;

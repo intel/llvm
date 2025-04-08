@@ -1347,6 +1347,11 @@ Parameters:
   The other is <<enable-profiling, `property::graph::enable_profiling`>>
   to enable profiling events returned from submissions of the executable graph.
 
+Exceptions:
+
+* Throws synchronously with error code `feature_not_supported` if the graph
+  contains a command that is not supported by the device.
+
 Returns: A new executable graph object which can be submitted to a queue.
 
 |
