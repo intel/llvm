@@ -165,7 +165,7 @@ RTDeviceBinaryImage::getProperty(const char *PropName) const {
 void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   ImageId = ImageCounter++;
 
-  // If there was no binary, we let the owner handle initialization and they see
+  // If there was no binary, we let the owner handle initialization as they see
   // fit. This is used when merging binaries, e.g. during linking.
   if (!Bin)
     return;
