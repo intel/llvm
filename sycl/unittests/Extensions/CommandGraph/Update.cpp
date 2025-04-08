@@ -325,7 +325,7 @@ TEST_F(WholeGraphUpdateTest, UnsupportedNodeType) {
       EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeC = UpdateGraph.add(
       EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
-  auto UpdateNodeD = Graph.add(
+  auto UpdateNodeD = UpdateGraph.add(
       [&](handler &CGH) {
         auto Acc = Buffer.get_access(CGH);
         CGH.fill(Acc, 1);

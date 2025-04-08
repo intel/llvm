@@ -140,6 +140,24 @@ inline bool isKnownFailureOn(const DeviceTuple &param,
   return false;
 }
 
+inline bool
+isKnownFailureOn(std::tuple<ur_platform_handle_t, ur_device_handle_t> param,
+                 const std::vector<Matcher> &matchers) {
+  ur_adapter_handle_t adapter = nullptr;
+  uur::GetPlatformInfo<ur_adapter_handle_t>(std::get<0>(param),
+                                            UR_PLATFORM_INFO_ADAPTER, adapter);
+  auto adapterInfo = detail::getAdapterInfo(adapter);
+  std::string name;
+  uur::GetDeviceInfo<std::string>(std::get<1>(param), UR_DEVICE_INFO_NAME,
+                                  name);
+  for (const auto &matcher : matchers) {
+    if (matcher.matches(adapterInfo, name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 template <class Param>
 inline bool isKnownFailureOn(const std::tuple<DeviceTuple, Param> &param,
                              const std::vector<Matcher> &matchers) {
@@ -197,9 +215,9 @@ inline bool alsoRunKnownFailures() {
 }
 } // namespace uur
 
-#define UUR_KNOWN_FAILURE_ON(...)                                              \
-  if (uur::isKnownFailureOn(this->GetParam(), {__VA_ARGS__})) {                \
-    auto message = uur::knownFailureMessage(this->GetParam());                 \
+#define UUR_KNOWN_FAILURE_ON_PARAM(param, ...)                                 \
+  if (uur::isKnownFailureOn(param, {__VA_ARGS__})) {                           \
+    auto message = uur::knownFailureMessage(param);                            \
     if (uur::alsoRunKnownFailures()) {                                         \
       std::cerr << message << "\n";                                            \
     } else {                                                                   \
@@ -207,5 +225,8 @@ inline bool alsoRunKnownFailures() {
     }                                                                          \
   }                                                                            \
   (void)0
+
+#define UUR_KNOWN_FAILURE_ON(...)                                              \
+  UUR_KNOWN_FAILURE_ON_PARAM(this->GetParam(), __VA_ARGS__)
 
 #endif // UR_CONFORMANCE_INCLUDE_KNOWN_FAILURE_H_INCLUDED

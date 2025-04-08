@@ -223,22 +223,6 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
         if (Queue->isInOrderQueue() && InOrderBarrierBySignal &&
             !Queue->isProfilingEnabled()) {
           if (EventWaitList.Length) {
-            if (CmdList->second.IsInOrderList) {
-              for (unsigned i = EventWaitList.Length; i-- > 0;) {
-                // If the event is a multidevice event, then given driver in
-                // order lists, we cannot include this into the wait event list
-                // due to driver limitations.
-                if (EventWaitList.UrEventList[i]->IsMultiDevice) {
-                  EventWaitList.Length--;
-                  if (EventWaitList.Length != i) {
-                    std::swap(EventWaitList.UrEventList[i],
-                              EventWaitList.UrEventList[EventWaitList.Length]);
-                    std::swap(EventWaitList.ZeEventList[i],
-                              EventWaitList.ZeEventList[EventWaitList.Length]);
-                  }
-                }
-              }
-            }
             ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                        (CmdList->first, EventWaitList.Length,
                         EventWaitList.ZeEventList));
@@ -1505,8 +1489,9 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
   // the native driver implementation will already ensure in-order semantics.
   // The only exception is when a different immediate command was last used on
   // the same UR Queue.
-  if (CurQueue->Device->useDriverInOrderLists() && CurQueue->isInOrderQueue() &&
-      CurQueue->UsingImmCmdLists) {
+  if (CurQueue->Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
+      CurQueue->isInOrderQueue() && CurQueue->UsingImmCmdLists) {
     auto QueueGroup = CurQueue->getQueueGroup(UseCopyEngine);
     uint32_t QueueGroupOrdinal, QueueIndex;
     auto NextIndex = QueueGroup.getQueueIndex(&QueueGroupOrdinal, &QueueIndex,
@@ -1535,7 +1520,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
     // For in-order queue and wait-list which is empty or has events only from
     // the same queue then we don't need to wait on any other additional events
-    if (CurQueue->Device->useDriverInOrderLists() &&
+    if (CurQueue->Device->Platform->allowDriverInOrderLists(
+            true /*Only Allow Driver In Order List if requested*/) &&
         CurQueue->isInOrderQueue() &&
         WaitListEmptyOrAllEventsFromSameQueue(CurQueue, EventListLength,
                                               EventList)) {

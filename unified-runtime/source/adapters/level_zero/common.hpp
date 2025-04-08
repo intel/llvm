@@ -433,5 +433,3 @@ extern thread_local int32_t ErrorAdapterNativeCode;
 [[maybe_unused]] void setErrorMessage(const char *pMessage,
                                       ur_result_t ErrorCode,
                                       int32_t AdapterErrorCode);
-
-#define L0_DRIVER_INORDER_MIN_VERSION 29534

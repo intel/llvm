@@ -7,6 +7,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "logger/ur_logger.hpp"
+#include "platform.hpp"
 
 #include "CL/cl.h"
 #include "logger/ur_logger.hpp"
@@ -17,6 +19,9 @@ struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
   std::mutex Mutex;
   logger::Logger &log = logger::get_logger("opencl");
+
+  std::vector<std::unique_ptr<ur_platform_handle_t_>> URPlatforms;
+  uint32_t NumPlatforms = 0;
 
   // Function pointers to core OpenCL entry points which may not exist in older
   // versions of the OpenCL-ICD-Loader are tracked here and initialized by

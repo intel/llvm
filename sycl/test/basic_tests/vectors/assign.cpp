@@ -27,14 +27,14 @@ using sw_double_2 = decltype(std::declval<vec<double, 4>>().swizzle<1, 2>());
 //            EXCEPT_IN_PREVIEW condition<>
 
 static_assert(                  std::is_assignable_v<vec<half, 1>, half>);
-static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, float>);
-static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, double>);
+static_assert(                  std::is_assignable_v<vec<half, 1>, float>);
+static_assert(                  std::is_assignable_v<vec<half, 1>, double>);
 static_assert(                  std::is_assignable_v<vec<half, 1>, vec<half, 1>>);
 static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, vec<float, 1>>);
 static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, vec<double, 1>>);
 static_assert(                  std::is_assignable_v<vec<half, 1>, sw_half_1>);
-static_assert(                  std::is_assignable_v<vec<half, 1>, sw_float_1>);
-static_assert(                  std::is_assignable_v<vec<half, 1>, sw_double_1>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, sw_float_1>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 1>, sw_double_1>);
 static_assert(                 !std::is_assignable_v<vec<half, 1>, sw_half_2>);
 static_assert(                 !std::is_assignable_v<vec<half, 1>, sw_float_2>);
 static_assert(                 !std::is_assignable_v<vec<half, 1>, sw_double_2>);
@@ -46,8 +46,8 @@ static_assert(                  std::is_assignable_v<vec<half, 2>, vec<half, 1>>
 static_assert(                 !std::is_assignable_v<vec<half, 2>, vec<float, 1>>);
 static_assert(                 !std::is_assignable_v<vec<half, 2>, vec<double, 1>>);
 static_assert(                  std::is_assignable_v<vec<half, 2>, sw_half_1>);
-static_assert(                  std::is_assignable_v<vec<half, 2>, sw_float_1>);
-static_assert(                  std::is_assignable_v<vec<half, 2>, sw_double_1>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 2>, sw_float_1>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<half, 2>, sw_double_1>);
 static_assert(                  std::is_assignable_v<vec<half, 2>, sw_half_2>);
 static_assert(                 !std::is_assignable_v<vec<half, 2>, sw_float_2>);
 static_assert(                 !std::is_assignable_v<vec<half, 2>, sw_double_2>);
@@ -56,13 +56,13 @@ static_assert(                  std::is_assignable_v<vec<float, 1>, half>);
 static_assert(                  std::is_assignable_v<vec<float, 1>, float>);
 static_assert(                  std::is_assignable_v<vec<float, 1>, double>);
 #if __SYCL_DEVICE_ONLY__
-static_assert(                  std::is_assignable_v<vec<float, 1>, vec<half, 1>>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<float, 1>, vec<half, 1>>);
 #else
 static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<float, 1>, vec<half, 1>>);
 #endif
 static_assert(                  std::is_assignable_v<vec<float, 1>, vec<float, 1>>);
 static_assert(                  std::is_assignable_v<vec<float, 1>, vec<double, 1>>);
-static_assert(                  std::is_assignable_v<vec<float, 1>, sw_half_1>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<float, 1>, sw_half_1>);
 static_assert(                  std::is_assignable_v<vec<float, 1>, sw_float_1>);
 static_assert(                  std::is_assignable_v<vec<float, 1>, sw_double_1>);
 static_assert(                 !std::is_assignable_v<vec<float, 1>, sw_half_2>);
@@ -73,13 +73,13 @@ static_assert(                  std::is_assignable_v<vec<float, 2>, half>);
 static_assert(                  std::is_assignable_v<vec<float, 2>, float>);
 static_assert(                  std::is_assignable_v<vec<float, 2>, double>);
 #if __SYCL_DEVICE_ONLY__
-static_assert(                  std::is_assignable_v<vec<float, 2>, vec<half, 1>>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<float, 2>, vec<half, 1>>);
 #else
 static_assert(                 !std::is_assignable_v<vec<float, 2>, vec<half, 1>>);
 #endif
 static_assert(                  std::is_assignable_v<vec<float, 2>, vec<float, 1>>);
 static_assert(                  std::is_assignable_v<vec<float, 2>, vec<double, 1>>);
-static_assert(                  std::is_assignable_v<vec<float, 2>, sw_half_1>);
+static_assert(EXCEPT_IN_PREVIEW std::is_assignable_v<vec<float, 2>, sw_half_1>);
 static_assert(                  std::is_assignable_v<vec<float, 2>, sw_float_1>);
 static_assert(                  std::is_assignable_v<vec<float, 2>, sw_double_1>);
 static_assert(                 !std::is_assignable_v<vec<float, 2>, sw_half_2>);
