@@ -1120,7 +1120,7 @@ bool verifyCubemapImageSupport(
 bool verifyLayeredImageSupport(
     [[maybe_unused]] const ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc,
-    ur_exp_image_mem_type_t imageMemHandleType) {
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify layered image support.
   // Layered images are not currently supported for the AMD target.
   if ((pImageDesc->type == UR_MEM_TYPE_IMAGE1D_ARRAY) ||
@@ -1131,9 +1131,10 @@ bool verifyLayeredImageSupport(
   return true;
 }
 
-bool verifyGatherImageSupport([[maybe_unused]] const ur_device_handle_t hDevice,
-                              const ur_image_desc_t *pImageDesc,
-                              ur_exp_image_mem_type_t imageMemHandleType) {
+bool verifyGatherImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify gather image support.
   // Gather images are not currently supported for the AMD target.
   if (pImageDesc->type == UR_MEM_TYPE_IMAGE_GATHER_EXP) {

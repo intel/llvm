@@ -1087,9 +1087,9 @@ bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
   return true;
 }
 
-bool verifyMipmapImageSupport(const ur_device_handle_t hDevice,
-                              const ur_image_desc_t *pImageDesc,
-                              ur_exp_image_mem_type_t imageMemHandleType) {
+bool verifyMipmapImageSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify mipmap image dimensions are within device limits.
   size_t maxImageWidth, maxImageHeight;
 
@@ -1127,9 +1127,9 @@ bool verifyMipmapImageSupport(const ur_device_handle_t hDevice,
   return true;
 }
 
-bool verifyLayeredImageSupport(const ur_device_handle_t hDevice,
-                               const ur_image_desc_t *pImageDesc,
-                               ur_exp_image_mem_type_t imageMemHandleType) {
+bool verifyLayeredImageSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify layered image dimensions are within device limits.
   size_t maxImageWidth, maxImageHeight, maxImageLayers;
 
@@ -1218,7 +1218,7 @@ bool verifyCubemapImageSupport(const ur_device_handle_t hDevice,
                                ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify cubemap support and whether cubemap image dimensions are within
   // device limits.
-  size_t maxImageWidth, maxImageHeight, maxImageLayers;
+  size_t maxImageWidth;
 
   if (pImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
 
@@ -1256,9 +1256,9 @@ bool verifyCubemapImageSupport(const ur_device_handle_t hDevice,
   return true;
 }
 
-bool verifyGatherImageSupport(const ur_device_handle_t hDevice,
-                              const ur_image_desc_t *pImageDesc,
-                              ur_exp_image_mem_type_t imageMemHandleType) {
+bool verifyGatherImageSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify gather image dimensions are within device limits.
   size_t maxImageWidth, maxImageHeight;
   if (pImageDesc->type == UR_MEM_TYPE_IMAGE_GATHER_EXP) {
