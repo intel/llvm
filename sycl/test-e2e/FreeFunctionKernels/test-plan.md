@@ -85,7 +85,7 @@ With the exception of the`single_task_kernel` free function kernels, all subsequ
 #### Test `accessor` as kernel parameter to `single_task_kernel`:
 
 A series of tests should be performed that accessor in `single_task_kernel` is supported when
-templated with `target::device`, `target::global_buffer`, `target::constant_buffer` and `target::local` inside free function kernel when passed as kernel parameter.
+templated with `target::device`, inside free function kernel when passed as kernel parameter.
 
 <!-- A test should begin by allocating memory on the host and initializing it with a specific value. Next, create a buffer and pass it to the `single_task_kernel` through an accessor, allowing the kernel to write a value to the memory. Then perform check to verify the written data on the host. Then, using another `single_task_kernel` with separately allocated memory on the host and two accessors, first read the data from the previous write and copy it to the newly allocated memory on the host. Finally, perform a check on the host.  -->
 
@@ -112,7 +112,7 @@ A series of checks should be performed that we can pass `unsampled_image_accesso
 
 #### Test `accessor` as kernel parameter to `nd_range_kernel`:
 A series of checks should be performed that accessor in `nd_range_kernel` is supported when
-templated with `target::device`, `target::global_buffer`, `target::constant_buffer` and `target::local` inside free function kernel when passed as kernel parameter.
+templated with `target::device`, inside free function kernel when passed as kernel parameter.
 
 #### Test `local_accessor` as kernel parameter to `nd_range_kernel`: 
 A series of checks should be performed that we can pass `local_accessor` as kernel parameter to `nd_range_kernel` and use it within kernel
