@@ -522,9 +522,9 @@ getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
   return {ZeImageFormatType, ZeImageFormatTypeSize};
 }
 
-bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
-                                const ur_image_desc_t *pImageDesc,
-                                ur_exp_image_mem_type_t imageMemHandleType) {
+bool verifyStandardImageSupport(
+    const ur_device_handle_t hDevice, const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
 
   // Verify standard image dimensions are within device limits.
   if (pImageDesc->depth != 0 && pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
@@ -558,9 +558,10 @@ bool verifyStandardImageSupport(const ur_device_handle_t hDevice,
   return true;
 }
 
-bool verifyMipmapImageSupport([[maybe_unused]] const ur_device_handle_t hDevice,
-                              const ur_image_desc_t *pImageDesc,
-                              ur_exp_image_mem_type_t imageMemHandleType) {
+bool verifyMipmapImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify support for mipmap images.
   // LevelZero currently does not support mipmap images.
   if (pImageDesc->numMipLevel > 1) {
@@ -573,7 +574,7 @@ bool verifyMipmapImageSupport([[maybe_unused]] const ur_device_handle_t hDevice,
 bool verifyCubemapImageSupport(
     [[maybe_unused]] const ur_device_handle_t hDevice,
     const ur_image_desc_t *pImageDesc,
-    ur_exp_image_mem_type_t imageMemHandleType) {
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify support for cubemap images.
   // LevelZero current does not support cubemap images.
   if (pImageDesc->type == UR_MEM_TYPE_IMAGE_CUBEMAP_EXP) {
@@ -599,9 +600,10 @@ bool verifyLayeredImageSupport(
   return true;
 }
 
-bool verifyGatherImageSupport([[maybe_unused]] const ur_device_handle_t hDevice,
-                              const ur_image_desc_t *pImageDesc,
-                              ur_exp_image_mem_type_t imageMemHandleType) {
+bool verifyGatherImageSupport(
+    [[maybe_unused]] const ur_device_handle_t hDevice,
+    const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_exp_image_mem_type_t imageMemHandleType) {
   // Verify support for gather images.
   // LevelZero current does not support gather images.
   if (pImageDesc->type == UR_MEM_TYPE_IMAGE_GATHER_EXP) {
