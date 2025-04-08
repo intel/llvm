@@ -15412,12 +15412,20 @@ Instruction &BoUpSLP::getLastInstructionInBundle(const TreeEntry *E) {
 
   if (E->State == TreeEntry::SplitVectorize) {
     Res = FindLastInst();
+    if (ArrayRef<TreeEntry *> Entries = getTreeEntries(Res); !Entries.empty()) {
+      for (auto *E : Entries) {
+        auto *I = dyn_cast_or_null<Instruction>(E->VectorizedValue);
+        if (!I)
+          I = &getLastInstructionInBundle(E);
+        if (Res->comesBefore(I))
+          Res = I;
+      }
+    }
     return *Res;
   }
 
   // Set insertpoint for gathered loads to the very first load.
-  if (E->State != TreeEntry::SplitVectorize &&
-      GatheredLoadsEntriesFirst.has_value() &&
+  if (GatheredLoadsEntriesFirst.has_value() &&
       E->Idx >= *GatheredLoadsEntriesFirst && !E->isGather() &&
       E->getOpcode() == Instruction::Load) {
     Res = FindFirstInst();
@@ -17762,13 +17770,12 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
         Value *Src = vectorizeOperand(E, 0);
         SmallVector<int> ThisMask(calculateShufflevectorMask(E->Scalars));
         if (auto *SVSrc = dyn_cast<ShuffleVectorInst>(Src)) {
-          assert(isa<PoisonValue>(SVSrc->getOperand(1)) &&
-                 "Not supported shufflevector usage.");
           SmallVector<int> NewMask(ThisMask.size());
           transform(ThisMask, NewMask.begin(), [&SVSrc](int Mask) {
             return SVSrc->getShuffleMask()[Mask];
           });
-          V = Builder.CreateShuffleVector(SVSrc->getOperand(0), NewMask);
+          V = Builder.CreateShuffleVector(SVSrc->getOperand(0),
+                                          SVSrc->getOperand(1), NewMask);
         } else {
           V = Builder.CreateShuffleVector(Src, ThisMask);
         }
