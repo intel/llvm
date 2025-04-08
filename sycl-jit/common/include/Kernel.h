@@ -71,104 +71,19 @@ struct SYCLKernelBinaryInfo {
   uint64_t BinarySize = 0;
 };
 
-///
-/// Class to model a three-dimensional index.
-class Indices {
-public:
-  static constexpr size_t size() { return Size; }
-
-  constexpr Indices() : Values{0, 0, 0} {}
-  constexpr Indices(size_t V1, size_t V2, size_t V3) : Values{V1, V2, V3} {}
-
-  constexpr const size_t *begin() const { return Values; }
-  constexpr const size_t *end() const { return Values + Size; }
-  constexpr size_t *begin() { return Values; }
-  constexpr size_t *end() { return Values + Size; }
-
-  constexpr const size_t &operator[](int Idx) const { return Values[Idx]; }
-  constexpr size_t &operator[](int Idx) { return Values[Idx]; }
-
-  friend bool operator==(const Indices &A, const Indices &B) {
-    return std::equal(A.begin(), A.end(), B.begin());
-  }
-
-  friend bool operator!=(const Indices &A, const Indices &B) {
-    return !(A == B);
-  }
-
-  friend bool operator<(const Indices &A, const Indices &B) {
-    return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
-                                        std::less<size_t>{});
-  }
-
-  friend bool operator>(const Indices &A, const Indices &B) {
-    return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
-                                        std::greater<size_t>{});
-  }
-
-private:
-  static constexpr size_t Size = 3;
-  size_t Values[Size];
-};
-
-///
-/// Describe a SYCL/OpenCL kernel attribute by its kind and values.
-struct SYCLKernelAttribute {
-  enum class AttrKind { Invalid, ReqdWorkGroupSize, WorkGroupSizeHint };
-
-  static constexpr auto ReqdWorkGroupSizeName = "reqd_work_group_size";
-  static constexpr auto WorkGroupSizeHintName = "work_group_size_hint";
-
-  static AttrKind parseKind(const char *Name) {
-    auto Kind = AttrKind::Invalid;
-    if (std::strcmp(Name, ReqdWorkGroupSizeName) == 0) {
-      Kind = AttrKind::ReqdWorkGroupSize;
-    } else if (std::strcmp(Name, WorkGroupSizeHintName) == 0) {
-      Kind = AttrKind::WorkGroupSizeHint;
-    }
-    return Kind;
-  }
-
-  AttrKind Kind;
-  Indices Values;
-
-  SYCLKernelAttribute() : Kind(AttrKind::Invalid) {}
-  SYCLKernelAttribute(AttrKind Kind, const Indices &Values)
-      : Kind(Kind), Values(Values) {}
-
-  const char *getName() const {
-    assert(Kind != AttrKind::Invalid);
-    switch (Kind) {
-    case AttrKind::ReqdWorkGroupSize:
-      return ReqdWorkGroupSizeName;
-    case AttrKind::WorkGroupSizeHint:
-      return WorkGroupSizeHintName;
-    default:
-      return "__invalid__";
-    }
-  }
-};
-
-///
-/// List of SYCL/OpenCL kernel attributes.
-using SYCLAttributeList = DynArray<SYCLKernelAttribute>;
-
 /// Information about a kernel from DPC++.
 struct SYCLKernelInfo {
 
   sycl::detail::string Name;
-
-  SYCLAttributeList Attributes;
 
   SYCLKernelBinaryInfo BinaryInfo;
 
   SYCLKernelInfo() = default;
 
   SYCLKernelInfo(const char *KernelName, const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Attributes{}, BinaryInfo{BinInfo} {}
+      : Name{KernelName}, BinaryInfo{BinInfo} {}
 
-  SYCLKernelInfo(const char *KernelName)
-      : Name{KernelName}, Attributes{}, BinaryInfo{} {}
+  SYCLKernelInfo(const char *KernelName) : Name{KernelName}, BinaryInfo{} {}
 };
 
 // RTC-related datastructures

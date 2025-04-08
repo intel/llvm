@@ -25,45 +25,6 @@ using namespace jit_compiler;
 using namespace jit_compiler::translation;
 using namespace llvm;
 
-///
-/// Get an `Indices` object from the MDNode's three constant integer operands.
-static Indices getAttributeValues(MDNode *MD) {
-  assert(MD->getNumOperands() == Indices::size());
-  Indices Res;
-  std::transform(MD->op_begin(), MD->op_end(), Res.begin(),
-                 [](const auto &MDOp) {
-                   auto *ConstantMD = cast<ConstantAsMetadata>(MDOp);
-                   auto *ConstInt = cast<ConstantInt>(ConstantMD->getValue());
-                   return ConstInt->getZExtValue();
-                 });
-  return Res;
-}
-
-///
-/// Restore kernel attributes for the kernel in Info from the metadata
-/// attached to its kernel function in the LLVM module Mod.
-/// Currently supported attributes:
-///   - reqd_work_group_size
-///   - work_group_size_hint
-static void restoreKernelAttributes(Module *Mod, SYCLKernelInfo &Info) {
-  auto *KernelFunction = Mod->getFunction(Info.Name.c_str());
-  assert(KernelFunction && "Kernel function not present in module");
-  SmallVector<SYCLKernelAttribute, 2> Attrs;
-  using AttrKind = SYCLKernelAttribute::AttrKind;
-  if (auto *MD = KernelFunction->getMetadata(
-          SYCLKernelAttribute::ReqdWorkGroupSizeName)) {
-    Attrs.emplace_back(AttrKind::ReqdWorkGroupSize, getAttributeValues(MD));
-  }
-  if (auto *MD = KernelFunction->getMetadata(
-          SYCLKernelAttribute::WorkGroupSizeHintName)) {
-    Attrs.emplace_back(AttrKind::WorkGroupSizeHint, getAttributeValues(MD));
-  }
-  if (Attrs.empty())
-    return;
-  Info.Attributes = SYCLAttributeList{Attrs.size()};
-  llvm::copy(Attrs, Info.Attributes.begin());
-}
-
 llvm::Expected<std::unique_ptr<llvm::Module>>
 KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
                               std::vector<SYCLKernelInfo> &Kernels) {
@@ -148,10 +109,6 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
       }
       ParsedBinaries.insert(BinBlob);
     }
-    // Restore SYCL/OpenCL kernel attributes such as 'reqd_work_group_size' or
-    // 'work_group_size_hint' from metadata attached to the kernel function and
-    // store it in the SYCLKernelInfo.
-    restoreKernelAttributes(Result.get(), Kernel);
   }
   return std::move(Result);
 }
