@@ -50,8 +50,7 @@ entry:
 ; FIXME: This llvm.dbg.value marks a 'kill location' and denotes the
 ; termination of the previous value assigned to %tmp - we could probably do
 ; better here by manifesting a vectorized value?
-; CHECK-GE19: #dbg_value(i32 {{(poison|undef)}}, [[VAR:![0-9]+]],
-; CHECK-LT19: call void @llvm.dbg.value(metadata i32 {{(poison|undef)}}, metadata [[VAR:![0-9]+]],
+; CHECK: #dbg_value(i32 {{(poison|undef)}}, [[VAR:![0-9]+]],
 ; CHECK-SAME:   !DIExpression({{.*}}),
 ; CHECK-SAME:   !{{[0-9]+}}
   %1 = load i32, i32* %tid, align 4, !dbg !32

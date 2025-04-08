@@ -290,7 +290,6 @@ struct ScheduleGenerator {
           /*AlwaysPreserve=*/false, DINode::FlagZero,
           old_var->getAlignInBits());
       // Create intrinsic
-#if LLVM_VERSION_GREATER_EQUAL(19, 0)
       if (!module.IsNewDbgInfoFormat) {
         auto *const DII = cast<Instruction *>(DIB.insertDeclare(
             barrier.getDebugAddr(), new_var, expr, wrapperDbgLoc, block));
@@ -314,26 +313,15 @@ struct ScheduleGenerator {
 
         DummyInst->eraseFromParent();
       }
-#else
-      auto *const DII = DIB.insertDeclare(barrier.getDebugAddr(), new_var, expr,
-                                          wrapperDbgLoc, block);
-
-      // Bit of a HACK to produce the same debug output as the Mem2Reg
-      // pass used to do.
-      auto *const DVIntrinsic = cast<DbgVariableIntrinsic>(DII);
-      ConvertDebugDeclareToDebugValue(DVIntrinsic, SI, DIB);
-#endif
     };
     for (auto debug_pair : barrier.getDebugIntrinsics()) {
       RecreateDebugIntrinsic(debug_pair.first->getVariable(),
                              debug_pair.second);
     }
-#if LLVM_VERSION_GREATER_EQUAL(19, 0)
     for (auto debug_pair : barrier.getDebugDbgVariableRecords()) {
       RecreateDebugIntrinsic(debug_pair.first->getVariable(),
                              debug_pair.second);
     }
-#endif
   }
 
   void createWorkItemLoopBody(

@@ -387,11 +387,7 @@ void UniformValueResult::markVaryingValues(Value *V, Value *From) {
   } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(VIns)) {
     // We need to clear the flags because the initial address may be out of
     // bounds but masked out.
-#if LLVM_VERSION_GREATER_EQUAL(19, 0)
     GEP->setNoWrapFlags(GEPNoWrapFlags::none());
-#else
-    GEP->setIsInBounds(false);
-#endif
 
     // Same as with the stores
     AllocaInst *Alloca = findAllocaFromPointer(GEP->getPointerOperand());

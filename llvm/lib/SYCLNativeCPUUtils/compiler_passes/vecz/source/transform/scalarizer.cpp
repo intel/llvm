@@ -709,7 +709,6 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
     }
   };
 
-#if LLVM_VERSION_GREATER_EQUAL(19, 0)
   for (DbgVariableRecord *const DVR : LAM->getAllDbgVariableRecordUsers()) {
     DILocalVariable *DILocal = nullptr;
     DebugLoc DILoc;
@@ -730,7 +729,6 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
                                   Original->getIterator());
     });
   }
-#endif
 
   auto *const MDV = MetadataAsValue::getIfExists(Original->getContext(), LAM);
   if (!MDV) {

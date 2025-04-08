@@ -35,16 +35,9 @@ template <typename DIBuilder>
 struct DIBuilderWrapper : DIBuilder {
   using DIBuilder::DIBuilder;
 
-#if LLVM_VERSION_GREATER_EQUAL(19, 0)
   llvm::BasicBlock *getBasicBlock(llvm::InsertPosition InsertPt) {
     return InsertPt.getBasicBlock();
   }
-#else
-  llvm::BasicBlock *getBasicBlock(llvm::BasicBlock::iterator InsertPt) {
-    // Cannot handle sentinels.
-    return InsertPt->getParent();
-  }
-#endif
 
   auto insertDeclare(llvm::Value *Storage, llvm::DILocalVariable *VarInfo,
                      llvm::DIExpression *Expr, const llvm::DILocation *DL,
