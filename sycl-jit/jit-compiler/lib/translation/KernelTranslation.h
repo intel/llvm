@@ -23,11 +23,12 @@ class KernelTranslator {
 public:
   static llvm::Expected<std::unique_ptr<llvm::Module>>
   loadKernels(llvm::LLVMContext &LLVMCtx,
-              const std::vector<SYCLKernelBinaryInfo> &BinaryInfos);
+              const std::vector<JITBinaryInfo> &BinaryInfos);
 
-  static llvm::Expected<SYCLKernelBinaryInfo>
-  translateKernel(const char *KernelName, llvm::Module &Mod, JITContext &JITCtx,
-                  BinaryFormat Format);
+  static llvm::Expected<JITBinaryInfo> translateKernel(const char *KernelName,
+                                                       llvm::Module &Mod,
+                                                       JITContext &JITCtx,
+                                                       BinaryFormat Format);
 
   static llvm::Expected<RTCDevImgBinaryInfo>
   translateDevImgToSPIRV(llvm::Module &Mod, JITContext &JITCtx);
@@ -38,22 +39,20 @@ private:
   using BinaryBlob = std::pair<BinaryAddress, size_t>;
 
   static llvm::Expected<std::unique_ptr<llvm::Module>>
-  loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
-                 const SYCLKernelBinaryInfo &BinaryInfo);
+  loadLLVMKernel(llvm::LLVMContext &LLVMCtx, const JITBinaryInfo &BinaryInfo);
 
   static llvm::Expected<std::unique_ptr<llvm::Module>>
-  loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                  const SYCLKernelBinaryInfo &BinaryInfo);
+  loadSPIRVKernel(llvm::LLVMContext &LLVMCtx, const JITBinaryInfo &BinaryInfo);
 
-  static llvm::Expected<KernelBinary *> translateToSPIRV(llvm::Module &Mod,
-                                                         JITContext &JITCtx);
+  static llvm::Expected<JITBinary *> translateToSPIRV(llvm::Module &Mod,
+                                                      JITContext &JITCtx);
 
-  static llvm::Expected<KernelBinary *>
+  static llvm::Expected<JITBinary *>
   translateToPTX(const char *KernelName, llvm::Module &Mod, JITContext &JITCtx);
 
-  static llvm::Expected<KernelBinary *>
-  translateToAMDGCN(const char *KernelName, llvm::Module &Mod,
-                    JITContext &JITCtx);
+  static llvm::Expected<JITBinary *> translateToAMDGCN(const char *KernelName,
+                                                       llvm::Module &Mod,
+                                                       JITContext &JITCtx);
 };
 } // namespace translation
 } // namespace jit_compiler

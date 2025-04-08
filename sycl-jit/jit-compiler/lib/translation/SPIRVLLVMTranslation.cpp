@@ -105,7 +105,7 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
 
 Expected<std::unique_ptr<llvm::Module>>
 SPIRVLLVMTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                                     const SYCLKernelBinaryInfo &BinaryInfo) {
+                                     const JITBinaryInfo &BinaryInfo) {
   std::unique_ptr<Module> Result{nullptr};
 
   assert(BinaryInfo.Format == BinaryFormat::SPIRV &&
@@ -133,7 +133,7 @@ SPIRVLLVMTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
   return std::move(NewMod);
 }
 
-Expected<jit_compiler::KernelBinary *>
+Expected<jit_compiler::JITBinary *>
 SPIRVLLVMTranslator::translateLLVMtoSPIRV(Module &Mod, JITContext &JITCtx) {
   std::ostringstream BinaryStream;
   std::string ErrMsg;
@@ -144,5 +144,5 @@ SPIRVLLVMTranslator::translateLLVMtoSPIRV(Module &Mod, JITContext &JITCtx) {
         "Translation of LLVM IR to SPIR-V failed with error %s",
         ErrMsg.c_str());
   }
-  return &JITCtx.emplaceKernelBinary(BinaryStream.str(), BinaryFormat::SPIRV);
+  return &JITCtx.emplaceBinary(BinaryStream.str(), BinaryFormat::SPIRV);
 }

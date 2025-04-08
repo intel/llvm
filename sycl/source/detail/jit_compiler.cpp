@@ -175,7 +175,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "No suitable IR available for materializing");
   }
-  ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
+  ::jit_compiler::JITBinaryInfo BinInfo{
       BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
 
   ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);

@@ -17,7 +17,7 @@
 using namespace jit_compiler;
 
 extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
-    const char *KernelName, const SYCLKernelBinaryInfo &BinaryInfo,
+    const char *KernelName, const JITBinaryInfo &BinaryInfo,
     View<unsigned char> SpecConstBlob) {
   auto &JITCtx = JITContext::getInstance();
 
@@ -29,7 +29,7 @@ extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
                      "Available targets are: PTX or AMDGCN.");
   }
 
-  std::vector<SYCLKernelBinaryInfo> BinaryInfos{BinaryInfo};
+  std::vector<JITBinaryInfo> BinaryInfos{BinaryInfo};
   // Load all input kernels from their respective modules into a single
   // LLVM IR module.
   llvm::LLVMContext Ctx;

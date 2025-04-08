@@ -25,9 +25,9 @@ using namespace jit_compiler;
 using namespace jit_compiler::translation;
 using namespace llvm;
 
-llvm::Expected<std::unique_ptr<llvm::Module>> KernelTranslator::loadKernels(
-    llvm::LLVMContext &LLVMCtx,
-    const std::vector<SYCLKernelBinaryInfo> &BinaryInfos) {
+llvm::Expected<std::unique_ptr<llvm::Module>>
+KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
+                              const std::vector<JITBinaryInfo> &BinaryInfos) {
   std::unique_ptr<Module> Result{nullptr};
   bool First = true;
   DenseSet<BinaryBlob> ParsedBinaries;
@@ -114,7 +114,7 @@ llvm::Expected<std::unique_ptr<llvm::Module>> KernelTranslator::loadKernels(
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
-                                 const SYCLKernelBinaryInfo &BinaryInfo) {
+                                 const JITBinaryInfo &BinaryInfo) {
   llvm::StringRef RawData(
       reinterpret_cast<const char *>(BinaryInfo.BinaryStart),
       BinaryInfo.BinarySize);
@@ -127,40 +127,39 @@ KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 KernelTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                                  const SYCLKernelBinaryInfo &BinaryInfo) {
+                                  const JITBinaryInfo &BinaryInfo) {
   return SPIRVLLVMTranslator::loadSPIRVKernel(LLVMCtx, BinaryInfo);
 }
 
-llvm::Expected<SYCLKernelBinaryInfo>
+llvm::Expected<JITBinaryInfo>
 KernelTranslator::translateKernel(const char *KernelName, llvm::Module &Mod,
                                   JITContext &JITCtx, BinaryFormat Format) {
 
-  KernelBinary *KernelBin = nullptr;
+  JITBinary *JITBin = nullptr;
   switch (Format) {
   case BinaryFormat::SPIRV: {
-    llvm::Expected<KernelBinary *> BinaryOrError =
-        translateToSPIRV(Mod, JITCtx);
+    llvm::Expected<JITBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
     if (auto Error = BinaryOrError.takeError()) {
       return Error;
     }
-    KernelBin = *BinaryOrError;
+    JITBin = *BinaryOrError;
     break;
   }
   case BinaryFormat::PTX: {
-    llvm::Expected<KernelBinary *> BinaryOrError =
+    llvm::Expected<JITBinary *> BinaryOrError =
         translateToPTX(KernelName, Mod, JITCtx);
     if (auto Error = BinaryOrError.takeError()) {
       return Error;
     }
-    KernelBin = *BinaryOrError;
+    JITBin = *BinaryOrError;
     break;
   }
   case BinaryFormat::AMDGCN: {
-    llvm::Expected<KernelBinary *> BinaryOrError =
+    llvm::Expected<JITBinary *> BinaryOrError =
         translateToAMDGCN(KernelName, Mod, JITCtx);
     if (auto Error = BinaryOrError.takeError())
       return Error;
-    KernelBin = *BinaryOrError;
+    JITBin = *BinaryOrError;
     break;
   }
   default: {
@@ -170,14 +169,14 @@ KernelTranslator::translateKernel(const char *KernelName, llvm::Module &Mod,
   }
   }
 
-  SYCLKernelBinaryInfo BinaryInfo;
+  JITBinaryInfo BinaryInfo;
   BinaryInfo.Format = Format;
   // Output SPIR-V should use the same number of address bits as the input
   // SPIR-V. SPIR-V translation requires all modules to use the same number of
   // address bits, so it's safe to take the value from the first one.
   BinaryInfo.AddressBits = Mod.getDataLayout().getPointerSizeInBits();
-  BinaryInfo.BinaryStart = KernelBin->address();
-  BinaryInfo.BinarySize = KernelBin->size();
+  BinaryInfo.BinaryStart = JITBin->address();
+  BinaryInfo.BinarySize = JITBin->size();
   return BinaryInfo;
 }
 
@@ -186,23 +185,23 @@ KernelTranslator::translateDevImgToSPIRV(llvm::Module &Mod,
                                          JITContext &JITCtx) {
   llvm::TimeTraceScope TTS{"translateDevImgToSPIRV"};
 
-  llvm::Expected<KernelBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
+  llvm::Expected<JITBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
   if (auto Error = BinaryOrError.takeError()) {
     return Error;
   }
-  KernelBinary *Binary = *BinaryOrError;
+  JITBinary *Binary = *BinaryOrError;
   RTCDevImgBinaryInfo DIBI{BinaryFormat::SPIRV,
                            Mod.getDataLayout().getPointerSizeInBits(),
                            Binary->address(), Binary->size()};
   return DIBI;
 }
 
-llvm::Expected<KernelBinary *>
+llvm::Expected<JITBinary *>
 KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
   return SPIRVLLVMTranslator::translateLLVMtoSPIRV(Mod, JITCtx);
 }
 
-llvm::Expected<KernelBinary *>
+llvm::Expected<JITBinary *>
 KernelTranslator::translateToPTX(const char *KernelName, llvm::Module &Mod,
                                  JITContext &JITCtx) {
 #ifndef JIT_SUPPORT_PTX
@@ -281,11 +280,11 @@ KernelTranslator::translateToPTX(const char *KernelName, llvm::Module &Mod,
     ASMStream.flush();
   }
 
-  return &JITCtx.emplaceKernelBinary(std::move(PTXASM), BinaryFormat::PTX);
+  return &JITCtx.emplaceBinary(std::move(PTXASM), BinaryFormat::PTX);
 #endif // JIT_SUPPORT_PTX
 }
 
-llvm::Expected<KernelBinary *>
+llvm::Expected<JITBinary *>
 KernelTranslator::translateToAMDGCN(const char *KernelName, llvm::Module &Mod,
                                     JITContext &JITCtx) {
 #ifndef JIT_SUPPORT_AMDGCN

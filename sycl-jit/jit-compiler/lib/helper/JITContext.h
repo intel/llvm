@@ -19,10 +19,10 @@
 namespace jit_compiler {
 
 ///
-/// Wrapper around a kernel binary.
-class KernelBinary {
+/// Wrapper around a blob created and owned by the JIT compiler.
+class JITBinary {
 public:
-  explicit KernelBinary(std::string &&Binary, BinaryFormat Format);
+  explicit JITBinary(std::string &&Binary, BinaryFormat Format);
 
   jit_compiler::BinaryAddress address() const;
 
@@ -47,15 +47,15 @@ public:
     return Instance;
   }
 
-  template <typename... Ts> KernelBinary &emplaceKernelBinary(Ts &&...Args) {
+  template <typename... Ts> JITBinary &emplaceBinary(Ts &&...Args) {
     WriteLockT WriteLock{BinariesMutex};
-    auto KBUPtr = std::make_unique<KernelBinary>(std::forward<Ts>(Args)...);
-    KernelBinary &KB = *KBUPtr;
-    Binaries.emplace(KB.address(), std::move(KBUPtr));
-    return KB;
+    auto JBUPtr = std::make_unique<JITBinary>(std::forward<Ts>(Args)...);
+    JITBinary &JB = *JBUPtr;
+    Binaries.emplace(JB.address(), std::move(JBUPtr));
+    return JB;
   }
 
-  void destroyKernelBinary(BinaryAddress Addr) {
+  void destroyBinary(BinaryAddress Addr) {
     WriteLockT WriteLock{BinariesMutex};
     Binaries.erase(Addr);
   }
@@ -68,15 +68,12 @@ private:
   JITContext &operator=(const JITContext &) = delete;
   JITContext &operator=(const JITContext &&) = delete;
 
-  // FIXME: Change this to std::shared_mutex after switching to C++17.
-  using MutexT = std::shared_timed_mutex;
-
+  using MutexT = std::shared_mutex;
   using ReadLockT = std::shared_lock<MutexT>;
-
   using WriteLockT = std::unique_lock<MutexT>;
 
   MutexT BinariesMutex;
 
-  std::unordered_map<BinaryAddress, std::unique_ptr<KernelBinary>> Binaries;
+  std::unordered_map<BinaryAddress, std::unique_ptr<JITBinary>> Binaries;
 };
 } // namespace jit_compiler

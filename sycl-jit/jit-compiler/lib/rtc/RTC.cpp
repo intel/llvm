@@ -166,5 +166,5 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
 }
 
 extern "C" RTC_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address) {
-  JITContext::getInstance().destroyKernelBinary(Address);
+  JITContext::getInstance().destroyBinary(Address);
 }

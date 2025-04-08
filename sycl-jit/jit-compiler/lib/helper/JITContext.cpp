@@ -11,14 +11,14 @@
 
 using namespace jit_compiler;
 
-KernelBinary::KernelBinary(std::string &&Binary, BinaryFormat Fmt)
+JITBinary::JITBinary(std::string &&Binary, BinaryFormat Fmt)
     : Blob{std::move(Binary)}, Format{Fmt} {}
 
-jit_compiler::BinaryAddress KernelBinary::address() const {
+jit_compiler::BinaryAddress JITBinary::address() const {
   // FIXME: Verify it's a good idea to perform this reinterpret_cast here.
   return reinterpret_cast<jit_compiler::BinaryAddress>(Blob.c_str());
 }
 
-size_t KernelBinary::size() const { return Blob.size(); }
+size_t JITBinary::size() const { return Blob.size(); }
 
-BinaryFormat KernelBinary::format() const { return Format; }
+BinaryFormat JITBinary::format() const { return Format; }

@@ -28,7 +28,7 @@ public:
   explicit JITResult(const char *ErrorMessage)
       : Failed{true}, BinaryInfo{}, ErrorMessage{ErrorMessage} {}
 
-  explicit JITResult(const SYCLKernelBinaryInfo &BinaryInfo)
+  explicit JITResult(const JITBinaryInfo &BinaryInfo)
       : Failed{false}, BinaryInfo(BinaryInfo), ErrorMessage{} {}
 
   bool failed() const { return Failed; }
@@ -38,14 +38,14 @@ public:
     return ErrorMessage.c_str();
   }
 
-  const SYCLKernelBinaryInfo &getBinaryInfo() const {
+  const JITBinaryInfo &getBinaryInfo() const {
     assert(!failed() && "No binary info");
     return BinaryInfo;
   }
 
 private:
   bool Failed;
-  SYCLKernelBinaryInfo BinaryInfo;
+  JITBinaryInfo BinaryInfo;
   sycl::detail::string ErrorMessage;
 };
 
@@ -60,10 +60,9 @@ extern "C" {
 #pragma warning(disable : 4190)
 #endif // _MSC_VER
 
-SCM_EXPORT_SYMBOL JITResult
-materializeSpecConstants(const char *KernelName,
-                         const jit_compiler::SYCLKernelBinaryInfo &BinaryInfo,
-                         View<unsigned char> SpecConstBlob);
+SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
+    const char *KernelName, const jit_compiler::JITBinaryInfo &BinaryInfo,
+    View<unsigned char> SpecConstBlob);
 
 /// Clear all previously set options.
 SCM_EXPORT_SYMBOL void resetJITConfiguration();

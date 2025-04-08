@@ -60,8 +60,7 @@ private:
 
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.
-struct SYCLKernelBinaryInfo {
-
+struct JITBinaryInfo {
   BinaryFormat Format = BinaryFormat::INVALID;
 
   uint64_t AddressBits = 0;
@@ -79,7 +78,7 @@ struct InMemoryFile {
   const char *Contents;
 };
 
-using RTCDevImgBinaryInfo = SYCLKernelBinaryInfo;
+using RTCDevImgBinaryInfo = JITBinaryInfo;
 using FrozenSymbolTable = DynArray<sycl::detail::string>;
 
 // Note: `FrozenPropertyValue` and `FrozenPropertySet` constructors take
