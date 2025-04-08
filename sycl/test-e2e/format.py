@@ -377,9 +377,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if len(script) == 0:
             return lit.Test.Result(lit.Test.UNSUPPORTED, "Lit script is empty")
 
-        result = lit.TestRunner._runShTest(
-            test, litConfig, False, script, tmpBase
-        )
+        result = lit.TestRunner._runShTest(test, litConfig, False, script, tmpBase)
 
         # Single triple/device - might be an XFAIL.
         def map_result(features, code):
