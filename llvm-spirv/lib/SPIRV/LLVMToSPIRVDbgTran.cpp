@@ -1127,8 +1127,8 @@ LLVMToSPIRVDbgTran::transDbgTemplateParameter(const DITemplateParameter *TP) {
       Constant *C = cast<ConstantAsMetadata>(TVVal)->getValue();
       Ops[ValueIdx] = SPIRVWriter->transValue(C, nullptr)->getId();
     } else {
-      SPIRVType *TyPtr = SPIRVWriter->transType(
-          PointerType::get(Type::getInt8Ty(M->getContext()), 0));
+      SPIRVType *TyPtr =
+          SPIRVWriter->transType(PointerType::get(M->getContext(), 0));
       Ops[ValueIdx] = BM->addNullConstant(TyPtr)->getId();
     }
   }

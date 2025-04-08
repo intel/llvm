@@ -637,7 +637,7 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
 }
 
 SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
-  Type *T = PointerType::get(ET, AddrSpc);
+  Type *T = PointerType::get(ET->getContext(), AddrSpc);
   if (ET->isFunctionTy() &&
       !BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
                           SPIRVEC_FunctionPointers, toString(T)))
