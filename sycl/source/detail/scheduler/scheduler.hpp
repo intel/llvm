@@ -484,9 +484,6 @@ public:
   areEventsSafeForSchedulerBypass(const std::vector<EventImplPtr> &DepEvents,
                                   const ContextImplPtr &Context);
 
-  static bool areEventsSafeForSchedulerBypass(
-      const std::pmr::vector<EventImplPtr> &DepEvents, ContextImplPtr Context);
-
 protected:
   using RWLockT = std::shared_timed_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;

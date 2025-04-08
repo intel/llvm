@@ -426,8 +426,21 @@ private:
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   handler(std::shared_ptr<detail::queue_impl> &Queue, bool CallerNeedsEvent);
+#else
+  handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
+#endif
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs SYCL handler from the pre-constructed handler_impl and the
+  /// associated queue.
+  ///
+  /// \param HandlerImpl is a pre-constructed handler_impl.
+  /// \param Queue is a SYCL queue.
+  handler(detail::handler_impl *HandlerImpl,
+          std::shared_ptr<detail::queue_impl> &Queue);
+#else
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
   ///
@@ -438,16 +451,33 @@ private:
   ///        is null if no secondary queue is associated with the submission.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-  handler(detail::handler_impl *HandlerImpl,
-          std::shared_ptr<detail::queue_impl> &Queue);
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          const std::shared_ptr<detail::queue_impl> PrimaryQueue,
+          const std::shared_ptr<detail::queue_impl> SecondaryQueue,
+          bool CallerNeedsEvent);
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          detail::queue_impl *PrimaryQueue,
+          detail::queue_impl *SecondaryQueue,
+          bool CallerNeedsEvent);
+#endif
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  /// Constructs SYCL handler for Graph.
+  ///
+  /// The handler will add the command-group as a node to the graph rather than
+  /// enqueueing it straight away.
+  ///
+  /// \param HandlerImpl is a pre-constructed handler_impl.
+  handler(detail::handler_impl *HandlerImpl);
+#else
   /// Constructs SYCL handler from Graph.
   ///
-  /// The hander will add the command-group as a node to the graph rather than
+  /// The handler will add the command-group as a node to the graph rather than
   /// enqueueing it straight away.
   ///
   /// \param Graph is a SYCL command_graph
-  handler(detail::handler_impl *HandlerImpl);
+  handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
+#endif
 
   void *storeRawArg(const void *Ptr, size_t Size);
 
@@ -3410,9 +3440,14 @@ public:
       uint64_t SignalValue);
 
 private:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::handler_impl> MImplOwner;
   detail::handler_impl *impl;
   std::shared_ptr<detail::queue_impl> &MQueue;
+#else
+  std::shared_ptr<detail::handler_impl> impl;
+  std::shared_ptr<detail::queue_impl> MQueue;
+#endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::string MKernelName;
@@ -3875,7 +3910,11 @@ private:
 
   friend class detail::HandlerAccess;
 
-  detail::handler_impl *get_handler_impl() { return impl; }
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl *get_impl() { return impl; }
+#else
+  detail::handler_impl *get_impl() { return impl.get(); }
+#endif
   // Friend free-functions for asynchronous allocation and freeing.
   __SYCL_EXPORT friend void
   ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);

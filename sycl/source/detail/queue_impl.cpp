@@ -363,10 +363,16 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  detail::handler_impl HandlerImpl(PrimaryQueue.get(), SecondaryQueue.get(),
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl HandlerImplVal(PrimaryQueue.get(), SecondaryQueue.get(),
                                    CallerNeedsEvent);
-  handler Handler(&HandlerImpl,
+  detail::handler_impl *HandlerImpl = &HandlerImplVal;
+  handler Handler(HandlerImpl,
                   const_cast<std::shared_ptr<queue_impl> &>(Self));
+#else
+  handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent);
+  auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+#endif
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
@@ -377,12 +383,12 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CGType Type = HandlerImpl.MCGType;
+  const CGType Type = HandlerImpl->MCGType;
   std::vector<StreamImplPtr> Streams;
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  HandlerImpl.MEventMode = SubmitInfo.EventMode();
+  HandlerImpl->MEventMode = SubmitInfo.EventMode();
 
   auto Event = finalizeHandler(Handler, SubmitInfo.PostProcessorFunc());
 

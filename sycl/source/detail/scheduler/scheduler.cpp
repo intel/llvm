@@ -688,15 +688,6 @@ bool Scheduler::areEventsSafeForSchedulerBypass(
                      });
 }
 
-bool Scheduler::areEventsSafeForSchedulerBypass(
-    const std::pmr::vector<EventImplPtr> &DepEvents, ContextImplPtr Context) {
-
-  return std::all_of(DepEvents.begin(), DepEvents.end(),
-                     [&Context](const EventImplPtr &SyclEventImplPtr) {
-                       return CheckEventReadiness(Context, SyclEventImplPtr);
-                     });
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

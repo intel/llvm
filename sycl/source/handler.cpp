@@ -312,6 +312,8 @@ fill_copy_args(detail::handler_impl *impl,
 
 } // namespace detail
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+
 handler::handler(std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
     : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
@@ -326,6 +328,37 @@ static std::shared_ptr<detail::queue_impl> DummyQueue;
 
 handler::handler(detail::handler_impl *HandlerImpl)
     : impl(HandlerImpl), MQueue(DummyQueue) {}
+
+#else
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
+                                                  CallerNeedsEvent)),
+      MQueue(Queue) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
+                 bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue.get(),
+                                                  SecondaryQueue.get(),
+                                                  CallerNeedsEvent)),
+      MQueue(Queue) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 detail::queue_impl *PrimaryQueue,
+                 detail::queue_impl *SecondaryQueue,
+                 bool CallerNeedsEvent)
+: impl(std::make_shared<detail::handler_impl>(PrimaryQueue,
+                                              SecondaryQueue,
+                                              CallerNeedsEvent)),
+      MQueue(Queue) {}
+
+handler::handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
+    : impl(std::make_shared<detail::handler_impl>(Graph)) {}
+
+#endif
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -558,8 +591,7 @@ event handler::finalize() {
         NewEvent->setEnqueued();
         // connect returned event with dependent events
         if (!MQueue->isInOrder()) {
-          NewEvent->getPreparedDepsEvents().assign(impl->CGData.MEvents.begin(),
-                                                   impl->CGData.MEvents.end());
+          NewEvent->getPreparedDepsEvents() = impl->CGData.MEvents;
           NewEvent->cleanDepEventsThroughOneLevel();
         }
       }
@@ -1338,7 +1370,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, DestImgDesc,
+  detail::fill_copy_args(get_impl(), DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE);
 
   setType(detail::CGType::CopyImage);
@@ -1356,7 +1388,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, DestImgDesc,
+  detail::fill_copy_args(get_impl(), DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE, SrcOffset,
                          SrcExtent, DestOffset, {0, 0, 0}, CopyExtent);
 
@@ -1373,7 +1405,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  detail::fill_copy_args(impl, SrcImgDesc,
+  detail::fill_copy_args(get_impl(), SrcImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST);
 
   setType(detail::CGType::CopyImage);
@@ -1392,7 +1424,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  detail::fill_copy_args(impl, SrcImgDesc,
+  detail::fill_copy_args(get_impl(), SrcImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST, SrcOffset,
                          {0, 0, 0}, DestOffset, DestExtent, CopyExtent);
 
@@ -1416,7 +1448,7 @@ void handler::ext_oneapi_copy(
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
       ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(impl, Desc, ImageCopyFlags, DeviceRowPitch,
+    detail::fill_copy_args(get_impl(), Desc, ImageCopyFlags, DeviceRowPitch,
                            DeviceRowPitch);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
@@ -1446,11 +1478,11 @@ void handler::ext_oneapi_copy(
 
   // Fill the host extent based on the type of copy.
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    detail::fill_copy_args(impl, DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
+    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
                            DeviceRowPitch, SrcOffset, HostExtent, DestOffset,
                            {0, 0, 0}, CopyExtent);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(impl, DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
+    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
                            DeviceRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
                            HostExtent, CopyExtent);
   } else {
@@ -1474,7 +1506,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE);
 
   setType(detail::CGType::CopyImage);
@@ -1494,7 +1526,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcOffset,
                          {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
 
@@ -1513,7 +1545,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
                          DestRowPitch);
 
@@ -1535,7 +1567,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = Dest;
 
   detail::fill_copy_args(
-      impl, SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
+      get_impl(), SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
       DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
 
   setType(detail::CGType::CopyImage);
@@ -1553,7 +1585,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcRowPitch,
                          0);
 
@@ -1575,7 +1607,7 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   detail::fill_copy_args(
-      impl, SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
+      get_impl(), SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
       SrcRowPitch, 0, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
 
   setType(detail::CGType::CopyImage);
@@ -1600,7 +1632,7 @@ void handler::ext_oneapi_copy(
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
       ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
-    detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags,
+    detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
                            SrcRowPitch, DestRowPitch);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
@@ -1627,7 +1659,7 @@ void handler::ext_oneapi_copy(
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
       ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
-    detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags,
+    detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
                            SrcRowPitch, DestRowPitch, SrcOffset, {0, 0, 0},
                            DestOffset, {0, 0, 0}, CopyExtent);
   } else {
