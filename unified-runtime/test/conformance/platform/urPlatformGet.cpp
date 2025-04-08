@@ -37,9 +37,7 @@ TEST_F(urPlatformGetTest, InvalidNumEntries) {
 TEST_F(urPlatformGetTest, InvalidNullPointer) {
   uint32_t count;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                   urPlatformGet(nullptr,
-                                 static_cast<uint32_t>(adapters.size()), 0,
-                                 nullptr, &count));
+                   urPlatformGet(nullptr, 0, nullptr, &count));
 }
 
 TEST_F(urPlatformGetTest, NullArgs) {
