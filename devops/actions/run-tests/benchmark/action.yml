@@ -149,6 +149,7 @@ runs:
         --name "$SAVE_NAME" \
         --compare-file "./llvm-ci-perf-results/results/${SAVE_NAME}_${SAVE_TIMESTAMP}.json" \
         --results-dir "./llvm-ci-perf-results/results/"
+      echo "-----"
 
   - name: Cache changes to benchmark folder for archival purposes
     if: always()
