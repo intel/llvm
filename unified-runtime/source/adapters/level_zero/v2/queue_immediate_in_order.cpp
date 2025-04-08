@@ -75,17 +75,15 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_native_handle_t hNativeHandle, ur_queue_flags_t flags, bool ownZeQueue,
-    bool interopNativeHandle)
+    ur_native_handle_t hNativeHandle, ur_queue_flags_t flags, bool ownZeQueue)
     : hContext(hContext), hDevice(hDevice), flags(flags),
       commandListManager(
           hContext, hDevice,
           raii::command_list_unique_handle(
               reinterpret_cast<ze_command_list_handle_t>(hNativeHandle),
-              [ownZeQueue,
-               interopNativeHandle](ze_command_list_handle_t hZeCommandList) {
+              [ownZeQueue](ze_command_list_handle_t hZeCommandList) {
                 if (ownZeQueue) {
-                  if (!interopNativeHandle) {
+                  if (checkL0LoaderTeardown()) {
                     ZE_CALL_NOCHECK(zeCommandListDestroy, (hZeCommandList));
                   }
                 }

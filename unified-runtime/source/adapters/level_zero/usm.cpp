@@ -645,8 +645,7 @@ ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
 
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
   ur_result_t Res = UR_RESULT_SUCCESS;
-  if (!Context->IsInteropNativeHandle ||
-      (Context->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+  if (checkL0LoaderTeardown()) {
     auto ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
     // Handle When the driver is already released
     if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {

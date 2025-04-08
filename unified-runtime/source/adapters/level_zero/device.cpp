@@ -1416,7 +1416,6 @@ ur_result_t urDeviceCreateWithNativeHandle(
   if (Dev == nullptr)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
-  Dev->IsInteropNativeHandle = true;
   *Device = Dev;
   return UR_RESULT_SUCCESS;
 }

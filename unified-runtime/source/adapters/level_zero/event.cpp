@@ -1013,7 +1013,6 @@ ur_result_t urEventCreateWithNativeHandle(
   UREvent->CleanedUp = true;
 
   *Event = reinterpret_cast<ur_event_handle_t>(UREvent);
-  UREvent->IsInteropNativeHandle = true;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1102,7 +1101,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
  * leaks or resource mismanagement.
  */
 ur_event_handle_t_::~ur_event_handle_t_() {
-  if (this->ZeEvent && this->Completed) {
+  if (this->ZeEvent && this->Completed && checkL0LoaderTeardown()) {
     if (this->UrQueue && !this->UrQueue->isDiscardEvents())
       ZE_CALL_NOCHECK(zeEventDestroy, (this->ZeEvent));
   }
@@ -1129,12 +1128,15 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
   if (Event->OwnNativeHandle) {
     if (DisableEventsCaching) {
-      if (!Event->IsInteropNativeHandle ||
-          (Event->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+      if (checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
       Event->ZeEvent = nullptr;
       auto Context = Event->Context;

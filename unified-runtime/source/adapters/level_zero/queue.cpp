@@ -646,11 +646,16 @@ ur_result_t urQueueRelease(
       // runtime. Destroy only if a queue is healthy. Destroying a fence may
       // cause a hang otherwise.
       // If the fence is a nullptr we are using immediate commandlists.
-      if (Queue->Healthy && it->second.ZeFence != nullptr) {
+      if (Queue->Healthy && it->second.ZeFence != nullptr &&
+          checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeFenceDestroy, (it->second.ZeFence));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
       if (Queue->UsingImmCmdLists && Queue->OwnZeCommandQueue) {
         std::scoped_lock<ur_mutex> Lock(
@@ -674,7 +679,7 @@ ur_result_t urQueueRelease(
           // A non-reusable comamnd list that came from a make_queue call is
           // destroyed since it cannot be recycled.
           ze_command_list_handle_t ZeCommandList = it->first;
-          if (ZeCommandList) {
+          if (ZeCommandList && checkL0LoaderTeardown()) {
             ZE2UR_CALL(zeCommandListDestroy, (ZeCommandList));
           }
         }
@@ -798,7 +803,6 @@ ur_result_t urQueueCreateWithNativeHandle(
       ur_queue_handle_t_ *Queue = new ur_queue_handle_t_(
           ComputeQueues, CopyQueues, Context, UrDevice, OwnNativeHandle, Flags);
       *RetQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
-      (*RetQueue)->IsInteropNativeHandle = true;
     } catch (const std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     } catch (...) {
@@ -1600,12 +1604,15 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
       for (auto &QueueGroup : QueueMap)
         for (auto &ZeQueue : QueueGroup.second.ZeQueues)
           if (ZeQueue) {
-            if (!Queue->IsInteropNativeHandle ||
-                (Queue->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+            if (checkL0LoaderTeardown()) {
               auto ZeResult = ZE_CALL_NOCHECK(zeCommandQueueDestroy, (ZeQueue));
               // Gracefully handle the case that L0 was already unloaded.
-              if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+              if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+                               ZeResult != ZE_RESULT_ERROR_UNKNOWN))
                 return ze2urResult(ZeResult);
+              if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+                ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+              }
             }
           }
   }

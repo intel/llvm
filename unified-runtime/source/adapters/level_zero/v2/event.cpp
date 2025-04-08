@@ -398,7 +398,6 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
     ZE2UR_CALL(zeEventHostSignal, ((*phEvent)->getZeEvent()));
   } else {
     *phEvent = new ur_event_handle_t_(hContext, hNativeEvent, pProperties);
-    (*phEvent)->IsInteropNativeHandle = true;
   }
   return UR_RESULT_SUCCESS;
 } catch (...) {

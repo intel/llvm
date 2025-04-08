@@ -70,7 +70,7 @@ public:
                                 const ur_queue_properties_t *);
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
                                 ur_native_handle_t, ur_queue_flags_t,
-                                bool ownZeQueue, bool interopNativeHandle);
+                                bool ownZeQueue);
 
   ~ur_queue_immediate_in_order_t();
 
