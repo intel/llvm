@@ -24,7 +24,8 @@ public:
   ///
   /// Load a list of SPIR-V kernels into a single LLVM module.
   static llvm::Expected<std::unique_ptr<llvm::Module>>
-  loadSPIRVKernel(llvm::LLVMContext &LLVMCtx, SYCLKernelBinaryInfo &BinaryInfo);
+  loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
+                  const SYCLKernelBinaryInfo &BinaryInfo);
 
   ///
   /// Translate the LLVM IR module Mod to SPIR-V, store it in the JITContext and

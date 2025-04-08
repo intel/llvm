@@ -105,7 +105,7 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
 
 Expected<std::unique_ptr<llvm::Module>>
 SPIRVLLVMTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                                     SYCLKernelBinaryInfo &BinaryInfo) {
+                                     const SYCLKernelBinaryInfo &BinaryInfo) {
   std::unique_ptr<Module> Result{nullptr};
 
   assert(BinaryInfo.Format == BinaryFormat::SPIRV &&

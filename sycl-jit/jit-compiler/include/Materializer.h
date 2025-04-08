@@ -60,9 +60,10 @@ extern "C" {
 #pragma warning(disable : 4190)
 #endif // _MSC_VER
 
-SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
-    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinaryInfo,
-    View<unsigned char> SpecConstBlob);
+SCM_EXPORT_SYMBOL JITResult
+materializeSpecConstants(const char *KernelName,
+                         const jit_compiler::SYCLKernelBinaryInfo &BinaryInfo,
+                         View<unsigned char> SpecConstBlob);
 
 /// Clear all previously set options.
 SCM_EXPORT_SYMBOL void resetJITConfiguration();

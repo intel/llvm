@@ -25,14 +25,14 @@ using namespace jit_compiler;
 using namespace jit_compiler::translation;
 using namespace llvm;
 
-llvm::Expected<std::unique_ptr<llvm::Module>>
-KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
-                              std::vector<SYCLKernelBinaryInfo> &BinaryInfos) {
+llvm::Expected<std::unique_ptr<llvm::Module>> KernelTranslator::loadKernels(
+    llvm::LLVMContext &LLVMCtx,
+    const std::vector<SYCLKernelBinaryInfo> &BinaryInfos) {
   std::unique_ptr<Module> Result{nullptr};
   bool First = true;
   DenseSet<BinaryBlob> ParsedBinaries;
   size_t AddressBits = 0;
-  for (auto &BinInfo : BinaryInfos) {
+  for (const auto &BinInfo : BinaryInfos) {
     // FIXME: Currently, we use the front of the list.
     // Do we need to iterate to find the most suitable
     // SPIR-V module?
@@ -77,14 +77,14 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
       // We do not assume that the input binary information has the address bits
       // set, but rather retrieve this information from the SPIR-V/LLVM module's
       // data-layout.
-      BinInfo.AddressBits = NewMod->getDataLayout().getPointerSizeInBits();
+      size_t CurAddrBits = NewMod->getDataLayout().getPointerSizeInBits();
 
       if (First) {
         // We can simply assign the module we just loaded from SPIR-V to the
         // empty pointer on the first iteration.
         Result = std::move(NewMod);
         // The first module will dictate the address bits for the remaining.
-        AddressBits = BinInfo.AddressBits;
+        AddressBits = CurAddrBits;
         First = false;
       } else {
         // We have already loaded some module, so now we need to
@@ -100,7 +100,7 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
                                    "Failed to link modules");
         }
 
-        if (AddressBits != BinInfo.AddressBits) {
+        if (AddressBits != CurAddrBits) {
           return createStringError(
               inconvertibleErrorCode(),
               "Number of address bits between SPIR-V modules does not match");
@@ -114,7 +114,7 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
-                                 SYCLKernelBinaryInfo &BinaryInfo) {
+                                 const SYCLKernelBinaryInfo &BinaryInfo) {
   llvm::StringRef RawData(
       reinterpret_cast<const char *>(BinaryInfo.BinaryStart),
       BinaryInfo.BinarySize);
@@ -127,15 +127,13 @@ KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 KernelTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                                  SYCLKernelBinaryInfo &BinaryInfo) {
+                                  const SYCLKernelBinaryInfo &BinaryInfo) {
   return SPIRVLLVMTranslator::loadSPIRVKernel(LLVMCtx, BinaryInfo);
 }
 
-llvm::Error KernelTranslator::translateKernel(const char *KernelName,
-                                              SYCLKernelBinaryInfo &BinaryInfo,
-                                              llvm::Module &Mod,
-                                              JITContext &JITCtx,
-                                              BinaryFormat Format) {
+llvm::Expected<SYCLKernelBinaryInfo>
+KernelTranslator::translateKernel(const char *KernelName, llvm::Module &Mod,
+                                  JITContext &JITCtx, BinaryFormat Format) {
 
   KernelBinary *KernelBin = nullptr;
   switch (Format) {
@@ -172,8 +170,7 @@ llvm::Error KernelTranslator::translateKernel(const char *KernelName,
   }
   }
 
-  // Update the BinaryInfo with the address and size of the binary resulting
-  // from translation.
+  SYCLKernelBinaryInfo BinaryInfo;
   BinaryInfo.Format = Format;
   // Output SPIR-V should use the same number of address bits as the input
   // SPIR-V. SPIR-V translation requires all modules to use the same number of
@@ -181,7 +178,7 @@ llvm::Error KernelTranslator::translateKernel(const char *KernelName,
   BinaryInfo.AddressBits = Mod.getDataLayout().getPointerSizeInBits();
   BinaryInfo.BinaryStart = KernelBin->address();
   BinaryInfo.BinarySize = KernelBin->size();
-  return Error::success();
+  return BinaryInfo;
 }
 
 llvm::Expected<RTCDevImgBinaryInfo>
