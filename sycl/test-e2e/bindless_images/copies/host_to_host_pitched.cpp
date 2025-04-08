@@ -1,7 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-ext_oneapi_bindless_images_2d_usm
-// UNSUPPORTED: target-amd
-// UNSUPPORTED-INTENDED: currently not supporting amd for bindless image d2d
+// REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
