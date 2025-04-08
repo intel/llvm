@@ -132,10 +132,10 @@ _CLC_INLINE double2 __clc_tan_piby4(double x, double xx) {
   double tp = t1 + t2;
 
   // Compute -1.0/(t1 + t2) accurately
-  double z1 = as_double(as_long(tp) & 0xffffffff00000000L);
+  double z1 = __clc_as_double(__clc_as_long(tp) & 0xffffffff00000000L);
   double z2 = t2 - (z1 - t1);
   double trec = -MATH_RECIP(tp);
-  double trec_top = as_double(as_long(trec) & 0xffffffff00000000L);
+  double trec_top = __clc_as_double(__clc_as_long(trec) & 0xffffffff00000000L);
 
   double tpr = __spirv_ocl_fma(
       __spirv_ocl_fma(trec_top, z2, __spirv_ocl_fma(trec_top, z1, 1.0)), trec,
