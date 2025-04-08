@@ -301,20 +301,12 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   llvm::Constant *CurrentStatePointerTLS = nullptr;
 
-  // check if any of the kernels is called by some other function.
-  // This can happen e.g. with OCK, where wrapper functions are
-  // created around the original kernel.
-  bool KernelIsCalled = false;
-  for (auto &K : OldKernels) {
-    for (auto &U : K->uses()) {
-      if (isa<CallBase>(U.getUser())) {
-        KernelIsCalled = true;
-      }
-    }
-  }
+  // Contains the used builtins and kernels that need to be processed to
+  // receive a pointer to the state struct.
+  llvm::SmallVector<std::pair<llvm::Function *, StringRef>>
+      UsedBuiltinsAndKernels;
 
   // Then we iterate over all the supported builtins, find the used ones
-  llvm::SmallVector<std::pair<llvm::Function *, StringRef>> UsedBuiltins;
   for (const auto &Entry : BuiltinNamesMap) {
     auto *Glob = M.getFunction(Entry.first);
     if (!Glob)
@@ -322,8 +314,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (CurrentStatePointerTLS == nullptr) {
       for (const auto &Use : Glob->uses()) {
         auto *I = cast<CallBase>(Use.getUser());
-        if (KernelIsCalled ||
-            IsNonKernelCalledByNativeCPUKernel(I->getFunction())) {
+        if (IsNonKernelCalledByNativeCPUKernel(I->getFunction())) {
           // only use the threadlocal if we have kernels calling builtins
           // indirectly, or if the kernel is called by some other func.
           CurrentStatePointerTLS = M.getOrInsertGlobal(
@@ -344,7 +335,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         }
       }
     }
-    UsedBuiltins.push_back({Glob, Entry.second});
+    UsedBuiltinsAndKernels.push_back({Glob, Entry.second});
   }
 
 #ifdef NATIVECPU_USE_OCK
@@ -365,6 +356,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
           OldF->takeName(OrigF);
           if (OrigF->use_empty()) {
             RemovableFuncs.insert(OrigF);
+          } else {
+            OrigF->setName(Name + ".orig");
           }
         } else {
           OldF->setName(Name);
@@ -405,6 +398,11 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     OldF->replaceAllUsesWith(NewF);
     OldF->eraseFromParent();
     NewKernels.push_back(NewF);
+    if (!CurrentStatePointerTLS && NewF->getNumUses() > 0)
+      // If a thread_local is not used we need to keep track of the called
+      // kernel so we can update its call sites with the pointer to the state
+      // struct like we do for the called builtins.
+      UsedBuiltinsAndKernels.push_back({NewF, ""});
     ModuleChanged = true;
   }
 
@@ -417,13 +415,25 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   // Then we iterate over all used builtins and
   // replace them with calls to our Native CPU functions.
-  for (const auto &Entry : UsedBuiltins) {
+  // For the used kernels we need to replace calls to them
+  // with calls receiving the state pointer argument.
+  for (const auto &Entry : UsedBuiltinsAndKernels) {
     SmallVector<std::pair<Instruction *, Instruction *>> ToRemove;
     SmallVector<Function *> ToRemove2;
     Function *const Glob = Entry.first;
     Function *ReplaceFunc = nullptr;
     for (const auto &Use : Glob->uses()) {
       auto I = cast<CallBase>(Use.getUser());
+      if (Entry.second == "") {
+        if (const Function *CF = I->getCalledFunction()) {
+          unsigned numParams = CF->getFunctionType()->getNumParams();
+          auto numArgs = I->arg_size();
+          if (numArgs == numParams)
+            continue;
+          assert(numArgs + 1 == numParams);
+        }
+        ReplaceFunc = Entry.first;
+      }
       Function *const C = I->getFunction();
       if (IsUnusedBuiltinOrPrivateDef(*C)) {
         ToRemove2.push_back(C);
@@ -461,6 +471,10 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     }
     for (auto Temp : ToRemove2)
       Temp->eraseFromParent();
+
+    // Don't erase if it's not a builtin
+    if (Entry.second == "")
+      continue;
 
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
