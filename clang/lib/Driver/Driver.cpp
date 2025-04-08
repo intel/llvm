@@ -10566,8 +10566,8 @@ const ToolChain &Driver::getOffloadToolChain(
       break;
     default:
       if (Kind == Action::OFK_SYCL && isSYCLNativeCPU(Target))
-          TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target,
-                                                           *HostTC, Args);
+        TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target, *HostTC,
+                                                         Args);
       break;
     }
   }
