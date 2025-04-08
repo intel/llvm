@@ -48,8 +48,7 @@ entry:
 
 ; CHECK: for.cond:
 ; CHECK: %[[PHI1:.+]] = phi {{i[0-9]+}} [ %{{.+}}, %entry ], [ %{{.+}}, %for.cond ]
-; CHECK-GE19: #dbg_value(i64 %[[PHI1]], !{{[0-9]+}},
-; CHECK-LT19: call void @llvm.dbg.value(metadata i64 %[[PHI1]], metadata !{{[0-9]+}},
+; CHECK: #dbg_value(i64 %[[PHI1]], !{{[0-9]+}},
 ; CHECK-SAME: !DIExpression({{.*}}),
 ; CHECK-SAME: !{{[0-9]+}}
 ; Check we haven't inserted a llvm.dbg.value intrinsic before the last of the PHIs.

@@ -131,10 +131,8 @@ attributes #4 = { nobuiltin }
 
 ; CHECK: %[[LOAD1:[0-9]+]] = load i32, ptr addrspace(1) %{{.*}}, align 4
 ; CHECK: %[[LOAD2:[0-9]+]] = load i32, ptr addrspace(1) %{{.*}}, align 4
-; CHECK-GE19: #dbg_value(i32 %[[LOAD1]], !{{[0-9]+}}, !DIExpression(), [[DI_LOC1:![0-9]+]]
-; CHECK-LT19: call void @llvm.dbg.value(metadata i32 %[[LOAD1]], metadata !{{[0-9]+}}, metadata !DIExpression()), !dbg [[DI_LOC1:![0-9]+]]
-; CHECK-GE19: #dbg_value(i32 %[[LOAD2]], !{{[0-9]+}}, !DIExpression(), [[DI_LOC1]]
-; CHECK-LT19: call void @llvm.dbg.value(metadata i32 %[[LOAD2]], metadata !{{[0-9]+}}, metadata !DIExpression()), !dbg [[DI_LOC1]]
+; CHECK: #dbg_value(i32 %[[LOAD1]], !{{[0-9]+}}, !DIExpression(), [[DI_LOC1:![0-9]+]]
+; CHECK: #dbg_value(i32 %[[LOAD2]], !{{[0-9]+}}, !DIExpression(), [[DI_LOC1]]
 ; CHECK: %{{.*}} = mul nsw i32 %[[LOAD1]], %[[LOAD2]], !dbg [[DI_LOC2:![0-9]+]]
 
 ; CHECK: [[HELPER_SUBPROGRAM:![0-9]+]] = distinct !DISubprogram(name: "k_one",

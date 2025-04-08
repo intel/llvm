@@ -975,12 +975,10 @@ void compiler::utils::Barrier::MakeLiveVariableMemType() {
         debug_intrinsics_.push_back(std::make_pair(dbgDeclare, offset));
       }
     }
-#if LLVM_VERSION_GREATER_EQUAL(19, 0)
     const auto DVRDeclares = findDVRDeclares(member.value);
     for (auto *const DVRDeclare : DVRDeclares) {
       debug_variable_records_.push_back(std::make_pair(DVRDeclare, offset));
     }
-#endif
     offset += member.size;
     live_variable_index_map_[std::make_pair(member.value, member.member_idx)] =
         field_tys.size();
