@@ -12,8 +12,8 @@
 #include "../ur_interface_loader.hpp"
 #include "context.hpp"
 
-#include "../helpers/image_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
+#include "../image_common.hpp"
 
 static ur_mem_buffer_t::device_access_mode_t
 getDeviceAccessMode(ur_mem_flags_t memFlag) {
