@@ -1108,23 +1108,23 @@ private:
         Fbin = *FBinOrErr;
       } else {
 
-        // If '--offload-compress' option is specified and zstd is not
-        // available, throw an error.
-        if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable()) {
-          return createStringError(
-              inconvertibleErrorCode(),
-              "'--offload-compress' option is specified but zstd "
-              "is not available. The device image will not be "
-              "compressed.");
-        }
-
         // Don't compress if the user explicitly specifies the binary image
         // format or if the image is smaller than OffloadCompressThreshold
-        // bytes.
+        // bytes, or if zstd is not available.
         if (Kind != OffloadKind::SYCL || !OffloadCompressDevImgs ||
             Img.Fmt != BinaryImageFormat::none ||
             !llvm::compression::zstd::isAvailable() ||
             static_cast<int>(Bin->getBufferSize()) < OffloadCompressThreshold) {
+          // If '--offload-compress' option is specified and zstd is not
+          // available, throw an error.
+          if (OffloadCompressDevImgs &&
+              !llvm::compression::zstd::isAvailable()) {
+            errs() << "'--offload-compress' option is specified but zstd "
+                      "is not available. The device image will not be "
+                      "compressed."
+                   << "\n";
+          }
+
           Fbin = addDeviceImageToModule(
               ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
               Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
