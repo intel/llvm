@@ -332,7 +332,7 @@ kernel_bundle<bundle_state::object> compile(
     const std::vector<device>& devs, PropertyListT props={})
 
 template<typename PropertyListT = empty_properties_t>                 (2)
-kernel_bundle<bundle_state::executable> compile(
+kernel_bundle<bundle_state::object> compile(
   const kernel_bundle<bundle_state::ext_oneapi_source>& sourceBundle,
   PropertyListT props = {})
 
