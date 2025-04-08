@@ -9,7 +9,7 @@
 #pragma once
 
 #include "JITBinaryInfo.h"
-#include "helper/JITContext.h"
+#include "JITContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"
 #include <vector>

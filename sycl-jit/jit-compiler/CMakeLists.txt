@@ -1,5 +1,6 @@
 
 add_llvm_library(sycl-jit
+   lib/translation/JITContext.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
    lib/translation/Translation.cpp
    lib/materializer/MaterializerPipeline.cpp
@@ -9,7 +10,6 @@ add_llvm_library(sycl-jit
    lib/rtc/RTC.cpp
    lib/helper/ConfigHelper.cpp
    lib/helper/ErrorHelper.cpp
-   lib/helper/JITContext.cpp
 
    SHARED
 
