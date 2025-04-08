@@ -196,7 +196,8 @@ _CLC_DEF int __clc_argReductionSmallS(private float *r, private float *rr,
   HI = __clc_mul_hi(A, B);                                                     \
   HI += LO < C
 
-_CLC_DEF int __clc_argReductionLargeS(float *r, float *rr, float x) {
+_CLC_DEF int __clc_argReductionLargeS(private float *r, private float *rr,
+                                      float x) {
   int xe = (int)(__clc_as_uint(x) >> 23) - 127;
   uint xm = 0x00800000U | (__clc_as_uint(x) & 0x7fffffU);
 

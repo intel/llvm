@@ -147,15 +147,17 @@ _CLC_DEF _CLC_OVERLOAD float __clc_sw_fma(float a, float b, float c) {
   }
 
   // Flating point range limit
-  if (st_fma.exponent > 127)
+  if (st_fma.exponent > 127) {
     return __clc_as_float(__clc_as_uint(INFINITY) | st_fma.sign);
+  }
 
   // Flush denormals
-  if (st_fma.exponent <= -127)
+  if (st_fma.exponent <= -127) {
     return __clc_as_float(st_fma.sign);
+  }
 
   return __clc_as_float(st_fma.sign | ((st_fma.exponent + 127) << 23) |
-                  ((uint)st_fma.mantissa & 0x7fffff));
+                        ((uint)st_fma.mantissa & 0x7fffff));
 }
 
 _CLC_TERNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, float, __clc_sw_fma, float,

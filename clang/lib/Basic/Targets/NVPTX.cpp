@@ -324,10 +324,6 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
         // Do nothing if this is not an enhanced architecture.
         break;
     }
-    if (GPU == OffloadArch::SM_90a)
-      Builder.defineMacro("__CUDA_ARCH_FEAT_SM90_ALL", "1");
-    if (GPU == OffloadArch::SM_100a)
-      Builder.defineMacro("__CUDA_ARCH_FEAT_SM100_ALL", "1");
   }
 }
 
