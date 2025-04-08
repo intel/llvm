@@ -71,21 +71,6 @@ struct SYCLKernelBinaryInfo {
   uint64_t BinarySize = 0;
 };
 
-/// Information about a kernel from DPC++.
-struct SYCLKernelInfo {
-
-  sycl::detail::string Name;
-
-  SYCLKernelBinaryInfo BinaryInfo;
-
-  SYCLKernelInfo() = default;
-
-  SYCLKernelInfo(const char *KernelName, const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, BinaryInfo{BinInfo} {}
-
-  SYCLKernelInfo(const char *KernelName) : Name{KernelName}, BinaryInfo{} {}
-};
-
 // RTC-related datastructures
 // TODO: Consider moving into separate header.
 

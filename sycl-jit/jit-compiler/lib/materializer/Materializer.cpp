@@ -17,7 +17,7 @@
 using namespace jit_compiler;
 
 extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
-    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinaryInfo,
     View<unsigned char> SpecConstBlob) {
   auto &JITCtx = JITContext::getInstance();
 
@@ -29,13 +29,12 @@ extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
                      "Available targets are: PTX or AMDGCN.");
   }
 
-  std::vector<::jit_compiler::SYCLKernelInfo> KernelInfos;
-  KernelInfos.emplace_back(KernelName, BinInfo);
+  std::vector<::jit_compiler::SYCLKernelBinaryInfo> BinaryInfos{BinaryInfo};
   // Load all input kernels from their respective modules into a single
   // LLVM IR module.
   llvm::LLVMContext Ctx;
   llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
-      translation::KernelTranslator::loadKernels(Ctx, KernelInfos);
+      translation::KernelTranslator::loadKernels(Ctx, BinaryInfos);
   if (auto Error = ModOrError.takeError()) {
     return errorTo<JITResult>(std::move(Error), "Failed to load kernels");
   }
@@ -46,14 +45,14 @@ extern "C" SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
     return JITResult{"Materializer passes should not fail"};
   }
 
-  SYCLKernelInfo &MaterializerKernelInfo = KernelInfos.front();
+  SYCLKernelBinaryInfo MaterializedBinaryInfo;
   if (auto Error = translation::KernelTranslator::translateKernel(
-          MaterializerKernelInfo, *NewMod, JITCtx, TargetFormat)) {
+          KernelName, MaterializedBinaryInfo, *NewMod, JITCtx, TargetFormat)) {
     return errorTo<JITResult>(std::move(Error),
                               "Translation to output format failed");
   }
 
-  return JITResult{MaterializerKernelInfo};
+  return JITResult{MaterializedBinaryInfo};
 }
 
 extern "C" SCM_EXPORT_SYMBOL void resetJITConfiguration() {

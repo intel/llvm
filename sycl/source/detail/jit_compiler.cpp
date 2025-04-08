@@ -208,13 +208,11 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid), Message);
   }
 
-  auto &MaterializerKernelInfo = MaterializerResult.getKernelInfo();
+  auto &MaterializerBinaryInfo = MaterializerResult.getBinaryInfo();
   sycl_device_binary_struct MaterializedRawDeviceImage{RawDeviceImage};
-  MaterializedRawDeviceImage.BinaryStart =
-      MaterializerKernelInfo.BinaryInfo.BinaryStart;
+  MaterializedRawDeviceImage.BinaryStart = MaterializerBinaryInfo.BinaryStart;
   MaterializedRawDeviceImage.BinaryEnd =
-      MaterializerKernelInfo.BinaryInfo.BinaryStart +
-      MaterializerKernelInfo.BinaryInfo.BinarySize;
+      MaterializerBinaryInfo.BinaryStart + MaterializerBinaryInfo.BinarySize;
 
   const bool OrigCacheCfg = SYCLConfig<SYCL_CACHE_IN_MEM>::get();
   if (OrigCacheCfg) {

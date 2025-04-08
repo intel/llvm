@@ -27,16 +27,15 @@ using namespace llvm;
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
-                              std::vector<SYCLKernelInfo> &Kernels) {
+                              std::vector<SYCLKernelBinaryInfo> &BinaryInfos) {
   std::unique_ptr<Module> Result{nullptr};
   bool First = true;
   DenseSet<BinaryBlob> ParsedBinaries;
   size_t AddressBits = 0;
-  for (auto &Kernel : Kernels) {
+  for (auto &BinInfo : BinaryInfos) {
     // FIXME: Currently, we use the front of the list.
     // Do we need to iterate to find the most suitable
     // SPIR-V module?
-    SYCLKernelBinaryInfo &BinInfo = Kernel.BinaryInfo;
 
     const unsigned char *ModulePtr = BinInfo.BinaryStart;
     size_t ModuleSize = BinInfo.BinarySize;
@@ -53,7 +52,7 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
 
       switch (BinInfo.Format) {
       case BinaryFormat::LLVM: {
-        auto ModOrError = loadLLVMKernel(LLVMCtx, Kernel);
+        auto ModOrError = loadLLVMKernel(LLVMCtx, BinInfo);
         if (auto Err = ModOrError.takeError()) {
           return std::move(Err);
         }
@@ -61,7 +60,7 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
         break;
       }
       case BinaryFormat::SPIRV: {
-        auto ModOrError = loadSPIRVKernel(LLVMCtx, Kernel);
+        auto ModOrError = loadSPIRVKernel(LLVMCtx, BinInfo);
         if (auto Err = ModOrError.takeError()) {
           return std::move(Err);
         }
@@ -115,12 +114,12 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
-                                 SYCLKernelInfo &Kernel) {
-  auto &BinInfo = Kernel.BinaryInfo;
-  llvm::StringRef RawData(reinterpret_cast<const char *>(BinInfo.BinaryStart),
-                          BinInfo.BinarySize);
+                                 SYCLKernelBinaryInfo &BinaryInfo) {
+  llvm::StringRef RawData(
+      reinterpret_cast<const char *>(BinaryInfo.BinaryStart),
+      BinaryInfo.BinarySize);
   return llvm::parseBitcodeFile(
-      MemoryBuffer::getMemBuffer(RawData, Kernel.Name.c_str(),
+      MemoryBuffer::getMemBuffer(RawData, /*BufferName=*/"",
                                  /* RequiresNullTermnator*/ false)
           ->getMemBufferRef(),
       LLVMCtx);
@@ -128,11 +127,12 @@ KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
 KernelTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                                  SYCLKernelInfo &Kernel) {
-  return SPIRVLLVMTranslator::loadSPIRVKernel(LLVMCtx, Kernel);
+                                  SYCLKernelBinaryInfo &BinaryInfo) {
+  return SPIRVLLVMTranslator::loadSPIRVKernel(LLVMCtx, BinaryInfo);
 }
 
-llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
+llvm::Error KernelTranslator::translateKernel(const char *KernelName,
+                                              SYCLKernelBinaryInfo &BinaryInfo,
                                               llvm::Module &Mod,
                                               JITContext &JITCtx,
                                               BinaryFormat Format) {
@@ -150,7 +150,7 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
   }
   case BinaryFormat::PTX: {
     llvm::Expected<KernelBinary *> BinaryOrError =
-        translateToPTX(Kernel, Mod, JITCtx);
+        translateToPTX(KernelName, Mod, JITCtx);
     if (auto Error = BinaryOrError.takeError()) {
       return Error;
     }
@@ -159,7 +159,7 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
   }
   case BinaryFormat::AMDGCN: {
     llvm::Expected<KernelBinary *> BinaryOrError =
-        translateToAMDGCN(Kernel, Mod, JITCtx);
+        translateToAMDGCN(KernelName, Mod, JITCtx);
     if (auto Error = BinaryOrError.takeError())
       return Error;
     KernelBin = *BinaryOrError;
@@ -172,16 +172,15 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
   }
   }
 
-  // Update the KernelInfo for the fused kernel with the address and size of the
-  // SPIR-V binary resulting from translation.
-  SYCLKernelBinaryInfo &FusedBinaryInfo = Kernel.BinaryInfo;
-  FusedBinaryInfo.Format = Format;
+  // Update the BinaryInfo with the address and size of the binary resulting
+  // from translation.
+  BinaryInfo.Format = Format;
   // Output SPIR-V should use the same number of address bits as the input
   // SPIR-V. SPIR-V translation requires all modules to use the same number of
   // address bits, so it's safe to take the value from the first one.
-  FusedBinaryInfo.AddressBits = Mod.getDataLayout().getPointerSizeInBits();
-  FusedBinaryInfo.BinaryStart = KernelBin->address();
-  FusedBinaryInfo.BinarySize = KernelBin->size();
+  BinaryInfo.AddressBits = Mod.getDataLayout().getPointerSizeInBits();
+  BinaryInfo.BinaryStart = KernelBin->address();
+  BinaryInfo.BinarySize = KernelBin->size();
   return Error::success();
 }
 
@@ -207,10 +206,10 @@ KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
 }
 
 llvm::Expected<KernelBinary *>
-KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
+KernelTranslator::translateToPTX(const char *KernelName, llvm::Module &Mod,
                                  JITContext &JITCtx) {
 #ifndef JIT_SUPPORT_PTX
-  (void)KernelInfo;
+  (void)KernelName;
   (void)Mod;
   (void)JITCtx;
   return createStringError(inconvertibleErrorCode(),
@@ -244,7 +243,7 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
   llvm::StringRef CPU = CPUVal.begin();
   llvm::StringRef Features = FeaturesVal.begin();
 
-  auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str());
+  auto *KernelFunc = Mod.getFunction(KernelName);
   // If they were not set, use default and consult the module for alternatives
   // (if present).
   if (CPU.empty()) {
@@ -290,10 +289,10 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
 }
 
 llvm::Expected<KernelBinary *>
-KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
-                                    llvm::Module &Mod, JITContext &JITCtx) {
+KernelTranslator::translateToAMDGCN(const char *KernelName, llvm::Module &Mod,
+                                    JITContext &JITCtx) {
 #ifndef JIT_SUPPORT_AMDGCN
-  (void)KernelInfo;
+  (void)KernelName;
   (void)Mod;
   (void)JITCtx;
   return createStringError(inconvertibleErrorCode(),
@@ -325,7 +324,7 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
   llvm::StringRef CPU = CPUVal.begin();
   llvm::StringRef Features = FeaturesVal.begin();
 
-  auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str());
+  auto *KernelFunc = Mod.getFunction(KernelName);
   if (CPU.empty()) {
     // Set to the lowest tested target according to the GetStartedGuide, section
     // "Build DPC++ toolchain with support for HIP AMD"

@@ -105,17 +105,16 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
 
 Expected<std::unique_ptr<llvm::Module>>
 SPIRVLLVMTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
-                                     SYCLKernelInfo &Kernel) {
+                                     SYCLKernelBinaryInfo &BinaryInfo) {
   std::unique_ptr<Module> Result{nullptr};
 
-  SYCLKernelBinaryInfo &BinInfo = Kernel.BinaryInfo;
-  assert(BinInfo.Format == BinaryFormat::SPIRV &&
+  assert(BinaryInfo.Format == BinaryFormat::SPIRV &&
          "Only SPIR-V supported as input");
 
   // Create an input stream for the SPIR-V binary.
   std::stringstream SPIRStream(
-      std::string(reinterpret_cast<const char *>(BinInfo.BinaryStart),
-                  BinInfo.BinarySize),
+      std::string(reinterpret_cast<const char *>(BinaryInfo.BinaryStart),
+                  BinaryInfo.BinarySize),
       std::ios_base::in | std::ios_base::binary);
   std::string ErrMsg;
   // Create a raw pointer. readSpirv accepts a reference to a pointer,

@@ -26,10 +26,10 @@ namespace jit_compiler {
 class JITResult {
 public:
   explicit JITResult(const char *ErrorMessage)
-      : Failed{true}, KernelInfo{}, ErrorMessage{ErrorMessage} {}
+      : Failed{true}, BinaryInfo{}, ErrorMessage{ErrorMessage} {}
 
-  explicit JITResult(const SYCLKernelInfo &KernelInfo)
-      : Failed{false}, KernelInfo(KernelInfo), ErrorMessage{} {}
+  explicit JITResult(const SYCLKernelBinaryInfo &BinaryInfo)
+      : Failed{false}, BinaryInfo(BinaryInfo), ErrorMessage{} {}
 
   bool failed() const { return Failed; }
 
@@ -38,14 +38,14 @@ public:
     return ErrorMessage.c_str();
   }
 
-  const SYCLKernelInfo &getKernelInfo() const {
-    assert(!failed() && "No kernel info");
-    return KernelInfo;
+  const SYCLKernelBinaryInfo &getBinaryInfo() const {
+    assert(!failed() && "No binary info");
+    return BinaryInfo;
   }
 
 private:
   bool Failed;
-  SYCLKernelInfo KernelInfo;
+  SYCLKernelBinaryInfo BinaryInfo;
   sycl::detail::string ErrorMessage;
 };
 
@@ -61,7 +61,7 @@ extern "C" {
 #endif // _MSC_VER
 
 SCM_EXPORT_SYMBOL JITResult materializeSpecConstants(
-    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinaryInfo,
     View<unsigned char> SpecConstBlob);
 
 /// Clear all previously set options.

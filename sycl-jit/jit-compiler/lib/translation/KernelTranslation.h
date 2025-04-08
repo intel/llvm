@@ -22,10 +22,13 @@ class KernelTranslator {
 
 public:
   static llvm::Expected<std::unique_ptr<llvm::Module>>
-  loadKernels(llvm::LLVMContext &LLVMCtx, std::vector<SYCLKernelInfo> &Kernels);
+  loadKernels(llvm::LLVMContext &LLVMCtx,
+              std::vector<SYCLKernelBinaryInfo> &BinaryInfos);
 
-  static llvm::Error translateKernel(SYCLKernelInfo &Kernel, llvm::Module &Mod,
-                                     JITContext &JITCtx, BinaryFormat Format);
+  static llvm::Error translateKernel(const char *KernelName,
+                                     SYCLKernelBinaryInfo &BinaryInfo,
+                                     llvm::Module &Mod, JITContext &JITCtx,
+                                     BinaryFormat Format);
 
   static llvm::Expected<RTCDevImgBinaryInfo>
   translateDevImgToSPIRV(llvm::Module &Mod, JITContext &JITCtx);
@@ -36,19 +39,19 @@ private:
   using BinaryBlob = std::pair<BinaryAddress, size_t>;
 
   static llvm::Expected<std::unique_ptr<llvm::Module>>
-  loadLLVMKernel(llvm::LLVMContext &LLVMCtx, SYCLKernelInfo &Kernel);
+  loadLLVMKernel(llvm::LLVMContext &LLVMCtx, SYCLKernelBinaryInfo &BinaryInfo);
 
   static llvm::Expected<std::unique_ptr<llvm::Module>>
-  loadSPIRVKernel(llvm::LLVMContext &LLVMCtx, SYCLKernelInfo &Kernel);
+  loadSPIRVKernel(llvm::LLVMContext &LLVMCtx, SYCLKernelBinaryInfo &BinaryInfo);
 
   static llvm::Expected<KernelBinary *> translateToSPIRV(llvm::Module &Mod,
                                                          JITContext &JITCtx);
 
   static llvm::Expected<KernelBinary *>
-  translateToPTX(SYCLKernelInfo &Kernel, llvm::Module &Mod, JITContext &JITCtx);
+  translateToPTX(const char *KernelName, llvm::Module &Mod, JITContext &JITCtx);
 
   static llvm::Expected<KernelBinary *>
-  translateToAMDGCN(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
+  translateToAMDGCN(const char *KernelName, llvm::Module &Mod,
                     JITContext &JITCtx);
 };
 } // namespace translation
