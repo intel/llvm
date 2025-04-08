@@ -495,6 +495,7 @@
 		urPrintUsmP2pEnablePeerAccessExpParams;
 		urPrintUsmP2pPeerAccessGetInfoExpParams;
 		urPrintUsmPitchedAllocExpParams;
+		urPrintUsmPoolBufferDesc;
 		urPrintUsmPoolCreateExpParams;
 		urPrintUsmPoolCreateParams;
 		urPrintUsmPoolDesc;
