@@ -214,7 +214,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: cts
-      repo_ref: ${{ github.sha }}
+      repo_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       devops_ref: sycl
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}

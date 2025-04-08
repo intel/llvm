@@ -71,9 +71,10 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
         static_cast<uint32_t>(metadatas.size()),
         metadatas.empty() ? nullptr : metadatas.data()};
     for (auto i = 0u; i < num_devices; ++i) {
-      ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-          platform, context, devices[i], *il_binary, &properties,
-          &programs[i]));
+      UUR_RETURN_ON_FATAL_FAILURE(
+          uur::KernelsEnvironment::instance->CreateProgram(
+              platform, context, devices[i], *il_binary, &properties,
+              &programs[i]));
       ASSERT_SUCCESS(urProgramBuild(context, programs[i], nullptr));
       auto kernel_names =
           uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);

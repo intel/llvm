@@ -46,6 +46,7 @@
 #define __clc_as_float4(x) __builtin_astype(x, float4)
 
 #define __clc_as_char8(x) __builtin_astype(x, char8)
+#define __clc_as_schar8(x) __builtin_astype(x, schar8)
 #define __clc_as_uchar8(x) __builtin_astype(x, uchar8)
 #define __clc_as_schar8(x) __builtin_astype(x, schar8)
 #define __clc_as_short8(x) __builtin_astype(x, short8)
