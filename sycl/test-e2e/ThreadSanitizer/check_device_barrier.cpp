@@ -2,6 +2,7 @@
 // RUN: %{build} %device_tsan_flags -O2 -g -o %t1.out
 // RUN: %{run} %t1.out 2>&1 | FileCheck %s
 // UNSUPPORTED: cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-66827
 #include "sycl/detail/core.hpp"
 #include "sycl/ext/oneapi/experimental/root_group.hpp"
 #include "sycl/group_barrier.hpp"
