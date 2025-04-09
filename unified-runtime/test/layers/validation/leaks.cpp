@@ -7,6 +7,7 @@
 #include "fixtures.hpp"
 
 #include <ur_mock_helpers.hpp>
+#include <uur/fixtures.h>
 
 // We need a fake handle for the below adapter leak test.
 inline ur_result_t fakeAdapter_urAdapterGet(void *pParams) {
@@ -15,7 +16,7 @@ inline ur_result_t fakeAdapter_urAdapterGet(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-class adapterLeakTest : public urTest {
+struct adapterLeakTest : public urTest {
   void SetUp() override {
     urTest::SetUp();
     mock::getCallbacks().set_replace_callback("urAdapterGet",
@@ -28,6 +29,51 @@ class adapterLeakTest : public urTest {
     mock::getCallbacks().resetCallbacks();
     urTest::TearDown();
   }
+};
+
+inline ur_result_t fakeQueue_urQueueCreate(void *pParams) {
+  const auto &params = *static_cast<ur_queue_create_params_t *>(pParams);
+  **params.pphQueue = reinterpret_cast<ur_queue_handle_t>(0x4a);
+  return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t fakeQueue_urEnqueueEventsWait(void *pParams) {
+  const auto &params = *static_cast<ur_enqueue_events_wait_params_t *>(pParams);
+  **params.pphEvent = reinterpret_cast<ur_event_handle_t>(0x4b);
+  return UR_RESULT_SUCCESS;
+}
+
+struct queueLeakTest : public valDeviceTest {
+  void SetUp() override {
+    valDeviceTest::SetUp();
+    mock::getCallbacks().set_replace_callback("urQueueCreate",
+                                              &fakeQueue_urQueueCreate);
+    mock::getCallbacks().set_replace_callback("urQueueRelease",
+                                              &genericSuccessCallback);
+    mock::getCallbacks().set_replace_callback("urEnqueueEventsWait",
+                                              &fakeQueue_urEnqueueEventsWait);
+    mock::getCallbacks().set_replace_callback("urEventRelease",
+                                              &genericSuccessCallback);
+
+    ASSERT_EQ(urContextCreate(1, &device, nullptr, &context),
+              UR_RESULT_SUCCESS);
+    ASSERT_NE(nullptr, context);
+
+    ASSERT_EQ(urQueueCreate(context, device, nullptr, &queue),
+              UR_RESULT_SUCCESS);
+    ASSERT_NE(nullptr, context);
+  }
+
+  void TearDown() override {
+    ASSERT_EQ(urQueueRelease(queue), UR_RESULT_SUCCESS);
+    ASSERT_EQ(urContextRelease(context), UR_RESULT_SUCCESS);
+
+    mock::getCallbacks().resetCallbacks();
+    valDeviceTest::TearDown();
+  }
+
+  ur_context_handle_t context;
+  ur_queue_handle_t queue;
 };
 
 TEST_F(adapterLeakTest, testUrAdapterGetLeak) {
@@ -94,4 +140,20 @@ TEST_F(valDeviceTest, testUrContextReleaseLeak) {
 TEST_F(valDeviceTest, testUrContextReleaseNonexistent) {
   ur_context_handle_t context = (ur_context_handle_t)0xC0FFEE;
   ASSERT_EQ(urContextRelease(context), UR_RESULT_SUCCESS);
+}
+
+TEST_F(queueLeakTest, testUrEnqueueSuccess) {
+  ur_event_handle_t event = nullptr;
+  ASSERT_EQ(urEnqueueEventsWait(queue, 0, nullptr, &event), UR_RESULT_SUCCESS);
+  ASSERT_EQ(urEventRelease(event), UR_RESULT_SUCCESS);
+}
+
+TEST_F(queueLeakTest, testUrEnqueueLeak) {
+  ur_event_handle_t event = nullptr;
+  ASSERT_EQ(urEnqueueEventsWait(queue, 0, nullptr, &event), UR_RESULT_SUCCESS);
+}
+
+TEST_F(queueLeakTest, testUrEventReleaseNonexistent) {
+  ur_event_handle_t event = (ur_event_handle_t)0xBEEF;
+  ASSERT_EQ(urEventRelease(event), UR_RESULT_SUCCESS);
 }
