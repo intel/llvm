@@ -227,7 +227,7 @@ jobs:
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
         ZE_DEBUG: 1
-        LD_LIBRARY_PATH: "./dpcpp_compiler/lib ./dpcpp_compiler/bin/sycl-ls"
+        LD_LIBRARY_PATH: "./dpcpp_compiler/lib ./dpcpp_compiler/bin/sycl-ls /runtimes/lib"
         UR_SYCL_LIBRARY_DIR: "./dpcpp_compiler/lib"
       run: env OpenCL_LIBRARIES=/opt/intel/oneapi/2025.0/lib UR_BUILD_ADAPTER_OPENCL=ON UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --test-dir build --output-on-failure -L "conformance" --timeout 600
 
