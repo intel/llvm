@@ -17,6 +17,16 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 static constexpr size_t NUM = 1024;
 static constexpr size_t WGSIZE = 16;
 
+enum class ScopedEnum {
+  TEST_ENUM_1,
+  TEST_ENUM_2
+};
+
+enum UnscopedEnum: uint8_t {
+  TEST_ENUM_1,
+  TEST_ENUM_2
+};
+
 template<typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void func_without_ns(T start, T *ptr) {
@@ -130,6 +140,8 @@ int main() {
   test_function_without_ns<float>(q, ctxt);
   test_function_in_ns<int>(q, ctxt);
   test_function_in_ns<float>(q, ctxt);
+  test_function_in_ns<UnscopedEnum>(q, ctxt);
+  test_function_in_ns<ScopedEnum>(q, ctxt);
   test_function_with_integral_without_ns<int, 0, 1>(q, ctxt);
   test_function_with_integral_without_ns<float, 0, 1>(q, ctxt);
   test_function_with_integral_with_ns<int, 0, 1>(q, ctxt);
