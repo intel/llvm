@@ -30,8 +30,7 @@ std::shared_ptr<ShadowMemory> CreateShadowMemory(ur_device_handle_t Device,
   case DeviceType::GPU_DG2:
     return std::make_shared<ShadowMemoryDG2>(Device);
   default:
-    getContext()->logger.error("CreateShadowMemory: Unsupport device type");
-    return nullptr;
+    die("CreateShadowMemory: Unsupport device type");
   }
 }
 
