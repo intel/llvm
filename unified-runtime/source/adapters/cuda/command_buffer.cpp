@@ -61,7 +61,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1},
       NextSyncPoint{0} {
   urContextRetain(Context);
-  urDeviceRetain(Device);
 }
 
 /// The ur_exp_command_buffer_handle_t_ destructor releases
@@ -69,9 +68,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release the memory allocated to the Context stored in the command_buffer
   UR_CALL_NOCHECK(urContextRelease(Context));
-
-  // Release the device
-  UR_CALL_NOCHECK(urDeviceRelease(Device));
 }
 
 // This may throw so it must be called from within a try...catch
