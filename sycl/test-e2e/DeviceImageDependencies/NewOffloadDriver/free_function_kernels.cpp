@@ -1,3 +1,6 @@
+// UNSUPPORTED: true
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17812
+
 // Ensure -fsycl-allow-device-dependencies can work with free function kernels.
 
 // REQUIRES: aspect-usm_shared_allocations
