@@ -456,8 +456,9 @@ private:
           std::shared_ptr<detail::queue_impl> SecondaryQueue,
           bool CallerNeedsEvent);
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
-          detail::queue_impl *PrimaryQueue, detail::queue_impl *SecondaryQueue,
-          bool CallerNeedsEvent);
+                           detail::queue_impl *PrimaryQueue,
+                           detail::queue_impl *SecondaryQueue,
+                           bool CallerNeedsEvent);
 #endif
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
