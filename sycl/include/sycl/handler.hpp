@@ -452,8 +452,8 @@ private:
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
   handler(std::shared_ptr<detail::queue_impl> Queue,
-          const std::shared_ptr<detail::queue_impl> PrimaryQueue,
-          const std::shared_ptr<detail::queue_impl> SecondaryQueue,
+          std::shared_ptr<detail::queue_impl> PrimaryQueue,
+          std::shared_ptr<detail::queue_impl> SecondaryQueue,
           bool CallerNeedsEvent);
   handler(std::shared_ptr<detail::queue_impl> Queue,
           detail::queue_impl *PrimaryQueue, detail::queue_impl *SecondaryQueue,
