@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <libspirv/spirv.h>
-#include <clc/utils.h>
+#include <clc/clc_convert.h>
 #include <clc/clcmacro.h>
+#include <clc/utils.h>
+#include <libspirv/spirv.h>
 
 #define __CLC_BODY <frexp.inc>
 #define __CLC_ADDRESS_SPACE private

@@ -90,7 +90,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
                   }
                 }
               }),
-          eventFlagsFromQueueFlags(flags)) {}
+          eventFlagsFromQueueFlags(flags), this) {}
 
 ze_event_handle_t ur_queue_immediate_in_order_t::getSignalEvent(
     locked<ur_command_list_manager> &commandList, ur_event_handle_t *hUserEvent,

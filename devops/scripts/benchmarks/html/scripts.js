@@ -94,6 +94,7 @@ function createChart(data, containerId, type) {
                                 `Value: ${point.y.toFixed(2)} ${data.unit}`,
                                 `Stddev: ${point.stddev.toFixed(2)} ${data.unit}`,
                                 `Git Hash: ${point.gitHash}`,
+                                `Compute Runtime: ${point.compute_runtime}`,
                             ];
                         } else {
                             return [`${context.dataset.label}:`,
@@ -147,7 +148,7 @@ function createChart(data, containerId, type) {
     const chartConfig = {
         type: type === 'time' ? 'line' : 'bar',
         data: type === 'time' ? {
-            datasets: createTimeseriesDatasets(data)
+            datasets: Object.values(data.runs)
         } : {
             labels: data.labels,
             datasets: data.datasets
@@ -692,36 +693,32 @@ function processLayerComparisonsData(benchmarkRuns) {
     return Object.values(groupedResults);
 }
 
-function createRunDataStructure(run, result, label) {
-    return {
-        runName: run.name,
-        points: [{
-            date: new Date(run.date),
-            value: result.value,
-            stddev: result.stddev,
-            git_hash: run.git_hash,
-            github_repo: run.github_repo,
-            label: label || result.label
-        }]
-    };
-}
-
 function addRunDataPoint(group, run, result, name = null) {
     const runKey = name || result.label + ' (' + run.name + ')';
 
     if (!group.runs[runKey]) {
+        const datasetIndex = Object.keys(group.runs).length;
         group.runs[runKey] = {
+            label: runKey,
             runName: run.name,
-            points: []
+            data: [],
+            borderColor: colorPalette[datasetIndex % colorPalette.length],
+            backgroundColor: colorPalette[datasetIndex % colorPalette.length],
+            borderWidth: 1,
+            pointRadius: 3,
+            pointStyle: 'circle',
+            pointHoverRadius: 5
         };
     }
 
-    group.runs[runKey].points.push({
-        date: new Date(run.date),
-        value: result.value,
+    group.runs[runKey].data.push({
+        seriesName: runKey,
+        x: new Date(run.date),
+        y: result.value,
         stddev: result.stddev,
-        git_hash: run.git_hash,
-        github_repo: run.github_repo,
+        gitHash: run.git_hash,
+        gitRepo: run.github_repo,
+        compute_runtime: run.compute_runtime
     });
 
     return group;

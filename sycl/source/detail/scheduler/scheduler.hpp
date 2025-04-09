@@ -188,7 +188,6 @@ using EventImplPtr = std::shared_ptr<detail::event_impl>;
 using QueueImplPtr = std::shared_ptr<detail::queue_impl>;
 using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
-using QueueIdT = std::hash<std::shared_ptr<detail::queue_impl>>::result_type;
 using CommandPtr = std::unique_ptr<Command>;
 
 /// Memory Object Record

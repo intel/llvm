@@ -206,7 +206,8 @@ ur_result_t ur_context_handle_t_::initialize() {
 
   ZeCommandQueueDesc.index = 0;
   ZeCommandQueueDesc.mode = ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS;
-  if (Device->useDriverInOrderLists() &&
+  if (Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
       Device->useDriverCounterBasedEvents()) {
     logger::debug(
         "L0 Synchronous Immediate Command List needed with In Order property.");
@@ -281,7 +282,7 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
   if (DestroyZeContext) {
     auto ZeResult = ZE_CALL_NOCHECK(zeContextDestroy, (DestroyZeContext));
     // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                      ZeResult != ZE_RESULT_ERROR_UNKNOWN))
       return ze2urResult(ZeResult);
     if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -310,7 +311,7 @@ ur_result_t ur_context_handle_t_::finalize() {
         if (checkL0LoaderTeardown()) {
           auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
           // Gracefully handle the case that L0 was already unloaded.
-          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                            ZeResult != ZE_RESULT_ERROR_UNKNOWN))
             return ze2urResult(ZeResult);
           if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -330,7 +331,7 @@ ur_result_t ur_context_handle_t_::finalize() {
         if (checkL0LoaderTeardown()) {
           auto ZeResult = ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
           // Gracefully handle the case that L0 was already unloaded.
-          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                            ZeResult != ZE_RESULT_ERROR_UNKNOWN))
             return ze2urResult(ZeResult);
           if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -346,7 +347,7 @@ ur_result_t ur_context_handle_t_::finalize() {
     // Destroy the command list used for initializations
     auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandListInit));
     // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                      ZeResult != ZE_RESULT_ERROR_UNKNOWN))
       return ze2urResult(ZeResult);
     if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -361,7 +362,7 @@ ur_result_t ur_context_handle_t_::finalize() {
       if (ZeCommandList && checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                          ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
         if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -376,7 +377,7 @@ ur_result_t ur_context_handle_t_::finalize() {
       if (ZeCommandList && checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                          ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
         if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -696,8 +697,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
     for (auto ZeCommandListIt = ZeCommandListCache.begin();
          ZeCommandListIt != ZeCommandListCache.end(); ++ZeCommandListIt) {
       // If this is an InOrder Queue, then only allow lists which are in order.
-      if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
-          !(ZeCommandListIt->second.InOrderList)) {
+      if (Queue->Device->Platform->allowDriverInOrderLists(
+              true /*Only Allow Driver In Order List if requested*/) &&
+          Queue->isInOrderQueue() && !(ZeCommandListIt->second.InOrderList)) {
         continue;
       }
       // Only allow to reuse Regular Command Lists
@@ -763,8 +765,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
       continue;
 
     // If this is an InOrder Queue, then only allow lists which are in order.
-    if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue() &&
-        !(it->second.IsInOrderList)) {
+    if (Queue->Device->Platform->allowDriverInOrderLists(
+            true /*Only Allow Driver In Order List if requested*/) &&
+        Queue->isInOrderQueue() && !(it->second.IsInOrderList)) {
       continue;
     }
 

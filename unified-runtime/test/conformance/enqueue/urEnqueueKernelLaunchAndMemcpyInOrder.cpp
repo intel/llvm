@@ -65,9 +65,10 @@ struct urMultiQueueLaunchMemcpyTest
           metadatas.empty() ? nullptr : metadatas.data()};
 
       uur::raii::Program program;
-      ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-          platform, context, devices[i], *il_binary, &properties,
-          &programs[i]));
+      UUR_RETURN_ON_FATAL_FAILURE(
+          uur::KernelsEnvironment::instance->CreateProgram(
+              platform, context, devices[i], *il_binary, &properties,
+              &programs[i]));
 
       UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
           urProgramBuild(context, programs[i], nullptr));

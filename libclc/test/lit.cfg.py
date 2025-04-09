@@ -26,15 +26,18 @@ config.excludes = ["CMakeLists.txt"]
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.join(os.path.dirname(__file__), "binding")
 
-# test_exec_root: The root path where tests should be run.
-config.test_exec_root = os.path.join(config.test_run_dir, "test")
-
 libclc_inc = os.path.join(config.libclc_root, "libspirv", "include")
 
 target = lit_config.params.get("target", "")
 builtins = lit_config.params.get("builtins", "")
 cpu = lit_config.params.get("cpu", "")
 cpu = [] if cpu == "" else ["-mcpu=" + cpu]
+libclc_arch_suffix = lit_config.params.get("libclc-arch-suffix", "")
+
+# test_exec_root: The root path where tests should be run. We create a unique
+# test directory per libclc target to test to avoid data races when multiple
+# targets try and access the the same libclc test files.
+config.test_exec_root = os.path.join(config.test_run_dir, "test", libclc_arch_suffix)
 
 llvm_config.use_default_substitutions()
 

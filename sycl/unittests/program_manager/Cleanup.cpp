@@ -64,7 +64,7 @@ public:
     return m_EliminatedKernelArgMasks;
   }
 
-  std::set<std::string> &getKernelUsesAssert() { return m_KernelUsesAssert; }
+  KernelUsesAssertSet &getKernelUsesAssert() { return m_KernelUsesAssert; }
 
   std::unordered_map<std::string, int> &getKernelImplicitLocalArgPos() {
     return m_KernelImplicitLocalArgPos;

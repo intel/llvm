@@ -497,10 +497,7 @@ bool llvm::wouldInstructionBeTriviallyDead(const Instruction *I,
       // are lifetime intrinsics then the intrinsics are dead.
       if (isa<AllocaInst>(Arg) || isa<GlobalValue>(Arg) || isa<Argument>(Arg))
         return llvm::all_of(Arg->uses(), [](Use &Use) {
-          if (IntrinsicInst *IntrinsicUse =
-                  dyn_cast<IntrinsicInst>(Use.getUser()))
-            return IntrinsicUse->isLifetimeStartOrEnd();
-          return false;
+          return isa<LifetimeIntrinsic>(Use.getUser());
         });
       return false;
     }
@@ -3463,6 +3460,7 @@ void llvm::copyMetadataForLoad(LoadInst &Dest, const LoadInst &Source) {
     case LLVMContext::MD_mem_parallel_loop_access:
     case LLVMContext::MD_access_group:
     case LLVMContext::MD_noundef:
+    case LLVMContext::MD_noalias_addrspace:
       // All of these directly apply.
       Dest.setMetadata(ID, N);
       break;
