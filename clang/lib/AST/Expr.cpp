@@ -596,8 +596,8 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context) const {
                                                getTypeSourceInfo()->getType());
 }
 
-static std::optional<unsigned>
-UniqueStableNameDiscriminator(ASTContext &, const NamedDecl *ND) {
+static UnsignedOrNone UniqueStableNameDiscriminator(ASTContext &,
+                                                    const NamedDecl *ND) {
   if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
     if (RD->isLambda())
       return RD->getDeviceLambdaManglingNumber();
