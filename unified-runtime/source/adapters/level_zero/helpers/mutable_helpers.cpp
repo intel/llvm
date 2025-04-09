@@ -10,7 +10,6 @@
 
 #include "mutable_helpers.hpp"
 
-
 ur_result_t setMutableOffsetDesc(
     std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>> &Desc,
     uint32_t Dim, size_t *NewGlobalWorkOffset, const void *NextDesc,
