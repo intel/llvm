@@ -35,8 +35,8 @@ public:
 
   ~ScopedIndent() { CurrentIndentationLevel -= Incremented; }
 
-  ScopedIndent &operator=(const ScopedIndent &Other) = default;
-  ScopedIndent &operator=(ScopedIndent &&Other) = default;
+  ScopedIndent &operator=(const ScopedIndent &Other) = delete;
+  ScopedIndent &operator=(ScopedIndent &&Other) = delete;
 
   std::string str() const { return std::string(CurrentIndentationLevel, ' '); }
 
