@@ -6,6 +6,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from benches.compute import *
+from benches.gromacs import GromacsBench
 from benches.velocity import VelocityBench
 from benches.syclbench import *
 from benches.llamacpp import *
@@ -165,6 +166,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         SyclBench(directory),
         LlamaCppBench(directory),
         UMFSuite(directory),
+        GromacsBench(directory),
         TestSuite(),
     ]
 

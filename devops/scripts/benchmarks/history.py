@@ -78,7 +78,7 @@ class BenchmarkHistory:
             github_repo = None
 
         compute_runtime = (
-            options.compute_runtime_tag if options.build_compute_runtime else None
+            options.compute_runtime_tag if options.build_compute_runtime else "Unknown"
         )
 
         return BenchmarkRun(
