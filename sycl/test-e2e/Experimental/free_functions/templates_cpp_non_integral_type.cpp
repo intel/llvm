@@ -8,8 +8,8 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
-#include <sycl/usm.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/usm.hpp>
 
 namespace syclext = sycl::ext::oneapi;
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -17,19 +17,15 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 static constexpr size_t NUM = 1024;
 static constexpr size_t WGSIZE = 16;
 
-class TestClass {  
-};
+class TestClass {};
 
-struct TestStruct{
-};
+struct TestStruct {};
 
-namespace free_functions::tests{
-class TestClass {
-};
+namespace free_functions::tests {
+class TestClass {};
 
-struct TestStruct{
-};
-}
+struct TestStruct {};
+} // namespace free_functions::tests
 
 using AliasType = float;
 

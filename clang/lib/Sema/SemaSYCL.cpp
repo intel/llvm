@@ -6491,30 +6491,19 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 
 class FreeFunctionPrinter {
   raw_ostream &O;
-
   PrintingPolicy &Policy;
   bool NSInserted = false;
 
 public:
   FreeFunctionPrinter(raw_ostream &O, PrintingPolicy &Policy)
-
-
-
-
-
-
-
       : O(O), Policy(Policy) {}
 
   /// Emits the function declaration of a free function.
   /// \param FD The function declaration to print.
   /// \param Args The arguments of the function.
   void printFreeFunctionDeclaration(const FunctionDecl *FD,
-
                                     const std::string &Args,
                                     std::string_view templated = "") {
-
-
 
     const DeclContext *DC = FD->getDeclContext();
     if (DC) {
@@ -6525,10 +6514,7 @@ public:
         // function
         NSInserted = true;
       }
-
       O << templated;
-
-
       O << FD->getReturnType().getAsString() << " ";
       O << FD->getNameAsString() << "(" << Args << ");";
       if (NSInserted) {
@@ -6554,12 +6540,11 @@ public:
     O << FD->getIdentifier()->getName().data();
   }
 
-
   /// Helper method to get arguments of templated function as a string
   /// Should be used only with templates
   /// \param Parameters Array of parameters of the function.
-  /// \param IsWithNames If true, the parameter names are included in the returned string
-  /// Example:
+  /// \param IsWithNames If true, the parameter names are included in the
+  /// returned string Example:
   /// \code
   ///  template <typename T1, typename T2>
   ///  void foo(T1 a, T2 b);
@@ -6627,8 +6612,6 @@ public:
     TemplateParams += "> ";
     return TemplateParams;
   }
-
-
 };
 
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
@@ -6973,20 +6956,17 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.EnforceDefaultTemplateArgs = true;
     FreeFunctionPrinter FFPrinter(O, Policy);
     if (FTD) {
-
       if (auto TemplatedDecl = FTD->getTemplatedDecl(); TemplatedDecl) {
-        const auto TemplatedDeclParams = FFPrinter.getTemplatedParamList(TemplatedDecl->parameters(), true);
-        const std::string TeplatedParams = FFPrinter.getTemplateParameters(FTD->getTemplateParameters(), S);
-        FFPrinter.printFreeFunctionDeclaration(TemplatedDecl, TemplatedDeclParams, TeplatedParams);
+        const auto TemplatedDeclParams =
+            FFPrinter.getTemplatedParamList(TemplatedDecl->parameters(), true);
+        const std::string TeplatedParams =
+            FFPrinter.getTemplateParameters(FTD->getTemplateParameters(), S);
+        FFPrinter.printFreeFunctionDeclaration(
+            TemplatedDecl, TemplatedDeclParams, TeplatedParams);
       }
-
-
-
-
     } else {
       FFPrinter.printFreeFunctionDeclaration(K.SyclKernel, ParmListWithNames);
     }
-
     FFPrinter.printFreeFunctionShim(K.SyclKernel, ShimCounter, ParmList);
     if (FTD) {
       const TemplateArgumentList *TAL =
