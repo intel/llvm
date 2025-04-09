@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsyntax-only -fsycl %s
 
 // Verify that we can pass top-level special type parameters to free function
-// kernels.
+// kernels except for accessors which will be added at a later time.
 
 #include <sycl/sycl.hpp>
 

@@ -3,7 +3,7 @@
 // 
 // This test checks integration header contents for free functions with scalar,
 // pointer, non-decomposed struct parameters, work group memory parameters,
-// dynamic work group memory parameters and special types except for accessors and image accessors.
+// dynamic work group memory parameters and special types except for accessors.
 
 #include "mock_properties.hpp"
 #include "sycl.hpp"

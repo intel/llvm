@@ -1,7 +1,8 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -triple spir64 \
 // RUN: -emit-llvm %s -o - | FileCheck %s
 // This test checks parameter IR generation for free functions with parameters
-// of non-decomposed struct type, work group memory type and dynamic work group memory type.
+// of non-decomposed struct type, work group memory type, dynamic work group memory type 
+// and special types except for accessors.
 
 #include "sycl.hpp"
 
