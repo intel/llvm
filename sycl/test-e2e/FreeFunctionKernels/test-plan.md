@@ -19,7 +19,10 @@ Tests in this category may not fully exercise the extension functionality, but a
 
 
 Perform tests on free function kernels requirments which should check the following:
+ - that compiler will emit diagnostic when free function kernel is declared with reference types as parameters.
+  
  - that compiler will emit diagnostic when free function kernel is declared with parameters of type `reducer` or  `kernel_handler`.
+
  - that compiler will emit diagnostic when free function kernel is declared with variadic arguments.
 
  - that compiler will emit diagnostic when free function kernel provides default parameter values.
