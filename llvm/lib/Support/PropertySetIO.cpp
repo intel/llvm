@@ -38,7 +38,7 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
   // special case when there is no property data, i.e. the resulting property
   // set registry should be empty
   if (Buf->getBufferSize() == 0)
-    return Res;
+    return Expected<std::unique_ptr<PropertySetRegistry>>(std::move(Res));
 
   for (line_iterator LI(*Buf); !LI.is_at_end(); LI++) {
     // see if this line starts a new property set
