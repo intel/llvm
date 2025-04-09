@@ -44,10 +44,6 @@ class VectorizableFunctionAnalysis
     /// @brief Whether the function can be vectorized.
     bool canVectorize = false;
 
-    /// @brief If the function can not be vectorized, the value (if any) that
-    /// is the cause of the problem.
-    const llvm::Value *failedAt = nullptr;
-
     /// @brief Handle invalidation events from the new pass manager.
     ///
     /// @return false, as this analysis can never be invalidated.
