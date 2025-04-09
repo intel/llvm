@@ -490,15 +490,16 @@ ur_result_t urProgramLinkExp(
       // because the ZeBuildLog tells which symbols are unresolved.
       if (ZeResult == ZE_RESULT_SUCCESS) {
         ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
-        if (ZeResult != ZE_RESULT_SUCCESS) {
-          return ze2urResult(ZeResult);
-        }
+        UrResult = ze2urResult(ZeResult);
       }
       UrProgram->setZeModule(ZeDevice, ZeModule);
       UrProgram->setBuildLog(ZeDevice, ZeBuildLog);
       UrProgram->setState(ZeDevice, (UrResult == UR_RESULT_SUCCESS)
                                         ? ur_program_handle_t_::Exe
                                         : ur_program_handle_t_::Invalid);
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        return UrResult;
+      }
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -965,7 +966,6 @@ ur_result_t urProgramCreateWithNativeHandle(
         ur_program_handle_t_::Exe, Context, ZeModule,
         Properties ? Properties->isNativeHandleOwned : false);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
-    (*Program)->IsInteropNativeHandle = true;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1036,15 +1036,15 @@ ur_program_handle_t_::ur_program_handle_t_(ur_context_handle_t Context)
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{true},
-      AssociatedDevices({Context->getDevices()[0]}), InteropZeModule{
-                                                         InteropZeModule} {}
+      AssociatedDevices({Context->getDevices()[0]}),
+      InteropZeModule{InteropZeModule} {}
 
 ur_program_handle_t_::ur_program_handle_t_(state, ur_context_handle_t Context,
                                            ze_module_handle_t InteropZeModule,
                                            bool OwnZeModule)
     : Context{Context}, NativeProperties{nullptr}, OwnZeModule{OwnZeModule},
-      AssociatedDevices({Context->getDevices()[0]}), InteropZeModule{
-                                                         InteropZeModule} {
+      AssociatedDevices({Context->getDevices()[0]}),
+      InteropZeModule{InteropZeModule} {
   // TODO: Currently it is not possible to understand the device associated
   // with provided ZeModule. So we can't set the state on that device to Exe.
 }
@@ -1077,7 +1077,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   }
   if (!resourcesReleased) {
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap) {
-      if (DeviceData.ZeBuildLog)
+      if (DeviceData.ZeBuildLog && checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (DeviceData.ZeBuildLog));
     }
     // interop api
@@ -1086,7 +1086,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
     }
 
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap)
-      if (DeviceData.ZeModule)
+      if (DeviceData.ZeModule && checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleDestroy, (DeviceData.ZeModule));
 
     this->DeviceDataMap.clear();
