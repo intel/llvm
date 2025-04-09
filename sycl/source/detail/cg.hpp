@@ -172,17 +172,8 @@ public:
           MAccStorage(std::move(AccStorage)),
           MSharedPtrStorage(std::move(SharedPtrStorage)),
           MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
-    StorageInitHelper(StorageInitHelper &&SIH)
-        : MArgsStorage(std::move(SIH.MArgsStorage)),
-          MAccStorage(std::move(SIH.MAccStorage)),
-          MSharedPtrStorage(std::move(SIH.MSharedPtrStorage)),
-          MRequirements(std::move(SIH.MRequirements)),
-          MEvents(SIH.MEvents.begin(), SIH.MEvents.end()) {}
-    StorageInitHelper(const StorageInitHelper &SIH)
-        : MArgsStorage(SIH.MArgsStorage), MAccStorage(SIH.MAccStorage),
-          MSharedPtrStorage(SIH.MSharedPtrStorage),
-          MRequirements(SIH.MRequirements),
-          MEvents(SIH.MEvents.begin(), SIH.MEvents.end()) {}
+    StorageInitHelper(StorageInitHelper &&) = default;
+    StorageInitHelper(const StorageInitHelper &) = default;
     // The following storages are needed to ensure that arguments won't die
     // while we are using them.
     /// Storage for standard layout arguments.
@@ -195,7 +186,6 @@ public:
     /// List of requirements that specify which memory is needed for the command
     /// group to be executed.
     std::vector<AccessorImplHost *> MRequirements;
-
     /// List of events that order the execution of this CG
     std::vector<detail::EventImplPtr> MEvents;
   };
