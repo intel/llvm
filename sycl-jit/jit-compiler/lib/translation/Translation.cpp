@@ -230,6 +230,6 @@ Translator::translateToAMDGCN(llvm::Module &Mod, JITContext &JITCtx,
     OBJStream.flush();
   }
 
-  return &JITCtx.emplaceKernelBinary(std::move(AMDObj), BinaryFormat::AMDGCN);
+  return &JITCtx.emplaceBinary(std::move(AMDObj), BinaryFormat::AMDGCN);
 #endif // JIT_SUPPORT_AMDGCN
 }
