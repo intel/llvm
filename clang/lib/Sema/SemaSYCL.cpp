@@ -2830,11 +2830,14 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // kernel parameters from __init method parameters. We will use __init method
   // and kernel parameters which we build here to initialize special objects in
   // the kernel body.
-  bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
-    const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
+  // ParentDecl parameterizes whether we are in a free function kernel or a
+  // lambda kernel by taking the value ParmVarDecl or FieldDecl respectively.
+  template <typename ParentDecl>
+  bool handleSpecialType(ParentDecl *decl, QualType Ty) {
+    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(FieldTy)
+        KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(Ty)
             ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
@@ -2845,7 +2848,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
-      addParam(FD, ParamTy.getCanonicalType());
+      addParam(decl, ParamTy.getCanonicalType());
 
       // Propagate add_ir_attributes_kernel_parameter attribute.
       if (const auto *AddIRAttr =
@@ -2858,8 +2861,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // handleAccessorPropertyList. If new classes with property list are
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
-      if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(FieldTy))
-        handleAccessorType(FieldTy, RecordDecl, FD->getBeginLoc());
+      if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(Ty))
+        handleAccessorType(ParamTy, RecordDecl, decl->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -3026,23 +3029,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
-    assert(RecordDecl && "The type must be a RecordDecl");
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
-    assert(InitMethod && "The type must have the __init method");
-    // Don't do -1 here because we count on this to be the first parameter
-    // added (if any).
-    size_t ParamIndex = Params.size();
-    for (const ParmVarDecl *Param : InitMethod->parameters()) {
-      QualType ParamTy = Param->getType();
-      addParam(Param, ParamTy.getCanonicalType());
-      // Propagate add_ir_attributes_kernel_parameter attribute.
-      if (const auto *AddIRAttr =
-              Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
-        Params.back()->addAttr(AddIRAttr->clone(SemaSYCLRef.getASTContext()));
-    }
-    LastParamIndex = ParamIndex;
-    return true;
+    return handleSpecialType(PD, ParamTy);
   }
 
   RecordDecl *wrapField(FieldDecl *Field, QualType FieldTy) {
@@ -4535,6 +4522,13 @@ public:
   // TODO: Revisit this approach once https://github.com/intel/llvm/issues/16061
   // is closed.
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
+    // The code produced looks like this in the case of a work group memory
+    // parameter: 
+    // void auto_generated_kernel(__local int * arg) {
+    //    work_group_memory wgm;
+    //    wgm.__init(arg);
+    //    user_kernel(some arguments..., wgm, some arguments...);
+    // }
     const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;
     auto DefaultConstructor =
@@ -4543,12 +4537,11 @@ public:
     DefaultConstructorAccess = DefaultConstructor->getAccess();
     DefaultConstructor->setAccess(AS_public);
 
-    QualType Ty = PD->getOriginalType();
     ASTContext &Ctx = SemaSYCLRef.SemaRef.getASTContext();
     VarDecl *SpecialObjectClone =
         VarDecl::Create(Ctx, DeclCreator.getKernelDecl(), FreeFunctionSrcLoc,
-                        FreeFunctionSrcLoc, PD->getIdentifier(), PD->getType(),
-                        Ctx.getTrivialTypeSourceInfo(Ty), SC_None);
+                        FreeFunctionSrcLoc, PD->getIdentifier(), ParamTy,
+                        Ctx.getTrivialTypeSourceInfo(ParamTy), SC_None);
     InitializedEntity VarEntity =
         InitializedEntity::InitializeVariable(SpecialObjectClone);
     InitializationKind InitKind =
@@ -4567,7 +4560,7 @@ public:
                  FreeFunctionSrcLoc);
     BodyStmts.push_back(DS);
     Expr *MemberBaseExpr = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        SpecialObjectClone, Ty, VK_PRValue, FreeFunctionSrcLoc);
+        SpecialObjectClone, ParamTy, VK_PRValue, FreeFunctionSrcLoc);
     createSpecialMethodCall(RecordDecl, InitMethodName, MemberBaseExpr,
                             BodyStmts);
     ArgExprs.push_back(MemberBaseExpr);
@@ -6445,10 +6438,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
-  O << "#include <sycl/access/access.hpp>\n"; // needed when using accessors as
-                                              // free function kernel arguments
-                                              // because we need to have access
-                                              // to mode and target enums
   O << "\n";
 
   LangOptions LO;
@@ -6741,7 +6730,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       ParmList += Param->getType().getCanonicalType().getAsString(Policy);
     }
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
-    Policy.PrintCanonicalTypes = true;
+    Policy.PrintCanonicalTypes = false;
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
     Policy.FullyQualifiedName = true;

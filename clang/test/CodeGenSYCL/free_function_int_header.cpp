@@ -2,8 +2,8 @@
 // RUN: FileCheck -input-file=%t.h %s
 // 
 // This test checks integration header contents for free functions with scalar,
-// pointer, non-decomposed struct parameters, work group memory parameters and
-// dynamic work group memory parameters.
+// pointer, non-decomposed struct parameters, work group memory parameters,
+// dynamic work group memory parameters and special types except for accessors and image accessors.
 
 #include "mock_properties.hpp"
 #include "sycl.hpp"
@@ -107,15 +107,19 @@ __attribute__((sycl_device))
 void ff_9(sycl::dynamic_work_group_memory<int>) {
 }
 
-__attribute__((sycl_device))
-[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
-void ff_10(sycl::accessor<int, 1, sycl::access::mode::read> acc) {
-}
 
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
 void ff_11(sycl::local_accessor<int, 1> lacc) {
 }
+
+template <typename DataT>
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_11(sycl::local_accessor<DataT, 1> lacc) {
+}
+
+template void ff_11(sycl::local_accessor<float, 1> lacc);
 
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
@@ -148,8 +152,8 @@ void ff_15(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_8N4sycl3_V117work_group_memoryIiEE
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
-// CHECK-NEXT: {{.*}}__sycl_kernel_ff_10N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE",
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_11N4sycl3_V114local_accessorIiLi1EEE",
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_11IfEvN4sycl3_V114local_accessorIT_Li1EEE"
 // CHECK-NEXT:  {{.*}}sycl_kernel_ff_12N4sycl3_V17samplerE",
 // CHECK-NEXT:   {{.*}}sycl_kernel_ff_13N4sycl3_V16streamE",
 // CHECK-NEXT:   {{.*}}sycl_kernel_ff_14N4sycl3_V13ext6oneapi12experimental13annotated_argIiJEEE",
@@ -203,11 +207,11 @@ void ff_15(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
 // CHECK:  //--- _Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE
 // CHECK-NEXT:  { kernel_param_kind_t::kind_dynamic_work_group_memory, 8, 0 },
 
-// CHECK:  //--- _Z19__sycl_kernel_ff_10N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE
-// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4062, 0 },
-
 // CHECK: //--- _Z19__sycl_kernel_ff_11N4sycl3_V114local_accessorIiLi1EEE
-// CHECK-NEXT: { kernel_param_kind_t::kind_accessor, 4064, 0 },
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 0 },
+
+// CHECK: //--- _Z19__sycl_kernel_ff_11IfEvN4sycl3_V114local_accessorIT_Li1EEE
+// CHECK-NEXT:  { kernel_param_kind_t::kind_accessor, 4064, 0 },
 
 // CHECK: //--- _Z19__sycl_kernel_ff_12N4sycl3_V17samplerE
 // CHECK-NEXT: { kernel_param_kind_t::kind_sampler, 8, 0 },
@@ -407,54 +411,38 @@ void ff_15(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
 // CHECK-NEXT: };
 // CHECK-NEXT: }
 
-// Definition of _Z19__sycl_kernel_ff_10N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE as a free function kernel
-
-// CHECK: Forward declarations of kernel and its argument types:
-// CHECK: namespace sycl { inline namespace _V1 { namespace access {
-// CHECK-NEXT: enum class mode : int;
-
-// CHECK: namespace sycl { inline namespace _V1 { namespace access {
-// CHECK-NEXT: enum class target : int;
-
-// CHECK: namespace sycl { inline namespace _V1 { namespace access {
-// CHECK-NEXT: enum class placeholder : int;
-
-// CHECK: namespace sycl { inline namespace _V1 { namespace ext { namespace oneapi {
-// CHECK-NEXT: template <typename ...properties> class accessor_property_list;
-
-// CHECK: namespace sycl { inline namespace _V1 {
-// CHECK: template <typename dataT, int dimensions, sycl::access::mode accessmode, sycl::access::target accessTarget, sycl::access::placeholder isPlaceholder, typename propertyListT> class accessor;
-
-// CHECK: void ff_10(sycl::accessor<int, 1, sycl::access::mode::read, access::target::global_buffer, access::placeholder::false_t, sycl::ext::oneapi::accessor_property_list<> > acc);
-// CHECK-NEXT: static constexpr auto __sycl_shim11() {
-// CHECK-NEXT:  return (void (*)(class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t, class sycl::ext::oneapi::accessor_property_list<> >))ff_10;
-
-// CHECK: namespace sycl {
-// CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim11()> {
-// CHECK-NEXT:   static constexpr bool value = true;
-
-// CHECK: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim11()> {
-// CHECK-NEXT:  static constexpr bool value = true;
-
-// CHECK: Definition of _Z19__sycl_kernel_ff_11N4sycl3_V114local_accessorIiLi1EEE as a free function kernel
-
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK-NEXT: namespace sycl { inline namespace _V1 {
 // CHECK-NEXT: template <typename dataT, int dimensions> class local_accessor;
 
 // CHECK: void ff_11(sycl::local_accessor<int, 1> lacc);
-// CHECK-NEXT: static constexpr auto __sycl_shim12() {
+// CHECK-NEXT: static constexpr auto __sycl_shim11() {
 // CHECK-NEXT:  return (void (*)(class sycl::local_accessor<int, 1>))ff_11;
 
 // CHECK: namespace sycl {
 // CHECK-NEXT: template <>
-// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim12()> {
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim11()> {
 // CHECK-NEXT:  static constexpr bool value = true;
 
 // CHECK: template <>
-// CHECK-NEXT:struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim12()> {
+// CHECK-NEXT:struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim11()> {
+// CHECK-NEXT:  static constexpr bool value = true;
+
+// CHECK: Definition of _Z19__sycl_kernel_ff_11IfEvN4sycl3_V114local_accessorIT_Li1EEE as a free function kernel
+
+// CHECK: Forward declarations of kernel and its argument types:
+
+// CHECK: template <typename DataT> void ff_11(sycl::local_accessor<DataT, 1> lacc);
+// CHECK-NEXT: static constexpr auto __sycl_shim12() {
+// CHECK-NEXT:  return (void (*)(class sycl::local_accessor<float, 1>))ff_11<float>;
+
+// CHECK: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim12()> {
+// CHECK-NEXT: static constexpr bool value = true;
+
+// CHECK: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim12()> {
 // CHECK-NEXT:  static constexpr bool value = true;
 
 // CHECK: Definition of _Z19__sycl_kernel_ff_12N4sycl3_V17samplerE as a free function kernel
@@ -613,17 +601,17 @@ void ff_15(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
 // CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim10()>() {
 // CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_9N4sycl3_V125dynamic_work_group_memoryIiEE"});
 
-// CHECK: Definition of kernel_id of _Z19__sycl_kernel_ff_10N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE
-// CHECK-NEXT: namespace sycl {
-// CHECK-NEXT: template <>
-// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim11()>() {
-// CHECK-NEXT:  return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_10N4sycl3_V18accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE"});
-
 // CHECK: Definition of kernel_id of _Z19__sycl_kernel_ff_11N4sycl3_V114local_accessorIiLi1EEE
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: template <>
-// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim12()>() {
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim11()>() {
 // CHECK-NEXT:  return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_11N4sycl3_V114local_accessorIiLi1EEE"});
+
+// CHECK: Definition of kernel_id of _Z19__sycl_kernel_ff_11IfEvN4sycl3_V114local_accessorIT_Li1EEE
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim12()>() {
+// CHECK-NEXT:  return sycl::detail::get_kernel_id_impl(std::string_view{"_Z19__sycl_kernel_ff_11IfEvN4sycl3_V114local_accessorIT_Li1EEE"});
 
 // CHECK: Definition of kernel_id of _Z19__sycl_kernel_ff_12N4sycl3_V17samplerE
 // CHECK-NEXT: namespace sycl {
