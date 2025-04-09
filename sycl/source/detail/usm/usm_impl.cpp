@@ -600,7 +600,8 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
   // The device is not necessarily a member of the context, it could be a
   // member's descendant instead. Fetch the corresponding device from the cache.
-  std::shared_ptr<detail::platform_impl> PltImpl = CtxImpl->getPlatformImpl();
+  const std::shared_ptr<detail::platform_impl> &PltImpl =
+      CtxImpl->getPlatformImpl();
   std::shared_ptr<detail::device_impl> DevImpl =
       PltImpl->getDeviceImpl(DeviceId);
   if (DevImpl)

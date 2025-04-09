@@ -16,32 +16,37 @@
 #include <cassert>
 #include <cuda.h>
 
-void ur_queue_handle_t_::computeStreamWaitForBarrierIfNeeded(CUstream Stream,
-                                                             uint32_t StreamI) {
+template <>
+void cuda_stream_queue::computeStreamWaitForBarrierIfNeeded(CUstream Stream,
+                                                            uint32_t StreamI) {
   if (BarrierEvent && !ComputeAppliedBarrier[StreamI]) {
     UR_CHECK_ERROR(cuStreamWaitEvent(Stream, BarrierEvent, 0));
     ComputeAppliedBarrier[StreamI] = true;
   }
 }
 
-void ur_queue_handle_t_::transferStreamWaitForBarrierIfNeeded(
-    CUstream Stream, uint32_t StreamI) {
+template <>
+void cuda_stream_queue::transferStreamWaitForBarrierIfNeeded(CUstream Stream,
+                                                             uint32_t StreamI) {
   if (BarrierEvent && !TransferAppliedBarrier[StreamI]) {
     UR_CHECK_ERROR(cuStreamWaitEvent(Stream, BarrierEvent, 0));
     TransferAppliedBarrier[StreamI] = true;
   }
 }
 
-ur_queue_handle_t ur_queue_handle_t_::getEventQueue(const ur_event_handle_t e) {
+template <>
+ur_queue_handle_t cuda_stream_queue::getEventQueue(const ur_event_handle_t e) {
   return e->getQueue();
 }
 
+template <>
 uint32_t
-ur_queue_handle_t_::getEventComputeStreamToken(const ur_event_handle_t e) {
+cuda_stream_queue::getEventComputeStreamToken(const ur_event_handle_t e) {
   return e->getComputeStreamToken();
 }
 
-CUstream ur_queue_handle_t_::getEventStream(const ur_event_handle_t e) {
+template <>
+CUstream cuda_stream_queue::getEventStream(const ur_event_handle_t e) {
   return e->getStream();
 }
 
@@ -86,14 +91,8 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       }
     }
 
-    std::vector<CUstream> ComputeCuStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumComputeStreams : 1);
-    std::vector<CUstream> TransferCuStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumTransferStreams : 0);
-
     Queue = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
-        std::move(ComputeCuStreams), std::move(TransferCuStreams), hContext,
-        hDevice, Flags, URFlags, Priority});
+        {IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority}});
 
     *phQueue = Queue.release();
 
@@ -205,23 +204,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   else
     die("Unknown cuda stream");
 
-  std::vector<CUstream> ComputeCuStreams(1, CuStream);
-  std::vector<CUstream> TransferCuStreams(0);
-
   auto isNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
 
-  // Create queue and set num_compute_streams to 1, as computeCuStreams has
-  // valid stream
-  *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
-                                    std::move(TransferCuStreams),
-                                    hContext,
-                                    hDevice,
-                                    CuFlags,
-                                    Flags,
-                                    /*priority*/ 0,
-                                    /*backend_owns*/ isNativeHandleOwned};
-  (*phQueue)->NumComputeStreams = 1;
+  // Create queue from a native stream
+  *phQueue = new ur_queue_handle_t_{
+      {CuStream, hContext, hDevice, CuFlags, Flags, isNativeHandleOwned}};
 
   return UR_RESULT_SUCCESS;
 }
