@@ -555,10 +555,9 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 
     // Additionally, we can clean up the event lists that we would have
     // otherwise cleared.
-    if (!MEventsWeak.empty() || !MEventsShared.empty()) {
+    if (!MEventsWeak.empty()) {
       std::lock_guard<std::mutex> Lock(MMutex);
       MEventsWeak.clear();
-      MEventsShared.clear();
     }
     if (!MStreamsServiceEvents.empty()) {
       std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
@@ -711,11 +710,6 @@ bool queue_impl::ext_oneapi_empty() const {
   // We may have events like host tasks which are not submitted to the backend
   // queue so we need to get their status separately.
   std::lock_guard<std::mutex> Lock(MMutex);
-  for (event Event : MEventsShared)
-    if (Event.get_info<info::event::command_execution_status>() !=
-        info::event_command_status::complete)
-      return false;
-
   for (auto EventImplWeakPtrIt = MEventsWeak.begin();
        EventImplWeakPtrIt != MEventsWeak.end(); ++EventImplWeakPtrIt)
     if (std::shared_ptr<event_impl> EventImplSharedPtr =

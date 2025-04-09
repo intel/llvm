@@ -948,7 +948,6 @@ protected:
   /// Events without data dependencies (such as USM) need an owner,
   /// additionally, USM operations are not added to the scheduler command graph,
   /// queue is the only owner on the runtime side.
-  std::vector<event> MEventsShared;
   exception_list MExceptions;
   const async_handler MAsyncHandler;
   const property_list MPropList;
