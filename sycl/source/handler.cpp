@@ -312,25 +312,6 @@ fill_copy_args(detail::handler_impl *impl,
 
 } // namespace detail
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-
-handler::handler(std::shared_ptr<detail::queue_impl> &Queue,
-                 bool CallerNeedsEvent)
-    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
-                                                        CallerNeedsEvent)),
-      impl(MImplOwner.get()), MQueue(Queue) {}
-
-handler::handler(detail::handler_impl *HandlerImpl,
-                 std::shared_ptr<detail::queue_impl> &Queue)
-    : impl(HandlerImpl), MQueue(Queue) {}
-
-static std::shared_ptr<detail::queue_impl> DummyQueue;
-
-handler::handler(detail::handler_impl *HandlerImpl)
-    : impl(HandlerImpl), MQueue(DummyQueue) {}
-
-#else
-
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
@@ -355,8 +336,6 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
     : impl(std::make_shared<detail::handler_impl>(Graph)) {}
-
-#endif
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state

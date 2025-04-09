@@ -426,21 +426,8 @@ private:
   /// \param Queue is a SYCL queue.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  handler(std::shared_ptr<detail::queue_impl> &Queue, bool CallerNeedsEvent);
-#else
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
-#endif
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// Constructs SYCL handler from the pre-constructed handler_impl and the
-  /// associated queue.
-  ///
-  /// \param HandlerImpl is a pre-constructed handler_impl.
-  /// \param Queue is a SYCL queue.
-  handler(detail::handler_impl *HandlerImpl,
-          std::shared_ptr<detail::queue_impl> &Queue);
-#else
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
   ///
@@ -459,17 +446,7 @@ private:
                            detail::queue_impl *PrimaryQueue,
                            detail::queue_impl *SecondaryQueue,
                            bool CallerNeedsEvent);
-#endif
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  /// Constructs SYCL handler for Graph.
-  ///
-  /// The handler will add the command-group as a node to the graph rather than
-  /// enqueueing it straight away.
-  ///
-  /// \param HandlerImpl is a pre-constructed handler_impl.
-  handler(detail::handler_impl *HandlerImpl);
-#else
   /// Constructs SYCL handler from Graph.
   ///
   /// The handler will add the command-group as a node to the graph rather than
@@ -477,7 +454,6 @@ private:
   ///
   /// \param Graph is a SYCL command_graph
   handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
-#endif
 
   void *storeRawArg(const void *Ptr, size_t Size);
 
@@ -3440,14 +3416,8 @@ public:
       uint64_t SignalValue);
 
 private:
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  std::shared_ptr<detail::handler_impl> MImplOwner;
-  detail::handler_impl *impl;
-  std::shared_ptr<detail::queue_impl> &MQueue;
-#else
   std::shared_ptr<detail::handler_impl> impl;
   std::shared_ptr<detail::queue_impl> MQueue;
-#endif
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::string MKernelName;
@@ -3910,11 +3880,7 @@ private:
 
   friend class detail::HandlerAccess;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
-#else
   __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl.get(); }
-#endif
   // Friend free-functions for asynchronous allocation and freeing.
   __SYCL_EXPORT friend void
   ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);
