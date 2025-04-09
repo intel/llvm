@@ -447,13 +447,10 @@
 ??0kernel_id@_V1@sycl@@AEAA@PEBD@Z
 ??0kernel_id@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0kernel_id@_V1@sycl@@QEAA@AEBV012@@Z
+??0memory_pool@experimental@oneapi@ext@_V1@sycl@@IEAA@AEBVcontext@45@AEBVdevice@45@W4alloc@usm@45@AEBU?$pair@V?$tuple@_N_N_N_N@std@@V?$tuple@_K_K_N_N@2@@std@@@Z
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@IEAA@V?$shared_ptr@Vmemory_pool_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@@Z
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
 ??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV012345@@Z
-??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@45@AEBVdevice@45@W4alloc@usm@45@AEBVproperty_list@45@@Z
-??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@45@PEAX_KAEBVproperty_list@45@@Z
-??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@45@W4alloc@usm@45@AEBVproperty_list@45@@Z
-??0memory_pool@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVqueue@45@W4alloc@usm@45@AEBVproperty_list@45@@Z
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAA@AEBV?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@@Z
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
@@ -4091,10 +4088,10 @@
 ?getPropList@buffer_plain@detail@_V1@sycl@@IEBAAEBVproperty_list@34@XZ
 ?getPropList@context@_V1@sycl@@AEBAAEBVproperty_list@23@XZ
 ?getPropList@image_plain@detail@_V1@sycl@@IEBAAEBVproperty_list@34@XZ
-?getPropList@memory_pool@experimental@oneapi@ext@_V1@sycl@@IEBAAEBVproperty_list@56@XZ
 ?getPropList@queue@_V1@sycl@@AEBAAEBVproperty_list@23@XZ
 ?getPropList@sampler@_V1@sycl@@AEBAAEBVproperty_list@23@XZ
 ?getPropList@stream@_V1@sycl@@AEBAAEBVproperty_list@23@XZ
+?getPropsTuple@memory_pool@experimental@oneapi@ext@_V1@sycl@@IEBAAEBU?$pair@V?$tuple@_N_N_N_N@std@@V?$tuple@_K_K_N_N@2@@std@@XZ
 ?getPtr@AccessorBaseHost@detail@_V1@sycl@@QEAAPEAXXZ
 ?getPtr@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getPtr@LocalAccessorBaseHost@detail@_V1@sycl@@QEAAPEAXXZ
