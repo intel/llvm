@@ -243,7 +243,7 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
 
 PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
                                               ModuleAnalysisManager &MAM) {
-  assert(StringRef(M.getTargetTriple()).starts_with("spir"));
+  assert(StringRef(M.getTargetTriple().str()).starts_with("spir"));
   bool IRModified = false;
   std::vector<StringRef> SPIRVCrossWGInstuctions = {
       SPIRV_CONTROL_BARRIER, SPIRV_GROUP_ALL,  SPIRV_GROUP_ANY,

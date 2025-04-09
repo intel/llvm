@@ -21,7 +21,8 @@ using ur_stream_guard = std::unique_lock<std::mutex>;
 /// backend 'stream' objects.
 ///
 /// This class is specifically designed for the CUDA and HIP adapters.
-template <typename ST, int CS, int TS> struct stream_queue_t {
+template <typename ST, int CS, int TS, typename BarrierEventT>
+struct stream_queue_t {
   using native_type = ST;
   static constexpr int DefaultNumComputeStreams = CS;
   static constexpr int DefaultNumTransferStreams = TS;
@@ -61,6 +62,8 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
   std::mutex TransferStreamMutex;
   std::mutex BarrierMutex;
   bool HasOwnership;
+  BarrierEventT BarrierEvent = nullptr;
+  BarrierEventT BarrierTmpEvent = nullptr;
 
   stream_queue_t(bool IsOutOfOrder, ur_context_handle_t_ *Context,
                  ur_device_handle_t_ *Device, unsigned int Flags,
@@ -88,17 +91,18 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
     urContextRetain(Context);
   }
 
-  virtual ~stream_queue_t() { urContextRelease(Context); }
+  ~stream_queue_t() { urContextRelease(Context); }
 
-  virtual void computeStreamWaitForBarrierIfNeeded(native_type Strean,
-                                                   uint32_t StreamI) = 0;
-  virtual void transferStreamWaitForBarrierIfNeeded(native_type Stream,
-                                                    uint32_t StreamI) = 0;
-  virtual void createStreamWithPriority(native_type *Stream, unsigned int Flags,
-                                        int Priority) = 0;
-  virtual ur_queue_handle_t getEventQueue(const ur_event_handle_t) = 0;
-  virtual uint32_t getEventComputeStreamToken(const ur_event_handle_t) = 0;
-  virtual native_type getEventStream(const ur_event_handle_t) = 0;
+  void computeStreamWaitForBarrierIfNeeded(native_type Strean,
+                                           uint32_t StreamI);
+  void transferStreamWaitForBarrierIfNeeded(native_type Stream,
+                                            uint32_t StreamI);
+  void createStreamWithPriority(native_type *Stream, unsigned int Flags,
+                                int Priority);
+  ur_queue_handle_t getEventQueue(const ur_event_handle_t);
+  uint32_t getEventComputeStreamToken(const ur_event_handle_t);
+  native_type getEventStream(const ur_event_handle_t);
+  void createHostSubmitTimeStream();
 
   // get_next_compute/transfer_stream() functions return streams from
   // appropriate pools in round-robin fashion

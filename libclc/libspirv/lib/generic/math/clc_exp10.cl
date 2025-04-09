@@ -21,7 +21,9 @@
  */
 
 #include <clc/clc.h>
+#include <clc/clc_convert.h>
 #include <clc/clcmacro.h>
+#include <clc/math/clc_fma.h>
 #include <clc/math/clc_mad.h>
 #include <clc/math/clc_subnormal_config.h>
 #include <clc/math/math.h>
@@ -71,7 +73,7 @@ _CLC_DEF _CLC_OVERLOAD float __clc_exp10(float x) {
   int return_inf = x > X_MAX;
   int return_zero = x < X_MIN;
 
-  int n = __spirv_ConvertFToS_Rint(x * R_64_BY_LOG10_2);
+  int n = __clc_convert_int(x * R_64_BY_LOG10_2);
 
   float fn = (float)n;
   int j = n & 0x3f;
@@ -116,7 +118,8 @@ _CLC_DEF _CLC_OVERLOAD double __clc_exp10(double x) {
   // ln(10)
   const double R_LN10 = 0x1.26bb1bbb55516p+1;
 
-  int n = __spirv_ConvertFToS_Rint(x * R_64_BY_LOG10_2);
+  int n = __clc_convert_int(x * R_64_BY_LOG10_2);
+
   double dn = (double)n;
 
   int j = n & 0x3f;

@@ -517,6 +517,9 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_exp_async_usm_alloc_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
 inline std::ostream &
@@ -1352,6 +1355,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC:
     os << "UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC";
     break;
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC:
+    os << "UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC";
+    break;
   case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
     break;
@@ -1613,6 +1619,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC: {
     const ur_usm_alloc_location_desc_t *pstruct =
         (const ur_usm_alloc_location_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC: {
+    const ur_usm_pool_buffer_desc_t *pstruct =
+        (const ur_usm_pool_buffer_desc_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -10935,6 +10947,46 @@ operator<<(std::ostream &os,
   os << ".flags = ";
 
   ur::details::printFlag<ur_exp_async_usm_alloc_flag_t>(os, (params.flags));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_buffer_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_pool_buffer_desc_t params) {
+  os << "(struct ur_usm_pool_buffer_desc_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, (params.pMem));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << (params.size);
+
+  os << ", ";
+  os << ".memType = ";
+
+  os << (params.memType);
+
+  os << ", ";
+  os << ".device = ";
+
+  ur::details::printPtr(os, (params.device));
 
   os << "}";
   return os;
