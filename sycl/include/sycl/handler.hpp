@@ -456,8 +456,7 @@ private:
           const std::shared_ptr<detail::queue_impl> SecondaryQueue,
           bool CallerNeedsEvent);
   handler(std::shared_ptr<detail::queue_impl> Queue,
-          detail::queue_impl *PrimaryQueue,
-          detail::queue_impl *SecondaryQueue,
+          detail::queue_impl *PrimaryQueue, detail::queue_impl *SecondaryQueue,
           bool CallerNeedsEvent);
 #endif
 

@@ -365,12 +365,14 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::handler_impl HandlerImplVal(PrimaryQueue.get(), SecondaryQueue.get(),
-                                   CallerNeedsEvent);
+                                      CallerNeedsEvent);
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
-  handler Handler(HandlerImpl,
-                  const_cast<std::shared_ptr<queue_impl> &>(Self));
+  // TODO: get rid of copy creation from Self
+  std::shared_ptr<queue_impl> SelfCopy(Self);
+  handler Handler(HandlerImpl, SelfCopy);
 #else
-  handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent);
+  handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(),
+                  CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
 #endif
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);

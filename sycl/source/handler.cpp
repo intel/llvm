@@ -341,21 +341,19 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  std::shared_ptr<detail::queue_impl> PrimaryQueue,
                  std::shared_ptr<detail::queue_impl> SecondaryQueue,
                  bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue.get(),
-                                                  SecondaryQueue.get(),
-                                                  CallerNeedsEvent)),
+    : impl(std::make_shared<detail::handler_impl>(
+          PrimaryQueue.get(), SecondaryQueue.get(), CallerNeedsEvent)),
       MQueue(Queue) {}
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  detail::queue_impl *PrimaryQueue,
-                 detail::queue_impl *SecondaryQueue,
-                 bool CallerNeedsEvent)
-: impl(std::make_shared<detail::handler_impl>(PrimaryQueue,
-                                              SecondaryQueue,
-                                              CallerNeedsEvent)),
-      MQueue(Queue) {}
+                 detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue, SecondaryQueue,
+                                                  CallerNeedsEvent)),
+      MQueue(std::move(Queue)) {}
 
-handler::handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
+handler::handler(
+    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
     : impl(std::make_shared<detail::handler_impl>(Graph)) {}
 
 #endif
@@ -1478,13 +1476,13 @@ void handler::ext_oneapi_copy(
 
   // Fill the host extent based on the type of copy.
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
-                           DeviceRowPitch, SrcOffset, HostExtent, DestOffset,
-                           {0, 0, 0}, CopyExtent);
+    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
+                           DeviceRowPitch, DeviceRowPitch, SrcOffset,
+                           HostExtent, DestOffset, {0, 0, 0}, CopyExtent);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
-                           DeviceRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
-                           HostExtent, CopyExtent);
+    detail::fill_copy_args(get_impl(), DeviceImgDesc, ImageCopyFlags,
+                           DeviceRowPitch, DeviceRowPitch, SrcOffset, {0, 0, 0},
+                           DestOffset, HostExtent, CopyExtent);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Copy Error: This copy function only performs host "
@@ -1566,9 +1564,10 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  detail::fill_copy_args(
-      get_impl(), SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
-      DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
+                         DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
+                         {0, 0, 0}, CopyExtent);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1606,9 +1605,10 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(
-      get_impl(), SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
-      SrcRowPitch, 0, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
+  detail::fill_copy_args(get_impl(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcRowPitch,
+                         0, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0},
+                         CopyExtent);
 
   setType(detail::CGType::CopyImage);
 }
