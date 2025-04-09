@@ -51,6 +51,7 @@ jobs:
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
+      pack_release: 'true'
 
   ubuntu2204_test:
     needs: [ubuntu2204_build]
@@ -220,3 +221,20 @@ jobs:
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
       sycl_cts_artifact: sycl_cts_bin_linux
+
+  hardening-check:
+    needs: [ubuntu2204_build, build-win]
+    if: |
+      always()
+      && !cancelled()
+      && needs.ubuntu2204_build.outputs.build_conclusion == 'success'
+      && needs.build-win.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/hardening-check.yml
+    with:
+      sycl_linux_artifact: sycl_linux_release
+      sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_linux_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
+      # similar to linux will be changed to sycl_windows_release later
+      sycl_windows_artifact: sycl_windows_default
+      sycl_windows_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
