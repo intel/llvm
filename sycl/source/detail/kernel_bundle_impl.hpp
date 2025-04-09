@@ -238,15 +238,49 @@ public:
       }
     }
 
-    // Collect all images.
+    // Collect all unique images.
     std::vector<device_image_plain> DevImages;
-    for (const kernel_bundle<bundle_state::object> &ObjectBundle :
-         ObjectBundles)
-      for (const device_image_plain &DevImg :
-           getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages)
-        if (OfflineDeviceImageSet.find(getSyclObjImpl(DevImg)) ==
-            OfflineDeviceImageSet.end())
-          DevImages.push_back(DevImg);
+    {
+      std::set<std::shared_ptr<device_image_impl>> DevImagesSet;
+      for (const kernel_bundle<bundle_state::object> &ObjectBundle :
+           ObjectBundles)
+        for (const device_image_plain &DevImg :
+             getSyclObjImpl(ObjectBundle)->MUniqueDeviceImages)
+          if (OfflineDeviceImageSet.find(getSyclObjImpl(DevImg)) ==
+              OfflineDeviceImageSet.end())
+            DevImagesSet.insert(getSyclObjImpl(DevImg));
+      DevImages.reserve(DevImagesSet.size());
+      for (auto It = DevImagesSet.begin(); It != DevImagesSet.end();)
+        DevImages.push_back(createSyclObjFromImpl<device_image_plain>(
+            std::move(DevImagesSet.extract(It++).value())));
+    }
+
+    // Check for conflicting kernels in RTC kernel bundles.
+    {
+      std::set<std::string_view, std::less<>> SeenKernelNames;
+      std::set<std::string_view, std::less<>> Conflicts;
+      for (const device_image_plain &DevImage : DevImages) {
+        const std::optional<KernelCompilerBinaryInfo> &RTCInfo =
+            getSyclObjImpl(DevImage)->getRTCInfo();
+        if (!RTCInfo.has_value())
+          continue;
+        std::vector<std::string_view> Intersect;
+        std::set_intersection(SeenKernelNames.begin(), SeenKernelNames.end(),
+                              RTCInfo->MKernelNames.begin(),
+                              RTCInfo->MKernelNames.end(),
+                              std::inserter(Conflicts, Conflicts.begin()));
+        SeenKernelNames.insert(RTCInfo->MKernelNames.begin(),
+                               RTCInfo->MKernelNames.end());
+      }
+
+      if (!Conflicts.empty()) {
+        std::stringstream MsgS;
+        MsgS << "Conflicting kernel definitions: ";
+        for (const std::string_view &Conflict : Conflicts)
+          MsgS << " " << Conflict;
+        throw sycl::exception(make_error_code(errc::invalid), MsgS.str());
+      }
+    }
 
     // Create a map between exported symbols and their indices in the device
     // images collection.
