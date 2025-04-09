@@ -150,6 +150,8 @@ private:
   FunctionCallee TsanCleanupPrivate;
   FunctionCallee TsanRead[kNumberOfAccessSizes];
   FunctionCallee TsanWrite[kNumberOfAccessSizes];
+  FunctionCallee TsanUnalignedRead[kNumberOfAccessSizes];
+  FunctionCallee TsanUnalignedWrite[kNumberOfAccessSizes];
 
   friend struct ThreadSanitizer;
 };
@@ -287,6 +289,16 @@ void ThreadSanitizerOnSpirv::initialize() {
     TsanWrite[i] = M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(),
                                          IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
                                          IRB.getInt32Ty(), Int8PtrTy);
+
+    SmallString<32> UnalignedReadName("__tsan_unaligned_read" + ByteSizeStr);
+    TsanUnalignedRead[i] = M.getOrInsertFunction(
+        UnalignedReadName, Attr, IRB.getVoidTy(), IntptrTy, IRB.getInt32Ty(),
+        Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
+
+    SmallString<32> UnalignedWriteName("__tsan_unaligned_write" + ByteSizeStr);
+    TsanUnalignedWrite[i] = M.getOrInsertFunction(
+        UnalignedWriteName, Attr, IRB.getVoidTy(), IntptrTy, IRB.getInt32Ty(),
+        Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
   }
 }
 
@@ -664,7 +676,7 @@ static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
   if (Triple(M->getTargetTriple()).isSPIROrSPIRV()) {
     auto *OrigValue = getUnderlyingObject(Addr);
     if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
-      return true;
+      return false;
 
     auto AddrAS = cast<PointerType>(Addr->getType()->getScalarType())
                       ->getPointerAddressSpace();
@@ -975,6 +987,9 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
     else if (IsVolatile)
       OnAccessFunc = IsWrite ? TsanUnalignedVolatileWrite[Idx]
                              : TsanUnalignedVolatileRead[Idx];
+    else if (Spirv)
+      OnAccessFunc = IsWrite ? Spirv->TsanUnalignedWrite[Idx]
+                             : Spirv->TsanUnalignedRead[Idx];
     else
       OnAccessFunc = IsWrite ? TsanUnalignedWrite[Idx] : TsanUnalignedRead[Idx];
   }
