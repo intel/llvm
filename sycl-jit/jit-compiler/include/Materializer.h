@@ -48,7 +48,7 @@ extern "C" {
 
 JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     const char *KernelName, const jit_compiler::JITBinaryInfo &BinaryInfo,
-    View<unsigned char> SpecConstBlob);
+    jit_compiler::BinaryFormat TargetFormat, View<unsigned char> SpecConstBlob);
 
 } // end of extern "C"
 

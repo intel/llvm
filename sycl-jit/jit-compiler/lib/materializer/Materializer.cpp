@@ -19,11 +19,7 @@ using namespace jit_compiler;
 
 extern "C" JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     const char *KernelName, const JITBinaryInfo &BinaryInfo,
-    View<unsigned char> SpecConstBlob) {
-  auto &JITCtx = JITContext::getInstance();
-
-  // TODO(jopperm): Why is the target format an option instead of an argument?
-  BinaryFormat TargetFormat = ConfigHelper::get<option::JITTargetFormat>();
+    BinaryFormat TargetFormat, View<unsigned char> SpecConstBlob) {
   if (TargetFormat != BinaryFormat::PTX &&
       TargetFormat != BinaryFormat::AMDGCN) {
     return SCMResult("Output target format not supported by this build. "
@@ -50,8 +46,8 @@ extern "C" JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     return SCMResult{"Materializer passes should not fail"};
   }
 
-  auto BinInfoOrErr =
-      Translator::translate(*NewMod, JITCtx, TargetFormat, KernelName);
+  auto BinInfoOrErr = Translator::translate(*NewMod, JITContext::getInstance(),
+                                            TargetFormat, KernelName);
   if (!BinInfoOrErr) {
     return errorTo<SCMResult>(BinInfoOrErr.takeError(),
                               "Translation to output format failed");

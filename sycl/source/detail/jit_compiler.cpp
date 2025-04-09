@@ -172,7 +172,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
       BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
 
   ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
-  AddToConfigHandle(::jit_compiler::option::JITTargetFormat::set(Format));
+
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
   AddToConfigHandle(
@@ -189,8 +189,8 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   AddToConfigHandle(
       ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
 
-  auto MaterializerResult =
-      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
+  auto MaterializerResult = MaterializeSpecConstHandle(
+      KernelName.c_str(), BinInfo, Format, SpecConstBlob);
   if (MaterializerResult.failed()) {
     std::string Message{"Compilation for kernel failed with message:\n"};
     Message.append(MaterializerResult.getErrorMessage());
