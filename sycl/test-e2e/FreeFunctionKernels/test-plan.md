@@ -17,6 +17,19 @@ Therefore those tests should be structured in a way that checks are performed on
 
 Tests in this category may not fully exercise the extension functionality, but are instead they are focused on making sure that all APIs are consistent with respect to other APIs.
 
+
+Perform tests on free function kernels requirments which should check the following:
+ - that compiler will emit diagnostic when free function kernel is declared with parameters of type `reducer` or  `kernel_handler`.
+ - that compiler will emit diagnostic when free function kernel is declared with variadic arguments.
+
+ - that compiler will emit diagnostic when free function kernel provides default parameter values.
+
+ - that compiler will emit diagnostic when free function kernel return type is not `void`.
+
+ - that compiler will emit diagnostic if free function kernel is decorated with more than one of the following properites (`nd_range_kernel` or `single_task_kernel `).
+
+ - that compiler will emit diagnostic when free function kernel is decorated with multiple instances of the same    `nd_range_kernel` property with different argument. 
+
 Perform tests on new traits for free function kernels which should check the following:
  - that `is_nd_range_kernel_v` trait returns true if function declaration is decorated with `nd_range_kernel` property and false if it is not.
 
@@ -80,63 +93,37 @@ Tests in this category perform some meaningful actions with the extension to
 see that the extension works in a scenarios which mimic real-life usage of the
 extension.
 
-With the exception of the`single_task_kernel` free function kernels, all subsequent tests are executed with Dimensions = 1, 2, 3.
- 
-#### Test `accessor` as kernel parameter to `single_task_kernel`:
+With the exception of the`single_task_kernel` free function kernels, all subsequent tests are executed with Dimensions = 1, 2, 3. 
 
-A series of tests should be performed that accessor in `single_task_kernel` is supported when
+In all subsequent tests, free function kernels should be declared within a namespace, as static member functions of a class, or in the global namespace.
+
+#### Test `accessor` as kernel parameter:
+A series of tests should be performed that `accessor` is supported when
 templated with `target::device`, inside free function kernel when passed as kernel parameter.
 
-<!-- A test should begin by allocating memory on the host and initializing it with a specific value. Next, create a buffer and pass it to the `single_task_kernel` through an accessor, allowing the kernel to write a value to the memory. Then perform check to verify the written data on the host. Then, using another `single_task_kernel` with separately allocated memory on the host and two accessors, first read the data from the previous write and copy it to the newly allocated memory on the host. Finally, perform a check on the host.  -->
+#### Test `USM` pointer as kernel parameter:
+A series of checks should be performed that USM memory with three types of memory allocations `host`, `device` and `shared` is supported inside free function kernel when passed as kernel parameter.
 
-#### Test `USM` pointer as kernel parameter to `single_task_kernel`:
-A series of checks should be performed that USM memory in `single_task_kernel` with with three types of memory allocations `host`, `device` and `shared` inside free function kernel when passed as kernel parameter.
+#### Test `id` as kernel parameter:
+A series of checks should be performed that we can pass `id` with different dimensions = 1, 2, 3 as kernel parameter to free function kernel and use it within kernel. 
 
-#### Test `id` as kernel parameter to `single_task_kernel`:
-A series of checks should be performed that we can pass `id` with different dimensions = 1, 2, 3 as kernel parameter to `single_task_kernel` and use it within kernel. 
+#### Test `range` as kernel parameter:
+A series of checks should be performed that we can pass `range` with different dimensions = 1, 2, 3 as kernel parameter to free function kernel and use it within kernel.
 
-#### Test `range` as kernel parameter to `single_task_kernel`:
-A series of checks should be performed that we can pass `range` with different dimensions = 1, 2, 3 as kernel parameter to `single_task_kernel` and use it within kernel.
+#### Test `marray<T, NumElements>` when `T` is device copyable as kernel parameter:
+A series of checks should be performed that we can pass `marray<T, NumElements>` as kernel parameter to free function kernel and use it within kernel.
 
-#### Test `marray<T, NumElements>` when T is device copyable as kernel parameter to `single_task_kernel`:
-A series of checks should be performed that we can pass `marray<T, NumElements>` as kernel parameter to `single_task_kernel` and use it within kernel.
+#### Test `vec<T, NumElements>` when `T` is device copyable as kernel parameter:
+A series of checks should be performed that we can pass `vec<T, NumElements>` as kernel parameter to free function kernel and use it within kernel.
 
-#### Test `vec<T, NumElements>` as kernel parameter to `single_task_kernel`:
-A series of checks should be performed that we can pass `vec<T, NumElements>` as kernel parameter to `single_task_kernel` and use it within kernel.
+#### Test `sampled_image_accessor` as kernel parameter:
+A series of checks should be performed that we can pass `sampled_image_accessor` as kernel parameter to free function kernel and use it within kernel.
 
-#### Test `sampled_image_accessor` as kernel parameter to `single_task_kernel`:
-A series of checks should be performed that we can pass `sampled_image_accessor` as kernel parameter to `single_task_kernel` and use it within kernel.
+#### Test `unsampled_image_accessor` as kernel parameter:
+A series of checks should be performed that we can pass `unsampled_image_accessor` as kernel parameter to free function kernel and use it within kernel.
 
-#### Test `unsampled_image_accessor` as kernel parameter to `single_task_kernel`:
-A series of checks should be performed that we can pass `unsampled_image_accessor` as kernel parameter to `single_task_kernel` and use it within kernel.
-
-#### Test `accessor` as kernel parameter to `nd_range_kernel`:
-A series of checks should be performed that accessor in `nd_range_kernel` is supported when
-templated with `target::device`, inside free function kernel when passed as kernel parameter.
-
-#### Test `local_accessor` as kernel parameter to `nd_range_kernel`: 
-A series of checks should be performed that we can pass `local_accessor` as kernel parameter to `nd_range_kernel` and use it within kernel
-
-#### Test `USM` pointer as kernel parameter to `single_task_kernel`:
-A series of checks should be performed that USM memory in `single_task_kernel` with with three types of memory allocations `host`, `device` and `shared` inside free function kernel when passed as kernel parameter.
-
-#### Test `id` as kernel parameter to `nd_range_kernel`:
-A series of checks should be performed that we can pass `id` with different dimensions = 1, 2, 3 as kernel parameter to `nd_range_kernel` and use it within kernel. 
-
-#### Test `range` as kernel parameter to `nd_range_kernel`:
-A series of checks should be performed that we can pass `range` with different dimensions = 1, 2, 3 as kernel parameter to `nd_range_kernel` and use it within kernel.
-
-#### Test `marray<T, NumElements>` when T is device copyable as kernel parameter to `nd_range_kernel`:
-A series of checks should be performed that we can pass `marray<T, NumElements>` as kernel parameter to `nd_range_kernel` and use it within kernel.
-
-#### Test `vec<T, NumElements>` as kernel parameter to `nd_range_kernel`:
-A series of checks should be performed that we can pass `vec<T, NumElements>` as kernel parameter to `nd_range_kernel` and use it within kernel.
-
-#### Test `sampled_image_accessor` as kernel parameter to `nd_range_kernel`:
-A series of checks should be performed that we can pass `sampled_image_accessor` as kernel parameter to `nd_range_kernel` and use it within kernel.
-
-#### Test `unsampled_image_accessor` as kernel parameter to `nd_range_kernel`:
-A series of checks should be performed that we can pass `unsampled_image_accessor` as kernel parameter to `nd_range_kernel` and use it within kernel.
+#### Test `local_accessor` as kernel parameter: 
+A series of checks should be performed that we can pass `local_accessor` as kernel parameter to free function kernel and use it within kernel
 
 #### Interaction with additional kernel properties
 A series of checks should be performed to check that to the free function kernels may also be decorated with any of the properties defined in `sycl_ext_oneapi_kernel_properties`. This test should perform simple checks verifying if applied kernel_properties work within defined kernels.
