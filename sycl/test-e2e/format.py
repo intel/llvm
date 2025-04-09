@@ -373,6 +373,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             conditions,
             recursion_limit=test.config.recursiveExpansionLimit,
         )
+
         if len(script) == 0:
             return lit.Test.Result(lit.Test.UNSUPPORTED, "Lit script is empty")
 
