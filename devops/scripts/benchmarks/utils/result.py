@@ -42,6 +42,7 @@ class BenchmarkRun:
         default=None,
         metadata=config(encoder=datetime.isoformat, decoder=datetime.fromisoformat),
     )
+    compute_runtime: str = "Unknown"
 
 
 @dataclass_json

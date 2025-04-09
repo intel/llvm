@@ -24,6 +24,11 @@ on:
     - '.github/workflows/trivy.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
+    - 'unified-runtime/examples/**'
+    - 'unified-runtime/scripts/**'
+    - 'unified-runtime/test/**'
+    - 'unified-runtime/third_party/**'
+    - 'unified-runtime/tools/**'
 
 permissions: read-all
 
