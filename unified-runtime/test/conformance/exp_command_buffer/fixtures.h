@@ -116,8 +116,6 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
 
 struct urUpdatableCommandBufferExpTest : uur::urQueueTest {
   void SetUp() override {
-    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
-
     UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
 
     UUR_RETURN_ON_FATAL_FAILURE(checkCommandBufferSupport(device));

@@ -14,8 +14,8 @@
 
 #include <utility>
 
-#include "logger/ur_logger.hpp"
 #include "../common.hpp"
+#include "logger/ur_logger.hpp"
 #include <ur/ur.hpp>
 
 ur_result_t setMutableOffsetDesc(

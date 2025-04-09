@@ -28,6 +28,10 @@ void checkImmediateAppendSupport(ur_context_handle_t context) {
 }
 
 } // namespace
+ur_exp_command_buffer_command_handle_t_::
+    ur_exp_command_buffer_command_handle_t_(
+        ur_exp_command_buffer_handle_t commandBuffer, uint64_t commandId)
+    : commandBuffer(commandBuffer), commandId(commandId) {}
 
 kernel_command_handle::kernel_command_handle(
     ur_exp_command_buffer_handle_t commandBuffer, ur_kernel_handle_t hKernel,
@@ -70,9 +74,10 @@ ur_result_t ur_exp_command_buffer_handle_t_::updateKernelHandle(
   ze_kernel_handle_t kernelHandle = newKernel->getZeHandle(device);
   auto platform = context->getPlatform();
   auto commandId = command->commandId;
-  ZE2UR_CALL(platform->ZeMutableCmdListExt
-                 .zexCommandListUpdateMutableCommandKernelsExp,
-             (commandListLocked->getZeCommandList(), 1, &commandId, &kernelHandle));
+  ZE2UR_CALL(
+      platform->ZeMutableCmdListExt
+          .zexCommandListUpdateMutableCommandKernelsExp,
+      (commandListLocked->getZeCommandList(), 1, &commandId, &kernelHandle));
   // Set current kernel to be the new kernel
   command->kernel = newKernel;
   return UR_RESULT_SUCCESS;
@@ -104,6 +109,9 @@ ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
     kernelHandles[0] = hKernel->getZeHandle(device);
 
     for (size_t i = 0; i < numKernelAlternatives; i++) {
+      if (hKernel == kernelAlternatives[i]) {
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      }
       kernelHandles[i + 1] = kernelAlternatives[i]->getZeHandle(device);
     }
 
@@ -161,6 +169,71 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   }
 }
 
+ur_result_t ur_exp_command_buffer_handle_t_::checkUpdateParameters(
+    uint32_t numUpdateCommands,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands) {
+  auto supportedFeatures =
+      device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags;
+  logger::debug("Mutable features supported by device {}", supportedFeatures);
+  for (std::size_t i = 0; i < numUpdateCommands; i++) {
+    auto commandDesc = updateCommands[i];
+    auto command = static_cast<kernel_command_handle *>(commandDesc.hCommand);
+    UR_ASSERT(this == command->commandBuffer,
+              UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP);
+
+    UR_ASSERT(!commandDesc.hNewKernel ||
+                  (supportedFeatures &
+                   ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_INSTRUCTION),
+              UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+    // Check if the provided new kernel is in the list of valid alternatives.
+    if (commandDesc.hNewKernel &&
+        !command->validKernelHandles.count(commandDesc.hNewKernel)) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+
+    if (commandDesc.newWorkDim != command->workDim &&
+        (!commandDesc.pNewGlobalWorkOffset ||
+         !commandDesc.pNewGlobalWorkSize)) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+
+    // Check if new global offset is provided.
+    size_t *newGlobalWorkOffset = commandDesc.pNewGlobalWorkOffset;
+    UR_ASSERT(
+        !newGlobalWorkOffset ||
+            (supportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET),
+        UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+    if (newGlobalWorkOffset) {
+      if (!context->getPlatform()->ZeDriverGlobalOffsetExtensionFound) {
+        logger::error("No global offset extension found on this driver");
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      }
+    }
+
+    // Check if new group size is provided.
+    size_t *newLocalWorkSize = commandDesc.pNewLocalWorkSize;
+    UR_ASSERT(!newLocalWorkSize ||
+                  (supportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
+              UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+    // Check if new global size is provided and we need to update group count.
+    size_t *newGlobalWorkSize = commandDesc.pNewGlobalWorkSize;
+    UR_ASSERT(!newGlobalWorkSize ||
+                  (supportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT),
+              UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+    UR_ASSERT(!(newGlobalWorkSize && !newLocalWorkSize) ||
+                  (supportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
+              UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+
+    UR_ASSERT(
+        (!commandDesc.numNewMemObjArgs && !commandDesc.numNewPointerArgs &&
+         !commandDesc.numNewValueArgs) ||
+            (supportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS),
+        UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     uint32_t numUpdateCommands,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands) {
@@ -168,14 +241,19 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
   auto commandListLocked = commandListManager.lock();
+  UR_CALL(checkUpdateParameters(numUpdateCommands, updateCommands));
 
   if (currentExecution) {
+    // TODO: Move synchronization to command buffer enqueue
+    // it would require to remember the update commands and perform update
+    // before appending to the queue
     ZE2UR_CALL(zeEventHostSynchronize,
                (currentExecution->getZeEvent(), UINT64_MAX));
     currentExecution->release();
     currentExecution = nullptr;
   }
 
+  std::vector<std::unique_ptr<char *>> zeHandles;
   std::vector<std::variant<
       std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>,
       std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>>,
@@ -291,29 +369,30 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
       // The NewMemObjArg may be a NULL pointer in which case a NULL value is
       // used for the kernel argument declared as a pointer to global or
       // constant memory.
-      char *ZeHandlePtr = nullptr;
+      char **zeHandlePtr = nullptr;
       if (NewMemObjArg) {
         assert(!NewMemObjArg->isImage());
         auto memBuffer = NewMemObjArg->getBuffer();
-        
+
         const ur_kernel_arg_mem_obj_properties_t *properties =
-        NewMemObjArgDesc.pProperties;
+            NewMemObjArgDesc.pProperties;
         auto urAccessMode = ur_mem_buffer_t::device_access_mode_t::read_write;
         if (properties != nullptr) {
           urAccessMode = memBuffer->getAccessMode(properties->memoryAccess);
         }
-        ZeHandlePtr = ur_cast<char *>(memBuffer->getDevicePtr(
-          device, urAccessMode, 0,
-          memBuffer->getSize(), [&](void *src, void *dst, size_t size) {
-            ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                              (commandListLocked->getZeCommandList(), dst,
-                              src, size, nullptr,
-                               0, nullptr));
-          }));
+        auto ptr = ur_cast<char *>(memBuffer->getDevicePtr(
+            device, urAccessMode, 0, memBuffer->getSize(),
+            [&](void *src, void *dst, size_t size) {
+              ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
+                                (commandListLocked->getZeCommandList(), dst,
+                                 src, size, nullptr, 0, nullptr));
+            }));
+        zeHandles.push_back(std::make_unique<char *>(ptr));
+        zeHandlePtr = zeHandles[zeHandles.size() - 1].get();
       }
 
       setMutableMemObjArgDesc(ZeMutableArgDesc, NewMemObjArgDesc.argIndex,
-                              &ZeHandlePtr, NextDesc, Command->commandId);
+                              zeHandlePtr, NextDesc, Command->commandId);
       NextDesc = ZeMutableArgDesc.get();
       Descs.push_back(std::move(ZeMutableArgDesc));
     }
