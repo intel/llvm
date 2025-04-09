@@ -25,7 +25,7 @@ filterP2PDevices(ur_device_handle_t hSourceDevice,
 
     ze_bool_t p2p;
     ZE2UR_CALL_THROWS(zeDeviceCanAccessPeer,
-                      (hSourceDevice->ZeDevice, device->ZeDevice, &p2p));
+                      (device->ZeDevice, hSourceDevice->ZeDevice, &p2p));
 
     if (p2p) {
       p2pDevices.push_back(device);
