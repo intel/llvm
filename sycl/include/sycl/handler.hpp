@@ -455,7 +455,7 @@ private:
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue,
           bool CallerNeedsEvent);
-  handler(std::shared_ptr<detail::queue_impl> Queue,
+  __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
           detail::queue_impl *PrimaryQueue, detail::queue_impl *SecondaryQueue,
           bool CallerNeedsEvent);
 #endif
@@ -3910,9 +3910,9 @@ private:
   friend class detail::HandlerAccess;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl *get_impl() { return impl; }
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl; }
 #else
-  detail::handler_impl *get_impl() { return impl.get(); }
+  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl.get(); }
 #endif
   // Friend free-functions for asynchronous allocation and freeing.
   __SYCL_EXPORT friend void
