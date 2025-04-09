@@ -1707,6 +1707,9 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   if (G->getName().starts_with("__Asan"))
     return true;
 
+  if (G->getAddressSpace() == kSpirOffloadLocalAS)
+    return !ClSpirOffloadLocals;
+
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }
