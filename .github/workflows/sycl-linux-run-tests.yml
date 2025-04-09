@@ -112,14 +112,28 @@ on:
         required: False
 
       benchmark_upload_results:
+        description: |
+          Set to true to upload results to git repository storing benchmarking
+          results.
         type: string
         default: 'false'
         required: False
       benchmark_save_name:
+        description: |
+          Save name to use for benchmark results: Save names are stored in
+          metadata of result file, and are used to identify benchmark results in
+          the same series (e.g. same configuration, same device, etc.).
+
+          Note: Currently, benchmark result filenames are in the format of
+          <benchmark_save_name>_<Device>_<Backend>_YYYYMMDD_HHMMSS.json
         type: string
         default: ''
         required: False
       benchmark_preset:
+        description: |
+          Name of benchmark preset to run.
+
+          See /devops/scripts/benchmarks/presets.py for all presets available.
         type: string
         default: 'Minimal'
         required: False
