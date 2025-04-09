@@ -8,42 +8,42 @@
 // https://github.com/ROCm/clr/tree/amd-staging/hipamd/include/hip/amd_detail/texture_fetch_functions.h
 _CLC_CONST_AS const unsigned int SAMPLER_OBJECT_OFFSET_DWORD = 12;
 
-// Using the builtin as_type() and as_typen() functions to reinterpret types.
+// Using __clc_as_type() and __clc_as_typen() functions to reinterpret types.
 // The restriction being is that element "type"s need to be of the same size.
 #define _CLC_DEFINE_BUILTIN_CAST_VEC4_TO_VEC3(vec4_elem_t, to_t)               \
   _CLC_DEF to_t##3 __clc_cast_from_##vec4_elem_t##4_to_##to_t##3(              \
       vec4_elem_t##4 from) {                                                   \
-    vec4_elem_t##3 casted = as_##vec4_elem_t##3(from);                         \
-    return as_##to_t##3(casted);                                               \
+    vec4_elem_t##3 casted = __clc_as_##vec4_elem_t##3(from);                   \
+    return __clc_as_##to_t##3(casted);                                         \
   }
 #define _CLC_DEFINE_BUILTIN_CAST_VEC4_TO_VEC2(vec4_elem_t, to_t)               \
   _CLC_DEF to_t##2 __clc_cast_from_##vec4_elem_t##4_to_##to_t##2(              \
       vec4_elem_t##4 from) {                                                   \
-    vec4_elem_t##4 casted = as_##vec4_elem_t##4(from);                         \
-    return as_##to_t##2((vec4_elem_t##2)(casted.x, casted.y));                 \
+    vec4_elem_t##4 casted = __clc_as_##vec4_elem_t##4(from);                   \
+    return __clc_as_##to_t##2((vec4_elem_t##2)(casted.x, casted.y));           \
   }
 #define _CLC_DEFINE_BUILTIN_CAST_VEC4_TO_SCALAR(vec4_elem_t, to_t)             \
   _CLC_DEF to_t __clc_cast_from_##vec4_elem_t##4_to_##to_t(                    \
       vec4_elem_t##4 from) {                                                   \
-    vec4_elem_t##4 casted = as_##vec4_elem_t##4(from);                         \
-    return as_##to_t(casted.x);                                                \
+    vec4_elem_t##4 casted = __clc_as_##vec4_elem_t##4(from);                   \
+    return __clc_as_##to_t(casted.x);                                          \
   }
 #define _CLC_DEFINE_BUILTIN_CAST_VEC3_TO_VEC4(from_t, vec4_elem_t)             \
   _CLC_DEF vec4_elem_t##4 __clc_cast_from_##from_t##3_to_##vec4_elem_t##4(     \
       from_t##3 from) {                                                        \
-    vec4_elem_t##3 casted = as_##vec4_elem_t##3(from);                         \
-    return as_##vec4_elem_t##4(casted);                                        \
+    vec4_elem_t##3 casted = __clc_as_##vec4_elem_t##3(from);                   \
+    return __clc_as_##vec4_elem_t##4(casted);                                  \
   }
 #define _CLC_DEFINE_BUILTIN_CAST_VEC2_TO_VEC4(from_t, vec4_elem_t)             \
   _CLC_DEF vec4_elem_t##4 __clc_cast_from_##from_t##2_to_##vec4_elem_t##4(     \
       from_t##2 from) {                                                        \
-    vec4_elem_t##2 casted = as_##vec4_elem_t##2(from);                         \
+    vec4_elem_t##2 casted = __clc_as_##vec4_elem_t##2(from);                   \
     return (vec4_elem_t##4)(casted.x, casted.y, 0, 0);                         \
   }
 #define _CLC_DEFINE_BUILTIN_CAST_SCALAR_TO_VEC4(from_t, vec4_elem_t)           \
   _CLC_DEF vec4_elem_t##4 __clc_cast_from_##from_t##_to_##vec4_elem_t##4(      \
       from_t from) {                                                           \
-    vec4_elem_t casted = as_##vec4_elem_t(from);                               \
+    vec4_elem_t casted = __clc_as_##vec4_elem_t(from);                         \
     return (vec4_elem_t##4)(casted, 0, 0, 0);                                  \
   }
 
