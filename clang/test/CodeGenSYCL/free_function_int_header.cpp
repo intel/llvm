@@ -115,6 +115,40 @@ __attribute__((sycl_device))
 void ff_8(sycl::work_group_memory<int>) {
 }
 
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_11(sycl::local_accessor<int, 1> lacc) {
+}
+
+template <typename DataT>
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_11(sycl::local_accessor<DataT, 1> lacc) {
+}
+
+template void ff_11(sycl::local_accessor<float, 1> lacc);
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_12(sycl::sampler S) {
+}
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_13(sycl::stream str) {
+}
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_14(sycl::ext::oneapi::experimental::annotated_arg<int> arg) {
+}
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
+void ff_15(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
+}
+
+
 // function in namespace
 namespace free_functions {
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
@@ -214,39 +248,6 @@ void ff_19(free_functions::AliasStruct KArg) {
   for (int j = 0; j < TestArrSizeAlias; j++)
     for (int i = KArg.start[j]; i <= KArg.end[j]; i++)
       KArg.data[j][i] = KArg.start[j] + KArg.end[j];
-}
-
-__attribute__((sycl_device))
-[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
-void ff_11(sycl::local_accessor<int, 1> lacc) {
-}
-
-template <typename DataT>
-__attribute__((sycl_device))
-[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
-void ff_11(sycl::local_accessor<DataT, 1> lacc) {
-}
-
-template void ff_11(sycl::local_accessor<float, 1> lacc);
-
-__attribute__((sycl_device))
-[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
-void ff_12(sycl::sampler S) {
-}
-
-__attribute__((sycl_device))
-[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
-void ff_13(sycl::stream str) {
-}
-
-__attribute__((sycl_device))
-[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
-void ff_14(sycl::ext::oneapi::experimental::annotated_arg<int> arg) {
-}
-
-__attribute__((sycl_device))
-[[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
-void ff_15(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
 }
 
 // CHECK:      const char* const kernel_names[] = {
