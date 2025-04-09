@@ -2848,7 +2848,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
-      addParam(decl, ParamTy.getCanonicalType());
+      addParam(Param, ParamTy.getCanonicalType());
 
       // Propagate add_ir_attributes_kernel_parameter attribute.
       if (const auto *AddIRAttr =

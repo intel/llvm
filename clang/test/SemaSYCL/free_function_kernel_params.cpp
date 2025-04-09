@@ -1,8 +1,8 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -ast-dump \
 // RUN: %s -o - | FileCheck %s
 // This test checks parameter rewriting for free functions with parameters
-// of type scalar, pointer, non-decomposed struct, work group memory and 
-// dynamic work group memory.
+// of type scalar, pointer, non-decomposed struct, work group memory, dynamic work group memory 
+// and special types except for accessors.
 
 #include "sycl.hpp"
 
@@ -213,13 +213,17 @@ void ff_8(sycl::dynamic_work_group_memory<int> DynMem) {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'void (sycl::dynamic_work_group_memory<int>)' lvalue Function {{.*}} 'ff_8' 'void (sycl::dynamic_work_group_memory<int>)'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::dynamic_work_group_memory<int>' Var {{.*}} 'DynMem' 'sycl::dynamic_work_group_memory<int>'
 
+template <typename DataT>
 __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 0)]]
-void ff_9(sycl::accessor<int, 1, sycl::access::mode::read> acc) {
+void ff_9(sycl::local_accessor<DataT, 1> lacc) {
 }
 
-// CHECK: ParmVarDecl {{.*}}acc 'sycl::accessor<int, 1, sycl::access::mode::read>'
-// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__global int *'
+template void ff_9(sycl::local_accessor<float, 1> lacc);
+
+// CHECK: FunctionDecl {{.*}}'void (sycl::local_accessor<float, 1>)'
+// CHECK: ParmVarDecl {{.*}}lacc 'sycl::local_accessor<float, 1>'
+// CHECK: ParmVarDecl {{.*}}__arg_Ptr '__local float *'
 // CHECK: ParmVarDecl {{.*}}__arg_AccessRange 'sycl::range<1>'
 // CHECK: ParmVarDecl {{.*}}__arg_MemRange 'sycl::range<1>'
 // CHECK: ParmVarDecl {{.*}}__arg_Offset 'sycl::id<1>'
