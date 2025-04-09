@@ -4522,7 +4522,7 @@ public:
   // is closed.
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     // The code produced looks like this in the case of a work group memory
-    // parameter: 
+    // parameter:
     // void auto_generated_kernel(__local int * arg) {
     //    work_group_memory wgm;
     //    wgm.__init(arg);
