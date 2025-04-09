@@ -84,11 +84,15 @@
 #define __CLC_BIT_INTN int
 #define __CLC_SCALAR
 #define __CLC_VECSIZE
+#define __CLC_VECSIZE_OR_1 1
 #include __CLC_BODY
+#undef __CLC_VECSIZE_OR_1
 #undef __CLC_VECSIZE
 #undef __CLC_GENTYPE
 #undef __CLC_BIT_INTN
 #undef __CLC_SCALAR
+
+#define __CLC_VECSIZE_OR_1 __CLC_VECSIZE
 
 #define __CLC_GENTYPE float2
 #define __CLC_BIT_INTN int2
@@ -130,6 +134,7 @@
 #undef __CLC_GENTYPE
 #undef __CLC_BIT_INTN
 
+#undef __CLC_VECSIZE_OR_1
 #undef __CLC_U_GENTYPE
 #undef __CLC_S_GENTYPE
 #undef __CLC_GENTYPE_NAN
@@ -153,13 +158,17 @@
 
 #define __CLC_SCALAR
 #define __CLC_VECSIZE
+#define __CLC_VECSIZE_OR_1 1
 #define __CLC_GENTYPE double
 #define __CLC_BIT_INTN long
 #include __CLC_BODY
+#undef __CLC_VECSIZE_OR_1
 #undef __CLC_GENTYPE
 #undef __CLC_BIT_INTN
 #undef __CLC_VECSIZE
 #undef __CLC_SCALAR
+
+#define __CLC_VECSIZE_OR_1 __CLC_VECSIZE
 
 #define __CLC_GENTYPE double2
 #define __CLC_BIT_INTN long2
@@ -201,6 +210,7 @@
 #undef __CLC_GENTYPE
 #undef __CLC_BIT_INTN
 
+#undef __CLC_VECSIZE_OR_1
 #undef __CLC_U_GENTYPE
 #undef __CLC_S_GENTYPE
 #undef __CLC_GENTYPE_NAN
@@ -224,13 +234,17 @@
 
 #define __CLC_SCALAR
 #define __CLC_VECSIZE
+#define __CLC_VECSIZE_OR_1 1
 #define __CLC_GENTYPE half
 #define __CLC_BIT_INTN short
 #include __CLC_BODY
 #undef __CLC_GENTYPE
 #undef __CLC_BIT_INTN
+#undef __CLC_VECSIZE_OR_1
 #undef __CLC_VECSIZE
 #undef __CLC_SCALAR
+
+#define __CLC_VECSIZE_OR_1 __CLC_VECSIZE
 
 #define __CLC_GENTYPE half2
 #define __CLC_BIT_INTN short2
@@ -272,6 +286,7 @@
 #undef __CLC_GENTYPE
 #undef __CLC_BIT_INTN
 
+#undef __CLC_VECSIZE_OR_1
 #undef __CLC_U_GENTYPE
 #undef __CLC_S_GENTYPE
 #undef __CLC_GENTYPE_NAN
