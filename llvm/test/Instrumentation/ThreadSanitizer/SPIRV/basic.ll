@@ -146,7 +146,7 @@ entry:
 define linkonce_odr dso_local spir_func void @unaligned_write_16_bytes(ptr addrspace(4) %a) #0 {
 ; CHECK-LABEL: void @unaligned_write_16_bytes
 entry:
-  store <4 x i32> <i32 0, i32 0, i32 0, i32 undef>, ptr addrspace(4) %a, align 1
+  store <4 x i32> <i32 0, i32 0, i32 0, i32 0>, ptr addrspace(4) %a, align 1
   ; CHECK: ptrtoint ptr addrspace(4) %a to i64
   ; CHECK: call void @__tsan_unaligned_write16
   ret void
