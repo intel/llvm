@@ -371,6 +371,7 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
       // constant memory.
       char **zeHandlePtr = nullptr;
       if (NewMemObjArg) {
+        // TODO: add support for images
         assert(!NewMemObjArg->isImage());
         auto memBuffer = NewMemObjArg->getBuffer();
 
