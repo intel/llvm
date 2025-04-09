@@ -81,7 +81,8 @@ struct TsanRuntimeData {
 
   uintptr_t GlobalShadowOffsetEnd = 0;
 
-  VectorClock Clock[kThreadSlotCount];
+  // The last one is to record global state
+  VectorClock Clock[kThreadSlotCount + 1];
 
   DeviceType DeviceTy = DeviceType::UNKNOWN;
 

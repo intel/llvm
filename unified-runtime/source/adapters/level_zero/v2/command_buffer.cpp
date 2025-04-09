@@ -35,7 +35,8 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     const ur_exp_command_buffer_desc_t *desc)
     : commandListManager(
           context, device,
-          std::forward<v2::raii::command_list_unique_handle>(commandList)),
+          std::forward<v2::raii::command_list_unique_handle>(commandList),
+          v2::EVENT_FLAGS_COUNTER, nullptr),
       isUpdatable(desc ? desc->isUpdatable : false) {}
 
 ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
@@ -47,7 +48,28 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   isFinalized = true;
   return UR_RESULT_SUCCESS;
 }
+ur_event_handle_t ur_exp_command_buffer_handle_t_::getExecutionEventUnlocked() {
+  return currentExecution;
+}
 
+ur_result_t ur_exp_command_buffer_handle_t_::registerExecutionEventUnlocked(
+    ur_event_handle_t nextExecutionEvent) {
+  if (currentExecution) {
+    UR_CALL(currentExecution->release());
+    currentExecution = nullptr;
+  }
+  if (nextExecutionEvent) {
+    currentExecution = nextExecutionEvent;
+    UR_CALL(nextExecutionEvent->retain());
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
+  if (currentExecution) {
+    currentExecution->release();
+  }
+}
 namespace ur::level_zero {
 
 ur_result_t

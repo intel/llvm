@@ -97,7 +97,7 @@ class ComputeRuntime:
             options.workdir,
             "vc-intrinsics",
             "https://github.com/intel/vc-intrinsics",
-            "facb2076a2ce6cd6527c1e16570ba0fbaa2f1dba",
+            "b980474c99859f7e4eb157828c5e80202b062177",
         )
         self.llvm_project = git_clone(
             options.workdir,
@@ -135,6 +135,8 @@ class ComputeRuntime:
         self.igc_install = os.path.join(options.workdir, "igc-install")
         configure_command = [
             "cmake",
+            "-DCMAKE_C_FLAGS=-Wno-error",
+            "-DCMAKE_CXX_FLAGS=-Wno-error",
             f"-B {self.igc_build}",
             f"-S {self.igc_repo}",
             f"-DCMAKE_INSTALL_PREFIX={self.igc_install}",

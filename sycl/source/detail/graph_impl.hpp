@@ -919,6 +919,12 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
+  /// Query for the device_impl tied to this graph.
+  /// @return device_impl shared ptr reference associated with graph.
+  const DeviceImplPtr &getDeviceImplPtr() const {
+    return getSyclObjImpl(MDevice);
+  }
+
   /// Query for the device tied to this graph.
   /// @return Device associated with graph.
   sycl::device getDevice() const { return MDevice; }
@@ -1480,7 +1486,8 @@ private:
 class dynamic_parameter_impl {
 public:
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl)
-      : MGraph(GraphImpl) {}
+      : MGraph(GraphImpl),
+        MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {}
 
   dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
                          size_t ParamSize, const void *Data)
