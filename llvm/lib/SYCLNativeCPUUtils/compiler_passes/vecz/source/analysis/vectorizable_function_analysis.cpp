@@ -47,7 +47,7 @@ namespace {
 /// @param[in] I Instruction to check for vectorizability.
 /// @param[in] Ctx VectorizationContext for BuiltinInfo.
 ///
-/// @return true if I can be vectorized.
+/// @return true if I can be vectorized, false otherwise.
 bool canVectorize(const Instruction &I, const VectorizationContext &Ctx) {
   // Certain instructions just cannot appear.
   switch (I.getOpcode()) {
@@ -98,18 +98,26 @@ bool canVectorize(const Instruction &I, const VectorizationContext &Ctx) {
 /// @param[in] F Function to check for vectorizability.
 /// @param[in] Ctx VectorizationContext for BuiltinInfo.
 ///
-/// @return the Instruction that prevents the function from vectorizing, or
-/// nullptr if the function can be vectorized.
-const Value *canVectorize(const Function &F, const VectorizationContext &Ctx) {
+/// @return true if F can be vectorized, false otherwise.
+bool canVectorize(const Function &F, const VectorizationContext &Ctx) {
+  // Do not vectorize functions with the OptNone attribute. Also do not
+  // vectorize functions with the NoInline attribute, since conceptually, the
+  // vectorized kernel calls the original kernel in a loop, and then that gets
+  // inlined and optimized.
+  if (F.hasFnAttribute(Attribute::OptimizeNone) ||
+      F.hasFnAttribute(Attribute::NoInline)) {
+    return false;
+  }
+
   // Look for things that are not (yet?) supported.
   for (const BasicBlock &BB : F) {
     for (const Instruction &I : BB) {
       if (!canVectorize(I, Ctx)) {
-        return &I;
+        return false;
       }
     }
   }
-  return nullptr;
+  return true;
 }
 
 }  // namespace
@@ -119,13 +127,6 @@ VectorizableFunctionAnalysis::Result VectorizableFunctionAnalysis::run(
   Result res;
   auto &Ctx = AM.getResult<VectorizationContextAnalysis>(F).getContext();
 
-  // Do not vectorize functions with the OptNone attribute
-  if (F.hasFnAttribute(Attribute::OptimizeNone)) {
-    res.canVectorize = false;
-    return res;
-  }
-
-  res.failedAt = canVectorize(F, Ctx);
-  res.canVectorize = !res.failedAt;
+  res.canVectorize = canVectorize(F, Ctx);
   return res;
 }
