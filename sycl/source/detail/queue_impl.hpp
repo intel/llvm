@@ -547,9 +547,7 @@ public:
 
   /// \return a raw UR queue handle. The returned handle is not retained. It
   /// is caller responsibility to make sure queue is still alive.
-  ur_queue_handle_t &getHandleRef() {
-    return MQueue;
-  }
+  ur_queue_handle_t &getHandleRef() { return MQueue; }
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.

@@ -271,7 +271,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
 
   // Record in-order queue with three nodes.
   InOrderGraph.begin_recording(InOrderQueue);
-  #if 1
+#if 1
   auto Node1Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
 

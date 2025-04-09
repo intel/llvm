@@ -60,8 +60,7 @@ template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
   getAdapter()->call<UrApiKind::urQueueGetInfo>(
-      MQueue, UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-      nullptr);
+      MQueue, UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result, nullptr);
   return result;
 }
 
