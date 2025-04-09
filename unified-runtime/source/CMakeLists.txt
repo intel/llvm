@@ -6,6 +6,9 @@
 add_definitions(-DUR_VERSION="${PROJECT_VERSION_MAJOR}")
 add_definitions(-DUR_VALIDATION_LAYER_SUPPORTED_VERSION="${PROJECT_VERSION_MAJOR}")
 
+string(LENGTH "${CMAKE_SOURCE_DIR}/" SRC_PATH_SIZE)
+add_definitions("-DSRC_PATH_SIZE=${SRC_PATH_SIZE}")  # for nicer log messages
+
 add_subdirectory(common)
 add_subdirectory(loader)
 add_subdirectory(mock)
