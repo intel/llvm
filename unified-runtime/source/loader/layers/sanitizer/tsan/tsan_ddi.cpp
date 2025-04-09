@@ -535,6 +535,25 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   return UR_RESULT_SUCCESS;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EnqueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+__urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
+    /// [in,out] pointer to table of DDI function pointers
+    ur_enqueue_exp_dditable_t *pDdiTable) {
+  if (nullptr == pDdiTable) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
+  pDdiTable->pfnCooperativeKernelLaunchExp =
+      ur_sanitizer_layer::tsan::urEnqueueCooperativeKernelLaunchExp;
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace tsan
 
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
@@ -569,6 +588,11 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urGetEnqueueProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Enqueue);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_sanitizer_layer::tsan::urGetEnqueueExpProcAddrTable(
+        &dditable->EnqueueExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {
