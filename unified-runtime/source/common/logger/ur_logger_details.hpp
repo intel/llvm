@@ -125,13 +125,16 @@ public:
     this->standardSink = std::move(legacySink);
   }
 
-  void setCallbackSink(ur_logger_callback_t cb, void *pUserData,
+  void setCallbackSink(ur_logger_callback_t callBack, void *pUserData,
                        ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
     if (!callbackSink) {
       callbackSink = std::make_unique<CallbackSink>("UR_LOG_CALLBACK");
     }
-    callbackSinkLevel = level;
-    callbackSink->setCallback(cb, pUserData);
+
+    if (callBack) {
+      callbackSink->setCallback(callBack, pUserData);
+      callbackSinkLevel = level;
+    }
   }
 
   void setCallbackLevel(ur_logger_level_t level) {
