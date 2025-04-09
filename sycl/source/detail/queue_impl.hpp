@@ -166,7 +166,7 @@ public:
     }
     const QueueOrder QOrder =
         MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
-    MQueues.push_back(createQueue(QOrder));
+    MQueue = createQueue(QOrder);
     // This section is the second part of the instrumentation that uses the
     // tracepoint information and notifies
 
@@ -191,13 +191,13 @@ private:
                             "discard_events and enable_profiling.");
     }
 
-    MQueues.push_back(UrQueue);
+    MQueue = UrQueue;
 
     ur_device_handle_t DeviceUr{};
     const AdapterPtr &Adapter = getAdapter();
     // TODO catch an exception and put it to list of asynchronous exceptions
     Adapter->call<UrApiKind::urQueueGetInfo>(
-        MQueues[0], UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
+        MQueue, UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DeviceUr);
     if (MDevice == nullptr) {
       throw sycl::exception(
@@ -264,7 +264,7 @@ public:
       destructorNotification();
 #endif
       throw_asynchronous();
-      getAdapter()->call<UrApiKind::urQueueRelease>(MQueues[0]);
+      getAdapter()->call<UrApiKind::urQueueRelease>(MQueue);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
@@ -274,7 +274,7 @@ public:
 
   cl_command_queue get() {
     ur_native_handle_t nativeHandle = 0;
-    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], nullptr,
+    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueue, nullptr,
                                                           &nativeHandle);
     __SYCL_OCL_CALL(clRetainCommandQueue, ur::cast<cl_command_queue>(nativeHandle));
     return ur::cast<cl_command_queue>(nativeHandle);
@@ -322,9 +322,7 @@ public:
                             "flush cannot be called for a queue which is "
                             "recording to a command graph.");
     }
-    for (const auto &queue : MQueues) {
-      getAdapter()->call<UrApiKind::urQueueFlush>(queue);
-    }
+    getAdapter()->call<UrApiKind::urQueueFlush>(MQueue);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -542,59 +540,15 @@ public:
     }
     ur_result_t Error = Adapter->call_nocheck<UrApiKind::urQueueCreate>(
         Context, Device, &Properties, &Queue);
-
-    // If creating out-of-order queue failed and this property is not
-    // supported (for example, on FPGA), it will return
-    // UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES and will try to create in-order
-    // queue.
-    if (!MEmulateOOO && Error == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
-      MEmulateOOO = true;
-      Queue = createQueue(QueueOrder::Ordered);
-    } else {
-      Adapter->checkUrResult(Error);
-    }
+    Adapter->checkUrResult(Error);
 
     return Queue;
-  }
-
-  /// \return a raw UR handle for a free queue. The returned handle is not
-  /// retained. It is caller responsibility to make sure queue is still alive.
-  ur_queue_handle_t &getExclusiveUrQueueHandleRef() {
-    ur_queue_handle_t *PIQ = nullptr;
-    bool ReuseQueue = false;
-    {
-      std::lock_guard<std::mutex> Lock(MMutex);
-
-      // To achieve parallelism for FPGA with in order execution model with
-      // possibility of two kernels to share data with each other we shall
-      // create a queue for every kernel enqueued.
-      if (MQueues.size() < MaxNumQueues) {
-        MQueues.push_back({});
-        PIQ = &MQueues.back();
-      } else {
-        // If the limit of OpenCL queues is going to be exceeded - take the
-        // earliest used queue, wait until it finished and then reuse it.
-        PIQ = &MQueues[MNextQueueIdx];
-        MNextQueueIdx = (MNextQueueIdx + 1) % MaxNumQueues;
-        ReuseQueue = true;
-      }
-    }
-
-    if (!ReuseQueue)
-      *PIQ = createQueue(QueueOrder::Ordered);
-    else
-      getAdapter()->call<UrApiKind::urQueueFinish>(*PIQ);
-
-    return *PIQ;
   }
 
   /// \return a raw UR queue handle. The returned handle is not retained. It
   /// is caller responsibility to make sure queue is still alive.
   ur_queue_handle_t &getHandleRef() {
-    if (!MEmulateOOO)
-      return MQueues[0];
-
-    return getExclusiveUrQueueHandleRef();
+    return MQueue;
   }
 
   /// \return true if the queue was constructed with property specified by
@@ -1000,13 +954,7 @@ protected:
   const property_list MPropList;
 
   /// List of queues created for FPGA device from a single SYCL queue.
-  std::vector<ur_queue_handle_t> MQueues;
-  /// Iterator through MQueues.
-  size_t MNextQueueIdx = 0;
-
-  /// Indicates that a native out-of-order queue could not be created and we
-  /// need to emulate it with multiple native in-order queues.
-  bool MEmulateOOO = false;
+  ur_queue_handle_t MQueue;
 
   // Access should be guarded with MMutex
   struct DependencyTrackingItems {
