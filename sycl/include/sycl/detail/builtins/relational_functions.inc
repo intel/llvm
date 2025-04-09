@@ -63,7 +63,7 @@ auto builtin_device_rel_impl(FuncTy F, const Ts &...xs) {
     // the relation builtin (vector of int16_t/int32_t/int64_t depending on the
     // arguments' element type).
     auto ret = F(builtins::convert_arg(xs)...);
-    vec<signed char, num_elements<T>::value> tmp{ret};
+    auto tmp = bit_cast<vec<signed char, num_elements<T>::value>>(ret);
     using res_elem_type = fixed_width_signed<sizeof(get_elem_type_t<T>)>;
     static_assert(is_scalar_arithmetic_v<res_elem_type>);
     return tmp.template convert<res_elem_type>();

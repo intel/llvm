@@ -37,7 +37,7 @@ etors:
     - name: READ_ONLY_EXP
       value: "$X_BIT(2)"
       desc: |
-            Performance hint asserting that all memory allocations from the 
+            Performance hint asserting that all memory allocations from the
             memory pool will only ever be read from within SYCL kernel functions
 
 --- #--------------------------------------------------------------------------
@@ -113,6 +113,29 @@ members:
     - type: $x_exp_async_usm_alloc_flags_t
       name: flags
       desc: "[in] async alloc flags"
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "USM pool buffer descriptor type"
+details:
+  - Used for pool creation from USM memory object. Specify these properties in
+    $xUSMPoolCreate or $xUSMPoolCreateExp via $x_usm_pool_desc_t as part of a `pNext` chain.
+class: $xUSM
+name: $x_usm_pool_buffer_desc_t
+base: $x_base_desc_t
+members:
+    - type: "void*"
+      name:  pMem
+      desc: "[in] USM memory object"
+    - type: "size_t"
+      name:  size
+      desc: "[in] size of USM memory object"
+    - type: "$x_usm_type_t"
+      name:  memType
+      desc: "[in] type of USM memory object"
+    - type: "$x_device_handle_t"
+      name:  device
+      desc: "[in][optional] device associated with the USM memory object"
 
 --- #--------------------------------------------------------------------------
 type: function
@@ -261,7 +284,7 @@ returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_NULL_POINTER
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
-    
+
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create USM memory pool with desired properties."

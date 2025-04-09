@@ -120,6 +120,11 @@ struct ThreadSanitizerOnSpirv {
 
   void instrumentModule();
 
+  bool instrumentAllocInst(Function *F,
+                           SmallVectorImpl<Instruction *> &AllocaInsts);
+
+  bool instrumentControlBarrier(CallInst *CI);
+
   void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
 
 private:
@@ -144,6 +149,9 @@ private:
 
   // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
   static const size_t kNumberOfAccessSizes = 5;
+  FunctionCallee TsanCleanupPrivate;
+  FunctionCallee TsanDeviceBarrier;
+  FunctionCallee TsanGroupBarrier;
   FunctionCallee TsanRead[kNumberOfAccessSizes];
   FunctionCallee TsanWrite[kNumberOfAccessSizes];
 
@@ -261,6 +269,18 @@ void ThreadSanitizerOnSpirv::initialize() {
   Attr = Attr.addFnAttribute(C, Attribute::NoUnwind);
   Type *Int8PtrTy = IRB.getInt8PtrTy(kSpirOffloadConstantAS);
 
+  TsanCleanupPrivate =
+      M.getOrInsertFunction("__tsan_cleanup_private", Attr, IRB.getVoidTy(),
+                            IntptrTy, IRB.getInt32Ty());
+
+  TsanDeviceBarrier = M.getOrInsertFunction(
+      "__tsan_device_barrier", Attr.addFnAttribute(C, Attribute::Convergent),
+      IRB.getVoidTy());
+
+  TsanGroupBarrier = M.getOrInsertFunction(
+      "__tsan_group_barrier", Attr.addFnAttribute(C, Attribute::Convergent),
+      IRB.getVoidTy());
+
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
     const unsigned ByteSize = 1U << i;
     std::string ByteSizeStr = utostr(ByteSize);
@@ -280,6 +300,43 @@ void ThreadSanitizerOnSpirv::initialize() {
                                          IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
                                          IRB.getInt32Ty(), Int8PtrTy);
   }
+}
+
+bool ThreadSanitizerOnSpirv::instrumentAllocInst(
+    Function *F, SmallVectorImpl<Instruction *> &AllocaInsts) {
+  bool Changed = false;
+
+  EscapeEnumerator EE(*F, "tsan_cleanup", false);
+  while (IRBuilder<> *AtExit = EE.Next()) {
+    InstrumentationIRBuilder::ensureDebugInfo(*AtExit, *F);
+    for (auto *Inst : AllocaInsts) {
+      AllocaInst *AI = cast<AllocaInst>(Inst);
+      if (auto AllocSize = AI->getAllocationSize(DL)) {
+        AtExit->CreateCall(
+            TsanCleanupPrivate,
+            {AtExit->CreatePtrToInt(AI, IntptrTy),
+             ConstantInt::get(AtExit->getInt32Ty(), *AllocSize)});
+        Changed |= true;
+      }
+    }
+  }
+
+  return Changed;
+}
+
+bool ThreadSanitizerOnSpirv::instrumentControlBarrier(CallInst *CI) {
+  assert(isa<ConstantInt>(CI->getArgOperand(0)));
+  uint64_t Scope = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
+  // is not device scope or work group scope
+  if (Scope != 1 && Scope != 2)
+    return false;
+
+  InstrumentationIRBuilder IRB(CI);
+  CallInst *NewCI =
+      IRB.CreateCall(Scope == 1 ? TsanDeviceBarrier : TsanGroupBarrier, {});
+  NewCI->setAttributes(NewCI->getCalledFunction()->getAttributes());
+  CI->eraseFromParent();
+  return true;
 }
 
 void ThreadSanitizerOnSpirv::appendDebugInfoToArgs(
@@ -624,7 +681,7 @@ static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
     if (GV->hasSection()) {
       StringRef SectionName = GV->getSection();
       // Check if the global is in the PGO counters section.
-      auto OF = Triple(M->getTargetTriple()).getObjectFormat();
+      auto OF = M->getTargetTriple().getObjectFormat();
       if (SectionName.ends_with(
               getInstrProfSectionName(IPSK_cnts, OF, /*AddSegmentInfo=*/false)))
         return false;
@@ -731,7 +788,7 @@ void ThreadSanitizer::chooseInstructionsToInstrument(
     }
 
     if (isa<AllocaInst>(getUnderlyingObject(Addr)) &&
-        !PointerMayBeCaptured(Addr, true, true)) {
+        !PointerMayBeCaptured(Addr, /*ReturnCaptures=*/true)) {
       // The variable is addressable but not captured, so it cannot be
       // referenced from a different thread and participate in a data race
       // (see llvm/Analysis/CaptureTracking.h for details).
@@ -793,6 +850,8 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
   SmallVector<Instruction*, 8> LocalLoadsAndStores;
   SmallVector<Instruction*, 8> AtomicAccesses;
   SmallVector<Instruction*, 8> MemIntrinCalls;
+  SmallVector<Instruction *, 8> Allocas;
+  SmallVector<CallInst *, 8> SpirControlBarrierCalls;
   bool Res = false;
   bool HasCalls = false;
   bool SanitizeFunction = F.hasFnAttribute(Attribute::SanitizeThread);
@@ -808,10 +867,21 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
         AtomicAccesses.push_back(&Inst);
       else if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
         LocalLoadsAndStores.push_back(&Inst);
+      else if (Spirv && isa<AllocaInst>(Inst) &&
+               cast<AllocaInst>(Inst).getAllocatedType()->isSized())
+        Allocas.push_back(&Inst);
       else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
                isa<InvokeInst>(Inst)) {
-        if (CallInst *CI = dyn_cast<CallInst>(&Inst))
+        if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, &TLI);
+          if (Spirv) {
+            Function *CalledFn = CI->getCalledFunction();
+            if (CalledFn &&
+                CalledFn->getName() == "_Z22__spirv_ControlBarrieriii") {
+              SpirControlBarrierCalls.push_back(CI);
+            }
+          }
+        }
         if (isa<MemIntrinsic>(Inst))
           MemIntrinCalls.push_back(&Inst);
         HasCalls = true;
@@ -849,6 +919,19 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
     if (HasCalls)
       InsertRuntimeIgnores(F);
   }
+
+  if (Spirv)
+    for (auto *CI : SpirControlBarrierCalls) {
+      Res |= Spirv->instrumentControlBarrier(CI);
+    }
+
+  // FIXME: We need to skip the check for private memory, otherwise OpenCL CPU
+  // device may generate false positive reports due to stack re-use in different
+  // threads. However, SPIR-V builts 'ToPrivate' doesn't work as expected on
+  // OpenCL CPU device. So we need to manually cleanup private shadow before
+  // each function exit point.
+  if (Spirv && !Allocas.empty())
+    Res |= Spirv->instrumentAllocInst(&F, Allocas);
 
   // Instrument function entry/exit points if there were instrumented accesses.
   if ((Res || HasCalls) && ClInstrumentFuncEntryExit) {

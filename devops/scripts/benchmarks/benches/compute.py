@@ -46,7 +46,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "b5cc46acf61766ab00da04e85bd4da4f7591eb21"
+        return "27f158753caf8422e9f0d5a65ab304f21bc085c5"
 
     def setup(self):
         if options.sycl is None:
@@ -92,6 +92,7 @@ class ComputeBench(Suite):
                 "The UR v2 adapter noticeably reduces UR layer overhead, also improving SYCL performance.\n"
                 "Work is ongoing to reduce the overhead of the SYCL API\n",
                 tags=["submit", "micro", "SYCL", "UR", "L0"],
+                range_min=0.0,
             ),
             "SinKernelGraph": BenchmarkMetadata(
                 type="group",
@@ -126,9 +127,20 @@ class ComputeBench(Suite):
         for runtime in self.enabled_runtimes():
             for in_order_queue in [0, 1]:
                 for measure_completion in [0, 1]:
-                    benches.append(
-                        SubmitKernel(self, runtime, in_order_queue, measure_completion)
-                    )
+                    for enqueue_functions in [0, 1]:
+                        # only SYCL backend supports enqueue functions
+                        if enqueue_functions == 1 and runtime != RUNTIMES.SYCL:
+                            continue
+
+                        benches.append(
+                            SubmitKernel(
+                                self,
+                                runtime,
+                                in_order_queue,
+                                measure_completion,
+                                enqueue_functions,
+                            )
+                        )
 
         # Add SinKernelGraph benchmarks
         for runtime in self.enabled_runtimes():
@@ -144,7 +156,7 @@ class ComputeBench(Suite):
             benches.append(UllsKernelSwitch(self, runtime, 8, 200, 0, 0, 1, 1))
 
         # Add GraphApiSubmitGraph benchmarks
-        for runtime in self.enabled_runtimes([RUNTIMES.SYCL]):
+        for runtime in self.enabled_runtimes([RUNTIMES.SYCL, RUNTIMES.UR]):
             for in_order_queue in [0, 1]:
                 for num_kernels in [4, 10, 32]:
                     for measure_completion_time in [0, 1]:
@@ -277,10 +289,13 @@ class ComputeBenchmark(Benchmark):
 
 
 class SubmitKernel(ComputeBenchmark):
-    def __init__(self, bench, runtime: RUNTIMES, ioq, measure_completion=0):
+    def __init__(
+        self, bench, runtime: RUNTIMES, ioq, MeasureCompletion=0, EnqueueFunctions=0
+    ):
         self.ioq = ioq
         self.runtime = runtime
-        self.measure_completion = measure_completion
+        self.MeasureCompletion = MeasureCompletion
+        self.EnqueueFunctions = EnqueueFunctions
         super().__init__(
             bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel"
         )
@@ -290,15 +305,18 @@ class SubmitKernel(ComputeBenchmark):
 
     def name(self):
         order = "in order" if self.ioq else "out of order"
-        completion_str = " with measure completion" if self.measure_completion else ""
-        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}"
+        completion_str = " with measure completion" if self.MeasureCompletion else ""
+        enqueue_str = " using eventless SYCL enqueue" if self.EnqueueFunctions else ""
+        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{enqueue_str}"
 
     def explicit_group(self):
-        return (
-            "SubmitKernel"
-            if self.measure_completion == 0
-            else "SubmitKernel With Completion"
-        )
+        # make eventless enqueue its own group, since only SYCL supports this mode
+        if self.EnqueueFunctions:
+            return "Submit Kernel using eventless SYCL enqueue"
+
+        order = "In Order" if self.ioq else "Out Of Order"
+        completion_str = " With Completion" if self.MeasureCompletion else ""
+        return f"SubmitKernel {order}{completion_str}"
 
     def description(self) -> str:
         order = "in-order" if self.ioq else "out-of-order"
@@ -306,26 +324,26 @@ class SubmitKernel(ComputeBenchmark):
 
         completion_desc = ""
         if self.runtime == RUNTIMES.UR:
-            completion_desc = f", {'including' if self.measure_completion else 'excluding'} kernel completion time"
-
-        l0_specific = ""
-        if self.runtime == RUNTIMES.LEVEL_ZERO:
-            l0_specific = " Uses immediate command lists"
+            completion_desc = f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
 
         return (
             f"Measures CPU time overhead of submitting {order} kernels through {runtime_name} API{completion_desc}. "
-            f"Runs 10 simple kernels with minimal execution time to isolate API overhead from kernel execution time. {l0_specific}"
+            f"Runs 10 simple kernels with minimal execution time to isolate API overhead from kernel execution time."
         )
+
+    def range(self) -> tuple[float, float]:
+        return (0.0, None)
 
     def bin_args(self) -> list[str]:
         return [
             f"--Ioq={self.ioq}",
             "--DiscardEvents=0",
-            f"--MeasureCompletion={self.measure_completion}",
+            f"--MeasureCompletion={self.MeasureCompletion}",
             "--iterations=100000",
             "--Profiling=0",
             "--NumKernels=10",
             "--KernelExecTime=1",
+            f"--EnqueueFunctions={self.EnqueueFunctions}",
         ]
 
 

@@ -536,6 +536,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,
   /// ::ur_usm_alloc_location_desc_t
   UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,
+  /// ::ur_usm_pool_buffer_desc_t
+  UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC = 36,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -2241,6 +2243,8 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MIN_POWER_LIMIT = 125,
   /// [int32_t][optional-query] return max power limit in milliwatts.
   UR_DEVICE_INFO_MAX_POWER_LIMIT = 126,
+  /// [::ur_bool_t] support for native bfloat16 conversions
+  UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -9105,6 +9109,30 @@ typedef struct ur_exp_async_usm_alloc_properties_t {
   ur_exp_async_usm_alloc_flags_t flags;
 
 } ur_exp_async_usm_alloc_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM pool buffer descriptor type
+///
+/// @details
+///     - Used for pool creation from USM memory object. Specify these
+///       properties in ::urUSMPoolCreate or ::urUSMPoolCreateExp via
+///       ::ur_usm_pool_desc_t as part of a `pNext` chain.
+typedef struct ur_usm_pool_buffer_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] USM memory object
+  void *pMem;
+  /// [in] size of USM memory object
+  size_t size;
+  /// [in] type of USM memory object
+  ur_usm_type_t memType;
+  /// [in][optional] device associated with the USM memory object
+  ur_device_handle_t device;
+
+} ur_usm_pool_buffer_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue an async device allocation

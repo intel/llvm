@@ -6,6 +6,9 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17760
+
 // This test checks the profiling of an event returned
 // from graph submission with event::get_profiling_info().
 // It first tests a graph made exclusively of memory operations,
