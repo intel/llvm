@@ -20,7 +20,7 @@
 #include <memory>
 
 struct ur_adapter_handle_t_ {
-  std::atomic<uint32_t> RefCount = 1;
+  std::atomic<uint32_t> RefCount = 0;
   struct cuda_tracing_context_t_ *TracingCtx = nullptr;
   logger::Logger &logger;
   std::unique_ptr<ur_platform_handle_t_> Platform;

@@ -65,6 +65,7 @@ urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
     std::call_once(InitFlag,
                    [=]() { ur::cuda::adapter = new ur_adapter_handle_t_; });
 
+    ur::cuda::adapter->RefCount++;
     *phAdapters = ur::cuda::adapter;
   }
 

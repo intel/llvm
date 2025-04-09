@@ -57,6 +57,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
     std::call_once(InitFlag,
                    [=]() { ur::hip::adapter = new ur_adapter_handle_t_; });
 
+    ur::hip::adapter->RefCount++;
     *phAdapters = ur::hip::adapter;
   }
   if (pNumAdapters) {
