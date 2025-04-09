@@ -5485,8 +5485,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                          const ArgList &Args, const char *LinkingOutput) const {
   const auto &TC = getToolChain();
   const llvm::Triple &RawTriple = TC.getTriple();
-  const llvm::Triple &Triple = TC.getEffectiveTriple();
-  const std::string &TripleStr = Triple.getTriple();
+  llvm::Triple Triple = TC.getEffectiveTriple();
+  std::string TripleStr = Triple.getTriple();
 
   bool KernelOrKext =
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
@@ -5528,7 +5528,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsUsingLTO = LTOMode != LTOK_None;
   bool IsFPGASYCLOffloadDevice =
       IsSYCLDevice && Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
-  const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
   const bool IsSYCLCUDACompat = isSYCLCudaCompatEnabled(Args);
 
   // Perform the SYCL host compilation using an external compiler if the user
@@ -5587,6 +5586,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Windows), we need to pass Windows-specific flags to cc1.
   if (IsCuda || IsHIP || IsSYCL)
     IsWindowsMSVC |= AuxTriple && AuxTriple->isWindowsMSVCEnvironment();
+
+  // Adjust for SYCL NativeCPU compilations.  When compiling in device mode, the
+  // first compilation uses the NativeCPU target for LLVM IR generation, the
+  // second compilation uses the host target for machine code generation.
+  const bool IsSYCLNativeCPU = isSYCLNativeCPU(Triple);
+  if (IsSYCL && IsSYCLDevice && IsSYCLNativeCPU && AuxTriple &&
+      isa<AssembleJobAction>(JA)) {
+    Triple = *AuxTriple;
+    TripleStr = Triple.getTriple();
+  }
 
   // C++ is not supported for IAMCU.
   if (IsIAMCU && types::isCXX(Input.getType()))
@@ -6127,6 +6136,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CollectArgsForIntegratedAssembler(C, Args, CmdArgs, D);
     }
     if (IsSYCLDevice && IsSYCLNativeCPU) {
+      // NativeCPU generates an initial LLVM module for an unknown target, then
+      // compiles that for host. Avoid generating a warning for that.
+      CmdArgs.push_back("-Wno-override-module");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-native-cpu-backend");
     }
@@ -10449,10 +10461,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TargetTripleOpt = ("llvm_" + TargetTripleOpt).str();
     }
 
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
-    if (IsSYCLNativeCPU) {
-      TargetTripleOpt = "native_cpu";
-    }
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
 
@@ -11190,7 +11198,7 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                      options::OPT_fsycl_remove_unused_external_funcs, false))
     return false;
-  if (isSYCLNativeCPU(TC))
+  if (isSYCLNativeCPU(Triple))
     return true;
   // When supporting dynamic linking, non-kernels in a device image can be
   // called.
@@ -11249,7 +11257,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (!Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable program metadata
-  if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(TC))
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(Triple))
     addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
   if (OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);
