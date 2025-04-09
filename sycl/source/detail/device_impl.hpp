@@ -290,7 +290,7 @@ public:
 
   /// @brief  Get the platform impl serving this device
   /// @return PlatformImplPtr
-  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+  const PlatformImplPtr &getPlatformImpl() const { return MPlatform; }
 
   /// Get device info string
   std::string get_device_info_string(ur_device_info_t InfoCode) const;
