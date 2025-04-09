@@ -97,7 +97,6 @@
 // CHECK-NEXT: Basic/kernel_info_attr.cpp
 // CHECK-NEXT: Basic/submit_time.cpp
 // CHECK-NEXT: DeviceImageDependencies/dynamic.cpp
-// CHECK-NEXT: DeviceImageDependencies/free_function_kernels.cpp
 // CHECK-NEXT: DeviceImageDependencies/math_device_lib.cpp
 // CHECK-NEXT: DeviceImageDependencies/objects.cpp
 // CHECK-NEXT: DeviceImageDependencies/singleDynamicLibrary.cpp
@@ -209,8 +208,6 @@
 // CHECK-NEXT: InvokeSimd/Regression/ImplicitSubgroup/call_vadd_1d_spill.cpp
 // CHECK-NEXT: InvokeSimd/Regression/call_vadd_1d_spill.cpp
 // CHECK-NEXT: KernelAndProgram/cache-build-result.cpp
-// CHECK-NEXT: KernelAndProgram/free_function_apis.cpp
-// CHECK-NEXT: KernelAndProgram/free_function_kernels.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options-env.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options.cpp
 // CHECK-NEXT: KernelAndProgram/level-zero-static-link-flow.cpp
