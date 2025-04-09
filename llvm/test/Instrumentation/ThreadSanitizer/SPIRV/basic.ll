@@ -54,7 +54,7 @@ entry:
 define linkonce_odr dso_local spir_func void @write_16_bytes(ptr addrspace(4) %a) #0 {
 ; CHECK-LABEL: void @write_16_bytes
 entry:
-  store <4 x i32> <i32 0, i32 0, i32 0, i32 undef>, ptr addrspace(4) %a, align 16
+  store <4 x i32> <i32 0, i32 0, i32 0, i32 0>, ptr addrspace(4) %a, align 16
   ; CHECK: ptrtoint ptr addrspace(4) %a to i64
   ; CHECK: call void @__tsan_write16
   ret void
