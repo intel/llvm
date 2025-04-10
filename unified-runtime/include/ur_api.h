@@ -5438,7 +5438,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
     /// [in] Handle of the program to build.
     ur_program_handle_t hProgram,
-    /// [in] number of devices
+    /// [in] number of devices to build for
     uint32_t numDevices,
     /// [in][range(0, numDevices)] pointer to array of device handles
     ur_device_handle_t *phDevices,
