@@ -102,6 +102,7 @@ jobs:
         . .venv/bin/activate
         echo "$PATH" >> $GITHUB_PATH
         pip install -r third_party/requirements.txt
+        pip install -r third_party/requirements_testing.txt
 
     - name: Download DPC++
       run: |
