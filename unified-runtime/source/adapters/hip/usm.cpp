@@ -200,7 +200,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       // hip backend has only one platform containing all devices
       ur_platform_handle_t platform;
       ur_adapter_handle_t AdapterHandle = &adapter;
-      UR_CHECK_ERROR(urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr));
+      UR_CHECK_ERROR(urPlatformGet(AdapterHandle, 1, &platform, nullptr));
 
       // get the device from the platform
       ur_device_handle_t Device = platform->Devices[DeviceIdx].get();
