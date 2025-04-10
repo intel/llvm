@@ -301,7 +301,9 @@ sycl::detail::optional<event> queue_impl::getLastEvent() {
 void queue_impl::addEvent(const event &Event) {
   const EventImplPtr &EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
-  if (EImpl->getHandle() == nullptr && !EImpl->isDiscarded()) {
+  auto *Cmd = static_cast<Command *>(EImpl->getCommand());
+  if (Cmd != nullptr && EImpl->getHandle() == nullptr &&
+      !EImpl->isDiscarded()) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
