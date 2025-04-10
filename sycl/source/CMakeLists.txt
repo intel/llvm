@@ -146,13 +146,8 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # ur_win_proxy_loader
   if (WIN32)
     include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/ur_win_proxy_loader)
-    if(WIN_DUPE)
-      target_link_libraries(${LIB_NAME} PUBLIC ur_win_proxy_loaderd)
-      set(MANIFEST_FILE_NAME "sycld.manifest")
-    else()
-      target_link_libraries(${LIB_NAME} PUBLIC ur_win_proxy_loader)
-      set(MANIFEST_FILE_NAME "sycl.manifest")
-    endif()
+    target_link_libraries(${LIB_NAME} PUBLIC ur_win_proxy_loader)
+    set(MANIFEST_FILE_NAME "sycl$<$<CONFIG:Debug>:d>.manifest")
     # Embed manifest into the sycl.dll where ur_win_proxy_loader.dll is described as sycl.dll's private dll and will always be loaded from the same directory.
     # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs (of sycl.dll)
     # from the current directory is only allowed if it is under a directory in the Safe load list.
@@ -164,10 +159,11 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       add_custom_command(
         TARGET ${LIB_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${LIB_NAME}.lib ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
+                ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${LIB_NAME}$<$<CONFIG:Debug>:d>.lib
+                ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}$<$<CONFIG:Debug>:d>.lib
         COMMENT "Creating version-agnostic copy of the import library.")
       install(
-        FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
+        FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}$<$<CONFIG:Debug>:d>.lib
         DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl)
     endif()
   endif()
@@ -220,6 +216,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       file(REMOVE ${VERSION_FILE})
     endif()
   endif()
+
+  # Ensure that we use the dynamic CRT on Windows, i.e. /MD or /MDd.
+  set_target_properties(${LIB_NAME} PROPERTIES
+                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  set_target_properties(${LIB_OBJ_NAME} PROPERTIES
+                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endfunction(add_sycl_rt_library)
 
 set(SYCL_COMMON_SOURCES
@@ -322,37 +324,8 @@ set(SYCL_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
 )
 
 if (MSVC)
-  # MSVC provides two incompatible build variants for its CRT: release and debug
-  # To avoid potential issues in user code we also need to provide two kinds
-  # of SYCL Runtime Library for release and debug configurations.
-  foreach(flag_var
-      CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-      CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-    string(REGEX REPLACE "/MDd" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MTd" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MD" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
-  endforeach()
-
-  set(WIN_DUPE "1")
-  if (SYCL_ENABLE_XPTI_TRACING)
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME sycld)
-    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME sycl-previewd)
-    endif()
-  else()
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME sycld)
-    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME sycl-previewd)
-    endif()
-  endif()
-  unset(WIN_DUPE)
-  add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
-  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_library(sycl-previewd ALIAS sycl${SYCL_MAJOR_VERSION}-previewd)
-  endif()
-
-  set(SYCL_EXTRA_OPTS "/MD")
+  # Append d to the debug libraries on Windows.
+  set(CMAKE_DEBUG_POSTFIX d)
 endif()
 
 check_cxx_compiler_flag(-fsemantic-interposition HAS_SEMANTIC_INTERPOSITION_FLAG)
@@ -369,16 +342,9 @@ endif()
 # Version-agnostic name of the import library, has effect on Windows only.
 set(IMPLIB_NAME "sycl")
 
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
-  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
-  endif()
-else()
-  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
-  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
-  endif()
+add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
+if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+  add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
 endif()
 
 if (WIN32)

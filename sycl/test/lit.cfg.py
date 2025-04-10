@@ -69,6 +69,10 @@ if config.extra_environment:
 if config.sycl_preview_lib_enabled == "ON":
     config.available_features.add("preview-breaking-changes-supported")
 
+# Check if the current build mode is debug.
+if config.build_mode == "Debug":
+    config.available_features.add("debug_sycl_library")
+
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 # Add 'libcxx' feature to filter out all SYCL abi tests when SYCL runtime
 # is built with llvm libcxx. This feature is added for Linux only since MSVC
@@ -132,9 +136,12 @@ for include_dir in [
         sycl_host_only_options += " -isystem %s" % include_dir
 config.substitutions.append(("%fsycl-host-only", sycl_host_only_options))
 
-config.substitutions.append(
-    ("%sycl_lib", " -lsycl8" if platform.system() == "Windows" else "-lsycl")
-)
+if platform.system() == "Windows":
+    config.substitutions.append(
+        ("%sycl_lib", " -lsycl8d" if config.build_mode == "Debug" else " -lsycl8")
+    )
+else:
+    config.substitutions.append(("%sycl_lib", "-lsycl"))
 
 llvm_config.add_tool_substitutions(["llvm-spirv"], [config.sycl_tools_dir])
 
@@ -177,6 +184,9 @@ if "amdgcn-amd-amdhsa" in triple:
             "-Xsycl-target-backend=amdgcn-amd-amdhsa",
             "--offload-arch=gfx906",
         ]
+
+if platform.system() == "Windows" and config.build_mode == "Debug":
+    additional_flags += ["-fms-runtime-lib=dll_dbg"]
 
 config.sycl_headers_filter = lit_config.params.get("SYCL_HEADERS_FILTER", None)
 if config.sycl_headers_filter is not None:

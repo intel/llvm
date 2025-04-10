@@ -201,11 +201,7 @@ if(UR_ENABLE_TRACING)
         endif()
     endif()
 
-    if (MSVC)
-        set(TARGET_XPTI $<IF:$<CONFIG:Release>,xpti,xptid>)
-    else()
-        set(TARGET_XPTI xpti)
-    endif()
+    set(TARGET_XPTI xpti)
 endif()
 
 if(UR_ENABLE_SANITIZER)

@@ -150,9 +150,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // equivalent.  Do not add the -defaultlib as it conflicts.
     if (!isDependentLibAdded(Args, "msvcrtd")) {
       if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "-preview.lib");
+        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION
+                          "d-preview.lib");
       else
-        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
+        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "d.lib");
     }
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }

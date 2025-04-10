@@ -31,13 +31,8 @@ function(add_xpti_library LIB_NAME)
   remove_definitions(-DXPTI_STATIC_LIBRARY)
   add_library(${LIB_NAME} SHARED ${SOURCES})
 
-  if (${LIB_NAME} MATCHES "xptifwd")
-    set_property(TARGET ${LIB_NAME} PROPERTY
-      MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
-  else()
-    set_property(TARGET ${LIB_NAME} PROPERTY
-      MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-  endif()
+  set_target_properties(${LIB_NAME} PROPERTIES
+                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
   target_include_directories(${LIB_NAME} PUBLIC

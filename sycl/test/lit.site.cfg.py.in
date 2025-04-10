@@ -36,6 +36,8 @@ config.native_cpu = '@SYCL_BUILD_BACKEND_NATIVE_CPU@'
 config.native_cpu_ock = '@NATIVECPU_USE_OCK@'
 config.sycl_preview_lib_enabled = '@SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB@'
 
+config.build_mode = "@CMAKE_BUILD_TYPE@"
+
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
 

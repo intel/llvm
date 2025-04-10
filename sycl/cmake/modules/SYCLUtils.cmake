@@ -4,17 +4,18 @@ include(CheckLinkerFlag)
 # add_stripped_pdb(TARGET_NAME)
 #
 # Will add option for generating stripped PDB file and install the generated
-# file as ${ARG_TARGET_NAME}.pdb in bin folder.
+# file as ${ARG_TARGET_NAME}{d}.pdb in bin folder.
 # NOTE: LLD does not currently support /PDBSTRIPPED so the PDB file is optional.
 macro(add_stripped_pdb ARG_TARGET_NAME)
-  check_linker_flag(CXX "LINKER:/PDBSTRIPPED:${ARG_TARGET_NAME}.stripped.pdb"
+  set(PDB_FILENAME "${ARG_TARGET_NAME}$<$<CONFIG:Debug>:d>")
+  check_linker_flag(CXX "LINKER:/PDBSTRIPPED:${PDB_FILENAME}.stripped.pdb"
                          LINKER_SUPPORTS_PDBSTRIPPED)
   if(LINKER_SUPPORTS_PDBSTRIPPED)
     target_link_options(${ARG_TARGET_NAME}
-                        PRIVATE "LINKER:/PDBSTRIPPED:${ARG_TARGET_NAME}.stripped.pdb")
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${ARG_TARGET_NAME}.stripped.pdb"
+                        PRIVATE "LINKER:/PDBSTRIPPED:${PDB_FILENAME}.stripped.pdb")
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PDB_FILENAME}.stripped.pdb"
             DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
-            RENAME "${ARG_TARGET_NAME}.pdb"
+            RENAME "${PDB_FILENAME}.pdb"
             COMPONENT ${ARG_TARGET_NAME}
             OPTIONAL)
   endif()

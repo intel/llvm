@@ -1,4 +1,4 @@
-// REQUIRES: windows
+// REQUIRES: windows, debug_sycl_library
 
 // RUN: %clangxx --driver-mode=cl -fsycl /MDd -c %s -o %t.obj
 // RUN: %clangxx --driver-mode=cl -fsycl %t.obj -Wno-unused-command-line-argument -o %t.out

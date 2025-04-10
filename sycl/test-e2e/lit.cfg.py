@@ -298,6 +298,12 @@ _ = ps.communicate(input=b"int main(){}\n")
 if ps.wait() == 0:
     config.available_features.add("has_ndebug")
 
+# Check if the current build mode is debug.
+if config.build_mode == "Debug":
+    config.available_features.add("debug_sycl_library")
+    # Add /MDd to the build command to make it use the debug library.
+    config.cxx_flags += (" /MDd" if cl_options else " -fms-runtime-lib=dll_dbg")
+
 # Check for Level Zero SDK
 check_l0_file = "l0_include.cpp"
 with open_check_file(check_l0_file) as fp:
