@@ -1349,9 +1349,13 @@ bool ItaniumCXXABI::classifyReturnType(CGFunctionInfo &FI) const {
 
   // If C++ prohibits us from making a copy, return by address.
   if (!RD->canPassInRegisters()) {
-    auto Align = CGM.getContext().getTypeAlignInChars(FI.getReturnType());
+    QualType Ret = FI.getReturnType();
+    auto Align = CGM.getContext().getTypeAlignInChars(Ret);
+    unsigned AddressSpace = CGM.getCodeGenOpts().UseAllocaASForSrets
+                                ? FI.getReturnInfo().getIndirectAddrSpace()
+                                : CGM.getTypes().getTargetAddressSpace(Ret);
     FI.getReturnInfo() = ABIArgInfo::getIndirect(
-        Align, /*AddrSpace=*/CGM.getDataLayout().getAllocaAddrSpace(),
+        Align, /*AddrSpace=*/AddressSpace,
         /*ByVal=*/false);
     return true;
   }

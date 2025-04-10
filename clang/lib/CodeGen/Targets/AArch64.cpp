@@ -60,7 +60,7 @@ private:
                    SmallVectorImpl<llvm::Type *> &Flattened) const;
 
   void computeInfo(CGFunctionInfo &FI) const override {
-    if (!::classifyReturnType(getCXXABI(), FI, *this))
+    if (!::classifyReturnType(getCXXABI(), FI, *this, CGT))
       FI.getReturnInfo() =
           classifyReturnType(FI.getReturnType(), FI.isVariadic());
 
