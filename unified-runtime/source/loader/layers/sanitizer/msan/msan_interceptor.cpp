@@ -138,15 +138,16 @@ ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
   // FIXME: We must use block operation here, until we support
   // urEventSetCallback
   auto Result = getContext()->urDdiTable.Queue.pfnFinish(Queue);
+  UR_CALL(LaunchInfo.Data.syncFromDevice(Queue));
 
   if (Result == UR_RESULT_SUCCESS) {
-    const auto &Report = LaunchInfo.Data->Report;
+    const auto &Report = LaunchInfo.Data.Host.Report;
 
     if (!Report.Flag) {
       return Result;
     }
 
-    ReportUsesUninitializedValue(LaunchInfo.Data->Report, Kernel);
+    ReportUsesUninitializedValue(LaunchInfo.Data.Host.Report, Kernel);
 
     exitWithErrors();
   }
@@ -471,14 +472,15 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   // Set LaunchInfo
   auto ContextInfo = getContextInfo(LaunchInfo.Context);
-  LaunchInfo.Data->GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
-  LaunchInfo.Data->GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+  LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
+  LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
 
-  LaunchInfo.Data->DeviceTy = DeviceInfo->Type;
-  LaunchInfo.Data->Debug = getContext()->Options.Debug ? 1 : 0;
+  LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
+  LaunchInfo.Data.Host.Debug = getContext()->Options.Debug ? 1 : 0;
   UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-      ContextInfo->MaxAllocatedSize, (void **)&LaunchInfo.Data->CleanShadow));
+      ContextInfo->MaxAllocatedSize,
+      (void **)&LaunchInfo.Data.Host.CleanShadow));
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
@@ -507,8 +509,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
   // Write shadow memory offset for local memory
   if (KernelInfo.IsCheckLocals) {
     if (DeviceInfo->Shadow->AllocLocalShadow(
-            Queue, NumWG, LaunchInfo.Data->LocalShadowOffset,
-            LaunchInfo.Data->LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+            Queue, NumWG, LaunchInfo.Data.Host.LocalShadowOffset,
+            LaunchInfo.Data.Host.LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
       getContext()->logger.warning(
           "Failed to allocate shadow memory for local "
           "memory, maybe the number of workgroup ({}) is too "
@@ -517,18 +519,18 @@ ur_result_t MsanInterceptor::prepareLaunch(
       getContext()->logger.warning("Skip checking local memory of kernel <{}> ",
                                    GetKernelName(Kernel));
     } else {
-      getContext()->logger.debug("ShadowMemory(Local, WorkGroup={}, {} - {})",
-                                 NumWG,
-                                 (void *)LaunchInfo.Data->LocalShadowOffset,
-                                 (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+      getContext()->logger.debug(
+          "ShadowMemory(Local, WorkGroup={}, {} - {})", NumWG,
+          (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+          (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
     }
   }
 
   // Write shadow memory offset for private memory
   if (KernelInfo.IsCheckPrivates) {
     if (DeviceInfo->Shadow->AllocPrivateShadow(
-            Queue, NumWG, LaunchInfo.Data->PrivateShadowOffset,
-            LaunchInfo.Data->PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
+            Queue, NumWG, LaunchInfo.Data.Host.PrivateShadowOffset,
+            LaunchInfo.Data.Host.PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
       getContext()->logger.warning(
           "Failed to allocate shadow memory for private "
           "memory, maybe the number of workgroup ({}) is too "
@@ -539,8 +541,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
     } else {
       getContext()->logger.debug(
           "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,
-          (void *)LaunchInfo.Data->PrivateShadowOffset,
-          (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
+          (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+          (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
     }
     // Write local arguments info
     if (!KernelInfo.LocalArgs.empty()) {
@@ -550,19 +552,23 @@ ur_result_t MsanInterceptor::prepareLaunch(
         getContext()->logger.debug("LocalArgs (argIndex={}, size={})", ArgIndex,
                                    ArgInfo.Size);
       }
-      UR_CALL(LaunchInfo.importLocalArgsInfo(Queue, LocalArgsInfo));
+      UR_CALL(LaunchInfo.Data.importLocalArgsInfo(Queue, LocalArgsInfo));
     }
   }
+
+  // sync msan runtime data to device side
+  UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
 
   getContext()->logger.info(
       "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateShadow={}, "
       "CleanShadow={}, LocalArgs={}, NumLocalArgs={}, Device={}, Debug={})",
-      (void *)LaunchInfo.Data, (void *)LaunchInfo.Data->GlobalShadowOffset,
-      (void *)LaunchInfo.Data->LocalShadowOffset,
-      (void *)LaunchInfo.Data->PrivateShadowOffset,
-      (void *)LaunchInfo.Data->CleanShadow, (void *)LaunchInfo.Data->LocalArgs,
-      LaunchInfo.Data->NumLocalArgs, ToString(LaunchInfo.Data->DeviceTy),
-      LaunchInfo.Data->Debug);
+      (void *)LaunchInfo.Data.getDevicePtr(),
+      (void *)LaunchInfo.Data.Host.GlobalShadowOffset,
+      (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+      (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+      (void *)LaunchInfo.Data.Host.CleanShadow,
+      (void *)LaunchInfo.Data.Host.LocalArgs, LaunchInfo.Data.Host.NumLocalArgs,
+      ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
   ur_result_t URes =
       EnqueueWriteGlobal("__MsanLaunchInfo", &LaunchInfo.Data, sizeof(uptr));
@@ -638,45 +644,28 @@ ContextInfo::~ContextInfo() {
 ur_result_t USMLaunchInfo::initialize() {
   UR_CALL(getContext()->urDdiTable.Context.pfnRetain(Context));
   UR_CALL(getContext()->urDdiTable.Device.pfnRetain(Device));
-  UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-      Context, Device, nullptr, nullptr, sizeof(MsanLaunchInfo),
-      (void **)&Data));
-  *Data = MsanLaunchInfo{};
   return UR_RESULT_SUCCESS;
+}
+
+MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
+  if (Host.CleanShadow) {
+    auto Result =
+        getContext()->urDdiTable.USM.pfnFree(Context, (void *)Host.CleanShadow);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
+  if (DevicePtr) {
+    auto Result =
+        getContext()->urDdiTable.USM.pfnFree(Context, (void *)DevicePtr);
+    assert(Result == UR_RESULT_SUCCESS);
+  }
 }
 
 USMLaunchInfo::~USMLaunchInfo() {
   [[maybe_unused]] ur_result_t Result;
-  if (Data) {
-    if (Data->CleanShadow) {
-      Result = getContext()->urDdiTable.USM.pfnFree(Context,
-                                                    (void *)Data->CleanShadow);
-      assert(Result == UR_RESULT_SUCCESS);
-    }
-    Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Data);
-    assert(Result == UR_RESULT_SUCCESS);
-  }
   Result = getContext()->urDdiTable.Context.pfnRelease(Context);
   assert(Result == UR_RESULT_SUCCESS);
   Result = getContext()->urDdiTable.Device.pfnRelease(Device);
   assert(Result == UR_RESULT_SUCCESS);
-}
-
-ur_result_t USMLaunchInfo::importLocalArgsInfo(
-    ur_queue_handle_t Queue, const std::vector<MsanLocalArgsInfo> &LocalArgs) {
-  assert(!LocalArgs.empty());
-
-  Data->NumLocalArgs = LocalArgs.size();
-  const size_t LocalArgsInfoSize = sizeof(MsanLocalArgsInfo) * LocalArgs.size();
-  UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-      Context, Device, nullptr, nullptr, LocalArgsInfoSize,
-      ur_cast<void **>(&Data->LocalArgs)));
-
-  UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-      Queue, true, Data->LocalArgs, LocalArgs.data(), LocalArgsInfoSize, 0,
-      nullptr, nullptr));
-
-  return UR_RESULT_SUCCESS;
 }
 
 } // namespace msan
