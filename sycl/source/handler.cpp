@@ -2219,16 +2219,16 @@ sycl::detail::CGType handler::getType() const { return impl->MCGType; }
 
 void handler::setNDRangeDescriptorPadded(sycl::range<3> N,
                                          bool SetNumWorkGroups, int Dims) {
-  impl->MNDRDesc = NDRDescT{N, SetNumWorkGroups, Dims};
+  impl->MNDRDesc.reset(N, SetNumWorkGroups, Dims);
 }
 void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, Offset, Dims};
+  impl->MNDRDesc.reset(NumWorkItems, Offset, Dims);
 }
 void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::range<3> LocalSize,
                                          sycl::id<3> Offset, int Dims) {
-  impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
+  impl->MNDRDesc.reset(NumWorkItems, LocalSize, Offset, Dims);
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {

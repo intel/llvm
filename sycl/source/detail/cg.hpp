@@ -108,9 +108,6 @@ public:
     setNDRangeLeftover();
   }
 
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
-
   NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
            sycl::id<3> Offset, int DimsArg)
       : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
@@ -142,6 +139,28 @@ public:
 
     for (int I = 0; I < 3; ++I)
       ClusterDimensions[I] = (I < Dims) ? N[I] : 1;
+  }
+
+  void reset(sycl::range<3> &N, bool SetNumWorkGroups, int DimsArg) {
+    GlobalSize = SetNumWorkGroups ? sycl::range<3>{0, 0, 0} : N;
+    NumWorkGroups = SetNumWorkGroups ? N : sycl::range<3>{0, 0, 0};
+    Dims = size_t(DimsArg);
+    setNDRangeLeftover();
+  }
+
+  void reset(sycl::range<3> &NumWorkItems, sycl::id<3> &Offset, int DimsArg) {
+    GlobalSize = NumWorkItems;
+    GlobalOffset = Offset;
+    Dims = size_t(DimsArg);
+  }
+
+  void reset(sycl::range<3> &NumWorkItems, sycl::range<3> &LocalSize,
+             sycl::id<3> &Offset, int DimsArg) {
+    GlobalSize = NumWorkItems;
+    LocalSize = LocalSize;
+    GlobalOffset = Offset;
+    Dims = size_t(DimsArg);
+    setNDRangeLeftover();
   }
 
   NDRDescT &operator=(const NDRDescT &Desc) = default;
