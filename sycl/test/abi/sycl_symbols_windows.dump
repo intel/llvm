@@ -505,10 +505,14 @@
 ??1exception@_V1@sycl@@UEAA@XZ
 ??1exception_list@_V1@sycl@@QEAA@XZ
 ??1executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@@Z
+?updateWorkGroupMem@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAX_K@Z
 ??1filter_selector@ONEAPI@_V1@sycl@@UEAA@XZ
 ??1filter_selector@oneapi@ext@_V1@sycl@@UEAA@XZ
 ??1fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAA@XZ
 ??1gpu_selector@_V1@sycl@@UEAA@XZ
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
+?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVdynamic_work_group_memory_base@detail@experimental@oneapi@ext@23@@Z
 ??1handler@_V1@sycl@@AEAA@XZ
 ??1image_mem@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
 ??1image_mem_impl@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
@@ -3983,6 +3987,7 @@
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@_KV423@AEBUcode_location@detail@23@@Z
 ?extractArgsAndReqs@handler@_V1@sycl@@AEAAXXZ
 ?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEADAEBV?$vector@Ukernel_param_desc_t@detail@_V1@sycl@@V?$allocator@Ukernel_param_desc_t@detail@_V1@sycl@@@std@@@std@@_N@Z
+?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEADP6A?AUkernel_param_desc_t@detail@23@H@Z_K_N@Z
 ?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z
 ?fill_impl@handler@_V1@sycl@@AEAAXPEAXPEBX_K2@Z
 ?finalize@handler@_V1@sycl@@AEAA?AVevent@23@XZ
@@ -4404,6 +4409,7 @@
 ?supportsUSMMemset2D@handler@_V1@sycl@@AEAA_NXZ
 ?sycl_category@_V1@sycl@@YAAEBVerror_category@std@@XZ
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
+?throwOnKernelParameterMisuseHelper@handler@_V1@sycl@@AEBAXHP6A?AUkernel_param_desc_t@detail@23@H@Z@Z
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
 ?unmap@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVcontext@45@@Z
 ?unsampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0AEBV?$optional@W4image_target@_V1@sycl@@@std@@W4mode@access@23@PEBXIAEBUcode_location@123@@Z

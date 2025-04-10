@@ -536,6 +536,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,
   /// ::ur_usm_alloc_location_desc_t
   UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,
+  /// ::ur_usm_pool_buffer_desc_t
+  UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC = 36,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -1446,17 +1448,15 @@ typedef enum ur_adapter_backend_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phAdapters`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phPlatforms != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `pNumPlatforms == NULL && phPlatforms == NULL`
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -2241,6 +2241,8 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MIN_POWER_LIMIT = 125,
   /// [int32_t][optional-query] return max power limit in milliwatts.
   UR_DEVICE_INFO_MAX_POWER_LIMIT = 126,
+  /// [::ur_bool_t] support for native bfloat16 conversions
+  UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -9107,6 +9109,30 @@ typedef struct ur_exp_async_usm_alloc_properties_t {
 } ur_exp_async_usm_alloc_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief USM pool buffer descriptor type
+///
+/// @details
+///     - Used for pool creation from USM memory object. Specify these
+///       properties in ::urUSMPoolCreate or ::urUSMPoolCreateExp via
+///       ::ur_usm_pool_desc_t as part of a `pNext` chain.
+typedef struct ur_usm_pool_buffer_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] USM memory object
+  void *pMem;
+  /// [in] size of USM memory object
+  size_t size;
+  /// [in] type of USM memory object
+  ur_usm_type_t memType;
+  /// [in][optional] device associated with the USM memory object
+  ur_device_handle_t device;
+
+} ur_usm_pool_buffer_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue an async device allocation
 ///
 /// @returns
@@ -9392,7 +9418,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(
 ///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pPropValue`
-///         + `pPropValue == NULL`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -12745,8 +12770,7 @@ typedef struct ur_loader_config_set_mocking_enabled_params_t {
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_platform_get_params_t {
-  ur_adapter_handle_t **pphAdapters;
-  uint32_t *pNumAdapters;
+  ur_adapter_handle_t *phAdapter;
   uint32_t *pNumEntries;
   ur_platform_handle_t **pphPlatforms;
   uint32_t **ppNumPlatforms;

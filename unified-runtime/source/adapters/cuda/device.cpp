@@ -254,6 +254,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
     return ReturnValue(Capabilities);
   }
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
     int WarpSize = 0;
@@ -1089,8 +1091,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     unsigned long long ClocksEventReasons;
+#if (CUDA_VERSION >= 12060)
     UR_CHECK_ERROR(nvmlDeviceGetCurrentClocksEventReasons(hDevice->getNVML(),
                                                           &ClocksEventReasons));
+#else
+    UR_CHECK_ERROR(nvmlDeviceGetCurrentClocksThrottleReasons(
+        hDevice->getNVML(), &ClocksEventReasons));
+#endif
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
     constexpr unsigned long long NVMLThrottleFlags[] = {
         nvmlClocksThrottleReasonSwPowerCap,
@@ -1278,15 +1285,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   // Get list of platforms
   uint32_t NumPlatforms = 0;
   ur_adapter_handle_t AdapterHandle = &adapter;
-  ur_result_t Result =
-      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
+  ur_result_t Result = urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
   std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
 
   Result =
-      urPlatformGet(&AdapterHandle, 1, NumPlatforms, Platforms.data(), nullptr);
+      urPlatformGet(AdapterHandle, NumPlatforms, Platforms.data(), nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 

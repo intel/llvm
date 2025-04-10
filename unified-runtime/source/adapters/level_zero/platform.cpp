@@ -15,7 +15,7 @@
 namespace ur::level_zero {
 
 ur_result_t urPlatformGet(
-    ur_adapter_handle_t *, uint32_t,
+    ur_adapter_handle_t,
     /// [in] the number of platforms to be added to phPlatforms. If phPlatforms
     /// is not NULL, then NumEntries should be greater than zero, otherwise
     /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
@@ -141,12 +141,12 @@ ur_result_t urPlatformCreateWithNativeHandle(
 
   uint32_t NumPlatforms = 0;
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, 0, nullptr,
-                                        &NumPlatforms));
+  UR_CALL(
+      ur::level_zero::urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms));
 
   if (NumPlatforms) {
     std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
-    UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, NumPlatforms,
+    UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumPlatforms,
                                           Platforms.data(), nullptr));
 
     // The SYCL spec requires that the set of platforms must remain fixed for
@@ -227,6 +227,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
 
   bool MutableCommandListSpecExtensionSupported = false;
   bool ZeIntelExternalSemaphoreExtensionSupported = false;
+  bool ZeExternalSemaphoreExtensionSupported = false;
   bool ZeImmediateCommandListAppendExtensionFound = false;
   for (auto &extension : ZeExtensions) {
     // Check if global offset extension is available
@@ -267,11 +268,18 @@ ur_result_t ur_platform_handle_t_::initialize() {
         MutableCommandListSpecExtensionSupported = true;
       }
     }
-    // Check if extension is available for External Sempahores
+    // Check if extension is available for Exp External Sempahores
     if (strncmp(extension.name, ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME,
                 strlen(ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME) + 1) == 0) {
       if (extension.version == ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_1_0) {
         ZeIntelExternalSemaphoreExtensionSupported = true;
+      }
+    }
+    // Check if extension is available for Spec External Sempahores
+    if (strncmp(extension.name, ZE_EXTERNAL_SEMAPHORES_EXTENSION_NAME,
+                strlen(ZE_EXTERNAL_SEMAPHORES_EXTENSION_NAME) + 1) == 0) {
+      if (extension.version == ZE_EXTERNAL_SEMAPHORE_EXT_VERSION_1_0) {
+        ZeExternalSemaphoreExtensionSupported = true;
       }
     }
     if (strncmp(extension.name, ZE_EU_COUNT_EXT_NAME,
@@ -323,13 +331,59 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
 
-  if (ZeIntelExternalSemaphoreExtensionSupported) {
+  if (ZeExternalSemaphoreExtensionSupported) {
+#ifdef UR_STATIC_LEVEL_ZERO
+    ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp =
+        zeDeviceImportExternalSemaphoreExt;
+    ZeExternalSemaphoreExt.zexCommandListAppendWaitExternalSemaphoresExp =
+        zeCommandListAppendWaitExternalSemaphoreExt;
+    ZeExternalSemaphoreExt.zexCommandListAppendSignalExternalSemaphoresExp =
+        zeCommandListAppendSignalExternalSemaphoreExt;
+    ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp =
+        zeDeviceReleaseExternalSemaphoreExt;
+#else
+    ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp =
+        (ze_pfnDeviceImportExternalSemaphoreExt_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeDeviceImportExternalSemaphoreExt");
+
+    ZeExternalSemaphoreExt.zexCommandListAppendWaitExternalSemaphoresExp =
+        (ze_pfnCommandListAppendWaitExternalSemaphoreExt_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListAppendWaitExternalSemaphoreExt");
+
+    ZeExternalSemaphoreExt.zexCommandListAppendSignalExternalSemaphoresExp =
+        (ze_pfnCommandListAppendSignalExternalSemaphoreExt_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListAppendSignalExternalSemaphoreExt");
+
+    ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp =
+        (ze_pfnDeviceReleaseExternalSemaphoreExt_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeDeviceReleaseExternalSemaphoreExt");
+#endif
+    ZeExternalSemaphoreExt.Supported |=
+        ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp != nullptr;
+    ZeExternalSemaphoreExt.Supported |=
+        ZeExternalSemaphoreExt.zexCommandListAppendWaitExternalSemaphoresExp !=
+        nullptr;
+    ZeExternalSemaphoreExt.Supported |=
+        ZeExternalSemaphoreExt
+            .zexCommandListAppendSignalExternalSemaphoresExp != nullptr;
+    ZeExternalSemaphoreExt.Supported |=
+        ZeExternalSemaphoreExt.zexDeviceReleaseExternalSemaphoreExp != nullptr;
+    ZeExternalSemaphoreExt.LoaderExtension = true;
+  } else if (ZeIntelExternalSemaphoreExtensionSupported) {
     ZeExternalSemaphoreExt.Supported |=
         (ZE_CALL_NOCHECK(
              zeDriverGetExtensionFunctionAddress,
              (ZeDriver, "zeIntelDeviceImportExternalSemaphoreExp",
               reinterpret_cast<void **>(
-                  &ZeExternalSemaphoreExt.zexImportExternalSemaphoreExp))) ==
+                  &ZeExternalSemaphoreExt.zexExpImportExternalSemaphoreExp))) ==
          0);
     ZeExternalSemaphoreExt.Supported |=
         (ZE_CALL_NOCHECK(
@@ -337,22 +391,23 @@ ur_result_t ur_platform_handle_t_::initialize() {
              (ZeDriver, "zeIntelCommandListAppendWaitExternalSemaphoresExp",
               reinterpret_cast<void **>(
                   &ZeExternalSemaphoreExt
-                       .zexCommandListAppendWaitExternalSemaphoresExp))) == 0);
+                       .zexExpCommandListAppendWaitExternalSemaphoresExp))) ==
+         0);
     ZeExternalSemaphoreExt.Supported |=
         (ZE_CALL_NOCHECK(
              zeDriverGetExtensionFunctionAddress,
              (ZeDriver, "zeIntelCommandListAppendSignalExternalSemaphoresExp",
               reinterpret_cast<void **>(
                   &ZeExternalSemaphoreExt
-                       .zexCommandListAppendSignalExternalSemaphoresExp))) ==
+                       .zexExpCommandListAppendSignalExternalSemaphoresExp))) ==
          0);
     ZeExternalSemaphoreExt.Supported |=
-        (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                         (ZeDriver, "zeIntelDeviceReleaseExternalSemaphoreExp",
-                          reinterpret_cast<void **>(
-                              &ZeExternalSemaphoreExt
-                                   .zexDeviceReleaseExternalSemaphoreExp))) ==
-         0);
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeIntelDeviceReleaseExternalSemaphoreExp",
+              reinterpret_cast<void **>(
+                  &ZeExternalSemaphoreExt
+                       .zexExpDeviceReleaseExternalSemaphoreExp))) == 0);
   }
 
   // Check if mutable command list extension is supported and initialize
@@ -492,6 +547,28 @@ ur_result_t ur_platform_handle_t_::initialize() {
   }
 
   return UR_RESULT_SUCCESS;
+}
+
+bool ur_platform_handle_t_::allowDriverInOrderLists(bool OnlyIfRequested) {
+  // Use in-order lists implementation from L0 driver instead
+  // of adapter's implementation.
+
+  // The following driver version is known to be passing and only this or newer
+  // drivers should be allowed by default for in order lists.
+#define L0_DRIVER_INORDER_MINOR_VERSION 6
+#define L0_DRIVER_INORDER_PATCH_VERSION 32149
+
+  static const bool UseEnvVarDriverInOrderLists = [&] {
+    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
+    return UrRet ? std::atoi(UrRet) != 0 : false;
+  }();
+  static const bool UseDriverInOrderLists = [this] {
+    bool CompatibleDriver = this->isDriverVersionNewerOrSimilar(
+        1, L0_DRIVER_INORDER_MINOR_VERSION, L0_DRIVER_INORDER_PATCH_VERSION);
+    return CompatibleDriver || UseEnvVarDriverInOrderLists;
+  }();
+
+  return OnlyIfRequested ? UseEnvVarDriverInOrderLists : UseDriverInOrderLists;
 }
 
 /// Checks the version of the level-zero driver.

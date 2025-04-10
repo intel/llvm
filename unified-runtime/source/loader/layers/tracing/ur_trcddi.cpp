@@ -214,10 +214,8 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -234,16 +232,15 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
   if (nullptr == pfnGet)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  ur_platform_get_params_t params = {&phAdapters, &NumAdapters, &NumEntries,
-                                     &phPlatforms, &pNumPlatforms};
+  ur_platform_get_params_t params = {&hAdapter, &NumEntries, &phPlatforms,
+                                     &pNumPlatforms};
   uint64_t instance = getContext()->notify_begin(UR_FUNCTION_PLATFORM_GET,
                                                  "urPlatformGet", &params);
 
   auto &logger = getContext()->logger;
   logger.info("   ---> urPlatformGet\n");
 
-  ur_result_t result =
-      pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms, pNumPlatforms);
+  ur_result_t result = pfnGet(hAdapter, NumEntries, phPlatforms, pNumPlatforms);
 
   getContext()->notify_end(UR_FUNCTION_PLATFORM_GET, "urPlatformGet", &params,
                            &result, instance);

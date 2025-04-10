@@ -517,6 +517,9 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_exp_async_usm_alloc_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
 inline std::ostream &
@@ -1352,6 +1355,9 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC:
     os << "UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC";
     break;
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC:
+    os << "UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC";
+    break;
   case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
     break;
@@ -1613,6 +1619,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC: {
     const ur_usm_alloc_location_desc_t *pstruct =
         (const ur_usm_alloc_location_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC: {
+    const ur_usm_pool_buffer_desc_t *pstruct =
+        (const ur_usm_pool_buffer_desc_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -2953,6 +2965,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     os << "UR_DEVICE_INFO_MAX_POWER_LIMIT";
+    break;
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    os << "UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE";
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -4678,6 +4693,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     if (sizeof(int32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
          << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -10924,6 +10952,46 @@ operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_buffer_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_pool_buffer_desc_t params) {
+  os << "(struct ur_usm_pool_buffer_desc_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, (params.pMem));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << (params.size);
+
+  os << ", ";
+  os << ".memType = ";
+
+  os << (params.memType);
+
+  os << ", ";
+  os << ".device = ";
+
+  ur::details::printPtr(os, (params.device));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_image_copy_flag_t type
 /// @returns
 ///     std::ostream &
@@ -12315,25 +12383,9 @@ inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_platform_get_params_t *params) {
 
-  os << ".phAdapters = ";
-  ur::details::printPtr(os,
-                        reinterpret_cast<const void *>(*(params->pphAdapters)));
-  if (*(params->pphAdapters) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pNumAdapters; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
+  os << ".hAdapter = ";
 
-      ur::details::printPtr(os, (*(params->pphAdapters))[i]);
-    }
-    os << "}";
-  }
-
-  os << ", ";
-  os << ".NumAdapters = ";
-
-  os << *(params->pNumAdapters);
+  ur::details::printPtr(os, *(params->phAdapter));
 
   os << ", ";
   os << ".NumEntries = ";

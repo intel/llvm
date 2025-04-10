@@ -25,8 +25,8 @@ extern "C" {
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urPlatformGet
-typedef ur_result_t(UR_APICALL *ur_pfnPlatformGet_t)(ur_adapter_handle_t *,
-                                                     uint32_t, uint32_t,
+typedef ur_result_t(UR_APICALL *ur_pfnPlatformGet_t)(ur_adapter_handle_t,
+                                                     uint32_t,
                                                      ur_platform_handle_t *,
                                                      uint32_t *);
 

@@ -15,7 +15,7 @@ _Z19__spirv_AtomicStorePU3AS1fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE
     volatile global float *p, enum Scope scope,
     enum MemorySemanticsMask semantics, float val) {
   _Z19__spirv_AtomicStorePU3AS1jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEj(
-      (volatile global uint *)p, scope, semantics, as_uint(val));
+      (volatile global uint *)p, scope, semantics, __clc_as_uint(val));
 }
 
 _CLC_DEF void
@@ -23,7 +23,7 @@ _Z19__spirv_AtomicStorePU3AS3fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE
     volatile local float *p, enum Scope scope,
     enum MemorySemanticsMask semantics, float val) {
   _Z19__spirv_AtomicStorePU3AS3jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEj(
-      (volatile local uint *)p, scope, semantics, as_uint(val));
+      (volatile local uint *)p, scope, semantics, __clc_as_uint(val));
 }
 
 #define FDECL(TYPE, PREFIX, AS, BYTE_SIZE, MEM_ORDER) \

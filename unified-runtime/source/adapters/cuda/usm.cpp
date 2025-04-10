@@ -243,7 +243,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       // cuda backend has only one platform containing all devices
       ur_platform_handle_t platform;
       ur_adapter_handle_t AdapterHandle = &adapter;
-      Result = urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr);
+      Result = urPlatformGet(AdapterHandle, 1, &platform, nullptr);
 
       // get the device from the platform
       ur_device_handle_t Device = platform->Devices[DeviceIndex].get();
@@ -431,13 +431,22 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC: {
       const ur_usm_pool_limits_desc_t *Limits =
           reinterpret_cast<const ur_usm_pool_limits_desc_t *>(BaseDesc);
+#if CUDA_VERSION >= 12020
+      // maxSize as a member of CUmemPoolProps was introduced in CUDA 12.2.
       MemPoolProps.maxSize =
           Limits->maxPoolableSize; // CUDA lazily reserves memory for pools in
                                    // 32MB chunks. maxSize is elevated to the
                                    // next 32MB multiple. Each 32MB chunk is
                                    // only reserved when it's needed for the
                                    // first time (cuMemAllocFromPoolAsync).
-
+#else
+      // Only warn if the user set a value >0 for the maximum size.
+      // Otherwise, do nothing.
+      // Set maximum size is effectively ignored.
+      if (Limits->maxPoolableSize > 0)
+        logger::warning("The memory pool maximum size feature requires CUDA "
+                        "12.2 or later.\n");
+#endif
       maxSize = Limits->maxPoolableSize;
       size_t chunkSize = 33554432; // 32MB
       size_t remainder = Limits->maxPoolableSize % chunkSize;
@@ -485,8 +494,8 @@ urUSMPoolCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   try {
     *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, Device, pPoolDesc));
-  } catch (ur_result_t err) {
-    return err;
+  } catch (const UsmAllocationException &Ex) {
+    return Ex.getError();
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
