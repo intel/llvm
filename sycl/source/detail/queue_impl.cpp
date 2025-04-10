@@ -283,13 +283,10 @@ event queue_impl::memcpyFromDeviceGlobal(
 }
 
 sycl::detail::optional<event> queue_impl::getLastEvent() {
-  {
-    // The external event is required to finish last if set, so it is considered
-    // the last event if present.
-    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
-    if (MInOrderExternalEvent)
-      return *MInOrderExternalEvent;
-  }
+  // The external event is required to finish last if set, so it is considered
+  // the last event if present.
+  if (std::optional<event> ExternalEvent = MInOrderExternalEvent.read())
+    return ExternalEvent;
 
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MGraph.expired() && !MDefaultGraphDeps.LastEventPtr)

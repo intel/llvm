@@ -56,7 +56,7 @@ struct LoaderHandleTest : ::testing::Test {
     ASSERT_NE(adapter, nullptr);
     uint32_t nplatforms = 0;
     platform = nullptr;
-    ASSERT_SUCCESS(urPlatformGet(&adapter, 1, 1, &platform, &nplatforms));
+    ASSERT_SUCCESS(urPlatformGet(adapter, 1, &platform, &nplatforms));
     ASSERT_NE(platform, nullptr);
     uint32_t ndevices;
     device = nullptr;
