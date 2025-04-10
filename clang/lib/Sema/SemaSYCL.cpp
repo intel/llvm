@@ -2853,7 +2853,16 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
-      addParam(Param, ParamTy.getCanonicalType());
+      // For lambda kernels the arguments to the OpenCL kernel are based on the
+      // position they have in the special type structure i.e __arg_field1,
+      // __arg_field2 and so on.
+      // For free function kernels the arguments are named in direct mapping
+      // with the names they have in the __init method i.e __arg_Ptr for work
+      // group memory since its init function takes a parameter with Ptr name.
+      if constexpr (std::is_same_v<ParentDecl, ParmVarDecl>)
+        addParam(Param, ParamTy.getCanonicalType());
+      else
+        addParam(decl, ParamTy.getCanonicalType());
       // Propagate add_ir_attributes_kernel_parameter attribute.
       if (const auto *AddIRAttr =
               Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
