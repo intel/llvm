@@ -2853,9 +2853,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     size_t ParamIndex = Params.size();
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
-      // For lambda kernels the arguments to the OpenCL kernel are based on the
-      // position they have in the special type structure i.e __arg_field1,
-      // __arg_field2 and so on.
+      // For lambda kernels the arguments to the OpenCL kernel are named 
+      // based on the position they have in the special type structure i.e 
+      // __arg_field1, __arg_field2 and so on.
       // For free function kernels the arguments are named in direct mapping
       // with the names they have in the __init method i.e __arg_Ptr for work
       // group memory since its init function takes a parameter with Ptr name.
