@@ -6,23 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: Stop manually mangling this name. Need C++ namespaces to get the exact
-// mangling.
-#define DECL(TYPE, TYPE_MANGLED, AS, AS_MANGLED)                                                                  \
-  _CLC_DECL TYPE                                                                                                  \
-      _Z18__spirv_AtomicLoadPU3##AS_MANGLED##K##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE( \
-          volatile AS const TYPE *, enum Scope, enum MemorySemanticsMask);
+#define DECL(TYPE, AS)                                                         \
+  _CLC_OVERLOAD _CLC_DECL TYPE __spirv_AtomicLoad(AS TYPE *, int, int);
 
-#define DECL_AS(TYPE, TYPE_MANGLED)                                            \
-  DECL(TYPE, TYPE_MANGLED, global, AS1)                                        \
-  DECL(TYPE, TYPE_MANGLED, local, AS3)
+#define DECL_AS(TYPE)                                                          \
+  DECL(TYPE, global)                                                           \
+  DECL(TYPE, local)                                                            \
+  DECL(TYPE, )
 
-DECL_AS(int, i)
-DECL_AS(unsigned int, j)
+DECL_AS(int)
+DECL_AS(unsigned int)
 
 #ifdef cl_khr_int64_base_atomics
-DECL_AS(long, l)
-DECL_AS(unsigned long, m)
+DECL_AS(long)
+DECL_AS(unsigned long)
 #endif
 
 #undef DECL_AS

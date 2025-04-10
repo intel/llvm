@@ -10,26 +10,24 @@
 #include <libspirv/spirv.h>
 #include <libspirv/spirv_types.h>
 
-#define AMDGPU_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED)                                          \
-  _CLC_DEF TYPE                                                                                              \
-      _Z18__spirv_AtomicLoadP##AS_MANGLED##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE( \
-          const volatile AS TYPE *p, enum Scope scope,                                                       \
-          enum MemorySemanticsMask semantics) {                                                              \
-    int atomic_scope = 0, memory_order = 0;                                                                  \
-    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)                                 \
-    return __hip_atomic_load(p, memory_order, atomic_scope);                                                 \
+#define AMDGPU_ATOMIC_LOAD_IMPL(TYPE, AS)                                      \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_AtomicLoad(AS TYPE *p, int scope,        \
+                                                 int semantics) {              \
+    int atomic_scope = 0, memory_order = 0;                                    \
+    GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, semantics, memory_order)   \
+    return __hip_atomic_load(p, memory_order, atomic_scope);                   \
   }
 
-#define AMDGPU_ATOMIC_LOAD(TYPE, TYPE_MANGLED)                                 \
-  AMDGPU_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, global, U3AS1)                   \
-  AMDGPU_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, local, U3AS3)                    \
-  AMDGPU_ATOMIC_LOAD_IMPL(TYPE, TYPE_MANGLED, , )
+#define AMDGPU_ATOMIC_LOAD(TYPE)                                               \
+  AMDGPU_ATOMIC_LOAD_IMPL(TYPE, global)                                        \
+  AMDGPU_ATOMIC_LOAD_IMPL(TYPE, local)                                         \
+  AMDGPU_ATOMIC_LOAD_IMPL(TYPE, )
 
-AMDGPU_ATOMIC_LOAD(int, Ki)
-AMDGPU_ATOMIC_LOAD(unsigned int, Kj)
-AMDGPU_ATOMIC_LOAD(long, Kl)
-AMDGPU_ATOMIC_LOAD(unsigned long, Km)
-AMDGPU_ATOMIC_LOAD(float, Kf)
+AMDGPU_ATOMIC_LOAD(int)
+AMDGPU_ATOMIC_LOAD(unsigned int)
+AMDGPU_ATOMIC_LOAD(long)
+AMDGPU_ATOMIC_LOAD(unsigned long)
+AMDGPU_ATOMIC_LOAD(float)
 
 // TODO implement for fp64
 
