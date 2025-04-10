@@ -677,7 +677,6 @@ protected:
 
     UpdateHostRequirementCommand *
     insertUpdateHostReqCmd(MemObjRecord *Record, Requirement *Req,
-                           const QueueImplPtr &Queue,
                            std::vector<Command *> &ToEnqueue);
 
     /// Finds dependencies for the requirement.

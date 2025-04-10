@@ -159,6 +159,8 @@ public:
     MHostPtrProvided = true;
   }
 
+  bool hasInteropEvent() const;
+
 protected:
   void updateHostMemory(void *const Ptr);
 

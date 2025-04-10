@@ -4,9 +4,11 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
+#include <chrono>
 #include <latch>
 #include <thread>
 
+using namespace std::chrono_literals;
 using namespace sycl;
 
 void test_host_task_dep() {
@@ -50,6 +52,10 @@ void test_device_event_dep() {
   start_execution.count_down();
 
   empty_cg_event.wait();
+  std::cout << "p = " << *p << std::endl;
+  std::this_thread::sleep_for(200ms);
+  std::cout << "p2 = " << *p << std::endl;
+
   assert(*p == 42);
 
   sycl::free(p, q);

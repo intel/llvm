@@ -759,6 +759,12 @@ public:
     return ResEvent;
   }
 
+  bool nativeHostTaskHandling() {
+    return std::getenv("SYCL_ENABLE_USER_EVENTS_PATH") &&
+           (MDevice->getBackend() == backend::ext_oneapi_level_zero ||
+            MDevice->getBackend() == backend::opencl);
+  }
+
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // CMPLRLLVM-66082
   // These methods are for accessing a member that should live in the
