@@ -11,22 +11,23 @@ using urProgramBuildTest = uur::urProgramTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramBuildTest);
 
 TEST_P(urProgramBuildTest, Success) {
-  ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+  ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
 }
 
 TEST_P(urProgramBuildTest, SuccessWithOptions) {
   const char *pOptions = "";
-  ASSERT_SUCCESS(urProgramBuild(context, program, pOptions));
+  ASSERT_SUCCESS(urProgramBuild(program, 1, &device, pOptions));
 }
-
+/*
+ * TODO invalid device list + numDevices
 TEST_P(urProgramBuildTest, InvalidNullHandleContext) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urProgramBuild(nullptr, program, nullptr));
-}
+}*/
 
 TEST_P(urProgramBuildTest, InvalidNullHandleProgram) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                   urProgramBuild(context, nullptr, nullptr));
+                   urProgramBuild(nullptr, 1, &device, nullptr));
 }
 
 TEST_P(urProgramBuildTest, BuildFailure) {
@@ -58,5 +59,5 @@ TEST_P(urProgramBuildTest, BuildFailure) {
                    urProgramCreateWithIL(context, il_binary->data(),
                                          il_binary->size(), nullptr, &program));
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE,
-                   urProgramBuild(context, program, nullptr));
+                   urProgramBuild(program, 1, &device, nullptr));
 }

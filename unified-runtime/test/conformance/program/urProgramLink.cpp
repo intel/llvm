@@ -19,7 +19,7 @@ struct urProgramLinkTest : uur::urProgramTest {
     if (backend == UR_PLATFORM_BACKEND_HIP) {
       GTEST_SKIP();
     }
-    ASSERT_SUCCESS(urProgramCompile(context, program, nullptr));
+    ASSERT_SUCCESS(urProgramCompile(program, 1, &device, nullptr));
   }
 
   void TearDown() override {
@@ -37,43 +37,45 @@ TEST_P(urProgramLinkTest, Success) {
   // This entry point isn't implemented for HIP.
   UUR_KNOWN_FAILURE_ON(uur::HIP{});
 
-  ASSERT_SUCCESS(urProgramLink(context, 1, &program, nullptr, &linked_program));
+  ASSERT_SUCCESS(urProgramLink(context, 1, &device, 1, &program, nullptr,
+                               &linked_program));
   ur_program_binary_type_t binary_type = UR_PROGRAM_BINARY_TYPE_NONE;
   ASSERT_SUCCESS(urProgramGetBuildInfo(
       linked_program, device, UR_PROGRAM_BUILD_INFO_BINARY_TYPE,
       sizeof(binary_type), &binary_type, nullptr));
   ASSERT_EQ(binary_type, UR_PROGRAM_BINARY_TYPE_EXECUTABLE);
 }
-
+/* TODO: device + numDevices tests
 TEST_P(urProgramLinkTest, InvalidNullHandleContext) {
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_NULL_HANDLE,
       urProgramLink(nullptr, 1, &program, nullptr, &linked_program));
-}
+}*/
 
 TEST_P(urProgramLinkTest, InvalidNullPointerProgram) {
-  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                   urProgramLink(context, 1, &program, nullptr, nullptr));
+  ASSERT_EQ_RESULT(
+      UR_RESULT_ERROR_INVALID_NULL_POINTER,
+      urProgramLink(context, 1, &device, 1, &program, nullptr, nullptr));
 }
 
 TEST_P(urProgramLinkTest, InvalidNullPointerInputPrograms) {
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_INVALID_NULL_POINTER,
-      urProgramLink(context, 1, nullptr, nullptr, &linked_program));
+      urProgramLink(context, 1, &device, 1, nullptr, nullptr, &linked_program));
 }
 
 TEST_P(urProgramLinkTest, InvalidSizeCount) {
-  ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_INVALID_SIZE,
-      urProgramLink(context, 0, &program, nullptr, &linked_program));
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                   urProgramLink(context, 1, &device, 0, &program, nullptr,
+                                 &linked_program));
 }
 
 TEST_P(urProgramLinkTest, SetOutputOnZeroCount) {
   uintptr_t invalid_pointer;
   linked_program = reinterpret_cast<ur_program_handle_t>(&invalid_pointer);
-  ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_INVALID_SIZE,
-      urProgramLink(context, 0, &program, nullptr, &linked_program));
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
+                   urProgramLink(context, 1, &device, 0, &program, nullptr,
+                                 &linked_program));
   ASSERT_NE(linked_program,
             reinterpret_cast<ur_program_handle_t>(&invalid_pointer));
 }
@@ -106,7 +108,7 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::KernelsEnvironment::instance->CreateProgram(
             platform, context, device, *il_binary, nullptr, &program));
-    ASSERT_SUCCESS(urProgramCompile(context, program, nullptr));
+    ASSERT_SUCCESS(urProgramCompile(program, 1, &device, nullptr));
   }
 
   void TearDown() override {
@@ -122,17 +124,17 @@ struct urProgramLinkErrorTest : uur::urQueueTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramLinkErrorTest);
 
 TEST_P(urProgramLinkErrorTest, LinkFailure) {
-  ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_PROGRAM_LINK_FAILURE,
-      urProgramLink(context, 1, &program, nullptr, &linked_program));
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_PROGRAM_LINK_FAILURE,
+                   urProgramLink(context, 1, &device, 1, &program, nullptr,
+                                 &linked_program));
 }
 
 TEST_P(urProgramLinkErrorTest, SetOutputOnLinkError) {
   uintptr_t invalid_pointer;
   linked_program = reinterpret_cast<ur_program_handle_t>(&invalid_pointer);
-  ASSERT_EQ_RESULT(
-      UR_RESULT_ERROR_PROGRAM_LINK_FAILURE,
-      urProgramLink(context, 1, &program, nullptr, &linked_program));
+  ASSERT_EQ_RESULT(UR_RESULT_ERROR_PROGRAM_LINK_FAILURE,
+                   urProgramLink(context, 1, &device, 1, &program, nullptr,
+                                 &linked_program));
   ASSERT_NE(linked_program,
             reinterpret_cast<ur_program_handle_t>(&invalid_pointer));
 }

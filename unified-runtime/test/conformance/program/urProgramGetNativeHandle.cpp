@@ -15,7 +15,7 @@ TEST_P(urProgramGetNativeHandleTest, Success) {
                                    sizeof(backend), &backend, nullptr));
   // For Level Zero we have to build the program to have the native handle.
   if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+    ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
   }
   ur_native_handle_t native_program_handle = 0;
   if (auto error = urProgramGetNativeHandle(program, &native_program_handle)) {

@@ -2345,26 +2345,9 @@ urPrintProgramBuildParams(const struct ur_program_build_params_t *params,
 }
 
 ur_result_t
-urPrintProgramBuildExpParams(const struct ur_program_build_exp_params_t *params,
-                             char *buffer, const size_t buff_size,
-                             size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t
 urPrintProgramCompileParams(const struct ur_program_compile_params_t *params,
                             char *buffer, const size_t buff_size,
                             size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintProgramCompileExpParams(
-    const struct ur_program_compile_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);
@@ -2374,15 +2357,6 @@ ur_result_t
 urPrintProgramLinkParams(const struct ur_program_link_params_t *params,
                          char *buffer, const size_t buff_size,
                          size_t *out_size) {
-  std::stringstream ss;
-  ss << params;
-  return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t
-urPrintProgramLinkExpParams(const struct ur_program_link_exp_params_t *params,
-                            char *buffer, const size_t buff_size,
-                            size_t *out_size) {
   std::stringstream ss;
   ss << params;
   return str_copy(&ss, buffer, buff_size, out_size);

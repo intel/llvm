@@ -496,7 +496,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (NULL == hDevice)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
-    if (UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName)
+    if (UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -2679,10 +2679,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuild
 __urdlllocal ur_result_t UR_APICALL urProgramBuild(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
     /// [in] Handle of the program to build.
     ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   auto pfnBuild = getContext()->urDdiTable.Program.pfnBuild;
@@ -2692,16 +2694,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+    if (NULL == phDevices)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hProgram)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -2709,7 +2706,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     getContext()->refCountContext->logInvalidReference(hProgram);
   }
 
-  ur_result_t result = pfnBuild(hContext, hProgram, pOptions);
+  ur_result_t result = pfnBuild(hProgram, numDevices, phDevices, pOptions);
 
   return result;
 }
@@ -2717,10 +2714,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCompile
 __urdlllocal ur_result_t UR_APICALL urProgramCompile(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
     /// [in][out] handle of the program to compile.
     ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   auto pfnCompile = getContext()->urDdiTable.Program.pfnCompile;
@@ -2730,16 +2729,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+    if (NULL == phDevices)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
     if (NULL == hProgram)
       return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
   }
 
   if (getContext()->enableLifetimeValidation &&
@@ -2747,7 +2741,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
     getContext()->refCountContext->logInvalidReference(hProgram);
   }
 
-  ur_result_t result = pfnCompile(hContext, hProgram, pOptions);
+  ur_result_t result = pfnCompile(hProgram, numDevices, phDevices, pOptions);
 
   return result;
 }
@@ -2757,6 +2751,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
 __urdlllocal ur_result_t UR_APICALL urProgramLink(
     /// [in] handle of the context instance.
     ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -2775,6 +2773,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
   }
 
   if (getContext()->enableParameterValidation) {
+    if (NULL == phDevices)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
     if (NULL == phPrograms)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
@@ -2793,8 +2794,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     getContext()->refCountContext->logInvalidReference(hContext);
   }
 
-  ur_result_t result =
-      pfnLink(hContext, count, phPrograms, pOptions, phProgram);
+  ur_result_t result = pfnLink(hContext, numDevices, phDevices, count,
+                               phPrograms, pOptions, phProgram);
 
   return result;
 }
@@ -10138,130 +10139,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramBuildExp
-__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
-    /// [in] Handle of the program to build.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-  auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
-
-  if (nullptr == pfnBuildExp) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == phDevices)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
-  }
-
-  ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramCompileExp
-__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
-    /// [in][out] handle of the program to compile.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-  auto pfnCompileExp = getContext()->urDdiTable.ProgramExp.pfnCompileExp;
-
-  if (nullptr == pfnCompileExp) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == phDevices)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == hProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hProgram)) {
-    getContext()->refCountContext->logInvalidReference(hProgram);
-  }
-
-  ur_result_t result = pfnCompileExp(hProgram, numDevices, phDevices, pOptions);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramLinkExp
-__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms,
-    /// [in][optional] pointer to linker options null-terminated string.
-    const char *pOptions,
-    /// [out][alloc] pointer to handle of program object created.
-    ur_program_handle_t *phProgram) {
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
-  auto pfnLinkExp = getContext()->urDdiTable.ProgramExp.pfnLinkExp;
-
-  if (nullptr == pfnLinkExp) {
-    return UR_RESULT_ERROR_UNINITIALIZED;
-  }
-
-  if (getContext()->enableParameterValidation) {
-    if (NULL == phDevices)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == phPrograms)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == phProgram)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-    if (NULL == hContext)
-      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-
-    if (count == 0)
-      return UR_RESULT_ERROR_INVALID_SIZE;
-  }
-
-  if (getContext()->enableLifetimeValidation &&
-      !getContext()->refCountContext->isReferenceValid(hContext)) {
-    getContext()->refCountContext->logInvalidReference(hContext);
-  }
-
-  ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
-                                  phPrograms, pOptions, phProgram);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -11506,44 +11383,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's ProgramExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_program_exp_dditable_t *pDdiTable) {
-  auto &dditable = ur_validation_layer::getContext()->urDdiTable.ProgramExp;
-
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
-          UR_MAJOR_VERSION(version) ||
-      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
-          UR_MINOR_VERSION(version))
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  dditable.pfnBuildExp = pDdiTable->pfnBuildExp;
-  pDdiTable->pfnBuildExp = ur_validation_layer::urProgramBuildExp;
-
-  dditable.pfnCompileExp = pDdiTable->pfnCompileExp;
-  pDdiTable->pfnCompileExp = ur_validation_layer::urProgramCompileExp;
-
-  dditable.pfnLinkExp = pDdiTable->pfnLinkExp;
-  pDdiTable->pfnLinkExp = ur_validation_layer::urProgramLinkExp;
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Queue table
 ///        with current process' addresses
 ///
@@ -12012,11 +11851,6 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetProgramProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Program);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    result = ur_validation_layer::urGetProgramExpProcAddrTable(
-        UR_API_VERSION_CURRENT, &dditable->ProgramExp);
   }
 
   if (UR_RESULT_SUCCESS == result) {

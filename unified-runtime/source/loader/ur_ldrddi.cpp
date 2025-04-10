@@ -2699,10 +2699,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuild
 __urdlllocal ur_result_t UR_APICALL urProgramBuild(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
     /// [in] Handle of the program to build.
     ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -2710,19 +2712,22 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
   [[maybe_unused]] auto context = getContext();
 
   // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+  auto dditable = reinterpret_cast<ur_program_object_t *>(hProgram)->dditable;
   auto pfnBuild = dditable->ur.Program.pfnBuild;
   if (nullptr == pfnBuild)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // convert loader handle to platform handle
-  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
-
-  // convert loader handle to platform handle
   hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
 
+  // convert loader handles to platform handles
+  auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
+  for (size_t i = 0; i < numDevices; ++i)
+    phDevicesLocal[i] =
+        reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
+
   // forward to device-platform
-  result = pfnBuild(hContext, hProgram, pOptions);
+  result = pfnBuild(hProgram, numDevices, phDevicesLocal.data(), pOptions);
 
   return result;
 }
@@ -2730,10 +2735,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCompile
 __urdlllocal ur_result_t UR_APICALL urProgramCompile(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
     /// [in][out] handle of the program to compile.
     ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
   ur_result_t result = UR_RESULT_SUCCESS;
@@ -2741,19 +2748,22 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
   [[maybe_unused]] auto context = getContext();
 
   // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
+  auto dditable = reinterpret_cast<ur_program_object_t *>(hProgram)->dditable;
   auto pfnCompile = dditable->ur.Program.pfnCompile;
   if (nullptr == pfnCompile)
     return UR_RESULT_ERROR_UNINITIALIZED;
 
   // convert loader handle to platform handle
-  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
-
-  // convert loader handle to platform handle
   hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
 
+  // convert loader handles to platform handles
+  auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
+  for (size_t i = 0; i < numDevices; ++i)
+    phDevicesLocal[i] =
+        reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
+
   // forward to device-platform
-  result = pfnCompile(hContext, hProgram, pOptions);
+  result = pfnCompile(hProgram, numDevices, phDevicesLocal.data(), pOptions);
 
   return result;
 }
@@ -2763,6 +2773,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
 __urdlllocal ur_result_t UR_APICALL urProgramLink(
     /// [in] handle of the context instance.
     ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -2788,14 +2802,20 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
   hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
   // convert loader handles to platform handles
+  auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
+  for (size_t i = 0; i < numDevices; ++i)
+    phDevicesLocal[i] =
+        reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
+
+  // convert loader handles to platform handles
   auto phProgramsLocal = std::vector<ur_program_handle_t>(count);
   for (size_t i = 0; i < count; ++i)
     phProgramsLocal[i] =
         reinterpret_cast<ur_program_object_t *>(phPrograms[i])->handle;
 
   // forward to device-platform
-  result =
-      pfnLink(hContext, count, phProgramsLocal.data(), pOptions, phProgram);
+  result = pfnLink(hContext, numDevices, phDevicesLocal.data(), count,
+                   phProgramsLocal.data(), pOptions, phProgram);
 
   try {
     // convert platform handle to loader handle
@@ -9503,140 +9523,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramBuildExp
-__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
-    /// [in] Handle of the program to build.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_program_object_t *>(hProgram)->dditable;
-  auto pfnBuildExp = dditable->ur.ProgramExp.pfnBuildExp;
-  if (nullptr == pfnBuildExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
-
-  // convert loader handles to platform handles
-  auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
-  for (size_t i = 0; i < numDevices; ++i)
-    phDevicesLocal[i] =
-        reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
-
-  // forward to device-platform
-  result = pfnBuildExp(hProgram, numDevices, phDevicesLocal.data(), pOptions);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramCompileExp
-__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
-    /// [in][out] handle of the program to compile.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_program_object_t *>(hProgram)->dditable;
-  auto pfnCompileExp = dditable->ur.ProgramExp.pfnCompileExp;
-  if (nullptr == pfnCompileExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
-
-  // convert loader handles to platform handles
-  auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
-  for (size_t i = 0; i < numDevices; ++i)
-    phDevicesLocal[i] =
-        reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
-
-  // forward to device-platform
-  result = pfnCompileExp(hProgram, numDevices, phDevicesLocal.data(), pOptions);
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramLinkExp
-__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms,
-    /// [in][optional] pointer to linker options null-terminated string.
-    const char *pOptions,
-    /// [out][alloc] pointer to handle of program object created.
-    ur_program_handle_t *phProgram) {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
-
-  [[maybe_unused]] auto context = getContext();
-
-  // extract platform's function pointer table
-  auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-  auto pfnLinkExp = dditable->ur.ProgramExp.pfnLinkExp;
-  if (nullptr == pfnLinkExp)
-    return UR_RESULT_ERROR_UNINITIALIZED;
-
-  // convert loader handle to platform handle
-  hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
-
-  // convert loader handles to platform handles
-  auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
-  for (size_t i = 0; i < numDevices; ++i)
-    phDevicesLocal[i] =
-        reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
-
-  // convert loader handles to platform handles
-  auto phProgramsLocal = std::vector<ur_program_handle_t>(count);
-  for (size_t i = 0; i < count; ++i)
-    phProgramsLocal[i] =
-        reinterpret_cast<ur_program_object_t *>(phPrograms[i])->handle;
-
-  // forward to device-platform
-  result = pfnLinkExp(hContext, numDevices, phDevicesLocal.data(), count,
-                      phProgramsLocal.data(), pOptions, phProgram);
-
-  try {
-    // convert platform handle to loader handle
-    if (nullptr != phProgram)
-      *phProgram = reinterpret_cast<ur_program_handle_t>(
-          context->factories.ur_program_factory.getInstance(*phProgram,
-                                                            dditable));
-  } catch (std::bad_alloc &) {
-    result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -10809,61 +10695,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
       // return pointers directly to platform's DDIs
       *pDdiTable =
           ur_loader::getContext()->platforms.front().dditable.ur.Program;
-    }
-  }
-
-  return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's ProgramExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_program_exp_dditable_t *pDdiTable) {
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (ur_loader::getContext()->version < version)
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  // Load the device-platform DDI tables
-  for (auto &platform : ur_loader::getContext()->platforms) {
-    // statically linked adapter inside of the loader
-    if (platform.handle == nullptr)
-      continue;
-
-    if (platform.initStatus != UR_RESULT_SUCCESS)
-      continue;
-    auto getTable = reinterpret_cast<ur_pfnGetProgramExpProcAddrTable_t>(
-        ur_loader::LibLoader::getFunctionPtr(platform.handle.get(),
-                                             "urGetProgramExpProcAddrTable"));
-    if (!getTable)
-      continue;
-    platform.initStatus = getTable(version, &platform.dditable.ur.ProgramExp);
-  }
-
-  if (UR_RESULT_SUCCESS == result) {
-    if (ur_loader::getContext()->platforms.size() != 1 ||
-        ur_loader::getContext()->forceIntercept) {
-      // return pointers to loader's DDIs
-      pDdiTable->pfnBuildExp = ur_loader::urProgramBuildExp;
-      pDdiTable->pfnCompileExp = ur_loader::urProgramCompileExp;
-      pDdiTable->pfnLinkExp = ur_loader::urProgramLinkExp;
-    } else {
-      // return pointers directly to platform's DDIs
-      *pDdiTable =
-          ur_loader::getContext()->platforms.front().dditable.ur.ProgramExp;
     }
   }
 

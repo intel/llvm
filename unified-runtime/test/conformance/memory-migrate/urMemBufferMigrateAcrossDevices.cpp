@@ -75,7 +75,8 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
           uur::KernelsEnvironment::instance->CreateProgram(
               platform, context, devices[i], *il_binary, &properties,
               &programs[i]));
-      ASSERT_SUCCESS(urProgramBuild(context, programs[i], nullptr));
+      ASSERT_SUCCESS(
+          urProgramBuild(programs[i], num_devices, devices.data(), nullptr));
       auto kernel_names =
           uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);
       kernel_name = kernel_names[0];

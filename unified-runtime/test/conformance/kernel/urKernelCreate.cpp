@@ -10,7 +10,7 @@
 struct urKernelCreateTest : uur::urProgramTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+    ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
     auto kernel_names = uur::KernelsEnvironment::instance->GetEntryPointNames(
         this->program_name);
     kernel_name = kernel_names[0];
@@ -79,7 +79,7 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
             platform, context, devices[i], *il_binary, &properties,
             program.ptr()));
 
-    ASSERT_SUCCESS(urProgramBuild(context, program.get(), nullptr));
+    ASSERT_SUCCESS(urProgramBuild(program.get(), 1, &devices[i], nullptr));
     ASSERT_SUCCESS(
         urKernelCreate(program.get(), kernelName.data(), kernel.ptr()));
 
@@ -114,12 +114,12 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
             platform, context, devices[i], *il_binary, &properties,
             program.ptr()));
 
-    ASSERT_SUCCESS(urProgramCompile(context, program.get(), nullptr));
+    ASSERT_SUCCESS(urProgramCompile(program.get(), 1, &devices[i], nullptr));
 
     uur::raii::Program linked_program;
     ASSERT_EQ_RESULT(UR_RESULT_SUCCESS,
-                     urProgramLink(context, 1, program.ptr(), nullptr,
-                                   linked_program.ptr()));
+                     urProgramLink(context, 1, &devices[i], 1, program.ptr(),
+                                   nullptr, linked_program.ptr()));
 
     ASSERT_SUCCESS(
         urKernelCreate(linked_program.get(), kernelName.data(), kernel.ptr()));

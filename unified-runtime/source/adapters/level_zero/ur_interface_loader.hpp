@@ -195,12 +195,13 @@ ur_result_t urProgramCreateWithBinary(
     ur_context_handle_t hContext, uint32_t numDevices,
     ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
     const ur_program_properties_t *pProperties, ur_program_handle_t *phProgram);
-ur_result_t urProgramBuild(ur_context_handle_t hContext,
-                           ur_program_handle_t hProgram, const char *pOptions);
-ur_result_t urProgramCompile(ur_context_handle_t hContext,
-                             ur_program_handle_t hProgram,
+ur_result_t urProgramBuild(ur_program_handle_t hProgram, uint32_t numDevices,
+                           ur_device_handle_t *phDevices, const char *pOptions);
+ur_result_t urProgramCompile(ur_program_handle_t hProgram, uint32_t numDevices,
+                             ur_device_handle_t *phDevices,
                              const char *pOptions);
-ur_result_t urProgramLink(ur_context_handle_t hContext, uint32_t count,
+ur_result_t urProgramLink(ur_context_handle_t hContext, uint32_t numDevices,
+                          ur_device_handle_t *phDevices, uint32_t count,
                           const ur_program_handle_t *phPrograms,
                           const char *pOptions, ur_program_handle_t *phProgram);
 ur_result_t urProgramRetain(ur_program_handle_t hProgram);
@@ -753,18 +754,6 @@ ur_result_t urEnqueueKernelLaunchCustomExp(
     const ur_exp_launch_property_t *launchPropList,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent);
-ur_result_t urProgramBuildExp(ur_program_handle_t hProgram, uint32_t numDevices,
-                              ur_device_handle_t *phDevices,
-                              const char *pOptions);
-ur_result_t urProgramCompileExp(ur_program_handle_t hProgram,
-                                uint32_t numDevices,
-                                ur_device_handle_t *phDevices,
-                                const char *pOptions);
-ur_result_t urProgramLinkExp(ur_context_handle_t hContext, uint32_t numDevices,
-                             ur_device_handle_t *phDevices, uint32_t count,
-                             const ur_program_handle_t *phPrograms,
-                             const char *pOptions,
-                             ur_program_handle_t *phProgram);
 ur_result_t urUSMImportExp(ur_context_handle_t hContext, void *pMem,
                            size_t size);
 ur_result_t urUSMReleaseExp(ur_context_handle_t hContext, void *pMem);

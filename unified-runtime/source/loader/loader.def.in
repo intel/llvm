@@ -118,7 +118,6 @@ EXPORTS
 	urGetMemProcAddrTable
 	urGetPhysicalMemProcAddrTable
 	urGetPlatformProcAddrTable
-	urGetProgramExpProcAddrTable
 	urGetProgramProcAddrTable
 	urGetQueueProcAddrTable
 	urGetSamplerProcAddrTable
@@ -423,11 +422,9 @@ EXPORTS
 	urPrintPlatformNativeProperties
 	urPrintProfilingInfo
 	urPrintProgramBinaryType
-	urPrintProgramBuildExpParams
 	urPrintProgramBuildInfo
 	urPrintProgramBuildParams
 	urPrintProgramBuildStatus
-	urPrintProgramCompileExpParams
 	urPrintProgramCompileParams
 	urPrintProgramCreateWithBinaryParams
 	urPrintProgramCreateWithIlParams
@@ -438,7 +435,6 @@ EXPORTS
 	urPrintProgramGetInfoParams
 	urPrintProgramGetNativeHandleParams
 	urPrintProgramInfo
-	urPrintProgramLinkExpParams
 	urPrintProgramLinkParams
 	urPrintProgramMetadata
 	urPrintProgramMetadataType
@@ -526,9 +522,7 @@ EXPORTS
 	urPrintVirtualMemSetAccessParams
 	urPrintVirtualMemUnmapParams
 	urProgramBuild
-	urProgramBuildExp
 	urProgramCompile
-	urProgramCompileExp
 	urProgramCreateWithBinary
 	urProgramCreateWithIL
 	urProgramCreateWithNativeHandle
@@ -538,7 +532,6 @@ EXPORTS
 	urProgramGetInfo
 	urProgramGetNativeHandle
 	urProgramLink
-	urProgramLinkExp
 	urProgramRelease
 	urProgramRetain
 	urProgramSetSpecializationConstants

@@ -375,20 +375,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   return result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
-    ur_api_version_t version, ur_program_exp_dditable_t *pDdiTable) {
-  auto result = validateProcInputs(version, pDdiTable);
-  if (UR_RESULT_SUCCESS != result) {
-    return result;
-  }
-
-  pDdiTable->pfnBuildExp = ur::level_zero::urProgramBuildExp;
-  pDdiTable->pfnCompileExp = ur::level_zero::urProgramCompileExp;
-  pDdiTable->pfnLinkExp = ur::level_zero::urProgramLinkExp;
-
-  return result;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     ur_api_version_t version, ur_queue_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -595,10 +581,6 @@ ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
     return result;
   result = ur::level_zero::urGetProgramProcAddrTable(UR_API_VERSION_CURRENT,
                                                      &ddi->Program);
-  if (result != UR_RESULT_SUCCESS)
-    return result;
-  result = ur::level_zero::urGetProgramExpProcAddrTable(UR_API_VERSION_CURRENT,
-                                                        &ddi->ProgramExp);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = ur::level_zero::urGetQueueProcAddrTable(UR_API_VERSION_CURRENT,

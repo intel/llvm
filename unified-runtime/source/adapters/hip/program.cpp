@@ -275,34 +275,21 @@ urProgramCreateWithIL(ur_context_handle_t, const void *, size_t,
 /// hipModuleLoadDataEx. So, urProgramCompile and urProgramBuild are equivalent
 /// in terms of HIP adapter. \TODO Implement asynchronous compilation
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
-                 const char *pOptions) {
-  UR_CHECK_ERROR(urProgramBuild(hContext, hProgram, pOptions));
+urProgramCompile(ur_program_handle_t hProgram, uint32_t numDevices,
+                 ur_device_handle_t *phDevices, const char *pOptions) {
+  UR_CHECK_ERROR(urProgramBuild(hProgram, numDevices, phDevices, pOptions));
   // urProgramBuild sets the BinaryType to UR_PROGRAM_BINARY_TYPE_EXECUTABLE, so
   // set it to the correct value for urProgramCompile post-hoc.
   hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
-                                                        uint32_t,
-                                                        ur_device_handle_t *,
-                                                        const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
-                                                      uint32_t,
-                                                      ur_device_handle_t *,
-                                                      const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 /// Loads the images from a UR program into a hipModule_t that can be
 /// used later on to extract functions (kernels).
 /// See \ref ur_program_handle_t for implementation details.
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
-                                                   ur_program_handle_t hProgram,
+UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_program_handle_t hProgram,
+                                                   uint32_t,
+                                                   ur_device_handle_t *,
                                                    const char *pOptions) {
   ur_result_t Result = UR_RESULT_SUCCESS;
 
@@ -318,18 +305,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
   return Result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
+UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
     const ur_program_handle_t *, const char *, ur_program_handle_t *phProgram) {
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urProgramLink(ur_context_handle_t, uint32_t, const ur_program_handle_t *,
-              const char *, ur_program_handle_t *phProgram) {
   if (nullptr != phProgram) {
     *phProgram = nullptr;
   }

@@ -3303,15 +3303,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuild
 __urdlllocal ur_result_t UR_APICALL urProgramBuild(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
     /// [in] Handle of the program to build.
     ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_program_build_params_t params = {&hContext, &hProgram, &pOptions};
+  ur_program_build_params_t params = {&hProgram, &numDevices, &phDevices,
+                                      &pOptions};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urProgramBuild"));
@@ -3349,15 +3352,18 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramCompile
 __urdlllocal ur_result_t UR_APICALL urProgramCompile(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
     /// [in][out] handle of the program to compile.
     ur_program_handle_t hProgram,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) try {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  ur_program_compile_params_t params = {&hContext, &hProgram, &pOptions};
+  ur_program_compile_params_t params = {&hProgram, &numDevices, &phDevices,
+                                        &pOptions};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
       mock::getCallbacks().get_before_callback("urProgramCompile"));
@@ -3397,6 +3403,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
 __urdlllocal ur_result_t UR_APICALL urProgramLink(
     /// [in] handle of the context instance.
     ur_context_handle_t hContext,
+    /// [in] number of devices
+    uint32_t numDevices,
+    /// [in][range(0, numDevices)] pointer to array of device handles
+    ur_device_handle_t *phDevices,
     /// [in] number of program handles in `phPrograms`.
     uint32_t count,
     /// [in][range(0, count)] pointer to array of program handles.
@@ -3410,7 +3420,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     *phProgram = nullptr;
   }
 
-  ur_program_link_params_t params = {&hContext, &count, &phPrograms, &pOptions,
+  ur_program_link_params_t params = {&hContext, &numDevices, &phDevices,
+                                     &count,    &phPrograms, &pOptions,
                                      &phProgram};
 
   auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
@@ -11098,164 +11109,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramBuildExp
-__urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
-    /// [in] Handle of the program to build.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_program_build_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                          &pOptions};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urProgramBuildExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urProgramBuildExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urProgramBuildExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramCompileExp
-__urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
-    /// [in][out] handle of the program to compile.
-    ur_program_handle_t hProgram,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *pOptions) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  ur_program_compile_exp_params_t params = {&hProgram, &numDevices, &phDevices,
-                                            &pOptions};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urProgramCompileExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urProgramCompileExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urProgramCompileExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urProgramLinkExp
-__urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
-    /// [in] handle of the context instance.
-    ur_context_handle_t hContext,
-    /// [in] number of devices
-    uint32_t numDevices,
-    /// [in][range(0, numDevices)] pointer to array of device handles
-    ur_device_handle_t *phDevices,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *phPrograms,
-    /// [in][optional] pointer to linker options null-terminated string.
-    const char *pOptions,
-    /// [out][alloc] pointer to handle of program object created.
-    ur_program_handle_t *phProgram) try {
-  ur_result_t result = UR_RESULT_SUCCESS;
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
-
-  ur_program_link_exp_params_t params = {&hContext, &numDevices, &phDevices,
-                                         &count,    &phPrograms, &pOptions,
-                                         &phProgram};
-
-  auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_before_callback("urProgramLinkExp"));
-  if (beforeCallback) {
-    result = beforeCallback(&params);
-    if (result != UR_RESULT_SUCCESS) {
-      return result;
-    }
-  }
-
-  auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_replace_callback("urProgramLinkExp"));
-  if (replaceCallback) {
-    result = replaceCallback(&params);
-  } else {
-
-    *phProgram = mock::createDummyHandle<ur_program_handle_t>();
-    result = UR_RESULT_SUCCESS;
-  }
-
-  if (result != UR_RESULT_SUCCESS) {
-    return result;
-  }
-
-  auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
-      mock::getCallbacks().get_after_callback("urProgramLinkExp"));
-  if (afterCallback) {
-    return afterCallback(&params);
-  }
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     /// [in] handle of the context object
@@ -12311,38 +12164,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
 
   pDdiTable->pfnCreateWithNativeHandle =
       driver::urProgramCreateWithNativeHandle;
-
-  return result;
-} catch (...) {
-  return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's ProgramExp table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
-    /// [in] API version requested
-    ur_api_version_t version,
-    /// [in,out] pointer to table of DDI function pointers
-    ur_program_exp_dditable_t *pDdiTable) try {
-  if (nullptr == pDdiTable)
-    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-
-  if (driver::d_context.version < version)
-    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
-
-  ur_result_t result = UR_RESULT_SUCCESS;
-
-  pDdiTable->pfnBuildExp = driver::urProgramBuildExp;
-
-  pDdiTable->pfnCompileExp = driver::urProgramCompileExp;
-
-  pDdiTable->pfnLinkExp = driver::urProgramLinkExp;
 
   return result;
 } catch (...) {

@@ -235,7 +235,7 @@ before they can be used to create a kernel object.
     ${x}ProgramCreateWithIL(hContext, ILBin, ILBinSize, nullptr, &hProgram);
 
     // Build the program.
-    ${x}ProgramBuild(hContext, hProgram, nullptr);
+    ${x}ProgramBuild(hProgram, numDevices, phDevices, nullptr);
 
 The diagram below shows the possible paths to obtaining a program that can be
 used to create a kernel:

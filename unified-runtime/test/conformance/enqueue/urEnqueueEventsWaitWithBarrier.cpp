@@ -81,7 +81,7 @@ struct urEnqueueEventsWaitWithBarrierOrderingTest : uur::urProgramTest {
   void SetUp() override {
     program_name = "sequence";
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+    ASSERT_SUCCESS(urProgramBuild(program, 1, &device, nullptr));
 
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,
                                      sizeof(uint32_t), nullptr, &buffer));

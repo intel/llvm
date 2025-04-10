@@ -371,7 +371,7 @@ int ur_program_create_with_il(TestState &state) {
 
   urProgramCreateWithIL(context, il_bin.data(), il_bin.size(), nullptr,
                         &program);
-  urProgramBuild(context, program, nullptr);
+  urProgramBuild(program, 1, &device, nullptr);
 
   ur_mem_handle_t memory_buffer;
   urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, vec_size * sizeof(int),

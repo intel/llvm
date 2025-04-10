@@ -112,70 +112,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinaryExp(
-    ur_context_handle_t, uint32_t, ur_device_handle_t *, size_t *,
-    const uint8_t **, const ur_program_properties_t *, ur_program_handle_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
-                                                   ur_program_handle_t hProgram,
-                                                   const char *pOptions) {
-  std::ignore = hContext;
-  std::ignore = hProgram;
-  std::ignore = pOptions;
-
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL
-urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
-                 const char *pOptions) {
-  std::ignore = hContext;
-  std::ignore = hProgram;
-  std::ignore = pOptions;
-
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(ur_program_handle_t,
+                                                     uint32_t,
+                                                     ur_device_handle_t *,
+                                                     const char *) {
   // Currently for Native CPU the program is offline compiled, so
   // urProgramCompile is a no-op.
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urProgramLink(ur_context_handle_t hContext, uint32_t count,
-              const ur_program_handle_t *phPrograms, const char *pOptions,
-              ur_program_handle_t *phProgram) {
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
-  std::ignore = hContext;
-  std::ignore = count;
-  std::ignore = phPrograms;
-  std::ignore = pOptions;
-
-  // Currently for Native CPU the program is already linked and all its
-  // symbols are resolved, so this is a no-op.
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
-                                                        uint32_t,
-                                                        ur_device_handle_t *,
-                                                        const char *) {
-  // Currently for Native CPU the program is offline compiled, so
-  // urProgramCompile is a no-op.
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
-                                                      uint32_t,
-                                                      ur_device_handle_t *,
-                                                      const char *) {
+UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_program_handle_t,
+                                                   uint32_t,
+                                                   ur_device_handle_t *,
+                                                   const char *) {
   // Currently for Native CPU the program is offline compiled and linked,
   // so urProgramBuild is a no-op.
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
+UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
     const ur_program_handle_t *, const char *, ur_program_handle_t *phProgram) {
   if (nullptr != phProgram) {
