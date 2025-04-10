@@ -620,13 +620,17 @@ if (
     if "amdgcn" in sp[1]:
         config.sycl_build_targets.add("target-amd")
 
+cmd = "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
+sycl_ls_output = subprocess.check_output(cmd, text=True, shell=True)
+
+# In contrast to `cpu` feature this is a compile-time feature, which is needed
+# to check if we can build cpu AOT tests.
+if "opencl:cpu" in sycl_ls_output:
+    config.available_features.add("opencl-cpu-rt")
+
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     devices = set()
-    cmd = (
-        "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
-    )
-    sp = subprocess.check_output(cmd, text=True, shell=True)
-    for line in sp.splitlines():
+    for line in sycl_ls_output.splitlines():
         if not line.startswith("["):
             continue
         (backend, device) = line[1:].split("]")[0].split(":")

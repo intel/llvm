@@ -710,14 +710,18 @@ public:
   void *getTraceEvent() { return MTraceEvent; }
 
   void setExternalEvent(const event &Event) {
-    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
-    MInOrderExternalEvent = Event;
+    MInOrderExternalEvent.set([&](std::optional<event> &InOrderExternalEvent) {
+      InOrderExternalEvent = Event;
+    });
   }
 
   std::optional<event> popExternalEvent() {
-    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
     std::optional<event> Result = std::nullopt;
-    std::swap(Result, MInOrderExternalEvent);
+
+    MInOrderExternalEvent.unset(
+        [&](std::optional<event> &InOrderExternalEvent) {
+          std::swap(Result, InOrderExternalEvent);
+        });
     return Result;
   }
 
@@ -1025,6 +1029,36 @@ protected:
     }
   } MDefaultGraphDeps, MExtGraphDeps;
 
+  // Implement check-lock-check pattern to not lock empty MData as the locks
+  // come with runtime overhead.
+  template <typename DataType> class CheckLockCheck {
+    DataType MData;
+    std::atomic_bool MIsSet = false;
+    mutable std::mutex MDataMtx;
+
+  public:
+    template <typename F> void set(F &&func) {
+      std::lock_guard<std::mutex> Lock(MDataMtx);
+      MIsSet.store(true, std::memory_order_release);
+      std::forward<F>(func)(MData);
+    }
+    template <typename F> void unset(F &&func) {
+      if (MIsSet.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> Lock(MDataMtx);
+        if (MIsSet.load(std::memory_order_acquire)) {
+          std::forward<F>(func)(MData);
+          MIsSet.store(false, std::memory_order_release);
+        }
+      }
+    }
+    DataType read() {
+      if (!MIsSet.load(std::memory_order_acquire))
+        return DataType{};
+      std::lock_guard<std::mutex> Lock(MDataMtx);
+      return MData;
+    }
+  };
+
   const bool MIsInorder;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
@@ -1045,10 +1079,9 @@ protected:
 
   // This event can be optionally provided by users for in-order queues to add
   // an additional dependency for the subsequent submission in to the queue.
-  // Access to the event should be guarded with MInOrderExternalEventMtx.
+  // Access to the event should be guarded with mutex.
   // NOTE: std::optional must not be exposed in the ABI.
-  std::optional<event> MInOrderExternalEvent;
-  mutable std::mutex MInOrderExternalEventMtx;
+  CheckLockCheck<std::optional<event>> MInOrderExternalEvent;
 
 public:
   // Queue constructed with the discard_events property
