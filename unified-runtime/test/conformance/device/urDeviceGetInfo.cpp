@@ -2662,6 +2662,20 @@ TEST_P(urDeviceGetInfoTest, SuccessMinPowerLimit) {
                              property_value);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessValidatesOnLaunch) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name = UR_DEVICE_INFO_VALIDATES_ON_LAUNCH;
+
+  ASSERT_SUCCESS(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size));
+
+  ASSERT_EQ(property_size, sizeof(ur_bool_t));
+
+  ur_bool_t property_value = 0;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, property_name, property_size,
+                                 &property_value, nullptr));
+}
+
 TEST_P(urDeviceGetInfoTest, InvalidNullHandleDevice) {
   ur_device_type_t device_type;
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,

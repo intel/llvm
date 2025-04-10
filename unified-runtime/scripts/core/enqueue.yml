@@ -16,6 +16,10 @@ type: function
 desc: "Enqueue a command to execute a kernel"
 class: $xEnqueue
 name: KernelLaunch
+details:
+    - "Adapters must perform validation on provided kernel arguments when launching them if they report
+      `$X_DEVICE_INFO_VALIDATES_ON_LAUNCH` as true for the appropriate device. If this is reported as false, then
+      launching a kernel with invalid arguments is Undefined Behavior."
 ordinal: "0"
 analogue:
     - "**clEnqueueNDRangeKernel**"
@@ -65,8 +69,8 @@ returns:
     - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
     - $X_RESULT_ERROR_INVALID_VALUE
-    - $X_RESULT_ERROR_INVALID_KERNEL_ARGS
-        - "The kernel argument values have not been specified."
+    - $X_RESULT_ERROR_INVALID_KERNEL_ARGS:
+        - "The kernel argument values are not valid and `$X_DEVICE_INFO_VALIDATES_ON_LAUNCH` is true for the device"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------

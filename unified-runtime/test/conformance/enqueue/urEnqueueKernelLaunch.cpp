@@ -154,19 +154,13 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkGroupSize) {
 }
 
 TEST_P(urEnqueueKernelLaunchTest, InvalidKernelArgs) {
-  // Cuda and hip both lack any way to validate kernel args
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::HIP{});
-  UUR_KNOWN_FAILURE_ON(uur::LevelZero{}, uur::LevelZeroV2{});
+  ur_bool_t validates;
+  ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_VALIDATES_ON_LAUNCH,
+                                 sizeof(validates), &validates, nullptr));
 
-  ur_platform_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(ur_platform_backend_t), &backend,
-                                   nullptr));
-
-  if (backend == UR_PLATFORM_BACKEND_CUDA ||
-      backend == UR_PLATFORM_BACKEND_HIP ||
-      backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-    GTEST_FAIL() << "AMD, L0 and Nvidia can't check kernel arguments.";
+  if (!validates) {
+    GTEST_SKIP() << "Adapter can't check kernel arguments.";
+    return;
   }
 
   // Enqueue kernel without setting any args

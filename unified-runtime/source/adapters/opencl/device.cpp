@@ -1427,6 +1427,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_VALIDATES_ON_LAUNCH:
+    return ReturnValue(true);
   // TODO: We can't query to check if these are supported, they will need to be
   // manually updated if support is ever implemented.
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:

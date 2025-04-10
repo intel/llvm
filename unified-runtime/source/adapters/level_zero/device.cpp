@@ -1335,6 +1335,8 @@ ur_result_t urDeviceGetInfo(
       return ReturnValue(int32_t{PowerProperties.maxLimit});
     }
   }
+  case UR_DEVICE_INFO_VALIDATES_ON_LAUNCH:
+    return ReturnValue(false);
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,

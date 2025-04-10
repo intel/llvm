@@ -462,6 +462,8 @@ etors:
       desc: "[int32_t][optional-query] return max power limit in milliwatts."
     - name: BFLOAT16_CONVERSIONS_NATIVE
       desc: "[$x_bool_t] support for native bfloat16 conversions"
+    - name: VALIDATES_ON_LAUNCH
+      desc: "[$x_bool_t] $xEnqueueKernelLaunch may return $X_RESULT_ERROR_INVALID_KERNEL_ARGS"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
