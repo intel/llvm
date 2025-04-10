@@ -21,17 +21,11 @@ Tests in this category may not fully exercise the extension functionality, but a
 Perform tests on free function kernels requirments which should check the following:
  - that compiler will emit diagnostic when free function kernel is declared with reference types as parameters.
   
- - that compiler will emit diagnostic when free function kernel is declared with parameters of type `reducer` or  `kernel_handler`.
-
  - that compiler will emit diagnostic when free function kernel is declared with variadic arguments.
 
  - that compiler will emit diagnostic when free function kernel provides default parameter values.
 
  - that compiler will emit diagnostic when free function kernel return type is not `void`.
-
- - that compiler will emit diagnostic if free function kernel is decorated with more than one of the following properites (`nd_range_kernel` or `single_task_kernel `).
-
- - that compiler will emit diagnostic when free function kernel is decorated with multiple instances of the same    `nd_range_kernel` property with different argument. 
 
 Perform tests on new traits for free function kernels which should check the following:
  - that `is_nd_range_kernel_v` trait returns true if function declaration is decorated with `nd_range_kernel` property and false if it is not.
@@ -39,7 +33,6 @@ Perform tests on new traits for free function kernels which should check the fol
  - that `is_single_task_kernel_v` trait returns true function if declaration is decorated with `single_task_kernel` and false if it is not.
 
 - that `is_kernel_v` trait returns true for function whose declaration is decorated with either the `nd_range_kernel` property or the `single_task_kernel` property when it is not then it returns false.
-
 
 Perform tests on new kernel bundle member functions for free function kernels which should check the following:
 
