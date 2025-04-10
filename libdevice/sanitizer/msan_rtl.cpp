@@ -148,10 +148,6 @@ void __msan_report_error(const uint32_t size,
                          const uint32_t line,
                          const char __SYCL_CONSTANT__ *func, uptr origin = 0) {
   __msan_internal_report_save(size, file, line, func, origin);
-
-  if (!GetMsanLaunchInfo->IsRecover) {
-    __devicelib_exit();
-  }
 }
 
 inline uptr __msan_get_shadow_cpu(uptr addr) {
@@ -247,7 +243,6 @@ DEVICE_EXTERN_C_NOINLINE void
 __msan_warning_noreturn(const char __SYCL_CONSTANT__ *file, uint32_t line,
                         const char __SYCL_CONSTANT__ *func) {
   __msan_internal_report_save(1, file, line, func, 0);
-  __devicelib_exit();
 }
 
 // For mapping detail, ref to
