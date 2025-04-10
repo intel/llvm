@@ -49,7 +49,6 @@ AsanInterceptor::~AsanInterceptor() {
 
   for (auto &[_, ShadowMemory] : m_ShadowMap) {
     ShadowMemory->Destory();
-    getContext()->urDdiTable.Context.pfnRelease(ShadowMemory->Context);
   }
 
   for (auto Adapter : m_Adapters) {
@@ -323,16 +322,7 @@ AsanInterceptor::getOrCreateShadowMemory(ur_device_handle_t Device,
                                          DeviceType Type) {
   std::scoped_lock<ur_shared_mutex> Guard(m_ShadowMapMutex);
   if (m_ShadowMap.find(Type) == m_ShadowMap.end()) {
-    ur_context_handle_t InternalContext;
-    auto Res = getContext()->urDdiTable.Context.pfnCreate(1, &Device, nullptr,
-                                                          &InternalContext);
-    if (Res != UR_RESULT_SUCCESS) {
-      getContext()->logger.error("Failed to create shadow context");
-      return nullptr;
-    }
-    std::shared_ptr<ContextInfo> CI;
-    insertContext(InternalContext, CI);
-    m_ShadowMap[Type] = CreateShadowMemory(InternalContext, Device, Type);
+    m_ShadowMap[Type] = CreateShadowMemory(Device, Type);
     m_ShadowMap[Type]->Setup();
   }
   return m_ShadowMap[Type];
