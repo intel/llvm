@@ -362,6 +362,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
       urBindlessImagesWaitExternalSemaphoreExp;
   pDdiTable->pfnSignalExternalSemaphoreExp =
       urBindlessImagesSignalExternalSemaphoreExp;
+  pDdiTable->pfnGetImageMemoryHandleTypeSupportExp =
+      urBindlessImagesGetImageMemoryHandleTypeSupportExp;
+  pDdiTable->pfnGetImageUnsampledHandleSupportExp =
+      urBindlessImagesGetImageUnsampledHandleSupportExp;
+  pDdiTable->pfnGetImageSampledHandleSupportExp =
+      urBindlessImagesGetImageSampledHandleSupportExp;
   return UR_RESULT_SUCCESS;
 }
 

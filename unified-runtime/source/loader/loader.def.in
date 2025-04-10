@@ -5,6 +5,9 @@ EXPORTS
 	urAdapterGetLastError
 	urAdapterRelease
 	urAdapterRetain
+	urBindlessImagesGetImageMemoryHandleTypeSupportExp
+	urBindlessImagesGetImageSampledHandleSupportExp
+	urBindlessImagesGetImageUnsampledHandleSupportExp
 	urBindlessImagesImageAllocateExp
 	urBindlessImagesImageCopyExp
 	urBindlessImagesImageFreeExp
@@ -182,6 +185,9 @@ EXPORTS
 	urPrintApiVersion
 	urPrintBaseDesc
 	urPrintBaseProperties
+	urPrintBindlessImagesGetImageMemoryHandleTypeSupportExpParams
+	urPrintBindlessImagesGetImageSampledHandleSupportExpParams
+	urPrintBindlessImagesGetImageUnsampledHandleSupportExpParams
 	urPrintBindlessImagesImageAllocateExpParams
 	urPrintBindlessImagesImageCopyExpParams
 	urPrintBindlessImagesImageFreeExpParams
@@ -334,6 +340,7 @@ EXPORTS
 	urPrintExpFileDescriptor
 	urPrintExpImageCopyFlags
 	urPrintExpImageCopyRegion
+	urPrintExpImageMemType
 	urPrintExpLaunchProperty
 	urPrintExpLaunchPropertyId
 	urPrintExpPeerInfo
