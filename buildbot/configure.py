@@ -64,7 +64,6 @@ def do_configure(args, passthrough_args):
 
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
-    llvm_enable_zstd = "ON"
     spirv_enable_dis = "OFF"
 
     if sys.platform != "darwin":
@@ -188,7 +187,7 @@ def do_configure(args, passthrough_args):
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
-        "-DLLVM_ENABLE_ZSTD={}".format(llvm_enable_zstd),
+        "-DLLVM_ENABLE_ZSTD=FORCE_ON",  # Required by SYCL device image compression.
         "-DLLVM_USE_STATIC_ZSTD=ON",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
