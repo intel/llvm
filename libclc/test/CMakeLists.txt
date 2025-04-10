@@ -19,7 +19,7 @@ set(LIBCLC_TEST_DEPS
 add_custom_target(check-libclc)
 
 foreach( t ${LIBCLC_TARGET_TO_TEST} )
-	foreach( d ${${t}_devices} )
+  foreach( d ${${t}_devices} )
     if( ${d} STREQUAL "none" )
       set( mcpu )
       set( arch_suffix "${t}" )
@@ -29,11 +29,13 @@ foreach( t ${LIBCLC_TARGET_TO_TEST} )
     endif()
     message( " Testing : ${arch_suffix}" )
 
-    add_lit_testsuite(check-libclc-spirv-${arch_suffix} "Running libclc spirv-${arch_suffix} regression tests"
+    add_lit_testsuite(check-libclc-spirv-${arch_suffix}
+      "Running libclc spirv-${arch_suffix} regression tests"
       ${CMAKE_CURRENT_BINARY_DIR}
       ARGS
         --verbose
-      PARAMS "target=${t}" ${mcpu} "builtins=libspirv-${arch_suffix}.bc"
+      PARAMS "target=${t}" ${mcpu} "libclc-arch-suffix=${arch_suffix}"
+             "builtins=libspirv-${arch_suffix}.bc"
       DEPENDS
         ${LIBCLC_TEST_DEPS}
         libspirv-builtins
