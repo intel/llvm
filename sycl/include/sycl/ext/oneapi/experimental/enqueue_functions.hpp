@@ -393,8 +393,7 @@ inline void barrier(handler &CGH) { CGH.ext_oneapi_barrier(); }
 
 inline void barrier(queue Q, const sycl::detail::code_location &CodeLoc =
                                  sycl::detail::code_location::current()) {
-  submit(
-      std::move(Q), [&](handler &CGH) { barrier(CGH); }, CodeLoc);
+  submit(std::move(Q), [&](handler &CGH) { barrier(CGH); }, CodeLoc);
 }
 
 inline void partial_barrier(handler &CGH, const std::vector<event> &Events) {
