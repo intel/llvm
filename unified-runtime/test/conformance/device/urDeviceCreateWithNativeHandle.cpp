@@ -65,3 +65,36 @@ TEST_P(urDeviceCreateWithNativeHandleTest, InvalidNullPointerDevice) {
       UR_RESULT_ERROR_INVALID_NULL_POINTER,
       urDeviceCreateWithNativeHandle(native_handle, adapter, nullptr, nullptr));
 }
+
+TEST_P(urDeviceCreateWithNativeHandleTest, SubDeviceHandleEquality) {
+  if (!uur::hasDevicePartitionSupport(device, UR_DEVICE_PARTITION_EQUALLY)) {
+    GTEST_SKIP() << "Device: \'" << device
+                 << "\' does not support partitioning equally.";
+  }
+
+  ur_device_partition_property_t property = uur::makePartitionEquallyDesc(2);
+  ur_device_partition_properties_t properties{
+      UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
+      nullptr,
+      &property,
+      1,
+  };
+
+  std::vector<ur_device_handle_t> sub_devices(2);
+  ASSERT_SUCCESS(
+      urDevicePartition(device, &properties, 2, sub_devices.data(), nullptr));
+
+  ur_native_handle_t native;
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urDeviceGetNativeHandle(sub_devices[0], &native));
+
+  ur_device_handle_t handle_a;
+  ASSERT_SUCCESS(
+      urDeviceCreateWithNativeHandle(native, adapter, nullptr, &handle_a));
+  ur_device_handle_t handle_b;
+  ASSERT_SUCCESS(
+      urDeviceCreateWithNativeHandle(native, adapter, nullptr, &handle_b));
+
+  ASSERT_EQ(handle_a, handle_b);
+  ASSERT_NE(handle_a, nullptr);
+}

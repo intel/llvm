@@ -136,13 +136,13 @@ struct DemangleHandle {
 
   ~DemangleHandle() { std::free(p); }
 };
-static std::string demangleKernelName(std::string_view Name) {
+static std::string demangleKernelName(const std::string_view Name) {
   int Status = -1; // some arbitrary value to eliminate the compiler warning
   DemangleHandle result(abi::__cxa_demangle(Name.data(), NULL, NULL, &Status));
   return (Status == 0) ? result.p : std::string(Name);
 }
 #else
-static std::string demangleKernelName(std::string_view Name) {
+static std::string demangleKernelName(const std::string_view Name) {
   return std::string(Name);
 }
 #endif
@@ -1963,7 +1963,7 @@ ExecCGCommand::ExecCGCommand(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::string instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const std::string &FunctionName, std::string_view SyclKernelName,
+    const std::string_view FunctionName, const std::string_view SyclKernelName,
     void *&Address, std::optional<bool> &FromSource) {
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
@@ -2052,8 +2052,8 @@ void instrumentationFillCommonData(const std::string &KernelName,
   if (!FileName.empty()) {
     // File name has a valid string
     Payload =
-        xpti::payload_t(FuncName.empty() ? KernelName.data() : FuncName.c_str(),
-                        FileName.c_str(), Line, Column, Address);
+        xpti::payload_t(FuncName.empty() ? KernelName.data() : FuncName.data(),
+                        FileName.data(), Line, Column, Address);
     HasSourceInfo = true;
   } else if (Address) {
     // We have a valid function name and an address
@@ -2098,7 +2098,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    const std::string &SyclKernelName, const QueueImplPtr &Queue,
+    const std::string_view SyclKernelName, const QueueImplPtr &Queue,
     const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
@@ -2111,8 +2111,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
   void *Address = nullptr;
   std::optional<bool> FromSource;
   std::string KernelName = instrumentationGetKernelName(
-      SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address,
-      FromSource);
+      SyclKernel, CodeLoc.functionName(), SyclKernelName, Address, FromSource);
 
   auto &[CmdTraceEvent, InstanceID] = XptiObjects;
 
@@ -2137,9 +2136,9 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     if (Queue.get())
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
                                    getQueueID(Queue));
-    instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
-                                          KernelBundleImplPtr, SyclKernelName,
-                                          SyclKernel, Queue, CGArgs);
+    instrumentationAddExtraKernelMetadata(
+        CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
+        std::string(SyclKernelName), SyclKernel, Queue, CGArgs);
 
     xptiNotifySubscribers(
         StreamID, NotificationTraceType, detail::GSYCLGraphEvent, CmdTraceEvent,

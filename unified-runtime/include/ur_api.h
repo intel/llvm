@@ -1448,17 +1448,15 @@ typedef enum ur_adapter_backend_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phAdapters`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phPlatforms != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `pNumPlatforms == NULL && phPlatforms == NULL`
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -12772,8 +12770,7 @@ typedef struct ur_loader_config_set_mocking_enabled_params_t {
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_platform_get_params_t {
-  ur_adapter_handle_t **pphAdapters;
-  uint32_t *pNumAdapters;
+  ur_adapter_handle_t *phAdapter;
   uint32_t *pNumEntries;
   ur_platform_handle_t **pphPlatforms;
   uint32_t **ppNumPlatforms;
