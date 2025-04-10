@@ -360,7 +360,10 @@ public:
   ProgramManager();
   ~ProgramManager() = default;
 
-  bool kernelUsesAssert(const std::string &KernelName) const;
+  template <typename NameT>
+  bool kernelUsesAssert(const NameT &KernelName) const {
+    return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
+  }
 
   SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
@@ -503,7 +506,12 @@ protected:
   bool m_UseSpvFile = false;
   RTDeviceBinaryImageUPtr m_SpvFileImage;
 
-  std::set<std::string> m_KernelUsesAssert;
+  // std::less<> is a transparent comparator that enabled comparison between
+  // different types without temporary key_type object creation. This includes
+  // standard overloads, such as comparison between std::string and
+  // std::string_view or just char*.
+  using KernelUsesAssertSet = std::set<std::string, std::less<>>;
+  KernelUsesAssertSet m_KernelUsesAssert;
   std::unordered_map<std::string, int> m_KernelImplicitLocalArgPos;
 
   // Sanitizer type used in device image

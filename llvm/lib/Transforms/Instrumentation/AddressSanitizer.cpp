@@ -1718,7 +1718,7 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
     return true;
 
   if (G->getAddressSpace() == kSpirOffloadLocalAS)
-    return true;
+    return !ClSpirOffloadLocals;
 
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
@@ -2914,6 +2914,10 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
       G.setName("nameless_global");
 
     if (isUnsupportedDeviceGlobal(&G))
+      continue;
+
+    // This case is handled by instrumentSyclStaticLocalMemory
+    if (G.getAddressSpace() == kSpirOffloadLocalAS)
       continue;
 
     Type *Ty = G.getValueType();

@@ -14,6 +14,7 @@ class E2EExpr(BooleanExpression):
         "any-target-is-nvidia",
         "any-target-is-amd",
         "any-target-is-native_cpu",
+        "opencl-cpu-rt",
         "spirv-backend",
         "linux",
         "system-linux",
