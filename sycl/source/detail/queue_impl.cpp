@@ -367,9 +367,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
   detail::handler_impl HandlerImplVal(PrimaryQueue.get(), SecondaryQueue.get(),
                                       CallerNeedsEvent);
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
-  // TODO: get rid of copy creation from Self
-  std::shared_ptr<queue_impl> SelfCopy(Self);
-  handler Handler(HandlerImpl, SelfCopy);
+  handler Handler(HandlerImpl, Self);
 #else
   handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(),
                   CallerNeedsEvent);

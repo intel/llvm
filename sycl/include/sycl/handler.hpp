@@ -427,7 +427,7 @@ private:
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  handler(std::shared_ptr<detail::queue_impl> &Queue, bool CallerNeedsEvent);
+  handler(const std::shared_ptr<detail::queue_impl> &Queue, bool CallerNeedsEvent);
 #else
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
 #endif
@@ -439,7 +439,7 @@ private:
   /// \param HandlerImpl is a pre-constructed handler_impl.
   /// \param Queue is a SYCL queue.
   handler(detail::handler_impl *HandlerImpl,
-          std::shared_ptr<detail::queue_impl> &Queue);
+          const std::shared_ptr<detail::queue_impl> &Queue);
 #else
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
@@ -3441,9 +3441,13 @@ public:
 
 private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  // In some cases we need to construct handler_impl in heap. Sole propose
+  // of MImplOwner is to destroy handler_impl in destructor of handler.
+  // Can't use unique_ptr because declaration of handler_impl is not available
+  // in this header.
   std::shared_ptr<detail::handler_impl> MImplOwner;
   detail::handler_impl *impl;
-  std::shared_ptr<detail::queue_impl> &MQueue;
+  const std::shared_ptr<detail::queue_impl> &MQueue;
 #else
   std::shared_ptr<detail::handler_impl> impl;
   std::shared_ptr<detail::queue_impl> MQueue;

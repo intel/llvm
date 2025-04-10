@@ -314,14 +314,14 @@ fill_copy_args(detail::handler_impl *impl,
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
-handler::handler(std::shared_ptr<detail::queue_impl> &Queue,
+handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
     : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
                                                         CallerNeedsEvent)),
       impl(MImplOwner.get()), MQueue(Queue) {}
 
 handler::handler(detail::handler_impl *HandlerImpl,
-                 std::shared_ptr<detail::queue_impl> &Queue)
+                 const std::shared_ptr<detail::queue_impl> &Queue)
     : impl(HandlerImpl), MQueue(Queue) {}
 
 static std::shared_ptr<detail::queue_impl> DummyQueue;
