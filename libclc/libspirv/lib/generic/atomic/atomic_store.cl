@@ -10,12 +10,12 @@
 
 _CLC_OVERLOAD _CLC_DECL void
 __spirv_AtomicStore(global float *p, int scope, int semantics, float val) {
-  __spirv_AtomicStore((global uint *)p, scope, semantics, as_uint(val));
+  __spirv_AtomicStore((global uint *)p, scope, semantics, __clc_as_uint(val));
 }
 
 _CLC_OVERLOAD _CLC_DECL void
 __spirv_AtomicStore(local float *p, int scope, int semantics, float val) {
-  __spirv_AtomicStore((local uint *)p, scope, semantics, as_uint(val));
+  __spirv_AtomicStore((local uint *)p, scope, semantics, __clc_as_uint(val));
 }
 
 #define FDECL(TYPE, PREFIX, AS, BYTE_SIZE, MEM_ORDER) \
