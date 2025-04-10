@@ -1598,6 +1598,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_adapter_handle_t,
     const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
+
+  auto SetDeviceProps = [&]() {
+    (*phDevice)->IsNativeHandleOwned =
+        pProperties ? pProperties->isNativeHandleOwned : false;
+  };
+
   cl_device_id NativeHandle = reinterpret_cast<cl_device_id>(hNativeDevice);
 
   uint32_t NumPlatforms = 0;
@@ -1617,12 +1623,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     for (auto &Device : Devices) {
       if (Device->CLDevice == NativeHandle) {
         *phDevice = Device;
-        (*phDevice)->IsNativeHandleOwned =
-            pProperties ? pProperties->isNativeHandleOwned : false;
+        SetDeviceProps();
         return UR_RESULT_SUCCESS;
       }
     }
   }
+
+  // Handle sub-devices by storing/querying a map stored in the platform
+  cl_device_id Parent = nullptr;
+  CL_RETURN_ON_FAILURE(clGetDeviceInfo(NativeHandle, CL_DEVICE_PARENT_DEVICE,
+                                       sizeof(Parent), &Parent, nullptr));
+  if (Parent != nullptr) {
+    ur_device_handle_t ParentUrHandle;
+    // This will either create a new device handle, or return an existing one
+    UR_RETURN_ON_FAILURE(urDeviceCreateWithNativeHandle(
+        reinterpret_cast<ur_native_handle_t>(Parent), nullptr, nullptr,
+        &ParentUrHandle));
+
+    ur_platform_handle_t PlatformHandle = ParentUrHandle->Platform;
+    assert(PlatformHandle);
+
+    {
+      std::lock_guard lock{PlatformHandle->SubDevicesLock};
+
+      if (PlatformHandle->SubDevices.count(NativeHandle)) {
+        *phDevice = PlatformHandle->SubDevices[NativeHandle];
+      } else {
+        *phDevice = std::make_unique<ur_device_handle_t_>(
+                        NativeHandle, PlatformHandle, ParentUrHandle)
+                        .release();
+        PlatformHandle->SubDevices[NativeHandle] = *phDevice;
+      }
+    }
+
+    SetDeviceProps();
+    return UR_RESULT_SUCCESS;
+  }
+
   return UR_RESULT_ERROR_INVALID_DEVICE;
 }
 
