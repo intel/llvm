@@ -4,9 +4,9 @@ Platform initialized.
    ---> urAdapterGet
    <--- urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS;
    ---> urPlatformGet
-   <--- urPlatformGet(.phAdapters = {{.*}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{.*}}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+   <--- urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 1, .phPlatforms = {{.*}}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
    ---> urPlatformGet
-   <--- urPlatformGet(.phAdapters = {{.*}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{.*}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
+   <--- urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 1, .phPlatforms = {{.*}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
    ---> urPlatformGetApiVersion
    <--- urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} ({{0\.[0-9]+}})) -> UR_RESULT_SUCCESS;
 API version: {{0\.[0-9]+}}

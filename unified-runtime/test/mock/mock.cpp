@@ -36,8 +36,7 @@ TEST(Mock, DefaultBehavior) {
   ur_device_handle_t device = nullptr;
 
   ASSERT_EQ(urAdapterGet(1, &adapter, nullptr), UR_RESULT_SUCCESS);
-  ASSERT_EQ(urPlatformGet(&adapter, 1, 1, &platform, nullptr),
-            UR_RESULT_SUCCESS);
+  ASSERT_EQ(urPlatformGet(adapter, 1, &platform, nullptr), UR_RESULT_SUCCESS);
   ASSERT_EQ(urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 1, &device, nullptr),
             UR_RESULT_SUCCESS);
 

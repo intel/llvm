@@ -189,10 +189,8 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -207,55 +205,39 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
   ur_result_t result = UR_RESULT_SUCCESS;
 
   [[maybe_unused]] auto context = getContext();
-  uint32_t total_platform_handle_count = 0;
 
-  for (uint32_t adapter_index = 0; adapter_index < NumAdapters;
-       adapter_index++) {
-    // extract adapter's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_platform_object_t *>(phAdapters[adapter_index])
-            ->dditable;
+  // extract adapter's function pointer table
+  auto dditable = reinterpret_cast<ur_platform_object_t *>(hAdapter)->dditable;
 
-    if ((0 < NumEntries) && (NumEntries == total_platform_handle_count))
-      break;
+  uint32_t library_platform_handle_count = 0;
 
-    uint32_t library_platform_handle_count = 0;
+  result = dditable->ur.Platform.pfnGet(hAdapter, 0, nullptr,
+                                        &library_platform_handle_count);
+  if (UR_RESULT_SUCCESS != result)
+    return result;
 
-    result =
-        dditable->ur.Platform.pfnGet(&phAdapters[adapter_index], 1, 0, nullptr,
-                                     &library_platform_handle_count);
-    if (UR_RESULT_SUCCESS != result)
-      break;
-
-    if (nullptr != phPlatforms && NumEntries != 0) {
-      if (total_platform_handle_count + library_platform_handle_count >
-          NumEntries) {
-        library_platform_handle_count =
-            NumEntries - total_platform_handle_count;
-      }
-      result = dditable->ur.Platform.pfnGet(
-          &phAdapters[adapter_index], 1, library_platform_handle_count,
-          &phPlatforms[total_platform_handle_count], nullptr);
-      if (UR_RESULT_SUCCESS != result)
-        break;
-
-      try {
-        for (uint32_t i = 0; i < library_platform_handle_count; ++i) {
-          uint32_t platform_index = total_platform_handle_count + i;
-          phPlatforms[platform_index] = reinterpret_cast<ur_platform_handle_t>(
-              context->factories.ur_platform_factory.getInstance(
-                  phPlatforms[platform_index], dditable));
-        }
-      } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-      }
+  if (nullptr != phPlatforms && NumEntries != 0) {
+    if (library_platform_handle_count > NumEntries) {
+      library_platform_handle_count = NumEntries;
     }
+    result = dditable->ur.Platform.pfnGet(
+        hAdapter, library_platform_handle_count, phPlatforms, nullptr);
+    if (UR_RESULT_SUCCESS != result)
+      return result;
 
-    total_platform_handle_count += library_platform_handle_count;
+    try {
+      for (uint32_t i = 0; i < library_platform_handle_count; ++i) {
+        phPlatforms[i] = reinterpret_cast<ur_platform_handle_t>(
+            context->factories.ur_platform_factory.getInstance(phPlatforms[i],
+                                                               dditable));
+      }
+    } catch (std::bad_alloc &) {
+      result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
   }
 
   if (UR_RESULT_SUCCESS == result && pNumPlatforms != nullptr)
-    *pNumPlatforms = total_platform_handle_count;
+    *pNumPlatforms = library_platform_handle_count;
 
   return result;
 }
