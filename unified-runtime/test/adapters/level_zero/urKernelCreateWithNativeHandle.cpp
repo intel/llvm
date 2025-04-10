@@ -4,6 +4,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %maybe-v1 ./kernel_create-test
+// RUN: %maybe-v2 ./kernel_create-test
+
 #include "ur_api.h"
 #include "uur/checks.h"
 #include "ze_api.h"
