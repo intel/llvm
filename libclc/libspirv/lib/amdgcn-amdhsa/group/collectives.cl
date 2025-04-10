@@ -50,39 +50,38 @@ __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
 #define __CLC_LOGICAL_OR(x, y) (x || y)
 #define __CLC_LOGICAL_AND(x, y) (x && y)
 
-#define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)            \
-  uint sg_lid = __spirv_SubgroupLocalInvocationId();                  \
-  /* Can't use XOR/butterfly shuffles; some lanes may be inactive */  \
-  for (int o = 1; o < __spirv_SubgroupMaxSize(); o *= 2) {            \
-    TYPE contribution = __spirv_SubgroupShuffleUpINTEL(x, x, o);      \
-    bool inactive = (sg_lid < o);                                     \
-    contribution = (inactive) ? IDENTITY : contribution;              \
-    x = OP(x, contribution);                                          \
-  }                                                                   \
-  /* For Reduce, broadcast result from highest active lane */         \
-  TYPE result;                                                        \
-  if (op == Reduce) {                                                 \
-    result = __spirv_SubgroupShuffleINTEL(                            \
-        x, __spirv_SubgroupSize() - 1);                               \
-    *carry = result;                                                  \
-  } /* For InclusiveScan, use results as computed */                  \
-  else if (op == InclusiveScan) {                                     \
-    result = x;                                                       \
-    *carry = result;                                                  \
-  } /* For ExclusiveScan, shift and prepend identity */               \
-  else if (op == ExclusiveScan) {                                     \
-    *carry = x;                                                       \
-    result = __spirv_SubgroupShuffleUpINTEL(x, x, 1);                 \
-    if (sg_lid == 0) {                                                \
-      result = IDENTITY;                                              \
-    }                                                                 \
-  }                                                                   \
+#define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                     \
+  uint sg_lid = __spirv_SubgroupLocalInvocationId();                           \
+  /* Can't use XOR/butterfly shuffles; some lanes may be inactive */           \
+  for (int o = 1; o < __spirv_SubgroupMaxSize(); o *= 2) {                     \
+    TYPE contribution = __spirv_SubgroupShuffleUpINTEL(x, x, o);               \
+    bool inactive = (sg_lid < o);                                              \
+    contribution = (inactive) ? IDENTITY : contribution;                       \
+    x = OP(x, contribution);                                                   \
+  }                                                                            \
+  /* For Reduce, broadcast result from highest active lane */                  \
+  TYPE result;                                                                 \
+  if (op == Reduce) {                                                          \
+    result = __spirv_SubgroupShuffleINTEL(x, __spirv_SubgroupSize() - 1);      \
+    *carry = result;                                                           \
+  } /* For InclusiveScan, use results as computed */                           \
+  else if (op == InclusiveScan) {                                              \
+    result = x;                                                                \
+    *carry = result;                                                           \
+  } /* For ExclusiveScan, shift and prepend identity */                        \
+  else if (op == ExclusiveScan) {                                              \
+    *carry = x;                                                                \
+    result = __spirv_SubgroupShuffleUpINTEL(x, x, 1);                          \
+    if (sg_lid == 0) {                                                         \
+      result = IDENTITY;                                                       \
+    }                                                                          \
+  }                                                                            \
   return result;
 
-#define __CLC_SUBGROUP_COLLECTIVE(NAME, OP, TYPE, IDENTITY)    \
-  _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(    \
-      __clc__Subgroup, NAME)(uint op, TYPE x, TYPE * carry) {  \
-    __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)         \
+#define __CLC_SUBGROUP_COLLECTIVE(NAME, OP, TYPE, IDENTITY)                    \
+  _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __CLC_APPEND(                    \
+      __clc__Subgroup, NAME)(uint op, TYPE x, TYPE * carry) {                  \
+    __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, IDENTITY)                         \
   }
 
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, char, 0)
@@ -356,7 +355,7 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
 
 #define __CLC_GROUP_BROADCAST(TYPE, TYPE_MANGLED)                              \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      int scope, TYPE x, ulong local_id) {                                    \
+      int scope, TYPE x, ulong local_id) {                                     \
     if (scope == Subgroup) {                                                   \
       return __spirv_SubgroupShuffleINTEL(x, local_id);                        \
     }                                                                          \
@@ -371,17 +370,17 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
     return result;                                                             \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      int scope, TYPE x, ulong2 local_id) {                                   \
+      int scope, TYPE x, ulong2 local_id) {                                    \
     ulong linear_local_id = __clc__2d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      int scope, TYPE x, ulong3 local_id) {                                   \
+      int scope, TYPE x, ulong3 local_id) {                                    \
     ulong linear_local_id = __clc__3d_to_linear_local_id(local_id);            \
     return __spirv_GroupBroadcast(scope, x, linear_local_id);                  \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \
-      int scope, TYPE x, uint local_id) {                                     \
+      int scope, TYPE x, uint local_id) {                                      \
     return __spirv_GroupBroadcast(scope, x, (ulong)local_id);                  \
   }
 __CLC_GROUP_BROADCAST(char, a);

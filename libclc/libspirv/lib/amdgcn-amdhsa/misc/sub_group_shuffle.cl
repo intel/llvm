@@ -24,10 +24,10 @@ _Z28__spirv_SubgroupShuffleINTELIiET_S0_j(int Data, unsigned int InvocationId) {
 }
 
 // Sub 32-bit types.
-#define __AMDGCN_CLC_SUBGROUP_SUB_I32(TYPE)                       \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleINTEL(       \
-      TYPE Data, unsigned int InvocationId) {                     \
-    return __spirv_SubgroupShuffleINTEL((int)Data, InvocationId); \
+#define __AMDGCN_CLC_SUBGROUP_SUB_I32(TYPE)                                    \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleINTEL(                    \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    return __spirv_SubgroupShuffleINTEL((int)Data, InvocationId);              \
   }
 __AMDGCN_CLC_SUBGROUP_SUB_I32(char);
 __AMDGCN_CLC_SUBGROUP_SUB_I32(unsigned char);
@@ -52,8 +52,8 @@ __AMDGCN_CLC_SUBGROUP_SUB_I32(unsigned short, t);
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
-_CLC_OVERLOAD _CLC_DEF half __spirv_SubgroupShuffleINTEL(
-    half Data, unsigned int InvocationId) {
+_CLC_OVERLOAD _CLC_DEF half
+__spirv_SubgroupShuffleINTEL(half Data, unsigned int InvocationId) {
   unsigned short tmp = __clc_as_ushort(Data);
   tmp = __spirv_SubgroupShuffleINTEL(tmp, InvocationId);
   return __clc_as_half(tmp);
@@ -67,12 +67,12 @@ _CLC_DEF half _Z28__spirv_SubgroupShuffleINTELIDF16_ET_S0_j(
 #undef __AMDGCN_CLC_SUBGROUP_SUB_I32
 
 // 32-bit types.
-#define __AMDGCN_CLC_SUBGROUP_I32(TYPE, CAST_TYPE)                \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleINTEL(       \
-      TYPE Data, unsigned int InvocationId) {                     \
-    return __builtin_astype(                                      \
-        __spirv_SubgroupShuffleINTEL(__clc_as_int(Data), InvocationId), \
-        CAST_TYPE);                                               \
+#define __AMDGCN_CLC_SUBGROUP_I32(TYPE, CAST_TYPE)                             \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleINTEL(                    \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    return __builtin_astype(                                                   \
+        __spirv_SubgroupShuffleINTEL(__clc_as_int(Data), InvocationId),        \
+        CAST_TYPE);                                                            \
   }
 __AMDGCN_CLC_SUBGROUP_I32(unsigned int, uint);
 __AMDGCN_CLC_SUBGROUP_I32(float, float);
@@ -90,13 +90,13 @@ __AMDGCN_CLC_SUBGROUP_I32(float, float, f);
 #undef __AMDGCN_CLC_SUBGROUP_I32
 
 // 64-bit types.
-#define __AMDGCN_CLC_SUBGROUP_I64(TYPE, CAST_TYPE)                \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleINTEL(       \
-      TYPE Data, unsigned int InvocationId) {                     \
-    int2 tmp = __clc_as_int2(Data);                                     \
-    tmp.lo = __spirv_SubgroupShuffleINTEL(tmp.lo, InvocationId);  \
-    tmp.hi = __spirv_SubgroupShuffleINTEL(tmp.hi, InvocationId);  \
-    return __builtin_astype(tmp, CAST_TYPE);                      \
+#define __AMDGCN_CLC_SUBGROUP_I64(TYPE, CAST_TYPE)                             \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleINTEL(                    \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    int2 tmp = __clc_as_int2(Data);                                            \
+    tmp.lo = __spirv_SubgroupShuffleINTEL(tmp.lo, InvocationId);               \
+    tmp.hi = __spirv_SubgroupShuffleINTEL(tmp.hi, InvocationId);               \
+    return __builtin_astype(tmp, CAST_TYPE);                                   \
   }
 __AMDGCN_CLC_SUBGROUP_I64(long, long);
 __AMDGCN_CLC_SUBGROUP_I64(unsigned long, ulong);
@@ -117,14 +117,14 @@ __AMDGCN_CLC_SUBGROUP_I64(double, double, d);
 #undef __AMDGCN_CLC_SUBGROUP_I64
 
 // Vector types.
-#define __AMDGCN_CLC_SUBGROUP_TO_VEC(TYPE, NUM_ELEMS)                  \
-  _CLC_OVERLOAD _CLC_DEF TYPE                                          \
-  __spirv_SubgroupShuffleINTEL(TYPE Data, unsigned int InvocationId) { \
-    TYPE res;                                                          \
-    for (int i = 0; i < NUM_ELEMS; ++i) {                              \
-      res[i] = __spirv_SubgroupShuffleINTEL(Data[i], InvocationId);    \
-    }                                                                  \
-    return res;                                                        \
+#define __AMDGCN_CLC_SUBGROUP_TO_VEC(TYPE, NUM_ELEMS)                          \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleINTEL(                    \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    TYPE res;                                                                  \
+    for (int i = 0; i < NUM_ELEMS; ++i) {                                      \
+      res[i] = __spirv_SubgroupShuffleINTEL(Data[i], InvocationId);            \
+    }                                                                          \
+    return res;                                                                \
   }
 
 // [u]char
@@ -261,18 +261,18 @@ _Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(int Data,
 }
 
 // Sub 32-bit types.
-#define __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(TYPE)                       \
-  _CLC_OVERLOAD _CLC_DEF TYPE                                         \
-  __spirv_SubgroupShuffleXor(TYPE Data, unsigned int InvocationId) {  \
-    return __spirv_SubgroupShuffleXorINTEL((int)Data, InvocationId);  \
+#define __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(TYPE)                                \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleXor(                      \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    return __spirv_SubgroupShuffleXorINTEL((int)Data, InvocationId);           \
   }
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(char);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned char);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(short);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned short);
 #ifdef cl_khr_fp16
-_CLC_OVERLOAD _CLC_DEF half __spirv_SubgroupShuffleXorINTEL(
-    half Data, unsigned int InvocationId) {
+_CLC_OVERLOAD _CLC_DEF half
+__spirv_SubgroupShuffleXorINTEL(half Data, unsigned int InvocationId) {
   unsigned short tmp = __clc_as_ushort(Data);
   tmp = (unsigned short)__spirv_SubgroupShuffleXorINTEL(tmp, InvocationId);
   return __clc_as_half(tmp);
@@ -304,12 +304,12 @@ _CLC_DEF half _Z31__spirv_SubgroupShuffleXorINTELIDF16_ET_S0_j(
 #undef __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32
 
 // 32-bit types.
-#define __AMDGCN_CLC_SUBGROUP_XOR_I32(TYPE, CAST_TYPE)                     \
-  _CLC_OVERLOAD _CLC_DEF TYPE                                              \
-  __spirv_SubgroupShuffleXorINTEL(TYPE Data, unsigned int InvocationId) {  \
-    return __builtin_astype(__spirv_SubgroupShuffleXorINTEL(               \
-                                __clc_as_int(Data), InvocationId),               \
-                            CAST_TYPE);                                    \
+#define __AMDGCN_CLC_SUBGROUP_XOR_I32(TYPE, CAST_TYPE)                         \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleXorINTEL(                 \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    return __builtin_astype(                                                   \
+        __spirv_SubgroupShuffleXorINTEL(__clc_as_int(Data), InvocationId),     \
+        CAST_TYPE);                                                            \
   }
 __AMDGCN_CLC_SUBGROUP_XOR_I32(unsigned int, uint);
 __AMDGCN_CLC_SUBGROUP_XOR_I32(float, float);
@@ -328,13 +328,13 @@ __AMDGCN_CLC_SUBGROUP_XOR_I32(float, float, f);
 #undef __AMDGCN_CLC_SUBGROUP_XOR_I32
 
 // 64-bit types.
-#define __AMDGCN_CLC_SUBGROUP_XOR_I64(TYPE, CAST_TYPE)                    \
-  _CLC_OVERLOAD _CLC_DEF TYPE                                             \
-  __spirv_SubgroupShuffleXorINTEL(TYPE Data, unsigned int InvocationId) { \
-    int2 tmp = __clc_as_int2(Data);                                             \
-    tmp.lo = __spirv_SubgroupShuffleXorINTEL(tmp.lo, InvocationId);       \
-    tmp.hi = __spirv_SubgroupShuffleXorINTEL(tmp.hi, InvocationId);       \
-    return __builtin_astype(tmp, CAST_TYPE);                              \
+#define __AMDGCN_CLC_SUBGROUP_XOR_I64(TYPE, CAST_TYPE)                         \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleXorINTEL(                 \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    int2 tmp = __clc_as_int2(Data);                                            \
+    tmp.lo = __spirv_SubgroupShuffleXorINTEL(tmp.lo, InvocationId);            \
+    tmp.hi = __spirv_SubgroupShuffleXorINTEL(tmp.hi, InvocationId);            \
+    return __builtin_astype(tmp, CAST_TYPE);                                   \
   }
 __AMDGCN_CLC_SUBGROUP_XOR_I64(long, long);
 __AMDGCN_CLC_SUBGROUP_XOR_I64(unsigned long, ulong);
@@ -357,14 +357,14 @@ __AMDGCN_CLC_SUBGROUP_XOR_I64(double, double, d);
 
 // Vector types.
 
-#define __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(TYPE, NUM_ELEMS)                  \
-  _CLC_OVERLOAD _CLC_DEF TYPE                                              \
-  __spirv_SubgroupShuffleXorINTEL(TYPE Data, unsigned int InvocationId) {  \
-    TYPE res;                                                              \
-    for (int i = 0; i < NUM_ELEMS; ++i) {                                  \
-      res[i] = __spirv_SubgroupShuffleXorINTEL(Data[i], InvocationId);     \
-    }                                                                      \
-    return res;                                                            \
+#define __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(TYPE, NUM_ELEMS)                      \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleXorINTEL(                 \
+      TYPE Data, unsigned int InvocationId) {                                  \
+    TYPE res;                                                                  \
+    for (int i = 0; i < NUM_ELEMS; ++i) {                                      \
+      res[i] = __spirv_SubgroupShuffleXorINTEL(Data[i], InvocationId);         \
+    }                                                                          \
+    return res;                                                                \
   }
 // [u]char
 __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(char2, 2)
@@ -523,8 +523,9 @@ __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(short);
 __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(unsigned short);
 // half
 #ifdef cl_khr_fp16
-_CLC_OVERLOAD _CLC_DEF half __spirv_SubgroupShuffleUpINTEL(
-    half previous, half current, unsigned int delta) {
+_CLC_OVERLOAD _CLC_DEF half __spirv_SubgroupShuffleUpINTEL(half previous,
+                                                           half current,
+                                                           unsigned int delta) {
   unsigned short tmpP = __clc_as_ushort(previous);
   unsigned short tmpC = __clc_as_ushort(current);
   tmpC = __spirv_SubgroupShuffleUpINTEL(tmpP, tmpC, delta);
@@ -558,12 +559,13 @@ _CLC_DEF half _Z30__spirv_SubgroupShuffleUpINTELIDF16_ET_S0_S0_j(
 #undef __AMDGCN_CLC_SUBGROUP_UP_SUB_I32
 
 // 32-bit types.
-#define __AMDGCN_CLC_SUBGROUP_UP_I32(TYPE, CAST_TYPE)                      \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleUpINTEL(              \
-      TYPE previous, TYPE current, unsigned int delta) {                   \
-    return __builtin_astype(__spirv_SubgroupShuffleUpINTEL(                \
-                                __clc_as_int(previous), __clc_as_int(current), delta), \
-                            CAST_TYPE);                                    \
+#define __AMDGCN_CLC_SUBGROUP_UP_I32(TYPE, CAST_TYPE)                          \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleUpINTEL(                  \
+      TYPE previous, TYPE current, unsigned int delta) {                       \
+    return __builtin_astype(                                                   \
+        __spirv_SubgroupShuffleUpINTEL(__clc_as_int(previous),                 \
+                                       __clc_as_int(current), delta),          \
+        CAST_TYPE);                                                            \
   }
 __AMDGCN_CLC_SUBGROUP_UP_I32(unsigned int, uint);
 __AMDGCN_CLC_SUBGROUP_UP_I32(float, float);
@@ -582,17 +584,17 @@ __AMDGCN_CLC_SUBGROUP_UP_I32(float, float, f);
 #undef __AMDGCN_CLC_SUBGROUP_UP_I32
 
 // 64-bit types.
-#define __AMDGCN_CLC_SUBGROUP_UP_I64(TYPE, CAST_TYPE)         \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleUpINTEL( \
-          TYPE previous, TYPE current, unsigned int delta) {  \
-    int2 tmp_previous = __clc_as_int2(previous);                    \
-    int2 tmp_current = __clc_as_int2(current);                      \
-    int2 ret;                                                 \
-    ret.lo = __spirv_SubgroupShuffleUpINTEL(                  \
-        tmp_previous.lo, tmp_current.lo, delta);              \
-    ret.hi = __spirv_SubgroupShuffleUpINTEL(                  \
-        tmp_previous.hi, tmp_current.hi, delta);              \
-    return __builtin_astype(ret, CAST_TYPE);                  \
+#define __AMDGCN_CLC_SUBGROUP_UP_I64(TYPE, CAST_TYPE)                          \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleUpINTEL(                  \
+      TYPE previous, TYPE current, unsigned int delta) {                       \
+    int2 tmp_previous = __clc_as_int2(previous);                               \
+    int2 tmp_current = __clc_as_int2(current);                                 \
+    int2 ret;                                                                  \
+    ret.lo = __spirv_SubgroupShuffleUpINTEL(tmp_previous.lo, tmp_current.lo,   \
+                                            delta);                            \
+    ret.hi = __spirv_SubgroupShuffleUpINTEL(tmp_previous.hi, tmp_current.hi,   \
+                                            delta);                            \
+    return __builtin_astype(ret, CAST_TYPE);                                   \
   }
 __AMDGCN_CLC_SUBGROUP_UP_I64(long, long);
 __AMDGCN_CLC_SUBGROUP_UP_I64(unsigned long, ulong);
@@ -616,7 +618,7 @@ __AMDGCN_CLC_SUBGROUP_UP_I64(double, double, d);
 // Vector types.
 #define __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(TYPE, NUM_ELEMS)                       \
   _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleUpINTEL(                  \
-          TYPE previous, TYPE current, unsigned int delta) {                   \
+      TYPE previous, TYPE current, unsigned int delta) {                       \
     TYPE res;                                                                  \
     for (int i = 0; i < NUM_ELEMS; ++i) {                                      \
       res[i] = __spirv_SubgroupShuffleUpINTEL(previous[i], current[i], delta); \
@@ -769,10 +771,10 @@ _Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(int current, int next,
 }
 
 // Sub 32-bit types.
-#define __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(TYPE)                              \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleDownINTEL(              \
-          TYPE current, TYPE next, unsigned int delta) {                     \
-    return __spirv_SubgroupShuffleDownINTEL((int)current, (int)next, delta); \
+#define __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(TYPE)                                \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleDownINTEL(                \
+      TYPE current, TYPE next, unsigned int delta) {                           \
+    return __spirv_SubgroupShuffleDownINTEL((int)current, (int)next, delta);   \
   }
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(char);
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(unsigned char);
@@ -780,8 +782,8 @@ __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(short);
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(unsigned short);
 // half
 #ifdef cl_khr_fp16
-_CLC_OVERLOAD _CLC_DEF half __spirv_SubgroupShuffleDownINTEL(
-    half current, half next, unsigned int delta) {
+_CLC_OVERLOAD _CLC_DEF half
+__spirv_SubgroupShuffleDownINTEL(half current, half next, unsigned int delta) {
   unsigned short tmpC = __clc_as_ushort(current);
   unsigned short tmpN = __clc_as_ushort(next);
   tmpC = __spirv_SubgroupShuffleDownINTEL(tmpC, tmpN, delta);
@@ -809,18 +811,19 @@ __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(unsigned short, t);
 #ifdef cl_khr_fp16
 _CLC_DEF half _Z32__spirv_SubgroupShuffleDownINTELIDF16_ET_S0_S0_j(
     half current, half next, unsigned int delta) {
-    return __spirv_SubgroupShuffleDownINTEL(current, next, delta);
+  return __spirv_SubgroupShuffleDownINTEL(current, next, delta);
 }
 #endif // cl_khr_fp16
 #undef __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32
 
 // 32-bit types.
-#define __AMDGCN_CLC_SUBGROUP_DOWN_I32(TYPE, CAST_TYPE)                \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleDownINTEL(        \
-          TYPE current, TYPE next, unsigned int delta) {               \
-    return __builtin_astype(__spirv_SubgroupShuffleDownINTEL(          \
-                                __clc_as_int(current), __clc_as_int(next), delta), \
-                            CAST_TYPE);                                \
+#define __AMDGCN_CLC_SUBGROUP_DOWN_I32(TYPE, CAST_TYPE)                        \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleDownINTEL(                \
+      TYPE current, TYPE next, unsigned int delta) {                           \
+    return __builtin_astype(                                                   \
+        __spirv_SubgroupShuffleDownINTEL(__clc_as_int(current),                \
+                                         __clc_as_int(next), delta),           \
+        CAST_TYPE);                                                            \
   }
 __AMDGCN_CLC_SUBGROUP_DOWN_I32(unsigned int, uint);
 __AMDGCN_CLC_SUBGROUP_DOWN_I32(float, float);
@@ -841,14 +844,14 @@ __AMDGCN_CLC_SUBGROUP_DOWN_I32(float, float, f);
 // 64-bit types.
 #define __AMDGCN_CLC_SUBGROUP_DOWN_I64(TYPE, CAST_TYPE)                        \
   _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleDownINTEL(                \
-          TYPE current, TYPE next, unsigned int delta) {                       \
-    int2 tmp_current = __clc_as_int2(current);                                       \
-    int2 tmp_next = __clc_as_int2(next);                                             \
+      TYPE current, TYPE next, unsigned int delta) {                           \
+    int2 tmp_current = __clc_as_int2(current);                                 \
+    int2 tmp_next = __clc_as_int2(next);                                       \
     int2 ret;                                                                  \
-    ret.lo = __spirv_SubgroupShuffleDownINTEL(                                 \
-        tmp_current.lo, tmp_next.lo, delta);                                   \
-    ret.hi = __spirv_SubgroupShuffleDownINTEL(                                 \
-        tmp_current.hi, tmp_next.hi, delta);                                   \
+    ret.lo =                                                                   \
+        __spirv_SubgroupShuffleDownINTEL(tmp_current.lo, tmp_next.lo, delta);  \
+    ret.hi =                                                                   \
+        __spirv_SubgroupShuffleDownINTEL(tmp_current.hi, tmp_next.hi, delta);  \
     return __builtin_astype(ret, CAST_TYPE);                                   \
   }
 __AMDGCN_CLC_SUBGROUP_DOWN_I64(long, long);
@@ -869,14 +872,14 @@ __AMDGCN_CLC_SUBGROUP_DOWN_I64(double, double, d);
 #undef __AMDGCN_CLC_SUBGROUP_DOWN_I64
 
 // Vector types.
-#define __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(TYPE, NUM_ELEMS)                   \
-  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleDownINTEL(              \
-          TYPE current, TYPE next, unsigned int delta) {                     \
-    TYPE res;                                                                \
-    for (int i = 0; i < NUM_ELEMS; ++i) {                                    \
-      res[i] = __spirv_SubgroupShuffleDownINTEL(current[i], next[i], delta); \
-    }                                                                        \
-    return res;                                                              \
+#define __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(TYPE, NUM_ELEMS)                     \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_SubgroupShuffleDownINTEL(                \
+      TYPE current, TYPE next, unsigned int delta) {                           \
+    TYPE res;                                                                  \
+    for (int i = 0; i < NUM_ELEMS; ++i) {                                      \
+      res[i] = __spirv_SubgroupShuffleDownINTEL(current[i], next[i], delta);   \
+    }                                                                          \
+    return res;                                                                \
   }
 // [u]char
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(char2, 2)
