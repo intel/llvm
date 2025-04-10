@@ -19,7 +19,7 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
 int main() {
   sycl::sampler Sampler;
   kernel<class use_kernel_for_test>([=]() {
-  Sampler.use();
+    Sampler.use();
   });
   return 0;
 }
