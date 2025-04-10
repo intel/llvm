@@ -418,9 +418,9 @@ bool ThreadSanitizerOnSpirv::isUnsupportedDeviceGlobal(
   // TODO: Will support global variable with local address space later.
   if (G.getAddressSpace() == kSpirOffloadLocalAS)
     return true;
-  // Global variables have constant value or constant address space will not
-  // trigger race condition.
-  if (G.isConstant() || G.getAddressSpace() == kSpirOffloadConstantAS)
+  // Global variables have constant address space will not trigger race
+  // condition.
+  if (G.getAddressSpace() == kSpirOffloadConstantAS)
     return true;
   return false;
 }
