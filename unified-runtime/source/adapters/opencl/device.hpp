@@ -10,6 +10,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "device.hpp"
 #include "platform.hpp"
 
 struct ur_device_handle_t_ {
@@ -35,6 +36,12 @@ struct ur_device_handle_t_ {
   }
 
   ~ur_device_handle_t_() {
+    if (ParentDevice) {
+      // This does not need protected by a lock; this destructor can only run
+      // exactly once. However, to prevent issues with the OpenCL handle being
+      // reused, CLDevice must still be alive here.
+      Platform->SubDevices.erase(CLDevice);
+    }
     if (ParentDevice && IsNativeHandleOwned) {
       clReleaseDevice(CLDevice);
     }

@@ -4,6 +4,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: UR_ADAPTERS_SEARCH_PATH="" prefilter-test
+
 #include "fixtures.hpp"
 
 #ifndef _WIN32
