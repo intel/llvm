@@ -73,9 +73,6 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
   static auto Opts = [&]() -> SPIRV::TranslatorOpts {
     // Options for translation between SPIR-V and LLVM IR.
     // Set SPIRV-V 1.5 as the maximum version number for now.
-    // Note that some parts of the code depend on the available builtins, e.g.,
-    // passes/kernel-fusion/Builtins.cpp, so updating the SPIR-V version should
-    // involve revisiting that code.
     SPIRV::TranslatorOpts TransOpt{SPIRV::VersionNumber::SPIRV_1_5};
     // Enable attachment of kernel arg names as metadata.
     TransOpt.enableGenArgNameMD();
@@ -92,8 +89,10 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
     TransOpt.setSPIRVAllowUnknownIntrinsics(AllowedIntrinsics);
     // TODO: We need to take care of specialization constants, either by
     // instantiating them by the user-supplied value from the SYCL runtime or by
-    // making sure they are correctly represented in the output of the fusion
-    // process.
+    // making sure they are correctly represented in the output?
+    // Currently, no: The materializer does not produce SPIR-V output, and
+    // specialization constants cannot be set on kernel bundles in
+    // `ext_oneapi_source` state.
     return TransOpt;
   }();
   return Opts;
