@@ -8,10 +8,10 @@
 
 #include <libspirv/spirv.h>
 
-#define IMPL(TYPE, AS, FN_NAME)                                           \
-  _CLC_OVERLOAD _CLC_DEF TYPE                                             \
-      __spirv_AtomicAnd(AS TYPE *p, int scope, int semantics, TYPE val) { \
-    return FN_NAME(p, val);                                               \
+#define IMPL(TYPE, AS, FN_NAME)                                                \
+  _CLC_OVERLOAD _CLC_DEF TYPE __spirv_AtomicAnd(AS TYPE *p, int scope,         \
+                                                int semantics, TYPE val) {     \
+    return FN_NAME(p, val);                                                    \
   }
 
 IMPL(int, global, __sync_fetch_and_and)
@@ -28,8 +28,7 @@ IMPL(unsigned long, local, __sync_fetch_and_and_8)
 
 #if _CLC_GENERIC_AS_SUPPORTED
 
-#define IMPL_GENERIC(TYPE, FN_NAME) \
-  IMPL(TYPE, , FN_NAME)
+#define IMPL_GENERIC(TYPE, FN_NAME) IMPL(TYPE, , FN_NAME)
 
 IMPL_GENERIC(int, __sync_fetch_and_and)
 IMPL_GENERIC(unsigned int, __sync_fetch_and_and)

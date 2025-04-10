@@ -8,10 +8,10 @@
 
 #include <libspirv/spirv.h>
 
-#define IMPL(TYPE, AS, NAME, PREFIX, SUFFIX)                 \
-  _CLC_OVERLOAD _CLC_DECL TYPE                               \
-      NAME(AS TYPE *p, int scope, int semantics, TYPE val) { \
-    return PREFIX##__sync_fetch_and_##SUFFIX(p, val);        \
+#define IMPL(TYPE, AS, NAME, PREFIX, SUFFIX)                                   \
+  _CLC_OVERLOAD _CLC_DECL TYPE NAME(AS TYPE *p, int scope, int semantics,      \
+                                    TYPE val) {                                \
+    return PREFIX##__sync_fetch_and_##SUFFIX(p, val);                          \
   }
 
 IMPL(int, global, __spirv_AtomicSMax, , max)
@@ -33,8 +33,7 @@ IMPL(unsigned long, local, __spirv_AtomicUMax, __clc, umax_local_8)
 
 #if _CLC_GENERIC_AS_SUPPORTED
 
-
-#define IMPL_GENERIC(TYPE, NAME, PREFIX, SUFFIX) \
+#define IMPL_GENERIC(TYPE, NAME, PREFIX, SUFFIX)                               \
   IMPL(TYPE, , NAME, PREFIX, SUFFIX)
 
 IMPL_GENERIC(int, __spirv_AtomicSMax, , max)

@@ -74,13 +74,12 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(int, int);
 
 // Type __spirv_AtomicCompareExchange(AS Type *P, int S, int E, int U,
 //                                    Type V, Type C);
-#define __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV,             \
-                                   OP, OP_MANGLED, ADDR_SPACE, ADDR_SPACE_NV)  \
+#define __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,         \
+                                   OP_MANGLED, ADDR_SPACE, ADDR_SPACE_NV)      \
   __attribute__((always_inline)) _CLC_OVERLOAD _CLC_DECL TYPE                  \
-  __spirv_Atomic##OP_MANGLED(                                                  \
-      ADDR_SPACE TYPE *pointer, int scope,                                     \
-      int semantics1,                                                          \
-      int semantics2, TYPE cmp, TYPE value) {                                  \
+      __spirv_Atomic##OP_MANGLED(ADDR_SPACE TYPE *pointer, int scope,          \
+                                 int semantics1, int semantics2, TYPE cmp,     \
+                                 TYPE value) {                                 \
     /* Semantics mask may include memory order, storage class and other info   \
 Memory order is stored in the lowest 5 bits */                                 \
     unsigned int order = semantics1 & 0x1F;                                    \
@@ -134,8 +133,8 @@ Memory order is stored in the lowest 5 bits */                                 \
                              __global, _global_)                               \
   __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, OP_MANGLED,   \
                              __local, _shared_)                                \
-  __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, OP_MANGLED,   \
-                             , _gen_)
+  __CLC_NVVM_ATOMIC_CAS_IMPL(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP, OP_MANGLED, , \
+                             _gen_)
 
 __CLC_NVVM_ATOMIC_CAS(int, int, i, cas, CompareExchange)
 __CLC_NVVM_ATOMIC_CAS(long, long, l, cas, CompareExchange)

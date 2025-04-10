@@ -3,9 +3,9 @@
 
 #ifdef cl_khr_int64_extended_atomics
 
-#define IMPL(TYPE, AS, NAME)                                            \
-  _CLC_OVERLOAD _CLC_DEF TYPE atom_max(volatile AS TYPE *p, TYPE val) { \
-    return NAME((AS TYPE *)p, Device, SequentiallyConsistent, val);     \
+#define IMPL(TYPE, AS, NAME)                                                   \
+  _CLC_OVERLOAD _CLC_DEF TYPE atom_max(volatile AS TYPE *p, TYPE val) {        \
+    return NAME((AS TYPE *)p, Device, SequentiallyConsistent, val);            \
   }
 
 IMPL(long, global, __spirv_AtomicSMax)

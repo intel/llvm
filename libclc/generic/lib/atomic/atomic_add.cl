@@ -1,9 +1,10 @@
 #include <clc/clc.h>
 #include <libspirv/spirv.h>
 
-#define IMPL(TYPE, AS)                                                            \
-  _CLC_OVERLOAD _CLC_DEF TYPE atomic_add(volatile AS TYPE *p, TYPE val) {         \
-    return __spirv_AtomicIAdd((AS TYPE *)p, Device, SequentiallyConsistent, val); \
+#define IMPL(TYPE, AS)                                                         \
+  _CLC_OVERLOAD _CLC_DEF TYPE atomic_add(volatile AS TYPE *p, TYPE val) {      \
+    return __spirv_AtomicIAdd((AS TYPE *)p, Device, SequentiallyConsistent,    \
+                              val);                                            \
   }
 
 IMPL(int, global)
