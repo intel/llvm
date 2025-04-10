@@ -265,7 +265,12 @@ ur_result_t urProgramBuild(
 
   getContext()->logger.debug("==== urProgramBuild");
 
-  UR_CALL(pfnProgramBuild(hContext, hProgram, pOptions));
+  auto UrRes = pfnProgramBuild(hContext, hProgram, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLog(hProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getMsanInterceptor()->registerProgram(hProgram));
 
@@ -287,7 +292,12 @@ ur_result_t urProgramBuildExp(
 
   getContext()->logger.debug("==== urProgramBuildExp");
 
-  UR_CALL(pfnBuildExp(hProgram, numDevices, phDevices, pOptions));
+  auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLog(hProgram, phDevices, numDevices);
+    return UrRes;
+  }
+
   UR_CALL(getMsanInterceptor()->registerProgram(hProgram));
 
   return UR_RESULT_SUCCESS;
@@ -310,7 +320,12 @@ ur_result_t urProgramLink(
 
   getContext()->logger.debug("==== urProgramLink");
 
-  UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
+  auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLog(*phProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getMsanInterceptor()->registerProgram(*phProgram));
@@ -339,8 +354,12 @@ ur_result_t urProgramLinkExp(
 
   getContext()->logger.debug("==== urProgramLinkExp");
 
-  UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count, phPrograms,
-                            pOptions, phProgram));
+  auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, count,
+                                 phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLog(*phProgram, phDevices, numDevices);
+    return UrRes;
+  }
 
   UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getMsanInterceptor()->registerProgram(*phProgram));

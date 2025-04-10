@@ -471,15 +471,20 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
   }
   case OpTypeBufferSurfaceINTEL: {
     auto *PST = static_cast<SPIRVTypeBufferSurfaceINTEL *>(T);
-    Type *StructTy = getOrCreateOpaqueStructType(M, transVCTypeName(PST));
-    Type *PointerTy;
-    if (UseTPT)
-      PointerTy = TypedPointerType::get(StructTy, SPIRAS_Global);
-    else
-      PointerTy = PointerType::get(StructTy, SPIRAS_Global);
-    return mapType(T, PointerTy);
+    Type *Ty = nullptr;
+    if (UseTPT) {
+      Type *StructTy = getOrCreateOpaqueStructType(M, transVCTypeName(PST));
+      Ty = TypedPointerType::get(StructTy, SPIRAS_Global);
+    } else {
+      std::vector<unsigned> Params;
+      if (PST->hasAccessQualifier()) {
+        unsigned Access = static_cast<unsigned>(PST->getAccessQualifier());
+        Params.push_back(Access);
+      }
+      Ty = TargetExtType::get(*Context, "spirv.BufferSurfaceINTEL", {}, Params);
+    }
+    return mapType(T, Ty);
   }
-
   case internal::OpTypeJointMatrixINTEL: {
     auto *MT = static_cast<SPIRVTypeJointMatrixINTEL *>(T);
     auto R = static_cast<SPIRVConstant *>(MT->getRows())->getZExtIntValue();
@@ -3927,11 +3932,11 @@ bool SPIRVToLLVM::translate() {
 bool SPIRVToLLVM::transAddressingModel() {
   switch (BM->getAddressingModel()) {
   case AddressingModelPhysical64:
-    M->setTargetTriple(SPIR_TARGETTRIPLE64);
+    M->setTargetTriple(Triple(SPIR_TARGETTRIPLE64));
     M->setDataLayout(SPIR_DATALAYOUT64);
     break;
   case AddressingModelPhysical32:
-    M->setTargetTriple(SPIR_TARGETTRIPLE32);
+    M->setTargetTriple(Triple(SPIR_TARGETTRIPLE32));
     M->setDataLayout(SPIR_DATALAYOUT32);
     break;
   case AddressingModelLogical:

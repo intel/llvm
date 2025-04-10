@@ -28,6 +28,9 @@ static const __SYCL_CONSTANT__ char __tsan_print_shadow_value[] =
     "[kernel] %p(%d) : {size: %d, access: %x, sid: %d, clock: %d, is_write: "
     "%d}\n";
 
+static const __SYCL_CONSTANT__ char __tsan_print_cleanup_private[] =
+    "[kernel] cleanup private shadow: %p ~ %p\n";
+
 static const __SYCL_CONSTANT__ char __tsan_print_unsupport_device_type[] =
     "[kernel] Unsupport device type: %d\n";
 
@@ -46,6 +49,10 @@ static const __SYCL_CONSTANT__ char __tsan_report_race[] =
 #define TSAN_REPORT_FINISH 2
 
 namespace {
+
+inline constexpr uptr RoundUpTo(uptr x, uptr boundary) {
+  return (x + boundary - 1) & ~(boundary - 1);
+}
 
 inline constexpr uptr RoundDownTo(uptr x, uptr boundary) {
   return x & ~(boundary - 1);
@@ -333,5 +340,79 @@ TSAN_CHECK(write, true, 1)
 TSAN_CHECK(write, true, 2)
 TSAN_CHECK(write, true, 4)
 TSAN_CHECK(write, true, 8)
+
+DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, uint32_t size) {
+  if (TsanLaunchInfo->DeviceTy != DeviceType::CPU)
+    return;
+
+  if (size) {
+    addr = RoundDownTo(addr, kShadowCell);
+    size = RoundUpTo(size, kShadowCell);
+
+    RawShadow *Begin = MemToShadow_CPU(addr, 0);
+    TSAN_DEBUG(__spirv_ocl_printf(
+        __tsan_print_cleanup_private, Begin,
+        (uptr)Begin + size / kShadowCell * kShadowCnt * kShadowSize - 1));
+    for (uptr i = 0; i < size / kShadowCell * kShadowCnt; i++)
+      Begin[i] = 0;
+  }
+}
+
+DEVICE_EXTERN_C_INLINE void __tsan_device_barrier() {
+  Sid sid = GetCurrentSid();
+  __spirv_ControlBarrier(__spv::Scope::Device, __spv::Scope::Device,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
+
+  // sync current thread clock to global state
+  TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
+      TsanLaunchInfo->Clock[sid].clk_[sid];
+
+  __spirv_ControlBarrier(__spv::Scope::Device, __spv::Scope::Device,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
+
+  // sync global state back
+  for (uptr i = 0; i < kThreadSlotCount; i++)
+    TsanLaunchInfo->Clock[sid].clk_[i] =
+        TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+
+  __spirv_ControlBarrier(__spv::Scope::Device, __spv::Scope::Device,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
+}
+
+DEVICE_EXTERN_C_INLINE void __tsan_group_barrier() {
+  if (TsanLaunchInfo->DeviceTy == DeviceType::CPU)
+    return;
+
+  Sid sid = GetCurrentSid();
+  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
+
+  // sync current thread clock to global state
+  TsanLaunchInfo->Clock[kThreadSlotCount].clk_[sid] =
+      TsanLaunchInfo->Clock[sid].clk_[sid];
+
+  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
+
+  // sync global state back
+  for (uptr i = 0; i < kThreadSlotCount; i++)
+    TsanLaunchInfo->Clock[sid].clk_[i] =
+        TsanLaunchInfo->Clock[kThreadSlotCount].clk_[i];
+
+  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
+}
 
 #endif // __SPIR__ || __SPIRV__

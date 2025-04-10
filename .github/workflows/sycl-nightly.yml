@@ -23,7 +23,8 @@ jobs:
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
 
-  ubuntu2204_shared_build:
+  # Build used for performance testing only: not intended for testing
+  linux_shared_build:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     secrets: inherit
@@ -31,7 +32,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
-      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu'
+      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu --no-assertions'
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 
@@ -70,31 +71,26 @@ jobs:
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: true
 
           - name: Intel L0 Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: true
 
           - name: Intel L0 Battlemage GPU
             runner: '["Linux", "bmg"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: true
 
           - name: Intel L0 Arc A-Series GPU
             runner: '["Linux", "arc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: true
 
           - name: Intel OCL Gen12 GPU
             runner: '["Linux", "gen12"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: opencl:gpu
-            reset_intel_gpu: true
 
           - name: OCL CPU (AMD)
             runner: '["Linux", "amdcpu"]'
@@ -115,7 +111,6 @@ jobs:
             runner: '["Linux", "pvc"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: true
             extra_lit_opts: --param test-preview-mode=True
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
@@ -126,7 +121,6 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       tests_selector: e2e
       extra_lit_opts: "--param 'cxx_flags=-D_GLIBCXX_USE_CXX11_ABI=0' ${{ matrix.extra_lit_opts }}"
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       repo_ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
@@ -140,7 +134,6 @@ jobs:
       name: Intel PVC L0 oneAPI
       runner: '["Linux", "pvc"]'
       target_devices: level_zero:gpu
-      reset_intel_gpu: true
       extra_lit_opts: -j 50
       image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
       repo_ref: ${{ github.sha }}
@@ -302,7 +295,6 @@ jobs:
             runner: '["PVC_PERF"]'
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_intel_gpu: true
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     secrets: inherit
     with:
@@ -311,7 +303,6 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       tests_selector: compute-benchmarks
-      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       repo_ref: ${{ github.sha }}
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}

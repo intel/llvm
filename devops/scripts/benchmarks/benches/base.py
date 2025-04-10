@@ -129,13 +129,20 @@ class Benchmark:
     def get_tags(self) -> list[str]:
         return []
 
+    def range(self) -> tuple[float, float]:
+        return None
+
     def get_metadata(self) -> BenchmarkMetadata:
+        range = self.range()
+
         return BenchmarkMetadata(
             type="benchmark",
             description=self.description(),
             notes=self.notes(),
             unstable=self.unstable(),
             tags=self.get_tags(),
+            range_min=range[0] if range else None,
+            range_max=range[1] if range else None,
         )
 
 

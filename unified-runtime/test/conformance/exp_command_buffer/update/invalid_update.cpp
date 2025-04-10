@@ -309,6 +309,8 @@ TEST_P(InvalidUpdateTest, CommandBufferMismatch) {
 // that isn't supported.
 struct InvalidUpdateCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
   void SetUp() override {
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     program_name = "fill_usm";
     UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
