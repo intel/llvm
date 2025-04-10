@@ -2088,7 +2088,11 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    IsInvalid |= checkSyclSpecialType(ParamTy, PD->getLocation());
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::accessor)) {
+      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
+          << ParamTy;
+      IsInvalid = true;	
+    }
     return isValid();
   }
 
@@ -2240,7 +2244,9 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    return checkType(PD->getLocation(), ParamTy);
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::accessor))
+      unsupportedFreeFunctionParamType(); // TODO
+    return true;
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -2863,7 +2869,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
       if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(Ty))
-        handleAccessorType(ParamTy, RecordDecl, decl->getBeginLoc());
+        handleAccessorType(Ty, RecordDecl, decl->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -3030,6 +3036,8 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::accessor))
+      unsupportedFreeFunctionParamType(); // TODO
     return handleSpecialType(PD, ParamTy);
   }
 
@@ -4530,6 +4538,8 @@ public:
     //    wgm.__init(arg);
     //    user_kernel(some arguments..., wgm, some arguments...);
     // }
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::accessor))
+      unsupportedFreeFunctionParamType(); // TODO
     const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;
     auto DefaultConstructor =
@@ -4868,7 +4878,6 @@ public:
       int Dims = static_cast<int>(
           AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
       int Info = getAccessTarget(ParamTy, AccTy) | (Dims << 11);
-
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset);
     } else if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::stream)) {
@@ -4895,8 +4904,7 @@ public:
                SYCLIntegrationHeader::kind_dynamic_work_group_memory);
 
     else {
-      llvm_unreachable(
-          "Unexpected SYCL special class when generating integration header");
+      unsupportedFreeFunctionParamType(); // TODO
     }
     return true;
   }
