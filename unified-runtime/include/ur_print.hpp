@@ -12383,25 +12383,9 @@ inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_platform_get_params_t *params) {
 
-  os << ".phAdapters = ";
-  ur::details::printPtr(os,
-                        reinterpret_cast<const void *>(*(params->pphAdapters)));
-  if (*(params->pphAdapters) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pNumAdapters; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
+  os << ".hAdapter = ";
 
-      ur::details::printPtr(os, (*(params->pphAdapters))[i]);
-    }
-    os << "}";
-  }
-
-  os << ", ";
-  os << ".NumAdapters = ";
-
-  os << *(params->pNumAdapters);
+  ur::details::printPtr(os, *(params->phAdapter));
 
   os << ", ";
   os << ".NumEntries = ";

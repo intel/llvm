@@ -3,10 +3,10 @@ begin(1) - urAdapterGet(.NumEntries = 0, .phAdapters = nullptr, .pNumAdapters = 
 end(1) - urAdapterGet(.NumEntries = 0, .phAdapters = nullptr, .pNumAdapters = {{.*}} (1)) -> UR_RESULT_SUCCESS;
 begin(2) - urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}} {{{.*}}}, .pNumAdapters = nullptr);
 end(2) - urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}} {{{.*}}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS;
-begin(3) - urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = nullptr, .pNumPlatforms = {{.*}} (0));
-end(3) - urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = nullptr, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
-begin(4) - urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{.*}} {nullptr}, .pNumPlatforms = nullptr);
-end(4) - urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{.*}} {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
+begin(3) - urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 1, .phPlatforms = nullptr, .pNumPlatforms = {{.*}} (0));
+end(3) - urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 1, .phPlatforms = nullptr, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+begin(4) - urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 1, .phPlatforms = {{.*}} {nullptr}, .pNumPlatforms = nullptr);
+end(4) - urPlatformGet(.hAdapter = {{.*}}, .NumEntries = 1, .phPlatforms = {{.*}} {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
 begin(5) - urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} (0.0));
 end(5) - urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} (@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@)) -> UR_RESULT_SUCCESS;
 API version: {{.*}}

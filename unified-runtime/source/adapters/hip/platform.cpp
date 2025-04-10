@@ -50,7 +50,7 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
 /// Triggers the HIP Driver initialization (hipInit) the first time, so this
 /// must be the first UR API called.
 UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
+urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   try {
