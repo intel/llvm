@@ -1,4 +1,4 @@
-//===--------- memory.cpp - OpenCL Adapter ---------------------------===//
+//===---------  event.cpp - OpenCL Adapter ---------------------------===//
 //
 // Copyright (C) 2023 Intel Corporation
 //
@@ -117,11 +117,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_event_handle_t *phEvent) {
   cl_event NativeHandle = reinterpret_cast<cl_event>(hNativeEvent);
   try {
-    auto UREvent =
-        std::make_unique<ur_event_handle_t_>(NativeHandle, hContext, nullptr);
-    UREvent->IsNativeHandleOwned =
-        pProperties ? pProperties->isNativeHandleOwned : false;
-    *phEvent = UREvent.release();
+    if (hNativeEvent) {
+      auto UREvent =
+          std::make_unique<ur_event_handle_t_>(NativeHandle, hContext, nullptr);
+      UREvent->IsNativeHandleOwned =
+          pProperties ? pProperties->isNativeHandleOwned : false;
+      *phEvent = UREvent.release();
+    } else {
+      cl_int RetErr{};
+      cl_event Event = clCreateUserEvent(hContext->CLContext, &RetErr);
+      CL_RETURN_ON_FAILURE(RetErr);
+      auto UREvent =
+          std::make_unique<ur_event_handle_t_>(Event, hContext, nullptr);
+      UREvent->IsNativeHandleOwned = true;
+      *phEvent = UREvent.release();
+    }
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   } catch (...) {
@@ -291,6 +301,7 @@ urEnqueueTimestampRecordingExp(ur_queue_handle_t, bool, uint32_t,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventHostSignal(ur_event_handle_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urEventHostSignal(ur_event_handle_t Event) {
+  CL_RETURN_ON_FAILURE(clSetUserEventStatus(Event->CLEvent, CL_COMPLETE));
+  return UR_RESULT_SUCCESS;
 }
