@@ -438,10 +438,14 @@ private:
   ///        is null if no secondary queue is associated with the submission.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: This function is not used anymore, remove it in the next
+  // ABI-breaking window.
   handler(std::shared_ptr<detail::queue_impl> Queue,
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue,
           bool CallerNeedsEvent);
+#endif
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
                            detail::queue_impl *PrimaryQueue,
                            detail::queue_impl *SecondaryQueue,
@@ -3880,7 +3884,6 @@ private:
 
   friend class detail::HandlerAccess;
 
-  __SYCL_DLL_LOCAL detail::handler_impl *get_impl() { return impl.get(); }
   // Friend free-functions for asynchronous allocation and freeing.
   __SYCL_EXPORT friend void
   ext::oneapi::experimental::async_free(sycl::handler &h, void *ptr);
