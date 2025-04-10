@@ -1323,15 +1323,8 @@ static ur_result_t doCompile(const AdapterPtr &Adapter,
                              ur_program_handle_t Program, uint32_t NumDevs,
                              ur_device_handle_t *Devs, ur_context_handle_t Ctx,
                              const char *Opts) {
-  // Try to compile with given devices, fall back to compiling with the program
-  // context if unsupported by the adapter
-  auto Result = Adapter->call_nocheck<UrApiKind::urProgramCompileExp>(
-      Program, NumDevs, Devs, Opts);
-  if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    return Adapter->call_nocheck<UrApiKind::urProgramCompile>(Ctx, Program,
-                                                              Opts);
-  }
-  return Result;
+  return Adapter->call_nocheck<UrApiKind::urProgramCompile>(Program, NumDevs,
+                                                            Devs, Opts);
 }
 
 static ur_program_handle_t
@@ -1745,12 +1738,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
     const std::string &Options = LinkOptions.empty()
                                      ? CompileOptions
                                      : (CompileOptions + " " + LinkOptions);
-    ur_result_t Error = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
+    ur_result_t Error = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
         Program.get(), Devices.size(), Devices.data(), Options.c_str());
-    if (Error == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Error = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
-          Context->getHandleRef(), Program.get(), Options.c_str());
-    }
 
     if (Error != UR_RESULT_SUCCESS)
       throw detail::set_ur_error(
@@ -1780,16 +1769,10 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   ur_program_handle_t LinkedProg = nullptr;
   auto doLink = [&] {
-    auto Res = Adapter->call_nocheck<UrApiKind::urProgramLinkExp>(
+    return Adapter->call_nocheck<UrApiKind::urProgramLink>(
         Context->getHandleRef(), Devices.size(), Devices.data(),
         LinkPrograms.size(), LinkPrograms.data(), LinkOptions.c_str(),
         &LinkedProg);
-    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Adapter->call_nocheck<UrApiKind::urProgramLink>(
-          Context->getHandleRef(), LinkPrograms.size(), LinkPrograms.data(),
-          LinkOptions.c_str(), &LinkedProg);
-    }
-    return Res;
   };
   ur_result_t Error = doLink();
   if (Error == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
@@ -3008,16 +2991,10 @@ ProgramManager::link(const DevImgPlainWithDeps &ImgWithDeps,
 
   ur_program_handle_t LinkedProg = nullptr;
   auto doLink = [&] {
-    auto Res = Adapter->call_nocheck<UrApiKind::urProgramLinkExp>(
+    return Adapter->call_nocheck<UrApiKind::urProgramLink>(
         ContextImpl->getHandleRef(), URDevices.size(), URDevices.data(),
         URPrograms.size(), URPrograms.data(), LinkOptionsStr.c_str(),
         &LinkedProg);
-    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Adapter->call_nocheck<UrApiKind::urProgramLink>(
-          ContextImpl->getHandleRef(), URPrograms.size(), URPrograms.data(),
-          LinkOptionsStr.c_str(), &LinkedProg);
-    }
-    return Res;
   };
   ur_result_t Error = doLink();
   if (Error == UR_RESULT_ERROR_OUT_OF_RESOURCES ||

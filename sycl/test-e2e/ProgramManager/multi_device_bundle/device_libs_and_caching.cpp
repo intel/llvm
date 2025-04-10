@@ -73,18 +73,18 @@ int main() {
     // Create and compile the program for required device libraries (2 of them
     // in this case).
     // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL(
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompile(
     // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL(
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompile(
 
     // Compile the main program
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompile(
 
     // Link main program and device libraries.
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramLinkExp(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramLink(
 
     // CHECK-AOT-TRACE: urProgramCreateWithBinary(
-    // CHECK-AOT-TRACE: urProgramBuildExp(
+    // CHECK-AOT-TRACE: urProgramBuild(
     sycl::kernel_bundle kernelBundleExecutable =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(
             ctx, {dev1, dev2, dev3}, {kid});
@@ -131,16 +131,16 @@ int main() {
     // creation is expected for device libraries as program handle already
     // exists in the per-context cache.
     // CHECK-SPIRV-JIT-LINK-TRACE-NOT: urProgramCreateWithIL(
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompile(
 
     // Main program will be compiled for new set of devices.
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompile(
 
     // Main program will be linked with device libraries.
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramLinkExp(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramLink(
 
     // CHECK-AOT-TRACE: urProgramCreateWithBinary(
-    // CHECK-AOT-TRACE: urProgramBuildExp(
+    // CHECK-AOT-TRACE: urProgramBuild(
     sycl::kernel_bundle kernelBundleExecutableNewSet =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(
             ctx, {dev2, dev3, dev4}, {kid});
