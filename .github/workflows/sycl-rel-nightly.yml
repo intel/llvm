@@ -47,11 +47,11 @@ jobs:
       build_configure_extra_args: '--no-assertions --add_security_flags=sanitize --hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       build_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
+      pack_release: 'true'
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
-      pack_release: 'true'
 
   ubuntu2204_test:
     needs: [ubuntu2204_build]
@@ -107,6 +107,7 @@ jobs:
     with:
       ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       build_configure_extra_args: '--no-assertions --add_security_flags=sanitize'
+      pack_release: 'true'
 
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
@@ -235,6 +236,5 @@ jobs:
       sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_linux_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
-      # similar to linux will be changed to sycl_windows_release later
-      sycl_windows_artifact: sycl_windows_default
+      sycl_windows_artifact: sycl_windows_release
       sycl_windows_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
