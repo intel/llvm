@@ -1631,11 +1631,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Native platform creation properties
 typedef struct ur_platform_native_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
@@ -2756,11 +2756,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Native device creation properties
 typedef struct ur_device_native_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
@@ -2945,11 +2945,11 @@ typedef enum ur_context_flag_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Context creation properties
 typedef struct ur_context_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] context creation flags.
   ur_context_flags_t flags;
 
@@ -3152,11 +3152,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Properties for for ::urContextCreateWithNativeHandle.
 typedef struct ur_context_native_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
@@ -3431,10 +3431,10 @@ typedef struct ur_image_format_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Image descriptor type.
 typedef struct ur_image_desc_t {
-  /// [in] type of this structure, must be ::UR_STRUCTURE_TYPE_IMAGE_DESC
-  ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
+  /// [in] type of this structure, must be ::UR_STRUCTURE_TYPE_IMAGE_DESC
+  ur_structure_type_t stype;
   /// [in][nocheck] memory object type
   ur_mem_type_t type;
   /// [in] image width
@@ -3549,11 +3549,11 @@ typedef struct ur_buffer_properties_t {
 ///   _Analogues_
 ///     - cl_intel_mem_channel_property
 typedef struct ur_buffer_channel_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] Identifies the channel/region to which the buffer should be mapped.
   uint32_t channel;
 
@@ -3570,11 +3570,11 @@ typedef struct ur_buffer_channel_properties_t {
 ///   _Analogues_
 ///     - cl_intel_mem_alloc_buffer_location
 typedef struct ur_buffer_alloc_location_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] Identifies the ID of global memory partition to which the memory
   /// should be allocated.
   uint32_t location;
@@ -3783,11 +3783,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Native memory object creation properties
 typedef struct ur_mem_native_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
@@ -4019,10 +4019,10 @@ typedef enum ur_sampler_info_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Sampler description.
 typedef struct ur_sampler_desc_t {
-  /// [in] type of this structure, must be ::UR_STRUCTURE_TYPE_SAMPLER_DESC
-  ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
+  /// [in] type of this structure, must be ::UR_STRUCTURE_TYPE_SAMPLER_DESC
+  ur_structure_type_t stype;
   /// [in] Specify if image coordinates are normalized (true) or not (false)
   bool normalizedCoords;
   /// [in] Specify the address mode of the sampler
@@ -4189,11 +4189,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Native sampler creation properties
 typedef struct ur_sampler_native_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
@@ -4402,10 +4402,10 @@ typedef struct ur_usm_desc_t {
 ///     - Specify these properties in ::urUSMHostAlloc and ::urUSMSharedAlloc
 ///       via ::ur_usm_desc_t as part of a `pNext` chain.
 typedef struct ur_usm_host_desc_t {
-  /// [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_HOST_DESC
-  ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
+  /// [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_HOST_DESC
+  ur_structure_type_t stype;
   /// [in] host memory allocation flags
   ur_usm_host_mem_flags_t flags;
 
@@ -4418,11 +4418,11 @@ typedef struct ur_usm_host_desc_t {
 ///     - Specify these properties in ::urUSMDeviceAlloc and ::urUSMSharedAlloc
 ///       via ::ur_usm_desc_t as part of a `pNext` chain.
 typedef struct ur_usm_device_desc_t {
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_USM_DEVICE_DESC
   ur_structure_type_t stype;
-  /// [in][optional] pointer to extension-specific structure
-  const void *pNext;
   /// [in] device memory allocation flags.
   ur_usm_device_mem_flags_t flags;
 
@@ -4439,11 +4439,11 @@ typedef struct ur_usm_device_desc_t {
 ///   _Analogues_
 ///     - cl_intel_mem_alloc_buffer_location
 typedef struct ur_usm_alloc_location_desc_t {
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC
   ur_structure_type_t stype;
-  /// [in][optional] pointer to extension-specific structure
-  const void *pNext;
   /// [in] Identifies the ID of global memory partition to which the memory
   /// should be allocated.
   uint32_t location;
@@ -4453,10 +4453,10 @@ typedef struct ur_usm_alloc_location_desc_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM pool descriptor type
 typedef struct ur_usm_pool_desc_t {
-  /// [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_POOL_DESC
-  ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
+  /// [in] type of this structure, must be ::UR_STRUCTURE_TYPE_USM_POOL_DESC
+  ur_structure_type_t stype;
   /// [in] memory allocation flags
   ur_usm_pool_flags_t flags;
 
@@ -5115,11 +5115,11 @@ typedef enum ur_physical_mem_flag_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Physical memory creation properties.
 typedef struct ur_physical_mem_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] physical memory creation flags
   ur_physical_mem_flags_t flags;
 
@@ -5298,11 +5298,11 @@ typedef struct ur_program_metadata_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Program creation properties.
 typedef struct ur_program_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] the number of entries in pMetadatas, if count is greater than
   /// zero then pMetadatas must not be null.
   uint32_t count;
@@ -5924,11 +5924,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Native program creation properties
 typedef struct ur_program_native_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
@@ -6482,11 +6482,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Properties for for ::urKernelSetArgMemObj.
 typedef struct ur_kernel_arg_mem_obj_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] Memory access flag. Allowed values are: ::UR_MEM_FLAG_READ_WRITE,
   /// ::UR_MEM_FLAG_WRITE_ONLY, ::UR_MEM_FLAG_READ_ONLY.
   ur_mem_flags_t memoryAccess;
@@ -6600,11 +6600,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Properties for for ::urKernelCreateWithNativeHandle.
 typedef struct ur_kernel_native_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
@@ -6816,11 +6816,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Queue creation properties
 typedef struct ur_queue_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_QUEUE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] Bitfield of queue creation flags
   ur_queue_flags_t flags;
 
@@ -6833,11 +6833,11 @@ typedef struct ur_queue_properties_t {
 ///     - Specify these properties in ::urQueueCreate via
 ///       ::ur_queue_properties_t as part of a `pNext` chain.
 typedef struct ur_queue_index_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] Specifies the compute index as described in the
   /// sycl_ext_intel_queue_index extension.
   uint32_t computeIndex;
@@ -6995,11 +6995,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Properties for for ::urQueueCreateWithNativeHandle.
 typedef struct ur_queue_native_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
@@ -7431,11 +7431,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Properties for for ::urEventCreateWithNativeHandle.
 typedef struct ur_event_native_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] If true then ownership of the native handle is transferred to
   /// the resultant object. This means the object will be responsible for
   /// releasing the native resources at the end of its lifetime.
@@ -9098,11 +9098,11 @@ typedef enum ur_exp_async_usm_alloc_flag_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Async alloc properties
 typedef struct ur_exp_async_usm_alloc_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] async alloc flags
   ur_exp_async_usm_alloc_flags_t flags;
 
@@ -9614,11 +9614,11 @@ typedef enum ur_exp_external_semaphore_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief File descriptor
 typedef struct ur_exp_file_descriptor_t {
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
   ur_structure_type_t stype;
-  /// [in][optional] pointer to extension-specific structure
-  const void *pNext;
   /// [in] A file descriptor used for Linux and & MacOS operating systems.
   int fd;
 
@@ -9670,11 +9670,11 @@ typedef struct ur_exp_sampler_mip_properties_t {
 ///     - Specify these properties in ::urSamplerCreate via ::ur_sampler_desc_t
 ///       as part of a `pNext` chain.
 typedef struct ur_exp_sampler_addr_modes_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] Specify the address mode of the sampler per dimension
   ur_sampler_addressing_mode_t addrModes[3];
 
@@ -9687,11 +9687,11 @@ typedef struct ur_exp_sampler_addr_modes_t {
 ///     - Specify these properties in ::urSamplerCreate via ::ur_sampler_desc_t
 ///       as part of a `pNext` chain.
 typedef struct ur_exp_sampler_cubemap_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] enables or disables seamless cubemap filtering between cubemap
   /// faces
   ur_exp_sampler_cubemap_filter_mode_t cubemapFilterMode;
@@ -10516,11 +10516,11 @@ typedef enum ur_exp_command_buffer_command_info_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-Buffer Descriptor Type
 typedef struct ur_exp_command_buffer_desc_t {
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC
   ur_structure_type_t stype;
-  /// [in][optional] pointer to extension-specific structure
-  const void *pNext;
   /// [in] Commands in a finalized command-buffer can be updated.
   ur_bool_t isUpdatable;
   /// [in] Commands in a command-buffer may be executed in-order without
@@ -10549,11 +10549,11 @@ typedef struct ur_exp_command_buffer_command_handle_t_
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for updating a kernel command memobj argument.
 typedef struct ur_exp_command_buffer_update_memobj_arg_desc_t {
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC
   ur_structure_type_t stype;
-  /// [in][optional] pointer to extension-specific structure
-  const void *pNext;
   /// [in] Argument index.
   uint32_t argIndex;
   /// [in][optional] Pointer to memory object properties.
@@ -10566,11 +10566,11 @@ typedef struct ur_exp_command_buffer_update_memobj_arg_desc_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for updating a kernel command pointer argument.
 typedef struct ur_exp_command_buffer_update_pointer_arg_desc_t {
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC
   ur_structure_type_t stype;
-  /// [in][optional] pointer to extension-specific structure
-  const void *pNext;
   /// [in] Argument index.
   uint32_t argIndex;
   /// [in][optional] Pointer to USM pointer properties.
@@ -10584,11 +10584,11 @@ typedef struct ur_exp_command_buffer_update_pointer_arg_desc_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for updating a kernel command value argument.
 typedef struct ur_exp_command_buffer_update_value_arg_desc_t {
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC
   ur_structure_type_t stype;
-  /// [in][optional] pointer to extension-specific structure
-  const void *pNext;
   /// [in] Argument index.
   uint32_t argIndex;
   /// [in] Argument size.
@@ -12539,11 +12539,11 @@ typedef enum ur_exp_enqueue_ext_flag_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Extended enqueue properties
 typedef struct ur_exp_enqueue_ext_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] extended enqueue flags
   ur_exp_enqueue_ext_flags_t flags;
 
@@ -12628,11 +12628,11 @@ typedef enum ur_exp_enqueue_native_command_flag_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Native enqueue properties
 typedef struct ur_exp_enqueue_native_command_properties_t {
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
   /// [in] type of this structure, must be
   /// ::UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES
   ur_structure_type_t stype;
-  /// [in,out][optional] pointer to extension-specific structure
-  void *pNext;
   /// [in] native enqueue flags
   ur_exp_enqueue_native_command_flags_t flags;
 

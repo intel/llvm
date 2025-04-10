@@ -18,8 +18,8 @@ TEST_P(urContextCreateTest, Success) {
 }
 
 TEST_P(urContextCreateTest, SuccessWithProperties) {
-  ur_context_properties_t properties{UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES,
-                                     nullptr, 0};
+  ur_context_properties_t properties{nullptr,
+                                     UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES, 0};
   uur::raii::Context context = nullptr;
   ASSERT_SUCCESS(urContextCreate(1, &device, &properties, context.ptr()));
   ASSERT_NE(nullptr, context);
@@ -37,8 +37,8 @@ TEST_P(urContextCreateTest, InvalidNullPointerContext) {
 }
 
 TEST_P(urContextCreateTest, InvalidEnumeration) {
-  ur_context_properties_t properties{UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES,
-                                     nullptr, UR_CONTEXT_FLAGS_MASK};
+  ur_context_properties_t properties{nullptr,
+                                     UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES, UR_CONTEXT_FLAGS_MASK};
   uur::raii::Context context = nullptr;
 
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
