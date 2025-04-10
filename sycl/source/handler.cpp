@@ -2046,6 +2046,9 @@ void handler::memcpyFromHostOnlyDeviceGlobal(void *Dest,
 
 const std::shared_ptr<detail::context_impl> &
 handler::getContextImplPtr() const {
+  if (impl->MGraph) {
+    return impl->MGraph->getContextImplPtr();
+  }
   return MQueue->getContextImplPtr();
 }
 

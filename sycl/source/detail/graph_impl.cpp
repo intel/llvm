@@ -57,6 +57,10 @@ inline const char *nodeTypeToString(node_type NodeType) {
     return "host_task";
   case node_type::native_command:
     return "native_command";
+  case node_type::async_malloc:
+    return "async_malloc";
+  case node_type::async_free:
+    return "async_free";
   }
   assert(false && "Unhandled node type");
   return {};
@@ -340,7 +344,7 @@ graph_impl::graph_impl(const sycl::context &SyclContext,
                        const sycl::device &SyclDevice,
                        const sycl::property_list &PropList)
     : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
-      MEventsMap(), MInorderQueueMap(),
+      MEventsMap(), MInorderQueueMap(), MGraphMemPool(SyclContext, SyclDevice),
       MID(NextAvailableID.fetch_add(1, std::memory_order_relaxed)) {
   checkGraphPropertiesAndThrow(PropList);
   if (PropList.has_property<property::graph::no_cycle_check>()) {
@@ -750,12 +754,12 @@ void graph_impl::beginRecording(
   }
 }
 
-// Check if nodes are empty and if so loop back through predecessors until we
-// find the real dependency.
+// Check if nodes do not require enqueueing and if so loop back through
+// predecessors until we find the real dependency.
 void exec_graph_impl::findRealDeps(
     std::vector<ur_exp_command_buffer_sync_point_t> &Deps,
     std::shared_ptr<node_impl> CurrentNode, int ReferencePartitionNum) {
-  if (CurrentNode->isEmpty()) {
+  if (!CurrentNode->requiresEnqueue()) {
     for (auto &N : CurrentNode->MPredecessors) {
       auto NodeImpl = N.lock();
       findRealDeps(Deps, NodeImpl, ReferencePartitionNum);
@@ -875,9 +879,9 @@ void exec_graph_impl::createCommandBuffers(
   Partition->MCommandBuffers[Device] = OutCommandBuffer;
 
   for (const auto &Node : Partition->MSchedule) {
-    // Empty nodes are not processed as other nodes, but only their
+    // Some nodes are not scheduled like other nodes, and only their
     // dependencies are propagated in findRealDeps
-    if (Node->isEmpty())
+    if (!Node->requiresEnqueue())
       continue;
 
     sycl::detail::CGType type = Node->MCGType;
@@ -943,6 +947,8 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
 
 exec_graph_impl::~exec_graph_impl() {
   try {
+    MGraphImpl->markExecGraphDestroyed();
+
     const sycl::detail::AdapterPtr &Adapter =
         sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
@@ -951,6 +957,9 @@ exec_graph_impl::~exec_graph_impl() {
     for (auto &Event : MExecutionEvents) {
       Event->wait(Event);
     }
+
+    // Clean up any graph-owned allocations that were allocated
+    MGraphImpl->getMemPool().deallocateAndUnmapAll();
 
     for (const auto &Partition : MPartitions) {
       Partition->MSchedule.clear();
@@ -1870,6 +1879,14 @@ modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
   // Graph is read and written in this scope so we lock
   // this graph with full priviledges.
   graph_impl::WriteLock Lock(impl->MMutex);
+  // If the graph uses graph-owned allocations and an executable graph already
+  // exists we must throw an error.
+  if (impl->getMemPool().hasAllocations() && impl->getExecGraphCount() > 0) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Graphs containing allocations can only have a "
+                          "single executable graph alive at any onc time.");
+  }
+
   return command_graph<graph_state::executable>{
       this->impl, this->impl->getContext(), PropList};
 }
@@ -1997,10 +2014,15 @@ executable_command_graph::executable_command_graph(
     const property_list &PropList)
     : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph, PropList)) {
   finalizeImpl(); // Create backend representation for executable graph
+  // Mark that we have created an executable graph from the modifiable graph.
+  Graph->markExecGraphCreated();
 }
 
 void executable_command_graph::finalizeImpl() {
   impl->makePartitions();
+
+  // Handle any work required for graph-owned memory allocations
+  impl->finalizeMemoryAllocations();
 
   auto Device = impl->getGraphImpl()->getDevice();
   for (auto Partition : impl->getPartitions()) {
@@ -2027,6 +2049,13 @@ void executable_command_graph::update(const std::vector<node> &Nodes) {
   }
 
   impl->update(NodeImpls);
+}
+
+size_t executable_command_graph::get_required_mem_size() const {
+  // Since each graph has a unique mem pool, return the current memory usage for
+  // now. This call my change if we move to being able to share memory between
+  // unique graphs.
+  return impl->getGraphImpl()->getMemPool().getMemUseCurrent();
 }
 
 dynamic_parameter_base::dynamic_parameter_base(

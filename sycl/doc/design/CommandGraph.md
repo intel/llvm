@@ -305,6 +305,28 @@ from the same dynamic command-group object. This allows the SYCL runtime to
 access the list of alternative kernels when calling the UR API to append a
 kernel command to a command-buffer.
 
+## Graph-Owned Memory Allocations
+### Device Allocations
+
+Device allocations for graphs are implemented using virtual memory. Allocation
+commands performing a virtual reservation for the provided size, and physical
+memory is created and mapped only during graph finalization. This allows valid
+device addresses to be returned immediately when building the graph without the
+penalty of doing any memory allocations during graph building, which could have
+a negative impact on features such as whole-graph update through increased
+overhead.
+
+### Behaviour of async_free
+
+`async_free` nodes are treated as hints rather than an actual memory free
+operation. This is because deallocating during graph execution is both
+undesirable for performance and not feasible with the current
+implementation/backends. Instead a free node represents a promise from the user
+that the memory is no longer in use. This enables optimizations such as
+potentially reusing that memory for subsequent allocation nodes in the graph.
+This allows us to reduce the total amount of concurrent memory required by a
+single graph.
+
 ## Optimizations
 ### Interactions with Profiling
 
