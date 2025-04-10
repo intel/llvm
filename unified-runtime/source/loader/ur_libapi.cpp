@@ -4983,6 +4983,9 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to execute a kernel
 ///
+/// @details
+///     - Providing invalid kernel arguments is Undefined Behavior.
+///
 /// @remarks
 ///   _Analogues_
 ///     - **clEnqueueNDRangeKernel**
@@ -5010,8 +5013,6 @@ ur_result_t UR_APICALL urEventSetCallback(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGS - "The kernel argument values
-///     have not been specified."
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urEnqueueKernelLaunch(
