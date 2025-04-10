@@ -4,6 +4,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %with-v2 ./deferred_kernel-test
+// REQUIRES: v2
+// UNSUPPORTED: system-windows
+
 #include <ze_api.h>
 
 #include "../../../conformance/enqueue/helpers.h"

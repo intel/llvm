@@ -4,6 +4,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// RUN: %maybe-v1 ./mem_buffer_create_with_native_handle-test
+// RUN: %maybe-v2 ./mem_buffer_create_with_native_handle-test
+
 #include "ur_api.h"
 #include "uur/checks.h"
 #include "uur/raii.h"

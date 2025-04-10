@@ -26,6 +26,8 @@ set(INSTALL_GTEST OFF)
 FetchContent_MakeAvailable(googletest)
 enable_testing()
 
+find_program(VALGRIND valgrind)
+
 # Set up the root `check-unified-runtime` target
 configure_file(lit.site.cfg.py.in lit.site.cfg.py)
 add_custom_target(deps_check-unified-runtime)
