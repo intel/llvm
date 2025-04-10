@@ -183,11 +183,10 @@ TEST_P(urKernelGetInfoTest, SuccessAttributes) {
   ASSERT_TRUE(uur::stringPropertyIsValid(property_value.data(), property_size));
 
   const std::string returned_attributes = std::string(property_value.data());
-  ur_platform_backend_t backend = UR_PLATFORM_BACKEND_FORCE_UINT32;
+  ur_backend_t backend = UR_BACKEND_FORCE_UINT32;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(backend), &backend, nullptr));
-  if (backend == UR_PLATFORM_BACKEND_OPENCL ||
-      backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+  if (backend == UR_BACKEND_OPENCL || backend == UR_BACKEND_LEVEL_ZERO) {
     // Older intel drivers don't attach any default attributes and newer
     // ones force walk order to X/Y/Z using special attribute.
     ASSERT_TRUE(returned_attributes.empty() ||

@@ -99,14 +99,14 @@ TEST_P(urPlatformGetInfoTest, SuccessBackend) {
   ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
       urPlatformGetInfo(platform, property_name, 0, nullptr, &property_size),
       property_name);
-  ASSERT_EQ(property_size, sizeof(ur_platform_backend_t));
+  ASSERT_EQ(property_size, sizeof(ur_backend_t));
 
-  ur_platform_backend_t property_value = UR_PLATFORM_BACKEND_UNKNOWN;
+  ur_backend_t property_value = UR_BACKEND_UNKNOWN;
   ASSERT_SUCCESS(urPlatformGetInfo(platform, property_name, property_size,
                                    &property_value, nullptr));
 
-  ASSERT_TRUE(property_value >= UR_PLATFORM_BACKEND_LEVEL_ZERO &&
-              property_value <= UR_PLATFORM_BACKEND_NATIVE_CPU);
+  ASSERT_TRUE(property_value >= UR_BACKEND_LEVEL_ZERO &&
+              property_value <= UR_BACKEND_NATIVE_CPU);
 }
 
 TEST_P(urPlatformGetInfoTest, SuccessAdapter) {
@@ -168,14 +168,14 @@ TEST_P(urPlatformGetInfoTest, InvalidEnumerationPlatformInfoType) {
 }
 
 TEST_P(urPlatformGetInfoTest, InvalidSizeZero) {
-  ur_platform_backend_t property_value = UR_PLATFORM_BACKEND_UNKNOWN;
+  ur_backend_t property_value = UR_BACKEND_UNKNOWN;
   ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND, 0,
                                      &property_value, nullptr),
                    UR_RESULT_ERROR_INVALID_SIZE);
 }
 
 TEST_P(urPlatformGetInfoTest, InvalidSizeSmall) {
-  ur_platform_backend_t property_value = UR_PLATFORM_BACKEND_UNKNOWN;
+  ur_backend_t property_value = UR_BACKEND_UNKNOWN;
   ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(property_value) - 1,
                                      &property_value, nullptr),
@@ -183,7 +183,7 @@ TEST_P(urPlatformGetInfoTest, InvalidSizeSmall) {
 }
 
 TEST_P(urPlatformGetInfoTest, InvalidNullPointerPropValue) {
-  ur_platform_backend_t property_value = UR_PLATFORM_BACKEND_UNKNOWN;
+  ur_backend_t property_value = UR_BACKEND_UNKNOWN;
   ASSERT_EQ_RESULT(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                      sizeof(property_value), nullptr, nullptr),
                    UR_RESULT_ERROR_INVALID_NULL_POINTER);

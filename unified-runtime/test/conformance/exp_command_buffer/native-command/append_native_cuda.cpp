@@ -13,7 +13,7 @@ struct urCudaCommandBufferNativeAppendTest
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferNativeAppendTest::SetUp());
-    if (backend != UR_PLATFORM_BACKEND_CUDA) {
+    if (backend != UR_BACKEND_CUDA) {
       GTEST_SKIP() << "Native append test is only supported on CUDA.";
     }
 
