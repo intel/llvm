@@ -2091,7 +2091,7 @@ public:
     if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::accessor)) {
       Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
           << ParamTy;
-      IsInvalid = true;	
+      IsInvalid = true;
     }
     return isValid();
   }
