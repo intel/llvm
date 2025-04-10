@@ -161,13 +161,15 @@ getSyncCommandListForCopy(ur_context_handle_t hContext,
 
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
                                      ur_device_handle_t hDevice, void *dst,
-                                     const void *src, size_t size) {
+                                     const void *src, size_t size) try {
   auto commandList = getSyncCommandListForCopy(hContext, hDevice);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (commandList.get(), dst, src, size, nullptr, 0, nullptr));
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
@@ -419,20 +421,20 @@ void *ur_mem_sub_buffer_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
     size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->getDevicePtr(
-      hDevice, access, offset + this->offset, size, migrate);
+      hDevice, access, offset + this->offset, size, std::move(migrate));
 }
 
 void *ur_mem_sub_buffer_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t size,
     std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
-                                          migrate);
+                                          std::move(migrate));
 }
 
 void ur_mem_sub_buffer_t::unmapHostPtr(
     void *pMappedPtr,
     std::function<void(void *src, void *dst, size_t)> migrate) {
-  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, migrate);
+  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, std::move(migrate));
 }
 
 ur_shared_mutex &ur_mem_sub_buffer_t::getMutex() {
