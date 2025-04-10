@@ -55,7 +55,7 @@ llvm::Expected<JITBinaryInfo> Translator::translate(llvm::Module &Mod,
   default: {
     return createStringError(
         inconvertibleErrorCode(),
-        "Failed to translate kernel to unsupported output format");
+        "Failed to translate module to unsupported output format");
   }
   }
 

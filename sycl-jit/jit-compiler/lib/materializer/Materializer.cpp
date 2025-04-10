@@ -37,7 +37,7 @@ extern "C" JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
               ->getMemBufferRef(),
           Ctx);
   if (auto Error = ModOrError.takeError()) {
-    return errorTo<SCMResult>(std::move(Error), "Failed to load kernels");
+    return errorTo<SCMResult>(std::move(Error), "Failed to load module");
   }
   std::unique_ptr<llvm::Module> NewMod = std::move(*ModOrError);
   if (!MaterializerPipeline::runMaterializerPasses(

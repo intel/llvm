@@ -13,7 +13,7 @@ if (NOT WIN32 AND NOT CYGWIN)
   # Set library-wide warning options.
   set(SYCL_JIT_WARNING_FLAGS -Wall -Wextra)
 
-  option(SYCL_JIT_ENABLE_WERROR "Treat all warnings as errors in SYCL kernel JIT library" ON)
+  option(SYCL_JIT_ENABLE_WERROR "Treat all warnings as errors in SYCL JIT library" ON)
   if(SYCL_JIT_ENABLE_WERROR)
     list(APPEND SYCL_JIT_WARNING_FLAGS -Werror)
   endif(SYCL_JIT_ENABLE_WERROR)
