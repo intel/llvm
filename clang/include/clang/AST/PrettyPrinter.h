@@ -84,7 +84,8 @@ struct PrintingPolicy {
         PrintInjectedClassNameWithArguments(true), UsePreferredNames(true),
         AlwaysIncludeTypeForTemplateArgument(false),
         CleanUglifiedParameters(false), EntireContentsOfLargeArray(true),
-        UseEnumerators(true), UseHLSLTypes(LO.HLSL) {}
+        UseEnumerators(true), UseFullyQualifiedEnumerators(false),
+        UseHLSLTypes(LO.HLSL) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
