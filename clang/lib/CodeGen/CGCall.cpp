@@ -5313,6 +5313,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // If the call returns a temporary with struct return, create a temporary
   // alloca to hold the result, unless one is given to us.
   Address SRetPtr = Address::invalid();
+  RawAddress SRetAlloca = RawAddress::invalid();
   llvm::Value *UnusedReturnSizePtr = nullptr;
   if (RetAI.isIndirect() || RetAI.isInAlloca() || RetAI.isCoerceAndExpand()) {
     // For virtual function pointer thunks and musttail calls, we must always
@@ -5326,11 +5327,17 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     } else if (!ReturnValue.isNull()) {
       SRetPtr = ReturnValue.getAddress();
     } else {
-      SRetPtr = CreateMemTempWithoutCast(RetTy, "tmp");
+      SRetPtr = CGM.getCodeGenOpts().UseAllocaASForSrets
+                    ? CreateMemTempWithoutCast(RetTy, "tmp")
+                    : CreateMemTemp(RetTy, "tmp", &SRetAlloca);
       if (HaveInsertPoint() && ReturnValue.isUnused()) {
         llvm::TypeSize size =
             CGM.getDataLayout().getTypeAllocSize(ConvertTypeForMem(RetTy));
-        UnusedReturnSizePtr = EmitLifetimeStart(size, SRetPtr.getBasePointer());
+        if (CGM.getCodeGenOpts().UseAllocaASForSrets)
+          UnusedReturnSizePtr =
+              EmitLifetimeStart(size, SRetPtr.getBasePointer());
+        else
+          UnusedReturnSizePtr = EmitLifetimeStart(size, SRetAlloca.getPointer());
       }
     }
     if (IRFunctionArgs.hasSRetArg()) {
@@ -5338,7 +5345,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       // chosen IndirectAS can happen e.g. when passing the this pointer through
       // a chain involving stores to / loads from the DefaultAS; we address this
       // here, symmetrically with the handling we have for normal pointer args.
-      if (SRetPtr.getAddressSpace() != RetAI.getIndirectAddrSpace()) {
+      if (CGM.getCodeGenOpts().UseAllocaASForSrets &&
+          (SRetPtr.getAddressSpace() != RetAI.getIndirectAddrSpace())) {
         llvm::Value *V = SRetPtr.getBasePointer();
         LangAS SAS = getLangASFromTargetAS(SRetPtr.getAddressSpace());
         LangAS DAS = getLangASFromTargetAS(RetAI.getIndirectAddrSpace());
@@ -5920,9 +5928,15 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // can't depend on being inside of an ExprWithCleanups, so we need to manually
   // pop this cleanup later on. Being eager about this is OK, since this
   // temporary is 'invisible' outside of the callee.
-  if (UnusedReturnSizePtr)
-    pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetPtr,
-                                         UnusedReturnSizePtr);
+  if (UnusedReturnSizePtr) {
+    if (CGM.getCodeGenOpts().UseAllocaASForSrets)
+      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetPtr,
+                                           UnusedReturnSizePtr);
+    else
+      pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetAlloca,
+                                           UnusedReturnSizePtr);
+  }
+
 
   llvm::BasicBlock *InvokeDest = CannotThrow ? nullptr : getInvokeDest();
 
