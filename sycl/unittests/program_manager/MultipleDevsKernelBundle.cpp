@@ -8,8 +8,6 @@
 
 // Kernel bundle for multiple devices unit test
 
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/persistent_device_code_cache.hpp"
