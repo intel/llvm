@@ -102,7 +102,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
     bool isMutable = RegCmdDesc.Mutable;
-    if (!ZeCopyOffloadExtensionSupported && isMutable) {
+    if (!ZeMutableCmdListExtentionSupported && isMutable) {
       logger::info("Mutable command lists are requested but are not supported "
                    "by the driver.");
       isMutable = false;
