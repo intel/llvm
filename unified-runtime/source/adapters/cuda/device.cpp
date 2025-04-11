@@ -1198,8 +1198,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
 /// \return PI_SUCCESS if the function is executed successfully
 /// CUDA devices are always root devices so retain always returns success.
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
-  std::ignore = hDevice;
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -1211,9 +1210,7 @@ urDevicePartition(ur_device_handle_t, const ur_device_partition_properties_t *,
 
 /// \return UR_RESULT_SUCCESS always since CUDA devices are always root
 /// devices.
-UR_APIEXPORT ur_result_t UR_APICALL
-urDeviceRelease(ur_device_handle_t hDevice) {
-  std::ignore = hDevice;
+UR_APIEXPORT ur_result_t UR_APICALL urDeviceRelease(ur_device_handle_t) {
   return UR_RESULT_SUCCESS;
 }
 

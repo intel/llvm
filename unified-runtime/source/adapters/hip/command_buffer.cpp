@@ -26,7 +26,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     : Context(hContext), Device(hDevice), IsUpdatable(IsUpdatable),
       HIPGraph{nullptr}, HIPGraphExec{nullptr}, RefCount{1}, NextSyncPoint{0} {
   urContextRetain(hContext);
-  urDeviceRetain(hDevice);
 }
 
 /// The ur_exp_command_buffer_handle_t_ destructor releases
@@ -34,9 +33,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
 ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release the memory allocated to the Context stored in the command_buffer
   UR_CALL_NOCHECK(urContextRelease(Context));
-
-  // Release the device
-  UR_CALL_NOCHECK(urDeviceRelease(Device));
 
   // Release the memory allocated to the HIPGraph
   (void)hipGraphDestroy(HIPGraph);

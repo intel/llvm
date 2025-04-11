@@ -36,13 +36,9 @@ struct ur_physical_mem_handle_t_ {
       : RefCount(1), PhysicalMem(PhysMem), Context(Ctx), Device(Device),
         Size(Size), Properties(Properties) {
     urContextRetain(Context);
-    urDeviceRetain(Device);
   }
 
-  ~ur_physical_mem_handle_t_() {
-    urContextRelease(Context);
-    urDeviceRelease(Device);
-  }
+  ~ur_physical_mem_handle_t_() { urContextRelease(Context); }
 
   native_type get() const noexcept { return PhysicalMem; }
 
