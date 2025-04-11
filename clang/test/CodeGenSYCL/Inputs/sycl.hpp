@@ -327,6 +327,9 @@ template <typename dataT, int dimensions, access::mode accessmode,
 class __attribute__((sycl_special_class)) __SYCL_TYPE(accessor) accessor {
 
 public:
+#ifdef __SYCL_DEVICE_ONLY__               
+  accessor() = default;
+#endif
   void use(void) const {}
   template <typename... T>
   void use(T... args) {}
@@ -420,6 +423,9 @@ local_accessor: public accessor<dataT,
         dimensions, access::mode::read_write,
         access::target::local> {
 public:
+#ifdef __SYCL_DEVICE_ONLY__  
+  local_accessor() = default;
+#endif
   void use(void) const {}
   template <typename... T>
   void use(T... args) {}
@@ -487,17 +493,21 @@ int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_arg) annotated_arg {
   T obj;
-  #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_DEVICE_ONLY__
     void __init(T _obj) {}
-  #endif
+public:
+    annotated_arg() = default;
+#endif
 };
 
 template <typename T, typename... Props>
 class __attribute__((sycl_special_class)) __SYCL_TYPE(annotated_ptr) annotated_ptr {
   T* obj;
-  #ifdef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_DEVICE_ONLY__
     void __init(T* _obj) {}
-  #endif
+public:
+    annotated_ptr() = default;
+#endif
 };
 
 } // namespace experimental
