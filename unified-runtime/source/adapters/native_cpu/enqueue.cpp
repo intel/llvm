@@ -306,7 +306,6 @@ withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
                 const ur_event_handle_t *phEventWaitList,
                 ur_event_handle_t *phEvent, T &&f, I &&inv) {
   urEventWait(numEventsInWaitList, phEventWaitList);
-  ur_event_handle_t event = nullptr;
   if (phEvent) {
     ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
     event->tick_start();
@@ -324,6 +323,20 @@ struct BlockingWithEvent {
     ur_result_t result = op();
     event->tick_end();
     return result;
+  }
+};
+
+struct NonBlocking {
+  ur_queue_handle_t hQueue;
+  NonBlocking(ur_queue_handle_t hQueue) : hQueue(hQueue) {}
+  template <class T>
+  ur_result_t operator()(T &&op, ur_event_handle_t event) const {
+    auto &tp = hQueue->getDevice()->tp;
+    std::vector<std::future<void>> futures;
+    futures.emplace_back(tp.schedule_task([op](size_t) { op(); }));
+    event->set_futures(futures);
+    event->set_callback([event]() { event->tick_end(); });
+    return UR_RESULT_SUCCESS;
   }
 };
 
@@ -678,12 +691,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
   auto Inv = [blocking, hQueue, size](auto &&f, ur_event_handle_t event) {
     if (blocking || size < 100)
       return BlockingWithEvent()(f, event);
-    auto &tp = hQueue->getDevice()->tp;
-    std::vector<std::future<void>> futures;
-    futures.emplace_back(tp.schedule_task([f](size_t) { f(); }));
-    event->set_futures(futures);
-    event->set_callback([event]() { event->tick_end(); });
-    return UR_RESULT_SUCCESS;
+    return NonBlocking(hQueue)(f, event);
   };
   // blocking op
   return withTimingEvent(
