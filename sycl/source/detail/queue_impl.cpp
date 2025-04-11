@@ -586,8 +586,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
             EventImplWeakPtrIt->lock()) {
       // A nullptr UR event indicates that urQueueFinish will not cover it,
       // either because it's a host task event or an unenqueued one.
-      if (!EventImplSharedPtr->hasCommandGraph() &&
-          nullptr == EventImplSharedPtr->getHandle()) {
+      if (nullptr == EventImplSharedPtr->getHandle()) {
         EventImplSharedPtr->wait(EventImplSharedPtr);
       }
     }

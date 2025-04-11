@@ -271,7 +271,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
 
   // Record in-order queue with three nodes.
   InOrderGraph.begin_recording(InOrderQueue);
-#if 1
+
   auto Node1Graph = InOrderQueue.submit(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
 
@@ -306,7 +306,7 @@ TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
   ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
   ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
   ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
-#endif
+
   InOrderGraph.end_recording(InOrderQueue);
 
   auto EventLast = InOrderQueue.submit(
