@@ -53,7 +53,9 @@ function system_info {
 	echo "**********/proc/meminfo**********"
 	cat /proc/meminfo
 	echo "**********build/bin/urinfo**********"
-	$(dirname "$(readlink -f "$0")")/../../../build/bin/urinfo --no-linear-ids --verbose || true
+	# We need to ensure we're using the UR loader from the same build as urinfo
+	LD_LIBRARY_PATH=$(dirname "$(readlink -f "$0")")/../../../build/lib:$LD_LIBRARY_PATH \
+		$(dirname "$(readlink -f "$0")")/../../../build/bin/urinfo --no-linear-ids --verbose || true
 	echo "******OpenCL*******"
 	# The driver version of OpenCL Graphics is the compute-runtime version
 	clinfo || echo "OpenCL not installed"
