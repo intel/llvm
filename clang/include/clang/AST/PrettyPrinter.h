@@ -419,6 +419,11 @@ struct PrintingPolicy {
   LLVM_PREFERRED_TYPE(bool)
   unsigned UseEnumerators : 1;
 
+  /// Whether to print the names of enum constants non-type template parameters
+  /// with all the namespace scope qualifiers regardless of the way the user
+  /// wrote them in the source code. No effect if UseEnumerators is not set.
+  unsigned UseFullyQualifiedEnumerators : 1;
+
   /// Whether or not we're printing known HLSL code and should print HLSL
   /// sugared types when possible.
   LLVM_PREFERRED_TYPE(bool)
