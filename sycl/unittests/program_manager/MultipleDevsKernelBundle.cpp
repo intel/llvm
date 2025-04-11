@@ -325,7 +325,8 @@ TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
   }
 
   // Unset the SYCL_DEVICELIB_NO_FALLBACK so that fallback libraries are used.
-  sycl::detail::SYCLConfig<sycl::detail::SYCL_DEVICELIB_NO_FALLBACK>::unset();
+  ScopedEnvVar var("SYCL_DEVICELIB_NO_FALLBACK", nullptr,
+                   SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::reset);
   std::vector<sycl::device> Devices =
       Plt.get_devices(GetParam() == SYCL_DEVICE_BINARY_TYPE_NATIVE
                           ? sycl::info::device_type::cpu

@@ -127,34 +127,6 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK> {
-  using BaseT = SYCLConfigBase<SYCL_DEVICELIB_NO_FALLBACK>;
-
-public:
-  static const char *get() { return getCachedValue(); }
-
-  static void reset() {
-    (void)getCachedValue(/*ResetCache=*/true, /*UnsetCache=*/false);
-  }
-
-  static const char *getName() { return BaseT::MConfigName; }
-
-  static void unset() {
-    (void)getCachedValue(/*ResetCache=*/false, /*UnsetCache=*/true);
-  }
-
-private:
-  static const char *getCachedValue(bool ResetCache = false,
-                                    bool UnsetCache = false) {
-    static const char *ValStr = BaseT::getRawValue();
-    if (UnsetCache)
-      ValStr = nullptr;
-    if (ResetCache)
-      ValStr = BaseT::getRawValue();
-    return ValStr;
-  }
-};
-
 template <> class SYCLConfig<SYCL_UR_TRACE> {
   using BaseT = SYCLConfigBase<SYCL_UR_TRACE>;
 
