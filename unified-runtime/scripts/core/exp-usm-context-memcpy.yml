@@ -1,0 +1,48 @@
+#
+# Copyright (C) 2025 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for USM Context Memcpy"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support $xUSMContextMemcpy"
+name: $x_device_info_t
+etors:
+    - name: USM_CONTEXT_MEMCPY_SUPPORT_EXP
+      value: "0x7000"
+      desc: "[$x_bool_t] returns true if the device supports $xUSMContextMemcpyExp"
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Perform a synchronous, blocking memcpy operation between USM allocations."
+class: $xUSM
+name: ContextMemcpyExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] Context associated with the device(s) that own the allocations `pSrc` and `pDst`."
+    - type: void*
+      name: pDst
+      desc: "[in] Destination pointer to copy to."
+    - type: const void*
+      name: pSrc
+      desc: "[in] Source pointer to copy from."
+    - type: size_t
+      name: size
+      desc: "[in] Size in bytes to be copied."
+returns:
+    - $X_RESULT_SUCCESS
+    - $X_RESULT_ERROR_ADAPTER_SPECIFIC
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`size == 0`"
+        - "If `size` is higher than the allocation size of `pSrc` or `pDst`"
