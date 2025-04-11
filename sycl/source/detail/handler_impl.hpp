@@ -31,10 +31,8 @@ enum class HandlerSubmissionState : std::uint8_t {
 
 class handler_impl {
 public:
-  handler_impl(
-      std::shared_ptr<queue_impl> SubmissionPrimaryQueue,
-      [[maybe_unused]] std::shared_ptr<queue_impl> SubmissionSecondaryQueue,
-      bool EventNeeded)
+  handler_impl(std::shared_ptr<queue_impl> SubmissionPrimaryQueue,
+               bool EventNeeded)
       : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
         MEventNeeded(EventNeeded) {};
 
