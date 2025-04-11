@@ -14,6 +14,7 @@
 #include "ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
+#include "command_buffer_command.hpp"
 
 /* L0 Command-buffer Extension Doc see:
 https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CommandGraph.md#level-zero
@@ -591,31 +592,6 @@ ur_result_t ur_exp_command_buffer_handle_t_::getFenceForQueue(
   }
   this->ZeActiveFence = ZeFence;
   return UR_RESULT_SUCCESS;
-}
-
-kernel_command_handle::kernel_command_handle(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-    uint64_t CommandId, uint32_t WorkDim, bool UserDefinedLocalSize,
-    uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives)
-    : ur_exp_command_buffer_command_handle_t_(CommandBuffer, CommandId),
-      WorkDim(WorkDim), UserDefinedLocalSize(UserDefinedLocalSize),
-      Kernel(Kernel) {
-  // Add the default kernel to the list of valid kernels
-  ur::level_zero::urKernelRetain(Kernel);
-  ValidKernelHandles.insert(Kernel);
-  // Add alternative kernels if provided
-  if (KernelAlternatives) {
-    for (size_t i = 0; i < NumKernelAlternatives; i++) {
-      ur::level_zero::urKernelRetain(KernelAlternatives[i]);
-      ValidKernelHandles.insert(KernelAlternatives[i]);
-    }
-  }
-}
-
-kernel_command_handle::~kernel_command_handle() {
-  for (const ur_kernel_handle_t &KernelHandle : ValidKernelHandles) {
-    ur::level_zero::urKernelRelease(KernelHandle);
-  }
 }
 
 namespace ur::level_zero {
@@ -1867,7 +1843,7 @@ ur_result_t validateCommandDesc(
   logger::debug("Mutable features supported by device {}", SupportedFeatures);
 
   auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
-  UR_ASSERT(CommandBuffer == Command->CommandBuffer,
+  UR_ASSERT(CommandBuffer == Command->commandBuffer,
             UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP);
 
   UR_ASSERT(
@@ -1876,11 +1852,11 @@ ur_result_t validateCommandDesc(
       UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   // Check if the provided new kernel is in the list of valid alternatives.
   if (CommandDesc.hNewKernel &&
-      !Command->ValidKernelHandles.count(CommandDesc.hNewKernel)) {
+      !Command->validKernelHandles.count(CommandDesc.hNewKernel)) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  if (CommandDesc.newWorkDim != Command->WorkDim &&
+  if (CommandDesc.newWorkDim != Command->workDim &&
       (!CommandDesc.pNewGlobalWorkOffset || !CommandDesc.pNewGlobalWorkSize)) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -1941,9 +1917,9 @@ ur_result_t updateKernelHandle(ur_exp_command_buffer_handle_t CommandBuffer,
 
   ZE2UR_CALL(Platform->ZeMutableCmdListExt
                  .zexCommandListUpdateMutableCommandKernelsExp,
-             (ZeCommandList, 1, &Command->CommandId, &KernelHandle));
+             (ZeCommandList, 1, &Command->commandId, &KernelHandle));
   // Set current kernel to be the new kernel
-  Command->Kernel = NewKernel;
+  Command->kernel = NewKernel;
   return UR_RESULT_SUCCESS;
 }
 
@@ -2003,11 +1979,11 @@ ur_result_t updateCommandBuffer(
     auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
 
     std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Guard(
-        Command->Mutex, Command->Kernel->Mutex);
+        Command->Mutex, Command->kernel->Mutex);
 
     // Kernel handle must be updated first for a given CommandId if required
     ur_kernel_handle_t NewKernel = CommandDesc.hNewKernel;
-    if (NewKernel && Command->Kernel != NewKernel) {
+    if (NewKernel && Command->kernel != NewKernel) {
       updateKernelHandle(CommandBuffer, NewKernel, Command);
     }
 
@@ -2019,7 +1995,7 @@ ur_result_t updateCommandBuffer(
           std::make_unique<ZeStruct<ze_mutable_global_offset_exp_desc_t>>();
       UR_CALL(setMutableOffsetDesc(MutableGroupOffestDesc, Dim,
                                    NewGlobalWorkOffset, NextDesc,
-                                   Command->CommandId));
+                                   Command->commandId));
       NextDesc = MutableGroupOffestDesc.get();
       Descs.push_back(std::move(MutableGroupOffestDesc));
     }
@@ -2036,7 +2012,7 @@ ur_result_t updateCommandBuffer(
       }
 
       UR_CALL(setMutableGroupSizeDesc(MutableGroupSizeDesc, Dim, WG, NextDesc,
-                                      Command->CommandId));
+                                      Command->commandId));
       NextDesc = MutableGroupSizeDesc.get();
       Descs.push_back(std::move(MutableGroupSizeDesc));
     }
@@ -2049,7 +2025,7 @@ ur_result_t updateCommandBuffer(
       // If a new global work size is provided update that in the command,
       // otherwise the previous work group size will be used
       if (NewGlobalWorkSize) {
-        Command->WorkDim = Dim;
+        Command->workDim = Dim;
         Command->setGlobalWorkSize(NewGlobalWorkSize);
       }
 
@@ -2061,7 +2037,7 @@ ur_result_t updateCommandBuffer(
 
       ze_kernel_handle_t ZeKernel{};
       auto ZeDevice = CommandBuffer->Device->ZeDevice;
-      UR_CALL(getZeKernel(ZeDevice, Command->Kernel, &ZeKernel));
+      UR_CALL(getZeKernel(ZeDevice, Command->kernel, &ZeKernel));
 
       uint32_t WG[3];
 
@@ -2069,7 +2045,7 @@ ur_result_t updateCommandBuffer(
           ZeThreadGroupDimensionsList[i];
       UR_CALL(calculateKernelWorkDimensions(
           ZeKernel, CommandBuffer->Device, ZeThreadGroupDimensions, WG, Dim,
-          Command->GlobalWorkSize, NewLocalWorkSize));
+          Command->globalWorkSize, NewLocalWorkSize));
 
       auto MutableGroupCountDesc =
           std::make_unique<ZeStruct<ze_mutable_group_count_exp_desc_t>>();
