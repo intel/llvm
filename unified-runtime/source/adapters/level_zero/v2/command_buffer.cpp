@@ -14,6 +14,7 @@
 #include "../ur_interface_loader.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue_handle.hpp"
+#include "../command_buffer_command.hpp"
 
 namespace {
 
@@ -28,34 +29,6 @@ void checkImmediateAppendSupport(ur_context_handle_t context) {
 }
 
 } // namespace
-ur_exp_command_buffer_command_handle_t_::
-    ur_exp_command_buffer_command_handle_t_(
-        ur_exp_command_buffer_handle_t commandBuffer, uint64_t commandId)
-    : commandBuffer(commandBuffer), commandId(commandId) {}
-
-kernel_command_handle::kernel_command_handle(
-    ur_exp_command_buffer_handle_t commandBuffer, ur_kernel_handle_t hKernel,
-    uint64_t commandId, uint32_t workDim, uint32_t numKernelAlternatives,
-    ur_kernel_handle_t *kernelAlternatives)
-    : ur_exp_command_buffer_command_handle_t_(commandBuffer, commandId),
-      workDim(workDim), kernel(hKernel) {
-  // Add the default kernel to the list of valid kernels
-  kernel->RefCount.increment();
-  validKernelHandles.insert(hKernel);
-  // Add alternative kernels if provided
-  if (kernelAlternatives) {
-    for (size_t i = 0; i < numKernelAlternatives; i++) {
-      kernelAlternatives[i]->RefCount.increment();
-      validKernelHandles.insert(kernelAlternatives[i]);
-    }
-  }
-}
-
-kernel_command_handle::~kernel_command_handle() {
-  for (const ur_kernel_handle_t &kernelHandle : validKernelHandles) {
-    kernelHandle->release();
-  }
-}
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t context, ur_device_handle_t device,
@@ -379,7 +352,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
             NewMemObjArgDesc.pProperties;
         auto urAccessMode = ur_mem_buffer_t::device_access_mode_t::read_write;
         if (properties != nullptr) {
-          urAccessMode = memBuffer->getAccessMode(properties->memoryAccess);
+          urAccessMode =
+              ur_mem_buffer_t::getAccessMode(properties->memoryAccess);
         }
         auto ptr = ur_cast<char *>(memBuffer->getDevicePtr(
             device, urAccessMode, 0, memBuffer->getSize(),
@@ -392,8 +366,9 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
         zeHandlePtr = zeHandles[zeHandles.size() - 1].get();
       }
 
-      UR_CALL(setMutableMemObjArgDesc(ZeMutableArgDesc, NewMemObjArgDesc.argIndex,
-                              zeHandlePtr, NextDesc, Command->commandId));
+      UR_CALL(setMutableMemObjArgDesc(ZeMutableArgDesc,
+                                      NewMemObjArgDesc.argIndex, zeHandlePtr,
+                                      NextDesc, Command->commandId));
       NextDesc = ZeMutableArgDesc.get();
       Descs.push_back(std::move(ZeMutableArgDesc));
     }
@@ -468,8 +443,8 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
   listDesc.CopyOffloadEnable = true;
   listDesc.Mutable = commandBufferDesc->isUpdatable;
   v2::raii::command_list_unique_handle zeCommandList =
-      context->getCommandListCache().getRegularCommandList(
-          device->ZeDevice, listDesc);
+      context->getCommandListCache().getRegularCommandList(device->ZeDevice,
+                                                           listDesc);
 
   *commandBuffer = new ur_exp_command_buffer_handle_t_(
       context, device, std::move(zeCommandList), commandBufferDesc);
@@ -881,8 +856,8 @@ ur_result_t urCommandBufferUpdateSignalEventExp(
     ur_exp_command_buffer_command_handle_t hCommand,
     ur_event_handle_t *phEvent) {
   // needs to be implemented together with signal event handling
-  std::ignore = hCommand;
-  std::ignore = phEvent;
+  (void) hCommand;
+  (void) phEvent;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -890,9 +865,9 @@ ur_result_t urCommandBufferUpdateWaitEventsExp(
     ur_exp_command_buffer_command_handle_t hCommand,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList) {
   // needs to be implemented together with wait event handling
-  std::ignore = hCommand;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
+  (void) hCommand;
+  (void) numEventsInWaitList;
+  (void) phEventWaitList;
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

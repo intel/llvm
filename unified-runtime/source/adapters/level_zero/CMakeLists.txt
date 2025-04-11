@@ -16,6 +16,8 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/async_alloc.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer_command.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer_command.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/context.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/device.hpp
@@ -125,6 +127,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         SHARED
         # sources shared with legacy adapter
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer_command.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/device.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image_common.hpp
@@ -136,6 +139,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/mutable_helpers.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/command_buffer_command.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image_common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp

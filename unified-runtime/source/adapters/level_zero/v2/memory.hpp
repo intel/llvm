@@ -49,7 +49,7 @@ struct ur_mem_buffer_t : ur_object {
   device_access_mode_t getDeviceAccessMode() const { return accessMode; }
   ur_context_handle_t getContext() const { return hContext; }
   size_t getSize() const { return size; }
-  device_access_mode_t getAccessMode(ur_map_flags_t flags) {
+  static device_access_mode_t getAccessMode(ur_map_flags_t flags) {
     switch (flags) {
     case UR_MEM_FLAG_READ_ONLY:
       return device_access_mode_t::read_only;
