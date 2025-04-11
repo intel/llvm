@@ -171,6 +171,7 @@ if config.extra_environment:
 # Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
 llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
+
 # Temporarily modify environment to be the same that we use when running tests
 class test_env:
     def __enter__(self):
@@ -254,6 +255,7 @@ def quote_path(path):
         return f'"{path}"'
     return shlex.quote(path)
 
+
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
 
@@ -272,6 +274,7 @@ if lit_config.params.get("enable-perf-tests", False):
 
 if lit_config.params.get("spirv-backend", False):
     config.available_features.add("spirv-backend")
+
 
 # Use this to make sure that any dynamic checks below are done in the build
 # directory and not where the sources are located. This is important for the
@@ -1012,6 +1015,12 @@ else:
         clangxx += "-fpreview-breaking-changes "
     clangxx += config.cxx_flags
     config.substitutions.append(("%clangxx", clangxx))
+
+# Check that no runtime features are available when in build-only
+from E2EExpr import E2EExpr
+
+if config.test_mode == "build-only":
+    E2EExpr.check_build_features(config.available_features)
 
 if lit_config.params.get("print_features", False):
     lit_config.note(
