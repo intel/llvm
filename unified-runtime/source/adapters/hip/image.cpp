@@ -260,7 +260,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
   std::ignore = pUSMDesc;
   std::ignore = pool;
 
-  UR_ASSERT((widthInBytes > 0), UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT((height > 0), UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT((elementSizeBytes > 0), UR_RESULT_ERROR_INVALID_VALUE);
 

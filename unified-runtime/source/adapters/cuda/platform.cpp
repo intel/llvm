@@ -79,7 +79,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
     ur_platform_handle_t hPlatform, ur_platform_info_t PlatformInfoType,
     size_t Size, void *pPlatformInfo, size_t *pSizeRet) {
 
-  UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(Size, pPlatformInfo, pSizeRet);
 
   switch (PlatformInfoType) {
@@ -119,9 +118,6 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   try {
     static std::once_flag InitFlag;
     static uint32_t NumPlatforms = 1;
-
-    UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_SIZE);
 
     ur_result_t Result = UR_RESULT_SUCCESS;
 

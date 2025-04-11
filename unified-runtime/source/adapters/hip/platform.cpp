@@ -57,9 +57,6 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
     static std::once_flag InitFlag;
     static uint32_t NumPlatforms = 1;
 
-    UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_VALUE);
-
     ur_result_t Result = UR_RESULT_SUCCESS;
 
     std::call_once(
