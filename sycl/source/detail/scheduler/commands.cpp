@@ -420,7 +420,7 @@ public:
       if (HostTask.MHostTask->isInteropTask()) {
         assert(HostTask.MQueue &&
                "Host task submissions should have an associated queue");
-        interop_handle IH{MReqToMem, HostTask.MQueue,
+        interop_handle IH{std::move(MReqToMem), HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
         // TODO: should all the backends that support this entry point use this
@@ -3059,14 +3059,15 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
           "Can't get memory object due to no allocation available " +
               codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
     };
-    std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+    std::for_each(std::begin(HandlerReq), std::end(HandlerReq),
+                  std::move(ReqToMemConv));
 
     ur_exp_command_buffer_handle_t InteropCommandBuffer =
         ChildCommandBuffer ? ChildCommandBuffer : MCommandBuffer;
-    interop_handle IH{ReqToMem, MQueue, DeviceImpl, ContextImpl,
+    interop_handle IH{std::move(ReqToMem), MQueue, DeviceImpl, ContextImpl,
                       InteropCommandBuffer};
     CommandBufferNativeCommandData CustomOpData{
-        IH, HostTask->MHostTask->MInteropTask};
+        std::move(IH), HostTask->MHostTask->MInteropTask};
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     // CMPLRLLVM-66082
@@ -3397,7 +3398,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             "Can't get memory object due to no allocation available " +
                 codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
       };
-      std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+      std::for_each(std::begin(HandlerReq), std::end(HandlerReq),
+                    std::move(ReqToMemConv));
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
     }
 
@@ -3462,12 +3464,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             "Can't get memory object due to no allocation available " +
                 codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
       };
-      std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
+      std::for_each(std::begin(HandlerReq), std::end(HandlerReq),
+                    std::move(ReqToMemConv));
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
     }
 
     EnqueueNativeCommandData CustomOpData{
-        interop_handle{ReqToMem, HostTask->MQueue,
+        interop_handle{std::move(ReqToMem), HostTask->MQueue,
                        HostTask->MQueue->getDeviceImplPtr(),
                        HostTask->MQueue->getContextImplPtr()},
         HostTask->MHostTask->MInteropTask};
