@@ -26,14 +26,14 @@ void ReportDataRace(const TsanErrorReport &Report, ur_kernel_handle_t Kernel) {
   // Try to demangle the kernel name
   KernelName = DemangleName(KernelName);
 
-  URLOG_CTX_ALWAYS("====WARNING: DeviceSanitizer: data race");
-  URLOG_CTX_ALWAYS(
+  UR_LOG_LOGGER(getContext()->logger, ALWAYS, "====WARNING: DeviceSanitizer: data race");
+  UR_LOG_LOGGER(getContext()->logger, ALWAYS, 
       "When {} of size {} at {} in kernel <{}> LID({}, {}, {}) GID({}, "
       "{}, {})",
       Report.Type & kAccessRead ? "read" : "write", Report.AccessSize,
       (void *)Report.Address, KernelName.c_str(), Report.LID0, Report.LID1,
       Report.LID2, Report.GID0, Report.GID1, Report.GID2);
-  URLOG_CTX_ALWAYS("  #0 {} {}:{}", Func, File, Report.Line);
+  UR_LOG_LOGGER(getContext()->logger, ALWAYS, "  #0 {} {}:{}", Func, File, Report.Line);
 }
 
 } // namespace tsan

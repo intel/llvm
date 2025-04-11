@@ -22,16 +22,16 @@ ManagedQueue::ManagedQueue(ur_context_handle_t Context,
   [[maybe_unused]] auto Result = getContext()->urDdiTable.Queue.pfnCreate(
       Context, Device, nullptr, &Handle);
   assert(Result == UR_RESULT_SUCCESS && "Failed to create ManagedQueue");
-  URLOG_CTX(DEBUG, ">>> ManagedQueue {}", (void *)Handle);
+  UR_LOG_LOGGER(getContext()->logger, DEBUG, ">>> ManagedQueue {}", (void *)Handle);
 }
 
 ManagedQueue::~ManagedQueue() {
-  URLOG_CTX(DEBUG, "<<< ~ManagedQueue {}", (void *)Handle);
+  UR_LOG_LOGGER(getContext()->logger, DEBUG, "<<< ~ManagedQueue {}", (void *)Handle);
 
   [[maybe_unused]] ur_result_t Result;
   Result = getContext()->urDdiTable.Queue.pfnFinish(Handle);
   if (Result != UR_RESULT_SUCCESS) {
-    URLOG_CTX(ERR, "Failed to finish ManagedQueue: {}", Result);
+    UR_LOG_LOGGER(getContext()->logger, ERR, "Failed to finish ManagedQueue: {}", Result);
   }
   assert(Result == UR_RESULT_SUCCESS && "Failed to finish ManagedQueue");
   Result = getContext()->urDdiTable.Queue.pfnRelease(Handle);
@@ -149,7 +149,7 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     [[maybe_unused]] ur_result_t Result =
         getContext()->urDdiTable.USM.pfnDeviceAlloc(Context, Device, nullptr,
                                                     nullptr, 4, (void **)&Ptr);
-    URLOG_CTX(DEBUG, "GetDeviceType: {}", (void *)Ptr);
+    UR_LOG_LOGGER(getContext()->logger, DEBUG, "GetDeviceType: {}", (void *)Ptr);
     assert(Result == UR_RESULT_SUCCESS &&
            "getDeviceType() failed at allocating device USM");
     // FIXME: There's no API querying the address bits of device, so we guess it
@@ -258,7 +258,7 @@ ur_result_t EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr,
 
 void PrintUrBuildLog(ur_program_handle_t hProgram,
                      ur_device_handle_t *phDevices, size_t numDevices) {
-  URLOG_CTX(ERR, "Printing build log for program {}", (void *)hProgram);
+  UR_LOG_LOGGER(getContext()->logger, ERR, "Printing build log for program {}", (void *)hProgram);
   for (size_t i = 0; i < numDevices; i++) {
     std::vector<char> LogBuf;
     size_t LogSize = 0;
@@ -267,7 +267,7 @@ void PrintUrBuildLog(ur_program_handle_t hProgram,
     auto UrRes = getContext()->urDdiTable.Program.pfnGetBuildInfo(
         hProgram, hDevice, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr, &LogSize);
     if (UrRes != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "For device {}: failed to get build log size.",
+      UR_LOG_LOGGER(getContext()->logger, ERR, "For device {}: failed to get build log size.",
                 (void *)hDevice);
       continue;
     }
@@ -277,12 +277,12 @@ void PrintUrBuildLog(ur_program_handle_t hProgram,
         hProgram, hDevice, UR_PROGRAM_BUILD_INFO_LOG, LogSize, LogBuf.data(),
         nullptr);
     if (UrRes != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "For device {}: failed to get build log.",
+      UR_LOG_LOGGER(getContext()->logger, ERR, "For device {}: failed to get build log.",
                 (void *)hDevice);
       continue;
     }
 
-    URLOG_CTX(ERR, "For device {}:\n{}", (void *)hDevice, LogBuf.data());
+    UR_LOG_LOGGER(getContext()->logger, ERR, "For device {}:\n{}", (void *)hDevice, LogBuf.data());
   }
 }
 

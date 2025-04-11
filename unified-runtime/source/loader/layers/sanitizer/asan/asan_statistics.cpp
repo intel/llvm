@@ -46,14 +46,14 @@ private:
 };
 
 void AsanStats::Print(ur_context_handle_t Context) {
-  URLOG_CTX_ALWAYS("Stats: Context {}", (void *)Context);
-  URLOG_CTX_ALWAYS("Stats:   peak memory overhead: {}%", Overhead * 100);
+  UR_LOG_LOGGER(getContext()->logger, ALWAYS, "Stats: Context {}", (void *)Context);
+  UR_LOG_LOGGER(getContext()->logger, ALWAYS, "Stats:   peak memory overhead: {}%", Overhead * 100);
 }
 
 void AsanStats::UpdateUSMMalloced(uptr MallocedSize, uptr RedzoneSize) {
   UsmMalloced += MallocedSize;
   UsmMallocedRedzones += RedzoneSize;
-  URLOG_CTX(DEBUG,
+  UR_LOG_LOGGER(getContext()->logger, DEBUG,
             "Stats: UpdateUSMMalloced(UsmMalloced={}, UsmMallocedRedzones={})",
             UsmMalloced, UsmMallocedRedzones);
   UpdateOverhead();
@@ -61,7 +61,7 @@ void AsanStats::UpdateUSMMalloced(uptr MallocedSize, uptr RedzoneSize) {
 
 void AsanStats::UpdateUSMFreed(uptr FreedSize) {
   UsmFreed += FreedSize;
-  URLOG_CTX(DEBUG, "Stats: UpdateUSMFreed(UsmFreed={})", UsmFreed);
+  UR_LOG_LOGGER(getContext()->logger, DEBUG, "Stats: UpdateUSMFreed(UsmFreed={})", UsmFreed);
 }
 
 void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
@@ -70,7 +70,7 @@ void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
   if (getContext()->Options.MaxQuarantineSizeMB) {
     UsmFreed -= FreedSize;
   }
-  URLOG_CTX(DEBUG,
+  UR_LOG_LOGGER(getContext()->logger, DEBUG,
             "Stats: UpdateUSMRealFreed(UsmMalloced={}, UsmMallocedRedzones={})",
             UsmMalloced, UsmMallocedRedzones);
   UpdateOverhead();
@@ -78,14 +78,14 @@ void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
 
 void AsanStats::UpdateShadowMalloced(uptr ShadowSize) {
   ShadowMalloced += ShadowSize;
-  URLOG_CTX(DEBUG, "Stats: UpdateShadowMalloced(ShadowMalloced={})",
+  UR_LOG_LOGGER(getContext()->logger, DEBUG, "Stats: UpdateShadowMalloced(ShadowMalloced={})",
             ShadowMalloced);
   UpdateOverhead();
 }
 
 void AsanStats::UpdateShadowFreed(uptr ShadowSize) {
   ShadowMalloced -= ShadowSize;
-  URLOG_CTX(DEBUG, "Stats: UpdateShadowFreed(ShadowMalloced={})",
+  UR_LOG_LOGGER(getContext()->logger, DEBUG, "Stats: UpdateShadowFreed(ShadowMalloced={})",
             ShadowMalloced);
   UpdateOverhead();
 }

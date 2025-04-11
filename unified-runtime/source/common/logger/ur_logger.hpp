@@ -16,10 +16,10 @@ namespace logger {
 
 Logger create_logger(std::string logger_name, bool skip_prefix = false,
                      bool skip_linebreak = false,
-                     Level default_log_level = Level::QUIET);
+                     Level default_log_level = Level::ALWAYS);
 
 inline Logger &get_logger(std::string name = "common",
-                          Level default_log_level = Level::QUIET) {
+                          Level default_log_level = Level::ALWAYS) {
   static Logger logger =
       create_logger(std::move(name), /*skip_prefix*/ false,
                     /*slip_linebreak*/ false, default_log_level);
@@ -28,11 +28,13 @@ inline Logger &get_logger(std::string name = "common",
 
 inline void init(const std::string &name) { get_logger(name.c_str()); }
 
-#define URLOG(...) URLOG_(logger::get_logger(), __VA_ARGS__)
+#define UR_LOG(...) URLOG_(logger::get_logger(), __VA_ARGS__)
+#define UR_LOG_LOGGER(...) URLOG_(__VA_ARGS__)
+#define UR_LOG_LEGACY(...) URLOG_LEGACY_(logger::get_logger(), __VA_ARGS__)
+
 #define URLOG_ALWAYS(...) URLOG_ALWAYS_(logger::get_logger(), __VA_ARGS__)
-#define URLOG_CTX(...) URLOG_(getContext()->logger, __VA_ARGS__)
-#define URLOG_CTX_ALWAYS(...) URLOG_(getContext()->logger, QUIET, __VA_ARGS__)
-#define URLOG_L(...) URLOG_LEGACY_(logger::get_logger(), __VA_ARGS__)
+// #define URLOG_CTX(...) URLOG_(getContext()->logger, __VA_ARGS__)
+// #define URLOG_CTX_ALWAYS(...) URLOG_(getContext()->logger, ALWAYS, __VA_ARGS__)
 
 inline void setLevel(Level level) { get_logger().setLevel(level); }
 
@@ -44,9 +46,16 @@ template <typename T> inline std::string toHex(T t) {
   return s.str();
 }
 
-inline bool str_to_bool(const std::string str) {
-  return str == "true" || str == "TRUE" || str == "yes" || str == "YES" ||
-         str == "y" || str == "Y" || str == "on" || str == "ON" || str == "1";
+inline bool str_to_bool(const std::string &str) {
+  if (!str.empty()) {
+    std::string lower_value = str;
+    std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    const std::initializer_list<std::string> true_str = {"y", "yes", "t", "true", "1"};
+    return std::find(true_str.begin(), true_str.end(), lower_value) != true_str.end();
+  }
+
+  return false;
 }
 
 /// @brief Create an instance of the logger with parameters obtained from the

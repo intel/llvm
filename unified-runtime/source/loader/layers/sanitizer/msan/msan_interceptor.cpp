@@ -123,7 +123,7 @@ ur_result_t MsanInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
   ManagedQueue InternalQueue(Context, Device);
   if (!InternalQueue) {
-    URLOG_CTX(ERR, "Failed to create internal queue");
+    UR_LOG_LOGGER(getContext()->logger, ERR, "Failed to create internal queue");
     return UR_RESULT_ERROR_INVALID_QUEUE;
   }
 
@@ -157,13 +157,13 @@ ur_result_t MsanInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
 ur_result_t MsanInterceptor::registerProgram(ur_program_handle_t Program) {
   ur_result_t Result = UR_RESULT_SUCCESS;
 
-  URLOG_CTX(INFO, "registerSpirKernels");
+  UR_LOG_LOGGER(getContext()->logger, INFO, "registerSpirKernels");
   Result = registerSpirKernels(Program);
   if (Result != UR_RESULT_SUCCESS) {
     return Result;
   }
 
-  URLOG_CTX(INFO, "registerDeviceGlobals");
+  UR_LOG_LOGGER(getContext()->logger, INFO, "registerDeviceGlobals");
   Result = registerDeviceGlobals(Program);
   if (Result != UR_RESULT_SUCCESS) {
     return Result;
@@ -202,7 +202,7 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
         Queue, true, &SKInfo[0], MetadataPtr,
         sizeof(SpirKernelInfo) * NumOfSpirKernel, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "Can't read the value of <{}>: {}",
+      UR_LOG_LOGGER(getContext()->logger, ERR, "Can't read the value of <{}>: {}",
                 kSPIR_MsanSpirKernelMetadata, Result);
       return Result;
     }
@@ -217,14 +217,14 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
           Queue, true, KernelNameV.data(), (void *)SKI.KernelName,
           sizeof(char) * SKI.Size, 0, nullptr, nullptr);
       if (Result != UR_RESULT_SUCCESS) {
-        URLOG_CTX(ERR, "Can't read kernel name: {}", Result);
+        UR_LOG_LOGGER(getContext()->logger, ERR, "Can't read kernel name: {}", Result);
         return Result;
       }
 
       std::string KernelName =
           std::string(KernelNameV.begin(), KernelNameV.end());
 
-      URLOG_CTX(INFO,
+      UR_LOG_LOGGER(getContext()->logger, INFO,
                 "SpirKernel(name='{}', isInstrumented={}, "
                 "checkLocals={}, checkPrivates={})",
                 KernelName, true, (bool)SKI.CheckLocals,
@@ -233,7 +233,7 @@ ur_result_t MsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
       PI->KernelMetadataMap[KernelName] = ProgramInfo::KernelMetada{
           (bool)SKI.CheckLocals, (bool)SKI.CheckPrivates};
     }
-    URLOG_CTX(INFO, "Number of sanitized kernel: {}",
+    UR_LOG_LOGGER(getContext()->logger, INFO, "Number of sanitized kernel: {}",
               PI->KernelMetadataMap.size());
   }
 
@@ -258,7 +258,7 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         Device, Program, kSPIR_MsanDeviceGlobalMetadata, &MetadataSize,
         &MetadataPtr);
     if (Result != UR_RESULT_SUCCESS) {
-      URLOG_CTX(INFO, "No device globals");
+      UR_LOG_LOGGER(getContext()->logger, INFO, "No device globals");
       continue;
     }
 
@@ -270,7 +270,7 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
         Queue, true, &GVInfos[0], MetadataPtr,
         sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "Device Global[{}] Read Failed: {}",
+      UR_LOG_LOGGER(getContext()->logger, ERR, "Device Global[{}] Read Failed: {}",
                 kSPIR_MsanDeviceGlobalMetadata, Result);
       return Result;
     }
@@ -437,7 +437,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
     auto Result = getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
         Queue, Program, Name, false, Size, 0, Value, 0, nullptr, nullptr);
     if (Result != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "Failed to write device global \"{}\": {}", Name, Result);
+      UR_LOG_LOGGER(getContext()->logger, ERR, "Failed to write device global \"{}\": {}", Name, Result);
       return Result;
     }
     return UR_RESULT_SUCCESS;
@@ -445,7 +445,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
 
   // Set membuffer arguments
   auto &KernelInfo = getOrCreateKernelInfo(Kernel);
-  URLOG_CTX(INFO,
+  UR_LOG_LOGGER(getContext()->logger, INFO,
             "KernelInfo {} (Name=<{}>, IsInstrumented={}, "
             "IsCheckLocals={}, IsCheckPrivates={})",
             (void *)Kernel, GetKernelName(Kernel), KernelInfo.IsInstrumented,
@@ -459,7 +459,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
     ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
         Kernel, ArgIndex, nullptr, ArgPointer);
     if (URes != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "Failed to set buffer {} as the {} arg to kernel {}: {}",
+      UR_LOG_LOGGER(getContext()->logger, ERR, "Failed to set buffer {} as the {} arg to kernel {}: {}",
                 ur_cast<ur_mem_handle_t>(MemBuffer.get()), ArgIndex, Kernel,
                 URes);
     }
@@ -509,14 +509,14 @@ ur_result_t MsanInterceptor::prepareLaunch(
     if (DeviceInfo->Shadow->AllocLocalShadow(
             Queue, NumWG, LaunchInfo.Data->LocalShadowOffset,
             LaunchInfo.Data->LocalShadowOffsetEnd) != UR_RESULT_SUCCESS) {
-      URLOG_CTX(WARN,
+      UR_LOG_LOGGER(getContext()->logger, WARN,
                 "Failed to allocate shadow memory for local memory, "
                 "maybe the number of workgroup ({}) is too large",
                 NumWG);
-      URLOG_CTX(WARN, "Skip checking local memory of kernel <{}> ",
+      UR_LOG_LOGGER(getContext()->logger, WARN, "Skip checking local memory of kernel <{}> ",
                 GetKernelName(Kernel));
     } else {
-      URLOG_CTX(DEBUG, "ShadowMemory(Local, WorkGroup={}, {} - {})", NumWG,
+      UR_LOG_LOGGER(getContext()->logger, DEBUG, "ShadowMemory(Local, WorkGroup={}, {} - {})", NumWG,
                 (void *)LaunchInfo.Data->LocalShadowOffset,
                 (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
     }
@@ -527,14 +527,14 @@ ur_result_t MsanInterceptor::prepareLaunch(
     if (DeviceInfo->Shadow->AllocPrivateShadow(
             Queue, NumWG, LaunchInfo.Data->PrivateShadowOffset,
             LaunchInfo.Data->PrivateShadowOffsetEnd) != UR_RESULT_SUCCESS) {
-      URLOG_CTX(WARN,
+      UR_LOG_LOGGER(getContext()->logger, WARN,
                 "Failed to allocate shadow memory for private memory, "
                 "maybe the number of workgroup ({}) is too large",
                 NumWG);
-      URLOG_CTX(WARN, "Skip checking private memory of kernel <{}>",
+      UR_LOG_LOGGER(getContext()->logger, WARN, "Skip checking private memory of kernel <{}>",
                 GetKernelName(Kernel));
     } else {
-      URLOG_CTX(DEBUG, "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,
+      UR_LOG_LOGGER(getContext()->logger, DEBUG, "ShadowMemory(Private, WorkGroup={}, {} - {})", NumWG,
                 (void *)LaunchInfo.Data->PrivateShadowOffset,
                 (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
     }
@@ -543,14 +543,14 @@ ur_result_t MsanInterceptor::prepareLaunch(
       std::vector<MsanLocalArgsInfo> LocalArgsInfo;
       for (auto [ArgIndex, ArgInfo] : KernelInfo.LocalArgs) {
         LocalArgsInfo.push_back(ArgInfo);
-        URLOG_CTX(DEBUG, "LocalArgs (argIndex={}, size={})", ArgIndex,
+        UR_LOG_LOGGER(getContext()->logger, DEBUG, "LocalArgs (argIndex={}, size={})", ArgIndex,
                   ArgInfo.Size);
       }
       UR_CALL(LaunchInfo.importLocalArgsInfo(Queue, LocalArgsInfo));
     }
   }
 
-  URLOG_CTX(
+  UR_LOG_LOGGER(getContext()->logger, 
       INFO,
       "LaunchInfo {} (GlobalShadow={}, LocalShadow={}, PrivateShadow={}, "
       "CleanShadow={}, LocalArgs={}, NumLocalArgs={}, Device={}, Debug={})",
@@ -564,7 +564,7 @@ ur_result_t MsanInterceptor::prepareLaunch(
   ur_result_t URes =
       EnqueueWriteGlobal("__MsanLaunchInfo", &LaunchInfo.Data, sizeof(uptr));
   if (URes != UR_RESULT_SUCCESS) {
-    URLOG_CTX(INFO,
+    UR_LOG_LOGGER(getContext()->logger, INFO,
               "EnqueueWriteGlobal(__MsanLaunchInfo) "
               "failed, maybe empty kernel: {}",
               URes);
@@ -609,7 +609,7 @@ ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
   Shadow = GetMsanShadowMemory(Context, Handle, Type);
   assert(Shadow && "Failed to get shadow memory");
   UR_CALL(Shadow->Setup());
-  URLOG_CTX(INFO, "ShadowMemory(Global): {} - {}", (void *)Shadow->ShadowBegin,
+  UR_LOG_LOGGER(getContext()->logger, INFO, "ShadowMemory(Global): {} - {}", (void *)Shadow->ShadowBegin,
             (void *)Shadow->ShadowEnd);
   return UR_RESULT_SUCCESS;
 }

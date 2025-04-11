@@ -444,7 +444,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       // Otherwise, do nothing.
       // Set maximum size is effectively ignored.
       if (Limits->maxPoolableSize > 0)
-        URLOG(WARN, "The memory pool maximum size feature requires CUDA "
+        UR_LOG(WARN, "The memory pool maximum size feature requires CUDA "
                     "12.2 or later.\n");
 #endif
       maxSize = Limits->maxPoolableSize;

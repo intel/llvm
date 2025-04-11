@@ -72,7 +72,7 @@ struct OptionParser {
           SS << " \"" << S << "\"";
         }
         SS << ".";
-        URLOG_(Logger, ERR, SS.str().c_str());
+        UR_LOG_LOGGER(Logger, ERR, SS.str().c_str());
         die("Sanitizer failed to parse options.\n");
       }
     }
@@ -93,13 +93,13 @@ struct OptionParser {
         uint64_t Value = std::stoul(ValueStr.c_str());
 
         if (Value < Min) {
-          URLOG_(Logger, WARN,
+          UR_LOG_LOGGER(Logger, WARN,
                  "The valid range of \"{}\" is [{}, {}]. "
                  "Setting to the minimum value {}.",
                  Name, Min, Max, Min);
           Result = Min;
         } else if (Value > Max) {
-          URLOG_(Logger, WARN,
+          UR_LOG_LOGGER(Logger, WARN,
                  "The valid range of \"{}\" is [{}, {}]. "
                  "Setting to the maximum value {}.",
                  Name, Min, Max, Max);
@@ -108,7 +108,7 @@ struct OptionParser {
           Result = Value;
         }
       } catch (...) {
-        URLOG_(Logger, ERR,
+        UR_LOG_LOGGER(Logger, ERR,
                "The valid range of \"{}\" is [{}, {}]. Failed "
                "to parse the value \"{}\".",
                Name, Min, Max, ValueStr);

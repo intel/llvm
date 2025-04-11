@@ -20,7 +20,7 @@ struct LegacyMessage {
 class Logger {
 public:
   Logger(std::unique_ptr<Sink> sink)
-      : level(Level::QUIET), sink(std::move(sink)) {}
+      : level(Level::ALWAYS), sink(std::move(sink)) {}
 
   Logger(Level level, std::unique_ptr<Sink> sink)
       : level(level), sink(std::move(sink)) {}
@@ -80,23 +80,23 @@ private:
 #define SHORT_FILE __FILE__
 #endif
 
-#define UR_STRIMPL(x) #x
-#define UR_STR(x) UR_STRIMPL(x)
+#define UR_STRIMPL_(x) #x
+#define UR_STR_(x) UR_STRIMPL_(x)
 
 #define URLOG_(logger_instance, level, ...)                                    \
   {                                                                            \
     (logger_instance)                                                          \
-        .log(logger::Level::level, SHORT_FILE, UR_STR(__LINE__), __VA_ARGS__); \
+        .log(logger::Level::level, SHORT_FILE, UR_STR_(__LINE__), __VA_ARGS__); \
   }
 
 #define URLOG_ALWAYS_(logger_instance, ...)                                    \
-  URLOG_(logger_instance, QUIET, __VA_ARGS__)
+  URLOG_(logger_instance, ALWAYS, __VA_ARGS__)
 
 #define URLOG_LEGACY_(logger_instance, level, legacy_message, ...)             \
   {                                                                            \
     (logger_instance)                                                          \
         .log(legacy_message, logger::Level::level, SHORT_FILE,                 \
-             UR_STR(__LINE__), __VA_ARGS__);                                   \
+             UR_STR_(__LINE__), __VA_ARGS__);                                   \
   }
 
 #endif /* UR_LOGGER_DETAILS_HPP */

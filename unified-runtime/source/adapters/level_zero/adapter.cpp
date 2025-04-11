@@ -163,7 +163,7 @@ ur_result_t initPlatforms(PlatformVec &platforms,
     ZE2UR_CALL(zeDriverGet, (&ZeDriverGetCount, ZeDriverGetHandles.data()));
   }
   if (ZeDriverGetCount == 0 && GlobalAdapter->ZeInitDriversCount == 0) {
-    URLOG(ERR, "\nNo Valid L0 Drivers found.\n");
+    UR_LOG(ERR, "\nNo Valid L0 Drivers found.\n");
     return UR_RESULT_SUCCESS;
   }
 
@@ -188,7 +188,7 @@ ur_result_t initPlatforms(PlatformVec &platforms,
           // newer drivers.
           if (ZeDriverGetProperties.driverVersion !=
               ZeInitDriverProperties.driverVersion) {
-            URLOG(DEBUG,
+            UR_LOG(DEBUG,
                   "\nzeDriverHandle {} added to the zeInitDrivers list "
                   "of possible handles.\n",
                   ZeDriverGetHandles[Y]);
@@ -202,7 +202,7 @@ ur_result_t initPlatforms(PlatformVec &platforms,
     ZeDrivers.assign(ZeDriverGetHandles.begin(), ZeDriverGetHandles.end());
   }
   ZeDriverCount = ZeDrivers.size();
-  URLOG(DEBUG, "\n{} L0 Drivers found.\n", ZeDriverCount);
+  UR_LOG(DEBUG, "\n{} L0 Drivers found.\n", ZeDriverCount);
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
     // Keep track of the first platform init for this Driver
     bool DriverPlatformInit = false;
@@ -360,7 +360,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       }
 
       if (getenv("SYCL_ENABLE_PCI") != nullptr) {
-        URLOG(WARN,
+        UR_LOG(WARN,
               "WARNING: SYCL_ENABLE_PCI is deprecated and no longer needed.\n");
       }
 
@@ -382,13 +382,13 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       if (UrL0InitAllDrivers) {
         L0InitFlags |= ZE_INIT_FLAG_VPU_ONLY;
       }
-      URLOG(DEBUG, "\nzeInit with flags value of {}\n",
+      UR_LOG(DEBUG, "\nzeInit with flags value of {}\n",
             static_cast<int>(L0InitFlags));
       GlobalAdapter->ZeInitResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
       if (GlobalAdapter->ZeInitResult != ZE_RESULT_SUCCESS) {
         const char *ErrorString = "Unknown";
         zeParseError(GlobalAdapter->ZeInitResult, ErrorString);
-        URLOG(ERR, "\nzeInit failed with {}\n", ErrorString);
+        UR_LOG(ERR, "\nzeInit failed with {}\n", ErrorString);
       }
 
       bool useInitDrivers = false;
@@ -404,7 +404,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
             if (strncmp(versions[i].component_name, "loader",
                         strlen("loader")) == 0) {
               loader_version = versions[i].component_lib_version;
-              URLOG(DEBUG, "\nLevel Zero Loader Version: {}.{}.{}\n",
+              UR_LOG(DEBUG, "\nLevel Zero Loader Version: {}.{}.{}\n",
                     loader_version.major, loader_version.minor,
                     loader_version.patch);
               break;
@@ -429,7 +429,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
                 GlobalAdapter->processHandle, "zeInitDrivers");
 #endif
         if (GlobalAdapter->initDriversFunctionPtr) {
-          URLOG(DEBUG, "\nzeInitDrivers with flags value of {}\n",
+          UR_LOG(DEBUG, "\nzeInitDrivers with flags value of {}\n",
                 static_cast<int>(GlobalAdapter->InitDriversDesc.flags));
           GlobalAdapter->ZeInitDriversResult =
               ZE_CALL_NOCHECK(GlobalAdapter->initDriversFunctionPtr,
@@ -440,7 +440,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
           } else {
             const char *ErrorString = "Unknown";
             zeParseError(GlobalAdapter->ZeInitDriversResult, ErrorString);
-            URLOG(ERR, "\nzeInitDrivers failed with {}\n", ErrorString);
+            UR_LOG(ERR, "\nzeInitDrivers failed with {}\n", ErrorString);
           }
         }
       }
@@ -458,12 +458,12 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
     // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
     if (*GlobalAdapter->ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-      URLOG(ERR, "Level Zero Uninitialized\n");
+      UR_LOG(ERR, "Level Zero Uninitialized\n");
       result = std::move(platforms);
       return;
     }
     if (*GlobalAdapter->ZeResult != ZE_RESULT_SUCCESS) {
-      URLOG(ERR, "Level Zero initialization failure\n");
+      UR_LOG(ERR, "Level Zero initialization failure\n");
       result = ze2urResult(*GlobalAdapter->ZeResult);
 
       return;
@@ -510,7 +510,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
         GlobalAdapter->getSysManDriversFunctionPtr &&
         GlobalAdapter->sysManInitFunctionPtr) {
       ze_init_flags_t L0ZesInitFlags = 0;
-      URLOG(DEBUG, "\nzesInit with flags value of {}\n",
+      UR_LOG(DEBUG, "\nzesInit with flags value of {}\n",
             static_cast<int>(L0ZesInitFlags));
       GlobalAdapter->ZesResult = ZE_CALL_NOCHECK(
           GlobalAdapter->sysManInitFunctionPtr, (L0ZesInitFlags));

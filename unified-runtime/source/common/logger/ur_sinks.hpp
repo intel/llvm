@@ -28,7 +28,7 @@ public:
   void log(Level level, const char *filename, const char *lineno,
            const char *fmt, Args &&...args) {
     std::ostringstream buffer;
-    if (!skip_prefix && level != Level::QUIET) {
+    if (!skip_prefix && level != Level::ALWAYS) {
       buffer << "<" << logger_name << ">"
              << "[" << level_to_str(level) << "]: ";
     }

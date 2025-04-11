@@ -189,7 +189,7 @@ ur_result_t urEnqueueKernelLaunch(
                 (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   }
 
-  URLOG(DEBUG, "calling zeCommandListAppendLaunchKernel() with ZeEvent {}",
+  UR_LOG(DEBUG, "calling zeCommandListAppendLaunchKernel() with ZeEvent {}",
         ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
 
@@ -316,14 +316,14 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
         }
 
         if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-          URLOG(ERR,
+          UR_LOG(ERR,
                 "urEnqueueCooperativeKernelLaunchExp: can't find a WG size "
                 "suitable for global work size > UINT32_MAX");
           return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
         }
         WG[I] = GroupSize[I];
       }
-      URLOG(DEBUG,
+      UR_LOG(DEBUG,
             "urEnqueueCooperativeKernelLaunchExp: using computed WG "
             "size = {{{}, {}, {}}}",
             WG[0], WG[1], WG[2]);
@@ -355,28 +355,28 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
     break;
 
   default:
-    URLOG(ERR, "urEnqueueCooperativeKernelLaunchExp: unsupported work_dim");
+    UR_LOG(ERR, "urEnqueueCooperativeKernelLaunchExp: unsupported work_dim");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   // Error handling for non-uniform group size case
   if (GlobalWorkSize3D[0] !=
       size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    URLOG(ERR,
+    UR_LOG(ERR,
           "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
           "range is not a multiple of the group size in the 1st dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[1] !=
       size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    URLOG(ERR,
+    UR_LOG(ERR,
           "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
           "range is not a multiple of the group size in the 2nd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[2] !=
       size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
-    URLOG(DEBUG,
+    UR_LOG(DEBUG,
           "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
           "range is not a multiple of the group size in the 3rd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
@@ -449,7 +449,7 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
                 (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   }
 
-  URLOG(DEBUG,
+  UR_LOG(DEBUG,
         "calling zeCommandListAppendLaunchCooperativeKernel() with ZeEvent {}",
         ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
@@ -790,7 +790,7 @@ ur_result_t urKernelGetInfo(
       return UR_RESULT_ERROR_UNKNOWN;
     }
   default:
-    URLOG(ERR, "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
+    UR_LOG(ERR, "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
           ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -878,7 +878,7 @@ ur_result_t urKernelGetGroupInfo(
     // No corresponding enumeration in Level Zero
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default: {
-    URLOG(ERR, "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
+    UR_LOG(ERR, "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
           ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -1023,7 +1023,7 @@ ur_result_t urKernelSetExecInfo(
         return UR_RESULT_ERROR_INVALID_VALUE;
       ZE2UR_CALL(zeKernelSetCacheConfig, (ZeKernel, ZeCacheConfig););
     } else {
-      URLOG(ERR, "urKernelSetExecInfo: unsupported ParamName");
+      UR_LOG(ERR, "urKernelSetExecInfo: unsupported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -1175,7 +1175,7 @@ ur_result_t urKernelSetSpecializationConstants(
   std::ignore = Kernel;
   std::ignore = Count;
   std::ignore = SpecConstants;
-  URLOG_L(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
           "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

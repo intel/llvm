@@ -117,7 +117,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  URLOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
+  UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
         ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -169,7 +169,7 @@ ur_result_t enqueueMemCopyRectHelper(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
-  URLOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
+  UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
         ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -182,7 +182,7 @@ ur_result_t enqueueMemCopyRectHelper(
               ZeParams.srcPitch, ZeParams.srcSlicePitch, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
-  URLOG(DEBUG, "calling zeCommandListAppendMemoryCopyRegion()");
+  UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopyRegion()");
 
   UR_CALL(Queue->executeCommandList(CommandList, Blocking, OkToBatch));
 
@@ -257,7 +257,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                (ZeCommandList, Ptr, Pattern, PatternSize, Size, ZeEvent,
                 WaitList.Length, WaitList.ZeEventList));
 
-    URLOG(DEBUG, "calling zeCommandListAppendMemoryFill() with ZeEvent {}",
+    UR_LOG(DEBUG, "calling zeCommandListAppendMemoryFill() with ZeEvent {}",
           ur_cast<uint64_t>(ZeEvent));
     printZeEventList(WaitList);
 
@@ -278,7 +278,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                   WaitList.Length, WaitList.ZeEventList));
     }
 
-    URLOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
+    UR_LOG(DEBUG, "calling zeCommandListAppendMemoryCopy() with ZeEvent {}",
           ur_cast<uint64_t>(ZeEvent));
     printZeEventList(WaitList);
 
@@ -462,7 +462,7 @@ static ur_result_t enqueueMemImageCommandHelper(
                 ur_cast<ze_image_handle_t>(ZeHandleSrc), &ZeDstRegion,
                 &ZeSrcRegion, ZeEvent, 0, nullptr));
   } else {
-    URLOG(ERR, "enqueueMemImageUpdate: unsupported image command type");
+    UR_LOG(ERR, "enqueueMemImageUpdate: unsupported image command type");
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
@@ -1039,7 +1039,7 @@ ur_result_t urEnqueueMemBufferMap(
     // False as the second value in pair means that mapping was not inserted
     // because mapping already exists.
     if (!Res.second) {
-      URLOG(ERR, "urEnqueueMemBufferMap: duplicate mapping detected");
+      UR_LOG(ERR, "urEnqueueMemBufferMap: duplicate mapping detected");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
@@ -1100,7 +1100,7 @@ ur_result_t urEnqueueMemBufferMap(
   // False as the second value in pair means that mapping was not inserted
   // because mapping already exists.
   if (!Res.second) {
-    URLOG(ERR, "urEnqueueMemBufferMap: duplicate mapping detected");
+    UR_LOG(ERR, "urEnqueueMemBufferMap: duplicate mapping detected");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -1154,7 +1154,7 @@ ur_result_t urEnqueueMemUnmap(
     std::scoped_lock<ur_shared_mutex> Guard(Buffer->Mutex);
     auto It = Buffer->Mappings.find(MappedPtr);
     if (It == Buffer->Mappings.end()) {
-      URLOG(ERR, "urEnqueueMemUnmap: unknown memory mapping");
+      UR_LOG(ERR, "urEnqueueMemUnmap: unknown memory mapping");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     MapInfo = It->second;
@@ -1437,7 +1437,7 @@ ur_result_t urEnqueueUSMFill2D(
   std::ignore = NumEventsInWaitList;
   std::ignore = EventWaitList;
   std::ignore = OutEvent;
-  URLOG_L(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
           "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -1886,7 +1886,7 @@ ur_result_t urMemImageGetInfo(
   std::ignore = PropSize;
   std::ignore = ImgInfo;
   std::ignore = PropSizeRet;
-  URLOG_L(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
           "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -1940,7 +1940,7 @@ ur_result_t urEnqueueReadHostPipe(ur_queue_handle_t hQueue,
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  URLOG_L(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
           "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -1961,7 +1961,7 @@ ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
   std::ignore = numEventsInWaitList;
   std::ignore = phEventWaitList;
   std::ignore = phEvent;
-  URLOG_L(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
           "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -2226,7 +2226,7 @@ ur_result_t _ur_buffer::getBufferZeHandle(char *&ZeHandle,
     }
   }
 
-  URLOG(DEBUG, "getZeHandle(pi_device{{{}}}) = {}", (void *)Device,
+  UR_LOG(DEBUG, "getZeHandle(pi_device{{{}}}) = {}", (void *)Device,
         (void *)Allocation.ZeHandle);
   return UR_RESULT_SUCCESS;
 }

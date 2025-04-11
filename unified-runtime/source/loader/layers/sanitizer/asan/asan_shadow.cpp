@@ -30,7 +30,7 @@ std::shared_ptr<ShadowMemory> CreateShadowMemory(ur_context_handle_t Context,
   } else if (Type == DeviceType::GPU_DG2) {
     return std::make_shared<ShadowMemoryDG2>(Context, Device);
   } else {
-    URLOG_CTX(ERR, "Unsupport device type");
+    UR_LOG_LOGGER(getContext()->logger, ERR, "Unsupport device type");
     return nullptr;
   }
 }
@@ -51,7 +51,7 @@ ur_result_t ShadowMemoryCPU::Setup() {
     auto URes = EnqueuePoisonShadow({}, 0, NullptrRedzoneSize,
                                     kNullPointerRedzoneMagic);
     if (URes != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "EnqueuePoisonShadow(NullPointerRZ): {}", URes);
+      UR_LOG_LOGGER(getContext()->logger, ERR, "EnqueuePoisonShadow(NullPointerRZ): {}", URes);
       return URes;
     }
     return URes;
@@ -85,7 +85,7 @@ ur_result_t ShadowMemoryCPU::EnqueuePoisonShadow(ur_queue_handle_t, uptr Ptr,
   uptr ShadowBegin = MemToShadow(Ptr);
   uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
   assert(ShadowBegin <= ShadowEnd);
-  URLOG_CTX(DEBUG, "EnqueuePoisonShadow(addr={}, count={}, value={})",
+  UR_LOG_LOGGER(getContext()->logger, DEBUG, "EnqueuePoisonShadow(addr={}, count={}, value={})",
             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
             (void *)(size_t)Value);
   memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
@@ -108,7 +108,7 @@ ur_result_t ShadowMemoryGPU::Setup() {
     auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
         Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
     if (Result != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "Shadow memory reserved failed with size {}: {}",
+      UR_LOG_LOGGER(getContext()->logger, ERR, "Shadow memory reserved failed with size {}: {}",
                 (void *)ShadowSize, Result);
       return Result;
     }
@@ -124,7 +124,7 @@ ur_result_t ShadowMemoryGPU::Setup() {
     Result = EnqueuePoisonShadow(Queue, 0, NullptrRedzoneSize,
                                  kNullPointerRedzoneMagic);
     if (Result != UR_RESULT_SUCCESS) {
-      URLOG_CTX(ERR, "EnqueuePoisonShadow(NullPointerRZ): {}", Result);
+      UR_LOG_LOGGER(getContext()->logger, ERR, "EnqueuePoisonShadow(NullPointerRZ): {}", Result);
       return Result;
     }
     return Result;
@@ -194,7 +194,7 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
         auto URes = getContext()->urDdiTable.PhysicalMem.pfnCreate(
             Context, Device, PageSize, &Desc, &PhysicalMem);
         if (URes != UR_RESULT_SUCCESS) {
-          URLOG_CTX(ERR, "urPhysicalMemCreate(): {}", URes);
+          UR_LOG_LOGGER(getContext()->logger, ERR, "urPhysicalMemCreate(): {}", URes);
           return URes;
         }
 
@@ -202,18 +202,18 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
             Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
             UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
         if (URes != UR_RESULT_SUCCESS) {
-          URLOG_CTX(ERR, "urVirtualMemMap({}, {}): {}", (void *)MappedPtr,
+          UR_LOG_LOGGER(getContext()->logger, ERR, "urVirtualMemMap({}, {}): {}", (void *)MappedPtr,
                     PageSize, URes);
           return URes;
         }
 
-        URLOG_CTX(DEBUG, "urVirtualMemMap: {} ~ {}", (void *)MappedPtr,
+        UR_LOG_LOGGER(getContext()->logger, DEBUG, "urVirtualMemMap: {} ~ {}", (void *)MappedPtr,
                   (void *)(MappedPtr + PageSize - 1));
 
         // Initialize to zero
         URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize);
         if (URes != UR_RESULT_SUCCESS) {
-          URLOG_CTX(ERR, "EnqueueUSMBlockingSet(): {}", URes);
+          UR_LOG_LOGGER(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}", URes);
           return URes;
         }
 
@@ -224,11 +224,11 @@ ur_result_t ShadowMemoryGPU::EnqueuePoisonShadow(ur_queue_handle_t Queue,
 
   auto URes = EnqueueUSMBlockingSet(Queue, (void *)ShadowBegin, Value,
                                     ShadowEnd - ShadowBegin + 1);
-  URLOG_CTX(DEBUG, "EnqueuePoisonShadow (addr={}, count={}, value={}): {}",
+  UR_LOG_LOGGER(getContext()->logger, DEBUG, "EnqueuePoisonShadow (addr={}, count={}, value={}): {}",
             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
             (void *)(size_t)Value, URes);
   if (URes != UR_RESULT_SUCCESS) {
-    URLOG_CTX(ERR, "EnqueueUSMBlockingSet(): {}", URes);
+    UR_LOG_LOGGER(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}", URes);
     return URes;
   }
 

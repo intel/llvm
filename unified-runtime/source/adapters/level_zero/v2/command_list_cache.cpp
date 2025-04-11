@@ -62,12 +62,12 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
       std::visit([](auto &&arg) { return arg.CopyOffloadEnabled; }, desc);
 
   if (ForceDisableCopyOffload && requestedCopyOffload) {
-    URLOG(INFO, "Copy offload is disabled by the environment variable.");
+    UR_LOG(INFO, "Copy offload is disabled by the environment variable.");
     requestedCopyOffload = false;
   }
 
   if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
-    URLOG(INFO,
+    UR_LOG(INFO,
           "Copy offload is requested but is not supported by the driver.");
     requestedCopyOffload = false;
   }
@@ -89,7 +89,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     }
     QueueDesc.pNext = &offloadDesc;
 
-    URLOG(DEBUG,
+    UR_LOG(DEBUG,
           "create command list ordinal: {}, type: immediate, "
           "device: {}, inOrder: {}",
           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder);
@@ -106,7 +106,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     CmdListDesc.commandQueueGroupOrdinal = RegCmdDesc.Ordinal;
     CmdListDesc.pNext = &offloadDesc;
 
-    URLOG(DEBUG,
+    UR_LOG(DEBUG,
           "create command list ordinal: {}, type: immediate, "
           "device: {}, inOrder: {}",
           RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder);

@@ -68,13 +68,13 @@ private:
             ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
                                 getCurrentBacktrace()});
       } else {
-        URLOG_CTX(ERR, "Handle {} already exists", ptr);
+        UR_LOG_LOGGER(getContext()->logger, ERR, "Handle {} already exists", ptr);
         return;
       }
       break;
     case REFCOUNT_INCREASE:
       if (it == counts.end()) {
-        URLOG_CTX(ERR, "Attempting to retain nonexistent handle {}", ptr);
+        UR_LOG_LOGGER(getContext()->logger, ERR, "Attempting to retain nonexistent handle {}", ptr);
         return;
       } else {
         it->second.refCount++;
@@ -90,14 +90,14 @@ private:
       }
 
       if (it->second.refCount < 0) {
-        URLOG(ERR, "Attempting to release nonexistent handle {}", ptr);
+        UR_LOG(ERR, "Attempting to release nonexistent handle {}", ptr);
       } else if (it->second.refCount == 0 && isAdapterHandle) {
         adapterCount--;
       }
       break;
     }
 
-    URLOG_CTX(DEBUG, "Reference count for handle {} changed to {}", ptr,
+    UR_LOG_LOGGER(getContext()->logger, DEBUG, "Reference count for handle {} changed to {}", ptr,
               it->second.refCount);
 
     if (it->second.refCount == 0) {
@@ -106,7 +106,7 @@ private:
 
     // No more active adapters, so any references still held are leaked
     if (adapterCount == 0) {
-      logInvalidReferences(SHORT_FILE, UR_STR(__LINE__));
+      logInvalidReferences(SHORT_FILE, UR_STR_(__LINE__));
       counts.clear();
     }
   }
@@ -167,9 +167,9 @@ public:
 
 #define URLOG_CTX_INVALID_REFERENCE(ptr)                                       \
   getContext()->refCountContext->logInvalidReference(SHORT_FILE,               \
-                                                     UR_STR(__LINE__), ptr);
+                                                     UR_STR_(__LINE__), ptr);
 #define URLOG_CTX_INVALID_REFERENCES()                                         \
   getContext()->refCountContext->logInvalidReferences(SHORT_FILE,              \
-                                                      UR_STR(__LINE__));
+                                                      UR_STR_(__LINE__));
 
 #endif /* UR_LEAK_CHECK_H */

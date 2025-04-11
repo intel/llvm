@@ -29,7 +29,7 @@ void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
     for (uint32_t I = 0; I < UrZeEventList.Length; I++) {
       ss << " " << ur_cast<std::uintptr_t>(UrZeEventList.ZeEventList[I]);
     }
-    URLOG(DEBUG, ss.str().c_str());
+    UR_LOG(DEBUG, ss.str().c_str());
   }
 }
 
@@ -507,7 +507,7 @@ ur_result_t urEventGetInfo(
     return ReturnValue(Event->RefCount.load());
   }
   default:
-    URLOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
+    UR_LOG(ERR, "Unsupported ParamName in urEventGetInfo: ParamName={}(0x{})",
           PropName, logger::toHex(PropName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -593,11 +593,11 @@ ur_result_t urEventGetProfilingInfo(
       return ReturnValue(ContextEndTime);
     }
     case UR_PROFILING_INFO_COMMAND_COMPLETE:
-      URLOG(ERR, "urEventGetProfilingInfo: "
+      UR_LOG(ERR, "urEventGetProfilingInfo: "
                  "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     default:
-      URLOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
+      UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -660,11 +660,11 @@ ur_result_t urEventGetProfilingInfo(
         return ReturnValue(ContextEndTime);
       }
       case UR_PROFILING_INFO_COMMAND_COMPLETE:
-        URLOG(ERR, "urEventGetProfilingInfo: "
+        UR_LOG(ERR, "urEventGetProfilingInfo: "
                    "UR_PROFILING_INFO_COMMAND_COMPLETE not supported");
         return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
       default:
-        URLOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
+        UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
     } else {
@@ -707,11 +707,11 @@ ur_result_t urEventGetProfilingInfo(
     //
     return ReturnValue(uint64_t{0});
   case UR_PROFILING_INFO_COMMAND_COMPLETE:
-    URLOG(ERR, "urEventGetProfilingInfo: UR_PROFILING_INFO_COMMAND_COMPLETE "
+    UR_LOG(ERR, "urEventGetProfilingInfo: UR_PROFILING_INFO_COMMAND_COMPLETE "
                "not supported");
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
-    URLOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
+    UR_LOG(ERR, "urEventGetProfilingInfo: not supported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -826,7 +826,7 @@ urEventWait(uint32_t NumEvents,
             die("The host-visible proxy event missing");
 
           ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-          URLOG(DEBUG, "ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
+          UR_LOG(DEBUG, "ZeEvent = {}", ur_cast<std::uintptr_t>(ZeEvent));
           // If this event was an inner batched event, then sync with
           // the Queue instead of waiting on the event.
           if (HostVisibleEvent->IsInnerBatchedEvent && Event->ZeBatchedQueue) {
@@ -1001,7 +1001,7 @@ ur_result_t urEventSetCallback(
   std::ignore = ExecStatus;
   std::ignore = Notify;
   std::ignore = UserData;
-  URLOG_L(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
           "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

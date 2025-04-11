@@ -11,7 +11,7 @@
 
 namespace logger {
 
-enum class Level { DEBUG, INFO, WARN, ERR, QUIET };
+enum class Level { DEBUG, INFO, WARN, ERR, ALWAYS };
 
 inline constexpr auto level_to_str(Level level) {
   switch (level) {
@@ -23,8 +23,8 @@ inline constexpr auto level_to_str(Level level) {
     return "WARNING";
   case Level::ERR:
     return "ERROR";
-  case Level::QUIET:
-    return "QUIET";
+  case Level::ALWAYS:
+    return "ALWAYS";
   default:
     return "";
   }
@@ -40,7 +40,7 @@ inline auto str_to_level(std::string name) {
                                 {"info", Level::INFO},
                                 {"warning", Level::WARN},
                                 {"error", Level::ERR},
-                                {"quiet", Level::QUIET}};
+                                {"always", Level::ALWAYS}};
 
   for (auto const &item : lvl_names) {
     if (item.name.compare(name) == 0) {

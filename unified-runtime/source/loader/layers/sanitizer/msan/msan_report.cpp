@@ -31,20 +31,20 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
   KernelName = DemangleName(KernelName);
 
   if (Report.Origin) {
-    URLOG_CTX_ALWAYS(
+    UR_LOG_LOGGER(getContext()->logger, ALWAYS, 
         "====WARNING: DeviceSanitizer: use-of-uninitialized-value (shadow: {})",
         (void *)Report.Origin);
   } else {
-    URLOG_CTX_ALWAYS(
+    UR_LOG_LOGGER(getContext()->logger, ALWAYS, 
         "====WARNING: DeviceSanitizer: use-of-uninitialized-value");
   }
 
-  URLOG_CTX_ALWAYS("use of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
+  UR_LOG_LOGGER(getContext()->logger, ALWAYS, "use of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
                    "{}, {})",
                    Report.AccessSize, KernelName.c_str(), Report.LID0,
                    Report.LID1, Report.LID2, Report.GID0, Report.GID1,
                    Report.GID2);
-  URLOG_CTX_ALWAYS("  #0 {} {}:{}", Func, File, Report.Line);
+  UR_LOG_LOGGER(getContext()->logger, ALWAYS, "  #0 {} {}:{}", Func, File, Report.Line);
 }
 
 } // namespace msan
