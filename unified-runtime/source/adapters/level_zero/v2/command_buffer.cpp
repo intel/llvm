@@ -110,10 +110,10 @@ ur_result_t ur_exp_command_buffer_handle_t_::updateKernelSizes(
   return UR_RESULT_SUCCESS;
 }
 ur_result_t ur_exp_command_buffer_handle_t_::updateKernelArguments(
-  locked<ur_command_list_manager> &commandListLocked,
-  const ur_exp_command_buffer_update_kernel_launch_desc_t commandDesc,
-  kernel_command_handle *command, void **nextDesc,
-  device_ptr_storage_t &zeHandles, desc_storage_t &descs) {
+    locked<ur_command_list_manager> &commandListLocked,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t commandDesc,
+    kernel_command_handle *command, void **nextDesc,
+    device_ptr_storage_t &zeHandles, desc_storage_t &descs) {
   for (uint32_t newMemObjArgNum = commandDesc.numNewMemObjArgs;
        newMemObjArgNum-- > 0;) {
     ur_exp_command_buffer_update_memobj_arg_desc_t newMemObjArgDesc =
@@ -137,23 +137,22 @@ ur_result_t ur_exp_command_buffer_handle_t_::updateKernelArguments(
           newMemObjArgDesc.pProperties;
       auto urAccessMode = ur_mem_buffer_t::device_access_mode_t::read_write;
       if (properties != nullptr) {
-        urAccessMode =
-            ur_mem_buffer_t::getAccessMode(properties->memoryAccess);
+        urAccessMode = ur_mem_buffer_t::getAccessMode(properties->memoryAccess);
       }
       auto ptr = ur_cast<char *>(memBuffer->getDevicePtr(
           device, urAccessMode, 0, memBuffer->getSize(),
           [&](void *src, void *dst, size_t size) {
             ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
-                              (commandListLocked->getZeCommandList(), dst,
-                               src, size, nullptr, 0, nullptr));
+                              (commandListLocked->getZeCommandList(), dst, src,
+                               size, nullptr, 0, nullptr));
           }));
       zeHandles.push_back(std::make_unique<char *>(ptr));
       zeHandlePtr = zeHandles[zeHandles.size() - 1].get();
     }
 
-    UR_CALL(setMutableMemObjArgDesc(zeMutableArgDesc,
-                                    newMemObjArgDesc.argIndex, zeHandlePtr,
-                                    *nextDesc, command->commandId));
+    UR_CALL(setMutableMemObjArgDesc(zeMutableArgDesc, newMemObjArgDesc.argIndex,
+                                    zeHandlePtr, *nextDesc,
+                                    command->commandId));
     *nextDesc = zeMutableArgDesc.get();
     descs.push_back(std::move(zeMutableArgDesc));
   }
@@ -183,8 +182,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::updateKernelArguments(
     auto zeMutableArgDesc =
         std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
 
-    UR_CALL(setMutableValueArgDesc(zeMutableArgDesc, newValueArgDesc,
-                                   *nextDesc, command->commandId));
+    UR_CALL(setMutableValueArgDesc(zeMutableArgDesc, newValueArgDesc, *nextDesc,
+                                   command->commandId));
 
     *nextDesc = zeMutableArgDesc.get();
     descs.push_back(std::move(zeMutableArgDesc));
@@ -407,8 +406,10 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     if (newKernel && command->kernel != newKernel) {
       updateKernelHandle(commandListLocked, newKernel, command);
     }
-    updateKernelSizes(commandDesc, command, &nextDesc, zeThreadGroupDimensionsList[i], descs);
-    updateKernelArguments(commandListLocked, commandDesc, command, &nextDesc, zeHandles, descs);
+    updateKernelSizes(commandDesc, command, &nextDesc,
+                      zeThreadGroupDimensionsList[i], descs);
+    updateKernelArguments(commandListLocked, commandDesc, command, &nextDesc,
+                          zeHandles, descs);
   }
 
   auto platform = context->getPlatform();

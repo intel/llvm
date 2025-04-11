@@ -27,26 +27,27 @@ using command_list_unique_handle =
 } // namespace raii
 
 struct supported_extensions_descriptor_t {
-  supported_extensions_descriptor_t(
-      bool ZeCopyOffloadExtensionSupported,
-      bool ZeMutableCmdListExtentionSupported)
+  supported_extensions_descriptor_t(bool ZeCopyOffloadExtensionSupported,
+                                    bool ZeMutableCmdListExtentionSupported)
       : ZeCopyOffloadExtensionSupported(ZeCopyOffloadExtensionSupported),
-        ZeMutableCmdListExtentionSupported(ZeMutableCmdListExtentionSupported) {}
+        ZeMutableCmdListExtentionSupported(ZeMutableCmdListExtentionSupported) {
+  }
   bool ZeCopyOffloadExtensionSupported;
   bool ZeMutableCmdListExtentionSupported;
 };
 
 struct command_list_desc_t {
   command_list_desc_t() = default;
-  command_list_desc_t(bool IsInOrder,
-                      uint32_t Ordinal, bool CopyOffloadEnable, bool Mutable = false)
+  command_list_desc_t(bool IsInOrder, uint32_t Ordinal, bool CopyOffloadEnable,
+                      bool Mutable = false)
       : IsInOrder(IsInOrder), Ordinal(Ordinal),
         CopyOffloadEnable(CopyOffloadEnable), Mutable(Mutable) {}
   bool IsInOrder;
   uint32_t Ordinal;
   bool CopyOffloadEnable;
   // The mutable command list is not supported by immediate command lists
-  // and because of that this field will be ignored in immediate command list case
+  // and because of that this field will be ignored in immediate command list
+  // case
   bool Mutable;
 };
 
@@ -80,7 +81,7 @@ struct command_list_descriptor_hash_t {
 
 struct command_list_cache_t {
   command_list_cache_t(ze_context_handle_t ZeContext,
-    supported_extensions_descriptor_t SupportedExtensions);
+                       supported_extensions_descriptor_t SupportedExtensions);
 
   raii::command_list_unique_handle
   getImmediateCommandList(ze_device_handle_t ZeDevice, command_list_desc_t Desc,
