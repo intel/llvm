@@ -66,7 +66,7 @@ struct TestKernel_props_empty {
 
     Ptr->foo();
   }
-  auto get(oneapi::properties_tag) { return props_empty; }
+  auto get(oneapi::properties_tag) const { return props_empty; }
 };
 
 struct TestKernel_props_void {
@@ -78,7 +78,7 @@ struct TestKernel_props_void {
 
     Ptr->bar();
   }
-  auto get(oneapi::properties_tag) { return props_void; }
+  auto get(oneapi::properties_tag) const { return props_void; }
 };
 
 struct TestKernel_props_int {
@@ -89,7 +89,7 @@ struct TestKernel_props_int {
     auto *Ptr = reinterpret_cast<Base *>(Storage);
     foo(Ptr);
   }
-  auto get(oneapi::properties_tag) { return props_int; }
+  auto get(oneapi::properties_tag) const { return props_int; }
 };
 
 struct TestKernel_props_base {
@@ -99,7 +99,7 @@ struct TestKernel_props_base {
     auto *Ptr = reinterpret_cast<SubDerived *>(Storage);
     bar(Ptr);
   }
-  auto get(oneapi::properties_tag) { return props_base; }
+  auto get(oneapi::properties_tag) const { return props_base; }
 };
 
 int main() {

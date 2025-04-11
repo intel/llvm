@@ -4,7 +4,7 @@
 
 template <size_t... Is> struct KernelFunctorWithWGSize {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::work_group_size<Is...>};
   }
@@ -12,7 +12,7 @@ template <size_t... Is> struct KernelFunctorWithWGSize {
 
 template <size_t... Is> struct KernelFunctorWithWGSizeHint {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::work_group_size_hint<Is...>};
   }
@@ -20,7 +20,7 @@ template <size_t... Is> struct KernelFunctorWithWGSizeHint {
 
 template <uint32_t I> struct KernelFunctorWithSGSize {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::sub_group_size<I>};
   }

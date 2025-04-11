@@ -219,7 +219,7 @@ struct KernelFunctor {
       : _kernel_properties{kernel_props}, _local_acc{local_acc},
         _argument_tuple(std::make_tuple(args...)) {}
 
-  auto get(sycl_exp::properties_tag) { return _kernel_properties; }
+  auto get(sycl_exp::properties_tag) const { return _kernel_properties; }
 
   __syclcompat_inline__ void
   operator()(syclcompat::detail::range_to_item_t<Range>) const {

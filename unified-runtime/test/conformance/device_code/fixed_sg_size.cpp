@@ -10,7 +10,7 @@ struct KernelFunctor {
   void operator()(sycl::nd_item<3>) const {}
   void operator()(sycl::item<3>) const {}
 
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::sub_group_size<8>};
   }

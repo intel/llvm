@@ -1594,6 +1594,14 @@ private:
                             const KernelType &>::value) {
         h->processProperties<detail::isKernelESIMD<KernelName>()>(
             KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
+      } else {
+        // print out diagnostic message if the kernel functor has a
+        // get(properties_tag) member, but it's not const
+        static_assert(
+            !(ext::oneapi::experimental::detail::HasKernelPropertiesGetMethod<
+                KernelType>::value),
+            "get(sycl::ext::oneapi::experimental::properties_tag) member in "
+            "kernel functor class must be declared as a const member function");
       }
 #endif
       auto L = [&](auto &&...args) {
