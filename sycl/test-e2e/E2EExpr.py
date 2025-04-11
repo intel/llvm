@@ -37,6 +37,7 @@ class E2EExpr(BooleanExpression):
         "host=None",
         "target=None",
         "shell",
+        "non-root-user",
         "llvm-spirv",
         "llvm-link",
         "true",
