@@ -740,7 +740,7 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+ur_result_t urAdapterSetLoggerCallback(
     ur_adapter_handle_t, ur_logger_callback_t pfnLoggerCallback,
     void *pUserData, ur_logger_level_t level = UR_LOGGER_LEVEL_QUIET) {
 
@@ -751,8 +751,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t, ur_logger_level_t level) {
+ur_result_t urAdapterSetLoggerCallbackLevel(ur_adapter_handle_t,
+                                            ur_logger_level_t level) {
 
   if (GlobalAdapter) {
     GlobalAdapter->logger.setCallbackLevel(level);
