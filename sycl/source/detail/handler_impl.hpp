@@ -31,11 +31,11 @@ enum class HandlerSubmissionState : std::uint8_t {
 
 class handler_impl {
 public:
-  handler_impl(std::shared_ptr<queue_impl> SubmissionPrimaryQueue,
-               std::shared_ptr<queue_impl> SubmissionSecondaryQueue,
-               bool EventNeeded)
+  handler_impl(
+      std::shared_ptr<queue_impl> SubmissionPrimaryQueue,
+      [[maybe_unused]] std::shared_ptr<queue_impl> SubmissionSecondaryQueue,
+      bool EventNeeded)
       : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
-        MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)),
         MEventNeeded(EventNeeded) {};
 
   handler_impl(
@@ -74,12 +74,6 @@ public:
   /// the queue associated with the handler if the corresponding submission is
   /// a fallback from a previous submission.
   std::shared_ptr<queue_impl> MSubmissionPrimaryQueue;
-
-  /// Shared pointer to the secondary queue implementation. Nullptr if no
-  /// secondary queue fallback was given in the associated submission. This is
-  /// equal to the queue associated with the handler if the corresponding
-  /// submission is a fallback from a previous submission.
-  std::shared_ptr<queue_impl> MSubmissionSecondaryQueue;
 
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.

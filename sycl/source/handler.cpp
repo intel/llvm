@@ -1763,15 +1763,6 @@ void handler::use_kernel_bundle(
         "Context associated with the primary queue is different from the "
         "context associated with the kernel bundle");
 
-  std::shared_ptr<detail::queue_impl> SecondaryQueue =
-      impl->MSubmissionSecondaryQueue;
-  if (SecondaryQueue &&
-      SecondaryQueue->get_context() != ExecBundle.get_context())
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "Context associated with the secondary queue is different from the "
-        "context associated with the kernel bundle");
-
   setStateExplicitKernelBundle();
   setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
 }
@@ -1917,33 +1908,35 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl &&
-        !checkContextSupports(QueueImpl->getContextImplPtr(),
-                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT))
-      return false;
-  }
+  const std::shared_ptr<detail::queue_impl> &QueueImpl =
+      impl->MSubmissionPrimaryQueue;
+
+  if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
+                                         UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT))
+    return false;
+
   return true;
 }
 
 bool handler::supportsUSMFill2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
-                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
-      return false;
-  }
+  const std::shared_ptr<detail::queue_impl> &QueueImpl =
+      impl->MSubmissionPrimaryQueue;
+
+  if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
+                                         UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
+    return false;
+
   return true;
 }
 
 bool handler::supportsUSMMemset2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
-                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
-      return false;
-  }
+  const std::shared_ptr<detail::queue_impl> &QueueImpl =
+      impl->MSubmissionPrimaryQueue;
+
+  if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
+                                         UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
+    return false;
+
   return true;
 }
 
