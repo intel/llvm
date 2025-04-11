@@ -316,12 +316,12 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  bool CallerNeedsEvent)
     : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool CallerNeedsEvent)
+handler::handler(
+    std::shared_ptr<detail::queue_impl> Queue,
+    std::shared_ptr<detail::queue_impl> PrimaryQueue,
+    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
+    bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                  std::move(SecondaryQueue),
                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
@@ -1763,15 +1763,6 @@ void handler::use_kernel_bundle(
         "Context associated with the primary queue is different from the "
         "context associated with the kernel bundle");
 
-  std::shared_ptr<detail::queue_impl> SecondaryQueue =
-      impl->MSubmissionSecondaryQueue;
-  if (SecondaryQueue &&
-      SecondaryQueue->get_context() != ExecBundle.get_context())
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "Context associated with the secondary queue is different from the "
-        "context associated with the kernel bundle");
-
   setStateExplicitKernelBundle();
   setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
 }
@@ -1917,34 +1908,27 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl &&
-        !checkContextSupports(QueueImpl->getContextImplPtr(),
-                              UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT))
-      return false;
-  }
-  return true;
+  assert(impl->MSubmissionPrimaryQueue &&
+         "handler should not have a null primary queue.");
+  return checkContextSupports(
+      impl->MSubmissionPrimaryQueue->getContextImplPtr(),
+      UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
 }
 
 bool handler::supportsUSMFill2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
-                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
-      return false;
-  }
-  return true;
+  assert(impl->MSubmissionPrimaryQueue &&
+         "handler should not have a null primary queue.");
+  return checkContextSupports(
+      impl->MSubmissionPrimaryQueue->getContextImplPtr(),
+      UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
 }
 
 bool handler::supportsUSMMemset2D() {
-  for (const std::shared_ptr<detail::queue_impl> &QueueImpl :
-       {impl->MSubmissionPrimaryQueue, impl->MSubmissionSecondaryQueue}) {
-    if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
-                                           UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
-      return false;
-  }
-  return true;
+  assert(impl->MSubmissionPrimaryQueue &&
+         "handler should not have a null primary queue.");
+  return checkContextSupports(
+      impl->MSubmissionPrimaryQueue->getContextImplPtr(),
+      UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
 }
 
 id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
