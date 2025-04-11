@@ -6491,19 +6491,18 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 
 class FreeFunctionPrinter {
   raw_ostream &O;
-  PrintingPolicy &Policy;
   bool NSInserted = false;
 
 public:
-  FreeFunctionPrinter(raw_ostream &O, PrintingPolicy &Policy)
-      : O(O), Policy(Policy) {}
+  FreeFunctionPrinter(raw_ostream &O)
+      : O(O) {}
 
   /// Emits the function declaration of a free function.
   /// \param FD The function declaration to print.
   /// \param Args The arguments of the function.
   void printFreeFunctionDeclaration(const FunctionDecl *FD,
                                     const std::string &Args,
-                                    std::string_view templated = "") {
+                                    std::string_view Templated = "") {
 
     const DeclContext *DC = FD->getDeclContext();
     if (DC) {
@@ -6514,7 +6513,7 @@ public:
         // function
         NSInserted = true;
       }
-      O << templated;
+      O << Templated;
       O << FD->getReturnType().getAsString() << " ";
       O << FD->getNameAsString() << "(" << Args << ");";
       if (NSInserted) {
@@ -6552,19 +6551,18 @@ public:
   /// returns string "T1 a, T2 b"
   std::string
   getTemplatedParamList(const llvm::ArrayRef<clang::ParmVarDecl *> &Parameters,
-                        const bool IsWithNames) {
+                        PrintingPolicy Policy, const bool IsWithNames) {
     bool FirstParam = true;
     std::string ParamList;
     llvm::raw_string_ostream ParmListOstream{ParamList};
+    Policy.SuppressTagKeyword = true;
     for (ParmVarDecl *Param : Parameters) {
       if (FirstParam)
         FirstParam = false;
       else
         ParmListOstream << ", ";
       if (IsWithNames) {
-        Policy.SuppressTagKeyword = true;
         Param->getType().print(ParmListOstream, Policy);
-        Policy.SuppressTagKeyword = false;
         ParmListOstream << " " << Param->getNameAsString();
       } else
         ParmListOstream << Param->getType().getCanonicalType().getAsString(
@@ -6954,11 +6952,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     // template arguments that match default template arguments while printing
     // template-ids, even if the source code doesn't reference them.
     Policy.EnforceDefaultTemplateArgs = true;
-    FreeFunctionPrinter FFPrinter(O, Policy);
+    FreeFunctionPrinter FFPrinter{O};
     if (FTD) {
       if (auto TemplatedDecl = FTD->getTemplatedDecl(); TemplatedDecl) {
-        const auto TemplatedDeclParams =
-            FFPrinter.getTemplatedParamList(TemplatedDecl->parameters(), true);
+        const auto TemplatedDeclParams = FFPrinter.getTemplatedParamList(
+            TemplatedDecl->parameters(), Policy, true);
         const std::string TeplatedParams =
             FFPrinter.getTemplateParameters(FTD->getTemplateParameters(), S);
         FFPrinter.printFreeFunctionDeclaration(
