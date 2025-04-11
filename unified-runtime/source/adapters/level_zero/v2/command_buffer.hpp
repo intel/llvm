@@ -69,10 +69,10 @@ private:
       kernel_command_handle *command, void **nextDesc,
       ze_group_count_t &zeThreadGroupDimensionsList, desc_storage_t &descs);
   ur_result_t updateKernelArguments(
-    locked<ur_command_list_manager> &commandListLocked,
-    const ur_exp_command_buffer_update_kernel_launch_desc_t commandDesc,
-    kernel_command_handle *command, void **nextDesc,
-    device_ptr_storage_t &zeHandles, desc_storage_t &descs);
+      locked<ur_command_list_manager> &commandListLocked,
+      const ur_exp_command_buffer_update_kernel_launch_desc_t commandDesc,
+      kernel_command_handle *command, void **nextDesc,
+      device_ptr_storage_t &zeHandles, desc_storage_t &descs);
   const ur_context_handle_t context;
   const ur_device_handle_t device;
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>

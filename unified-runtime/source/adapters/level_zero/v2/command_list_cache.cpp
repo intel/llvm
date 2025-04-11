@@ -47,10 +47,13 @@ inline size_t command_list_descriptor_hash_t::operator()(
 }
 
 command_list_cache_t::command_list_cache_t(
-    ze_context_handle_t ZeContext, supported_extensions_descriptor_t supportedExtensions)
+    ze_context_handle_t ZeContext,
+    supported_extensions_descriptor_t supportedExtensions)
     : ZeContext{ZeContext},
-      ZeCopyOffloadExtensionSupported{supportedExtensions.ZeCopyOffloadExtensionSupported},
-      ZeMutableCmdListExtentionSupported{supportedExtensions.ZeMutableCmdListExtentionSupported} {}
+      ZeCopyOffloadExtensionSupported{
+          supportedExtensions.ZeCopyOffloadExtensionSupported},
+      ZeMutableCmdListExtentionSupported{
+          supportedExtensions.ZeMutableCmdListExtentionSupported} {}
 
 static bool ForceDisableCopyOffload = [] {
   return getenv_tobool("UR_L0_V2_FORCE_DISABLE_COPY_OFFLOAD");
@@ -131,8 +134,9 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
 }
 
 raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
-    ze_device_handle_t ZeDevice, command_list_desc_t ListDesc, ze_command_queue_mode_t Mode,
-    ze_command_queue_priority_t Priority, std::optional<uint32_t> Index) {
+    ze_device_handle_t ZeDevice, command_list_desc_t ListDesc,
+    ze_command_queue_mode_t Mode, ze_command_queue_priority_t Priority,
+    std::optional<uint32_t> Index) {
   TRACK_SCOPE_LATENCY("command_list_cache_t::getImmediateCommandList");
 
   immediate_command_list_descriptor_t Desc;
@@ -151,8 +155,9 @@ raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
       });
 }
 
-raii::command_list_unique_handle command_list_cache_t::getRegularCommandList(
-    ze_device_handle_t ZeDevice, command_list_desc_t ListDesc) {
+raii::command_list_unique_handle
+command_list_cache_t::getRegularCommandList(ze_device_handle_t ZeDevice,
+                                            command_list_desc_t ListDesc) {
   TRACK_SCOPE_LATENCY("command_list_cache_t::getRegularCommandList");
 
   regular_command_list_descriptor_t Desc;
