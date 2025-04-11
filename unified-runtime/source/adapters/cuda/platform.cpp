@@ -75,10 +75,9 @@ CreateDeviceMemoryProvidersPools(ur_platform_handle_t_ *Platform) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
-    ur_platform_handle_t hPlatform, ur_platform_info_t PlatformInfoType,
-    size_t Size, void *pPlatformInfo, size_t *pSizeRet) {
-
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t PlatformInfoType,
+                  size_t Size, void *pPlatformInfo, size_t *pSizeRet) {
   UrReturnHelper ReturnValue(Size, pPlatformInfo, pSizeRet);
 
   switch (PlatformInfoType) {
@@ -113,8 +112,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
 /// Triggers the CUDA Driver initialization (cuInit) the first time, so this
 /// must be the first PI API called.
 UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
-              ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
+urPlatformGet(ur_adapter_handle_t, uint32_t, ur_platform_handle_t *phPlatforms,
+              uint32_t *pNumPlatforms) {
   try {
     static std::once_flag InitFlag;
     static uint32_t NumPlatforms = 1;

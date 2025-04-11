@@ -155,9 +155,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing HIP allocation.
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
-    ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
-    ur_buffer_create_type_t bufferCreateType, const ur_buffer_region_t *pRegion,
-    ur_mem_handle_t *phMem) {
+    ur_mem_handle_t hBuffer, ur_mem_flags_t flags, ur_buffer_create_type_t,
+    const ur_buffer_region_t *pRegion, ur_mem_handle_t *phMem) {
   UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(!hBuffer->isSubBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
