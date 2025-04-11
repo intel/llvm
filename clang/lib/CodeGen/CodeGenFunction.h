@@ -4664,7 +4664,7 @@ public:
   // Compute the object pointer.
   Address EmitCXXMemberDataPointerAddress(
       const Expr *E, Address base, llvm::Value *memberPtr,
-      const MemberPointerType *memberPtrType,
+      const MemberPointerType *memberPtrType, bool IsInBounds,
       LValueBaseInfo *BaseInfo = nullptr, TBAAAccessInfo *TBAAInfo = nullptr);
   RValue EmitCXXMemberPointerCallExpr(const CXXMemberCallExpr *E,
                                       ReturnValueSlot ReturnValue,
