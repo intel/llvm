@@ -199,6 +199,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             except Exception as e:
                 failures[s.name()] = f"Suite setup failure: {e}"
                 print(f"{type(s).__name__} setup failed. Benchmarks won't be added.")
+                print(f"failed: {e}")
             else:
                 print(f"{type(s).__name__} setup complete.")
                 benchmarks += suite_benchmarks

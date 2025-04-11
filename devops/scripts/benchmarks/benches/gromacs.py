@@ -10,29 +10,37 @@ import urllib.request
 from pathlib import Path
 from .base import Suite, Benchmark
 from options import options
-from utils.utils import git_clone
+from utils.utils import git_clone, download, run, create_build_path
 from utils.result import Result
 
 
 class GromacsBench(Suite):
-    GROMACS_REPO = "https://gitlab.com/gromacs/gromacs.git"
-    GROMACS_TAG = "v2025.1"
-    GRAPPA_BENCHMARKS_URL = (
-        "https://zenodo.org/record/11234002/files/grappa-1.5k-6.1M_rc0.9.tar.gz"
-    )
+
+    def git_url(self):
+        return "https://gitlab.com/gromacs/gromacs.git"
+
+    def git_tag(self):
+        return "v2025.1"
+
+    def grappa_url(self):
+        return "https://zenodo.org/record/11234002/files/grappa-1.5k-6.1M_rc0.9.tar.gz"
+
+    def grappa_file(self):
+        return Path(os.path.basename(self.grappa_url()))
 
     def __init__(self, directory):
-        # Initialize GromacsBench-specific attributes
         self.directory = Path(directory).resolve()
-        self.gromacs_dir = self.directory / "gromacs"
-        self.grappa_dir = self.directory / "grappa-1.5k-6.1M_rc0.9"
-        self.build_dir = self.gromacs_dir / "build"
+        model_path = str(self.directory / self.grappa_file()).replace(".tar.gz", "")
+        self.grappa_dir = Path(model_path)
+        build_path = create_build_path(self.directory, "gromacs-build")
+        self.gromacs_build_path = Path(build_path)
+        self.gromacs_src = self.directory / "gromacs-repo"
 
     def name(self):
         return "Gromacs Bench"
 
     def benchmarks(self) -> list[Benchmark]:
-        systems = [
+        models = [
             "0001.5",
             "0003",
             "0006",
@@ -43,39 +51,29 @@ class GromacsBench(Suite):
             "0192",
             "0384",
         ]
-        return [
-            GromacsSystemBenchmark(self, system, self.gromacs_dir, self.grappa_dir)
-            for system in systems
-        ]
+        return [GromacsSystemBenchmark(self, model) for model in models]
 
     def setup(self):
-        print(f"Working directory: {self.directory}")
-        self.directory.mkdir(parents=True, exist_ok=True)
-
-        if not self.gromacs_dir.exists():
-            print(
-                f"Cloning GROMACS repository (tag: {self.GROMACS_TAG}) into {self.gromacs_dir}..."
-            )
-            repo_path = git_clone(
+        if not (self.gromacs_src).exists():
+            self.gromacs_src = git_clone(
                 self.directory,
                 "gromacs-repo",
-                self.GROMACS_REPO,
-                self.GROMACS_TAG,
+                self.git_url(),
+                self.git_tag(),
             )
-            print(f"GROMACS repository cloned to {repo_path}")
         else:
-            print(f"GROMACS repository already exists at {self.gromacs_dir}")
+            if options.verbose:
+                print(f"GROMACS repository already exists at {self.gromacs_src}")
 
         # Build GROMACS
-        self.build_dir.mkdir(parents=True, exist_ok=True)
-        print(f"Building GROMACS in {self.build_dir}...")
-        subprocess.run(
+        run(
             [
                 "cmake",
-                "../",
+                f"-S {str(self.directory)}/gromacs-repo",
+                f"-B {self.gromacs_build_path}",
                 f"-DCMAKE_BUILD_TYPE=Release",
-                f"-DCMAKE_CXX_COMPILER={options.sycl}/bin/clang++",
-                f"-DCMAKE_C_COMPILER={options.sycl}/bin/clang",
+                f"-DCMAKE_CXX_COMPILER=clang++",
+                f"-DCMAKE_C_COMPILER=clang",
                 f"-DGMX_GPU=SYCL",
                 f"-DGMX_SYCL_ENABLE_GRAPHS=ON",
                 f"-DGMX_FFT_LIBRARY=MKL",
@@ -84,81 +82,69 @@ class GromacsBench(Suite):
                 f"-DGMX_GPU_NB_CLUSTER_SIZE=8",
                 f"-DGMX_OPENMP=OFF",
             ],
-            check=True,
-            cwd=self.build_dir,  # Ensure the command runs in the build directory
+            add_sycl=True,
         )
-        subprocess.run(["make", "-j"], check=True, cwd=self.build_dir)
-
-        if not self.grappa_dir.exists():
-            self.download_and_extract_grappa()
-        else:
-            print(f"GRAPPA benchmarks already exist at {self.grappa_dir}")
+        run(
+            f"cmake --build {self.gromacs_build_path} -j {options.build_jobs}",
+            add_sycl=True,
+        )
+        self.download_and_extract_grappa()
 
     def download_and_extract_grappa(self):
-        """Download and extract the GRAPPA benchmarks."""
-        grappa_tar_path = self.directory / os.path.basename(self.GRAPPA_BENCHMARKS_URL)
+        grappa_tar_file = self.directory / self.grappa_file()
 
-        # Download the GRAPPA tar.gz file
-        if not grappa_tar_path.exists():
-            print(f"Downloading GRAPPA benchmarks from {self.GRAPPA_BENCHMARKS_URL}...")
-            urllib.request.urlretrieve(self.GRAPPA_BENCHMARKS_URL, grappa_tar_path)
-
-        # Extract the GRAPPA tar.gz file
-        print(f"Extracting GRAPPA benchmarks to {self.directory}...")
-        with tarfile.open(grappa_tar_path, "r:gz") as tar:
-            tar.extractall(path=self.directory)
+        if not grappa_tar_file.exists():
+            model = download(
+                self.directory,
+                self.grappa_url(),
+                grappa_tar_file,
+                checksum="cc02be35ba85c8b044e47d097661dffa8bea57cdb3db8b5da5d01cdbc94fe6c8902652cfe05fb9da7f2af0698be283a2",
+                untar=True,
+            )
+            print(f"Grappa tar file downloaded and extracted to {model}")
+        else:
+            print(f"Grappa tar file already exists at {grappa_tar_file}")
 
     def teardown(self):
-        print(f"Tearing down GROMACS suite in {self.directory}...")
         pass
 
 
 class GromacsSystemBenchmark(Benchmark):
-    def __init__(self, suite, system, gromacs_dir, grappa_dir):
+    def __init__(self, suite, model):
         self.suite = suite
-        self.system = system  # The system name (e.g., "0001.5")
-        self.gromacs_dir = gromacs_dir
-        self.grappa_dir = grappa_dir
-        self.gmx_path = gromacs_dir / "build" / "bin" / "gmx"
+        self.model = model  # The model name (e.g., "0001.5")
+        self.gromacs_src = suite.gromacs_src
+        self.grappa_dir = suite.grappa_dir
+        self.gmx_path = suite.gromacs_build_path / "bin" / "gmx"
 
     def name(self):
-        return f"gromacs-{self.system}"
+        return f"gromacs-{self.model}"
 
     def setup(self):
-        system_dir = self.grappa_dir / self.system
-        if not system_dir.exists():
-            raise FileNotFoundError(f"System directory not found: {system_dir}")
-        print(f"Setting up benchmark for system: {self.system}")
+        pass
 
     def run(self, env_vars):
         if not self.gmx_path.exists():
             raise FileNotFoundError(f"gmx executable not found at {self.gmx_path}")
 
-        env_vars.update(
-            {
-                "LD_LIBRARY_PATH": f"{options.sycl}/lib"
-                + os.pathsep
-                + os.environ.get("LD_LIBRARY_PATH", ""),
-                "ONEAPI_DEVICE_SELECTOR": "level_zero:gpu",
-                "SYCL_CACHE_PERSISTENT": "1",
-                "GMX_CUDA_GRAPH": "1",
-                "SYCL_UR_USE_LEVEL_ZERO_V2": "1",
-            }
-        )
-
-        system_dir = self.grappa_dir / self.system
+        system_dir = self.grappa_dir / self.model
 
         if not system_dir.exists():
             raise FileNotFoundError(f"System directory not found: {system_dir}")
 
-        rf_log_file = self.grappa_dir / f"{self.name()}-rf.log"
-        pme_log_file = self.grappa_dir / f"{self.name()}-pme.log"
+        env_vars.update(
+            {
+                "LD_LIBRARY_PATH": str(self.grappa_dir)
+                + os.pathsep
+                + os.environ.get("LD_LIBRARY_PATH", ""),
+                "SYCL_CACHE_PERSISTENT": "1",
+                "GMX_CUDA_GRAPH": "1",
+            }
+        )
 
         try:
             # Generate configurations for RF
-            if options.verbose:
-                print(f"Running grompp for RF benchmark: {self.name()}")
-            subprocess.run(
+            rf_grompp_result = run(
                 [
                     str(self.gmx_path),
                     "grompp",
@@ -171,15 +157,10 @@ class GromacsSystemBenchmark(Benchmark):
                     "-o",
                     str(system_dir / "rf.tpr"),
                 ],
-                check=True,
-                stdout=open(rf_log_file, "w"),
-                stderr=subprocess.STDOUT,
-                env=env_vars,
+                add_sycl=True,
             )
 
             # Run RF benchmark
-            if options.verbose:
-                print(f"Running mdrun for RF benchmark: {self.name()}")
             rf_command = [
                 str(self.gmx_path),
                 "mdrun",
@@ -202,21 +183,17 @@ class GromacsSystemBenchmark(Benchmark):
                 "-pin",
                 "on",
             ]
-            rf_result = subprocess.run(
+            rf_mdrun_result = run(
                 rf_command,
-                check=True,
-                stdout=open(rf_log_file, "a"),
-                stderr=subprocess.STDOUT,
-                env=env_vars,
+                add_sycl=True,
             )
-            rf_time = self._extract_execution_time(rf_log_file, "RF")
-            if options.verbose:
-                print(f"[{self.name()}-RF] Time: {rf_time:.3f} seconds")
+            rf_mdrun_result_output = rf_mdrun_result.stderr.decode()
+            rf_time = self._extract_execution_time(rf_mdrun_result_output, "RF")
+
+            print(f"[{self.name()}-RF] Time: {rf_time:.3f} seconds")
 
             # Generate configurations for PME
-            if options.verbose:
-                print(f"Running grompp for PME benchmark: {self.name()}")
-            subprocess.run(
+            pme_grompp_result = run(
                 [
                     str(self.gmx_path),
                     "grompp",
@@ -229,15 +206,10 @@ class GromacsSystemBenchmark(Benchmark):
                     "-o",
                     str(system_dir / "pme.tpr"),
                 ],
-                check=True,
-                stdout=open(pme_log_file, "w"),
-                stderr=subprocess.STDOUT,
-                env=env_vars,
+                add_sycl=True,
             )
 
             # Run PME benchmark
-            if options.verbose:
-                print(f"Running mdrun for PME benchmark: {self.name()}")
             pme_command = [
                 str(self.gmx_path),
                 "mdrun",
@@ -265,16 +237,15 @@ class GromacsSystemBenchmark(Benchmark):
                 "-pin",
                 "on",
             ]
-            pme_result = subprocess.run(
+            pme_mdrun_result = run(
                 pme_command,
-                check=True,
-                stdout=open(pme_log_file, "a"),
-                stderr=subprocess.STDOUT,
-                env=env_vars,
+                add_sycl=True,
             )
-            pme_time = self._extract_execution_time(pme_log_file, "PME")
-            if options.verbose:
-                print(f"[{self.name()}-PME] Time: {pme_time:.3f} seconds")
+
+            pme_mdrun_result_output = pme_mdrun_result.stderr.decode()
+
+            pme_time = self._extract_execution_time(pme_mdrun_result_output, "PME")
+            print(f"[{self.name()}-PME] Time: {pme_time:.3f} seconds")
 
         except subprocess.CalledProcessError as e:
             print(f"Error during execution of {self.name()}: {e}")
@@ -282,54 +253,72 @@ class GromacsSystemBenchmark(Benchmark):
 
         # Return results as a list of Result objects
         return [
-            Result(
-                label=f"{self.name()}-RF",
-                value=rf_time,
-                unit="seconds",
-                passed=rf_result.returncode == 0,
-                command=" ".join(map(str, rf_command)),
-                env={k: str(v) for k, v in env_vars.items()},
-                stdout=str(rf_log_file),
+            self._result(
+                "RF",
+                rf_time,
+                rf_grompp_result,
+                rf_mdrun_result,
+                rf_command,
+                env_vars,
             ),
-            Result(
-                label=f"{self.name()}-PME",
-                value=pme_time,
-                unit="seconds",
-                passed=pme_result.returncode == 0,
-                command=" ".join(map(str, pme_command)),
-                env={k: str(v) for k, v in env_vars.items()},
-                stdout=str(pme_log_file),
+            self._result(
+                "PME",
+                pme_time,
+                pme_grompp_result,
+                pme_mdrun_result,
+                pme_command,
+                env_vars,
             ),
         ]
 
-    def _extract_execution_time(self, log_file, benchmark_type):
-        with open(log_file, "r") as log:
-            time_lines = [line for line in log if "Time:" in line]
+    def _result(self, label, time, gr_result, md_result, command, env_vars):
+        return Result(
+            label=f"{self.name()}-{label}",
+            value=time,
+            unit="s",
+            passed=(gr_result.returncode == 0 and md_result.returncode == 0),
+            command=" ".join(map(str, command)),
+            env=env_vars,
+            stdout=gr_result.stderr.decode() + md_result.stderr.decode(),
+            git_url=self.suite.git_url(),
+            git_hash=self.suite.git_tag(),
+        )
 
-            if len(time_lines) != 1:
-                raise ValueError(
-                    f"Expected exactly 1 line containing 'Time:' in the log file for {benchmark_type}, "
-                    f"but found {len(time_lines)}. Log file: {log_file}"
-                )
+    def _extract_execution_time(self, log_content, benchmark_type):
+        # Look for the line containing "Time:"
+        # and extract the first numeric value after it
+        time_lines = [line for line in log_content.splitlines() if "Time:" in line]
 
-            return self._extract_first_number(time_lines[0])
+        if len(time_lines) != 1:
+            raise ValueError(
+                f"Expected exactly 1 line containing 'Time:' in the log content for {benchmark_type}, "
+                f"but found {len(time_lines)}."
+            )
 
-    def _extract_first_number(self, line):
-        parts = line.split()
-        for part in parts:
+        for part in time_lines[0].split():
             if part.replace(".", "", 1).isdigit():
                 return float(part)
-        return None
 
-    def _parse_result(self, result, benchmark_type, execution_time):
-        passed = result.returncode == 0
-        return {
-            "type": f"{self.name()}-{benchmark_type}",
-            "passed": passed,
-            "execution_time": execution_time,  # Include the extracted execution time
-            "output": result.stdout,
-            "error": result.stderr if not passed else None,
-        }
+        raise ValueError(
+            f"No numeric value found in the 'Time:' line for {benchmark_type}."
+        )
+
+    # def _extract_first_number(self, line):
+    #     parts = line.split()
+    #     for part in parts:
+    #         if part.replace(".", "", 1).isdigit():
+    #             return float(part)
+    #     return None
+
+    # def _parse_result(self, result, benchmark_type, execution_time):
+    #     passed = result.returncode == 0
+    #     return {
+    #         "type": f"{self.name()}-{benchmark_type}",
+    #         "passed": passed,
+    #         "execution_time": execution_time,
+    #         "output": result.stdout,
+    #         "error": result.stderr if not passed else None,
+    #     }
 
     def teardown(self):
         pass
