@@ -807,7 +807,13 @@ private:
                              .template get_property<
                                  syclex::cuda::cluster_size_key<ClusterDim>>()
                              .get_cluster_size();
-      setKernelClusterLaunch(padRange(ClusterSize), ClusterDim);
+      if constexpr (ClusterDim < 3) {
+        sycl::range<3> ClusterSizePadded{0, 0, 0};
+        padRange(ClusterSize, ClusterSizePadded);
+        setKernelClusterLaunch(ClusterSizePadded, ClusterDim);
+      } else {
+        setKernelClusterLaunch(ClusterSize, ClusterDim);
+      }
     }
   }
 
@@ -3824,28 +3830,6 @@ private:
 
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
-
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
-    if constexpr (Dims == 3) {
-      return Range;
-    } else {
-      sycl::range<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Range[I];
-      return Res;
-    }
-  }
-
-  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
-    if constexpr (Dims == 3) {
-      return Id;
-    } else {
-      sycl::id<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Id[I];
-      return Res;
-    }
-  }
 
   template <int Dims>
   static void padRange(sycl::range<Dims> &Range, sycl::range<3> &RangePadded) {
