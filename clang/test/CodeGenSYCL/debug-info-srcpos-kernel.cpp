@@ -1,6 +1,5 @@
 // RUN: %clang -fno-sycl-force-inline-kernel-lambda -fsycl-device-only %s -S -emit-llvm -O0 -g -o - | FileCheck %s
 //
-//
 // Verify the SYCL kernel routine is marked artificial and has the
 // expected source correlation.
 //
