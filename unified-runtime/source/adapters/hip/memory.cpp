@@ -95,17 +95,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
-  // Validate flags
-  UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-  if (flags &
-      (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) {
-    UR_ASSERT(pProperties && pProperties->pHost,
-              UR_RESULT_ERROR_INVALID_HOST_PTR);
-  }
-  // Need input memory object
-  UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
-
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
   // Setting this constant to true enables testing that behavior.
@@ -166,11 +155,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 /// A buffer partition (or a sub-buffer, in OpenCL terms) is simply implemented
 /// as an offset over an existing HIP allocation.
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
-    ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
-    ur_buffer_create_type_t bufferCreateType, const ur_buffer_region_t *pRegion,
-    ur_mem_handle_t *phMem) {
-  UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
+    ur_mem_handle_t hBuffer, ur_mem_flags_t flags, ur_buffer_create_type_t,
+    const ur_buffer_region_t *pRegion, ur_mem_handle_t *phMem) {
   UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(!hBuffer->isSubBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -191,11 +177,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     UR_ASSERT(!(flags & (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)),
               UR_RESULT_ERROR_INVALID_VALUE);
   }
-
-  UR_ASSERT(bufferCreateType == UR_BUFFER_CREATE_TYPE_REGION,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-
-  UR_ASSERT(pRegion->size != 0u, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
   auto &BufferImpl = std::get<BufferMem>(hBuffer->Mem);
   UR_ASSERT(((pRegion->origin + pRegion->size) <= BufferImpl.getSize()),
@@ -351,15 +332,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     void *pHost, ur_mem_handle_t *phMem) {
-
-  // Need input memory object
-  UR_ASSERT((flags & UR_MEM_FLAGS_MASK) == 0,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-  if (flags &
-      (UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER | UR_MEM_FLAG_USE_HOST_POINTER)) {
-    UR_ASSERT(pHost, UR_RESULT_ERROR_INVALID_HOST_PTR);
-  }
-
   const bool PerformInitialCopy =
       (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) ||
       ((flags & UR_MEM_FLAG_USE_HOST_POINTER));

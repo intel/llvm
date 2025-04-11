@@ -385,8 +385,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
             UR_RESULT_ERROR_INVALID_QUEUE);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-  UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
-            UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   size_t MaxThreadsPerBlock[3];
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};

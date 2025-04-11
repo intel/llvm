@@ -35,10 +35,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
                ur_usm_pool_handle_t hPool, size_t size, void **ppMem) {
   auto alignment = pUSMDesc ? pUSMDesc->align : 0u;
-  UR_ASSERT(!pUSMDesc ||
-                (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
   if (!hPool) {
     return USMHostAllocImpl(ppMem, hContext, /* flags */ 0, size, alignment);
   }
@@ -59,10 +55,6 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t hPool,
                  size_t size, void **ppMem) {
   auto alignment = pUSMDesc ? pUSMDesc->align : 0u;
-  UR_ASSERT(!pUSMDesc ||
-                (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
   if (!hPool) {
     return USMDeviceAllocImpl(ppMem, hContext, hDevice, /* flags */ 0, size,
                               alignment);
@@ -84,10 +76,6 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t hPool,
                  size_t size, void **ppMem) {
   auto alignment = pUSMDesc ? pUSMDesc->align : 0u;
-  UR_ASSERT(!pUSMDesc ||
-                (alignment == 0 || ((alignment & (alignment - 1)) == 0)),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
   if (!hPool) {
     return USMSharedAllocImpl(ppMem, hContext, hDevice, /*host flags*/ 0,
                               /*device flags*/ 0, size, alignment);
@@ -269,18 +257,14 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   return Result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
-                                                   void *HostPtr, size_t Size) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t, void *,
+                                                   size_t Size) {
   UR_ASSERT(Size > 0, UR_RESULT_ERROR_INVALID_VALUE);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
-                                                    void *HostPtr) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t,
+                                                    void *) {
   return UR_RESULT_SUCCESS;
 }
 
