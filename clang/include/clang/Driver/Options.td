@@ -8827,6 +8827,11 @@ def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
   HelpText<"Perform device compilation for Native CPU.">,
   Visibility<[CC1Option]>,
   MarshallingInfoFlag<LangOpts<"SYCLIsNativeCPU">>;
+defm foffload_use_alloca_addrspace_for_srets : BoolFOption<"foffload-use-alloca-addrspace-for-srets",
+  CodeGenOpts<"UseAllocaASForSrets">,
+  DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option], "Use alloca address space for sret arguments for offloading targets">,
+  NegFlag<SetFalse>>;
 
 } // let Visibility = [CC1Option]
 
