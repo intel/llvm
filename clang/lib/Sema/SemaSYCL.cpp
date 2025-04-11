@@ -6864,6 +6864,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.PolishForDeclaration = true;
     Policy.FullyQualifiedName = true;
     Policy.EnforceScopeForElaboratedTypes = true;
+    Policy.UseFullyQualifiedEnumerators = true;
 
     // Now we need to print the declaration of the kernel itself.
     // Example:

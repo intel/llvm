@@ -64,12 +64,12 @@ static void printIntegral(const TemplateArgument &TemplArg, raw_ostream &Out,
         // may create a size difference between the enum value and template
         // argument value, requiring isSameValue here instead of operator==.
         if (llvm::APSInt::isSameValue(ECD->getInitVal(), Val)) {
+          auto NewPolicy = Policy;
           if (Policy.UseFullyQualifiedEnumerators) {
-            auto NewPolicy = Policy;
             NewPolicy.PrintCanonicalTypes = true;
-            ECD->printQualifiedName(Out, NewPolicy);
-            return;
           }
+          ECD->printQualifiedName(Out, NewPolicy);
+          return;
         }
       }
     }
