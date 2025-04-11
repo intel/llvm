@@ -27,12 +27,10 @@ void ping(int *x) {
   // ...
 }
 
-template <typename T>
-void test_iota_kernel_id(sycl::context &ctxt) {
+template <typename T> void test_iota_kernel_id(sycl::context &ctxt) {
   sycl::kernel_id id = syclexp::get_kernel_id<iota<T>>();
   auto exe_bndl =
-      syclexp::get_kernel_bundle<iota<T>, sycl::bundle_state::executable>(
-          ctxt);
+      syclexp::get_kernel_bundle<iota<T>, sycl::bundle_state::executable>(ctxt);
   assert(exe_bndl.has_kernel(id) &&
          "Kernel bundle does not contain the expected kernel");
 }
