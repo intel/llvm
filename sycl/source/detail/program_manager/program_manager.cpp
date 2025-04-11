@@ -2174,8 +2174,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
       if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
           It != m_KernelName2KernelIDs.end()) {
-        m_KernelName2KernelIDs.erase(It);
         m_KernelIDs2BinImage.erase(It->second);
+        m_KernelName2KernelIDs.erase(It);
       }
     }
 
