@@ -238,7 +238,7 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
 
 class MockHandler : public sycl::handler {
 public:
-  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue,
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> &Queue,
               bool CallerNeedsEvent)
       : sycl::handler(Queue, CallerNeedsEvent) {}
   // Methods
@@ -276,7 +276,7 @@ public:
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
   }
-  std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
+  const std::shared_ptr<sycl::detail::queue_impl> &getQueue() { return MQueue; }
 
   void setType(sycl::detail::CGType Type) { impl->MCGType = Type; }
 
@@ -305,7 +305,7 @@ public:
 
 class MockHandlerCustomFinalize : public MockHandler {
 public:
-  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> Queue,
+  MockHandlerCustomFinalize(std::shared_ptr<sycl::detail::queue_impl> &Queue,
                             bool CallerNeedsEvent)
       : MockHandler(Queue, CallerNeedsEvent) {}
 
