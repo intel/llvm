@@ -2232,16 +2232,22 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
 }
 
 void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = IsTopCodeLoc;
+#endif
 }
 void handler::saveCodeLoc(detail::code_location CodeLoc) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = true;
+#endif
 }
 void handler::copyCodeLoc(const handler &other) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   MCodeLoc = other.MCodeLoc;
   impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
+#endif
 }
 
 } // namespace _V1
