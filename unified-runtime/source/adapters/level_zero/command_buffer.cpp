@@ -8,13 +8,13 @@
 //
 //===----------------------------------------------------------------------===//
 #include "command_buffer.hpp"
+#include "command_buffer_command.hpp"
 #include "helpers/kernel_helpers.hpp"
 #include "helpers/mutable_helpers.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_api.h"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
-#include "command_buffer_command.hpp"
 
 /* L0 Command-buffer Extension Doc see:
 https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CommandGraph.md#level-zero
@@ -985,7 +985,7 @@ ur_result_t setKernelPendingArguments(
  */
 ur_result_t createCommandHandle(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-    uint32_t WorkDim, const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    uint32_t WorkDim, const size_t *GlobalWorkSize,
     uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives,
     ur_exp_command_buffer_command_handle_t *Command) {
 
@@ -1056,8 +1056,8 @@ ur_result_t createCommandHandle(
 
   try {
     auto NewCommand = std::make_unique<kernel_command_handle>(
-        CommandBuffer, Kernel, CommandId, WorkDim, LocalWorkSize != nullptr,
-        NumKernelAlternatives, KernelAlternatives);
+        CommandBuffer, Kernel, CommandId, WorkDim, NumKernelAlternatives,
+        KernelAlternatives);
 
     NewCommand->setGlobalWorkSize(GlobalWorkSize);
 
@@ -1135,7 +1135,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
 
   if (Command) {
     UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, GlobalWorkSize,
-                                LocalWorkSize, NumKernelAlternatives,
+                                NumKernelAlternatives,
                                 KernelAlternatives, Command));
   }
   std::vector<ze_event_handle_t> ZeEventList;
@@ -1937,7 +1937,7 @@ ur_result_t setMutableMemObjArgDesc(
     const void *NextDesc, uint64_t CommandID) {
 
   ur_mem_handle_t_::access_mode_t UrAccessMode;
-  UR_CALL(getMemoryAccessType(Properties, UrAccessMode));
+  UR_CALL(getMemoryAccessType(NewMemObjArgDesc, UrAccessMode));
 
   ur_mem_handle_t NewMemObjArg = NewMemObjArgDesc.hNewMemObjArg;
   // The NewMemObjArg may be a NULL pointer in which case a NULL value is used
@@ -1950,7 +1950,7 @@ ur_result_t setMutableMemObjArgDesc(
   }
 
   UR_CALL(setMutableMemObjArgDesc(Desc, NewMemObjArgDesc.argIndex, ZeHandlePtr,
-                          NextDesc, CommandID));
+                                  NextDesc, CommandID));
   return UR_RESULT_SUCCESS;
 }
 
@@ -2058,7 +2058,7 @@ ur_result_t updateCommandBuffer(
           std::make_unique<ZeStruct<ze_mutable_group_count_exp_desc_t>>();
       UR_CALL(setMutableGroupCountDesc(MutableGroupCountDesc,
                                        &ZeThreadGroupDimensions, NextDesc,
-                                       Command->CommandId));
+                                       Command->commandId));
       NextDesc = MutableGroupCountDesc.get();
       Descs.push_back(std::move(MutableGroupCountDesc));
 
@@ -2066,7 +2066,7 @@ ur_result_t updateCommandBuffer(
         auto MutableGroupSizeDesc =
             std::make_unique<ZeStruct<ze_mutable_group_size_exp_desc_t>>();
         UR_CALL(setMutableGroupSizeDesc(MutableGroupSizeDesc, Dim, WG, NextDesc,
-                                        Command->CommandId));
+                                        Command->commandId));
         NextDesc = MutableGroupSizeDesc.get();
         Descs.push_back(std::move(MutableGroupSizeDesc));
       }
@@ -2083,7 +2083,7 @@ ur_result_t updateCommandBuffer(
 
       UR_CALL(setMutableMemObjArgDesc(CommandBuffer, ZeMutableArgDesc,
                                       NewMemObjArgDesc, NextDesc,
-                                      Command->CommandId));
+                                      Command->commandId));
 
       NextDesc = ZeMutableArgDesc.get();
       Descs.push_back(std::move(ZeMutableArgDesc));
@@ -2099,7 +2099,7 @@ ur_result_t updateCommandBuffer(
           std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
 
       UR_CALL(setMutablePointerArgDesc(ZeMutableArgDesc, NewPointerArgDesc,
-                                       NextDesc, Command->CommandId));
+                                       NextDesc, Command->commandId));
 
       NextDesc = ZeMutableArgDesc.get();
       Descs.push_back(std::move(ZeMutableArgDesc));
@@ -2115,7 +2115,7 @@ ur_result_t updateCommandBuffer(
           std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
 
       UR_CALL(setMutableValueArgDesc(ZeMutableArgDesc, NewValueArgDesc,
-                                     NextDesc, Command->CommandId));
+                                     NextDesc, Command->commandId));
 
       NextDesc = ZeMutableArgDesc.get();
       Descs.push_back(std::move(ZeMutableArgDesc));
