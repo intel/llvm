@@ -1,4 +1,4 @@
-//===--------- memory_helpers.cpp - Level Zero Adapter -------------------===//
+//===--------- mutable_helpers.cpp - Level Zero Adapter -------------------===//
 //
 // Copyright (C) 2025 Intel Corporation
 //
