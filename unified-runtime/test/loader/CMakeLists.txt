@@ -3,10 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_test(NAME example-hello-world COMMAND hello_world)
-set_tests_properties(example-hello-world PROPERTIES LABELS "loader"
-    ENVIRONMENT "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_mock>\""
-)
+add_ur_lit_testsuite(loader DEPENDS ur_loader hello_world)
 
 add_subdirectory(adapter_registry)
 add_subdirectory(loader_config)

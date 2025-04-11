@@ -49,22 +49,25 @@ int main(int, char *[]) {
 
   uint32_t platformCount = 0;
   std::vector<ur_platform_handle_t> platforms;
+  for (auto adapter : adapters) {
+    uint32_t adapterPlatformCount = 0;
+    status = urPlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
+    if (status != UR_RESULT_SUCCESS) {
+      out.error("urPlatformGet failed with return code: {}", status);
+      goto out;
+    }
+    out.info("urPlatformGet found {} platforms", platformCount);
 
-  status =
-      urPlatformGet(adapters.data(), adapterCount, 1, nullptr, &platformCount);
-  if (status != UR_RESULT_SUCCESS) {
-    out.error("urPlatformGet failed with return code: {}", status);
-    goto out;
+    platforms.reserve(platformCount + adapterPlatformCount);
+    status = urPlatformGet(adapter, adapterPlatformCount,
+                           &platforms[platformCount], &adapterPlatformCount);
+    if (status != UR_RESULT_SUCCESS) {
+      out.error("urPlatformGet failed with return code: {}", status);
+      goto out;
+    }
+    platformCount += adapterPlatformCount;
   }
-  out.info("urPlatformGet found {} platforms", platformCount);
-
   platforms.resize(platformCount);
-  status = urPlatformGet(adapters.data(), adapterCount, platformCount,
-                         platforms.data(), nullptr);
-  if (status != UR_RESULT_SUCCESS) {
-    out.error("urPlatformGet failed with return code: {}", status);
-    goto out;
-  }
 
   for (auto p : platforms) {
     size_t name_len;

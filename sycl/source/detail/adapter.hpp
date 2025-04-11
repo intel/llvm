@@ -98,10 +98,10 @@ public:
   std::vector<ur_platform_handle_t> &getUrPlatforms() {
     std::call_once(PlatformsPopulated, [&]() {
       uint32_t platformCount = 0;
-      call<UrApiKind::urPlatformGet>(&MAdapter, 1, 0, nullptr, &platformCount);
+      call<UrApiKind::urPlatformGet>(MAdapter, 0, nullptr, &platformCount);
       UrPlatforms.resize(platformCount);
       if (platformCount) {
-        call<UrApiKind::urPlatformGet>(&MAdapter, 1, platformCount,
+        call<UrApiKind::urPlatformGet>(MAdapter, platformCount,
                                        UrPlatforms.data(), nullptr);
       }
       // We need one entry in this per platform
