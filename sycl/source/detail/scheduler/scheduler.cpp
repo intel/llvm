@@ -374,22 +374,6 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
-void Scheduler::enqueueUnblockedCommands(
-    const std::vector<EventImplPtr> &ToEnqueue, ReadLockT &GraphReadLock,
-    std::vector<Command *> &ToCleanUp) {
-  for (auto &Event : ToEnqueue) {
-    Command *Cmd = static_cast<Command *>(Event->getCommand());
-    if (!Cmd)
-      continue;
-    EnqueueResultT Res;
-    bool Enqueued =
-        GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-      throw exception(make_error_code(errc::runtime),
-                      "Enqueue process failed.");
-  }
-}
-
 void Scheduler::releaseResources(BlockingT Blocking) {
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
@@ -467,13 +451,50 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       ToCleanUp.push_back(Cmd);
       Cmd->MMarkedForCleanup = true;
     }
+
+    CmdEvent->setComplete();
+
+    std::vector<Command *> ToEnqueue;
     {
-      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
-      // update self-event status
-      CmdEvent->setComplete();
+      std::lock_guard<std::mutex> Guard(Scheduler::getInstance().MHTMapMutex);
+
+      // Find kernels that are blocked by HT
+      auto HT2KernelER = HT2Kernel.equal_range(Cmd);
+      for (auto HT2KernelIt = HT2KernelER.first;
+           HT2KernelIt != HT2KernelER.second;) {
+        // Find all HTs blocking current Kernel
+        auto Kernel2HTER = Kernel2HT.equal_range(HT2KernelIt->second);
+        // If more than 1 HT block it - no need for enqueue, still blocked
+        for (auto Kernel2HTIt = Kernel2HTER.first;
+             Kernel2HTIt != Kernel2HTER.second;) {
+          // Completed HT
+          if (Kernel2HTIt->second == Cmd) {
+            // the only one HT
+            if (Kernel2HTIt == Kernel2HTER.first &&
+                std::next(Kernel2HTIt) == Kernel2HTER.second) {
+              Kernel2HTIt->first->MEnqueueStatus =
+                  EnqueueResultT::SyclEnqueueReady;
+              ToEnqueue.push_back(Kernel2HTIt->first);
+            }
+            std::ignore = Kernel2HT.erase(Kernel2HTIt);
+            break;
+          }
+
+          Kernel2HTIt++;
+        }
+        HT2KernelIt = HT2Kernel.erase(HT2KernelIt);
+      }
     }
-    Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
+    for (auto &CmdToEnqueue : ToEnqueue) {
+      EnqueueResultT Res;
+      bool Enqueued = GraphProcessor::enqueueCommand(CmdToEnqueue, Lock, Res,
+                                                     ToCleanUp, CmdToEnqueue);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw exception(make_error_code(errc::runtime),
+                        "Enqueue process failed.");
+    }
   }
+  // to check this TOO
   QueueImpl->revisitUnenqueuedCommandsState(CmdEvent);
 
   cleanupCommands(ToCleanUp);

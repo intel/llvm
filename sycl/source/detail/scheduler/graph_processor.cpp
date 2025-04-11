@@ -53,20 +53,54 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
                                                   BlockingT Blocking) {
   if (Cmd == RootCommand || Blocking)
     return true;
-  {
-    std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
-    if (Cmd->isBlocking()) {
-      const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
-      Cmd->addBlockedUserUnique(RootCmdEvent);
-      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+  if (!Cmd->isHostTask())
+    return true;
+  auto &Scheduler = Scheduler::getInstance();
+  std::lock_guard<std::mutex> Guard(Scheduler.MHTMapMutex);
+  if (Cmd->isBlocking()) {
+    Scheduler.Kernel2HT.insert(std::make_pair(RootCommand, Cmd));
+    Scheduler.HT2Kernel.insert(std::make_pair(Cmd, RootCommand));
+    RootCommand->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
 
-      // Blocked command will be enqueued asynchronously from submission so we
-      // need to keep current root code location to report failure properly.
-      RootCommand->copySubmissionCodeLocation();
-      return false;
-    }
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+
+    // Blocked command will be enqueued asynchronously from submission so we
+    // need to keep current root code location to report failure properly.
+    RootCommand->copySubmissionCodeLocation();
+    return false;
   }
   return true;
+}
+
+bool Scheduler::GraphProcessor::handleBlockedCmd(Command *Cmd,
+                                                 EnqueueResultT &EnqueueResult,
+                                                 Command *RootCommand,
+                                                 BlockingT Blocking) {
+  if (Cmd == RootCommand || Blocking)
+    return true;
+  if (Cmd->getType() == Command::CommandType::EMPTY_TASK) {
+    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+    return false;
+  }
+  auto &Scheduler = Scheduler::getInstance();
+
+  std::lock_guard<std::mutex> Guard(Scheduler.MHTMapMutex);
+  auto range = Scheduler.Kernel2HT.equal_range(Cmd);
+  // no blocking HT is found - let's try to enqueue!
+  if (range.first == range.second)
+    return true;
+
+  for (auto it = range.first; it != range.second; ++it) {
+    Scheduler.Kernel2HT.insert(std::make_pair(RootCommand, it->second));
+    Scheduler.HT2Kernel.insert(std::make_pair(it->second, RootCommand));
+  }
+
+  RootCommand->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
+  EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+
+  RootCommand->copySubmissionCodeLocation();
+
+  return false;
 }
 
 bool Scheduler::GraphProcessor::enqueueCommand(
@@ -79,10 +113,9 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
 
   // Exit early if the command is blocked and the enqueue type is non-blocking
-  if (Cmd->isEnqueueBlocked() && !Blocking) {
-    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+  if (Cmd->isEnqueueBlocked() &&
+      !handleBlockedCmd(Cmd, EnqueueResult, RootCommand, Blocking))
     return false;
-  }
 
   // Recursively enqueue all the implicit + explicit backend level dependencies
   // first and exit immediately if any of the commands cannot be enqueued.
@@ -120,8 +153,6 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
   bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
-  if (Result)
-    Result = handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
   return Result;
 }
 

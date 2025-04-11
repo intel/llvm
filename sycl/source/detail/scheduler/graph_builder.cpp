@@ -860,7 +860,6 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
     throw exception(make_error_code(errc::memory_allocation),
                     "Out of host memory");
 
-  EmptyCmd->MIsBlockable = true;
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
   EmptyCmd->MBlockReason = Reason;
 

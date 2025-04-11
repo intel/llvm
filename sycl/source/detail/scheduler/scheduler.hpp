@@ -519,11 +519,6 @@ protected:
                                          ReadLockT &GraphReadLock,
                                          std::vector<Command *> &ToCleanUp);
 
-  static void
-  enqueueUnblockedCommands(const std::vector<EventImplPtr> &CmdsToEnqueue,
-                           ReadLockT &GraphReadLock,
-                           std::vector<Command *> &ToCleanUp);
-
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
 
@@ -858,6 +853,8 @@ protected:
     /// \return true if we should continue enqueue process.
     static bool handleBlockingCmd(Command *Cmd, EnqueueResultT &EnqueueResult,
                                   Command *RootCommand, BlockingT Blocking);
+    static bool handleBlockedCmd(Command *Cmd, EnqueueResultT &EnqueueResult,
+                                 Command *RootCommand, BlockingT Blocking);
   };
 
   /// This function waits on all of the graph leaves which somehow use the
@@ -883,6 +880,10 @@ protected:
   std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
       MAuxiliaryResources;
   std::mutex MAuxiliaryResourcesMutex;
+
+  std::unordered_map<Command *, Command *> Kernel2HT;
+  std::unordered_map<Command *, Command *> HT2Kernel;
+  std::mutex MHTMapMutex;
 
   friend class Command;
   friend class DispatchHostTask;
