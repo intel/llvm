@@ -1908,9 +1908,7 @@ void handler::verifyDeviceHasProgressGuarantee(
 }
 
 bool handler::supportsUSMMemcpy2D() {
-  const std::shared_ptr<detail::queue_impl> &QueueImpl =
-      impl->MSubmissionPrimaryQueue;
-
+  auto &QueueImpl = impl->MSubmissionPrimaryQueue;
   if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
                                          UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT))
     return false;
@@ -1919,9 +1917,7 @@ bool handler::supportsUSMMemcpy2D() {
 }
 
 bool handler::supportsUSMFill2D() {
-  const std::shared_ptr<detail::queue_impl> &QueueImpl =
-      impl->MSubmissionPrimaryQueue;
-
+  auto &QueueImpl = impl->MSubmissionPrimaryQueue;
   if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
                                          UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
     return false;
@@ -1930,9 +1926,7 @@ bool handler::supportsUSMFill2D() {
 }
 
 bool handler::supportsUSMMemset2D() {
-  const std::shared_ptr<detail::queue_impl> &QueueImpl =
-      impl->MSubmissionPrimaryQueue;
-
+  auto &QueueImpl = impl->MSubmissionPrimaryQueue;
   if (QueueImpl && !checkContextSupports(QueueImpl->getContextImplPtr(),
                                          UR_CONTEXT_INFO_USM_FILL2D_SUPPORT))
     return false;
