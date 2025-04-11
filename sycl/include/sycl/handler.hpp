@@ -807,7 +807,13 @@ private:
                              .template get_property<
                                  syclex::cuda::cluster_size_key<ClusterDim>>()
                              .get_cluster_size();
-      setKernelClusterLaunch(padRange(ClusterSize), ClusterDim);
+      if constexpr (ClusterDim < 3) {
+        sycl::range<3> ClusterSizePadded{0, 0, 0};
+        padRange(ClusterSize, ClusterSizePadded);
+        setKernelClusterLaunch(ClusterSizePadded, ClusterDim);
+      } else {
+        setKernelClusterLaunch(ClusterSize, ClusterDim);
+      }
     }
   }
 
@@ -3827,45 +3833,68 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
-    if constexpr (Dims == 3) {
-      return Range;
-    } else {
-      sycl::range<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Range[I];
-      return Res;
-    }
+  template <int Dims>
+  static void padRange(sycl::range<Dims> &Range, sycl::range<3> &RangePadded) {
+    for (int I = 0; I < Dims; ++I)
+      RangePadded[I] = Range[I];
   }
 
-  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
-    if constexpr (Dims == 3) {
-      return Id;
-    } else {
-      sycl::id<3> Res{0, 0, 0};
-      for (int I = 0; I < Dims; ++I)
-        Res[I] = Id[I];
-      return Res;
-    }
+  template <int Dims>
+  static void padId(sycl::id<Dims> &Id, sycl::id<3> &IdPadded) {
+    for (int I = 0; I < Dims; ++I)
+      IdPadded[I] = Id[I];
   }
 
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> N,
                             bool SetNumWorkGroups = false) {
-    return setNDRangeDescriptorPadded(padRange(N), SetNumWorkGroups, Dims);
+    if constexpr (Dims < 3) {
+      sycl::range<3> PaddedRange{0, 0, 0};
+      padRange(N, PaddedRange);
+      setNDRangeDescriptorPadded(PaddedRange, SetNumWorkGroups, Dims);
+    } else {
+      setNDRangeDescriptorPadded(N, SetNumWorkGroups, Dims);
+    }
   }
+
   template <int Dims>
   void setNDRangeDescriptor(sycl::range<Dims> NumWorkItems,
                             sycl::id<Dims> Offset) {
-    return setNDRangeDescriptorPadded(padRange(NumWorkItems), padId(Offset),
-                                      Dims);
+    if constexpr (Dims < 3) {
+      sycl::range<3> PaddedRange{0, 0, 0};
+      sycl::id<3> PaddedOffset{0, 0, 0};
+
+      padRange(NumWorkItems, PaddedRange);
+      padId(Offset, PaddedOffset);
+
+      setNDRangeDescriptorPadded(PaddedRange, PaddedOffset, Dims);
+    } else {
+      setNDRangeDescriptorPadded(NumWorkItems, Offset, Dims);
+    }
   }
+
   template <int Dims>
   void setNDRangeDescriptor(sycl::nd_range<Dims> ExecutionRange) {
-    return setNDRangeDescriptorPadded(
-        padRange(ExecutionRange.get_global_range()),
-        padRange(ExecutionRange.get_local_range()),
-        padId(ExecutionRange.get_offset()), Dims);
+    if constexpr (Dims < 3) {
+      sycl::range<3> PaddedGlobalRange{0, 0, 0};
+      sycl::range<3> PaddedLocalRange{0, 0, 0};
+      sycl::id<3> PaddedOffset{0, 0, 0};
+
+      sycl::range<Dims> GlobalRange = ExecutionRange.get_global_range();
+      sycl::range<Dims> LocalRange = ExecutionRange.get_local_range();
+      sycl::id<Dims> Offset = ExecutionRange.get_offset();
+
+      padRange(GlobalRange, PaddedGlobalRange);
+      padRange(LocalRange, PaddedLocalRange);
+      padId(Offset, PaddedOffset);
+
+      setNDRangeDescriptorPadded(PaddedGlobalRange, PaddedLocalRange,
+                                 PaddedOffset, Dims);
+    } else {
+      setNDRangeDescriptorPadded(ExecutionRange.get_global_range(),
+                                 ExecutionRange.get_local_range(),
+                                 ExecutionRange.get_offset(), Dims);
+    }
   }
 
   void setNDRangeDescriptorPadded(sycl::range<3> N, bool SetNumWorkGroups,
