@@ -78,6 +78,7 @@ public:
   size_t get_used_size_current() const;
 
   void increase_threshold_to(size_t newThreshold);
+  void trim_to(size_t minBytesToKeep);
 
   // Property getters.
   template <typename PropertyT> bool has_property() const noexcept {

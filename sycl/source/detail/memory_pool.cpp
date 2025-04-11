@@ -45,6 +45,10 @@ __SYCL_EXPORT void memory_pool::increase_threshold_to(size_t newThreshold) {
     impl->set_new_threshold(newThreshold);
 }
 
+__SYCL_EXPORT void memory_pool::trim_to(size_t minBytesToKeep) {
+  impl->trim_to(minBytesToKeep);
+}
+
 __SYCL_EXPORT memory_pool::memory_pool(const sycl::context &ctx,
                                        const sycl::device &dev,
                                        sycl::usm::alloc kind,
