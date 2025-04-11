@@ -2088,11 +2088,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::accessor)) {
-      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
-          << ParamTy;
-      IsInvalid = true;
-    }
+    IsInvalid |= checkSyclSpecialType(ParamTy, PD->getLocation());
     return isValid();
   }
 
@@ -2244,9 +2240,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::accessor))
-      unsupportedFreeFunctionParamType(); // TODO
-    return true;
+    return checkType(PD->getLocation(), ParamTy);;
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -3042,8 +3036,6 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::accessor))
-      unsupportedFreeFunctionParamType(); // TODO
     return handleSpecialType(PD, ParamTy);
   }
 
@@ -4544,8 +4536,6 @@ public:
     //    wgm.__init(arg);
     //    user_kernel(some arguments..., wgm, some arguments...);
     // }
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::accessor))
-      unsupportedFreeFunctionParamType(); // TODO
     const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;
     auto DefaultConstructor =
@@ -6567,6 +6557,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
+  O << "#include <sycl/access/access.hpp>\n";
   O << "\n";
 
   LangOptions LO;

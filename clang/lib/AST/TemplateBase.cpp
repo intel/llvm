@@ -64,7 +64,19 @@ static void printIntegral(const TemplateArgument &TemplArg, raw_ostream &Out,
         // may create a size difference between the enum value and template
         // argument value, requiring isSameValue here instead of operator==.
         if (llvm::APSInt::isSameValue(ECD->getInitVal(), Val)) {
-          ECD->printQualifiedName(Out, Policy);
+          // Somehow, printQualifiedName does not actually print all the
+          // namespace qualifiers. However, this is needed in the integration
+          // header. In order for enum constant names to be printed with all the
+          // namespace qualifiers we must
+          // enable the PrintCanonicalTypes flag temporarily. This has to be
+          // done at this level of granularity because this flag interacts with
+          // other contructs in an undesirable way if it is enabled at a more
+          // general scope.
+          // Create new policy because Policy is technically const
+          // so we cannot modify it directly.
+          auto NewPolicy = Policy;
+          NewPolicy.PrintCanonicalTypes = true;
+          ECD->printQualifiedName(Out, NewPolicy);
           return;
         }
       }
