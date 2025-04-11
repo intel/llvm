@@ -44,6 +44,8 @@ include(AddSYCLExecutable)
 include(AddSYCL)
 include(SYCLUtils)
 
+add_definitions(-g -O0)
+
 if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions

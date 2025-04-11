@@ -42,7 +42,7 @@ public:
     return *this;
   }
 
-  const char *data() const noexcept { return str; }
+  const char *data() const noexcept { return str ? str : ""; }
 
   friend bool operator==(string_view lhs, std::string_view rhs) noexcept {
     return rhs == lhs.data();

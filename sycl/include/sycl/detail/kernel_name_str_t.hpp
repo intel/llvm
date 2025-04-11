@@ -13,7 +13,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 using KernelNameStrT = std::string_view;
 using KernelNameStrRefT = std::string_view;
 using ABINeutralKernelNameStrT = detail::string_view;
