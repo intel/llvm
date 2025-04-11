@@ -1321,8 +1321,7 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
 
 static ur_result_t doCompile(const AdapterPtr &Adapter,
                              ur_program_handle_t Program, uint32_t NumDevs,
-                             ur_device_handle_t *Devs, ur_context_handle_t Ctx,
-                             const char *Opts) {
+                             ur_device_handle_t *Devs, const char *Opts) {
   return Adapter->call_nocheck<UrApiKind::urProgramCompile>(Program, NumDevs,
                                                             Devs, Opts);
 }
@@ -1395,9 +1394,8 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
   // Do not use compile options for library programs: it is not clear if user
   // options (image options) are supposed to be applied to library program as
   // well, and what actually happens to a SPIR-V program if we apply them.
-  ur_result_t Error =
-      doCompile(Adapter, URProgram, DevicesToCompile.size(),
-                DevicesToCompile.data(), Context->getHandleRef(), "");
+  ur_result_t Error = doCompile(Adapter, URProgram, DevicesToCompile.size(),
+                                DevicesToCompile.data(), "");
   if (Error != UR_RESULT_SUCCESS) {
     EraseProgramForDevices();
     throw detail::set_ur_error(
@@ -1753,7 +1751,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
   // Include the main program and compile/link everything together
   if (!CreatedFromBinary) {
     auto Res = doCompile(Adapter, Program.get(), Devices.size(), Devices.data(),
-                         Context->getHandleRef(), CompileOptions.c_str());
+                         CompileOptions.c_str());
     Adapter->checkUrResult<errc::build>(Res);
   }
   LinkPrograms.push_back(Program.get());
@@ -1761,7 +1759,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
   for (ur_program_handle_t Prg : ExtraProgramsToLink) {
     if (!CreatedFromBinary) {
       auto Res = doCompile(Adapter, Prg, Devices.size(), Devices.data(),
-                           Context->getHandleRef(), CompileOptions.c_str());
+                           CompileOptions.c_str());
       Adapter->checkUrResult<errc::build>(Res);
     }
     LinkPrograms.push_back(Prg);
@@ -2889,11 +2887,9 @@ ProgramManager::compile(const DevImgPlainWithDeps &ImgWithDeps,
         CompileOptions, *(InputImpl->get_bin_image_ref()), Devs, Adapter);
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOptions);
-    ur_result_t Error = doCompile(
-        Adapter, ObjectImpl->get_ur_program_ref(), Devs.size(),
-        URDevices.data(),
-        getSyclObjImpl(InputImpl->get_context()).get()->getHandleRef(),
-        CompileOptions.c_str());
+    ur_result_t Error =
+        doCompile(Adapter, ObjectImpl->get_ur_program_ref(), Devs.size(),
+                  URDevices.data(), CompileOptions.c_str());
     if (Error != UR_RESULT_SUCCESS)
       throw sycl::exception(
           make_error_code(errc::build),
