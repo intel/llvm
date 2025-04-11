@@ -37,7 +37,13 @@ urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
     return USMHostAllocImpl(ppMem, hContext, /* flags */ 0, size, alignment);
   }
 
-  return umfPoolMallocHelper(hPool, ppMem, size, alignment);
+  auto UMFPool = hPool->HostMemPool.get();
+  *ppMem = umfPoolAlignedMalloc(UMFPool, size, alignment);
+  if (*ppMem == nullptr) {
+    auto umfErr = umfPoolGetLastAllocationError(UMFPool);
+    return umf::umf2urResult(umfErr);
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 /// USM: Implements USM device allocations using a normal HIP device pointer
