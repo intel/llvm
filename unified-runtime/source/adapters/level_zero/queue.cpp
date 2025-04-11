@@ -786,8 +786,8 @@ ur_result_t urQueueCreateWithNativeHandle(
   uint32_t NumEntries = 1;
   ur_platform_handle_t Platform{};
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, NumEntries,
-                                        &Platform, nullptr));
+  UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumEntries, &Platform,
+                                        nullptr));
 
   ur_device_handle_t UrDevice = Device;
   if (UrDevice == nullptr) {
