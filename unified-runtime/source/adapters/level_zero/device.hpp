@@ -20,7 +20,6 @@
 
 #include "adapters/level_zero/platform.hpp"
 #include "common.hpp"
-#include <level_zero/include/ze_intel_gpu.h>
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
@@ -156,9 +155,6 @@ struct ur_device_handle_t_ : _ur_object {
   // Read env settings to select immediate commandlist mode.
   ImmCmdlistMode useImmediateCommandLists();
 
-  // Whether Adapter uses driver's implementation of in-order lists or not
-  bool useDriverInOrderLists();
-
   // Whether Adapter uses driver's implementation of counter-based events or not
   bool useDriverCounterBasedEvents();
 
@@ -194,6 +190,11 @@ struct ur_device_handle_t_ : _ur_object {
   bool isIntelDG2OrNewer() {
     return (ZeDeviceProperties->vendorId == 0x8086 &&
             ZeDeviceIpVersionExt->ipVersion >= 0x030dc000);
+  }
+
+  bool isNewerThanIntelDG2() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x030f0000);
   }
 
   bool isIntegrated() {
@@ -239,3 +240,19 @@ struct ur_device_handle_t_ : _ur_object {
   // unique ephemeral identifer of the device in the adapter
   std::optional<DeviceId> Id;
 };
+
+inline std::vector<ur_device_handle_t>
+CollectDevicesAndSubDevices(const std::vector<ur_device_handle_t> &Devices) {
+  std::vector<ur_device_handle_t> DevicesAndSubDevices;
+  std::function<void(const std::vector<ur_device_handle_t> &)>
+      CollectDevicesAndSubDevicesRec =
+          [&](const std::vector<ur_device_handle_t> &Devices) {
+            for (auto &Device : Devices) {
+              DevicesAndSubDevices.push_back(Device);
+              CollectDevicesAndSubDevicesRec(Device->SubDevices);
+            }
+          };
+  CollectDevicesAndSubDevicesRec(Devices);
+
+  return DevicesAndSubDevices;
+}

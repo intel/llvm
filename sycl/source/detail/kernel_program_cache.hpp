@@ -15,6 +15,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
+#include <sycl/detail/spinlock.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 
@@ -110,21 +111,25 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    AdapterPtr Adapter;
-    ProgramBuildResult(const AdapterPtr &Adapter) : Adapter(Adapter) {
+    std::weak_ptr<Adapter> AdapterWeakPtr;
+    ProgramBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
       Val = nullptr;
     }
     ProgramBuildResult(const AdapterPtr &Adapter, BuildState InitialState)
-        : Adapter(Adapter) {
+        : AdapterWeakPtr(Adapter) {
       Val = nullptr;
       this->State.store(InitialState);
     }
     ~ProgramBuildResult() {
       try {
         if (Val) {
-          ur_result_t Err =
-              Adapter->call_nocheck<UrApiKind::urProgramRelease>(Val);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
+          if (AdapterSharedPtr) {
+            ur_result_t Err =
+                AdapterSharedPtr->call_nocheck<UrApiKind::urProgramRelease>(
+                    Val);
+            __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+          }
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
@@ -196,16 +201,20 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    AdapterPtr Adapter;
-    KernelBuildResult(const AdapterPtr &Adapter) : Adapter(Adapter) {
+    std::weak_ptr<Adapter> AdapterWeakPtr;
+    KernelBuildResult(const AdapterPtr &Adapter) : AdapterWeakPtr(Adapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
       try {
         if (Val.first) {
-          ur_result_t Err =
-              Adapter->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
-          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+          AdapterPtr AdapterSharedPtr = AdapterWeakPtr.lock();
+          if (AdapterSharedPtr) {
+            ur_result_t Err =
+                AdapterSharedPtr->call_nocheck<UrApiKind::urKernelRelease>(
+                    Val.first);
+            __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+          }
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
@@ -294,6 +303,11 @@ public:
         MProgramEvictionList.pop_front();
       }
     }
+
+    void erase(const ProgramCacheKeyT &CacheKey) {
+      MProgramEvictionList.remove(CacheKey);
+      MProgramToEvictionListMap.erase(CacheKey);
+    }
   };
 
   ~KernelProgramCache() = default;
@@ -334,15 +348,15 @@ public:
 
   // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
   // set.
-  static inline void traceKernel(const std::string &Msg,
-                                 const std::string &KernelName,
+  static inline void traceKernel(std::string_view Msg,
+                                 std::string_view KernelName,
                                  bool IsKernelFastCache = false) {
     if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
       return;
 
     std::string Identifier =
         "[IsFastCache: " + std::to_string(IsKernelFastCache) +
-        "][Key:{Name = " + KernelName + "}]: ";
+        "][Key:{Name = " + KernelName.data() + "}]: ";
 
     std::cerr << "[In-Memory Cache][Thread Id:" << std::this_thread::get_id()
               << "][Kernel Cache]" << Identifier << Msg << std::endl;
@@ -416,7 +430,7 @@ public:
 
   template <typename KeyT>
   KernelFastCacheValT tryToGetKernelFast(KeyT &&CacheKey) {
-    std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
+    KernelFastCacheReadLockT Lock(MKernelFastCacheMutex);
     auto It = MKernelFastCache.find(CacheKey);
     if (It != MKernelFastCache.end()) {
       traceKernel("Kernel fetched.", CacheKey.second, true);
@@ -427,11 +441,10 @@ public:
 
   template <typename KeyT, typename ValT>
   void saveKernel(KeyT &&CacheKey, ValT &&CacheVal) {
-
+    ur_program_handle_t Program = std::get<3>(CacheVal);
     if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
             isProgramCacheEvictionEnabled()) {
 
-      ur_program_handle_t Program = std::get<3>(CacheVal);
       // Save kernel in fast cache only if the corresponding program is also
       // in the cache.
       auto LockedCache = acquireCachedPrograms();
@@ -439,17 +452,87 @@ public:
       if (ProgCache.ProgramSizeMap.find(Program) ==
           ProgCache.ProgramSizeMap.end())
         return;
-
-      // Save reference between the program and the fast cache key.
-      std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
-      MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
     }
+    // Save reference between the program and the fast cache key.
+    KernelFastCacheWriteLockT Lock(MKernelFastCacheMutex);
+    MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
 
-    std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
     traceKernel("Kernel inserted.", CacheKey.second, true);
     MKernelFastCache.emplace(CacheKey, CacheVal);
+  }
+
+  // Expects locked program cache
+  size_t removeProgramByKey(const ProgramCacheKeyT &CacheKey,
+                            ProgramCache &ProgCache) {
+    auto It = ProgCache.Cache.find(CacheKey);
+
+    if (It != ProgCache.Cache.end()) {
+      // We are about to remove this program now.
+      // (1) Remove it from KernelPerProgram cache.
+      // (2) Remove corresponding entries from KernelFastCache.
+      // (3) Remove it from ProgramCache KeyMap.
+      // (4) Remove it from the ProgramCache.
+      // (5) Remove it from ProgramSizeMap.
+      // (6) Update the cache size.
+
+      // Remove entry from the KernelsPerProgram cache.
+      ur_program_handle_t NativePrg = It->second->Val;
+      {
+        auto LockedCacheKP = acquireKernelsPerProgramCache();
+        // List kernels that are to be removed from the cache, if tracing is
+        // enabled.
+        if (SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache()) {
+          for (const auto &Kernel : LockedCacheKP.get()[NativePrg])
+            traceKernel("Kernel evicted.", Kernel.first);
+        }
+        LockedCacheKP.get().erase(NativePrg);
+      }
+
+      {
+        // Remove corresponding entries from KernelFastCache.
+        KernelFastCacheWriteLockT Lock(MKernelFastCacheMutex);
+        if (auto FastCacheKeyItr =
+                MProgramToKernelFastCacheKeyMap.find(NativePrg);
+            FastCacheKeyItr != MProgramToKernelFastCacheKeyMap.end()) {
+          for (const auto &FastCacheKey : FastCacheKeyItr->second) {
+            MKernelFastCache.erase(FastCacheKey);
+            traceKernel("Kernel evicted.", FastCacheKey.second, true);
+          }
+          MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
+        }
+      }
+
+      // Remove entry from ProgramCache KeyMap.
+      CommonProgramKeyT CommonKey =
+          std::make_pair(CacheKey.first.second, CacheKey.second);
+      // Since KeyMap is a multi-map, we need to iterate over all entries
+      // with this CommonKey and remove those that match the CacheKey.
+      auto KeyMapItrRange = ProgCache.KeyMap.equal_range(CommonKey);
+      for (auto KeyMapItr = KeyMapItrRange.first;
+           KeyMapItr != KeyMapItrRange.second; ++KeyMapItr) {
+        if (KeyMapItr->second == CacheKey) {
+          ProgCache.KeyMap.erase(KeyMapItr);
+          break;
+        }
+      }
+
+      // Get size of the program.
+      size_t ProgramSize = MCachedPrograms.ProgramSizeMap[It->second->Val];
+      // Evict program from the cache.
+      ProgCache.Cache.erase(It);
+      // Remove program size from the cache size.
+      MCachedPrograms.ProgramCacheSizeInBytes -= ProgramSize;
+      MCachedPrograms.ProgramSizeMap.erase(NativePrg);
+
+      traceProgram("Program evicted.", CacheKey);
+    } else
+      // This should never happen.
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Program not found in the cache.");
+
+    return MCachedPrograms.ProgramCacheSizeInBytes;
   }
 
   // Evict programs from cache to free up space.
@@ -471,73 +554,7 @@ public:
         ProgramCacheKeyT CacheKey = ProgramEvictionList.front();
         auto LockedCache = acquireCachedPrograms();
         auto &ProgCache = LockedCache.get();
-        auto It = ProgCache.Cache.find(CacheKey);
-
-        if (It != ProgCache.Cache.end()) {
-          // We are about to remove this program now.
-          // (1) Remove it from KernelPerProgram cache.
-          // (2) Remove corresponding entries from KernelFastCache.
-          // (3) Remove it from ProgramCache KeyMap.
-          // (4) Remove it from the ProgramCache.
-          // (5) Remove it from ProgramSizeMap.
-          // (6) Update the cache size.
-
-          // Remove entry from the KernelsPerProgram cache.
-          ur_program_handle_t NativePrg = It->second->Val;
-          {
-            auto LockedCacheKP = acquireKernelsPerProgramCache();
-            // List kernels that are to be removed from the cache, if tracing is
-            // enabled.
-            if (SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache()) {
-              for (const auto &Kernel : LockedCacheKP.get()[NativePrg])
-                traceKernel("Kernel evicted.", Kernel.first);
-            }
-            LockedCacheKP.get().erase(NativePrg);
-          }
-
-          {
-            // Remove corresponding entries from KernelFastCache.
-            std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
-            if (auto FastCacheKeyItr =
-                    MProgramToKernelFastCacheKeyMap.find(NativePrg);
-                FastCacheKeyItr != MProgramToKernelFastCacheKeyMap.end()) {
-              for (const auto &FastCacheKey : FastCacheKeyItr->second) {
-                MKernelFastCache.erase(FastCacheKey);
-                traceKernel("Kernel evicted.", FastCacheKey.second, true);
-              }
-              MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
-            }
-          }
-
-          // Remove entry from ProgramCache KeyMap.
-          CommonProgramKeyT CommonKey =
-              std::make_pair(CacheKey.first.second, CacheKey.second);
-          // Since KeyMap is a multi-map, we need to iterate over all entries
-          // with this CommonKey and remove those that match the CacheKey.
-          auto KeyMapItrRange = LockedCache.get().KeyMap.equal_range(CommonKey);
-          for (auto KeyMapItr = KeyMapItrRange.first;
-               KeyMapItr != KeyMapItrRange.second; ++KeyMapItr) {
-            if (KeyMapItr->second == CacheKey) {
-              LockedCache.get().KeyMap.erase(KeyMapItr);
-              break;
-            }
-          }
-
-          // Get size of the program.
-          size_t ProgramSize = MCachedPrograms.ProgramSizeMap[It->second->Val];
-          // Evict program from the cache.
-          ProgCache.Cache.erase(It);
-          // Remove program size from the cache size.
-          MCachedPrograms.ProgramCacheSizeInBytes -= ProgramSize;
-          MCachedPrograms.ProgramSizeMap.erase(NativePrg);
-
-          traceProgram("Program evicted.", CacheKey);
-        } else
-          // This should never happen.
-          throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                                "Program not found in the cache.");
-
-        CurrCacheSize = MCachedPrograms.ProgramCacheSizeInBytes;
+        CurrCacheSize = removeProgramByKey(CacheKey, ProgCache);
         // Remove the program from the eviction list.
         MEvictionList.popFront();
       }
@@ -622,7 +639,7 @@ public:
     std::lock_guard<std::mutex> EvictionListLock(MProgramEvictionListMutex);
     std::lock_guard<std::mutex> L1(MProgramCacheMutex);
     std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
-    std::lock_guard<std::mutex> L3(MKernelFastCacheMutex);
+    KernelFastCacheWriteLockT L3(MKernelFastCacheMutex);
     MCachedPrograms = ProgramCache{};
     MKernelsPerProgramCache = KernelCacheT{};
     MKernelFastCache = KernelFastCacheT{};
@@ -724,6 +741,24 @@ public:
     }
   }
 
+  void removeAllRelatedEntries(uint32_t ImageId) {
+    auto LockedCache = acquireCachedPrograms();
+    auto &ProgCache = LockedCache.get();
+
+    auto It = std::find_if(
+        ProgCache.KeyMap.begin(), ProgCache.KeyMap.end(),
+        [&ImageId](const auto &Entry) { return ImageId == Entry.first.first; });
+    if (It == ProgCache.KeyMap.end())
+      return;
+
+    auto Key = It->second;
+    removeProgramByKey(Key, ProgCache);
+    {
+      auto LockedEvictionList = acquireEvictionList();
+      LockedEvictionList.get().erase(Key);
+    }
+  }
+
 private:
   std::mutex MProgramCacheMutex;
   std::mutex MKernelsPerProgramCacheMutex;
@@ -732,7 +767,10 @@ private:
   KernelCacheT MKernelsPerProgramCache;
   ContextPtr MParentContext;
 
-  std::mutex MKernelFastCacheMutex;
+  using KernelFastCacheMutexT = SpinLock;
+  using KernelFastCacheReadLockT = std::lock_guard<KernelFastCacheMutexT>;
+  using KernelFastCacheWriteLockT = std::lock_guard<KernelFastCacheMutexT>;
+  KernelFastCacheMutexT MKernelFastCacheMutex;
   KernelFastCacheT MKernelFastCache;
 
   // Map between fast kernel cache keys and program handle.

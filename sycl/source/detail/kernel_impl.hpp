@@ -75,10 +75,10 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    getAdapter()->call<UrApiKind::urKernelRetain>(MKernel);
     ur_native_handle_t nativeHandle = 0;
     getAdapter()->call<UrApiKind::urKernelGetNativeHandle>(MKernel,
                                                            &nativeHandle);
+    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
@@ -207,16 +207,19 @@ public:
   /// \return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
+  bool isInteropOrSourceBased() const noexcept;
+  bool hasSYCLMetadata() const noexcept;
+
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
     const AdapterPtr &Adapter = MContext->getAdapter();
 
-    if (MContext->getBackend() == backend::opencl)
-      Adapter->call<UrApiKind::urKernelRetain>(MKernel);
-
     ur_native_handle_t NativeKernel = 0;
     Adapter->call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
+
+    if (MContext->getBackend() == backend::opencl)
+      __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
 
     return NativeKernel;
   }
@@ -260,6 +263,8 @@ private:
   size_t queryMaxNumWorkGroups(queue Queue,
                                const range<Dimensions> &WorkGroupSize,
                                size_t DynamicLocalMemorySize) const;
+
+  void enableUSMIndirectAccess() const;
 };
 
 template <int Dimensions>
@@ -414,6 +419,23 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
         size_t DynamicLocalMemorySize) const {
   return queryMaxNumWorkGroups(std::move(Queue), WorkGroupSize,
                                DynamicLocalMemorySize);
+}
+
+template <>
+inline typename ext::intel::info::kernel_device_specific::spill_memory_size::
+    return_type
+    kernel_impl::get_info<
+        ext::intel::info::kernel_device_specific::spill_memory_size>(
+        const device &Device) const {
+  if (!Device.has(aspect::ext_intel_spill_memory_size))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "This device does not have the ext_intel_spill_memory_size aspect");
+
+  return get_kernel_device_specific_info<
+      ext::intel::info::kernel_device_specific::spill_memory_size>(
+      this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(),
+      getAdapter());
 }
 
 template <>

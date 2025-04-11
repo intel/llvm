@@ -209,6 +209,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <string>
 #include <tuple>
 
@@ -382,6 +383,25 @@ static cl::opt<int>
                           cl::desc("Define threshold for number of checks per "
                                    "debug location to force origin update."),
                           cl::Hidden, cl::init(3));
+
+static cl::opt<bool> ClSpirOffloadLocals("msan-spir-locals",
+                                         cl::desc("instrument local pointer"),
+                                         cl::Hidden, cl::init(true));
+
+static cl::opt<bool>
+    ClSpirOffloadPrivates("msan-spir-privates",
+                          cl::desc("instrument private pointer"), cl::Hidden,
+                          cl::init(true));
+
+// This flag is used to enhance debug for spirv (internal use only)
+//  - Add function name (not demangled for easily debug) on __msan_get_shadow
+//  (but not work on GPU)
+//  - Diable combination of origin and shadow propagation
+//  - The "origin" parameter of "__msan_maybe_warning_N" is the shadow address
+//  of UUM
+static cl::opt<bool> ClSpirOffloadDebug("msan-spir-debug",
+                                        cl::desc("enhance debug for spirv"),
+                                        cl::Hidden, cl::init(false));
 
 const char kMsanModuleCtorName[] = "msan.module_ctor";
 const char kMsanInitName[] = "__msan_init";
@@ -577,6 +597,8 @@ static constexpr unsigned kSpirOffloadGenericAS = 4;
 
 namespace {
 
+class MemorySanitizerOnSpirv;
+
 /// Instrument functions of a module to detect uninitialized reads.
 ///
 /// Instantiating MemorySanitizer inserts the msan runtime library API function
@@ -585,9 +607,11 @@ namespace {
 /// the module.
 class MemorySanitizer {
 public:
-  MemorySanitizer(Module &M, MemorySanitizerOptions Options)
-      : CompileKernel(Options.Kernel), TrackOrigins(Options.TrackOrigins),
-        Recover(Options.Recover), EagerChecks(Options.EagerChecks) {
+  MemorySanitizer(Module &M, MemorySanitizerOnSpirv &MsanSpirv,
+                  MemorySanitizerOptions Options)
+      : Spirv(MsanSpirv), CompileKernel(Options.Kernel),
+        TrackOrigins(Options.TrackOrigins), Recover(Options.Recover),
+        EagerChecks(Options.EagerChecks) {
     initializeModule(M);
   }
 
@@ -598,6 +622,9 @@ public:
   MemorySanitizer &operator=(const MemorySanitizer &) = delete;
 
   bool sanitizeFunction(Function &F, TargetLibraryInfo &TLI);
+
+  /// SPIR-V specific instrumentation
+  MemorySanitizerOnSpirv &Spirv;
 
 private:
   friend struct MemorySanitizerVisitor;
@@ -752,6 +779,65 @@ template <class T> T getOptOrDefault(const cl::opt<T> &Opt, T Default) {
   return (Opt.getNumOccurrences() > 0) ? Opt : Default;
 }
 
+/// SPIR-V specific instrumentation
+class MemorySanitizerOnSpirv {
+public:
+  MemorySanitizerOnSpirv(Module &M)
+      : M(M), C(M.getContext()), DL(M.getDataLayout()) {
+    const auto &TargetTriple = Triple(M.getTargetTriple());
+    IsSPIRV = TargetTriple.isSPIROrSPIRV();
+
+    IntptrTy = DL.getIntPtrType(C);
+    Int32Ty = Type::getInt32Ty(C);
+  }
+
+  bool instrumentModule();
+  void beforeInstrumentFunction(Function &F, Instruction *FnPrologueEnd);
+  void afterInstrumentFunction(Function &F);
+
+  Constant *getOrCreateGlobalString(StringRef Name, StringRef Value,
+                                    unsigned AddressSpace);
+
+private:
+  void initializeCallbacks();
+  void instrumentGlobalVariables();
+  void instrumentStaticLocalMemory();
+  void instrumentDynamicLocalMemory(Function &F);
+  void instrumentKernelsMetadata();
+  void instrumentPrivateArguments(Function &F, Instruction *FnPrologueEnd);
+
+  void initializeRetVecMap(Function *F);
+  void initializeKernelCallerMap(Function *F);
+
+private:
+  Module &M;
+  LLVMContext &C;
+  const DataLayout &DL;
+  bool IsSPIRV;
+  Type *IntptrTy;
+  Type *Int32Ty;
+
+  StringMap<GlobalVariable *> GlobalStringMap;
+
+  DenseMap<Function *, SmallVector<Instruction *, 8>> KernelToRetVecMap;
+  DenseMap<Function *, SmallVector<Constant *, 8>> KernelToLocalMemMap;
+  DenseMap<Function *, DenseSet<Function *>> FuncToKernelCallerMap;
+
+  // Make sure that we insert barriers only once per function, and the barrier
+  // needs to be inserted after all "MsanPoisonShadowStaticLocalFunc" and
+  // "MsanPoisonShadowDynamicLocalFunc", and before
+  // "MsanUnpoisonShadowStaticLocalFunc" and
+  // "MsanUnpoisonShadowDynamicLocalFunc".
+  DenseMap<Function *, bool> InsertBarrier;
+
+  FunctionCallee MsanPoisonShadowStaticLocalFunc;
+  FunctionCallee MsanUnpoisonShadowStaticLocalFunc;
+  FunctionCallee MsanPoisonShadowDynamicLocalFunc;
+  FunctionCallee MsanUnpoisonShadowDynamicLocalFunc;
+  FunctionCallee MsanBarrierFunc;
+  FunctionCallee MsanUnpoisonStackFunc;
+};
+
 } // end anonymous namespace
 
 MemorySanitizerOptions::MemorySanitizerOptions(int TO, bool R, bool K,
@@ -761,125 +847,402 @@ MemorySanitizerOptions::MemorySanitizerOptions(int TO, bool R, bool K,
       Recover(getOptOrDefault(ClKeepGoing, Kernel || R)),
       EagerChecks(getOptOrDefault(ClEagerChecks, EagerChecks)) {}
 
-Constant *getOrCreateGlobalString(Module &M, StringRef Name, StringRef Value,
-                                  unsigned AddressSpace) {
-  auto StringName = (Twine(Name) + "_" + Value).str();
-  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
-
-  return M.getOrInsertGlobal(StringName, Ty, [&] {
-    return new GlobalVariable(
-        M, Ty, true, GlobalValue::InternalLinkage,
-        ConstantDataArray::getString(M.getContext(), Value), StringName,
-        nullptr, GlobalValue::NotThreadLocal, AddressSpace);
-  });
-}
-
 static bool isUnsupportedDeviceGlobal(const GlobalVariable *G) {
   if (G->user_empty())
     return true;
   // Skip instrumenting on "__MsanKernelMetadata" etc.
   if (G->getName().starts_with("__Msan"))
     return true;
+  if (G->getName().starts_with("__msan_"))
+    return true;
   if (G->getName().starts_with("__spirv_BuiltIn"))
     return true;
   if (G->getName().starts_with("__usid_str"))
     return true;
-  if (G->getAddressSpace() == kSpirOffloadLocalAS ||
+  if ((!ClSpirOffloadLocals && G->getAddressSpace() == kSpirOffloadLocalAS) ||
       G->getAddressSpace() == kSpirOffloadConstantAS)
     return true;
   return false;
 }
 
-static void instrumentSPIRModule(Module &M) {
+Constant *
+MemorySanitizerOnSpirv::getOrCreateGlobalString(StringRef Name, StringRef Value,
+                                                unsigned AddressSpace) {
+  if (GlobalStringMap.find(Value) != GlobalStringMap.end())
+    return GlobalStringMap.at(Value);
 
-  const auto &DL = M.getDataLayout();
-  Type *IntptrTy = DL.getIntPtrType(M.getContext());
+  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
 
-  // Instrument __MsanKernelMetadata, which records information of sanitized
-  // kernel
-  {
-    SmallVector<Constant *, 8> SpirKernelsMetadata;
+  GlobalVariable *GV = new GlobalVariable(
+      M, Ty, true, GlobalValue::InternalLinkage,
+      ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
+      GlobalValue::NotThreadLocal, AddressSpace);
+  GlobalStringMap[Value] = GV;
 
-    // SpirKernelsMetadata only saves fixed kernels, and is described by
-    // following structure:
-    //  uptr unmangled_kernel_name
-    //  uptr unmangled_kernel_name_size
-    StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
-    for (Function &F : M) {
-      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-        continue;
+  return GV;
+}
 
-      if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
-          F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
-        continue;
+// Initialize MSan runtime functions and globals
+void MemorySanitizerOnSpirv::initializeCallbacks() {
+  IRBuilder<> IRB(C);
+  auto *PtrTy = IRB.getPtrTy();
 
-      auto KernelName = F.getName();
-      auto *KernelNameGV = getOrCreateGlobalString(
-          M, "__msan_kernel", KernelName, kSpirOffloadConstantAS);
-      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
-          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-          ConstantInt::get(IntptrTy, KernelName.size())));
+  // __msan_set_shadow_static_local(
+  //   uptr ptr,
+  //   size_t size
+  // )
+  MsanPoisonShadowStaticLocalFunc = M.getOrInsertFunction(
+      "__msan_poison_shadow_static_local", IRB.getVoidTy(), IntptrTy, IntptrTy);
+
+  // __msan_unpoison_shadow_static_local(
+  //   uptr ptr,
+  //   size_t size
+  // )
+  MsanUnpoisonShadowStaticLocalFunc =
+      M.getOrInsertFunction("__msan_unpoison_shadow_static_local",
+                            IRB.getVoidTy(), IntptrTy, IntptrTy);
+
+  // __asan_poison_shadow_dynamic_local(
+  //   uptr ptr,
+  //   uint32_t num_args
+  // )
+  MsanPoisonShadowDynamicLocalFunc = M.getOrInsertFunction(
+      "__msan_poison_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty);
+
+  // __asan_unpoison_shadow_dynamic_local(
+  //   uptr ptr,
+  //   uint32_t num_args
+  // )
+  MsanUnpoisonShadowDynamicLocalFunc =
+      M.getOrInsertFunction("__msan_unpoison_shadow_dynamic_local",
+                            IRB.getVoidTy(), IntptrTy, Int32Ty);
+
+  // __msan_barrier()
+  MsanBarrierFunc = M.getOrInsertFunction("__msan_barrier", IRB.getVoidTy());
+
+  // __msan_unpoison_stack(
+  //   uptr ptr,
+  //   size_t size
+  // )
+  MsanUnpoisonStackFunc = M.getOrInsertFunction(
+      "__msan_unpoison_stack", IRB.getVoidTy(), PtrTy, IntptrTy);
+}
+
+// Handle global variables:
+//   - Skip sanitizing unsupported variables
+//   - Instrument __MsanDeviceGlobalMetadata for device globals
+void MemorySanitizerOnSpirv::instrumentGlobalVariables() {
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  // Device global metadata is described by a structure
+  //  size_t device_global_size
+  //  size_t beginning address of the device global
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+  for (auto &G : M.globals()) {
+    // DeviceSanitizers cannot handle nameless globals, therefore we set a name
+    // for them so that we can handle them like regular globals.
+    if (G.getName().empty() && G.hasInternalLinkage())
+      G.setName("nameless_global");
+
+    if (isUnsupportedDeviceGlobal(&G)) {
+      for (auto *User : G.users())
+        if (auto *Inst = dyn_cast<Instruction>(User))
+          Inst->setNoSanitizeMetadata();
+      continue;
     }
 
-    // Create global variable to record spirv kernels' information
-    ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
-    Constant *MetadataInitializer =
-        ConstantArray::get(ArrayTy, SpirKernelsMetadata);
-    GlobalVariable *MsanSpirKernelMetadata = new GlobalVariable(
-        M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-        MetadataInitializer, "__MsanKernelMetadata", nullptr,
-        GlobalValue::NotThreadLocal, 1);
-    MsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
-    // Add device global attributes
-    MsanSpirKernelMetadata->addAttribute(
-        "sycl-device-global-size",
-        std::to_string(DL.getTypeAllocSize(ArrayTy)));
-    MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
-    MsanSpirKernelMetadata->addAttribute("sycl-host-access",
-                                         "0"); // read only
-    MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
-                                         "_Z20__MsanKernelMetadata");
-    MsanSpirKernelMetadata->setDSOLocal(true);
+    if (G.getAddressSpace() == kSpirOffloadLocalAS)
+      continue;
+
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy,
+        ConstantInt::get(IntptrTy, DL.getTypeAllocSize(G.getValueType())),
+        ConstantExpr::getPointerCast(&G, IntptrTy)));
   }
 
-  // Handle global variables:
-  //   - Skip sanitizing unsupported variables
-  //   - Instrument __MsanDeviceGlobalMetadata for device globals
-  do {
-    SmallVector<Constant *, 8> DeviceGlobalMetadata;
+  if (DeviceGlobalMetadata.empty())
+    return;
 
-    // Device global meta data is described by a structure
-    //  size_t device_global_size
-    //  size_t beginning address of the device global
-    StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__MsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+}
 
-    for (auto &G : M.globals()) {
-      if (isUnsupportedDeviceGlobal(&G)) {
-        for (auto *User : G.users())
-          if (auto *Inst = dyn_cast<Instruction>(User))
-            Inst->setNoSanitizeMetadata();
+void MemorySanitizerOnSpirv::initializeKernelCallerMap(Function *F) {
+  if (FuncToKernelCallerMap.find(F) != FuncToKernelCallerMap.end())
+    return;
+
+  for (auto *U : F->users()) {
+    if (Instruction *Inst = dyn_cast<Instruction>(U)) {
+      Function *Caller = Inst->getFunction();
+      if (Caller->getCallingConv() == CallingConv::SPIR_KERNEL) {
+        FuncToKernelCallerMap[F].insert(Caller);
         continue;
       }
+      initializeKernelCallerMap(Caller);
+      FuncToKernelCallerMap[F].insert(FuncToKernelCallerMap[Caller].begin(),
+                                      FuncToKernelCallerMap[Caller].end());
+    }
+  }
+}
 
-      DeviceGlobalMetadata.push_back(ConstantStruct::get(
-          StructTy,
-          ConstantInt::get(IntptrTy, DL.getTypeAllocSize(G.getValueType())),
-          ConstantExpr::getPointerCast(&G, IntptrTy)));
+static void getFunctionsOfUser(User *User, DenseSet<Function *> &Functions) {
+  if (Instruction *Inst = dyn_cast<Instruction>(User)) {
+    Functions.insert(Inst->getFunction());
+  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(User)) {
+    for (auto *U : CE->users())
+      getFunctionsOfUser(U, Functions);
+  }
+}
+
+void MemorySanitizerOnSpirv::instrumentStaticLocalMemory() {
+  if (!ClSpirOffloadLocals)
+    return;
+
+  auto Instrument = [this](GlobalVariable *G, Function *F) {
+    const uint64_t SizeInBytes = DL.getTypeAllocSize(G->getValueType());
+
+    if (!InsertBarrier[F]) {
+      IRBuilder<> Builder(&F->getEntryBlock().front());
+      Builder.CreateCall(MsanBarrierFunc);
     }
 
-    if (DeviceGlobalMetadata.empty())
-      break;
+    // Poison shadow of static local memory
+    IRBuilder<> Builder(&F->getEntryBlock().front());
+    Builder.CreateCall(MsanPoisonShadowStaticLocalFunc,
+                       {Builder.CreatePointerCast(G, IntptrTy),
+                        ConstantInt::get(IntptrTy, SizeInBytes)});
 
-    // Create meta data global to record device globals' information
-    ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
-    Constant *MetadataInitializer =
-        ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
-    GlobalVariable *MsanDeviceGlobalMetadata = new GlobalVariable(
-        M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-        MetadataInitializer, "__MsanDeviceGlobalMetadata", nullptr,
-        GlobalValue::NotThreadLocal, 1);
-    MsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
-  } while (false);
+    // Unpoison shadow of static local memory, required by CPU device
+    initializeRetVecMap(F);
+    for (auto *RI : KernelToRetVecMap[F]) {
+      IRBuilder<> Builder(RI);
+      if (!InsertBarrier[F])
+        Builder.CreateCall(MsanBarrierFunc);
+      Builder.CreateCall(MsanUnpoisonShadowStaticLocalFunc,
+                         {Builder.CreatePointerCast(G, IntptrTy),
+                          ConstantInt::get(IntptrTy, SizeInBytes)});
+    }
+
+    InsertBarrier[F] = true;
+  };
+
+  // We only instrument on spir_kernel, because local variables are
+  // kind of global variable, which must be initialized only once.
+  for (auto &G : M.globals()) {
+    if (G.getAddressSpace() == kSpirOffloadLocalAS) {
+      DenseSet<Function *> InstrumentedFunc;
+      for (auto *User : G.users())
+        getFunctionsOfUser(User, InstrumentedFunc);
+      for (Function *F : InstrumentedFunc) {
+        if (F->getCallingConv() == CallingConv::SPIR_KERNEL) {
+          Instrument(&G, F);
+          continue;
+        }
+        // Get root spir_kernel of spir_func
+        initializeKernelCallerMap(F);
+        for (Function *Kernel : FuncToKernelCallerMap[F])
+          Instrument(&G, Kernel);
+      }
+    }
+  }
+}
+
+void MemorySanitizerOnSpirv::instrumentDynamicLocalMemory(Function &F) {
+  if (!ClSpirOffloadLocals)
+    return;
+
+  // Poison shadow of local memory in kernel argument, required by CPU device
+  SmallVector<Argument *> LocalArgs;
+  for (auto &Arg : F.args()) {
+    Type *PtrTy = dyn_cast<PointerType>(Arg.getType()->getScalarType());
+    if (PtrTy && PtrTy->getPointerAddressSpace() == kSpirOffloadLocalAS)
+      LocalArgs.push_back(&Arg);
+  }
+
+  if (LocalArgs.empty())
+    return;
+
+  if (!InsertBarrier[&F]) {
+    IRBuilder<> Builder(&F.getEntryBlock().front());
+    Builder.CreateCall(MsanBarrierFunc);
+  }
+
+  IRBuilder<> IRB(&F.getEntryBlock().front());
+
+  AllocaInst *ArgsArray = IRB.CreateAlloca(
+      IntptrTy, ConstantInt::get(Int32Ty, LocalArgs.size()), "local_args");
+  for (size_t i = 0; i < LocalArgs.size(); i++) {
+    auto *StoreDest =
+        IRB.CreateGEP(IntptrTy, ArgsArray, ConstantInt::get(Int32Ty, i));
+    IRB.CreateStore(IRB.CreatePointerCast(LocalArgs[i], IntptrTy), StoreDest);
+  }
+
+  auto *ArgsArrayAddr = IRB.CreatePointerCast(ArgsArray, IntptrTy);
+  IRB.CreateCall(MsanPoisonShadowDynamicLocalFunc,
+                 {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
+
+  // Unpoison shadow of dynamic local memory, required by CPU device
+  initializeRetVecMap(&F);
+  for (Instruction *Ret : KernelToRetVecMap[&F]) {
+    IRBuilder<> IRBRet(Ret);
+    if (!InsertBarrier[&F])
+      IRBRet.CreateCall(MsanBarrierFunc);
+    IRBRet.CreateCall(
+        MsanUnpoisonShadowDynamicLocalFunc,
+        {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
+  }
+
+  InsertBarrier[&F] = true;
+}
+
+void MemorySanitizerOnSpirv::instrumentPrivateArguments(
+    Function &F, Instruction *FnPrologueEnd) {
+  if (!ClSpirOffloadPrivates)
+    return;
+
+  // We need to copy and replace all byval arguments to alloca in kernel because
+  // we need to make sure that all byval arguments have shadow memory.
+  // This change needs to be inserted after the prologue because instructions
+  // in prologue don't have shadow memory.
+  IRBuilder<> IRB(FnPrologueEnd->getNextNode());
+
+  for (auto &Arg : F.args()) {
+    PointerType *PtrTy = dyn_cast<PointerType>(Arg.getType()->getScalarType());
+    if (PtrTy && PtrTy->getPointerAddressSpace() == kSpirOffloadPrivateAS &&
+        Arg.hasByValAttr()) {
+      Type *Ty = Arg.getParamByValType();
+      const Align Alignment =
+          DL.getValueOrABITypeAlignment(Arg.getParamAlign(), Ty);
+
+      AllocaInst *AI = IRB.CreateAlloca(
+          Ty, kSpirOffloadPrivateAS, nullptr,
+          (Arg.hasName() ? Arg.getName() : "Arg" + Twine(Arg.getArgNo())) +
+              ".byval");
+      AI->setAlignment(Alignment);
+      Arg.replaceAllUsesWith(AI);
+
+      auto *UnpoisonStack = IRB.CreateCall(
+          MsanUnpoisonStackFunc,
+          {AI, ConstantInt::get(IntptrTy, DL.getTypeAllocSize(Ty))});
+      UnpoisonStack->setNoSanitizeMetadata();
+
+      uint64_t AllocSize = DL.getTypeAllocSize(Ty);
+      auto *Memcpy =
+          IRB.CreateMemCpy(AI, Alignment, &Arg, Alignment, AllocSize);
+      Memcpy->setNoSanitizeMetadata();
+    }
+  }
+}
+
+// Instrument __MsanKernelMetadata, which records information of sanitized
+// kernel
+void MemorySanitizerOnSpirv::instrumentKernelsMetadata() {
+  SmallVector<Constant *, 8> SpirKernelsMetadata;
+
+  // SpirKernelsMetadata only saves fixed kernels, and is described by
+  // following structure:
+  //  uptr unmangled_kernel_name
+  //  uptr unmangled_kernel_name_size
+  //  uptr check_local_memory
+  //  uptr check_private_memory
+  StructType *StructTy =
+      StructType::get(IntptrTy, IntptrTy, IntptrTy, IntptrTy);
+  for (Function &F : M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
+        F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+      continue;
+
+    auto KernelName = F.getName();
+    auto *KernelNameGV = getOrCreateGlobalString("__msan_kernel", KernelName,
+                                                 kSpirOffloadConstantAS);
+    SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+        StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+        ConstantInt::get(IntptrTy, KernelName.size()),
+        ConstantInt::get(IntptrTy, ClSpirOffloadLocals),
+        ConstantInt::get(IntptrTy, ClSpirOffloadPrivates)));
+  }
+
+  // Create global variable to record spirv kernels' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  GlobalVariable *MsanSpirKernelMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__MsanKernelMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  MsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  // Add device global attributes
+  MsanSpirKernelMetadata->addAttribute(
+      "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
+  MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
+  MsanSpirKernelMetadata->addAttribute("sycl-host-access",
+                                       "0"); // read only
+  MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       "_Z20__MsanKernelMetadata");
+  MsanSpirKernelMetadata->setDSOLocal(true);
+}
+
+void MemorySanitizerOnSpirv::initializeRetVecMap(Function *F) {
+  if (KernelToRetVecMap.find(F) != KernelToRetVecMap.end())
+    return;
+
+  SmallVector<Instruction *, 8> RetVec;
+  for (auto &BB : *F) {
+    for (auto &Inst : BB) {
+      if (ReturnInst *RI = dyn_cast<ReturnInst>(&Inst)) {
+        if (CallInst *CI = RI->getParent()->getTerminatingMustTailCall())
+          RetVec.push_back(CI);
+        else
+          RetVec.push_back(RI);
+      } else if (ResumeInst *RI = dyn_cast<ResumeInst>(&Inst)) {
+        RetVec.push_back(RI);
+      } else if (CleanupReturnInst *CRI = dyn_cast<CleanupReturnInst>(&Inst)) {
+        RetVec.push_back(CRI);
+      }
+    }
+  }
+
+  KernelToRetVecMap[F] = std::move(RetVec);
+}
+
+bool MemorySanitizerOnSpirv::instrumentModule() {
+  if (!IsSPIRV)
+    return false;
+
+  initializeCallbacks();
+  instrumentGlobalVariables();
+  instrumentStaticLocalMemory();
+  instrumentKernelsMetadata();
+
+  return true;
+}
+
+void MemorySanitizerOnSpirv::beforeInstrumentFunction(
+    Function &F, Instruction *FnPrologueEnd) {
+  if (!IsSPIRV)
+    return;
+
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+    instrumentPrivateArguments(F, FnPrologueEnd);
+}
+
+void MemorySanitizerOnSpirv::afterInstrumentFunction(Function &F) {
+  if (!IsSPIRV)
+    return;
+
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+    instrumentDynamicLocalMemory(F);
 }
 
 PreservedAnalyses MemorySanitizerPass::run(Module &M,
@@ -888,23 +1251,21 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
   if (checkIfAlreadyInstrumented(M, "nosanitize_memory"))
     return PreservedAnalyses::all();
   bool Modified = false;
-  auto TargetTriple = Triple(M.getTargetTriple());
+  const auto &TargetTriple = Triple(M.getTargetTriple());
 
   if (!Options.Kernel && !TargetTriple.isSPIROrSPIRV()) {
     insertModuleCtor(M);
     Modified = true;
   }
 
-  if (TargetTriple.isSPIROrSPIRV()) {
-    instrumentSPIRModule(M);
-    Modified = true;
-  }
+  MemorySanitizerOnSpirv MsanSpirv(M);
+  Modified |= MsanSpirv.instrumentModule();
 
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   for (Function &F : M) {
     if (F.empty())
       continue;
-    MemorySanitizer Msan(*F.getParent(), Options);
+    MemorySanitizer Msan(*F.getParent(), MsanSpirv, Options);
     Modified |=
         Msan.sanitizeFunction(F, FAM.getResult<TargetLibraryAnalysis>(F));
   }
@@ -1065,31 +1426,35 @@ void MemorySanitizer::createUserspaceApi(Module &M,
     }
   }
 
-  // Create the global TLS variables.
-  RetvalTLS =
-      getOrInsertGlobal(M, "__msan_retval_tls",
-                        ArrayType::get(IRB.getInt64Ty(), kRetvalTLSSize / 8));
+  // SPIR-V doesn't support TLS variables
+  if (!TargetTriple.isSPIROrSPIRV()) {
+    // Create the global TLS variables.
+    RetvalTLS =
+        getOrInsertGlobal(M, "__msan_retval_tls",
+                          ArrayType::get(IRB.getInt64Ty(), kRetvalTLSSize / 8));
 
-  RetvalOriginTLS = getOrInsertGlobal(M, "__msan_retval_origin_tls", OriginTy);
+    RetvalOriginTLS =
+        getOrInsertGlobal(M, "__msan_retval_origin_tls", OriginTy);
 
-  ParamTLS =
-      getOrInsertGlobal(M, "__msan_param_tls",
-                        ArrayType::get(IRB.getInt64Ty(), kParamTLSSize / 8));
+    ParamTLS =
+        getOrInsertGlobal(M, "__msan_param_tls",
+                          ArrayType::get(IRB.getInt64Ty(), kParamTLSSize / 8));
 
-  ParamOriginTLS =
-      getOrInsertGlobal(M, "__msan_param_origin_tls",
-                        ArrayType::get(OriginTy, kParamTLSSize / 4));
+    ParamOriginTLS =
+        getOrInsertGlobal(M, "__msan_param_origin_tls",
+                          ArrayType::get(OriginTy, kParamTLSSize / 4));
 
-  VAArgTLS =
-      getOrInsertGlobal(M, "__msan_va_arg_tls",
-                        ArrayType::get(IRB.getInt64Ty(), kParamTLSSize / 8));
+    VAArgTLS =
+        getOrInsertGlobal(M, "__msan_va_arg_tls",
+                          ArrayType::get(IRB.getInt64Ty(), kParamTLSSize / 8));
 
-  VAArgOriginTLS =
-      getOrInsertGlobal(M, "__msan_va_arg_origin_tls",
-                        ArrayType::get(OriginTy, kParamTLSSize / 4));
+    VAArgOriginTLS =
+        getOrInsertGlobal(M, "__msan_va_arg_origin_tls",
+                          ArrayType::get(OriginTy, kParamTLSSize / 4));
 
-  VAArgOverflowSizeTLS =
-      getOrInsertGlobal(M, "__msan_va_arg_overflow_size_tls", IRB.getInt64Ty());
+    VAArgOverflowSizeTLS = getOrInsertGlobal(
+        M, "__msan_va_arg_overflow_size_tls", IRB.getInt64Ty());
+  }
 
   for (size_t AccessSizeIndex = 0; AccessSizeIndex < kNumberOfAccessSizes;
        AccessSizeIndex++) {
@@ -1102,14 +1467,15 @@ void MemorySanitizer::createUserspaceApi(Module &M,
           IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty());
     } else { // SPIR or SPIR-V
       // __msan_maybe_warning_N(
-      //   ...
+      //   intN_t status,
+      //   uptr origin, // possible shadow address of status
       //   char* file,
       //   unsigned int line,
       //   char* func
       // )
       MaybeWarningFn[AccessSizeIndex] = M.getOrInsertFunction(
           FunctionName, TLI.getAttrList(C, {0, 1}, /*Signed=*/false),
-          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IRB.getInt32Ty(),
+          IRB.getVoidTy(), IRB.getIntNTy(AccessSize * 8), IntptrTy,
           IRB.getInt8PtrTy(kSpirOffloadConstantAS), IRB.getInt32Ty(),
           IRB.getInt8PtrTy(kSpirOffloadConstantAS));
     }
@@ -1182,8 +1548,9 @@ void MemorySanitizer::initializeCallbacks(Module &M,
   MsanInstrumentAsmStoreFn = M.getOrInsertFunction(
       "__msan_instrument_asm_store", IRB.getVoidTy(), PtrTy, IntptrTy);
 
-  MsanGetShadowFn = M.getOrInsertFunction("__msan_get_shadow", IntptrTy,
-                                          IntptrTy, IRB.getInt32Ty());
+  MsanGetShadowFn = M.getOrInsertFunction(
+      "__msan_get_shadow", IntptrTy, IntptrTy, IRB.getInt32Ty(),
+      IRB.getInt8PtrTy(kSpirOffloadConstantAS));
 
   if (CompileKernel) {
     createKernelApi(M, TLI);
@@ -1217,7 +1584,7 @@ FunctionCallee MemorySanitizer::getKmsanShadowOriginAccessFn(bool isStore,
 void MemorySanitizer::initializeModule(Module &M) {
   auto &DL = M.getDataLayout();
 
-  TargetTriple = Triple(M.getTargetTriple());
+  TargetTriple = M.getTargetTriple();
 
   bool ShadowPassed = ClShadowBase.getNumOccurrences() > 0;
   bool OriginPassed = ClOriginBase.getNumOccurrences() > 0;
@@ -1382,8 +1749,9 @@ static bool isUnsupportedSPIRAccess(const Value *Addr, Instruction *I) {
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   switch (PtrTy->getPointerAddressSpace()) {
   case kSpirOffloadPrivateAS:
+    return !ClSpirOffloadPrivates;
   case kSpirOffloadLocalAS:
-    return true;
+    return !ClSpirOffloadLocals;
   case kSpirOffloadGenericAS:
     return false;
   }
@@ -1403,7 +1771,7 @@ static void setNoSanitizedMetadataSPIR(Instruction &I) {
     Addr = XCHG->getPointerOperand();
   else if (const auto *ASC = dyn_cast<AddrSpaceCastInst>(&I))
     Addr = ASC->getPointerOperand();
-  else if (isa<AllocaInst>(&I))
+  else if (isa<AllocaInst>(&I) && !ClSpirOffloadPrivates)
     I.setNoSanitizeMetadata();
   else if (const auto *CI = dyn_cast<CallInst>(&I)) {
     auto *Func = CI->getCalledFunction();
@@ -1516,8 +1884,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     removeUnreachableBlocks(F);
 
     MS.initializeCallbacks(*F.getParent(), TLI);
-    FnPrologueEnd = IRBuilder<>(F.getEntryBlock().getFirstNonPHI())
-                        .CreateIntrinsic(Intrinsic::donothing, {}, {});
+    FnPrologueEnd =
+        IRBuilder<>(&F.getEntryBlock(), F.getEntryBlock().getFirstNonPHIIt())
+            .CreateIntrinsic(Intrinsic::donothing, {}, {});
 
     if (MS.CompileKernel) {
       IRBuilder<> IRB(FnPrologueEnd);
@@ -1582,7 +1951,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       Value *End =
           IRB.CreateUDiv(RoundUp, ConstantInt::get(MS.IntptrTy, kOriginSize));
       auto [InsertPt, Index] =
-          SplitBlockAndInsertSimpleForLoop(End, &*IRB.GetInsertPoint());
+          SplitBlockAndInsertSimpleForLoop(End, IRB.GetInsertPoint());
       IRB.SetInsertPoint(InsertPt);
 
       Value *GEP = IRB.CreateGEP(MS.OriginTy, OriginPtr, Index);
@@ -1695,7 +2064,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   }
 
   void appendDebugInfoToArgs(IRBuilder<> &IRB, SmallVectorImpl<Value *> &Args) {
-    auto *M = F.getParent();
     auto &C = IRB.getContext();
     auto DebugLoc = IRB.getCurrentDebugLocation();
 
@@ -1707,8 +2075,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (DebugLoc) {
       llvm::SmallString<128> Source = DebugLoc->getDirectory();
       sys::path::append(Source, DebugLoc->getFilename());
-      auto *FileNameGV = getOrCreateGlobalString(*M, "__msan_file", Source,
-                                                 kSpirOffloadConstantAS);
+      auto *FileNameGV = MS.Spirv.getOrCreateGlobalString(
+          "__msan_file", Source, kSpirOffloadConstantAS);
       Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
       Args.push_back(ConstantInt::get(Type::getInt32Ty(C), DebugLoc.getLine()));
     } else {
@@ -1718,8 +2086,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     // function name
     auto FuncName = F.getName();
-    auto *FuncNameGV = getOrCreateGlobalString(
-        *M, "__msan_func", demangle(FuncName), kSpirOffloadConstantAS);
+    auto *FuncNameGV = MS.Spirv.getOrCreateGlobalString(
+        "__msan_func", demangle(FuncName), kSpirOffloadConstantAS);
     Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
   }
 
@@ -1782,9 +2150,38 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         CB->addParamAttr(0, Attribute::ZExt);
         CB->addParamAttr(1, Attribute::ZExt);
       } else { // SPIR or SPIR-V
-        SmallVector<Value *, 5> Args = {
-            ConvertedShadow2,
-            MS.TrackOrigins && Origin ? Origin : (Value *)IRB.getInt32(0)};
+        // Pass the pointer of shadow memory to the report function
+        SmallVector<Value *, 5> Args = {ConvertedShadow2};
+
+        if (ClSpirOffloadDebug) {
+          // Attempt to get the shadow memory
+          if (auto *LoadShadow = dyn_cast<LoadInst>(ConvertedShadow)) {
+            Args.emplace_back(IRB.CreatePointerCast(
+                LoadShadow->getPointerOperand(), MS.IntptrTy));
+          } else if (auto *BinaryOp =
+                         dyn_cast<BinaryOperator>(ConvertedShadow)) {
+            Value *LastOperand = nullptr;
+            do {
+              LastOperand = BinaryOp->getOperand(0);
+              // TODO: assert second operand is 0
+              BinaryOp = dyn_cast<BinaryOperator>(LastOperand);
+            } while (BinaryOp && BinaryOp->getOpcode() == Instruction::Or);
+
+            if (auto *LoadShadow = dyn_cast<LoadInst>(LastOperand)) {
+              Args.emplace_back(IRB.CreatePointerCast(
+                  LoadShadow->getPointerOperand(), MS.IntptrTy));
+            }
+          } else if (auto *Trunc = dyn_cast<TruncInst>(ConvertedShadow)) {
+            if (auto *LoadShadow = dyn_cast<LoadInst>(Trunc->getOperand(0))) {
+              Args.emplace_back(IRB.CreatePointerCast(
+                  LoadShadow->getPointerOperand(), MS.IntptrTy));
+            }
+          }
+        }
+
+        if (Args.size() == 1) {
+          Args.emplace_back(ConstantInt::get(MS.IntptrTy, 0));
+        }
 
         appendDebugInfoToArgs(IRB, Args);
 
@@ -1809,7 +2206,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     const DataLayout &DL = F.getDataLayout();
     // Disable combining in some cases. TrackOrigins checks each shadow to pick
     // correct origin.
-    bool Combine = !MS.TrackOrigins;
+    bool Combine = !(MS.TrackOrigins || ClSpirOffloadDebug);
     Instruction *Instruction = InstructionChecks.front().OrigIns;
     Value *Shadow = nullptr;
     for (const auto &ShadowData : InstructionChecks) {
@@ -2088,13 +2485,15 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     return ConstantInt::get(MS.IntptrTy, C);
   }
 
-  /// Compute the integer shadow offset that corresponds to a given
-  /// application address.
+  /// Returns the integer shadow offset that corresponds to a given
+  /// application address, whereby:
   ///
-  /// Offset = (Addr & ~AndMask) ^ XorMask
-  /// Addr can be a ptr or <N x ptr>. In both cases ShadowTy the shadow type of
-  /// a single pointee.
-  /// Returns <shadow_ptr, origin_ptr> or <<N x shadow_ptr>, <N x origin_ptr>>.
+  ///     Offset = (Addr & ~AndMask) ^ XorMask
+  ///     Shadow = ShadowBase + Offset
+  ///     Origin = (OriginBase + Offset) & ~Alignment
+  ///
+  /// Note: for efficiency, many shadow mappings only require use the XorMask
+  ///       and OriginBase; the AndMask and ShadowBase are often zero.
   Value *getShadowPtrOffset(Value *Addr, IRBuilder<> &IRB) {
     Type *IntptrTy = ptrToIntPtrType(Addr->getType());
     Value *OffsetLong = IRB.CreatePointerCast(Addr, IntptrTy);
@@ -2108,10 +2507,17 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
         OffsetLong =
             IRB.CreateXor(OffsetLong, constToIntPtr(IntptrTy, XorMask));
     } else { // SPIR or SPIR-V
+      auto *ConstASPtrTy = PointerType::get(Type::getInt8Ty(Addr->getContext()),
+                                            kSpirOffloadConstantAS);
+      auto *FuncNameGV = MS.Spirv.getOrCreateGlobalString(
+          "__msan_func", F.getName(), kSpirOffloadConstantAS);
+
       OffsetLong = IRB.CreateCall(
           MS.MsanGetShadowFn,
-          {OffsetLong,
-           IRB.getInt32(Addr->getType()->getPointerAddressSpace())});
+          {OffsetLong, IRB.getInt32(Addr->getType()->getPointerAddressSpace()),
+           ClSpirOffloadDebug
+               ? ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy)
+               : ConstantPointerNull::get(ConstASPtrTy)});
     }
 
     return OffsetLong;
@@ -2369,10 +2775,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       unsigned ArgOffset = 0;
       const DataLayout &DL = F->getDataLayout();
       for (auto &FArg : F->args()) {
-        // FIXME: Need to find a reasonable way to handle byval arguments for
-        // spirv target.
-        if (!FArg.getType()->isSized() || FArg.getType()->isScalableTy() ||
-            (SpirOrSpirv && FArg.hasByValAttr())) {
+        if (!FArg.getType()->isSized() || FArg.getType()->isScalableTy()) {
           LLVM_DEBUG(dbgs() << (FArg.getType()->isScalableTy()
                                     ? "vscale not fully supported\n"
                                     : "Arg is not sized\n"));
@@ -2389,6 +2792,24 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                             : DL.getTypeAllocSize(FArg.getType());
 
         if (A == &FArg) {
+          // SPIR-V doesn't propagate shadow for arguments.
+          if (SpirOrSpirv) {
+            if (FArg.hasByValAttr()) {
+              const Align ArgAlign = DL.getValueOrABITypeAlignment(
+                  FArg.getParamAlign(), FArg.getParamByValType());
+              Value *CpShadowPtr, *CpOriginPtr;
+              std::tie(CpShadowPtr, CpOriginPtr) = getShadowOriginPtr(
+                  V, EntryIRB, EntryIRB.getInt8Ty(), ArgAlign,
+                  /*isStore*/ true);
+              EntryIRB.CreateMemSet(
+                  CpShadowPtr, Constant::getNullValue(EntryIRB.getInt8Ty()),
+                  Size, ArgAlign);
+            }
+            ShadowPtr = getCleanShadow(V);
+            setOrigin(A, getCleanOrigin());
+            break;
+          }
+
           bool Overflow = ArgOffset + Size > kParamTLSSize;
           if (FArg.hasByValAttr()) {
             // ByVal pointer itself has clean shadow. We copy the actual
@@ -2981,6 +3402,134 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     SC.Done(&I);
   }
 
+  /// Propagate shadow for 1- or 2-vector intrinsics that combine adjacent
+  /// fields.
+  ///
+  /// e.g., <2 x i32> @llvm.aarch64.neon.saddlp.v2i32.v4i16(<4 x i16>)
+  ///       <16 x i8> @llvm.aarch64.neon.addp.v16i8(<16 x i8>, <16 x i8>)
+  void handlePairwiseShadowOrIntrinsic(IntrinsicInst &I) {
+    assert(I.arg_size() == 1 || I.arg_size() == 2);
+
+    assert(I.getType()->isVectorTy());
+    assert(I.getArgOperand(0)->getType()->isVectorTy());
+
+    FixedVectorType *ParamType =
+        cast<FixedVectorType>(I.getArgOperand(0)->getType());
+    assert((I.arg_size() != 2) ||
+           (ParamType == cast<FixedVectorType>(I.getArgOperand(1)->getType())));
+    [[maybe_unused]] FixedVectorType *ReturnType =
+        cast<FixedVectorType>(I.getType());
+    assert(ParamType->getNumElements() * I.arg_size() ==
+           2 * ReturnType->getNumElements());
+
+    IRBuilder<> IRB(&I);
+    unsigned Width = ParamType->getNumElements() * I.arg_size();
+
+    // Horizontal OR of shadow
+    SmallVector<int, 8> EvenMask;
+    SmallVector<int, 8> OddMask;
+    for (unsigned X = 0; X < Width; X += 2) {
+      EvenMask.push_back(X);
+      OddMask.push_back(X + 1);
+    }
+
+    Value *FirstArgShadow = getShadow(&I, 0);
+    Value *EvenShadow;
+    Value *OddShadow;
+    if (I.arg_size() == 2) {
+      Value *SecondArgShadow = getShadow(&I, 1);
+      EvenShadow =
+          IRB.CreateShuffleVector(FirstArgShadow, SecondArgShadow, EvenMask);
+      OddShadow =
+          IRB.CreateShuffleVector(FirstArgShadow, SecondArgShadow, OddMask);
+    } else {
+      EvenShadow = IRB.CreateShuffleVector(FirstArgShadow, EvenMask);
+      OddShadow = IRB.CreateShuffleVector(FirstArgShadow, OddMask);
+    }
+
+    Value *OrShadow = IRB.CreateOr(EvenShadow, OddShadow);
+    OrShadow = CreateShadowCast(IRB, OrShadow, getShadowTy(&I));
+
+    setShadow(&I, OrShadow);
+    setOriginForNaryOp(I);
+  }
+
+  /// Propagate shadow for 1- or 2-vector intrinsics that combine adjacent
+  /// fields, with the parameters reinterpreted to have elements of a specified
+  /// width. For example:
+  ///     @llvm.x86.ssse3.phadd.w(<1 x i64> [[VAR1]], <1 x i64> [[VAR2]])
+  /// conceptually operates on
+  ///     (<4 x i16> [[VAR1]], <4 x i16> [[VAR2]])
+  /// and can be handled with ReinterpretElemWidth == 16.
+  void handlePairwiseShadowOrIntrinsic(IntrinsicInst &I,
+                                       int ReinterpretElemWidth) {
+    assert(I.arg_size() == 1 || I.arg_size() == 2);
+
+    assert(I.getType()->isVectorTy());
+    assert(I.getArgOperand(0)->getType()->isVectorTy());
+
+    FixedVectorType *ParamType =
+        cast<FixedVectorType>(I.getArgOperand(0)->getType());
+    assert((I.arg_size() != 2) ||
+           (ParamType == cast<FixedVectorType>(I.getArgOperand(1)->getType())));
+
+    [[maybe_unused]] FixedVectorType *ReturnType =
+        cast<FixedVectorType>(I.getType());
+    assert(ParamType->getNumElements() * I.arg_size() ==
+           2 * ReturnType->getNumElements());
+
+    IRBuilder<> IRB(&I);
+
+    unsigned TotalNumElems = ParamType->getNumElements() * I.arg_size();
+    FixedVectorType *ReinterpretShadowTy = nullptr;
+    assert(isAligned(Align(ReinterpretElemWidth),
+                     ParamType->getPrimitiveSizeInBits()));
+    ReinterpretShadowTy = FixedVectorType::get(
+        IRB.getIntNTy(ReinterpretElemWidth),
+        ParamType->getPrimitiveSizeInBits() / ReinterpretElemWidth);
+    TotalNumElems = ReinterpretShadowTy->getNumElements() * I.arg_size();
+
+    // Horizontal OR of shadow
+    SmallVector<int, 8> EvenMask;
+    SmallVector<int, 8> OddMask;
+    for (unsigned X = 0; X < TotalNumElems - 1; X += 2) {
+      EvenMask.push_back(X);
+      OddMask.push_back(X + 1);
+    }
+
+    Value *FirstArgShadow = getShadow(&I, 0);
+    FirstArgShadow = IRB.CreateBitCast(FirstArgShadow, ReinterpretShadowTy);
+
+    // If we had two parameters each with an odd number of elements, the total
+    // number of elements is even, but we have never seen this in extant
+    // instruction sets, so we enforce that each parameter must have an even
+    // number of elements.
+    assert(isAligned(
+        Align(2),
+        cast<FixedVectorType>(FirstArgShadow->getType())->getNumElements()));
+
+    Value *EvenShadow;
+    Value *OddShadow;
+    if (I.arg_size() == 2) {
+      Value *SecondArgShadow = getShadow(&I, 1);
+      SecondArgShadow = IRB.CreateBitCast(SecondArgShadow, ReinterpretShadowTy);
+
+      EvenShadow =
+          IRB.CreateShuffleVector(FirstArgShadow, SecondArgShadow, EvenMask);
+      OddShadow =
+          IRB.CreateShuffleVector(FirstArgShadow, SecondArgShadow, OddMask);
+    } else {
+      EvenShadow = IRB.CreateShuffleVector(FirstArgShadow, EvenMask);
+      OddShadow = IRB.CreateShuffleVector(FirstArgShadow, OddMask);
+    }
+
+    Value *OrShadow = IRB.CreateOr(EvenShadow, OddShadow);
+    OrShadow = CreateShadowCast(IRB, OrShadow, getShadowTy(&I));
+
+    setShadow(&I, OrShadow);
+    setOriginForNaryOp(I);
+  }
+
   void visitFNeg(UnaryOperator &I) { handleShadowOr(I); }
 
   // Handle multiplication by constant.
@@ -3261,13 +3810,23 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   ///
   /// Similar situation exists for memcpy and memset.
   void visitMemMoveInst(MemMoveInst &I) {
-    if (SpirOrSpirv && ((isa<Instruction>(I.getArgOperand(0)) &&
-                         cast<Instruction>(I.getArgOperand(0))
-                             ->getMetadata(LLVMContext::MD_nosanitize)) ||
-                        (isa<Instruction>(I.getArgOperand(1)) &&
-                         cast<Instruction>(I.getArgOperand(1))
-                             ->getMetadata(LLVMContext::MD_nosanitize))))
-      return;
+    if (SpirOrSpirv) {
+      // If the destination is a nosanitize value, we don't need to update its
+      // shadow memory
+      if (isa<Instruction>(I.getArgOperand(0)) &&
+          cast<Instruction>(I.getArgOperand(0))
+              ->getMetadata(LLVMContext::MD_nosanitize))
+        return;
+
+      // If we disable checking local/private memory, we needn't update its
+      // shadow memory
+      if (!ClSpirOffloadLocals &&
+          I.getDestAddressSpace() == kSpirOffloadLocalAS)
+        return;
+      if (!ClSpirOffloadPrivates &&
+          I.getDestAddressSpace() == kSpirOffloadPrivateAS)
+        return;
+    }
 
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
@@ -3294,13 +3853,20 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// __msan_memcpy(). Should this be wrong, such as when implementing memcpy()
   /// itself, instrumentation should be disabled with the no_sanitize attribute.
   void visitMemCpyInst(MemCpyInst &I) {
-    if (SpirOrSpirv && ((isa<Instruction>(I.getArgOperand(0)) &&
-                         cast<Instruction>(I.getArgOperand(0))
-                             ->getMetadata(LLVMContext::MD_nosanitize)) ||
-                        (isa<Instruction>(I.getArgOperand(1)) &&
-                         cast<Instruction>(I.getArgOperand(1))
-                             ->getMetadata(LLVMContext::MD_nosanitize))))
-      return;
+    if (SpirOrSpirv) {
+      // Same as memmove
+      if (isa<Instruction>(I.getArgOperand(0)) &&
+          cast<Instruction>(I.getArgOperand(0))
+              ->getMetadata(LLVMContext::MD_nosanitize))
+        return;
+
+      if (!ClSpirOffloadLocals &&
+          I.getDestAddressSpace() == kSpirOffloadLocalAS)
+        return;
+      if (!ClSpirOffloadPrivates &&
+          I.getDestAddressSpace() == kSpirOffloadPrivateAS)
+        return;
+    }
 
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
@@ -3314,10 +3880,20 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   // Same as memcpy.
   void visitMemSetInst(MemSetInst &I) {
-    if (SpirOrSpirv && isa<Instruction>(I.getArgOperand(0)) &&
-        cast<Instruction>(I.getArgOperand(0))
-            ->getMetadata(LLVMContext::MD_nosanitize))
-      return;
+    if (SpirOrSpirv) {
+      // Same as memmove
+      if (isa<Instruction>(I.getArgOperand(0)) &&
+          cast<Instruction>(I.getArgOperand(0))
+              ->getMetadata(LLVMContext::MD_nosanitize))
+        return;
+
+      if (!ClSpirOffloadLocals &&
+          I.getDestAddressSpace() == kSpirOffloadLocalAS)
+        return;
+      if (!ClSpirOffloadPrivates &&
+          I.getDestAddressSpace() == kSpirOffloadPrivateAS)
+        return;
+    }
 
     IRBuilder<> IRB(&I);
     IRB.CreateCall(
@@ -3337,6 +3913,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// Instrument intrinsics that look like a simple SIMD store: writes memory,
   /// has 1 pointer argument and 1 vector argument, returns void.
   bool handleVectorStoreIntrinsic(IntrinsicInst &I) {
+    assert(I.arg_size() == 2);
+
     IRBuilder<> IRB(&I);
     Value *Addr = I.getArgOperand(0);
     Value *Shadow = getShadow(&I, 1);
@@ -3362,6 +3940,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// Instrument intrinsics that look like a simple SIMD load: reads memory,
   /// has 1 pointer argument, returns a vector.
   bool handleVectorLoadIntrinsic(IntrinsicInst &I) {
+    assert(I.arg_size() == 1);
+
     IRBuilder<> IRB(&I);
     Value *Addr = I.getArgOperand(0);
 
@@ -3393,17 +3973,27 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   /// Handle (SIMD arithmetic)-like intrinsics.
   ///
-  /// Instrument intrinsics with any number of arguments of the same type,
-  /// equal to the return type. The type should be simple (no aggregates or
-  /// pointers; vectors are fine).
+  /// Instrument intrinsics with any number of arguments of the same type [*],
+  /// equal to the return type, plus a specified number of trailing flags of
+  /// any type.
+  ///
+  /// [*] The type should be simple (no aggregates or pointers; vectors are
+  /// fine).
+  ///
   /// Caller guarantees that this intrinsic does not access memory.
-  bool maybeHandleSimpleNomemIntrinsic(IntrinsicInst &I) {
+  ///
+  /// TODO: "horizontal"/"pairwise" intrinsics are often incorrectly matched by
+  ///       by this handler.
+  [[maybe_unused]] bool
+  maybeHandleSimpleNomemIntrinsic(IntrinsicInst &I,
+                                  unsigned int trailingFlags) {
     Type *RetTy = I.getType();
     if (!(RetTy->isIntOrIntVectorTy() || RetTy->isFPOrFPVectorTy()))
       return false;
 
     unsigned NumArgOperands = I.arg_size();
-    for (unsigned i = 0; i < NumArgOperands; ++i) {
+    assert(NumArgOperands >= trailingFlags);
+    for (unsigned i = 0; i < NumArgOperands - trailingFlags; ++i) {
       Type *Ty = I.getArgOperand(i)->getType();
       if (Ty != RetTy)
         return false;
@@ -3447,10 +4037,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     }
 
     if (I.doesNotAccessMemory())
-      if (maybeHandleSimpleNomemIntrinsic(I))
+      if (maybeHandleSimpleNomemIntrinsic(I, /*trailingFlags=*/0))
         return true;
 
-    // FIXME: detect and handle SSE maskstore/maskload
+    // FIXME: detect and handle SSE maskstore/maskload?
+    // Some cases are now handled in handleAVXMasked{Load,Store}.
     return false;
   }
 
@@ -3510,7 +4101,89 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     setOriginForNaryOp(I);
   }
 
-  // Instrument vector convert intrinsic.
+  /// Handle Arm NEON vector convert intrinsics.
+  ///
+  /// e.g., <4 x i32> @llvm.aarch64.neon.fcvtpu.v4i32.v4f32(<4 x float>)
+  ///      i32 @llvm.aarch64.neon.fcvtms.i32.f64(double)
+  ///
+  /// For x86 SSE vector convert intrinsics, see
+  /// handleSSEVectorConvertIntrinsic().
+  void handleNEONVectorConvertIntrinsic(IntrinsicInst &I) {
+    assert(I.arg_size() == 1);
+
+    IRBuilder<> IRB(&I);
+    Value *S0 = getShadow(&I, 0);
+
+    /// For scalars:
+    /// Since they are converting from floating-point to integer, the output is
+    /// - fully uninitialized if *any* bit of the input is uninitialized
+    /// - fully ininitialized if all bits of the input are ininitialized
+    /// We apply the same principle on a per-field basis for vectors.
+    Value *OutShadow = IRB.CreateSExt(IRB.CreateICmpNE(S0, getCleanShadow(S0)),
+                                      getShadowTy(&I));
+    setShadow(&I, OutShadow);
+    setOriginForNaryOp(I);
+  }
+
+  /// Handle x86 SSE single-precision to half-precision conversion.
+  ///
+  /// e.g.,
+  ///      <8 x i16> @llvm.x86.vcvtps2ph.256(<8 x float> %a0, i32 0)
+  ///      <8 x i16> @llvm.x86.vcvtps2ph.128(<4 x float> %a0, i32 0)
+  /// Note: if the output has more elements, they are zero-initialized (and
+  /// therefore the shadow will also be initialized).
+  ///
+  /// This differs from handleSSEVectorConvertIntrinsic() because it
+  /// propagates uninitialized shadow (instead of checking the shadow).
+  void handleSSEVectorConvertIntrinsicByProp(IntrinsicInst &I) {
+    assert(I.arg_size() == 2);
+    Value *Src = I.getArgOperand(0);
+    assert(Src->getType()->isVectorTy());
+    [[maybe_unused]] Value *RoundingMode = I.getArgOperand(1);
+    assert(RoundingMode->getType()->isIntegerTy());
+
+    // The return type might have more elements than the input.
+    // Temporarily shrink the return type's number of elements.
+    VectorType *ShadowType = cast<VectorType>(getShadowTy(&I));
+    if (ShadowType->getElementCount() ==
+        cast<VectorType>(Src->getType())->getElementCount() * 2)
+      ShadowType = VectorType::getHalfElementsVectorType(ShadowType);
+
+    assert(ShadowType->getElementCount() ==
+           cast<VectorType>(Src->getType())->getElementCount());
+
+    IRBuilder<> IRB(&I);
+    Value *S0 = getShadow(&I, 0);
+
+    /// For scalars:
+    /// Since they are converting from floating-point to integer, the output is
+    /// - fully uninitialized if *any* bit of the input is uninitialized
+    /// - fully ininitialized if all bits of the input are ininitialized
+    /// We apply the same principle on a per-field basis for vectors.
+    Value *Shadow =
+        IRB.CreateSExt(IRB.CreateICmpNE(S0, getCleanShadow(S0)), ShadowType);
+
+    // The return type might have more elements than the input.
+    // Extend the return type back to its original width if necessary.
+    Value *FullShadow = getCleanShadow(&I);
+
+    if (Shadow->getType() == FullShadow->getType()) {
+      FullShadow = Shadow;
+    } else {
+      SmallVector<int, 8> ShadowMask(
+          cast<FixedVectorType>(FullShadow->getType())->getNumElements());
+      std::iota(ShadowMask.begin(), ShadowMask.end(), 0);
+
+      // Append zeros
+      FullShadow =
+          IRB.CreateShuffleVector(Shadow, getCleanShadow(Shadow), ShadowMask);
+    }
+
+    setShadow(&I, FullShadow);
+    setOriginForNaryOp(I);
+  }
+
+  // Instrument x86 SSE vector convert intrinsic.
   //
   // This function instruments intrinsics like cvtsi2ss:
   // %Out = int_xxx_cvtyyy(%ConvertOp)
@@ -3525,8 +4198,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   // We copy the shadow of \p CopyOp[NumUsedElements:] to \p
   // Out[NumUsedElements:]. This means that intrinsics without \p CopyOp always
   // return a fully initialized value.
-  void handleVectorConvertIntrinsic(IntrinsicInst &I, int NumUsedElements,
-                                    bool HasRoundingMode = false) {
+  //
+  // For Arm NEON vector convert intrinsics, see
+  // handleNEONVectorConvertIntrinsic().
+  void handleSSEVectorConvertIntrinsic(IntrinsicInst &I, int NumUsedElements,
+                                       bool HasRoundingMode = false) {
     IRBuilder<> IRB(&I);
     Value *CopyOp, *ConvertOp;
 
@@ -3889,17 +4565,49 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   // Instrument generic vector reduction intrinsics
   // by ORing together all their fields.
-  void handleVectorReduceIntrinsic(IntrinsicInst &I) {
+  //
+  // If AllowShadowCast is true, the return type does not need to be the same
+  // type as the fields
+  // e.g., declare i32 @llvm.aarch64.neon.uaddv.i32.v16i8(<16 x i8>)
+  void handleVectorReduceIntrinsic(IntrinsicInst &I, bool AllowShadowCast) {
+    assert(I.arg_size() == 1);
+
     IRBuilder<> IRB(&I);
     Value *S = IRB.CreateOrReduce(getShadow(&I, 0));
+    if (AllowShadowCast)
+      S = CreateShadowCast(IRB, S, getShadowTy(&I));
+    else
+      assert(S->getType() == getShadowTy(&I));
     setShadow(&I, S);
-    setOrigin(&I, getOrigin(&I, 0));
+    setOriginForNaryOp(I);
+  }
+
+  // Similar to handleVectorReduceIntrinsic but with an initial starting value.
+  // e.g., call float @llvm.vector.reduce.fadd.f32.v2f32(float %a0, <2 x float>
+  // %a1)
+  //       shadow = shadow[a0] | shadow[a1.0] | shadow[a1.1]
+  //
+  // The type of the return value, initial starting value, and elements of the
+  // vector must be identical.
+  void handleVectorReduceWithStarterIntrinsic(IntrinsicInst &I) {
+    assert(I.arg_size() == 2);
+
+    IRBuilder<> IRB(&I);
+    Value *Shadow0 = getShadow(&I, 0);
+    Value *Shadow1 = IRB.CreateOrReduce(getShadow(&I, 1));
+    assert(Shadow0->getType() == Shadow1->getType());
+    Value *S = IRB.CreateOr(Shadow0, Shadow1);
+    assert(S->getType() == getShadowTy(&I));
+    setShadow(&I, S);
+    setOriginForNaryOp(I);
   }
 
   // Instrument vector.reduce.or intrinsic.
   // Valid (non-poisoned) set bits in the operand pull low the
   // corresponding shadow bits.
   void handleVectorReduceOrIntrinsic(IntrinsicInst &I) {
+    assert(I.arg_size() == 1);
+
     IRBuilder<> IRB(&I);
     Value *OperandShadow = getShadow(&I, 0);
     Value *OperandUnsetBits = IRB.CreateNot(I.getOperand(0));
@@ -3918,6 +4626,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   // Valid (non-poisoned) unset bits in the operand pull down the
   // corresponding shadow bits.
   void handleVectorReduceAndIntrinsic(IntrinsicInst &I) {
+    assert(I.arg_size() == 1);
+
     IRBuilder<> IRB(&I);
     Value *OperandShadow = getShadow(&I, 0);
     Value *OperandSetOrPoison = IRB.CreateOr(I.getOperand(0), OperandShadow);
@@ -4087,6 +4797,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // TODO: Store origin.
   }
 
+  // Intrinsic::masked_store
+  //
+  // Note: handleAVXMaskedStore handles AVX/AVX2 variants, though AVX512 masked
+  //       stores are lowered to Intrinsic::masked_store.
   void handleMaskedStore(IntrinsicInst &I) {
     IRBuilder<> IRB(&I);
     Value *V = I.getArgOperand(0);
@@ -4117,6 +4831,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
                 std::max(Alignment, kMinOriginAlignment));
   }
 
+  // Intrinsic::masked_load
+  //
+  // Note: handleAVXMaskedLoad handles AVX/AVX2 variants, though AVX512 masked
+  //       loads are lowered to Intrinsic::masked_load.
   void handleMaskedLoad(IntrinsicInst &I) {
     IRBuilder<> IRB(&I);
     Value *Ptr = I.getArgOperand(0);
@@ -4156,6 +4874,129 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     Value *Origin = IRB.CreateSelect(NotNull, getOrigin(PassThru), PtrOrigin);
 
     setOrigin(&I, Origin);
+  }
+
+  // e.g., void @llvm.x86.avx.maskstore.ps.256(ptr, <8 x i32>, <8 x float>)
+  //                                           dst  mask       src
+  //
+  // AVX512 masked stores are lowered to Intrinsic::masked_load and are handled
+  // by handleMaskedStore.
+  //
+  // This function handles AVX and AVX2 masked stores; these use the MSBs of a
+  // vector of integers, unlike the LLVM masked intrinsics, which require a
+  // vector of booleans. X86InstCombineIntrinsic.cpp::simplifyX86MaskedLoad
+  // mentions that the x86 backend does not know how to efficiently convert
+  // from a vector of booleans back into the AVX mask format; therefore, they
+  // (and we) do not reduce AVX/AVX2 masked intrinsics into LLVM masked
+  // intrinsics.
+  void handleAVXMaskedStore(IntrinsicInst &I) {
+    assert(I.arg_size() == 3);
+
+    IRBuilder<> IRB(&I);
+
+    Value *Dst = I.getArgOperand(0);
+    assert(Dst->getType()->isPointerTy() && "Destination is not a pointer!");
+
+    Value *Mask = I.getArgOperand(1);
+    assert(isa<VectorType>(Mask->getType()) && "Mask is not a vector!");
+
+    Value *Src = I.getArgOperand(2);
+    assert(isa<VectorType>(Src->getType()) && "Source is not a vector!");
+
+    const Align Alignment = Align(1);
+
+    Value *SrcShadow = getShadow(Src);
+
+    if (ClCheckAccessAddress) {
+      insertShadowCheck(Dst, &I);
+      insertShadowCheck(Mask, &I);
+    }
+
+    Value *DstShadowPtr;
+    Value *DstOriginPtr;
+    std::tie(DstShadowPtr, DstOriginPtr) = getShadowOriginPtr(
+        Dst, IRB, SrcShadow->getType(), Alignment, /*isStore*/ true);
+
+    SmallVector<Value *, 2> ShadowArgs;
+    ShadowArgs.append(1, DstShadowPtr);
+    ShadowArgs.append(1, Mask);
+    // The intrinsic may require floating-point but shadows can be arbitrary
+    // bit patterns, of which some would be interpreted as "invalid"
+    // floating-point values (NaN etc.); we assume the intrinsic will happily
+    // copy them.
+    ShadowArgs.append(1, IRB.CreateBitCast(SrcShadow, Src->getType()));
+
+    CallInst *CI =
+        IRB.CreateIntrinsic(IRB.getVoidTy(), I.getIntrinsicID(), ShadowArgs);
+    setShadow(&I, CI);
+
+    if (!MS.TrackOrigins)
+      return;
+
+    // Approximation only
+    auto &DL = F.getDataLayout();
+    paintOrigin(IRB, getOrigin(Src), DstOriginPtr,
+                DL.getTypeStoreSize(SrcShadow->getType()),
+                std::max(Alignment, kMinOriginAlignment));
+  }
+
+  // e.g., <8 x float> @llvm.x86.avx.maskload.ps.256(ptr, <8 x i32>)
+  //       return                                    src  mask
+  //
+  // Masked-off values are replaced with 0, which conveniently also represents
+  // initialized memory.
+  //
+  // AVX512 masked stores are lowered to Intrinsic::masked_load and are handled
+  // by handleMaskedStore.
+  //
+  // We do not combine this with handleMaskedLoad; see comment in
+  // handleAVXMaskedStore for the rationale.
+  //
+  // This is subtly different than handleIntrinsicByApplyingToShadow(I, 1)
+  // because we need to apply getShadowOriginPtr, not getShadow, to the first
+  // parameter.
+  void handleAVXMaskedLoad(IntrinsicInst &I) {
+    assert(I.arg_size() == 2);
+
+    IRBuilder<> IRB(&I);
+
+    Value *Src = I.getArgOperand(0);
+    assert(Src->getType()->isPointerTy() && "Source is not a pointer!");
+
+    Value *Mask = I.getArgOperand(1);
+    assert(isa<VectorType>(Mask->getType()) && "Mask is not a vector!");
+
+    const Align Alignment = Align(1);
+
+    if (ClCheckAccessAddress) {
+      insertShadowCheck(Mask, &I);
+    }
+
+    Type *SrcShadowTy = getShadowTy(Src);
+    Value *SrcShadowPtr, *SrcOriginPtr;
+    std::tie(SrcShadowPtr, SrcOriginPtr) =
+        getShadowOriginPtr(Src, IRB, SrcShadowTy, Alignment, /*isStore*/ false);
+
+    SmallVector<Value *, 2> ShadowArgs;
+    ShadowArgs.append(1, SrcShadowPtr);
+    ShadowArgs.append(1, Mask);
+
+    CallInst *CI =
+        IRB.CreateIntrinsic(I.getType(), I.getIntrinsicID(), ShadowArgs);
+    // The intrinsic may require floating-point but shadows can be arbitrary
+    // bit patterns, of which some would be interpreted as "invalid"
+    // floating-point values (NaN etc.); we assume the intrinsic will happily
+    // copy them.
+    setShadow(&I, IRB.CreateBitCast(CI, getShadowTy(&I)));
+
+    if (!MS.TrackOrigins)
+      return;
+
+    // The "pass-through" value is always zero (initialized). To the extent
+    // that that results in initialized aligned 4-byte chunks, the origin value
+    // is ignored. It is therefore correct to simply copy the origin from src.
+    Value *PtrSrcOrigin = IRB.CreateLoad(MS.OriginTy, SrcOriginPtr);
+    setOrigin(&I, PtrSrcOrigin);
   }
 
   // Instrument BMI / BMI2 intrinsics.
@@ -4415,6 +5256,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   ///     shadow[out] =
   ///         intrinsic(shadow[var1], shadow[var2], opType) | shadow[opType]
   ///
+  /// Typically, shadowIntrinsicID will be specified by the caller to be
+  /// I.getIntrinsicID(), but the caller can choose to replace it with another
+  /// intrinsic of the same type.
+  ///
   /// CAUTION: this assumes that the intrinsic will handle arbitrary
   ///          bit-patterns (for example, if the intrinsic accepts floats for
   ///          var1, we require that it doesn't care if inputs are NaNs).
@@ -4424,6 +5269,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   ///
   /// The origin is approximated using setOriginForNaryOp.
   void handleIntrinsicByApplyingToShadow(IntrinsicInst &I,
+                                         Intrinsic::ID shadowIntrinsicID,
                                          unsigned int trailingVerbatimArgs) {
     IRBuilder<> IRB(&I);
 
@@ -4447,7 +5293,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     }
 
     CallInst *CI =
-        IRB.CreateIntrinsic(I.getType(), I.getIntrinsicID(), ShadowArgs);
+        IRB.CreateIntrinsic(I.getType(), shadowIntrinsicID, ShadowArgs);
     Value *CombinedShadow = CI;
 
     // Combine the computed shadow with the shadow of trailing args
@@ -4464,7 +5310,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   }
 
   // Approximation only
+  //
+  // e.g., <16 x i8> @llvm.aarch64.neon.pmull64(i64, i64)
   void handleNEONVectorMultiplyIntrinsic(IntrinsicInst &I) {
+    assert(I.arg_size() == 2);
+
     handleShadowOr(I);
   }
 
@@ -4480,6 +5330,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       break;
     case Intrinsic::abs:
       handleAbsIntrinsic(I);
+      break;
+    case Intrinsic::bitreverse:
+      handleIntrinsicByApplyingToShadow(I, I.getIntrinsicID(),
+                                        /*trailingVerbatimArgs*/ 0);
       break;
     case Intrinsic::is_fpclass:
       handleIsFpClass(I);
@@ -4522,11 +5376,28 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::vector_reduce_or:
       handleVectorReduceOrIntrinsic(I);
       break;
+
     case Intrinsic::vector_reduce_add:
     case Intrinsic::vector_reduce_xor:
     case Intrinsic::vector_reduce_mul:
-      handleVectorReduceIntrinsic(I);
+    // Signed/Unsigned Min/Max
+    // TODO: handling similarly to AND/OR may be more precise.
+    case Intrinsic::vector_reduce_smax:
+    case Intrinsic::vector_reduce_smin:
+    case Intrinsic::vector_reduce_umax:
+    case Intrinsic::vector_reduce_umin:
+    // TODO: this has no false positives, but arguably we should check that all
+    // the bits are initialized.
+    case Intrinsic::vector_reduce_fmax:
+    case Intrinsic::vector_reduce_fmin:
+      handleVectorReduceIntrinsic(I, /*AllowShadowCast=*/false);
       break;
+
+    case Intrinsic::vector_reduce_fadd:
+    case Intrinsic::vector_reduce_fmul:
+      handleVectorReduceWithStarterIntrinsic(I);
+      break;
+
     case Intrinsic::x86_sse_stmxcsr:
       handleStmxcsr(I);
       break;
@@ -4544,7 +5415,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::x86_avx512_cvtusi2ss:
     case Intrinsic::x86_avx512_cvtusi642sd:
     case Intrinsic::x86_avx512_cvtusi642ss:
-      handleVectorConvertIntrinsic(I, 1, true);
+      handleSSEVectorConvertIntrinsic(I, 1, true);
       break;
     case Intrinsic::x86_sse2_cvtsd2si64:
     case Intrinsic::x86_sse2_cvtsd2si:
@@ -4555,11 +5426,11 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::x86_sse_cvtss2si:
     case Intrinsic::x86_sse_cvttss2si64:
     case Intrinsic::x86_sse_cvttss2si:
-      handleVectorConvertIntrinsic(I, 1);
+      handleSSEVectorConvertIntrinsic(I, 1);
       break;
     case Intrinsic::x86_sse_cvtps2pi:
     case Intrinsic::x86_sse_cvttps2pi:
-      handleVectorConvertIntrinsic(I, 2);
+      handleSSEVectorConvertIntrinsic(I, 2);
       break;
 
     case Intrinsic::x86_avx512_psll_w_512:
@@ -4823,6 +5694,96 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       handleVtestIntrinsic(I);
       break;
 
+    // Packed Horizontal Add/Subtract
+    case Intrinsic::x86_ssse3_phadd_w:
+    case Intrinsic::x86_ssse3_phadd_w_128:
+    case Intrinsic::x86_avx2_phadd_w:
+    case Intrinsic::x86_ssse3_phsub_w:
+    case Intrinsic::x86_ssse3_phsub_w_128:
+    case Intrinsic::x86_avx2_phsub_w: {
+      handlePairwiseShadowOrIntrinsic(I, /*ReinterpretElemWidth=*/16);
+      break;
+    }
+
+    // Packed Horizontal Add/Subtract
+    case Intrinsic::x86_ssse3_phadd_d:
+    case Intrinsic::x86_ssse3_phadd_d_128:
+    case Intrinsic::x86_avx2_phadd_d:
+    case Intrinsic::x86_ssse3_phsub_d:
+    case Intrinsic::x86_ssse3_phsub_d_128:
+    case Intrinsic::x86_avx2_phsub_d: {
+      handlePairwiseShadowOrIntrinsic(I, /*ReinterpretElemWidth=*/32);
+      break;
+    }
+
+    // Packed Horizontal Add/Subtract and Saturate
+    case Intrinsic::x86_ssse3_phadd_sw:
+    case Intrinsic::x86_ssse3_phadd_sw_128:
+    case Intrinsic::x86_avx2_phadd_sw:
+    case Intrinsic::x86_ssse3_phsub_sw:
+    case Intrinsic::x86_ssse3_phsub_sw_128:
+    case Intrinsic::x86_avx2_phsub_sw: {
+      handlePairwiseShadowOrIntrinsic(I, /*ReinterpretElemWidth=*/16);
+      break;
+    }
+
+    // Packed Single/Double Precision Floating-Point Horizontal Add
+    case Intrinsic::x86_sse3_hadd_ps:
+    case Intrinsic::x86_sse3_hadd_pd:
+    case Intrinsic::x86_avx_hadd_pd_256:
+    case Intrinsic::x86_avx_hadd_ps_256:
+    case Intrinsic::x86_sse3_hsub_ps:
+    case Intrinsic::x86_sse3_hsub_pd:
+    case Intrinsic::x86_avx_hsub_pd_256:
+    case Intrinsic::x86_avx_hsub_ps_256: {
+      handlePairwiseShadowOrIntrinsic(I);
+      break;
+    }
+
+    case Intrinsic::x86_avx_maskstore_ps:
+    case Intrinsic::x86_avx_maskstore_pd:
+    case Intrinsic::x86_avx_maskstore_ps_256:
+    case Intrinsic::x86_avx_maskstore_pd_256:
+    case Intrinsic::x86_avx2_maskstore_d:
+    case Intrinsic::x86_avx2_maskstore_q:
+    case Intrinsic::x86_avx2_maskstore_d_256:
+    case Intrinsic::x86_avx2_maskstore_q_256: {
+      handleAVXMaskedStore(I);
+      break;
+    }
+
+    case Intrinsic::x86_avx_maskload_ps:
+    case Intrinsic::x86_avx_maskload_pd:
+    case Intrinsic::x86_avx_maskload_ps_256:
+    case Intrinsic::x86_avx_maskload_pd_256:
+    case Intrinsic::x86_avx2_maskload_d:
+    case Intrinsic::x86_avx2_maskload_q:
+    case Intrinsic::x86_avx2_maskload_d_256:
+    case Intrinsic::x86_avx2_maskload_q_256: {
+      handleAVXMaskedLoad(I);
+      break;
+    }
+
+    // Packed
+    case Intrinsic::x86_avx512_min_ps_512:
+    case Intrinsic::x86_avx512_min_pd_512:
+    case Intrinsic::x86_avx512_max_ps_512:
+    case Intrinsic::x86_avx512_max_pd_512: {
+      // These AVX512 variants contain the rounding mode as a trailing flag.
+      // Earlier variants do not have a trailing flag and are already handled
+      // by maybeHandleSimpleNomemIntrinsic(I, 0) via handleUnknownIntrinsic.
+      [[maybe_unused]] bool Success =
+          maybeHandleSimpleNomemIntrinsic(I, /*trailingFlags=*/1);
+      assert(Success);
+      break;
+    }
+
+    case Intrinsic::x86_vcvtps2ph_128:
+    case Intrinsic::x86_vcvtps2ph_256: {
+      handleSSEVectorConvertIntrinsicByProp(I);
+      break;
+    }
+
     case Intrinsic::fshl:
     case Intrinsic::fshr:
       handleFunnelShift(I);
@@ -4832,6 +5793,83 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       // The result of llvm.is.constant() is always defined.
       setShadow(&I, getCleanShadow(&I));
       setOrigin(&I, getCleanOrigin());
+      break;
+
+    // TODO: handling max/min similarly to AND/OR may be more precise
+    // Floating-Point Maximum/Minimum Pairwise
+    case Intrinsic::aarch64_neon_fmaxp:
+    case Intrinsic::aarch64_neon_fminp:
+    // Floating-Point Maximum/Minimum Number Pairwise
+    case Intrinsic::aarch64_neon_fmaxnmp:
+    case Intrinsic::aarch64_neon_fminnmp:
+    // Signed/Unsigned Maximum/Minimum Pairwise
+    case Intrinsic::aarch64_neon_smaxp:
+    case Intrinsic::aarch64_neon_sminp:
+    case Intrinsic::aarch64_neon_umaxp:
+    case Intrinsic::aarch64_neon_uminp:
+    // Add Pairwise
+    case Intrinsic::aarch64_neon_addp:
+    // Floating-point Add Pairwise
+    case Intrinsic::aarch64_neon_faddp:
+    // Add Long Pairwise
+    case Intrinsic::aarch64_neon_saddlp:
+    case Intrinsic::aarch64_neon_uaddlp: {
+      handlePairwiseShadowOrIntrinsic(I);
+      break;
+    }
+
+    // Floating-point Convert to integer, rounding to nearest with ties to Away
+    case Intrinsic::aarch64_neon_fcvtas:
+    case Intrinsic::aarch64_neon_fcvtau:
+    // Floating-point convert to integer, rounding toward minus infinity
+    case Intrinsic::aarch64_neon_fcvtms:
+    case Intrinsic::aarch64_neon_fcvtmu:
+    // Floating-point convert to integer, rounding to nearest with ties to even
+    case Intrinsic::aarch64_neon_fcvtns:
+    case Intrinsic::aarch64_neon_fcvtnu:
+    // Floating-point convert to integer, rounding toward plus infinity
+    case Intrinsic::aarch64_neon_fcvtps:
+    case Intrinsic::aarch64_neon_fcvtpu:
+    // Floating-point Convert to integer, rounding toward Zero
+    case Intrinsic::aarch64_neon_fcvtzs:
+    case Intrinsic::aarch64_neon_fcvtzu:
+    // Floating-point convert to lower precision narrow, rounding to odd
+    case Intrinsic::aarch64_neon_fcvtxn: {
+      handleNEONVectorConvertIntrinsic(I);
+      break;
+    }
+
+    // Add reduction to scalar
+    case Intrinsic::aarch64_neon_faddv:
+    case Intrinsic::aarch64_neon_saddv:
+    case Intrinsic::aarch64_neon_uaddv:
+    // Signed/Unsigned min/max (Vector)
+    // TODO: handling similarly to AND/OR may be more precise.
+    case Intrinsic::aarch64_neon_smaxv:
+    case Intrinsic::aarch64_neon_sminv:
+    case Intrinsic::aarch64_neon_umaxv:
+    case Intrinsic::aarch64_neon_uminv:
+    // Floating-point min/max (vector)
+    // The f{min,max}"nm"v variants handle NaN differently than f{min,max}v,
+    // but our shadow propagation is the same.
+    case Intrinsic::aarch64_neon_fmaxv:
+    case Intrinsic::aarch64_neon_fminv:
+    case Intrinsic::aarch64_neon_fmaxnmv:
+    case Intrinsic::aarch64_neon_fminnmv:
+    // Sum long across vector
+    case Intrinsic::aarch64_neon_saddlv:
+    case Intrinsic::aarch64_neon_uaddlv:
+      handleVectorReduceIntrinsic(I, /*AllowShadowCast=*/true);
+      break;
+
+    // Saturating extract narrow
+    case Intrinsic::aarch64_neon_sqxtn:
+    case Intrinsic::aarch64_neon_sqxtun:
+    case Intrinsic::aarch64_neon_uqxtn:
+      // These only have one argument, but we (ab)use handleShadowOr because it
+      // does work on single argument intrinsics and will typecast the shadow
+      // (and update the origin).
+      handleShadowOr(I);
       break;
 
     case Intrinsic::aarch64_neon_st1x2:
@@ -4869,7 +5907,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::aarch64_neon_tbx3:
     case Intrinsic::aarch64_neon_tbx4: {
       // The last trailing argument (index register) should be handled verbatim
-      handleIntrinsicByApplyingToShadow(I, 1);
+      handleIntrinsicByApplyingToShadow(
+          I, /*shadowIntrinsicID=*/I.getIntrinsicID(),
+          /*trailingVerbatimArgs*/ 1);
       break;
     }
 
@@ -4880,6 +5920,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     case Intrinsic::aarch64_neon_pmull64:
     case Intrinsic::aarch64_neon_umull: {
       handleNEONVectorMultiplyIntrinsic(I);
+      break;
+    }
+
+    case Intrinsic::scmp:
+    case Intrinsic::ucmp: {
+      handleShadowOr(I);
       break;
     }
 
@@ -5111,7 +6157,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (isa<CallInst>(CB) && cast<CallInst>(CB).isMustTailCall())
       return;
 
-    if (MayCheckCall && CB.hasRetAttr(Attribute::NoUndef)) {
+    // Since Spirv always does eager checking, the shadow of retval must be
+    // zeros
+    if (SpirOrSpirv || (MayCheckCall && CB.hasRetAttr(Attribute::NoUndef))) {
       setShadow(&CB, getCleanShadow(&CB));
       setOrigin(&CB, getCleanOrigin());
       return;
@@ -5169,7 +6217,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // Don't emit the epilogue for musttail call returns.
     if (isAMustTailRetVal(RetVal))
       return;
-    Value *ShadowPtr = getShadowPtrForRetval(IRB);
+    Value *ShadowPtr = !SpirOrSpirv ? getShadowPtrForRetval(IRB) : nullptr;
     bool HasNoUndef = F.hasRetAttribute(Attribute::NoUndef);
     bool StoreShadow = !(MS.EagerChecks && HasNoUndef);
     // FIXME: Consider using SpecialCaseList to specify a list of functions that
@@ -5186,7 +6234,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     // The caller may still expect information passed over TLS if we pass our
     // check
-    if (StoreShadow) {
+    if (StoreShadow && !SpirOrSpirv) {
       IRB.CreateAlignedStore(Shadow, ShadowPtr, kShadowTLSAlignment);
       if (MS.TrackOrigins && StoreOrigin)
         IRB.CreateStore(getOrigin(RetVal), getOriginPtrForRetval());
@@ -5223,7 +6271,10 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
   void poisonAllocaUserspace(AllocaInst &I, IRBuilder<> &IRB, Value *Len) {
     if (PoisonStack && ClPoisonStackWithCall) {
-      IRB.CreateCall(MS.MsanPoisonStackFn, {&I, Len});
+      // SPIR-V: ".byval" alloca is updated by "__msan_unpoison_stack", so
+      // skiped here
+      if (!SpirOrSpirv || !I.getName().ends_with(".byval"))
+        IRB.CreateCall(MS.MsanPoisonStackFn, {&I, Len});
     } else {
       Value *ShadowBase, *OriginBase;
       std::tie(ShadowBase, OriginBase) = getShadowOriginPtr(
@@ -6790,5 +7841,8 @@ bool MemorySanitizer::sanitizeFunction(Function &F, TargetLibraryInfo &TLI) {
   B.addAttribute(Attribute::Memory).addAttribute(Attribute::Speculatable);
   F.removeFnAttrs(B);
 
-  return Visitor.runOnFunction();
+  Spirv.beforeInstrumentFunction(F, Visitor.FnPrologueEnd);
+  bool Modified = Visitor.runOnFunction();
+  Spirv.afterInstrumentFunction(F);
+  return Modified;
 }

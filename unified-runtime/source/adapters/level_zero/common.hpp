@@ -18,181 +18,37 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef _WIN32
+#include "windows.h"
+#else
+#include <dlfcn.h>
+#include <unistd.h>
+#endif
+
+#include <loader/ze_loader.h>
 #include <ur/ur.hpp>
 #include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
+#include <level_zero/include/level_zero/ze_intel_gpu.h>
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
 #include "logger/ur_logger.hpp"
 
 struct _ur_platform_handle_t;
 
-static auto getUrResultString = [](ur_result_t Result) {
-  switch (Result) {
-  case UR_RESULT_SUCCESS:
-    return "UR_RESULT_SUCCESS";
-  case UR_RESULT_ERROR_INVALID_OPERATION:
-    return "UR_RESULT_ERROR_INVALID_OPERATION";
-  case UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES:
-    return "UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES";
-  case UR_RESULT_ERROR_INVALID_QUEUE:
-    return "UR_RESULT_ERROR_INVALID_QUEUE";
-  case UR_RESULT_ERROR_INVALID_VALUE:
-    return "UR_RESULT_ERROR_INVALID_VALUE";
-  case UR_RESULT_ERROR_INVALID_CONTEXT:
-    return "UR_RESULT_ERROR_INVALID_CONTEXT";
-  case UR_RESULT_ERROR_INVALID_PLATFORM:
-    return "UR_RESULT_ERROR_INVALID_PLATFORM";
-  case UR_RESULT_ERROR_INVALID_BINARY:
-    return "UR_RESULT_ERROR_INVALID_BINARY";
-  case UR_RESULT_ERROR_INVALID_PROGRAM:
-    return "UR_RESULT_ERROR_INVALID_PROGRAM";
-  case UR_RESULT_ERROR_INVALID_SAMPLER:
-    return "UR_RESULT_ERROR_INVALID_SAMPLER";
-  case UR_RESULT_ERROR_INVALID_BUFFER_SIZE:
-    return "UR_RESULT_ERROR_INVALID_BUFFER_SIZE";
-  case UR_RESULT_ERROR_INVALID_MEM_OBJECT:
-    return "UR_RESULT_ERROR_INVALID_MEM_OBJECT";
-  case UR_RESULT_ERROR_INVALID_EVENT:
-    return "UR_RESULT_ERROR_INVALID_EVENT";
-  case UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
-    return "UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST";
-  case UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET:
-    return "UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET";
-  case UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE:
-    return "UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE";
-  case UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE:
-    return "UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE";
-  case UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE:
-    return "UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE";
-  case UR_RESULT_ERROR_DEVICE_NOT_FOUND:
-    return "UR_RESULT_ERROR_DEVICE_NOT_FOUND";
-  case UR_RESULT_ERROR_INVALID_DEVICE:
-    return "UR_RESULT_ERROR_INVALID_DEVICE";
-  case UR_RESULT_ERROR_DEVICE_LOST:
-    return "UR_RESULT_ERROR_DEVICE_LOST";
-  case UR_RESULT_ERROR_DEVICE_REQUIRES_RESET:
-    return "UR_RESULT_ERROR_DEVICE_REQUIRES_RESET";
-  case UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE:
-    return "UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE";
-  case UR_RESULT_ERROR_DEVICE_PARTITION_FAILED:
-    return "UR_RESULT_ERROR_DEVICE_PARTITION_FAILED";
-  case UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT:
-    return "UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT";
-  case UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE:
-    return "UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE";
-  case UR_RESULT_ERROR_INVALID_WORK_DIMENSION:
-    return "UR_RESULT_ERROR_INVALID_WORK_DIMENSION";
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGS:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_ARGS";
-  case UR_RESULT_ERROR_INVALID_KERNEL:
-    return "UR_RESULT_ERROR_INVALID_KERNEL";
-  case UR_RESULT_ERROR_INVALID_KERNEL_NAME:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_NAME";
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX";
-  case UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE";
-  case UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE:
-    return "UR_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE";
-  case UR_RESULT_ERROR_INVALID_IMAGE_SIZE:
-    return "UR_RESULT_ERROR_INVALID_IMAGE_SIZE";
-  case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-    return "UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR";
-  case UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT:
-    return "UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT";
-  case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
-    return "UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE";
-  case UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE:
-    return "UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE";
-  case UR_RESULT_ERROR_UNINITIALIZED:
-    return "UR_RESULT_ERROR_UNINITIALIZED";
-  case UR_RESULT_ERROR_OUT_OF_HOST_MEMORY:
-    return "UR_RESULT_ERROR_OUT_OF_HOST_MEMORY";
-  case UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY:
-    return "UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY";
-  case UR_RESULT_ERROR_OUT_OF_RESOURCES:
-    return "UR_RESULT_ERROR_OUT_OF_RESOURCES";
-  case UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE:
-    return "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE";
-  case UR_RESULT_ERROR_PROGRAM_LINK_FAILURE:
-    return "UR_RESULT_ERROR_PROGRAM_LINK_FAILURE";
-  case UR_RESULT_ERROR_UNSUPPORTED_VERSION:
-    return "UR_RESULT_ERROR_UNSUPPORTED_VERSION";
-  case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
-    return "UR_RESULT_ERROR_UNSUPPORTED_FEATURE";
-  case UR_RESULT_ERROR_INVALID_ARGUMENT:
-    return "UR_RESULT_ERROR_INVALID_ARGUMENT";
-  case UR_RESULT_ERROR_INVALID_NULL_HANDLE:
-    return "UR_RESULT_ERROR_INVALID_NULL_HANDLE";
-  case UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
-    return "UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE";
-  case UR_RESULT_ERROR_INVALID_NULL_POINTER:
-    return "UR_RESULT_ERROR_INVALID_NULL_POINTER";
-  case UR_RESULT_ERROR_INVALID_SIZE:
-    return "UR_RESULT_ERROR_INVALID_SIZE";
-  case UR_RESULT_ERROR_UNSUPPORTED_SIZE:
-    return "UR_RESULT_ERROR_UNSUPPORTED_SIZE";
-  case UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT:
-    return "UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT";
-  case UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT:
-    return "UR_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT";
-  case UR_RESULT_ERROR_INVALID_ENUMERATION:
-    return "UR_RESULT_ERROR_INVALID_ENUMERATION";
-  case UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
-    return "UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION";
-  case UR_RESULT_ERROR_INVALID_NATIVE_BINARY:
-    return "UR_RESULT_ERROR_INVALID_NATIVE_BINARY";
-  case UR_RESULT_ERROR_INVALID_GLOBAL_NAME:
-    return "UR_RESULT_ERROR_INVALID_GLOBAL_NAME";
-  case UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE:
-    return "UR_RESULT_ERROR_FUNCTION_ADDRESS_NOT_AVAILABLE";
-  case UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION:
-    return "UR_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION";
-  case UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION:
-    return "UR_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION";
-  case UR_RESULT_ERROR_PROGRAM_UNLINKED:
-    return "UR_RESULT_ERROR_PROGRAM_UNLINKED";
-  case UR_RESULT_ERROR_OVERLAPPING_REGIONS:
-    return "UR_RESULT_ERROR_OVERLAPPING_REGIONS";
-  case UR_RESULT_ERROR_INVALID_HOST_PTR:
-    return "UR_RESULT_ERROR_INVALID_HOST_PTR";
-  case UR_RESULT_ERROR_INVALID_USM_SIZE:
-    return "UR_RESULT_ERROR_INVALID_USM_SIZE";
-  case UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE:
-    return "UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE";
-  case UR_RESULT_ERROR_ADAPTER_SPECIFIC:
-    return "UR_RESULT_ERROR_ADAPTER_SPECIFIC";
-  default:
-    return "UR_RESULT_ERROR_UNKNOWN";
+[[maybe_unused]] static bool checkL0LoaderTeardown() {
+  try {
+    if (!zelCheckIsLoaderInTearDown()) {
+      return true;
+    }
+  } catch (...) {
   }
-};
-
-// Trace an internal UR call; returns in case of an error.
-#define UR_CALL(Call)                                                          \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      return Result;                                                           \
-  }
-
-// Trace an internal UR call; throw in case of an error.
-#define UR_CALL_THROWS(Call)                                                   \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      logger::always("UR ---> {}", #Call);                                     \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
-      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      throw Result;                                                            \
-  }
+  logger::debug(
+      "ZE ---> checkL0LoaderTeardown: Loader is in teardown or is unstable");
+  return false;
+}
 
 // Controls UR L0 calls tracing.
 enum UrDebugLevel {
@@ -302,11 +158,6 @@ public:
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value);
 
-// Helper for one-liner validation
-#define UR_ASSERT(condition, error)                                            \
-  if (!(condition))                                                            \
-    return error;
-
 // Returns the ze_structure_type_t to use in .stype of a structured descriptor.
 // Intentionally not defined; will give an error if no proper specialization
 template <class T> ze_structure_type_t getZeStructureType();
@@ -331,11 +182,6 @@ template <class T> struct ZesStruct : public T {
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value);
-
-// Helper for one-liner validation
-#define UR_ASSERT(condition, error)                                            \
-  if (!(condition))                                                            \
-    return error;
 
 // Map Level Zero runtime error code to UR error code.
 ur_result_t ze2urResult(ze_result_t ZeResult);
@@ -535,78 +381,3 @@ extern thread_local int32_t ErrorAdapterNativeCode;
 [[maybe_unused]] void setErrorMessage(const char *pMessage,
                                       ur_result_t ErrorCode,
                                       int32_t AdapterErrorCode);
-
-#define L0_DRIVER_INORDER_MIN_VERSION 29534
-
-// Definitions for the External Semaphore Extension
-
-#ifndef ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME
-/// @brief Event sync mode extension name
-#define ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME                                   \
-  "ZE_intel_experimental_external_semaphore"
-#endif // ZE_INTEL_EXTERNAL_SEMAPHORE_EXP_NAME
-
-typedef enum _ze_intel_external_semaphore_exp_version_t {
-  ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_1_0 =
-      ZE_MAKE_VERSION(1, 0), ///< version 1.0
-  ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_CURRENT =
-      ZE_MAKE_VERSION(1, 0), ///< latest known version
-  ZE_EXTERNAL_SEMAPHORE_EXP_VERSION_FORCE_UINT32 = 0x7fffffff
-} ze_intel_external_semaphore_exp_version_t;
-typedef enum _ze_intel_external_semaphore_exp_flags_t {
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_FD,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_WIN32,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_OPAQUE_WIN32_KMT,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_D3D12_FENCE,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_D3D11_FENCE,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_KEYED_MUTEX,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_KEYED_MUTEX_KMT,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_TIMELINE_SEMAPHORE_FD,
-  ZE_EXTERNAL_SEMAPHORE_EXP_FLAGS_TIMELINE_SEMAPHORE_WIN32
-} ze_intel_external_semaphore_exp_flags_t;
-
-typedef struct _ze_intel_external_semaphore_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  ze_intel_external_semaphore_exp_flags_t flags;
-} ze_intel_external_semaphore_exp_desc_t;
-
-typedef struct _ze_intel_external_semaphore_win32_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  void *handle;
-  const char *name;
-} ze_intel_external_semaphore_win32_exp_desc_t;
-
-typedef struct _ze_intel_external_semaphore_fd_exp_desc_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  int fd;
-} ze_intel_external_semaphore_desc_fd_exp_desc_t;
-
-typedef struct _ze_intel_external_semaphore_signal_exp_params_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-  uint64_t value;
-} ze_intel_external_semaphore_signal_exp_params_t;
-
-typedef struct _ze_intel_external_semaphore_wait_exp_params_t {
-  ze_structure_type_t stype;
-  const void *pNext;
-
-  uint64_t value;
-} ze_intel_external_semaphore_wait_exp_params_t;
-
-typedef struct _ze_intel_external_semaphore_exp_handle_t
-    *ze_intel_external_semaphore_exp_handle_t;
-
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_EXP_DESC                    \
-  (ze_structure_type_t)0x0003001E
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WIN32_EXP_DESC              \
-  (ze_structure_type_t)0x0003001F
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_FD_EXP_DESC                 \
-  (ze_structure_type_t)0x00030023
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_EXP           \
-  (ze_structure_type_t)0x00030024
-#define ZE_INTEL_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_WAIT_PARAMS_EXP             \
-  (ze_structure_type_t)0x00030025

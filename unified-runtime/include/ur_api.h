@@ -417,8 +417,8 @@ typedef enum ur_function_t {
   UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 240,
   /// Enumerator for ::urCommandBufferAppendUSMAdviseExp
   UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 241,
-  /// Enumerator for ::urCommandBufferEnqueueExp
-  UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 242,
+  /// Enumerator for ::urEnqueueCommandBufferExp
+  UR_FUNCTION_ENQUEUE_COMMAND_BUFFER_EXP = 242,
   /// Enumerator for ::urCommandBufferUpdateSignalEventExp
   UR_FUNCTION_COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP = 243,
   /// Enumerator for ::urCommandBufferUpdateWaitEventsExp
@@ -429,6 +429,38 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,
   /// Enumerator for ::urPhysicalMemGetInfo
   UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,
+  /// Enumerator for ::urEnqueueUSMDeviceAllocExp
+  UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP = 250,
+  /// Enumerator for ::urEnqueueUSMSharedAllocExp
+  UR_FUNCTION_ENQUEUE_USM_SHARED_ALLOC_EXP = 251,
+  /// Enumerator for ::urEnqueueUSMHostAllocExp
+  UR_FUNCTION_ENQUEUE_USM_HOST_ALLOC_EXP = 252,
+  /// Enumerator for ::urEnqueueUSMFreeExp
+  UR_FUNCTION_ENQUEUE_USM_FREE_EXP = 253,
+  /// Enumerator for ::urUSMPoolCreateExp
+  UR_FUNCTION_USM_POOL_CREATE_EXP = 254,
+  /// Enumerator for ::urUSMPoolDestroyExp
+  UR_FUNCTION_USM_POOL_DESTROY_EXP = 255,
+  /// Enumerator for ::urUSMPoolGetDefaultDevicePoolExp
+  UR_FUNCTION_USM_POOL_GET_DEFAULT_DEVICE_POOL_EXP = 257,
+  /// Enumerator for ::urUSMPoolSetDevicePoolExp
+  UR_FUNCTION_USM_POOL_SET_DEVICE_POOL_EXP = 259,
+  /// Enumerator for ::urUSMPoolGetDevicePoolExp
+  UR_FUNCTION_USM_POOL_GET_DEVICE_POOL_EXP = 260,
+  /// Enumerator for ::urUSMPoolTrimToExp
+  UR_FUNCTION_USM_POOL_TRIM_TO_EXP = 261,
+  /// Enumerator for ::urUSMPoolGetInfoExp
+  UR_FUNCTION_USM_POOL_GET_INFO_EXP = 262,
+  /// Enumerator for ::urCommandBufferAppendNativeCommandExp
+  UR_FUNCTION_COMMAND_BUFFER_APPEND_NATIVE_COMMAND_EXP = 263,
+  /// Enumerator for ::urCommandBufferGetNativeHandleExp
+  UR_FUNCTION_COMMAND_BUFFER_GET_NATIVE_HANDLE_EXP = 264,
+  /// Enumerator for ::urUSMPoolSetInfoExp
+  UR_FUNCTION_USM_POOL_SET_INFO_EXP = 265,
+  /// Enumerator for ::urAdapterSetLoggerCallback
+  UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK = 266,
+  /// Enumerator for ::urAdapterSetLoggerCallbackLevel
+  UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL = 267,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -508,6 +540,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,
   /// ::ur_usm_alloc_location_desc_t
   UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC = 35,
+  /// ::ur_usm_pool_buffer_desc_t
+  UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC = 36,
   /// ::ur_exp_command_buffer_desc_t
   UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,
   /// ::ur_exp_command_buffer_update_kernel_launch_desc_t
@@ -534,6 +568,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES = 0x2006,
   /// ::ur_exp_image_copy_region_t
   UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION = 0x2007,
+  /// ::ur_exp_async_usm_alloc_properties_t
+  UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES = 0x2050,
   /// ::ur_exp_enqueue_native_command_properties_t
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,
   /// ::ur_exp_enqueue_ext_properties_t
@@ -1391,6 +1427,80 @@ typedef enum ur_adapter_backend_t {
 
 } ur_adapter_backend_t;
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Minimum level of messages to be processed by the logger.
+typedef enum ur_logger_level_t {
+  /// Debugging messages used for development purposes.
+  UR_LOGGER_LEVEL_DEBUG = 0,
+  /// General messages not related to debugging, warnings or errors.
+  UR_LOGGER_LEVEL_INFO = 1,
+  /// Used to warn users about potential problems.
+  UR_LOGGER_LEVEL_WARN = 2,
+  /// Used when an error has occurred.
+  UR_LOGGER_LEVEL_ERROR = 3,
+  /// Restrict logger processing any messages.
+  UR_LOGGER_LEVEL_QUIET = 4,
+  /// @cond
+  UR_LOGGER_LEVEL_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_logger_level_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Callback function to retrieve output from the logger.
+typedef void (*ur_logger_callback_t)(
+    /// [out] Minimum level of messages to be processed by the logger.
+    ur_logger_level_t level,
+    /// [in][out] pointer to data to be passed to callback
+    const char *pLoggerMsg,
+    /// [in][out] pointer to data to be passed to callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a callback function for use by the logger to retrieve logging
+/// output.
+///        It is a requirement that the callback function is thread safe and the
+///        creator of the function will be responsible for this.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnLoggerCallback`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] Function pointer to callback from the logger.
+    ur_logger_callback_t pfnLoggerCallback,
+    /// [in][out][optional] pointer to data to be passed to callback
+    void *pUserData,
+    /// [in] logging level
+    ur_logger_level_t level);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the minimum logging level for the logger Callback function.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOGGER_LEVEL_QUIET < level`
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] logging level
+    ur_logger_level_t level);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -1416,17 +1526,15 @@ typedef enum ur_adapter_backend_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phAdapters`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phPlatforms != NULL`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///         + `pNumPlatforms == NULL && phPlatforms == NULL`
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -1790,7 +1898,9 @@ typedef struct ur_device_binary_t {
 typedef enum ur_device_type_t {
   /// The default device type as preferred by the runtime
   UR_DEVICE_TYPE_DEFAULT = 1,
-  /// Devices of all types
+  /// Devices of all types, for use with ::urDeviceGet() and
+  /// ::urDeviceGetSelected(). This value will never be returned when
+  /// querying about a device.
   UR_DEVICE_TYPE_ALL = 2,
   /// Graphics Processing Unit
   UR_DEVICE_TYPE_GPU = 3,
@@ -1967,7 +2077,7 @@ typedef enum ur_device_info_t {
   /// [uint64_t] max memory allocation size
   UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 28,
   /// [::ur_bool_t] images are supported
-  UR_DEVICE_INFO_IMAGE_SUPPORTED = 29,
+  UR_DEVICE_INFO_IMAGE_SUPPORT = 29,
   /// [uint32_t] max number of image objects arguments of a kernel declared
   /// with the read_only qualifier
   UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS = 30,
@@ -2061,8 +2171,9 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_VERSION = 70,
   /// [char[]] null-terminated version of backend runtime
   UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,
-  /// [char[]] Return a null-terminated space separated list of extension
-  /// names
+  /// [char[]] Return a null-terminated string representing any backend
+  /// extensions supported by the adapter. Format and content is entirely
+  /// adapter defined.
   UR_DEVICE_INFO_EXTENSIONS = 72,
   /// [size_t] Maximum size in bytes of internal printf buffer
   UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,
@@ -2144,8 +2255,8 @@ typedef enum ur_device_info_t {
   /// [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
   /// memory fence scope capabilities
   UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 103,
-  /// [::ur_bool_t] support for bfloat16
-  UR_DEVICE_INFO_BFLOAT16 = 104,
+  /// [::ur_bool_t][deprecated-value] support for bfloat16
+  UR_DEVICE_INFO_BFLOAT16 [[deprecated]] = 104,
   /// [uint32_t] Returns 1 if the device doesn't have a notion of a
   /// queue index. Otherwise, returns the number of queue indices that are
   /// available for this device.
@@ -2164,7 +2275,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,
   /// [::ur_bool_t] Return true if the device supports enqueueing commands
   /// to read and write pipes from the host.
-  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,
+  UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT = 111,
   /// [uint32_t][optional-query] The maximum number of registers available
   /// per block.
   UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,
@@ -2195,6 +2306,21 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] support the ::urProgramSetSpecializationConstants entry
   /// point
   UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 121,
+  /// [::ur_bool_t] return true if the device has a native assert
+  /// implementation.
+  UR_DEVICE_INFO_USE_NATIVE_ASSERT = 122,
+  /// [::ur_device_throttle_reasons_flags_t][optional-query] return current
+  /// clock throttle reasons.
+  UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS = 123,
+  /// [int32_t][optional-query] return the current speed of fan as a
+  /// percentage of the maximum speed.
+  UR_DEVICE_INFO_FAN_SPEED = 124,
+  /// [int32_t][optional-query] return min power limit in milliwatts.
+  UR_DEVICE_INFO_MIN_POWER_LIMIT = 125,
+  /// [int32_t][optional-query] return max power limit in milliwatts.
+  UR_DEVICE_INFO_MAX_POWER_LIMIT = 126,
+  /// [::ur_bool_t] support for native bfloat16 conversions
+  UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE = 127,
   /// [::ur_bool_t] Returns true if the device supports the use of
   /// command-buffers.
   UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,
@@ -2204,8 +2330,11 @@ typedef enum ur_device_info_t {
   /// [::ur_bool_t] Returns true if the device supports using event objects
   /// for command synchronization outside of a command-buffer.
   UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP = 0x1002,
+  /// [::ur_bool_t] Returns true if the device supports appending a
+  /// command-buffer as a command inside another command-buffer.
+  UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP = 0x1003,
   /// [::ur_bool_t] return true if enqueue Cluster Launch is supported
-  UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP = 0x1111,
+  UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP = 0x1111,
   /// [::ur_bool_t] returns true if the device supports the creation of
   /// bindless images
   UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,
@@ -2256,19 +2385,19 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP = 0x2012,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP = 0x2012,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP = 0x2013,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP = 0x2013,
   /// [::ur_bool_t] returns true if the device supports fetching USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP = 0x2014,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP = 0x2014,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP = 0x2015,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP = 0x2015,
   /// [::ur_bool_t] returns true if the device supports fetching non-USM
   /// backed 3D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,
+  UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP = 0x2017,
   /// [::ur_bool_t] returns true if the device supports timestamp recording
   UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,
   /// [::ur_bool_t] returns true if the device supports allocating and
@@ -2276,21 +2405,38 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP = 0x2019,
   /// [::ur_bool_t] returns true if the device supports unique addressing
   /// per dimension.
-  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP = 0x201A,
+  UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP = 0x201A,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 1D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP = 0x201B,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP = 0x201B,
   /// [::ur_bool_t] returns true if the device supports sampling USM backed
   /// 2D sampled image data.
-  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,
+  UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP = 0x201C,
+  /// [::ur_bool_t] returns true if the device supports sampled image
+  /// gather.
+  UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP = 0x201D,
   /// [::ur_bool_t] returns true if the device supports enqueueing of native
   /// work
   UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,
   /// [::ur_bool_t] returns true if the device supports low-power events.
-  UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP = 0x2021,
+  UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP = 0x2021,
   /// [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
   /// of Intel GPU 2D block array capabilities
   UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,
+  /// [::ur_bool_t] returns true if the device supports enqueueing of
+  /// allocations and frees.
+  UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP = 0x2050,
+  /// [::ur_bool_t] Returns true if the device supports the use of kernel
+  /// launch properties.
+  UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP = 0x3000,
+  /// [::ur_bool_t] Returns true if the device supports the USM P2P
+  /// experimental feature.
+  UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP = 0x4000,
+  /// [::ur_bool_t] Returns true if the device supports cooperative kernels.
+  UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP = 0x5000,
+  /// [::ur_bool_t] Returns true if the device supports the multi device
+  /// compile experimental feature.
+  UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP = 0x6000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2316,7 +2462,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName`
+///         + `::UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -2749,6 +2895,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     /// [in] handle of the device instance
     ur_device_handle_t hDevice,
@@ -2822,6 +2970,34 @@ typedef enum ur_device_usm_access_capability_flag_t {
 } ur_device_usm_access_capability_flag_t;
 /// @brief Bit Mask for validating ur_device_usm_access_capability_flags_t
 #define UR_DEVICE_USM_ACCESS_CAPABILITY_FLAGS_MASK 0xfffffff0
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Clock throttle reasons
+typedef uint32_t ur_device_throttle_reasons_flags_t;
+typedef enum ur_device_throttle_reasons_flag_t {
+  /// The clock frequency is throttled due to hitting the power limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP = UR_BIT(0),
+  /// The clock frequency is throttled due to hitting the current limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT = UR_BIT(1),
+  /// The clock frequency is throttled due to hitting the thermal limit.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT = UR_BIT(2),
+  /// The clock frequency is throttled due to power supply assertion.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT = UR_BIT(3),
+  /// The clock frequency is throttled due to software supplied frequency
+  /// range.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE = UR_BIT(4),
+  /// The clock frequency is throttled because there is a sub block that has
+  /// a lower frequency when it receives clocks.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE = UR_BIT(5),
+  /// The clock frequency is throttled due to other reason.
+  UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER = UR_BIT(6),
+  /// @cond
+  UR_DEVICE_THROTTLE_REASONS_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_device_throttle_reasons_flag_t;
+/// @brief Bit Mask for validating ur_device_throttle_reasons_flags_t
+#define UR_DEVICE_THROTTLE_REASONS_FLAGS_MASK 0xffffff80
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -2943,20 +3119,6 @@ typedef enum ur_context_info_t {
   /// [::ur_bool_t] to indicate if the ::urEnqueueUSMFill2D entrypoint is
   /// supported.
   UR_CONTEXT_INFO_USM_FILL2D_SUPPORT = 4,
-  /// [::ur_memory_order_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory order capabilities.
-  UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 5,
-  /// [::ur_memory_scope_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory scope capabilities.
-  UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 6,
-  /// [::ur_memory_order_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory fence order capabilities.
-  /// Zero is returned if the backend does not support context-level fences.
-  UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 7,
-  /// [::ur_memory_scope_capability_flags_t][optional-query] return a
-  /// bit-field of atomic memory fence scope capabilities.
-  /// Zero is returned if the backend does not support context-level fences.
-  UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 8,
   /// @cond
   UR_CONTEXT_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -3005,7 +3167,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES < propName`
+///         + `::UR_CONTEXT_INFO_USM_FILL2D_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -3143,6 +3305,8 @@ typedef void (*ur_context_extended_deleter_t)(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pfnDeleter`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no means to support the operation.
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     /// [in] handle of the context.
     ur_context_handle_t hContext,
@@ -3199,6 +3363,8 @@ typedef enum ur_mem_type_t {
   UR_MEM_TYPE_IMAGE1D_ARRAY = 4,
   /// Experimental cubemap image object
   UR_MEM_TYPE_IMAGE_CUBEMAP_EXP = 0x2000,
+  /// Experimental gather image object
+  UR_MEM_TYPE_IMAGE_GATHER_EXP = 0x2001,
   /// @cond
   UR_MEM_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -4190,13 +4356,18 @@ typedef enum ur_usm_pool_flag_t {
   /// All coarse-grain allocations (allocations from the driver) will be
   /// zero-initialized.
   UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK = UR_BIT(0),
+  /// Use the native memory pool API
+  UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP = UR_BIT(1),
+  /// Performance hint asserting that all memory allocations from the
+  /// memory pool will only ever be read from within SYCL kernel functions
+  UR_USM_POOL_FLAG_READ_ONLY_EXP = UR_BIT(2),
   /// @cond
   UR_USM_POOL_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
 
 } ur_usm_pool_flag_t;
 /// @brief Bit Mask for validating ur_usm_pool_flags_t
-#define UR_USM_POOL_FLAGS_MASK 0xfffffffe
+#define UR_USM_POOL_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocation type
@@ -4695,6 +4866,21 @@ typedef enum ur_usm_pool_info_t {
   UR_USM_POOL_INFO_REFERENCE_COUNT = 0,
   /// [::ur_context_handle_t] USM memory pool context info
   UR_USM_POOL_INFO_CONTEXT = 1,
+  /// [size_t] Memory pool release threshold
+  UR_USM_POOL_INFO_RELEASE_THRESHOLD_EXP = 0x2050,
+  /// [size_t] Memory pool maximum size
+  UR_USM_POOL_INFO_MAXIMUM_SIZE_EXP = 0x2051,
+  /// [size_t] Amount of backing memory currently allocated for the memory
+  /// pool
+  UR_USM_POOL_INFO_RESERVED_CURRENT_EXP = 0x2052,
+  /// [size_t] High watermark of backing memory allocated for the memory
+  /// pool
+  UR_USM_POOL_INFO_RESERVED_HIGH_EXP = 0x2053,
+  /// [size_t] Amount of memory from the pool that is currently in use
+  UR_USM_POOL_INFO_USED_CURRENT_EXP = 0x2054,
+  /// [size_t] High watermark of the amount of memory from the pool that was
+  /// in use
+  UR_USM_POOL_INFO_USED_HIGH_EXP = 0x2055,
   /// @cond
   UR_USM_POOL_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -4712,7 +4898,7 @@ typedef enum ur_usm_pool_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPool`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_USM_POOL_INFO_CONTEXT < propName`
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -6654,7 +6840,7 @@ typedef enum ur_queue_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP = UR_BIT(11),
+  UR_QUEUE_FLAG_LOW_POWER_EVENTS_SUPPORT_EXP = UR_BIT(11),
   /// @cond
   UR_QUEUE_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -7046,8 +7232,8 @@ typedef enum ur_command_t {
   UR_COMMAND_READ_HOST_PIPE = 25,
   /// Event created by ::urEnqueueWriteHostPipe
   UR_COMMAND_WRITE_HOST_PIPE = 26,
-  /// Event created by ::urCommandBufferEnqueueExp
-  UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 0x1000,
+  /// Event created by ::urEnqueueCommandBufferExp
+  UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP = 0x1000,
   /// Event created by ::urBindlessImagesWaitExternalSemaphoreExp
   UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP = 0x2000,
   /// Event created by ::urBindlessImagesSignalExternalSemaphoreExp
@@ -7056,6 +7242,14 @@ typedef enum ur_command_t {
   UR_COMMAND_TIMESTAMP_RECORDING_EXP = 0x2002,
   /// Event created by ::urEnqueueNativeCommandExp
   UR_COMMAND_ENQUEUE_NATIVE_EXP = 0x2004,
+  /// Event created by ::urEnqueueUSMDeviceAllocExp
+  UR_COMMAND_ENQUEUE_USM_DEVICE_ALLOC_EXP = 0x2050,
+  /// Event created by ::urEnqueueUSMSharedAllocExp
+  UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP = 0x2051,
+  /// Event created by ::urEnqueueUSMHostAllocExp
+  UR_COMMAND_ENQUEUE_USM_HOST_ALLOC_EXP = 0x2052,
+  /// Event created by ::urEnqueueUSMFreeExp
+  UR_COMMAND_ENQUEUE_USM_FREE_EXP = 0x2053,
   /// @cond
   UR_COMMAND_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -8961,6 +9155,452 @@ typedef enum ur_exp_device_2d_block_array_capability_flag_t {
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental API for asynchronous allocations
+#if !defined(__GNUC__)
+#pragma region async_alloc_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Async alloc properties
+typedef uint32_t ur_exp_async_usm_alloc_flags_t;
+typedef enum ur_exp_async_usm_alloc_flag_t {
+  /// Reserved for future use.
+  UR_EXP_ASYNC_USM_ALLOC_FLAG_TBD = UR_BIT(0),
+  /// @cond
+  UR_EXP_ASYNC_USM_ALLOC_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_async_usm_alloc_flag_t;
+/// @brief Bit Mask for validating ur_exp_async_usm_alloc_flags_t
+#define UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Async alloc properties
+typedef struct ur_exp_async_usm_alloc_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_ASYNC_USM_ALLOC_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] async alloc flags
+  ur_exp_async_usm_alloc_flags_t flags;
+
+} ur_exp_async_usm_alloc_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief USM pool buffer descriptor type
+///
+/// @details
+///     - Used for pool creation from USM memory object. Specify these
+///       properties in ::urUSMPoolCreate or ::urUSMPoolCreateExp via
+///       ::ur_usm_pool_desc_t as part of a `pNext` chain.
+typedef struct ur_usm_pool_buffer_desc_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC
+  ur_structure_type_t stype;
+  /// [in][optional] pointer to extension-specific structure
+  const void *pNext;
+  /// [in] USM memory object
+  void *pMem;
+  /// [in] size of USM memory object
+  size_t size;
+  /// [in] type of USM memory object
+  ur_usm_type_t memType;
+  /// [in][optional] device associated with the USM memory object
+  ur_device_handle_t device;
+
+} ur_usm_pool_buffer_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an async device allocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an async shared allocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an async host allocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ASYNC_USM_ALLOC_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue async alloc properties
+    const ur_exp_async_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an async free
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] USM pool descriptor
+    ur_usm_pool_handle_t pPool,
+    /// [in] pointer to USM memory object
+    void *pMem,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies the async alloc
+    ur_event_handle_t *phEvent);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Create USM memory pool with desired properties.
+///
+/// @details
+///     - Create a memory pool associated with a single device.
+///     - See also ::urUSMPoolCreate and ::ur_usm_pool_limits_desc_t.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPoolDesc`
+///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreateExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] pointer to USM pool descriptor. Can be chained with
+    /// ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_desc_t *pPoolDesc,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Destroy a USM memory pool.
+///
+/// @details
+///     - Destroy a memory pool associated with a single device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroyExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool to be destroyed
+    ur_usm_pool_handle_t hPool);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the default pool for a device.
+///
+/// @details
+///     - Get the default pool for a device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query a pool for specific properties.
+///
+/// @details
+///     - Query a memory pool for specific properties.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(
+    /// [in] handle to USM memory pool for property retrieval
+    ur_usm_pool_handle_t hPool,
+    /// [in] queried property name
+    ur_usm_pool_info_t propName,
+    /// [out][optional] returned query value
+    void *pPropValue,
+    /// [out][optional] returned query value size
+    size_t *pPropSizeRet);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set a property for a USM memory pool.
+///
+/// @details
+///     - Set a property for a USM memory pool.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_USM_POOL_INFO_USED_HIGH_EXP < propName`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPropValue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(
+    /// [in] handle to USM memory pool for the property to be set
+    ur_usm_pool_handle_t hPool,
+    /// [in] setting property name
+    ur_usm_pool_info_t propName,
+    /// [in] pointer to value to assign
+    void *pPropValue,
+    /// [in] size of value to assign
+    size_t propSize);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the current pool for a device.
+///
+/// @details
+///     - Set the current pool for a device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool to set for a device
+    ur_usm_pool_handle_t hPool);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the currently set pool for a device.
+///
+/// @details
+///     - Get the currently set pool for a device.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [out] pointer to USM memory pool
+    ur_usm_pool_handle_t *pPool);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Attempt to release a pool's memory back to the OS
+///
+/// @details
+///     - Attempt to release a pool's memory back to the OS
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hPool`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for
+///         ::UR_DEVICE_INFO_USM_POOL_SUPPORT
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(
+    /// [in] handle of the context object
+    ur_context_handle_t hContext,
+    /// [in] handle of the device object
+    ur_device_handle_t hDevice,
+    /// [in] handle to USM memory pool for trimming
+    ur_usm_pool_handle_t hPool,
+    /// [in] minimum number of bytes to keep in the pool
+    size_t minBytesToKeep);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Bindless Images Extension APIs
 #if !defined(__GNUC__)
 #pragma region bindless_images_(experimental)
@@ -9033,12 +9673,16 @@ typedef enum ur_exp_external_mem_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Dictates the type of external semaphore handle.
 typedef enum ur_exp_external_semaphore_type_t {
-  /// Opaque file descriptor
+  /// Binary semaphore opaque file descriptor
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD = 0,
-  /// Win32 NT handle
+  /// Binary semaphore Win32 NT handle
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT = 1,
-  /// Win32 NT DirectX 12 fence handle
+  /// Fence semaphore Win32 NT DirectX 12 handle
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE = 2,
+  /// Timeline semaphore opaque file descriptor
+  UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_FD = 3,
+  /// Timeline semaphore Win32 NT handle
+  UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT = 4,
   /// @cond
   UR_EXP_EXTERNAL_SEMAPHORE_TYPE_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -9746,7 +10390,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE <
+///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_TIMELINE_WIN32_NT <
 ///         semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pExternalSemaphoreDesc`
@@ -9948,13 +10592,6 @@ typedef enum ur_exp_command_buffer_command_info_t {
 } ur_exp_command_buffer_command_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for command-buffers which
-///        is returned when querying device extensions.
-#define UR_COMMAND_BUFFER_EXTENSION_STRING_EXP "ur_exp_command_buffer"
-#endif // UR_COMMAND_BUFFER_EXTENSION_STRING_EXP
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-Buffer Descriptor Type
 typedef struct ur_exp_command_buffer_desc_t {
   /// [in] type of this structure, must be
@@ -9971,6 +10608,21 @@ typedef struct ur_exp_command_buffer_desc_t {
   ur_bool_t enableProfiling;
 
 } ur_exp_command_buffer_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief A value that identifies a command inside of a command-buffer, used
+/// for
+///        defining dependencies between commands in the same command-buffer.
+typedef uint32_t ur_exp_command_buffer_sync_point_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of Command-Buffer object
+typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of a Command-Buffer command
+typedef struct ur_exp_command_buffer_command_handle_t_
+    *ur_exp_command_buffer_command_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Descriptor type for updating a kernel command memobj argument.
@@ -10035,6 +10687,8 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
   ur_structure_type_t stype;
   /// [in][optional] pointer to extension-specific structure
   const void *pNext;
+  /// [in] Handle of the command-buffer kernel command to update.
+  ur_exp_command_buffer_command_handle_t hCommand;
   /// [in][optional] The new kernel handle. If this parameter is nullptr,
   /// the current kernel handle in `hCommand`
   /// will be used. If a kernel handle is passed, it must be a valid kernel
@@ -10083,21 +10737,6 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
   size_t *pNewLocalWorkSize;
 
 } ur_exp_command_buffer_update_kernel_launch_desc_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief A value that identifies a command inside of a command-buffer, used
-/// for
-///        defining dependencies between commands in the same command-buffer.
-typedef uint32_t ur_exp_command_buffer_sync_point_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of Command-Buffer object
-typedef struct ur_exp_command_buffer_handle_t_ *ur_exp_command_buffer_handle_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of a Command-Buffer command
-typedef struct ur_exp_command_buffer_command_handle_t_
-    *ur_exp_command_buffer_command_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Create a Command-Buffer object
@@ -11004,7 +11643,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_command_handle_t *phCommand);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Submit a command-buffer for execution on a queue.
+/// @brief Function adding work through the native API to be executed
+///        immediately.
+typedef void (*ur_exp_command_buffer_native_command_function_t)(
+    /// [in][out] Pointer to data to be passed to callback
+    void *pUserData);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append nodes to the command-buffer through a native backend API
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -11013,7 +11659,49 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pfnNativeCommand`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Function calling the native underlying API, to be executed
+    /// immediately.
+    ur_exp_command_buffer_native_command_function_t pfnNativeCommand,
+    /// [in][optional] Data used by pfnNativeCommand
+    void *pData,
+    /// [in][optional] A command-buffer object which will be added to
+    /// hCommandBuffer as a child graph node containing the native commands.
+    /// Required for CUDA and HIP adapters and will be ignored by other
+    /// adapters, who use alternative backend mechanisms to add the native
+    /// nodes to hCommandBuffer.
+    ur_exp_command_buffer_handle_t hChildCommandBuffer,
+    /// [in] The number of sync points in the provided dependency list.
+    uint32_t numSyncPointsInWaitList,
+    /// [in][optional] A list of sync points that this command depends on. May
+    /// be ignored if command-buffer is in-order.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    /// [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Submit a command-buffer for execution on a queue.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hQueue`
+///         + `NULL == hCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_EVENT
@@ -11023,11 +11711,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 ///         + If event objects in phEventWaitList are not valid events.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
-    /// [in] Handle of the command-buffer object.
-    ur_exp_command_buffer_handle_t hCommandBuffer,
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
     /// [in] The queue to submit this command-buffer for execution.
     ur_queue_handle_t hQueue,
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
     /// [in] Size of the event wait list.
     uint32_t numEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -11046,7 +11734,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///
 /// @details
 /// This entry-point is synchronous and may block if the command-buffer is
-/// executing when the entry-point is called.
+/// executing when the entry-point is called. On error, the state of the
+/// command-buffer commands being updated is undefined.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -11054,66 +11743,75 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hCommand`
+///         + `NULL == hCommandBuffer`
+///         + `NULL == pUpdateKernelLaunch->hCommand`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pUpdateKernelLaunch`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `numKernelUpdates == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS
-///         is not supported by the device, but any of
-///         `pUpdateKernelLaunch->numNewMemObjArgs`,
-///         `pUpdateKernelLaunch->numNewPointerArgs`, or
-///         `pUpdateKernelLaunch->numNewValueArgs` are not zero.
+///         is not supported by the device, and for any of any element of
+///         `pUpdateKernelLaunch` the `numNewMemObjArgs`, `numNewPointerArgs`,
+///         or `numNewValueArgs` members are not zero.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE is
-///         not supported by the device but
-///         `pUpdateKernelLaunch->pNewLocalWorkSize` is nullptr and
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr.
+///         not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewLocalWorkSize` member is nullptr and
+///         `pNewGlobalWorkSize` is not nullptr.
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize` is not nullptr
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkSize` member is not nullptr
 ///         + If
 ///         ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET
-///         is not supported by the device but
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `pNewGlobalWorkOffset` member is not
+///         nullptr.
 ///         + If ::UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE
-///         is not supported by the device but `pUpdateKernelLaunch->hNewKernel`
-///         is not nullptr.
+///         is not supported by the device, and for any element of
+///         `pUpdateKernelLaunch` the `hNewKernel` member is not nullptr.
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true
-///         on creation of the command-buffer `hCommand` belongs to.
-///         + If the command-buffer `hCommand` belongs to has not been
-///         finalized.
+///         on creation of the `hCommandBuffer`.
+///         + If `hCommandBuffer`  has not been finalized.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
-///         + If `hCommand` is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         is not a kernel execution command.
+///         + If for any element of `pUpdateKernelLaunch` the `hCommand` member
+///         was not created from `hCommandBuffer`.
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
-///         + `pUpdateKernelLaunch->newWorkDim < 1 ||
-///         pUpdateKernelLaunch->newWorkDim > 3`
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is less than 1 or greater than 3.
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
-///         + If `pUpdateKernelLaunch->hNewKernel` was not passed to the
-///         `hKernel` or `phKernelAlternatives` parameters of
-///         ::urCommandBufferAppendKernelLaunchExp when this command was
-///         created.
-///         + If `pUpdateKernelLaunch->newWorkDim` is different from the current
-///         workDim in `hCommand` and,
-///         `pUpdateKernelLaunch->pNewGlobalWorkSize`, or
-///         `pUpdateKernelLaunch->pNewGlobalWorkOffset` are nullptr.
+///         + If for any element of `pUpdateKernelLaunch` the `hNewKernel`
+///         member was not passed to the `hKernel` or `phKernelAlternatives`
+///         parameters of ::urCommandBufferAppendKernelLaunchExp when the
+///         command was created.
+///         + If for any element of `pUpdateKernelLaunch` the `newWorkDim`
+///         member is different from the current workDim in the `hCommand`
+///         member, and `pNewGlobalWorkSize` or `pNewGlobalWorkOffset` are
+///         nullptr.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    /// [in] Handle of the command-buffer kernel command to update.
-    ur_exp_command_buffer_command_handle_t hCommand,
-    /// [in] Struct defining how the kernel command is to be updated.
+    /// [in] Handle of the command-buffer object.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [in] Length of pUpdateKernelLaunch.
+    uint32_t numKernelUpdates,
+    /// [in][range(0, numKernelUpdates)]  List of structs defining how a
+    /// kernel commands are to be updated.
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch);
 
@@ -11229,6 +11927,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
     /// [out][optional] bytes returned in command-buffer property
     size_t *pPropSizeRet);
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Return platform native command-buffer handle.
+///
+/// @details
+///     - Retrieved native handle can be used for direct interaction with the
+///       native platform driver.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phNativeCommandBuffer`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetNativeHandleExp(
+    /// [in] Handle of the command-buffer.
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    /// [out] A pointer to the native handle of the command-buffer.
+    ur_native_handle_t *phNativeCommandBuffer);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -11236,13 +11958,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
 #if !defined(__GNUC__)
 #pragma region cooperative_kernels_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for cooperative-kernels
-///        which is returned when querying device extensions.
-#define UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP "ur_exp_cooperative_kernels"
-#endif // UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command to execute a cooperative kernel
 ///
@@ -11393,13 +12108,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 #pragma region launch_properties_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
-/// @brief The extension string that defines support for the Launch Properties
-///        extension, which is returned when querying device extensions.
-#define UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP "ur_exp_launch_properties"
-#endif // UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Specifies a launch property id
 ///
 /// @remarks
@@ -11545,14 +12253,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
 #if !defined(__GNUC__)
 #pragma region multi_device_compile_(experimental)
 #endif
-///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for test
-///        which is returned when querying device extensions.
-#define UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP                           \
-  "ur_exp_multi_device_compile"
-#endif // UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Produces an executable program from one program, negates need for the
 ///        linking step.
@@ -11741,21 +12441,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(
 #pragma region usm_p2p_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-#ifndef UR_USM_P2P_EXTENSION_STRING_EXP
-/// @brief The extension string that defines support for USM P2P which is
-///        returned when querying device extensions.
-#define UR_USM_P2P_EXTENSION_STRING_EXP "ur_exp_usm_p2p"
-#endif // UR_USM_P2P_EXTENSION_STRING_EXP
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported peer info
 typedef enum ur_exp_peer_info_t {
   /// [int] 1 if P2P access is supported otherwise P2P access is not
   /// supported.
-  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED = 0,
+  UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORT = 0,
   /// [int] 1 if atomic operations are supported over the P2P link,
   /// otherwise such operations are not supported.
-  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED = 1,
+  UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT = 1,
   /// @cond
   UR_EXP_PEER_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -11865,7 +12558,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 ///         + `NULL == commandDevice`
 ///         + `NULL == peerDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED < propName`
+///         + `::UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -11912,7 +12605,7 @@ typedef enum ur_exp_enqueue_ext_flag_t {
   /// implementation may use interrupt-driven events. May reduce CPU
   /// utilization at the cost of increased event completion latency. Other
   /// platforms may ignore this flag.
-  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS = UR_BIT(11),
+  UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT = UR_BIT(11),
   /// @cond
   UR_EXP_ENQUEUE_EXT_FLAG_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -12151,12 +12844,31 @@ typedef struct ur_loader_config_set_mocking_enabled_params_t {
 } ur_loader_config_set_mocking_enabled_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterSetLoggerCallback
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_set_logger_callback_params_t {
+  ur_adapter_handle_t *phAdapter;
+  ur_logger_callback_t *ppfnLoggerCallback;
+  void **ppUserData;
+  ur_logger_level_t *plevel;
+} ur_adapter_set_logger_callback_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterSetLoggerCallbackLevel
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_set_logger_callback_level_params_t {
+  ur_adapter_handle_t *phAdapter;
+  ur_logger_level_t *plevel;
+} ur_adapter_set_logger_callback_level_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_platform_get_params_t {
-  ur_adapter_handle_t **pphAdapters;
-  uint32_t *pNumAdapters;
+  ur_adapter_handle_t *phAdapter;
   uint32_t *pNumEntries;
   ur_platform_handle_t **pphPlatforms;
   uint32_t **ppNumPlatforms;
@@ -13509,6 +14221,76 @@ typedef struct ur_enqueue_events_wait_with_barrier_ext_params_t {
 } ur_enqueue_events_wait_with_barrier_ext_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueUSMDeviceAllocExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_device_alloc_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_usm_pool_handle_t *ppPool;
+  const size_t *psize;
+  const ur_exp_async_usm_alloc_properties_t **ppProperties;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  void ***pppMem;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_usm_device_alloc_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueUSMSharedAllocExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_shared_alloc_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_usm_pool_handle_t *ppPool;
+  const size_t *psize;
+  const ur_exp_async_usm_alloc_properties_t **ppProperties;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  void ***pppMem;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_usm_shared_alloc_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueUSMHostAllocExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_host_alloc_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_usm_pool_handle_t *ppPool;
+  const size_t *psize;
+  const ur_exp_async_usm_alloc_properties_t **ppProperties;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  void ***pppMem;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_usm_host_alloc_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueUSMFreeExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_free_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_usm_pool_handle_t *ppPool;
+  void **ppMem;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_usm_free_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueCommandBufferExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_command_buffer_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_command_buffer_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueCooperativeKernelLaunchExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -13551,6 +14333,223 @@ typedef struct ur_enqueue_native_command_exp_params_t {
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;
 } ur_enqueue_native_command_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMHostAlloc
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_host_alloc_params_t {
+  ur_context_handle_t *phContext;
+  const ur_usm_desc_t **ppUSMDesc;
+  ur_usm_pool_handle_t *ppool;
+  size_t *psize;
+  void ***pppMem;
+} ur_usm_host_alloc_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMDeviceAlloc
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_device_alloc_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  const ur_usm_desc_t **ppUSMDesc;
+  ur_usm_pool_handle_t *ppool;
+  size_t *psize;
+  void ***pppMem;
+} ur_usm_device_alloc_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMSharedAlloc
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_shared_alloc_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  const ur_usm_desc_t **ppUSMDesc;
+  ur_usm_pool_handle_t *ppool;
+  size_t *psize;
+  void ***pppMem;
+} ur_usm_shared_alloc_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMFree
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_free_params_t {
+  ur_context_handle_t *phContext;
+  void **ppMem;
+} ur_usm_free_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMGetMemAllocInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_get_mem_alloc_info_params_t {
+  ur_context_handle_t *phContext;
+  const void **ppMem;
+  ur_usm_alloc_info_t *ppropName;
+  size_t *ppropSize;
+  void **ppPropValue;
+  size_t **ppPropSizeRet;
+} ur_usm_get_mem_alloc_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolCreate
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_create_params_t {
+  ur_context_handle_t *phContext;
+  ur_usm_pool_desc_t **ppPoolDesc;
+  ur_usm_pool_handle_t **pppPool;
+} ur_usm_pool_create_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolRetain
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_retain_params_t {
+  ur_usm_pool_handle_t *ppPool;
+} ur_usm_pool_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_release_params_t {
+  ur_usm_pool_handle_t *ppPool;
+} ur_usm_pool_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_get_info_params_t {
+  ur_usm_pool_handle_t *phPool;
+  ur_usm_pool_info_t *ppropName;
+  size_t *ppropSize;
+  void **ppPropValue;
+  size_t **ppPropSizeRet;
+} ur_usm_pool_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolCreateExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_create_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  ur_usm_pool_desc_t **ppPoolDesc;
+  ur_usm_pool_handle_t **ppPool;
+} ur_usm_pool_create_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolDestroyExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_destroy_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  ur_usm_pool_handle_t *phPool;
+} ur_usm_pool_destroy_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolGetDefaultDevicePoolExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_get_default_device_pool_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  ur_usm_pool_handle_t **ppPool;
+} ur_usm_pool_get_default_device_pool_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolGetInfoExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_get_info_exp_params_t {
+  ur_usm_pool_handle_t *phPool;
+  ur_usm_pool_info_t *ppropName;
+  void **ppPropValue;
+  size_t **ppPropSizeRet;
+} ur_usm_pool_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolSetInfoExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_set_info_exp_params_t {
+  ur_usm_pool_handle_t *phPool;
+  ur_usm_pool_info_t *ppropName;
+  void **ppPropValue;
+  size_t *ppropSize;
+} ur_usm_pool_set_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolSetDevicePoolExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_set_device_pool_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  ur_usm_pool_handle_t *phPool;
+} ur_usm_pool_set_device_pool_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolGetDevicePoolExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_get_device_pool_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  ur_usm_pool_handle_t **ppPool;
+} ur_usm_pool_get_device_pool_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPoolTrimToExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pool_trim_to_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  ur_usm_pool_handle_t *phPool;
+  size_t *pminBytesToKeep;
+} ur_usm_pool_trim_to_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMPitchedAllocExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_pitched_alloc_exp_params_t {
+  ur_context_handle_t *phContext;
+  ur_device_handle_t *phDevice;
+  const ur_usm_desc_t **ppUSMDesc;
+  ur_usm_pool_handle_t *ppool;
+  size_t *pwidthInBytes;
+  size_t *pheight;
+  size_t *pelementSizeBytes;
+  void ***pppMem;
+  size_t **ppResultPitch;
+} ur_usm_pitched_alloc_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMImportExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_import_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppMem;
+  size_t *psize;
+} ur_usm_import_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urUSMReleaseExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_usm_release_exp_params_t {
+  ur_context_handle_t *phContext;
+  void **ppMem;
+} ur_usm_release_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for
@@ -13773,139 +14772,6 @@ typedef struct ur_bindless_images_signal_external_semaphore_exp_params_t {
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;
 } ur_bindless_images_signal_external_semaphore_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMHostAlloc
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_host_alloc_params_t {
-  ur_context_handle_t *phContext;
-  const ur_usm_desc_t **ppUSMDesc;
-  ur_usm_pool_handle_t *ppool;
-  size_t *psize;
-  void ***pppMem;
-} ur_usm_host_alloc_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMDeviceAlloc
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_device_alloc_params_t {
-  ur_context_handle_t *phContext;
-  ur_device_handle_t *phDevice;
-  const ur_usm_desc_t **ppUSMDesc;
-  ur_usm_pool_handle_t *ppool;
-  size_t *psize;
-  void ***pppMem;
-} ur_usm_device_alloc_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMSharedAlloc
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_shared_alloc_params_t {
-  ur_context_handle_t *phContext;
-  ur_device_handle_t *phDevice;
-  const ur_usm_desc_t **ppUSMDesc;
-  ur_usm_pool_handle_t *ppool;
-  size_t *psize;
-  void ***pppMem;
-} ur_usm_shared_alloc_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMFree
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_free_params_t {
-  ur_context_handle_t *phContext;
-  void **ppMem;
-} ur_usm_free_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMGetMemAllocInfo
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_get_mem_alloc_info_params_t {
-  ur_context_handle_t *phContext;
-  const void **ppMem;
-  ur_usm_alloc_info_t *ppropName;
-  size_t *ppropSize;
-  void **ppPropValue;
-  size_t **ppPropSizeRet;
-} ur_usm_get_mem_alloc_info_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMPoolCreate
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_pool_create_params_t {
-  ur_context_handle_t *phContext;
-  ur_usm_pool_desc_t **ppPoolDesc;
-  ur_usm_pool_handle_t **pppPool;
-} ur_usm_pool_create_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMPoolRetain
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_pool_retain_params_t {
-  ur_usm_pool_handle_t *ppPool;
-} ur_usm_pool_retain_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMPoolRelease
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_pool_release_params_t {
-  ur_usm_pool_handle_t *ppPool;
-} ur_usm_pool_release_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMPoolGetInfo
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_pool_get_info_params_t {
-  ur_usm_pool_handle_t *phPool;
-  ur_usm_pool_info_t *ppropName;
-  size_t *ppropSize;
-  void **ppPropValue;
-  size_t **ppPropSizeRet;
-} ur_usm_pool_get_info_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMPitchedAllocExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_pitched_alloc_exp_params_t {
-  ur_context_handle_t *phContext;
-  ur_device_handle_t *phDevice;
-  const ur_usm_desc_t **ppUSMDesc;
-  ur_usm_pool_handle_t *ppool;
-  size_t *pwidthInBytes;
-  size_t *pheight;
-  size_t *pelementSizeBytes;
-  void ***pppMem;
-  size_t **ppResultPitch;
-} ur_usm_pitched_alloc_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMImportExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_import_exp_params_t {
-  ur_context_handle_t *phContext;
-  void **ppMem;
-  size_t *psize;
-} ur_usm_import_exp_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urUSMReleaseExp
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_usm_release_exp_params_t {
-  ur_context_handle_t *phContext;
-  void **ppMem;
-} ur_usm_release_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferCreateExp
@@ -14188,23 +15054,26 @@ typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
 } ur_command_buffer_append_usm_advise_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferEnqueueExp
+/// @brief Function parameters for urCommandBufferAppendNativeCommandExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_enqueue_exp_params_t {
+typedef struct ur_command_buffer_append_native_command_exp_params_t {
   ur_exp_command_buffer_handle_t *phCommandBuffer;
-  ur_queue_handle_t *phQueue;
-  uint32_t *pnumEventsInWaitList;
-  const ur_event_handle_t **pphEventWaitList;
-  ur_event_handle_t **pphEvent;
-} ur_command_buffer_enqueue_exp_params_t;
+  ur_exp_command_buffer_native_command_function_t *ppfnNativeCommand;
+  void **ppData;
+  ur_exp_command_buffer_handle_t *phChildCommandBuffer;
+  uint32_t *pnumSyncPointsInWaitList;
+  const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+  ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_native_command_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferUpdateKernelLaunchExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_command_buffer_update_kernel_launch_exp_params_t {
-  ur_exp_command_buffer_command_handle_t *phCommand;
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  uint32_t *pnumKernelUpdates;
   const ur_exp_command_buffer_update_kernel_launch_desc_t *
       *ppUpdateKernelLaunch;
 } ur_command_buffer_update_kernel_launch_exp_params_t;
@@ -14239,6 +15108,15 @@ typedef struct ur_command_buffer_get_info_exp_params_t {
   void **ppPropValue;
   size_t **ppPropSizeRet;
 } ur_command_buffer_get_info_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferGetNativeHandleExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_get_native_handle_exp_params_t {
+  ur_exp_command_buffer_handle_t *phCommandBuffer;
+  ur_native_handle_t **pphNativeCommandBuffer;
+} ur_command_buffer_get_native_handle_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urUsmP2PEnablePeerAccessExp

@@ -1,13 +1,11 @@
 // REQUIRES: native_cpu_ock
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -mllvm -sycl-native-cpu-no-vecz -mllvm -sycl-native-dump-device-ir %s | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -mllvm -sycl-native-dump-device-ir %s | FileCheck %s
 
-// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -fno-inline -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o %t_temp.ll %s
-// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-TL
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -fno-inline -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-TL
 
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -Xclang -fenable-sycl-dae -mllvm -sycl-opt -mllvm -inline-threshold=500 -mllvm -sycl-native-cpu-no-vecz -mllvm -sycl-native-dump-device-ir %s | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -fenable-sycl-dae -mllvm -sycl-opt -mllvm -sycl-native-dump-device-ir %s | FileCheck %s
 
-// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -Xclang -fenable-sycl-dae -mllvm -sycl-opt -fno-inline -S -emit-llvm %s -o %t_temp.ll
-// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-TL
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -fenable-sycl-dae -mllvm -sycl-opt -fno-inline -mllvm -sycl-native-dump-device-ir %s | FileCheck %s --check-prefix=CHECK-TL
 
 // check that we added the state struct as a function argument, and that we
 // inject the calls to our builtins.
@@ -28,9 +26,11 @@ int main() {
     // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
     // CHECK-NOT: @llvm.threadlocal
 
-    // CHECK-TL:      %[[VAL1:.*]] = call ptr addrspace(1) @llvm.threadlocal.address.p1(ptr addrspace(1) @_ZL28nativecpu_thread_local_state)
-    // CHECK-TL-NEXT  %[[VAL2:.*]] = load ptr addrspace(1), ptr addrspace(1) %VAL1, align 8
-    // CHECK-TL-NEXT  %{{.*}} = call i64 @__dpcpp_nativecpu_get_wg_size(i32 0, ptr addrspace(1) %VAL2)
+    // CHECK-TL: define void @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperI5Test1EE.NativeCPUKernel({{.*}}
+    // CHECK-TL-NEXT:entry:
+    // CHECK-TL-NEXT:  %[[VAL1:.*]] = call ptr addrspace(1) @llvm.threadlocal.address.p1(ptr addrspace(1) @_ZL28nativecpu_thread_local_state)
+    // CHECK-TL-NEXT:  %[[VAL2:.*]] = load ptr addrspace(1), ptr addrspace(1) %[[VAL1]], align 8
+    // CHECK-TL-NEXT:  %{{.*}} = call i64 @__dpcpp_nativecpu_get_wg_size(i32 0, ptr addrspace(1) %[[VAL2]])
 
     // CHECK-TL:      %{{.*}} = call ptr addrspace(1) @llvm.threadlocal.address.p1(ptr addrspace(1) @_ZL28nativecpu_thread_local_state)
     // CHECK-TL-DAG: store ptr addrspace(1) %{{.*}}, ptr addrspace(1) %{{.*}}, align 8
@@ -44,7 +44,6 @@ int main() {
     h.parallel_for<Test2>(
         r2, [=](sycl::nd_item<2> ndi) { acc[ndi.get_global_id(1)] = 42; });
     // CHECK: @_ZTS5Test2.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
-    // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 1, ptr addrspace(1) %2)
     // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
   });
   sycl::nd_range<3> r3({1, 1, 1}, {1, 1, 1});
@@ -54,10 +53,6 @@ int main() {
     });
     // CHECK: @_ZTS5Test3.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_range(i32 2, ptr addrspace(1) %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_range(i32 1, ptr addrspace(1) %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_range(i32 0, ptr addrspace(1) %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 2, ptr addrspace(1) %2)
-    // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 1, ptr addrspace(1) %2)
     // CHECK-DAG: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
   });
 

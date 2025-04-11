@@ -198,8 +198,8 @@ typedef float4 pixelf32;
 typedef half fp16;
 typedef float fp32;
 
-pixelf16 as_pixelf16(short4 v) { return as_half4(v); }
-pixelf32 as_pixelf32(int4 v) { return as_float4(v); }
+pixelf16 as_pixelf16(short4 v) { return __clc_as_half4(v); }
+pixelf32 as_pixelf32(int4 v) { return __clc_as_float4(v); }
 
 #define _DEFINE_VEC4_CAST(from_t, to_t)                                        \
   inline to_t##4 cast_##from_t##4_to_##to_t##4(from_t##4 from) {               \
@@ -367,7 +367,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
   _CLC_DEF                                                                          \
   elem_t##4 _Z17__spirv_ImageReadIDv4_##elem_t_mangled##14ocl_image1d_roiET_T0_T1_( \
       read_only image1d_t image, int x) {                                           \
-    return as_##elem_t##4(                                                          \
+    return __clc_as_##elem_t##4(                                                    \
         __nvvm_suld_1d_v4i##elem_size##_clamp(image, x * sizeof(elem_t##4)));       \
   }
 
@@ -375,7 +375,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
   _CLC_DEF                                                                              \
   elem_t##4 _Z17__spirv_ImageReadIDv4_##elem_t_mangled##14ocl_image2d_roDv2_iET_T0_T1_( \
       read_only image2d_t image, int2 coord) {                                          \
-    return as_##elem_t##4(__nvvm_suld_2d_v4i##elem_size##_clamp(                        \
+    return __clc_as_##elem_t##4(__nvvm_suld_2d_v4i##elem_size##_clamp(                  \
         image, coord.x * sizeof(elem_t##4), coord.y));                                  \
   }
 
@@ -384,7 +384,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
   _CLC_DEF                                                                                          \
   elem_t##4 _Z17__spirv_ImageReadIDv4_##elem_t_mangled##14ocl_image3d_ro##coord_mangled##ET_T0_T1_( \
       read_only image3d_t image, int4 coord) {                                                      \
-    return as_##elem_t##4(__nvvm_suld_3d_v4i##elem_size##_clamp(                                    \
+    return __clc_as_##elem_t##4(__nvvm_suld_3d_v4i##elem_size##_clamp(                              \
         image, coord.x * sizeof(elem_t##4), coord.y, coord.z));                                     \
   }
 
@@ -394,8 +394,8 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
       _Z18__spirv_ImageWriteI14ocl_image1d_woiDv4_##elem_t_mangled##EvT_T0_T1_( \
           write_only image1d_t image, int x, elem_t##4 c) {                     \
     __nvvm_sust_1d_v4i##elem_size##_clamp(                                      \
-        image, x * sizeof(elem_t##4), as_##int_rep(c.x), as_##int_rep(c.y),     \
-        as_##int_rep(c.z), as_##int_rep(c.w));                                  \
+        image, x * sizeof(elem_t##4), __clc_as_##int_rep(c.x), __clc_as_##int_rep(c.y),     \
+        __clc_as_##int_rep(c.z), __clc_as_##int_rep(c.w));                                  \
   }
 
 #define _CLC_DEFINE_IMAGE2D_WRITE_BUILTIN(elem_t, elem_t_mangled, elem_size,        \
@@ -404,19 +404,19 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
       _Z18__spirv_ImageWriteI14ocl_image2d_woDv2_iDv4_##elem_t_mangled##EvT_T0_T1_( \
           write_only image2d_t image, int2 coord, elem_t##4 c) {                    \
     __nvvm_sust_2d_v4i##elem_size##_clamp(                                          \
-        image, coord.x * sizeof(elem_t##4), coord.y, as_##int_rep(c.x),             \
-        as_##int_rep(c.y), as_##int_rep(c.z), as_##int_rep(c.w));                   \
+        image, coord.x * sizeof(elem_t##4), coord.y, __clc_as_##int_rep(c.x),       \
+        __clc_as_##int_rep(c.y), __clc_as_##int_rep(c.z), __clc_as_##int_rep(c.w)); \
   }
 
-#define _CLC_DEFINE_IMAGE3D_WRITE_BUILTIN(elem_t, elem_t_mangled, elem_size,   \
-                                          int_rep, val_mangled)                \
-  _CLC_DEF void                                                                \
-      _Z18__spirv_ImageWriteI14ocl_image3d_woDv4_i##val_mangled##EvT_T0_T1_(   \
-          write_only image3d_t image, int4 coord, elem_t##4 c) {               \
-    __nvvm_sust_3d_v4i##elem_size##_clamp(                                     \
-        image, coord.x * sizeof(elem_t##4), coord.y, coord.z,                  \
-        as_##int_rep(c.x), as_##int_rep(c.y), as_##int_rep(c.z),               \
-        as_##int_rep(c.w));                                                    \
+#define _CLC_DEFINE_IMAGE3D_WRITE_BUILTIN(elem_t, elem_t_mangled, elem_size,       \
+                                          int_rep, val_mangled)                    \
+  _CLC_DEF void                                                                    \
+      _Z18__spirv_ImageWriteI14ocl_image3d_woDv4_i##val_mangled##EvT_T0_T1_(       \
+          write_only image3d_t image, int4 coord, elem_t##4 c) {                   \
+    __nvvm_sust_3d_v4i##elem_size##_clamp(                                         \
+        image, coord.x * sizeof(elem_t##4), coord.y, coord.z,                      \
+        __clc_as_##int_rep(c.x), __clc_as_##int_rep(c.y), __clc_as_##int_rep(c.z), \
+        __clc_as_##int_rep(c.w));                                                  \
   }
 
 _CLC_DEFINE_IMAGE1D_READ_BUILTIN(float, f, 32)
@@ -503,7 +503,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       float coord, long image, int sampler) {                                  \
     if (is_nearest_filter_mode(sampler)) {                                     \
       int i = (int)__spirv_ocl_floor(coord);                                   \
-      return as_##elem_t##4(                                                   \
+      return __clc_as_##elem_t##4(                                             \
           __nvvm_suld_1d_v4i##elem_size##_##cuda_address_mode##_s(             \
               image, i * sizeof(elem_t##4)));                                  \
     } else {                                                                   \
@@ -527,7 +527,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
     if (is_nearest_filter_mode(sampler)) {                                     \
       int i = (int)__spirv_ocl_floor(coord.x);                                 \
       int j = (int)__spirv_ocl_floor(coord.y);                                 \
-      return as_##elem_t##4(                                                   \
+      return __clc_as_##elem_t##4(                                             \
           __nvvm_suld_2d_v4i##elem_size##_##cuda_address_mode##_s(             \
               image, i * sizeof(elem_t##4), j));                               \
     } else {                                                                   \
@@ -560,7 +560,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       int i = (int)__spirv_ocl_floor(coord.x);                                 \
       int j = (int)__spirv_ocl_floor(coord.y);                                 \
       int k = (int)__spirv_ocl_floor(coord.z);                                 \
-      return as_##elem_t##4(                                                   \
+      return __clc_as_##elem_t##4(                                             \
           __nvvm_suld_3d_v4i##elem_size##_##cuda_address_mode##_s(             \
               image, i * sizeof(elem_t##4), j, k));                            \
     } else {                                                                   \
@@ -610,7 +610,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       if (i > width - 1) {                                                     \
         i = i - width;                                                         \
       }                                                                        \
-      return as_##elem_t##4(__nvvm_suld_1d_v4i##elem_size##_trap_s(            \
+      return __clc_as_##elem_t##4(__nvvm_suld_1d_v4i##elem_size##_trap_s(      \
           image, i * sizeof(elem_t##4)));                                      \
     } else {                                                                   \
       int i0, i1;                                                              \
@@ -649,7 +649,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       if (j > height - 1) {                                                    \
         j = j - height;                                                        \
       }                                                                        \
-      return as_##elem_t##4(__nvvm_suld_2d_v4i##elem_size##_trap_s(            \
+      return __clc_as_##elem_t##4(__nvvm_suld_2d_v4i##elem_size##_trap_s(      \
           image, i * sizeof(elem_t##4), j));                                   \
     } else {                                                                   \
       int i0, i1, j0, j1;                                                      \
@@ -706,7 +706,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       if (k > depth - 1) {                                                     \
         k = k - depth;                                                         \
       }                                                                        \
-      return as_##elem_t##4(__nvvm_suld_3d_v4i##elem_size##_trap_s(            \
+      return __clc_as_##elem_t##4(__nvvm_suld_3d_v4i##elem_size##_trap_s(      \
           image, i * sizeof(elem_t##4), j, k));                                \
     } else {                                                                   \
       int i0, i1, j0, j1, k0, k1;                                              \
@@ -775,7 +775,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       int i = (int)__spirv_ocl_floor(u);                                       \
       i = __spirv_ocl_s_min(i, width - 1);                                     \
                                                                                \
-      return as_##elem_t##4(__nvvm_suld_1d_v4i##elem_size##_trap_s(            \
+      return __clc_as_##elem_t##4(__nvvm_suld_1d_v4i##elem_size##_trap_s(      \
           image, i * sizeof(elem_t##4)));                                      \
     } else {                                                                   \
       int i0, i1;                                                              \
@@ -811,7 +811,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       int j = (int)__spirv_ocl_floor(v);                                       \
       j = __spirv_ocl_s_min(j, height - 1);                                    \
                                                                                \
-      return as_##elem_t##4(__nvvm_suld_2d_v4i##elem_size##_trap_s(            \
+      return __clc_as_##elem_t##4(__nvvm_suld_2d_v4i##elem_size##_trap_s(      \
           image, i * sizeof(elem_t##4), j));                                   \
     } else {                                                                   \
       int i0, i1, j0, j1;                                                      \
@@ -861,7 +861,7 @@ float4 unnormalized_coord_3d(float4 coord, long image) {
       int k = (int)__spirv_ocl_floor(w);                                       \
       k = __spirv_ocl_s_min(k, depth - 1);                                     \
                                                                                \
-      return as_##elem_t##4(__nvvm_suld_3d_v4i##elem_size##_trap_s(            \
+      return __clc_as_##elem_t##4(__nvvm_suld_3d_v4i##elem_size##_trap_s(      \
           image, i * sizeof(elem_t##4), j, k));                                \
     } else {                                                                   \
       int i0, i1, j0, j1, k0, k1;                                              \
@@ -1067,31 +1067,31 @@ int2 __nvvm_suld_3d_v2i32_clamp_s(long imageHandle, int x, int y, int z) {
 
 // unsigned int
 unsigned int __nvvm_suld_1d_j32_clamp_s(long imageHandle, int coord) {
-  return as_uint(__nvvm_suld_1d_i32_clamp_s(imageHandle, coord));
+  return __clc_as_uint(__nvvm_suld_1d_i32_clamp_s(imageHandle, coord));
 }
 unsigned int __nvvm_suld_2d_j32_clamp_s(long imageHandle, int x, int y) {
-  return as_uint(__nvvm_suld_2d_i32_clamp_s(imageHandle, x, y));
+  return __clc_as_uint(__nvvm_suld_2d_i32_clamp_s(imageHandle, x, y));
 }
 unsigned int __nvvm_suld_3d_j32_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_uint(__nvvm_suld_3d_i32_clamp_s(imageHandle, x, y, z));
+  return __clc_as_uint(__nvvm_suld_3d_i32_clamp_s(imageHandle, x, y, z));
 }
 uint2 __nvvm_suld_1d_v2j32_clamp_s(long imageHandle, int coord) {
-  return as_uint2(__nvvm_suld_1d_v2i32_clamp_s(imageHandle, coord));
+  return __clc_as_uint2(__nvvm_suld_1d_v2i32_clamp_s(imageHandle, coord));
 }
 uint2 __nvvm_suld_2d_v2j32_clamp_s(long imageHandle, int x, int y) {
-  return as_uint2(__nvvm_suld_2d_v2i32_clamp_s(imageHandle, x, y));
+  return __clc_as_uint2(__nvvm_suld_2d_v2i32_clamp_s(imageHandle, x, y));
 }
 uint2 __nvvm_suld_3d_v2j32_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_uint2(__nvvm_suld_3d_v2i32_clamp_s(imageHandle, x, y, z));
+  return __clc_as_uint2(__nvvm_suld_3d_v2i32_clamp_s(imageHandle, x, y, z));
 }
 uint4 __nvvm_suld_1d_v4j32_clamp_s(long imageHandle, int coord) {
-  return as_uint4(__nvvm_suld_1d_v4i32_clamp_s(imageHandle, coord));
+  return __clc_as_uint4(__nvvm_suld_1d_v4i32_clamp_s(imageHandle, coord));
 }
 uint4 __nvvm_suld_2d_v4j32_clamp_s(long imageHandle, int x, int y) {
-  return as_uint4(__nvvm_suld_2d_v4i32_clamp_s(imageHandle, x, y));
+  return __clc_as_uint4(__nvvm_suld_2d_v4i32_clamp_s(imageHandle, x, y));
 }
 uint4 __nvvm_suld_3d_v4j32_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_uint4(__nvvm_suld_3d_v4i32_clamp_s(imageHandle, x, y, z));
+  return __clc_as_uint4(__nvvm_suld_3d_v4i32_clamp_s(imageHandle, x, y, z));
 }
 
 // short -- short4 already defined
@@ -1119,53 +1119,53 @@ short2 __nvvm_suld_3d_v2i16_clamp_s(long imageHandle, int x, int y, int z) {
 
 // unsigned short
 unsigned short __nvvm_suld_1d_t16_clamp_s(long imageHandle, int coord) {
-  return as_ushort(__nvvm_suld_1d_i16_clamp_s(imageHandle, coord));
+  return __clc_as_ushort(__nvvm_suld_1d_i16_clamp_s(imageHandle, coord));
 }
 unsigned short __nvvm_suld_2d_t16_clamp_s(long imageHandle, int x, int y) {
-  return as_ushort(__nvvm_suld_2d_i16_clamp_s(imageHandle, x, y));
+  return __clc_as_ushort(__nvvm_suld_2d_i16_clamp_s(imageHandle, x, y));
 }
 unsigned short __nvvm_suld_3d_t16_clamp_s(long imageHandle, int x, int y,
                                           int z) {
-  return as_ushort(__nvvm_suld_3d_i16_clamp_s(imageHandle, x, y, z));
+  return __clc_as_ushort(__nvvm_suld_3d_i16_clamp_s(imageHandle, x, y, z));
 }
 ushort2 __nvvm_suld_1d_v2t16_clamp_s(long imageHandle, int coord) {
-  return as_ushort2(__nvvm_suld_1d_v2i16_clamp_s(imageHandle, coord));
+  return __clc_as_ushort2(__nvvm_suld_1d_v2i16_clamp_s(imageHandle, coord));
 }
 ushort2 __nvvm_suld_2d_v2t16_clamp_s(long imageHandle, int x, int y) {
-  return as_ushort2(__nvvm_suld_2d_v2i16_clamp_s(imageHandle, x, y));
+  return __clc_as_ushort2(__nvvm_suld_2d_v2i16_clamp_s(imageHandle, x, y));
 }
 ushort2 __nvvm_suld_3d_v2t16_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_ushort2(__nvvm_suld_3d_v2i16_clamp_s(imageHandle, x, y, z));
+  return __clc_as_ushort2(__nvvm_suld_3d_v2i16_clamp_s(imageHandle, x, y, z));
 }
 ushort4 __nvvm_suld_1d_v4t16_clamp_s(long imageHandle, int coord) {
-  return as_ushort4(__nvvm_suld_1d_v4i16_clamp_s(imageHandle, coord));
+  return __clc_as_ushort4(__nvvm_suld_1d_v4i16_clamp_s(imageHandle, coord));
 }
 ushort4 __nvvm_suld_2d_v4t16_clamp_s(long imageHandle, int x, int y) {
-  return as_ushort4(__nvvm_suld_2d_v4i16_clamp_s(imageHandle, x, y));
+  return __clc_as_ushort4(__nvvm_suld_2d_v4i16_clamp_s(imageHandle, x, y));
 }
 ushort4 __nvvm_suld_3d_v4t16_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_ushort4(__nvvm_suld_3d_v4i16_clamp_s(imageHandle, x, y, z));
+  return __clc_as_ushort4(__nvvm_suld_3d_v4i16_clamp_s(imageHandle, x, y, z));
 }
 
 // signed char
 short __nvvm_suld_1d_i8_clamp_s_helper(long,
                                        int) __asm("llvm.nvvm.suld.1d.i8.clamp");
 signed char __nvvm_suld_1d_i8_clamp_s(long imageHandle, int coord) {
-  return as_char(
+  return __clc_as_char(
       (signed char)__nvvm_suld_1d_i8_clamp_s_helper(imageHandle, coord));
 }
 
 short __nvvm_suld_2d_i8_clamp_s_helper(long, int,
                                        int) __asm("llvm.nvvm.suld.2d.i8.clamp");
 signed char __nvvm_suld_2d_i8_clamp_s(long imageHandle, int x, int y) {
-  return as_char(
+  return __clc_as_char(
       (signed char)__nvvm_suld_2d_i8_clamp_s_helper(imageHandle, x, y));
 }
 
 short __nvvm_suld_3d_i8_clamp_s_helper(long, int, int,
                                        int) __asm("llvm.nvvm.suld.3d.i8.clamp");
 signed char __nvvm_suld_3d_i8_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_char(
+  return __clc_as_char(
       (signed char)__nvvm_suld_3d_i8_clamp_s_helper(imageHandle, x, y, z));
 }
 
@@ -1215,7 +1215,7 @@ char4 __nvvm_suld_3d_v4i8_clamp_s(long imageHandle, int x, int y, int z) {
 unsigned short
 __nvvm_suld_1d_h8_clamp_s_helper(long, int) __asm("llvm.nvvm.suld.1d.i8.clamp");
 unsigned char __nvvm_suld_1d_h8_clamp_s(long imageHandle, int coord) {
-  return as_uchar(
+  return __clc_as_uchar(
       (unsigned char)__nvvm_suld_1d_h8_clamp_s_helper(imageHandle, coord));
 }
 
@@ -1223,7 +1223,7 @@ unsigned short
 __nvvm_suld_2d_h8_clamp_s_helper(long, int,
                                  int) __asm("llvm.nvvm.suld.2d.i8.clamp");
 unsigned char __nvvm_suld_2d_h8_clamp_s(long imageHandle, int x, int y) {
-  return as_uchar(
+  return __clc_as_uchar(
       (unsigned char)__nvvm_suld_2d_h8_clamp_s_helper(imageHandle, x, y));
 }
 
@@ -1232,7 +1232,7 @@ __nvvm_suld_3d_h8_clamp_s_helper(long, int, int,
                                  int) __asm("llvm.nvvm.suld.3d.i8.clamp");
 
 unsigned char __nvvm_suld_3d_h8_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_uchar(
+  return __clc_as_uchar(
       (unsigned char)__nvvm_suld_3d_h8_clamp_s_helper(imageHandle, x, y, z));
 }
 
@@ -1268,60 +1268,60 @@ uchar4 __nvvm_suld_3d_v4h8_clamp_s(long imageHandle, int x, int y, int z) {
 
 // float
 float __nvvm_suld_1d_f32_clamp_s(long imageHandle, int coord) {
-  return as_float(__nvvm_suld_1d_i32_clamp_s(imageHandle, coord));
+  return __clc_as_float(__nvvm_suld_1d_i32_clamp_s(imageHandle, coord));
 }
 float __nvvm_suld_2d_f32_clamp_s(long imageHandle, int x, int y) {
-  return as_float(__nvvm_suld_2d_i32_clamp_s(imageHandle, x, y));
+  return __clc_as_float(__nvvm_suld_2d_i32_clamp_s(imageHandle, x, y));
 }
 float __nvvm_suld_3d_f32_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_float(__nvvm_suld_3d_i32_clamp_s(imageHandle, x, y, z));
+  return __clc_as_float(__nvvm_suld_3d_i32_clamp_s(imageHandle, x, y, z));
 }
 float2 __nvvm_suld_1d_v2f32_clamp_s(long imageHandle, int coord) {
-  return as_float2(__nvvm_suld_1d_v2i32_clamp_s(imageHandle, coord));
+  return __clc_as_float2(__nvvm_suld_1d_v2i32_clamp_s(imageHandle, coord));
 }
 float2 __nvvm_suld_2d_v2f32_clamp_s(long imageHandle, int x, int y) {
-  return as_float2(__nvvm_suld_2d_v2i32_clamp_s(imageHandle, x, y));
+  return __clc_as_float2(__nvvm_suld_2d_v2i32_clamp_s(imageHandle, x, y));
 }
 float2 __nvvm_suld_3d_v2f32_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_float2(__nvvm_suld_3d_v2i32_clamp_s(imageHandle, x, y, z));
+  return __clc_as_float2(__nvvm_suld_3d_v2i32_clamp_s(imageHandle, x, y, z));
 }
 float4 __nvvm_suld_1d_v4f32_clamp_s(long imageHandle, int coord) {
-  return as_float4(__nvvm_suld_1d_v4i32_clamp_s(imageHandle, coord));
+  return __clc_as_float4(__nvvm_suld_1d_v4i32_clamp_s(imageHandle, coord));
 }
 float4 __nvvm_suld_2d_v4f32_clamp_s(long imageHandle, int x, int y) {
-  return as_float4(__nvvm_suld_2d_v4i32_clamp_s(imageHandle, x, y));
+  return __clc_as_float4(__nvvm_suld_2d_v4i32_clamp_s(imageHandle, x, y));
 }
 float4 __nvvm_suld_3d_v4f32_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_float4(__nvvm_suld_3d_v4i32_clamp_s(imageHandle, x, y, z));
+  return __clc_as_float4(__nvvm_suld_3d_v4i32_clamp_s(imageHandle, x, y, z));
 }
 
 // half
 half __nvvm_suld_1d_f16_clamp_s(long imageHandle, int coord) {
-  return as_half(__nvvm_suld_1d_i16_clamp_s(imageHandle, coord));
+  return __clc_as_half(__nvvm_suld_1d_i16_clamp_s(imageHandle, coord));
 }
 half __nvvm_suld_2d_f16_clamp_s(long imageHandle, int x, int y) {
-  return as_half(__nvvm_suld_2d_i16_clamp_s(imageHandle, x, y));
+  return __clc_as_half(__nvvm_suld_2d_i16_clamp_s(imageHandle, x, y));
 }
 half __nvvm_suld_3d_f16_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_half(__nvvm_suld_3d_i16_clamp_s(imageHandle, x, y, z));
+  return __clc_as_half(__nvvm_suld_3d_i16_clamp_s(imageHandle, x, y, z));
 }
 half2 __nvvm_suld_1d_v2f16_clamp_s(long imageHandle, int coord) {
-  return as_half2(__nvvm_suld_1d_v2i16_clamp_s(imageHandle, coord));
+  return __clc_as_half2(__nvvm_suld_1d_v2i16_clamp_s(imageHandle, coord));
 }
 half2 __nvvm_suld_2d_v2f16_clamp_s(long imageHandle, int x, int y) {
-  return as_half2(__nvvm_suld_2d_v2i16_clamp_s(imageHandle, x, y));
+  return __clc_as_half2(__nvvm_suld_2d_v2i16_clamp_s(imageHandle, x, y));
 }
 half2 __nvvm_suld_3d_v2f16_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_half2(__nvvm_suld_3d_v2i16_clamp_s(imageHandle, x, y, z));
+  return __clc_as_half2(__nvvm_suld_3d_v2i16_clamp_s(imageHandle, x, y, z));
 }
 half4 __nvvm_suld_1d_v4f16_clamp_s(long imageHandle, int coord) {
-  return as_half4(__nvvm_suld_1d_v4i16_clamp_s(imageHandle, coord));
+  return __clc_as_half4(__nvvm_suld_1d_v4i16_clamp_s(imageHandle, coord));
 }
 half4 __nvvm_suld_2d_v4f16_clamp_s(long imageHandle, int x, int y) {
-  return as_half4(__nvvm_suld_2d_v4i16_clamp_s(imageHandle, x, y));
+  return __clc_as_half4(__nvvm_suld_2d_v4i16_clamp_s(imageHandle, x, y));
 }
 half4 __nvvm_suld_3d_v4f16_clamp_s(long imageHandle, int x, int y, int z) {
-  return as_half4(__nvvm_suld_3d_v4i16_clamp_s(imageHandle, x, y, z));
+  return __clc_as_half4(__nvvm_suld_3d_v4i16_clamp_s(imageHandle, x, y, z));
 }
 
 // Generated funcs -- WRITES
@@ -1349,46 +1349,46 @@ void __nvvm_sust_3d_v4i32_clamp_s(unsigned long, int, int, int, int, int, int,
 // unsigned int
 void __nvvm_sust_1d_j32_clamp_s(unsigned long imageHandle, int coord,
                                 unsigned int a) {
-  return __nvvm_sust_1d_i32_clamp_s(imageHandle, coord, as_int(a));
+  return __nvvm_sust_1d_i32_clamp_s(imageHandle, coord, __clc_as_int(a));
 }
 void __nvvm_sust_2d_j32_clamp_s(unsigned long imageHandle, int x, int y,
                                 unsigned int a) {
-  return __nvvm_sust_2d_i32_clamp_s(imageHandle, x, y, as_int(a));
+  return __nvvm_sust_2d_i32_clamp_s(imageHandle, x, y, __clc_as_int(a));
 }
 void __nvvm_sust_3d_j32_clamp_s(unsigned long imageHandle, int x, int y, int z,
                                 unsigned int a) {
-  return __nvvm_sust_3d_i32_clamp_s(imageHandle, x, y, z, as_int(a));
+  return __nvvm_sust_3d_i32_clamp_s(imageHandle, x, y, z, __clc_as_int(a));
 }
 void __nvvm_sust_1d_v2j32_clamp_s(unsigned long imageHandle, int coord,
                                   unsigned int a, unsigned int b) {
-  return __nvvm_sust_1d_v2i32_clamp_s(imageHandle, coord, as_int(a), as_int(b));
+  return __nvvm_sust_1d_v2i32_clamp_s(imageHandle, coord, __clc_as_int(a), __clc_as_int(b));
 }
 void __nvvm_sust_2d_v2j32_clamp_s(unsigned long imageHandle, int x, int y,
                                   unsigned int a, unsigned int b) {
-  return __nvvm_sust_2d_v2i32_clamp_s(imageHandle, x, y, as_int(a), as_int(b));
+  return __nvvm_sust_2d_v2i32_clamp_s(imageHandle, x, y, __clc_as_int(a), __clc_as_int(b));
 }
 void __nvvm_sust_3d_v2j32_clamp_s(unsigned long imageHandle, int x, int y,
                                   int z, unsigned int a, unsigned int b) {
-  return __nvvm_sust_3d_v2i32_clamp_s(imageHandle, x, y, z, as_int(a),
-                                      as_int(b));
+  return __nvvm_sust_3d_v2i32_clamp_s(imageHandle, x, y, z, __clc_as_int(a),
+                                      __clc_as_int(b));
 }
 void __nvvm_sust_1d_v4j32_clamp_s(unsigned long imageHandle, int coord,
                                   unsigned int a, unsigned int b,
                                   unsigned int c, unsigned int d) {
-  return __nvvm_sust_1d_v4i32_clamp_s(imageHandle, coord, as_int(a), as_int(b),
-                                      as_int(c), as_int(d));
+  return __nvvm_sust_1d_v4i32_clamp_s(imageHandle, coord, __clc_as_int(a), __clc_as_int(b),
+                                      __clc_as_int(c), __clc_as_int(d));
 }
 void __nvvm_sust_2d_v4j32_clamp_s(unsigned long imageHandle, int x, int y,
                                   unsigned int a, unsigned int b,
                                   unsigned int c, unsigned int d) {
-  return __nvvm_sust_2d_v4i32_clamp_s(imageHandle, x, y, as_int(a), as_int(b),
-                                      as_int(c), as_int(d));
+  return __nvvm_sust_2d_v4i32_clamp_s(imageHandle, x, y, __clc_as_int(a), __clc_as_int(b),
+                                      __clc_as_int(c), __clc_as_int(d));
 }
 void __nvvm_sust_3d_v4j32_clamp_s(unsigned long imageHandle, int x, int y,
                                   int z, unsigned int a, unsigned int b,
                                   unsigned int c, unsigned int d) {
-  return __nvvm_sust_3d_v4i32_clamp_s(imageHandle, x, y, z, as_int(a),
-                                      as_int(b), as_int(c), as_int(d));
+  return __nvvm_sust_3d_v4i32_clamp_s(imageHandle, x, y, z, __clc_as_int(a),
+                                      __clc_as_int(b), __clc_as_int(c), __clc_as_int(d));
 }
 
 // short
@@ -1418,48 +1418,48 @@ void __nvvm_sust_3d_v4i16_clamp_s(
 // unsigned short
 void __nvvm_sust_1d_t16_clamp_s(unsigned long imageHandle, int coord,
                                 unsigned short a) {
-  return __nvvm_sust_1d_i16_clamp_s(imageHandle, coord, as_ushort(a));
+  return __nvvm_sust_1d_i16_clamp_s(imageHandle, coord, __clc_as_ushort(a));
 }
 void __nvvm_sust_2d_t16_clamp_s(unsigned long imageHandle, int x, int y,
                                 unsigned short a) {
-  return __nvvm_sust_2d_i16_clamp_s(imageHandle, x, y, as_ushort(a));
+  return __nvvm_sust_2d_i16_clamp_s(imageHandle, x, y, __clc_as_ushort(a));
 }
 void __nvvm_sust_3d_t16_clamp_s(unsigned long imageHandle, int x, int y, int z,
                                 unsigned short a) {
-  return __nvvm_sust_3d_i16_clamp_s(imageHandle, x, y, z, as_ushort(a));
+  return __nvvm_sust_3d_i16_clamp_s(imageHandle, x, y, z, __clc_as_ushort(a));
 }
 void __nvvm_sust_1d_v2t16_clamp_s(unsigned long imageHandle, int coord,
                                   unsigned short a, unsigned short b) {
-  return __nvvm_sust_1d_v2i16_clamp_s(imageHandle, coord, as_ushort(a),
-                                      as_ushort(b));
+  return __nvvm_sust_1d_v2i16_clamp_s(imageHandle, coord, __clc_as_ushort(a),
+                                      __clc_as_ushort(b));
 }
 void __nvvm_sust_2d_v2t16_clamp_s(unsigned long imageHandle, int x, int y,
                                   unsigned short a, unsigned short b) {
-  return __nvvm_sust_2d_v2i16_clamp_s(imageHandle, x, y, as_ushort(a),
-                                      as_ushort(b));
+  return __nvvm_sust_2d_v2i16_clamp_s(imageHandle, x, y, __clc_as_ushort(a),
+                                      __clc_as_ushort(b));
 }
 void __nvvm_sust_3d_v2t16_clamp_s(unsigned long imageHandle, int x, int y,
                                   int z, unsigned short a, unsigned short b) {
-  return __nvvm_sust_3d_v2i16_clamp_s(imageHandle, x, y, z, as_ushort(a),
-                                      as_ushort(b));
+  return __nvvm_sust_3d_v2i16_clamp_s(imageHandle, x, y, z, __clc_as_ushort(a),
+                                      __clc_as_ushort(b));
 }
 void __nvvm_sust_1d_v4t16_clamp_s(unsigned long imageHandle, int coord,
                                   unsigned short a, unsigned short b,
                                   unsigned short c, unsigned short d) {
-  return __nvvm_sust_1d_v4i16_clamp_s(imageHandle, coord, as_ushort(a),
-                                      as_ushort(b), as_short(c), as_ushort(d));
+  return __nvvm_sust_1d_v4i16_clamp_s(imageHandle, coord, __clc_as_ushort(a),
+                                      __clc_as_ushort(b), __clc_as_short(c), __clc_as_ushort(d));
 }
 void __nvvm_sust_2d_v4t16_clamp_s(unsigned long imageHandle, int x, int y,
                                   unsigned short a, unsigned short b,
                                   unsigned short c, unsigned short d) {
-  return __nvvm_sust_2d_v4i16_clamp_s(imageHandle, x, y, as_ushort(a),
-                                      as_ushort(b), as_short(c), as_ushort(d));
+  return __nvvm_sust_2d_v4i16_clamp_s(imageHandle, x, y, __clc_as_ushort(a),
+                                      __clc_as_ushort(b), __clc_as_short(c), __clc_as_ushort(d));
 }
 void __nvvm_sust_3d_v4t16_clamp_s(unsigned long imageHandle, int x, int y,
                                   int z, unsigned short a, unsigned short b,
                                   unsigned short c, unsigned short d) {
-  return __nvvm_sust_3d_v4i16_clamp_s(imageHandle, x, y, z, as_ushort(a),
-                                      as_ushort(b), as_short(c), as_ushort(d));
+  return __nvvm_sust_3d_v4i16_clamp_s(imageHandle, x, y, z, __clc_as_ushort(a),
+                                      __clc_as_ushort(b), __clc_as_short(c), __clc_as_ushort(d));
 }
 
 // char  -- i8 intrinsic returns i16, requires helper
@@ -1584,86 +1584,86 @@ void __nvvm_sust_3d_v4h8_clamp_s(unsigned long imageHandle, int x, int y, int z,
 
 // float
 void __nvvm_sust_1d_f32_clamp_s(unsigned long imageHandle, int coord, float a) {
-  return __nvvm_sust_1d_i32_clamp_s(imageHandle, coord, as_int(a));
+  return __nvvm_sust_1d_i32_clamp_s(imageHandle, coord, __clc_as_int(a));
 }
 void __nvvm_sust_2d_f32_clamp_s(unsigned long imageHandle, int x, int y,
                                 float a) {
-  return __nvvm_sust_2d_i32_clamp_s(imageHandle, x, y, as_int(a));
+  return __nvvm_sust_2d_i32_clamp_s(imageHandle, x, y, __clc_as_int(a));
 }
 void __nvvm_sust_3d_f32_clamp_s(unsigned long imageHandle, int x, int y, int z,
                                 float a) {
-  return __nvvm_sust_3d_i32_clamp_s(imageHandle, x, y, z, as_int(a));
+  return __nvvm_sust_3d_i32_clamp_s(imageHandle, x, y, z, __clc_as_int(a));
 }
 void __nvvm_sust_1d_v2f32_clamp_s(unsigned long imageHandle, int coord, float a,
                                   float b) {
-  return __nvvm_sust_1d_v2i32_clamp_s(imageHandle, coord, as_int(a), as_int(b));
+  return __nvvm_sust_1d_v2i32_clamp_s(imageHandle, coord, __clc_as_int(a), __clc_as_int(b));
 }
 void __nvvm_sust_2d_v2f32_clamp_s(unsigned long imageHandle, int x, int y,
                                   float a, float b) {
-  return __nvvm_sust_2d_v2i32_clamp_s(imageHandle, x, y, as_int(a), as_int(b));
+  return __nvvm_sust_2d_v2i32_clamp_s(imageHandle, x, y, __clc_as_int(a), __clc_as_int(b));
 }
 void __nvvm_sust_3d_v2f32_clamp_s(unsigned long imageHandle, int x, int y,
                                   int z, float a, float b) {
-  return __nvvm_sust_3d_v2i32_clamp_s(imageHandle, x, y, z, as_int(a),
-                                      as_int(b));
+  return __nvvm_sust_3d_v2i32_clamp_s(imageHandle, x, y, z, __clc_as_int(a),
+                                      __clc_as_int(b));
 }
 void __nvvm_sust_1d_v4f32_clamp_s(unsigned long imageHandle, int coord, float a,
                                   float b, float c, float d) {
-  return __nvvm_sust_1d_v4i32_clamp_s(imageHandle, coord, as_int(a), as_int(b),
-                                      as_int(c), as_int(d));
+  return __nvvm_sust_1d_v4i32_clamp_s(imageHandle, coord, __clc_as_int(a), __clc_as_int(b),
+                                      __clc_as_int(c), __clc_as_int(d));
 }
 void __nvvm_sust_2d_v4f32_clamp_s(unsigned long imageHandle, int x, int y,
                                   float a, float b, float c, float d) {
-  return __nvvm_sust_2d_v4i32_clamp_s(imageHandle, x, y, as_int(a), as_int(b),
-                                      as_int(c), as_int(d));
+  return __nvvm_sust_2d_v4i32_clamp_s(imageHandle, x, y, __clc_as_int(a), __clc_as_int(b),
+                                      __clc_as_int(c), __clc_as_int(d));
 }
 void __nvvm_sust_3d_v4f32_clamp_s(unsigned long imageHandle, int x, int y,
                                   int z, float a, float b, float c, float d) {
-  return __nvvm_sust_3d_v4i32_clamp_s(imageHandle, x, y, z, as_int(a),
-                                      as_int(b), as_int(c), as_int(d));
+  return __nvvm_sust_3d_v4i32_clamp_s(imageHandle, x, y, z, __clc_as_int(a),
+                                      __clc_as_int(b), __clc_as_int(c), __clc_as_int(d));
 }
 
 // half
 void __nvvm_sust_1d_f16_clamp_s(unsigned long imageHandle, int coord, half a) {
-  return __nvvm_sust_1d_i16_clamp_s(imageHandle, coord, as_short(a));
+  return __nvvm_sust_1d_i16_clamp_s(imageHandle, coord, __clc_as_short(a));
 }
 void __nvvm_sust_2d_f16_clamp_s(unsigned long imageHandle, int x, int y,
                                 half a) {
-  return __nvvm_sust_2d_i16_clamp_s(imageHandle, x, y, as_short(a));
+  return __nvvm_sust_2d_i16_clamp_s(imageHandle, x, y, __clc_as_short(a));
 }
 void __nvvm_sust_3d_f16_clamp_s(unsigned long imageHandle, int x, int y, int z,
                                 half a) {
-  return __nvvm_sust_3d_i16_clamp_s(imageHandle, x, y, z, as_short(a));
+  return __nvvm_sust_3d_i16_clamp_s(imageHandle, x, y, z, __clc_as_short(a));
 }
 void __nvvm_sust_1d_v2f16_clamp_s(unsigned long imageHandle, int coord, half a,
                                   half b) {
-  return __nvvm_sust_1d_v2i16_clamp_s(imageHandle, coord, as_short(a),
-                                      as_short(b));
+  return __nvvm_sust_1d_v2i16_clamp_s(imageHandle, coord, __clc_as_short(a),
+                                      __clc_as_short(b));
 }
 void __nvvm_sust_2d_v2f16_clamp_s(unsigned long imageHandle, int x, int y,
                                   half a, half b) {
-  return __nvvm_sust_2d_v2i16_clamp_s(imageHandle, x, y, as_short(a),
-                                      as_short(b));
+  return __nvvm_sust_2d_v2i16_clamp_s(imageHandle, x, y, __clc_as_short(a),
+                                      __clc_as_short(b));
 }
 void __nvvm_sust_3d_v2f16_clamp_s(unsigned long imageHandle, int x, int y,
                                   int z, half a, half b) {
-  return __nvvm_sust_3d_v2i16_clamp_s(imageHandle, x, y, z, as_short(a),
-                                      as_short(b));
+  return __nvvm_sust_3d_v2i16_clamp_s(imageHandle, x, y, z, __clc_as_short(a),
+                                      __clc_as_short(b));
 }
 void __nvvm_sust_1d_v4f16_clamp_s(unsigned long imageHandle, int coord, half a,
                                   half b, half c, half d) {
-  return __nvvm_sust_1d_v4i16_clamp_s(imageHandle, coord, as_short(a),
-                                      as_short(b), as_short(c), as_short(d));
+  return __nvvm_sust_1d_v4i16_clamp_s(imageHandle, coord, __clc_as_short(a),
+                                      __clc_as_short(b), __clc_as_short(c), __clc_as_short(d));
 }
 void __nvvm_sust_2d_v4f16_clamp_s(unsigned long imageHandle, int x, int y,
                                   half a, half b, half c, half d) {
-  return __nvvm_sust_2d_v4i16_clamp_s(imageHandle, x, y, as_short(a),
-                                      as_short(b), as_short(c), as_short(d));
+  return __nvvm_sust_2d_v4i16_clamp_s(imageHandle, x, y, __clc_as_short(a),
+                                      __clc_as_short(b), __clc_as_short(c), __clc_as_short(d));
 }
 void __nvvm_sust_3d_v4f16_clamp_s(unsigned long imageHandle, int x, int y,
                                   int z, half a, half b, half c, half d) {
-  return __nvvm_sust_3d_v4i16_clamp_s(imageHandle, x, y, z, as_short(a),
-                                      as_short(b), as_short(c), as_short(d));
+  return __nvvm_sust_3d_v4i16_clamp_s(imageHandle, x, y, z, __clc_as_short(a),
+                                      __clc_as_short(b), __clc_as_short(c), __clc_as_short(d));
 }
 
 #define _CLC_DEFINE_IMAGE_BINDLESS_FETCH_BUILTIN(                              \
@@ -2727,6 +2727,69 @@ _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 1, Dv4_DF16_, v4f16, i, i
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_i, int2 coord, coord.x, coord.y)
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_FETCH_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv3_i, int4 coord, coord.x, coord.y, coord.z)
 
+float4
+__nvvm_tld4_r_2d_v4f32_f32(long, float,
+                           float) __asm("__clc_llvm_nvvm_tld4_r_2d_v4f32_f32");
+float4
+__nvvm_tld4_g_2d_v4f32_f32(long, float,
+                           float) __asm("__clc_llvm_nvvm_tld4_g_2d_v4f32_f32");
+float4
+__nvvm_tld4_b_2d_v4f32_f32(long, float,
+                           float) __asm("__clc_llvm_nvvm_tld4_b_2d_v4f32_f32");
+float4
+__nvvm_tld4_a_2d_v4f32_f32(long, float,
+                           float) __asm("__clc_llvm_nvvm_tld4_a_2d_v4f32_f32");
+
+int4 __nvvm_tld4_r_2d_v4s32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_r_2d_v4s32_f32");
+int4 __nvvm_tld4_g_2d_v4s32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_g_2d_v4s32_f32");
+int4 __nvvm_tld4_b_2d_v4s32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_b_2d_v4s32_f32");
+int4 __nvvm_tld4_a_2d_v4s32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_a_2d_v4s32_f32");
+
+uint4 __nvvm_tld4_r_2d_v4u32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_r_2d_v4u32_f32");
+uint4 __nvvm_tld4_g_2d_v4u32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_g_2d_v4u32_f32");
+uint4 __nvvm_tld4_b_2d_v4u32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_b_2d_v4u32_f32");
+uint4 __nvvm_tld4_a_2d_v4u32_f32(long, float, float) __asm(
+    "__clc_llvm_nvvm_tld4_a_2d_v4u32_f32");
+
+#define _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(                      \
+    elem_t, elem_t_mangled, vec_size, type)                                    \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      26, __spirv_SampledImageGather, I##elem_t_mangled,                       \
+      Dv2_f##ET_T0_T1_j)(ulong imageHandle, float2 coord, unsigned i) {        \
+    elem_t result;                                                             \
+    switch (i) {                                                               \
+    case 0:                                                                    \
+      result = __nvvm_tld4_r_2d_v4##type##_f32(imageHandle, coord.x, coord.y); \
+      break;                                                                   \
+    case 1:                                                                    \
+      result = __nvvm_tld4_g_2d_v4##type##_f32(imageHandle, coord.x, coord.y); \
+      break;                                                                   \
+    case 2:                                                                    \
+      result = __nvvm_tld4_b_2d_v4##type##_f32(imageHandle, coord.x, coord.y); \
+      break;                                                                   \
+    case 3:                                                                    \
+      result = __nvvm_tld4_a_2d_v4##type##_f32(imageHandle, coord.x, coord.y); \
+      break;                                                                   \
+    default:                                                                   \
+      __builtin_trap();                                                        \
+      __builtin_unreachable();                                                 \
+    }                                                                          \
+    return result;                                                             \
+  }
+
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(float4, Dv4_f, v4f32, f32)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(int4, Dv4_i, v4i32, s32)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN(uint4, Dv4_j, v4j32, u32)
+
+#undef _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_GATHER_BUILTIN
+
 // <--- MIPMAP --->
 
 // Define functions to call intrinsic
@@ -3552,13 +3615,13 @@ BINDLESS_INTRINSIC_FUNC_ALL(float, f, f, 32, )
                                                    int idx, int x) {           \
     fetch_elem_t a = __nvvm_suld_1d_array_##fetch_vec_size##_clamp_s##helper(  \
         imageHandle, idx, x);                                                  \
-    return as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));          \
+    return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));          \
   }                                                                            \
   elem_t __nvvm_suld_2d_array_##vec_size##_clamp_s(unsigned long imageHandle,  \
                                                    int idx, int x, int y) {    \
     fetch_elem_t a = __nvvm_suld_2d_array_##fetch_vec_size##_clamp_s##helper(  \
         imageHandle, idx, x, y);                                               \
-    return as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));          \
+    return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));          \
   }
 
 _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint, int, uint, j32, i32, )
@@ -3593,10 +3656,10 @@ _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half4, short4, short4, v4
 #define COLOR_INPUT_2_CHANNEL(elem_t) elem_t a, elem_t b
 #define COLOR_INPUT_4_CHANNEL(elem_t) elem_t a, elem_t b, elem_t c, elem_t d
 
-#define COLOR_PARAMS_1_CHANNEL_AS_TYPE(elem_t) as_##elem_t(a)
-#define COLOR_PARAMS_2_CHANNEL_AS_TYPE(elem_t) as_##elem_t(a), as_##elem_t(b)
+#define COLOR_PARAMS_1_CHANNEL_AS_TYPE(elem_t) __clc_as_##elem_t(a)
+#define COLOR_PARAMS_2_CHANNEL_AS_TYPE(elem_t) __clc_as_##elem_t(a), __clc_as_##elem_t(b)
 #define COLOR_PARAMS_4_CHANNEL_AS_TYPE(elem_t)                                 \
-  as_##elem_t(a), as_##elem_t(b), as_##elem_t(c), as_##elem_t(d)
+  __clc_as_##elem_t(a), __clc_as_##elem_t(b), __clc_as_##elem_t(c), __clc_as_##elem_t(d)
 
 #define COLOR_PARAMS_1_CHANNEL_C_CAST(elem_t) (elem_t) a
 #define COLOR_PARAMS_2_CHANNEL_C_CAST(elem_t) (elem_t) a, (elem_t)b
@@ -3659,25 +3722,25 @@ _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v4f16, v4i1
       unsigned long imageHandle, int idx, int x) {                             \
     fetch_elem_t a = __nvvm_tex_unified_1d_array_##fetch_vec_size##_i32(       \
         imageHandle, idx, x) index;                                            \
-    return as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
+    return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
   }                                                                            \
   elem_t __nvvm_tex_unified_1d_array_##vec_size##_f32(                         \
       unsigned long imageHandle, int idx, float x) {                           \
     fetch_elem_t a = __nvvm_tex_unified_1d_array_##fetch_vec_size##_f32(       \
         imageHandle, idx, x) index;                                            \
-    return as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
+    return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
   }                                                                            \
   elem_t __nvvm_tex_unified_2d_array_##vec_size##_i32(                         \
       unsigned long imageHandle, int idx, int x, int y) {                      \
     fetch_elem_t a = __nvvm_tex_unified_2d_array_##fetch_vec_size##_i32(       \
         imageHandle, idx, x, y) index;                                         \
-    return as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
+    return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
   }                                                                            \
   elem_t __nvvm_tex_unified_2d_array_##vec_size##_f32(                         \
       unsigned long imageHandle, int idx, float x, float y) {                  \
     fetch_elem_t a = __nvvm_tex_unified_2d_array_##fetch_vec_size##_f32(       \
         imageHandle, idx, x, y) index;                                         \
-    return as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
+    return __clc_as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
   }
 
 // int4 handled above

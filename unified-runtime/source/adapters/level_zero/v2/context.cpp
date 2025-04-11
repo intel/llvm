@@ -25,7 +25,7 @@ filterP2PDevices(ur_device_handle_t hSourceDevice,
 
     ze_bool_t p2p;
     ZE2UR_CALL_THROWS(zeDeviceCanAccessPeer,
-                      (hSourceDevice->ZeDevice, device->ZeDevice, &p2p));
+                      (device->ZeDevice, hSourceDevice->ZeDevice, &p2p));
 
     if (p2p) {
       p2pDevices.push_back(device);
@@ -190,12 +190,6 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
     return ReturnValue(uint8_t{false});
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }

@@ -8,9 +8,9 @@
 
 #include <libspirv/spirv.h>
 
-#include <libspirv/math/tables.h>
+#include <clc/math/tables.h>
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_atan2(float y, float x) {
   const float pi = 0x1.921fb6p+1f;
@@ -60,7 +60,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_atan2(float y, float x) {
   a = x < 0.0F ? at : a;
 
   // y == 0 => 0 for x >= 0, pi for x < 0
-  at = as_int(x) < 0 ? pi : 0.0f;
+  at = __clc_as_int(x) < 0 ? pi : 0.0f;
   a = y == 0.0f ? at : a;
 
   // if (!FINITE_ONLY()) {
@@ -69,7 +69,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_atan2(float y, float x) {
   a = ax == INFINITY && ay == INFINITY ? at : a;
 
   // x or y is NaN
-  a = __spirv_IsNan(x) || __spirv_IsNan(y) ? as_float(QNANBITPATT_SP32) : a;
+  a = __spirv_IsNan(x) || __spirv_IsNan(y) ? __clc_as_float(QNANBITPATT_SP32) : a;
   // }
 
   // Fixup sign and return
@@ -94,21 +94,21 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_atan2(double y, double x) {
   const double piby2_tail = 6.1232339957367660e-17;  /* 0x3c91a62633145c07 */
 
   double x2 = x;
-  int xneg = as_int2(x).hi < 0;
-  int xexp = (as_int2(x).hi >> 20) & 0x7ff;
+  int xneg = __clc_as_int2(x).hi < 0;
+  int xexp = (__clc_as_int2(x).hi >> 20) & 0x7ff;
 
   double y2 = y;
-  int yneg = as_int2(y).hi < 0;
-  int yexp = (as_int2(y).hi >> 20) & 0x7ff;
+  int yneg = __clc_as_int2(y).hi < 0;
+  int yexp = (__clc_as_int2(y).hi >> 20) & 0x7ff;
 
   int cond2 = (xexp < 1021) & (yexp < 1021);
   int diffexp = yexp - xexp;
 
   // Scale up both x and y if they are both below 1/4
   double x1 = __spirv_ocl_ldexp(x, 1024);
-  int xexp1 = (as_int2(x1).hi >> 20) & 0x7ff;
+  int xexp1 = (__clc_as_int2(x1).hi >> 20) & 0x7ff;
   double y1 = __spirv_ocl_ldexp(y, 1024);
-  int yexp1 = (as_int2(y1).hi >> 20) & 0x7ff;
+  int yexp1 = (__clc_as_int2(y1).hi >> 20) & 0x7ff;
   int diffexp1 = yexp1 - xexp1;
 
   diffexp = cond2 ? diffexp1 : diffexp;
@@ -140,14 +140,14 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_atan2(double y, double x) {
 
     // We're going to scale u and v by 2^(-u_exponent) to bring them close to 1
     // u_exponent could be EMAX so we have to do it in 2 steps
-    int m = -((int)(as_ulong(u) >> EXPSHIFTBITS_DP64) - EXPBIAS_DP64);
+    int m = -((int)(__clc_as_ulong(u) >> EXPSHIFTBITS_DP64) - EXPBIAS_DP64);
     // double um = __amdil_ldexp_f64(u, m);
     // double vm = __amdil_ldexp_f64(v, m);
     double um = __spirv_ocl_ldexp(u, m);
     double vm = __spirv_ocl_ldexp(v, m);
 
     // 26 leading bits of u
-    double u1 = as_double(as_ulong(um) & 0xfffffffff8000000UL);
+    double u1 = __clc_as_double(__clc_as_ulong(um) & 0xfffffffff8000000UL);
     double u2 = um - u1;
 
     double r = MATH_DIVIDE(__spirv_ocl_fma(-c, u2, __spirv_ocl_fma(-c, u1, vm)),
@@ -168,9 +168,9 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_atan2(double y, double x) {
 
   double q5, q6;
   {
-    double u1 = as_double(as_ulong(u) & 0xffffffff00000000UL);
+    double u1 = __clc_as_double(__clc_as_ulong(u) & 0xffffffff00000000UL);
     double u2 = u - u1;
-    double vu1 = as_double(as_ulong(vbyu) & 0xffffffff00000000UL);
+    double vu1 = __clc_as_double(__clc_as_ulong(vbyu) & 0xffffffff00000000UL);
     double vu2 = vbyu - vu1;
 
     q5 = 0.0;
@@ -250,6 +250,6 @@ _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_atan2, double,
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_atan2, __builtin_atan2, half, half)
+_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_atan2, __builtin_atan2f16, half, half)
 
 #endif

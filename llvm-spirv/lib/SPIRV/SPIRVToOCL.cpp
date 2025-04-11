@@ -219,8 +219,7 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallSPIRVReadClockKHR(&CI);
     return;
   }
-  if (OC == internal::OpConvertFToBF16INTEL ||
-      OC == internal::OpConvertBF16ToFINTEL) {
+  if (OC == OpConvertFToBF16INTEL || OC == OpConvertBF16ToFINTEL) {
     visitCallSPIRVBFloat16Conversions(&CI, OC);
     return;
   }
@@ -584,7 +583,7 @@ void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
       assert(isa<PointerType>(T));
       auto *NewTy = Builder.getPtrTy(SPIRAS_Generic);
       if (T != NewTy) {
-        P = Builder.CreatePointerBitCastOrAddrSpaceCast(P, NewTy);
+        P = Builder.CreateAddrSpaceCast(P, NewTy);
       }
       return std::make_pair(
           P, TypedPointerType::get(Builder.getInt8Ty(), SPIRAS_Generic));
@@ -753,8 +752,10 @@ SPIRVToOCLBase::mutateCallImageOperands(CallInst *CI, StringRef NewFuncName,
       ConstantFP *LodVal = dyn_cast<ConstantFP>(Mutator.getArg(ImOpArgIndex));
       // If the image operand is LOD and its value is zero, drop it too.
       if (LodVal && LodVal->isNullValue() &&
-          ImOpValue == ImageOperandsMask::ImageOperandsLodMask)
+          ImOpValue & ImageOperandsMask::ImageOperandsLodMask) {
         Mutator.removeArgs(ImOpArgIndex, Mutator.arg_size() - ImOpArgIndex);
+        ImOpValue &= ~ImageOperandsMask::ImageOperandsLodMask;
+      }
     }
   }
   return Mutator;
@@ -928,10 +929,10 @@ void SPIRVToOCLBase::visitCallSPIRVBFloat16Conversions(CallInst *CI, Op OC) {
           : "";
   std::string Name;
   switch (static_cast<uint32_t>(OC)) {
-  case internal::OpConvertFToBF16INTEL:
+  case OpConvertFToBF16INTEL:
     Name = "intel_convert_bfloat16" + N + "_as_ushort" + N;
     break;
-  case internal::OpConvertBF16ToFINTEL:
+  case OpConvertBF16ToFINTEL:
     Name = "intel_convert_as_bfloat16" + N + "_float" + N;
     break;
   default:

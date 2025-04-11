@@ -154,7 +154,8 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
 
 SYCLInstallationDetector::SYCLInstallationDetector(
     const Driver &D, const llvm::Triple &HostTriple,
-    const llvm::opt::ArgList &Args) : D(D) {}
+    const llvm::opt::ArgList &Args)
+    : D(D) {}
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
     llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
@@ -309,8 +310,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
   static llvm::SmallSet<StringRef, 8> GPUArchsWithNBF16{
       "intel_gpu_pvc",     "intel_gpu_acm_g10", "intel_gpu_acm_g11",
-      "intel_gpu_acm_g12", "intel_gpu_dg2_10",  "intel_gpu_dg2_11",
-      "intel_dg2_g12",     "intel_gpu_bmg_g21"};
+      "intel_gpu_acm_g12", "intel_gpu_dg2_g10", "intel_gpu_dg2_g11",
+      "intel_dg2_g12",     "intel_gpu_bmg_g21", "intel_gpu_lnl_m"};
   const llvm::opt::ArgList &Args = C.getArgs();
   bool NeedLibs = false;
 
@@ -351,7 +352,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats") ||
-             Device.starts_with("dg2") || Device.starts_with("bmg");
+             Device.starts_with("dg2") || Device.starts_with("bmg") ||
+             Device.starts_with("lnl");
     };
 
     auto checkSpirvJIT = [](StringRef Target) {
@@ -618,15 +620,11 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       // For DG2, we just use libsycl-msan as placeholder.
       {"libsycl-msan", "internal"},
       {"libsycl-msan-pvc", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceTsanLibs = {{"libsycl-tsan", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
       {"libsycl-nativecpu_utils", "internal"}};
-
-  const bool isNativeCPU =
-      (driver::isSYCLNativeCPU(Args) &&
-       driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
-                               TargetTriple));
 
   bool IsWindowsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
@@ -758,8 +756,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                    SyclFEEQArgVals.end());
     ArgVals.insert(ArgVals.end(), ArchDeviceVals.begin(), ArchDeviceVals.end());
 
-    // Driver will report error if address sanitizer and memory sanitizer are
-    // both enabled, so we only need to check first one here.
+    // Driver will report error if more than one of address sanitizer, memory
+    // sanitizer or thread sanitizer is enabled, so we only need to check first
+    // one here.
     for (const std::string &Arg : ArgVals) {
       if (Arg.find("-fsanitize=address") != std::string::npos) {
         SanitizeVal = "address";
@@ -769,6 +768,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
         SanitizeVal = "memory";
         break;
       }
+      if (Arg.find("-fsanitize=thread") != std::string::npos) {
+        SanitizeVal = "thread";
+        break;
+      }
     }
   }
 
@@ -776,9 +779,11 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   else if (SanitizeVal == "memory")
     addSingleLibrary(SYCLDeviceMsanLibs[sanitizer_lib_idx]);
+  else if (SanitizeVal == "thread")
+    addLibraries(SYCLDeviceTsanLibs);
 #endif
 
-  if (isNativeCPU)
+  if (isSYCLNativeCPU(TargetTriple))
     addLibraries(SYCLNativeCpuDeviceLibs);
 
   return LibraryList;
@@ -898,6 +903,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "msan",
     "msan-pvc",
     "msan-cpu",
+    "tsan",
 #endif
     "imf",
     "imf-fp64",
@@ -939,7 +945,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(this->getToolChain());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
@@ -953,6 +958,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
       const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
+      const bool IsSYCLNativeCPU =
+          isSYCLNativeCPU(this->getToolChain().getTriple());
       const bool IsFPGA = this->getToolChain().getTriple().isSPIR() &&
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
@@ -1104,7 +1111,8 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   assert((getToolChain().getTriple().isSPIROrSPIRV() ||
           getToolChain().getTriple().isNVPTX() ||
-          getToolChain().getTriple().isAMDGCN() || isSYCLNativeCPU(Args)) &&
+          getToolChain().getTriple().isAMDGCN() ||
+          isSYCLNativeCPU(getToolChain().getTriple())) &&
          "Unsupported target");
 
   std::string SubArchName =
@@ -1678,7 +1686,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 // Unsupported options for SYCL device compilation.
 //  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
 //  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
-//  -fcs-profile-generate -forder-file-instrumentation, --coverage
+//  -fcs-profile-generate, --coverage
 static ArrayRef<options::ID> getUnsupportedOpts() {
   static constexpr options::ID UnsupportedOpts[] = {
       options::OPT_fsanitize_EQ,      // -fsanitize
@@ -1694,22 +1702,21 @@ static ArrayRef<options::ID> getUnsupportedOpts() {
       options::OPT_fprofile_instr_generate,
       options::OPT_fprofile_instr_generate_EQ,
       options::OPT_fprofile_arcs,
-      options::OPT_fno_profile_arcs, // -f[no-]profile-arcs
+      options::OPT_fno_profile_arcs,           // -f[no-]profile-arcs
       options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate
-      options::OPT_fcreate_profile,  // -fcreate-profile
+      options::OPT_fcreate_profile,            // -fcreate-profile
       options::OPT_fprofile_instr_use,
-      options::OPT_fprofile_instr_use_EQ,       // -fprofile-instr-use
-      options::OPT_forder_file_instrumentation, // -forder-file-instrumentation
-      options::OPT_fcs_profile_generate,        // -fcs-profile-generate
+      options::OPT_fprofile_instr_use_EQ, // -fprofile-instr-use
+      options::OPT_fcs_profile_generate,  // -fcs-profile-generate
       options::OPT_fcs_profile_generate_EQ,
   };
   return UnsupportedOpts;
 }
 
 // Currently supported options by SYCL NativeCPU device compilation
-static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
+static inline bool SupportedByNativeCPU(const llvm::Triple &Triple,
                                         const OptSpecifier &Opt) {
-  if (!TC.IsSYCLNativeCPU)
+  if (!isSYCLNativeCPU(Triple))
     return false;
 
   switch (Opt.getID()) {
@@ -1726,7 +1733,6 @@ static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
-      IsSYCLNativeCPU(Triple == HostTC.getTriple()),
       SYCLInstallation(D, Triple, Args) {
   // Lookup binaries into the driver directory, this is used to discover any
   // dependent SYCL offload compilation tools.
@@ -1736,14 +1742,15 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   for (OptSpecifier Opt : getUnsupportedOpts()) {
     if (const Arg *A = Args.getLastArg(Opt)) {
       // Native CPU can support options unsupported by other targets.
-      if (SupportedByNativeCPU(*this, Opt))
+      if (SupportedByNativeCPU(getTriple(), Opt))
         continue;
       // All sanitizer options are not currently supported, except
-      // AddressSanitizer and MemorySanitizer
+      // AddressSanitizer and MemorySanitizer and ThreadSanitizer
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
           A->getValues().size() == 1) {
         std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address" || SanitizeVal == "memory")
+        if (SanitizeVal == "address" || SanitizeVal == "memory" ||
+            SanitizeVal == "thread")
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
@@ -1779,12 +1786,13 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
         // NativeCPU should allow most normal cpu options.
-        if (SupportedByNativeCPU(*this, Opt.getID()))
+        if (SupportedByNativeCPU(getTriple(), Opt.getID()))
           continue;
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();
-          if (SanitizeVal == "address" || SanitizeVal == "memory") {
+          if (SanitizeVal == "address" || SanitizeVal == "memory" ||
+              SanitizeVal == "thread") {
             if (IsNewDAL)
               DAL->append(A);
             continue;
@@ -2173,7 +2181,7 @@ Tool *SYCLToolChain::buildBackendCompiler() const {
 }
 
 Tool *SYCLToolChain::buildLinker() const {
-  assert(getTriple().isSPIROrSPIRV() || IsSYCLNativeCPU);
+  assert(getTriple().isSPIROrSPIRV() || isSYCLNativeCPU(getTriple()));
   return new tools::SYCL::Linker(*this);
 }
 
@@ -2202,5 +2210,5 @@ void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 }
 
 SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
-  return SanitizerKind::Address | SanitizerKind::Memory;
+  return SanitizerKind::Address | SanitizerKind::Memory | SanitizerKind::Thread;
 }

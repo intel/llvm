@@ -10,17 +10,17 @@
 
 #include "sincospiF_piby4.h"
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 #ifdef cl_khr_fp64
 #include "sincosD_piby4.h"
 #endif
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_sinpi(float x)
 {
-    int ix = as_int(x);
+    int ix = __clc_as_int(x);
     int xsgn = ix & 0x80000000;
     ix ^= xsgn;
-    float ax = as_float(ix);
+    float ax = __clc_as_float(ix);
     int iax = (int)ax;
     float r = ax - iax;
     int xodd = xsgn ^ (iax & 0x1 ? 0x80000000 : 0);
@@ -52,11 +52,11 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_sinpi(float x)
     e = c ? 0 : e;
 
     float2 t = __libclc__sincosf_piby4(a * M_PI_F);
-    int jr = xodd ^ as_int(e ? t.hi : t.lo);
+    int jr = xodd ^ __clc_as_int(e ? t.hi : t.lo);
 
     ir = ix < 0x4b000000 ? jr : ir;
 
-    return as_float(ir);
+    return __clc_as_float(ir);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_sinpi, float);
@@ -67,10 +67,10 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_sinpi, float);
 
 _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_sinpi(double x)
 {
-    long ix = as_long(x);
+    long ix = __clc_as_long(x);
     long xsgn = ix & 0x8000000000000000L;
     ix ^= xsgn;
-    double ax = as_double(ix);
+    double ax = __clc_as_double(ix);
     long iax = (long)ax;
     double r = ax - (double)iax;
     long xodd = xsgn ^ (iax & 0x1L ? 0x8000000000000000L : 0L);
@@ -105,11 +105,11 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_sinpi(double x)
 
     double api = a * M_PI;
     double2 sc = __libclc__sincos_piby4(api, 0.0);
-    long jr = xodd ^ as_long(e ? sc.hi : sc.lo);
+    long jr = xodd ^ __clc_as_long(e ? sc.hi : sc.lo);
 
     ir = ax < 0x1.0p+52 ? jr : ir;
 
-    return as_double(ir);
+    return __clc_as_double(ir);
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sinpi, double)

@@ -58,11 +58,16 @@ Initialization and Discovery
     ${x}AdapterGet(adapterCount, adapters.data(), nullptr);
 
     // Discover all the platform instances
-    uint32_t platformCount = 0;
-    ${x}PlatformGet(adapters.data(), adapterCount, 0, nullptr, &platformCount);
+    std::vector<${x}_platform_handle_t> platforms;
+    uint32_t totalPlatformCount = 0;
+    for (auto adapter : adapters) {
+        uint32_t adapterPlatformCount = 0;
+        ${x}PlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
 
-    std::vector<${x}_platform_handle_t> platforms(platformCount);
-    ${x}PlatformGet(adapters.data(), adapterCount, platform.size(), platforms.data(), &platformCount);
+        platforms.reserve(totalPlatformCount + adapterPlatformCount);
+        ${x}PlatformGet(adapter, adapterPlatformCount, &platforms[totalPlatformCount], &adapterPlatformCount);
+        totalPlatformCount += adapterPlatformCount;
+    }
 
     // Get number of total GPU devices in the platform
     uint32_t deviceCount = 0;
@@ -196,10 +201,16 @@ points for this are generally of the form:
 
 where ``propName`` selects the information to query out. The object info enum
 representing possible queries will generally be found in the enums section of
-the relevant object. Some info queries would be difficult or impossible to
-support for certain backends, these are denoted with [optional-query] in the
-enum description. Using any enum marked optional in this way may result in
+the relevant object. 
+
+Some info queries would be difficult or impossible to support for certain 
+backends, these are denoted with [optional-query] in the enum description. 
+Using any enum marked optional in this way may result in
 ${X}_RESULT_ERROR_UNSUPPORTED_ENUMERATION if the adapter doesn't support it.
+
+Some info queries may become deprecated, denoted with [deprecated-value] in the 
+enum description. Using any enum marked as deprecated in this way may result in 
+${X}_RESULT_ERROR_INVALID_ENUMERATION if the adapter has ceased to support it.
 
 Programs and Kernels
 ====================

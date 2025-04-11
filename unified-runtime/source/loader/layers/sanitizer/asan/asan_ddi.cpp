@@ -13,7 +13,6 @@
 
 #include "asan_ddi.hpp"
 #include "asan_interceptor.hpp"
-#include "asan_options.hpp"
 #include "sanitizer_common/sanitizer_stacktrace.hpp"
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
@@ -323,7 +322,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 
   getContext()->logger.debug("==== urProgramBuild");
 
-  UR_CALL(pfnProgramBuild(hContext, hProgram, pOptions));
+  auto UrRes = pfnProgramBuild(hContext, hProgram, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLog(hProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getAsanInterceptor()->registerProgram(hProgram));
 
@@ -349,7 +353,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
 
   getContext()->logger.debug("==== urProgramBuildExp");
 
-  UR_CALL(pfnBuildExp(hProgram, numDevices, phDevices, pOptions));
+  auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLog(hProgram, phDevices, numDevices);
+    return UrRes;
+  }
+
   UR_CALL(getAsanInterceptor()->registerProgram(hProgram));
 
   return UR_RESULT_SUCCESS;
@@ -376,7 +385,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
   getContext()->logger.debug("==== urProgramLink");
 
-  UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
+  auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLog(*phProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
@@ -409,8 +423,12 @@ ur_result_t UR_APICALL urProgramLinkExp(
 
   getContext()->logger.debug("==== urProgramLinkExp");
 
-  UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count, phPrograms,
-                            pOptions, phProgram));
+  auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, count,
+                                 phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLog(*phProgram, phDevices, numDevices);
+    return UrRes;
+  }
 
   UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
@@ -1559,7 +1577,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
       pArgValue);
 
   std::shared_ptr<KernelInfo> KI;
-  if (getAsanInterceptor()->getOptions().DetectKernelArguments) {
+  if (getContext()->Options.DetectKernelArguments) {
     auto &KI = getAsanInterceptor()->getOrCreateKernelInfo(hKernel);
     std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
     KI.PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
@@ -2007,11 +2025,12 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   SET_UNSUPPORTED(pDdiTable->pfnAppendMemBufferFillExp);
   SET_UNSUPPORTED(pDdiTable->pfnAppendUSMPrefetchExp);
   SET_UNSUPPORTED(pDdiTable->pfnAppendUSMAdviseExp);
-  SET_UNSUPPORTED(pDdiTable->pfnEnqueueExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateKernelLaunchExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateSignalEventExp);
   SET_UNSUPPORTED(pDdiTable->pfnUpdateWaitEventsExp);
   SET_UNSUPPORTED(pDdiTable->pfnGetInfoExp);
+  SET_UNSUPPORTED(pDdiTable->pfnAppendNativeCommandExp);
+  SET_UNSUPPORTED(pDdiTable->pfnGetNativeHandleExp);
 
 #undef SET_UNSUPPORTED
 

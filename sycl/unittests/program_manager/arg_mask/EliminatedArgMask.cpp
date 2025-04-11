@@ -163,11 +163,9 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   EXPECT_TRUE(KernelBundleImplPtr)
       << "Expect command group to contain kernel bundle";
 
-  auto KernelID = sycl::detail::ProgramManager::getInstance().getSYCLKernelID(
-      ExecKernel->MKernelName);
-  sycl::kernel SyclKernel =
-      KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-  auto SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
+  auto SyclKernelImpl = KernelBundleImplPtr->tryGetKernel(
+      ExecKernel->MKernelName, KernelBundleImplPtr);
+  EXPECT_TRUE(SyclKernelImpl != nullptr);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
   ur_program_handle_t Program = DeviceImageImpl->get_ur_program_ref();
@@ -250,8 +248,10 @@ inline ur_result_t customProgramRetain(void *pParams) {
 
 class ProgramManagerTest {
 public:
-  static std::unordered_multimap<ur_program_handle_t,
-                                 const sycl::detail::RTDeviceBinaryImage *> &
+  static std::unordered_multimap<
+      ur_program_handle_t,
+      std::pair<std::weak_ptr<sycl::detail::context_impl>,
+                const sycl::detail::RTDeviceBinaryImage *>> &
   getNativePrograms() {
     return sycl::detail::ProgramManager::getInstance().NativePrograms;
   }

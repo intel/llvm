@@ -54,6 +54,8 @@ Design Documents for the oneAPI DPC++ Compiler
    design/CommandGraph
    design/OffloadDesign
    design/PrivateAlloca
+   design/SYCLBINDesign
+   design/PropertySets
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
 
@@ -67,3 +69,4 @@ Developer Documentation
    developer/ABIPolicyGuide
    developer/ContributeToDPCPP
    developer/KHRExtensions
+   developer/WorkingOnAReleaseBranch

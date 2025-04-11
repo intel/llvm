@@ -8,6 +8,8 @@ foreach(flag_var
 string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
 endforeach()
 
+add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+
 # suppress warnings which came from Google Test sources
 if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
   add_compile_options("-Wno-suggest-override")
@@ -22,6 +24,8 @@ endif()
 string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
 
 include(AddSYCLUnitTest)
+
+add_subdirectory(mock_opencl)
 
 add_custom_target(check-sycl-unittests)
 

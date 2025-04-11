@@ -265,7 +265,12 @@ ur_result_t urProgramBuild(
 
   getContext()->logger.debug("==== urProgramBuild");
 
-  UR_CALL(pfnProgramBuild(hContext, hProgram, pOptions));
+  auto UrRes = pfnProgramBuild(hContext, hProgram, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLog(hProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getMsanInterceptor()->registerProgram(hProgram));
 
@@ -287,7 +292,12 @@ ur_result_t urProgramBuildExp(
 
   getContext()->logger.debug("==== urProgramBuildExp");
 
-  UR_CALL(pfnBuildExp(hProgram, numDevices, phDevices, pOptions));
+  auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLog(hProgram, phDevices, numDevices);
+    return UrRes;
+  }
+
   UR_CALL(getMsanInterceptor()->registerProgram(hProgram));
 
   return UR_RESULT_SUCCESS;
@@ -310,7 +320,12 @@ ur_result_t urProgramLink(
 
   getContext()->logger.debug("==== urProgramLink");
 
-  UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
+  auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLog(*phProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getMsanInterceptor()->registerProgram(*phProgram));
@@ -339,8 +354,12 @@ ur_result_t urProgramLinkExp(
 
   getContext()->logger.debug("==== urProgramLinkExp");
 
-  UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count, phPrograms,
-                            pOptions, phProgram));
+  auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, count,
+                                 phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLog(*phProgram, phDevices, numDevices);
+    return UrRes;
+  }
 
   UR_CALL(getMsanInterceptor()->insertProgram(*phProgram));
   UR_CALL(getMsanInterceptor()->registerProgram(*phProgram));
@@ -1390,6 +1409,31 @@ ur_result_t urKernelSetArgMemObj(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgLocal
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
+    /// [in] handle of the kernel object
+    ur_kernel_handle_t hKernel,
+    /// [in] argument index in range [0, num args - 1]
+    uint32_t argIndex,
+    /// [in] size of the local buffer to be allocated by the runtime
+    size_t argSize,
+    /// [in][optional] pointer to local buffer properties.
+    const ur_kernel_arg_local_properties_t *pProperties) {
+  auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
+
+  getContext()->logger.debug(
+      "==== urKernelSetArgLocal (argIndex={}, argSize={})", argIndex, argSize);
+
+  {
+    auto &KI = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
+    std::scoped_lock<ur_shared_mutex> Guard(KI.Mutex);
+    KI.LocalArgs[argIndex] = MsanLocalArgsInfo{argSize};
+  }
+
+  return pfnSetArgLocal(hKernel, argIndex, argSize, pProperties);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueUSMFill
 ur_result_t UR_APICALL urEnqueueUSMFill(
     /// [in] handle of the queue object
@@ -1471,7 +1515,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     /// must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) {
   auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
-  getContext()->logger.debug("==== pfnUSMMemcpy");
+  getContext()->logger.debug("==== urEnqueueUSMMemcpy");
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
@@ -1612,7 +1656,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     /// phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) {
   auto pfnUSMMemcpy2D = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D;
-  getContext()->logger.debug("==== pfnUSMMemcpy2D");
+  getContext()->logger.debug("==== urEnqueueUSMMemcpy2D");
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
@@ -1738,6 +1782,7 @@ ur_result_t urGetKernelProcAddrTable(
   pDdiTable->pfnRelease = ur_sanitizer_layer::msan::urKernelRelease;
   pDdiTable->pfnSetArgValue = ur_sanitizer_layer::msan::urKernelSetArgValue;
   pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::msan::urKernelSetArgMemObj;
+  pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::msan::urKernelSetArgLocal;
 
   return result;
 }

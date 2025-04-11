@@ -190,7 +190,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
     ur_event_handle_t *OutEvent) {
   bool InterruptBasedEventsEnabled =
       EnqueueExtProp ? (EnqueueExtProp->flags &
-                        UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) ||
+                        UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS_SUPPORT) ||
                            Queue->InterruptBasedEventsEnabled
                      : Queue->InterruptBasedEventsEnabled;
   // Lock automatically releases when this goes out of scope.
@@ -223,22 +223,6 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
         if (Queue->isInOrderQueue() && InOrderBarrierBySignal &&
             !Queue->isProfilingEnabled()) {
           if (EventWaitList.Length) {
-            if (CmdList->second.IsInOrderList) {
-              for (unsigned i = EventWaitList.Length; i-- > 0;) {
-                // If the event is a multidevice event, then given driver in
-                // order lists, we cannot include this into the wait event list
-                // due to driver limitations.
-                if (EventWaitList.UrEventList[i]->IsMultiDevice) {
-                  EventWaitList.Length--;
-                  if (EventWaitList.Length != i) {
-                    std::swap(EventWaitList.UrEventList[i],
-                              EventWaitList.UrEventList[EventWaitList.Length]);
-                    std::swap(EventWaitList.ZeEventList[i],
-                              EventWaitList.ZeEventList[EventWaitList.Length]);
-                  }
-                }
-              }
-            }
             ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                        (CmdList->first, EventWaitList.Length,
                         EventWaitList.ZeEventList));
@@ -627,7 +611,7 @@ ur_result_t urEventGetProfilingInfo(
   // The timestamps of these events are saved in a memory region attached to
   // event usning CommandData field. The timings must therefore be recovered
   // from this memory.
-  if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP) {
+  if (Event->CommandType == UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP) {
     if (Event->CommandData) {
       command_buffer_profiling_t *ProfilingsPtr;
       switch (PropName) {
@@ -1089,7 +1073,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
  * leaks or resource mismanagement.
  */
 ur_event_handle_t_::~ur_event_handle_t_() {
-  if (this->ZeEvent && this->Completed) {
+  if (this->ZeEvent && this->Completed && checkL0LoaderTeardown()) {
     if (this->UrQueue && !this->UrQueue->isDiscardEvents())
       ZE_CALL_NOCHECK(zeEventDestroy, (this->ZeEvent));
   }
@@ -1099,13 +1083,17 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   if (!Event->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  if (Event->OriginAllocEvent) {
+    urEventReleaseInternal(Event->OriginAllocEvent);
+  }
+
   if (Event->CommandType == UR_COMMAND_MEM_UNMAP && Event->CommandData) {
     // Free the memory allocated in the urEnqueueMemBufferMap.
     if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
       return Res;
     Event->CommandData = nullptr;
   }
-  if (Event->CommandType == UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP &&
+  if (Event->CommandType == UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP &&
       Event->CommandData) {
     // Free the memory extra event allocated for profiling purposed.
     command_buffer_profiling_t *ProfilingPtr =
@@ -1116,11 +1104,17 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
   if (Event->OwnNativeHandle) {
     if (DisableEventsCaching) {
-      auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+      if (checkL0LoaderTeardown()) {
+        auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
+        // Gracefully handle the case that L0 was already unloaded.
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
+          return ze2urResult(ZeResult);
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
+      }
       Event->ZeEvent = nullptr;
-      // Gracefully handle the case that L0 was already unloaded.
-      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-        return ze2urResult(ZeResult);
       auto Context = Event->Context;
       if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
         return Res;
@@ -1427,6 +1421,7 @@ ur_result_t ur_event_handle_t_::reset() {
   RefCount.reset();
   CommandList = std::nullopt;
   completionBatch = std::nullopt;
+  OriginAllocEvent = nullptr;
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
@@ -1496,8 +1491,9 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
   // the native driver implementation will already ensure in-order semantics.
   // The only exception is when a different immediate command was last used on
   // the same UR Queue.
-  if (CurQueue->Device->useDriverInOrderLists() && CurQueue->isInOrderQueue() &&
-      CurQueue->UsingImmCmdLists) {
+  if (CurQueue->Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
+      CurQueue->isInOrderQueue() && CurQueue->UsingImmCmdLists) {
     auto QueueGroup = CurQueue->getQueueGroup(UseCopyEngine);
     uint32_t QueueGroupOrdinal, QueueIndex;
     auto NextIndex = QueueGroup.getQueueIndex(&QueueGroupOrdinal, &QueueIndex,
@@ -1526,7 +1522,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
     // For in-order queue and wait-list which is empty or has events only from
     // the same queue then we don't need to wait on any other additional events
-    if (CurQueue->Device->useDriverInOrderLists() &&
+    if (CurQueue->Device->Platform->allowDriverInOrderLists(
+            true /*Only Allow Driver In Order List if requested*/) &&
         CurQueue->isInOrderQueue() &&
         WaitListEmptyOrAllEventsFromSameQueue(CurQueue, EventListLength,
                                               EventList)) {

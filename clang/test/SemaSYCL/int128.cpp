@@ -1,11 +1,16 @@
 // RUN: %clang_cc1 -triple spir64 -aux-triple x86_64-unknown-linux-gnu \
 // RUN:    -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -verify -fsyntax-only %s
+// RUN: %clang_cc1 -triple nvptx64 -aux-triple x86_64-unknown-linux-gnu \
+// RUN:    -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -verify=supported -fsyntax-only %s
 
 #include "sycl.hpp"
 
 sycl::queue deviceQueue;
 
 typedef __uint128_t BIGTY;
+
+// if type is supported, no diagnostics should be raised
+// supported-no-diagnostics
 
 template <class T>
 class Z {

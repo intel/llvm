@@ -48,6 +48,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   return result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+
+  pDdiTable->pfnSetLoggerCallback = ur::level_zero::urAdapterSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallbackLevel =
+      ur::level_zero::urAdapterSetLoggerCallbackLevel;
+
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     ur_api_version_t version, ur_bindless_images_exp_dditable_t *pDdiTable) {
   auto result = validateProcInputs(version, pDdiTable);
@@ -127,7 +141,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       ur::level_zero::urCommandBufferAppendUSMPrefetchExp;
   pDdiTable->pfnAppendUSMAdviseExp =
       ur::level_zero::urCommandBufferAppendUSMAdviseExp;
-  pDdiTable->pfnEnqueueExp = ur::level_zero::urCommandBufferEnqueueExp;
+  pDdiTable->pfnAppendNativeCommandExp =
+      ur::level_zero::urCommandBufferAppendNativeCommandExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
       ur::level_zero::urCommandBufferUpdateKernelLaunchExp;
   pDdiTable->pfnUpdateSignalEventExp =
@@ -135,6 +150,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnUpdateWaitEventsExp =
       ur::level_zero::urCommandBufferUpdateWaitEventsExp;
   pDdiTable->pfnGetInfoExp = ur::level_zero::urCommandBufferGetInfoExp;
+  pDdiTable->pfnGetNativeHandleExp =
+      ur::level_zero::urCommandBufferGetNativeHandleExp;
 
   return result;
 }
@@ -210,6 +227,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
   pDdiTable->pfnKernelLaunchCustomExp =
       ur::level_zero::urEnqueueKernelLaunchCustomExp;
+  pDdiTable->pfnUSMDeviceAllocExp = ur::level_zero::urEnqueueUSMDeviceAllocExp;
+  pDdiTable->pfnUSMSharedAllocExp = ur::level_zero::urEnqueueUSMSharedAllocExp;
+  pDdiTable->pfnUSMHostAllocExp = ur::level_zero::urEnqueueUSMHostAllocExp;
+  pDdiTable->pfnUSMFreeExp = ur::level_zero::urEnqueueUSMFreeExp;
+  pDdiTable->pfnCommandBufferExp = ur::level_zero::urEnqueueCommandBufferExp;
   pDdiTable->pfnCooperativeKernelLaunchExp =
       ur::level_zero::urEnqueueCooperativeKernelLaunchExp;
   pDdiTable->pfnTimestampRecordingExp =
@@ -446,6 +468,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
     return result;
   }
 
+  pDdiTable->pfnPoolCreateExp = ur::level_zero::urUSMPoolCreateExp;
+  pDdiTable->pfnPoolDestroyExp = ur::level_zero::urUSMPoolDestroyExp;
+  pDdiTable->pfnPoolGetDefaultDevicePoolExp =
+      ur::level_zero::urUSMPoolGetDefaultDevicePoolExp;
+  pDdiTable->pfnPoolGetInfoExp = ur::level_zero::urUSMPoolGetInfoExp;
+  pDdiTable->pfnPoolSetInfoExp = ur::level_zero::urUSMPoolSetInfoExp;
+  pDdiTable->pfnPoolSetDevicePoolExp =
+      ur::level_zero::urUSMPoolSetDevicePoolExp;
+  pDdiTable->pfnPoolGetDevicePoolExp =
+      ur::level_zero::urUSMPoolGetDevicePoolExp;
+  pDdiTable->pfnPoolTrimToExp = ur::level_zero::urUSMPoolTrimToExp;
   pDdiTable->pfnPitchedAllocExp = ur::level_zero::urUSMPitchedAllocExp;
   pDdiTable->pfnImportExp = ur::level_zero::urUSMImportExp;
   pDdiTable->pfnReleaseExp = ur::level_zero::urUSMReleaseExp;
@@ -528,6 +561,10 @@ ur_result_t urAdapterGetDdiTables(ur_dditable_t *ddi) {
 
   result = ur::level_zero::urGetGlobalProcAddrTable(UR_API_VERSION_CURRENT,
                                                     &ddi->Global);
+  if (result != UR_RESULT_SUCCESS)
+    return result;
+  result = ur::level_zero::urGetAdapterProcAddrTable(UR_API_VERSION_CURRENT,
+                                                     &ddi->Adapter);
   if (result != UR_RESULT_SUCCESS)
     return result;
   result = ur::level_zero::urGetBindlessImagesExpProcAddrTable(

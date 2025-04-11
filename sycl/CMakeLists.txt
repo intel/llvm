@@ -24,7 +24,7 @@ endif()
 # If SYCL_ENABLE_BACKENDS is undefined, we default to enabling OpenCL and Level
 # Zero backends.
 if (NOT DEFINED SYCL_ENABLE_BACKENDS)
-  set(SYCL_ENABLE_BACKENDS "opencl;level_zero")
+  set(SYCL_ENABLE_BACKENDS "opencl;level_zero;level_zero_v2")
 endif()
 
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
@@ -108,15 +108,12 @@ define_property(GLOBAL PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
 if (MSVC)
   set(CMAKE_CXX_FLAGS "/W4 ${CMAKE_CXX_FLAGS}")
 else ()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-deprecated-declarations")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 endif()
 
 if(SYCL_ENABLE_WERROR)
   if(MSVC)
     set(CMAKE_CXX_FLAGS "/WX ${CMAKE_CXX_FLAGS}")
-    add_definitions(
-      -wd4996 # Suppress 'function': was declared deprecated'
-    )
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
   endif()
@@ -176,7 +173,7 @@ if ("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_OPENCL ON)
 endif()
 if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
-  set(SYCL_BUILD_BACKENDLEVEL_ZERO ON)
+  set(SYCL_BUILD_BACKEND_LEVEL_ZERO ON)
 endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
@@ -200,6 +197,8 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/device_aspect_macros_generator.py ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp
   COMMENT "Generating device_aspect_macros.hpp"
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl/info/aspects.def
+          ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl/info/aspects_deprecated.def
 )
 
 add_custom_target(sycl-device-aspect-macros-header

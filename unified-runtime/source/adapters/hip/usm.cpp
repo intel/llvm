@@ -199,8 +199,8 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 
       // hip backend has only one platform containing all devices
       ur_platform_handle_t platform;
-      ur_adapter_handle_t AdapterHandle = &adapter;
-      UR_CHECK_ERROR(urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr));
+      ur_adapter_handle_t AdapterHandle = ur::hip::adapter;
+      UR_CHECK_ERROR(urPlatformGet(AdapterHandle, 1, &platform, nullptr));
 
       // get the device from the platform
       ur_device_handle_t Device = platform->Devices[DeviceIdx].get();
@@ -477,4 +477,51 @@ ur_result_t umfPoolMallocHelper(ur_usm_pool_handle_t hPool, void **ppMem,
     return umf::umf2urResult(umfErr);
   }
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreateExp(ur_context_handle_t,
+                                                       ur_device_handle_t,
+                                                       ur_usm_pool_desc_t *,
+                                                       ur_usm_pool_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t,
+                                                        ur_device_handle_t,
+                                                        ur_usm_pool_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
+                                                        ur_usm_pool_info_t,
+                                                        void *, size_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDefaultDevicePoolExp(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfoExp(ur_usm_pool_handle_t,
+                                                        ur_usm_pool_info_t,
+                                                        void *, size_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetDevicePoolExp(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetDevicePoolExp(
+    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolTrimToExp(ur_context_handle_t,
+                                                       ur_device_handle_t,
+                                                       ur_usm_pool_handle_t,
+                                                       size_t) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

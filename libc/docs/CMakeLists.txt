@@ -37,10 +37,13 @@ if (SPHINX_FOUND)
       aio
       arpa/inet
       assert
+      cpio
       ctype
+      endian
       errno
       fenv
       float
+      glob
       inttypes
       locale
       net/if
@@ -57,11 +60,14 @@ if (SPHINX_FOUND)
       sys/mman
       sys/resource
       sys/stat
+      sys/statvfs
       sys/time
       sys/wait
       termios
       threads
       uchar
+      unistd
+      sys/utsname
       wchar
       wctype
     )

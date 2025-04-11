@@ -413,9 +413,9 @@ void CodeGenSchedModels::collectSTIPredicates() {
   for (const Record *R : Records.getAllDerivedDefinitions("STIPredicate")) {
     const Record *Decl = R->getValueAsDef("Declaration");
 
-    const auto It = Decl2Index.find(Decl);
-    if (It == Decl2Index.end()) {
-      Decl2Index[Decl] = STIPredicates.size();
+    const auto [It, Inserted] =
+        Decl2Index.try_emplace(Decl, STIPredicates.size());
+    if (Inserted) {
       STIPredicateFunction Predicate(Decl);
       Predicate.addDefinition(R);
       STIPredicates.emplace_back(std::move(Predicate));
@@ -2129,13 +2129,15 @@ void CodeGenSchedModels::addWriteRes(const Record *ProcWriteResDef,
 void CodeGenSchedModels::addReadAdvance(const Record *ProcReadAdvanceDef,
                                         CodeGenProcModel &PM) {
   for (const Record *ValidWrite :
-       ProcReadAdvanceDef->getValueAsListOfDefs("ValidWrites"))
+       ProcReadAdvanceDef->getValueAsListOfDefs("ValidWrites")) {
     if (getSchedRWIdx(ValidWrite, /*IsRead=*/false) == 0)
       PrintFatalError(
           ProcReadAdvanceDef->getLoc(),
           "ReadAdvance referencing a ValidWrite that is not used by "
           "any instruction (" +
               ValidWrite->getName() + ")");
+    PM.ReadOfWriteSet.insert(ValidWrite);
+  }
 
   ConstRecVec &RADefs = PM.ReadAdvanceDefs;
   if (is_contained(RADefs, ProcReadAdvanceDef))
@@ -2173,12 +2175,7 @@ bool CodeGenProcModel::isUnsupported(const CodeGenInstruction &Inst) const {
 }
 
 bool CodeGenProcModel::hasReadOfWrite(const Record *WriteDef) const {
-  for (auto &RADef : ReadAdvanceDefs) {
-    ConstRecVec ValidWrites = RADef->getValueAsListOfDefs("ValidWrites");
-    if (is_contained(ValidWrites, WriteDef))
-      return true;
-  }
-  return false;
+  return ReadOfWriteSet.count(WriteDef);
 }
 
 #ifndef NDEBUG

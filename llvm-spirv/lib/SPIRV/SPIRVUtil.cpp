@@ -608,6 +608,21 @@ static Type *parsePrimitiveType(LLVMContext &Ctx, StringRef Name) {
 
 } // namespace SPIRV
 
+namespace {
+
+// Return the value for when the dimension index of a builtin is out of range.
+uint64_t getBuiltinOutOfRangeValue(StringRef VarName) {
+  assert(VarName.starts_with("__spirv_BuiltIn"));
+  return StringSwitch<uint64_t>(VarName)
+      .EndsWith("GlobalSize", 1)
+      .EndsWith("NumWorkgroups", 1)
+      .EndsWith("WorkgroupSize", 1)
+      .EndsWith("EnqueuedWorkgroupSize", 1)
+      .Default(0);
+}
+
+} // anonymous namespace
+
 // The demangler node hierarchy doesn't use LLVM's RTTI helper functions (as it
 // also needs to live in libcxxabi). By specializing this implementation here,
 // we can add support for these functions.
@@ -1511,7 +1526,9 @@ Value *getScalarOrArrayConstantInt(BasicBlock::iterator Pos, Type *T,
     auto *AT = ArrayType::get(ET, Len);
     std::vector<Constant *> EV(Len, ConstantInt::get(ET, V, IsSigned));
     auto *CA = ConstantArray::get(AT, EV);
-    auto *Alloca = new AllocaInst(AT, 0, "", Pos);
+    auto *Alloca = new AllocaInst(
+        AT, Pos->getParent()->getParent()->getDataLayout().getAllocaAddrSpace(),
+        "", Pos);
     new StoreInst(CA, Alloca, Pos);
     auto *Zero = ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
     Value *Index[] = {Zero, Zero};
@@ -2184,16 +2201,27 @@ bool lowerBuiltinCallsToVariables(Module *M) {
     for (auto *U : F.users()) {
       auto *CI = dyn_cast<CallInst>(U);
       assert(CI && "invalid instruction");
-      const DebugLoc &DLoc = CI->getDebugLoc();
-      Instruction *NewValue = new LoadInst(GVType, BV, "", CI->getIterator());
-      if (DLoc)
-        NewValue->setDebugLoc(DLoc);
+      IRBuilder<> Builder(CI);
+      Value *NewValue = Builder.CreateLoad(GVType, BV);
       LLVM_DEBUG(dbgs() << "Transform: " << *CI << " => " << *NewValue << '\n');
       if (IsVec) {
-        NewValue = ExtractElementInst::Create(NewValue, CI->getArgOperand(0),
-                                              "", CI->getIterator());
-        if (DLoc)
-          NewValue->setDebugLoc(DLoc);
+        auto *GVVecTy = cast<FixedVectorType>(GVType);
+        ConstantInt *Bound = Builder.getInt32(GVVecTy->getNumElements());
+        // Create a select on the index first, to avoid undefined behaviour
+        // due to exceeding the vector size by the extractelement.
+        Value *IndexCmp = Builder.CreateICmpULT(CI->getArgOperand(0), Bound);
+        Constant *ZeroIndex =
+            ConstantInt::get(CI->getArgOperand(0)->getType(), 0);
+        Value *ExtractIndex =
+            Builder.CreateSelect(IndexCmp, CI->getArgOperand(0), ZeroIndex);
+
+        // Extract from builtin variable.
+        NewValue = Builder.CreateExtractElement(NewValue, ExtractIndex);
+
+        // Clamp to out-of-range value.
+        Constant *OutOfRangeVal = ConstantInt::get(
+            F.getReturnType(), getBuiltinOutOfRangeValue(BuiltinVarName));
+        NewValue = Builder.CreateSelect(IndexCmp, NewValue, OutOfRangeVal);
         LLVM_DEBUG(dbgs() << *NewValue << '\n');
       }
       NewValue->takeName(CI);
@@ -2294,7 +2322,9 @@ bool postProcessBuiltinWithArrayArguments(Function *F,
           auto *T = I->getType();
           if (!T->isArrayTy())
             continue;
-          auto *Alloca = new AllocaInst(T, 0, "", FBegin);
+          auto *Alloca = new AllocaInst(
+              T, F->getParent()->getDataLayout().getAllocaAddrSpace(), "",
+              FBegin);
           new StoreInst(I, Alloca, false, CI->getIterator());
           auto *Zero =
               ConstantInt::getNullValue(Type::getInt32Ty(T->getContext()));
@@ -2382,8 +2412,13 @@ public:
       addUnsignedArg(0);
       addUnsignedArg(3);
       break;
+    case OpGroupAsyncCopy:
+      addUnsignedArg(3);
+      addUnsignedArg(4);
+      break;
     case OpGroupUMax:
     case OpGroupUMin:
+    case OpGroupBroadcast:
     case OpGroupNonUniformBroadcast:
     case OpGroupNonUniformBallotBitCount:
     case OpGroupNonUniformShuffle:

@@ -339,10 +339,15 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return ReturnValue(0);
   }
   case UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL: {
-    // Return value of 0 => unspecified or "auto" sub-group size
-    // Correct for now, since warp size may be read from special register
-    // TODO: Return warp size once default is primary sub-group size
-    // TODO: Revisit if we can recover [[sub_group_size]] attribute from PTX
+    const auto &KernelReqdSubGroupSizeMap =
+        hKernel->getProgram()->KernelReqdSubGroupSizeMD;
+    // If present, return the value of intel_reqd_sub_group_size metadata, if
+    // not: 0, which stands for unspecified or auto sub-group size.
+    if (auto KernelReqdSubGroupSize =
+            KernelReqdSubGroupSizeMap.find(hKernel->getName());
+        KernelReqdSubGroupSize != KernelReqdSubGroupSizeMap.end())
+      return ReturnValue(KernelReqdSubGroupSize->second);
+
     return ReturnValue(0);
   }
   default:
@@ -357,8 +362,12 @@ urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
                       const ur_kernel_arg_pointer_properties_t *pProperties,
                       const void *pArgValue) {
   std::ignore = pProperties;
-  // setKernelArg is expecting a pointer to our argument
-  hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
+  try {
+    // setKernelArg is expecting a pointer to our argument
+    hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
+  } catch (ur_result_t Err) {
+    return Err;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -366,15 +375,15 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *Properties,
                      ur_mem_handle_t hArgValue) {
-  // Below sets kernel arg when zero-sized buffers are handled.
-  // In such case the corresponding memory is null.
-  if (hArgValue == nullptr) {
-    hKernel->setKernelArg(argIndex, 0, nullptr);
-    return UR_RESULT_SUCCESS;
-  }
-
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
+    // Below sets kernel arg when zero-sized buffers are handled.
+    // In such case the corresponding memory is null.
+    if (hArgValue == nullptr) {
+      hKernel->setKernelArg(argIndex, 0, nullptr);
+      return UR_RESULT_SUCCESS;
+    }
+
     auto Device = hKernel->getProgram()->getDevice();
     ur_mem_flags_t MemAccess =
         Properties ? Properties->memoryAccess
@@ -388,7 +397,7 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
           arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
           arrayDesc.Format != CU_AD_FORMAT_HALF &&
           arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
-        setErrorMessage("PI CUDA kernels only support images with channel "
+        setErrorMessage("UR CUDA kernels only support images with channel "
                         "types int32, uint32, float, and half.",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;

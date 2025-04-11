@@ -271,7 +271,7 @@ class type_traits:
     def get_struct_members(type_name, meta):
         struct_type = _remove_const_ptr(type_name)
         if not struct_type in meta["struct"]:
-            raise Exception(f"Cannot return members of non-struct type {struct_type}")
+            raise Exception(f"Cannot return members of non-struct type {struct_type}.")
         return meta["struct"][struct_type]["members"]
 
 
@@ -565,11 +565,19 @@ class function_traits:
 
 class etor_traits:
     RE_OPTIONAL_QUERY = r".*\[optional-query\].*"
+    RE_DEPRECATED = r".*\[deprecated-value\].*"
 
     @classmethod
     def is_optional_query(cls, item):
         try:
             return True if re.match(cls.RE_OPTIONAL_QUERY, item["desc"]) else False
+        except:
+            return False
+
+    @classmethod
+    def is_deprecated_etor(cls, item):
+        try:
+            return True if re.match(cls.RE_DEPRECATED, item["desc"]) else False
         except:
             return False
 
@@ -741,6 +749,20 @@ def get_adapter_handles(specs):
 
 """
 Public:
+    returns a list of all adapter manifests
+"""
+
+
+def get_adapter_manifests(specs):
+    objs = []
+    for s in specs:
+        for obj in s["objects"]:
+            if "manifest" in obj["type"]:
+                objs.append(obj)
+    return objs
+
+"""
+Public:
     returns a list of all loader API functions' names
 """
 
@@ -903,13 +925,14 @@ def make_etor_lines(namespace, tags, obj, meta=None):
     lines = []
     for item in obj["etors"]:
         name = make_etor_name(namespace, tags, obj["name"], item["name"], meta)
+        deprecated = " [[deprecated]]" if etor_traits.is_deprecated_etor(item) else ""
 
         if "value" in item:
             delim = ","
             value = _get_value_name(namespace, tags, item["value"])
-            prologue = "%s = %s%s" % (name, value, delim)
+            prologue = "%s%s = %s%s" % (name, deprecated, value, delim)
         else:
-            prologue = "%s," % (name)
+            prologue = "%s%s," % (name, deprecated)
 
         for line in split_line(subt(namespace, tags, item["desc"], True), 70):
             lines.append(" /// %s" % line)
@@ -1532,7 +1555,6 @@ def get_pfncbtables(specs, meta, namespace, tags):
         objs = get_class_function_objs(specs, cname, Version("1.0"))
         if len(objs) > 0:
             name = get_table_name(namespace, tags, {"class": cname})
-            print(name)
             table = "%s_%s_callbacks_t" % (namespace, _camel_to_snake(name))
             tables.append({"name": name, "type": table, "functions": objs})
     return tables
@@ -1868,18 +1890,22 @@ def _get_create_get_retain_release_functions(specs, namespace, tags):
                 funcs.append(make_func_name(namespace, tags, obj))
 
     create_suffixes = r"(Create[A-Za-z]*){1}$"
+    enqueue_prefixes = r"(Enqueue){1}"
     get_suffixes = r"(Get){1}$"
     retain_suffixes = r"(Retain){1}$"
     release_suffixes = r"(Release){1}$"
     common_prefix = r"^" + namespace
 
     create_exp = common_prefix + r"[A-Za-z]+" + create_suffixes
+    enqueue_exp = common_prefix + enqueue_prefixes + r"[A-Za-z]+$"
     get_exp = common_prefix + r"[A-Za-z]+" + get_suffixes
     retain_exp = common_prefix + r"[A-Za-z]+" + retain_suffixes
     release_exp = common_prefix + r"[A-Za-z]+" + release_suffixes
 
     create_funcs, get_funcs, retain_funcs, release_funcs = (
-        list(filter(lambda f: re.match(create_exp, f), funcs)),
+        list(
+            filter(lambda f: re.match(create_exp, f) or re.match(enqueue_exp, f), funcs)
+        ),
         list(filter(lambda f: re.match(get_exp, f), funcs)),
         list(filter(lambda f: re.match(retain_exp, f), funcs)),
         list(filter(lambda f: re.match(release_exp, f), funcs)),
@@ -1912,10 +1938,17 @@ def get_handle_create_get_retain_release_functions(specs, namespace, tags):
             continue
 
         class_type = subt(namespace, tags, h["class"])
-        create_funcs = list(filter(lambda f: class_type in f, funcs["create"]))
-        get_funcs = list(filter(lambda f: class_type in f, funcs["get"]))
-        retain_funcs = list(filter(lambda f: class_type in f, funcs["retain"]))
-        release_funcs = list(filter(lambda f: class_type in f, funcs["release"]))
+
+        prefixes = [class_type]
+        if class_type == namespace + "Event":
+            prefixes.append(namespace + "Enqueue")
+            # Functions prefixed with $xEnqueue are also 'create' functions for event handles
+
+        has_prefix = lambda f: any(p in f for p in prefixes)
+        create_funcs = list(filter(has_prefix, funcs["create"]))
+        get_funcs = list(filter(has_prefix, funcs["get"]))
+        retain_funcs = list(filter(has_prefix, funcs["retain"]))
+        release_funcs = list(filter(has_prefix, funcs["release"]))
 
         record = {}
         record["handle"] = subt(namespace, tags, h["name"])
@@ -1931,7 +1964,7 @@ def get_handle_create_get_retain_release_functions(specs, namespace, tags):
 
 """
 Public:
-    returns a list of objects representing functions that accept $x_queue_handle_t as a first param 
+    returns a list of objects representing functions that accept $x_queue_handle_t as a first param
 """
 
 
@@ -1961,7 +1994,7 @@ def transform_queue_related_function_name(
     function_name = function_name[0].lower() + function_name[1:]
 
     if obj["params"][0]["type"] != "$x_queue_handle_t":
-        raise ValueError("First parameter is not a queue handle")
+        raise ValueError("First parameter is not a queue handle.")
 
     params = make_param_lines(namespace, tags, obj, format=format)
     params = params[1:]
@@ -1991,3 +2024,18 @@ def get_optional_queries(specs, namespace, tags):
                     type_name = make_type_name(namespace, tags, obj)
                     optional_queries[type_name] = optional_etors
     return optional_queries
+
+
+"""
+Public:
+    Generator returning non-deprecated enum values.
+"""
+
+
+def get_etors(obj):
+    if not obj_traits.is_enum(obj):
+        raise TypeError("obj parameter is not an enum.")
+    for item in obj["etors"]:
+        if etor_traits.is_deprecated_etor(item):
+            continue
+        yield item

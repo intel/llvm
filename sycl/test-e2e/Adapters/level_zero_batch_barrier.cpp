@@ -1,4 +1,6 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-INTENDED: v2 adapter does not support regular cmd lists
 
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s
@@ -19,6 +21,14 @@ void submit_kernel(queue &q) {
 }
 
 int main(int argc, char *argv[]) {
+  // Initialize Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, the driver will not be init otherwise.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed\n";
+    return 1;
+  }
+
   queue q;
 
   submit_kernel(q); // starts a batch

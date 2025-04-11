@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_exp(float x) {
 
@@ -40,13 +40,13 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_exp(float x) {
     float y = 1.0f - (((-lo) - MATH_DIVIDE(t * v, 2.0f - v)) - hi);
 
     // Scale by 2^p
-    float r =  as_float(as_int(y) + (p << 23));
+    float r =  __clc_as_float(__clc_as_int(y) + (p << 23));
 
     const float ulim =  0x1.62e430p+6f; // ln(largest_normal) = 88.72283905206835305366
     const float llim = -0x1.5d589ep+6f; // ln(smallest_normal) = -87.33654475055310898657
 
     r = x < llim ? 0.0f : r;
-    r = x < ulim ? r : as_float(0x7f800000);
+    r = x < ulim ? r : __clc_as_float(0x7f800000);
     return __spirv_IsNan(x) ? x : r;
 }
 
@@ -80,6 +80,6 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_exp, double)
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_exp, __builtin_exp, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_exp, __builtin_expf16, half)
 
 #endif

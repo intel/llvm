@@ -12,8 +12,8 @@
 #include "adapter.hpp"
 #include "context.hpp"
 #include "event.hpp"
-#include "logger/ur_logger.hpp"
 
+#include <array>
 #include <hip/hip_runtime.h>
 #include <sstream>
 
@@ -225,19 +225,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(uint64_t{MaxAlloc});
   }
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
-    bool Enabled = false;
-    if (std::getenv("UR_HIP_ENABLE_IMAGE_SUPPORT") != nullptr) {
-      Enabled = true;
-    } else {
-      logger::always(
-          "Images are not fully supported by the HIP BE, their support is "
-          "disabled by default. Their partial support can be activated by "
-          "setting UR_HIP_ENABLE_IMAGE_SUPPORT environment variable at "
-          "runtime.");
-    }
-
-    return ReturnValue(Enabled);
+  case UR_DEVICE_INFO_IMAGE_SUPPORT: {
+    // Legacy images are not supported, bindless images should be used instead.
+    return ReturnValue(ur_bool_t{false});
   }
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to HIP as it doesn't have images, but instead
@@ -557,28 +547,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("");
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
-    // TODO: Remove comment when HIP support native asserts.
-    // DEVICELIB_ASSERT extension is set so fallback assert
-    // postprocessing is NOP. HIP 4.3 docs indicate support for
-    // native asserts are in progress
     std::string SupportedExtensions = "";
-    SupportedExtensions += "cl_intel_devicelib_assert ";
-    SupportedExtensions += "ur_exp_usm_p2p ";
-
-    int RuntimeVersion = 0;
-    UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
-
-    // Return supported for the UR command-buffer experimental feature on
-    // ROCM 5.5.1 and later. This is to workaround HIP driver bug
-    // https://github.com/ROCm/HIP/issues/2450 in older versions.
-    //
-    // The version is returned as (10000000 major + 1000000 minor + patch).
-    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
-    if (RuntimeVersion >= CmdBufDriverMinVersion) {
-      SupportedExtensions += "ur_exp_command_buffer ";
-    }
-
-    SupportedExtensions += " ";
 
     hipDeviceProp_t Props;
     detail::ur::assertion(hipGetDeviceProperties(&Props, hDevice->get()) ==
@@ -878,26 +847,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP: {
     // HIP supports fetching 1D USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
     // HIP does not support fetching 1D non-USM sampled image data.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     // HIP supports fetching 2D USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP: {
     // HIP supports fetching 2D non-USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP: {
     // HIP supports fetching 3D non-USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
@@ -909,21 +878,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // feature is marked unsupported until those issues are resolved.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP: {
     // HIP does not support unique addressing per dimension
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP: {
     // HIP supports sampling 1D USM sampled image data.
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP: {
     // HIP supports sampling 2D USM sampled image data.
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
-
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP: {
+    // HIP doesn't support sampled image gather.
+    return ReturnValue(static_cast<ur_bool_t>(false));
+  }
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
     return ReturnValue(ur_bool_t{false});
   }
@@ -1030,7 +1002,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(AddressBuffer,
                        strnlen(AddressBuffer, AddressBufferSize - 1) + 1);
   }
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
     return ReturnValue(ur_bool_t{false});
@@ -1051,8 +1023,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 #else
     return ReturnValue(ur_bool_t{false});
 #endif
-  case UR_DEVICE_INFO_BFLOAT16:
-    return ReturnValue(true);
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IL_VERSION:
@@ -1069,28 +1041,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
+  case UR_DEVICE_INFO_FAN_SPEED:
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT:
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
         static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
-    int DriverVersion = 0;
-    UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
+    int RuntimeVersion = 0;
+    UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
 
     // Return supported for the UR command-buffer experimental feature on
     // ROCM 5.5.1 and later. This is to workaround HIP driver bug
     // https://github.com/ROCm/HIP/issues/2450 in older versions.
     //
     // The version is returned as (10000000 major + 1000000 minor + patch).
-    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
-    return ReturnValue(DriverVersion >= CmdBufDriverMinVersion);
+    const int CmdBufRuntimeMinVersion = 50530202; // ROCM 5.5.1
+    return ReturnValue(RuntimeVersion >= CmdBufRuntimeMinVersion);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
-    int DriverVersion = 0;
-    UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
-    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
-    if (DriverVersion < CmdBufDriverMinVersion) {
+    int RuntimeVersion = 0;
+    UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
+    const int CmdBufRuntimeMinVersion = 50530202; // ROCM 5.5.1
+    if (RuntimeVersion < CmdBufRuntimeMinVersion) {
       return ReturnValue(
           static_cast<ur_device_command_buffer_update_capability_flags_t>(0));
     }
@@ -1104,9 +1080,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP: {
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP: {
     return ReturnValue(false);
   }
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_USM_P2P_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_LAUNCH_PROPERTIES_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(false);
   default:
     break;
   }
@@ -1193,9 +1181,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;
-  ur_adapter_handle_t AdapterHandle = &adapter;
-  ur_result_t Result =
-      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
+  ur_adapter_handle_t AdapterHandle = ur::hip::adapter;
+  ur_result_t Result = urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -1205,7 +1192,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   ur_platform_handle_t Platform = nullptr;
 
-  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, &Platform, nullptr);
+  Result = urPlatformGet(AdapterHandle, NumPlatforms, &Platform, nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 

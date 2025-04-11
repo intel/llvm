@@ -1,14 +1,22 @@
-# Copyright (C) 2022-2023 Intel Corporation
+# Copyright (C) 2022-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.20.0 FATAL_ERROR)
 project(unified-runtime VERSION 0.12.0)
+cmake_policy(SET CMP0083 NEW) # PROPERTY POSITION_INDEPENDENT_CODE
 
 # Check if unified runtime is built as a standalone project.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR UR_STANDALONE_BUILD)
     set(UR_STANDALONE_BUILD TRUE)
+endif()
+
+# Ubuntu's gcc uses --enable-default-pie. For the sake of a consistent build
+# across different gcc versions, set it globally for all targets
+# https://wiki.ubuntu.com/ToolChain/CompilerFlags#A-fPIE
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
 include(GNUInstallDirs)
@@ -48,6 +56,8 @@ option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
 option(UR_STATIC_LOADER "Build loader as a static library" OFF)
 option(UR_FORCE_LIBSTDCXX "Force use of libstdc++ in a build using libc++ on Linux" OFF)
 option(UR_ENABLE_LATENCY_HISTOGRAM "Enable latncy histogram" OFF)
+set(UR_EXTERNAL_DEPENDENCIES "" CACHE LIST
+    "List of external CMake targets for executables/libraries to depend on")
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
@@ -149,9 +159,6 @@ if(UR_ENABLE_TRACING)
 
         FetchContent_MakeAvailable(xpti)
 
-        # set -fPIC for xpti since we are linking it with a shared library
-        set_target_properties(xpti PROPERTIES POSITION_INDEPENDENT_CODE ON)
-
         # fetch the xptifw dispatcher, mostly used for testing
         # these variables need to be set for xptifw to compile
         set(XPTI_SOURCE_DIR ${xpti_SOURCE_DIR})
@@ -251,13 +258,13 @@ endif()
 
 # Check if clang-format (in correct version) is available for Cpp code formatting.
 if(UR_FORMAT_CPP_STYLE)
-    find_program(CLANG_FORMAT NAMES clang-format-18 clang-format-18.1 clang-format)
+    find_program(CLANG_FORMAT NAMES clang-format-19 clang-format-19.1 clang-format)
 
     if(CLANG_FORMAT)
         get_program_version_major_minor(${CLANG_FORMAT} CLANG_FORMAT_VERSION)
         message(STATUS "Found clang-format: ${CLANG_FORMAT} (version: ${CLANG_FORMAT_VERSION})")
 
-        set(CLANG_FORMAT_REQUIRED "18.1")
+        set(CLANG_FORMAT_REQUIRED "19.1")
         if(NOT (CLANG_FORMAT_VERSION VERSION_EQUAL CLANG_FORMAT_REQUIRED))
             message(FATAL_ERROR "required clang-format version is ${CLANG_FORMAT_REQUIRED}")
         endif()
@@ -384,7 +391,10 @@ if(UR_FORMAT_CPP_STYLE)
             --api-json ${API_JSON_FILE}
             --clang-format=${CLANG_FORMAT}
             $<$<BOOL:${UR_ENABLE_FAST_SPEC_MODE}>:--fast-mode>
-        COMMAND ${Python3_EXECUTABLE} json2src.py --api-json ${API_JSON_FILE} ${PROJECT_SOURCE_DIR}
+        COMMAND ${Python3_EXECUTABLE} json2src.py
+            --api-json ${API_JSON_FILE}
+            --clang-format=${CLANG_FORMAT}
+            ${PROJECT_SOURCE_DIR}
     )
 
     # Generate and format source from the specification
@@ -397,7 +407,7 @@ if(UR_FORMAT_CPP_STYLE)
     add_custom_target(check-generated
         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         COMMAND git diff --exit-code
-        DEPENDS generate
+        DEPENDS generate-code
     )
 else()
     message(STATUS "  UR_FORMAT_CPP_STYLE not set. Targets: 'generate' and 'check-generated' are not available")

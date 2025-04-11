@@ -10,8 +10,8 @@
 #define HALF_NEXTAFTER_INC
 
 #include <clc/clcmacro.h>
+#include <clc/math/math.h>
 #include <libspirv/spirv.h>
-#include <math/math.h>
 
 #ifdef cl_khr_fp16
 

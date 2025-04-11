@@ -19,7 +19,14 @@
 #include <unordered_set>
 #include <vector>
 
-struct CommandListCacheTest : public uur::urContextTest {};
+struct CommandListCacheTest : public uur::urContextTest {
+  void SetUp() override {
+    // Initialize Level Zero driver is required if this test is linked
+    // statically with Level Zero loader, the driver will not be init otherwise.
+    zeInit(ZE_INIT_FLAG_GPU_ONLY);
+    urContextTest::SetUp();
+  }
+};
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(CommandListCacheTest);
 

@@ -8,9 +8,9 @@
 
 #include <libspirv/spirv.h>
 
-#include <libspirv/math/tables.h>
+#include <clc/math/tables.h>
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cosh(float x) {
 
@@ -25,9 +25,9 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cosh(float x) {
   const float max_cosh_arg = 0x1.65a9fap+6f;
   const float small_threshold = 0x1.0a2b24p+3f;
 
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
   uint aux = ux & EXSIGNBIT_SP32;
-  float y = as_float(aux);
+  float y = __clc_as_float(aux);
 
   // Find the integer part y0 of y and the increment dy = y - y0. We then
   // compute z = sinh(y) = sinh(y0)cosh(dy) + cosh(y0)sinh(dy) z = cosh(y) =
@@ -87,8 +87,8 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cosh(float x) {
   z = y >= small_threshold ? zsmall : z;
 
   // Corner cases
-  z = y >= max_cosh_arg ? as_float(PINFBITPATT_SP32) : z;
-  z = aux > PINFBITPATT_SP32 ? as_float(QNANBITPATT_SP32) : z;
+  z = y >= max_cosh_arg ? __clc_as_float(PINFBITPATT_SP32) : z;
+  z = aux > PINFBITPATT_SP32 ? __clc_as_float(QNANBITPATT_SP32) : z;
   z = aux < 0x38800000 ? 1.0f : z;
 
   return z;
@@ -199,7 +199,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_cosh(double x) {
   t = __spirv_ocl_fma(t, -0x1.ef35793c76641p-45, t);
   z = y >= small_threshold ? t : z;
 
-  z = y >= max_cosh_arg ? as_double(PINFBITPATT_DP64) : z;
+  z = y >= max_cosh_arg ? __clc_as_double(PINFBITPATT_DP64) : z;
 
   z = __spirv_IsInf(x) || __spirv_IsNan(x) ? y : z;
 
@@ -214,6 +214,6 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_cosh, double)
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_cosh, __builtin_cosh, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_cosh, __builtin_coshf16, half)
 
 #endif

@@ -198,6 +198,8 @@ public:
 
   explicit GlobalMerge() : FunctionPass(ID) {
     Opt.MaxOffset = GlobalMergeMaxOffset;
+    Opt.MergeConstantGlobals = EnableGlobalMergeOnConst;
+    Opt.MergeConstAggressive = GlobalMergeAllConst;
     initializeGlobalMergePass(*PassRegistry::getPassRegistry());
   }
 
@@ -271,8 +273,7 @@ bool GlobalMergeImpl::doMerge(SmallVectorImpl<GlobalVariable *> &Globals,
 
   // If we want to just blindly group all globals together, do so.
   if (!GlobalMergeGroupByUse || (Opt.MergeConstAggressive && isConst)) {
-    BitVector AllGlobals(Globals.size());
-    AllGlobals.set();
+    BitVector AllGlobals(Globals.size(), true);
     return doMerge(Globals, AllGlobals, M, isConst, AddrSpace);
   }
 
@@ -423,6 +424,20 @@ bool GlobalMergeImpl::doMerge(SmallVectorImpl<GlobalVariable *> &Globals,
     }
   }
 
+  // We can choose to merge all globals together, but ignore globals never used
+  // with another global.  This catches the obviously non-profitable cases of
+  // having a single global, but is aggressive enough for any other case.
+  if (GlobalMergeIgnoreSingleUse) {
+    BitVector AllGlobals(Globals.size());
+    for (const UsedGlobalSet &UGS : UsedGlobalSets) {
+      if (UGS.UsageCount == 0)
+        continue;
+      if (UGS.Globals.count() > 1)
+        AllGlobals |= UGS.Globals;
+    }
+    return doMerge(Globals, AllGlobals, M, isConst, AddrSpace);
+  }
+
   // Now we found a bunch of sets of globals used together.  We accumulated
   // the number of times we encountered the sets (i.e., the number of functions
   // that use that exact set of globals).
@@ -434,20 +449,6 @@ bool GlobalMergeImpl::doMerge(SmallVectorImpl<GlobalVariable *> &Globals,
                       return UGS1.Globals.count() * UGS1.UsageCount <
                              UGS2.Globals.count() * UGS2.UsageCount;
                     });
-
-  // We can choose to merge all globals together, but ignore globals never used
-  // with another global.  This catches the obviously non-profitable cases of
-  // having a single global, but is aggressive enough for any other case.
-  if (GlobalMergeIgnoreSingleUse) {
-    BitVector AllGlobals(Globals.size());
-    for (const UsedGlobalSet &UGS : llvm::reverse(UsedGlobalSets)) {
-      if (UGS.UsageCount == 0)
-        continue;
-      if (UGS.Globals.count() > 1)
-        AllGlobals |= UGS.Globals;
-    }
-    return doMerge(Globals, AllGlobals, M, isConst, AddrSpace);
-  }
 
   // Starting from the sets with the best (=biggest) profitability, find a
   // good combination.
@@ -633,7 +634,7 @@ void GlobalMergeImpl::setMustKeepGlobalVariables(Module &M) {
 
   for (Function &F : M) {
     for (BasicBlock &BB : F) {
-      Instruction *Pad = BB.getFirstNonPHI();
+      BasicBlock::iterator Pad = BB.getFirstNonPHIIt();
       auto *II = dyn_cast<IntrinsicInst>(Pad);
       if (!Pad->isEHPad() &&
           !(II && II->getIntrinsicID() == Intrinsic::eh_typeid_for))
@@ -673,7 +674,7 @@ bool GlobalMergeImpl::run(Module &M) {
   if (!EnableGlobalMerge)
     return false;
 
-  IsMachO = Triple(M.getTargetTriple()).isOSBinFormatMachO();
+  IsMachO = M.getTargetTriple().isOSBinFormatMachO();
 
   auto &DL = M.getDataLayout();
   MapVector<std::pair<unsigned, StringRef>, SmallVector<GlobalVariable *, 0>>
@@ -729,7 +730,8 @@ bool GlobalMergeImpl::run(Module &M) {
 
     Type *Ty = GV.getValueType();
     TypeSize AllocSize = DL.getTypeAllocSize(Ty);
-    if (AllocSize < Opt.MaxOffset && AllocSize >= Opt.MinSize) {
+    bool CanMerge = AllocSize < Opt.MaxOffset && AllocSize >= Opt.MinSize;
+    if (CanMerge) {
       if (TM &&
           TargetLoweringObjectFile::getKindForGlobal(&GV, *TM).isBSS())
         BSSGlobals[{AddressSpace, Section}].push_back(&GV);
@@ -738,11 +740,8 @@ bool GlobalMergeImpl::run(Module &M) {
       else
         Globals[{AddressSpace, Section}].push_back(&GV);
     }
-    LLVM_DEBUG(dbgs() << "GV "
-                      << ((DL.getTypeAllocSize(Ty) < Opt.MaxOffset)
-                              ? "to merge: "
-                              : "not to merge: ")
-                      << GV << "\n");
+    LLVM_DEBUG(dbgs() << "GV " << (CanMerge ? "" : "not ") << "to merge: " << GV
+                      << "\n");
   }
 
   for (auto &P : Globals)

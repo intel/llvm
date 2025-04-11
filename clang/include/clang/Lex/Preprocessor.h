@@ -857,7 +857,7 @@ private:
           !PP.CurSubmoduleState->VisibleModules.getGeneration())
         return nullptr;
 
-      auto *Info = State.dyn_cast<ModuleMacroInfo*>();
+      auto *Info = dyn_cast_if_present<ModuleMacroInfo *>(State);
       if (!Info) {
         Info = new (PP.getPreprocessorAllocator())
             ModuleMacroInfo(cast<MacroDirective *>(State));
@@ -886,18 +886,18 @@ private:
     }
 
     ~MacroState() {
-      if (auto *Info = State.dyn_cast<ModuleMacroInfo*>())
+      if (auto *Info = dyn_cast_if_present<ModuleMacroInfo *>(State))
         Info->~ModuleMacroInfo();
     }
 
     MacroDirective *getLatest() const {
-      if (auto *Info = State.dyn_cast<ModuleMacroInfo*>())
+      if (auto *Info = dyn_cast_if_present<ModuleMacroInfo *>(State))
         return Info->MD;
       return cast<MacroDirective *>(State);
     }
 
     void setLatest(MacroDirective *MD) {
-      if (auto *Info = State.dyn_cast<ModuleMacroInfo*>())
+      if (auto *Info = dyn_cast_if_present<ModuleMacroInfo *>(State))
         Info->MD = MD;
       else
         State = MD;
@@ -934,14 +934,14 @@ private:
     }
 
     ArrayRef<ModuleMacro*> getOverriddenMacros() const {
-      if (auto *Info = State.dyn_cast<ModuleMacroInfo*>())
+      if (auto *Info = dyn_cast_if_present<ModuleMacroInfo *>(State))
         return Info->OverriddenMacros;
       return {};
     }
 
     void setOverriddenMacros(Preprocessor &PP,
                              ArrayRef<ModuleMacro *> Overrides) {
-      auto *Info = State.dyn_cast<ModuleMacroInfo*>();
+      auto *Info = dyn_cast_if_present<ModuleMacroInfo *>(State);
       if (!Info) {
         if (Overrides.empty())
           return;
@@ -1756,7 +1756,8 @@ public:
   bool LexAfterModuleImport(Token &Result);
   void CollectPpImportSuffix(SmallVectorImpl<Token> &Toks);
 
-  void makeModuleVisible(Module *M, SourceLocation Loc);
+  void makeModuleVisible(Module *M, SourceLocation Loc,
+                         bool IncludeExports = true);
 
   SourceLocation getModuleImportLoc(Module *M) const {
     return CurSubmoduleState->VisibleModules.getImportLoc(M);

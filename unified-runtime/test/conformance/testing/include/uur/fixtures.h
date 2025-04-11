@@ -237,7 +237,7 @@ struct urMemImageTest : urContextTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
     ur_bool_t imageSupported = false;
-    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORT,
                                    sizeof(ur_bool_t), &imageSupported,
                                    nullptr));
     if (!imageSupported) {
@@ -376,16 +376,16 @@ struct urHostPipeTest : urQueueTest {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
 
     size_t size = 0;
-    ASSERT_SUCCESS(
-        urDeviceGetInfo(device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED,
-                        0, nullptr, &size));
+    ASSERT_SUCCESS(urDeviceGetInfo(device,
+                                   UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT,
+                                   0, nullptr, &size));
     ASSERT_NE(size, 0);
     ASSERT_EQ(sizeof(ur_bool_t), size);
 
     void *info_data = alloca(size);
-    ASSERT_SUCCESS(
-        urDeviceGetInfo(device, UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED,
-                        size, info_data, nullptr));
+    ASSERT_SUCCESS(urDeviceGetInfo(device,
+                                   UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT,
+                                   size, info_data, nullptr));
     ASSERT_NE(info_data, nullptr);
 
     bool supported;
@@ -396,8 +396,9 @@ struct urHostPipeTest : urQueueTest {
 
     UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
         "foo", platform, il_binary));
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, device, *il_binary, nullptr, &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, nullptr, &program));
   }
 
   void TearDown() override {
@@ -634,7 +635,7 @@ struct urMemImageQueueTest : urQueueTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
     ur_bool_t imageSupported = false;
-    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+    ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORT,
                                    sizeof(ur_bool_t), &imageSupported,
                                    nullptr));
     if (!imageSupported) {
@@ -717,7 +718,7 @@ struct urMultiDeviceMemImageTest : urMultiDeviceContextTest {
     UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceContextTest::SetUp());
     for (auto device : devices) {
       ur_bool_t imageSupported = false;
-      ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+      ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_IMAGE_SUPPORT,
                                      sizeof(ur_bool_t), &imageSupported,
                                      nullptr));
       if (!imageSupported) {
@@ -1233,8 +1234,9 @@ struct urProgramTest : urQueueTest {
         UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
         static_cast<uint32_t>(metadatas.size()),
         metadatas.empty() ? nullptr : metadatas.data()};
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, device, *il_binary, &properties, &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, device, *il_binary, &properties, &program));
   }
 
   void TearDown() override {
@@ -1273,9 +1275,10 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
         static_cast<uint32_t>(metadatas.size()),
         metadatas.empty() ? nullptr : metadatas.data()};
 
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        this->platform, this->context, this->device, *il_binary, &properties,
-        &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            this->platform, this->context, this->device, *il_binary,
+            &properties, &program));
   }
 
   void TearDown() override {

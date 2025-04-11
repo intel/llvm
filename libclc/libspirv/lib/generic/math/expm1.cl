@@ -8,9 +8,9 @@
 
 #include <libspirv/spirv.h>
 
-#include <libspirv/math/tables.h>
+#include <clc/math/tables.h>
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 /* Refer to the exp routine for the underlying algorithm */
 
@@ -22,7 +22,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_expm1(float x) {
     const float R_LOG2_BY_64_LD = 0x1.620000p-7f;  // log2/64 lead: 0.0108032227
     const float R_LOG2_BY_64_TL = 0x1.c85fdep-16f; // log2/64 tail: 0.0000272020388
 
-    uint xi = as_uint(x);
+    uint xi = __clc_as_uint(x);
     int n = (int)(x * R_64_BY_LOG2);
     float fn = (float)n;
 
@@ -35,7 +35,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_expm1(float x) {
     float z2 = __spirv_ocl_mad(r*r, __spirv_ocl_mad(r,
         __spirv_ocl_mad(r, 0x1.555556p-5f,  0x1.555556p-3f), 0.5f), r);
 
-    float m2 = as_float((m + EXPBIAS_SP32) << EXPSHIFTBITS_SP32);
+    float m2 = __clc_as_float((m + EXPBIAS_SP32) << EXPSHIFTBITS_SP32);
     float2 tv = USE_TABLE(exp_tbl_ep, j);
 
     float two_to_jby64_h = tv.s0 * m2;
@@ -46,7 +46,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_expm1(float x) {
 	//Make subnormals work
     z2 = x == 0.f ? x : z2;
     z2 = x < X_MIN || m < -24 ? -1.0f : z2;
-    z2 = x > X_MAX ? as_float(PINFBITPATT_SP32) : z2;
+    z2 = x > X_MAX ? __clc_as_float(PINFBITPATT_SP32) : z2;
     z2 = __spirv_IsNan(x) ? x : z2;
 
     return z2;
@@ -70,7 +70,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_expm1(double x) {
     const double lnof2_by_64_tail = 2.5728046223276688e-14;     //0x3d1cf79abc9e3b39
 
     // First, assume log(1-1/4) < x < log(1+1/4) i.e  -0.28768 < x < 0.22314
-    double u = as_double(as_ulong(x) & 0xffffffffff000000UL);
+    double u = __clc_as_double(__clc_as_ulong(x) & 0xffffffffff000000UL);
     double v = x - u;
     double y = u * u * 0.5;
     double z = v * (x + u) * 0.5;
@@ -118,15 +118,15 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_expm1(double x) {
 	     5.00000000000000008883e-01);
     q = __spirv_ocl_fma(r*r, q, r);
 
-    double twopm = as_double((long)(m + EXPBIAS_DP64) << EXPSHIFTBITS_DP64);
-    double twopmm = as_double((long)(EXPBIAS_DP64 - m) << EXPSHIFTBITS_DP64);
+    double twopm = __clc_as_double((long)(m + EXPBIAS_DP64) << EXPSHIFTBITS_DP64);
+    double twopmm = __clc_as_double((long)(EXPBIAS_DP64 - m) << EXPSHIFTBITS_DP64);
 
     // Computations for m > 52, including where result is close to Inf
-    ulong uval = as_ulong(0x1.0p+1023 * (f1 + (f * q + (f2))));
+    ulong uval = __clc_as_ulong(0x1.0p+1023 * (f1 + (f * q + (f2))));
     int e = (int)(uval >> EXPSHIFTBITS_DP64) + 1;
 
-    double zme1024 = as_double(((long)e << EXPSHIFTBITS_DP64) | (uval & MANTBITS_DP64));
-    zme1024 = e == 2047 ? as_double(PINFBITPATT_DP64) : zme1024;
+    double zme1024 = __clc_as_double(((long)e << EXPSHIFTBITS_DP64) | (uval & MANTBITS_DP64));
+    zme1024 = e == 2047 ? __clc_as_double(PINFBITPATT_DP64) : zme1024;
 
     double zmg52 = twopm * (f1 + __spirv_ocl_fma(f, q, f2 - twopmm));
     zmg52 = m == 1024 ? zme1024 : zmg52;
@@ -140,7 +140,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_expm1(double x) {
     z = m < 53 ? zml53 : zmg52;
     z = m < -7 ? zmln7 : z;
     z = x > log_OneMinus_OneByFour && x < log_OnePlus_OneByFour ? z1 : z;
-    z = x > max_expm1_arg ? as_double(PINFBITPATT_DP64) : z;
+    z = x > max_expm1_arg ? __clc_as_double(PINFBITPATT_DP64) : z;
     z = x < min_expm1_arg ? -1.0 : z;
 
     return z;
@@ -154,6 +154,6 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_expm1, double)
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_expm1, __builtin_expm1, half)
+_CLC_DEFINE_UNARY_BUILTIN_SCALARIZE(half, __spirv_ocl_expm1, __builtin_expm1f, half)
 
 #endif

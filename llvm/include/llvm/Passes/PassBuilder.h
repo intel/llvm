@@ -60,6 +60,10 @@ public:
   /// Tuning option to enable/disable loop unrolling. Its default value is true.
   bool LoopUnrolling;
 
+  /// Tuning option to enable/disable loop interchange. Its default value is
+  /// false.
+  bool LoopInterchange;
+
   /// Tuning option to forget all SCEV loops in LoopUnroll. Its default value
   /// is that of the flag: `-forget-scev-loop-unroll`.
   bool ForgetAllSCEVInLoopUnroll;
@@ -473,6 +477,17 @@ public:
     VectorizerStartEPCallbacks.push_back(C);
   }
 
+  /// Register a callback for a default optimizer pipeline extension
+  /// point
+  ///
+  /// This extension point allows adding optimization passes after the
+  /// vectorizer and other highly target specific optimization passes are
+  /// executed.
+  void registerVectorizerEndEPCallback(
+      const std::function<void(FunctionPassManager &, OptimizationLevel)> &C) {
+    VectorizerEndEPCallbacks.push_back(C);
+  }
+
   /// Register a callback for a default optimizer pipeline extension point.
   ///
   /// This extension point allows adding optimization once at the start of the
@@ -639,6 +654,8 @@ public:
                                            OptimizationLevel Level);
   void invokeVectorizerStartEPCallbacks(FunctionPassManager &FPM,
                                         OptimizationLevel Level);
+  void invokeVectorizerEndEPCallbacks(FunctionPassManager &FPM,
+                                      OptimizationLevel Level);
   void invokeOptimizerEarlyEPCallbacks(ModulePassManager &MPM,
                                        OptimizationLevel Level,
                                        ThinOrFullLTOPhase Phase);
@@ -767,6 +784,8 @@ private:
       CGSCCOptimizerLateEPCallbacks;
   SmallVector<std::function<void(FunctionPassManager &, OptimizationLevel)>, 2>
       VectorizerStartEPCallbacks;
+  SmallVector<std::function<void(FunctionPassManager &, OptimizationLevel)>, 2>
+      VectorizerEndEPCallbacks;
   // Module callbacks
   SmallVector<std::function<void(ModulePassManager &, OptimizationLevel,
                                  ThinOrFullLTOPhase)>,

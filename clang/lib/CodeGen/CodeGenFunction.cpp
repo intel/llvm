@@ -435,9 +435,9 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   // important to do this before we enter the return block or return
   // edges will be *really* confused.
   bool HasCleanups = EHStack.stable_begin() != PrologueCleanupDepth;
-  bool HasOnlyLifetimeMarkers =
-      HasCleanups && EHStack.containsOnlyLifetimeMarkers(PrologueCleanupDepth);
-  bool EmitRetDbgLoc = !HasCleanups || HasOnlyLifetimeMarkers;
+  bool HasOnlyNoopCleanups =
+      HasCleanups && EHStack.containsOnlyNoopCleanups(PrologueCleanupDepth);
+  bool EmitRetDbgLoc = !HasCleanups || HasOnlyNoopCleanups;
 
   std::optional<ApplyDebugLocation> OAL;
   if (HasCleanups) {
@@ -582,14 +582,6 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
     CurFn->addFnAttr("min-legal-vector-width",
                      llvm::utostr(LargestVectorWidth));
 
-  // Add vscale_range attribute if appropriate.
-  std::optional<std::pair<unsigned, unsigned>> VScaleRange =
-      getContext().getTargetInfo().getVScaleRange(getLangOpts());
-  if (VScaleRange) {
-    CurFn->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(
-        getLLVMContext(), VScaleRange->first, VScaleRange->second));
-  }
-
   // If we generated an unreachable return block, delete it now.
   if (ReturnBlock.isValid() && ReturnBlock.getBlock()->use_empty()) {
     Builder.ClearInsertionPoint();
@@ -692,7 +684,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
         HintQTy->isSignedIntegerType() ||
         (HintEltQTy && HintEltQTy->getElementType()->isSignedIntegerType());
     llvm::Metadata *AttrMDArgs[] = {
-        llvm::ConstantAsMetadata::get(llvm::UndefValue::get(
+        llvm::ConstantAsMetadata::get(llvm::PoisonValue::get(
             CGM.getTypes().ConvertType(A->getTypeHint()))),
         llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
             llvm::IntegerType::get(Context, 32),
@@ -1399,6 +1391,15 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       if (FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>())
         Fn->addFnAttr("referenced-indirectly");
 
+  // Add vscale_range attribute if appropriate.
+  std::optional<std::pair<unsigned, unsigned>> VScaleRange =
+      getContext().getTargetInfo().getVScaleRange(
+          getLangOpts(), FD ? IsArmStreamingFunction(FD, true) : false);
+  if (VScaleRange) {
+    CurFn->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(
+        getLLVMContext(), VScaleRange->first, VScaleRange->second));
+  }
+
   llvm::BasicBlock *EntryBB = createBasicBlock("entry", CurFn);
 
   // Create a marker to make it easy to insert allocas into the entryblock
@@ -1822,7 +1823,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     // Initialize helper which will detect jumps which can cause invalid
     // lifetime markers.
     if (ShouldEmitLifetimeMarkers)
-      Bypasses.Init(Body);
+      Bypasses.Init(CGM, Body);
   }
 
   // Emit the standard function prologue.
@@ -1858,16 +1859,6 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   if (Body && isa_and_nonnull<CoroutineBodyStmt>(Body))
     llvm::append_range(FnArgs, FD->parameters());
 
-  // Generate a dummy __host__ function for compiling CUDA sources in SYCL.
-  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
-      getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
-      FD->hasAttr<CUDADeviceAttr>()) {
-    if (FD->getReturnType()->isVoidType())
-      Builder.CreateRetVoid();
-    else
-      Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
-    return;
-  }
   // When compiling a CUDA file in SYCL device mode,
   // set weak ODR linkage for possibly duplicated functions.
   if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
@@ -1884,7 +1875,22 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   // Generate the body of the function.
   PGO.assignRegionCounters(GD, CurFn);
-  if (isa<CXXDestructorDecl>(FD))
+  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
+      getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
+      FD->hasAttr<CUDADeviceAttr>()) {
+    // SYCL host compilation with CUDA compatibility enabled requires
+    // the creation of a host stub function for functions declared with
+    // the __device__ specifier but without the __host__ specifier.
+    // This is caused by the fact that SYCL doesn't use specifier like CUDA and
+    // so may have what can appear to be call from host to device. As we can't
+    // prevent the emission of such call, we need to produce a symbol for
+    // function with the __device__.
+    if (FD->getReturnType()->isVoidType())
+      Builder.CreateRetVoid();
+    else
+      Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
+    Builder.ClearInsertionPoint();
+  } else if (isa<CXXDestructorDecl>(FD))
     EmitDestructorBody(Args);
   else if (isa<CXXConstructorDecl>(FD))
     EmitConstructorBody(Args);
@@ -2177,7 +2183,8 @@ void CodeGenFunction::EmitBranchToCounterBlock(
 /// LHS and RHS nodes.
 void CodeGenFunction::EmitBranchOnBoolExpr(
     const Expr *Cond, llvm::BasicBlock *TrueBlock, llvm::BasicBlock *FalseBlock,
-    uint64_t TrueCount, Stmt::Likelihood LH, const Expr *ConditionalOp) {
+    uint64_t TrueCount, Stmt::Likelihood LH, const Expr *ConditionalOp,
+    const VarDecl *ConditionalDecl) {
   Cond = Cond->IgnoreParens();
 
   if (const BinaryOperator *CondBOp = dyn_cast<BinaryOperator>(Cond)) {
@@ -2377,6 +2384,8 @@ void CodeGenFunction::EmitBranchOnBoolExpr(
     ApplyDebugLocation DL(*this, Cond);
     CondV = EvaluateExprAsBool(Cond);
   }
+
+  MaybeEmitDeferredVarDeclInit(ConditionalDecl);
 
   // If not at the top of the logical operator nest, update MCDC temp with the
   // boolean result of the evaluated condition.

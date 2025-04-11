@@ -1,8 +1,8 @@
 // RUN: %{build} -o %t.run
 // RUN: %{run} %t.run
 
-// XFAIL: spirv-backend && run-mode
-// XFAIL-TRACKER: CMPLRLLVM-64705
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
 //==--------device_event.cpp - SYCL class device_event test ----------------==//
 //

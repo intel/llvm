@@ -9,7 +9,7 @@
 #include <libspirv/spirv.h>
 
 #include <clc/clcmacro.h>
-#include <math/math.h>
+#include <clc/math/math.h>
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_tanh(float x) {
   // The definition of tanh(x) is sinh(x)/cosh(x), which is also equivalent
@@ -21,11 +21,11 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_tanh(float x) {
 
   const float large_threshold = 0x1.0a2b24p+3f;
 
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
   uint aux = ux & EXSIGNBIT_SP32;
   uint xs = ux ^ aux;
 
-  float y = as_float(aux);
+  float y = __clc_as_float(aux);
   float y2 = y * y;
 
   float a1 = __spirv_ocl_mad(
@@ -51,10 +51,10 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_tanh(float x) {
   float zhi = 1.0F - MATH_DIVIDE(2.0F, p);
 
   float z = y <= 1.0f ? zlo : zhi;
-  z = as_float(xs | as_uint(z));
+  z = __clc_as_float(xs | __clc_as_uint(z));
 
   // Edge cases
-  float sone = as_float(0x3f800000U | xs);
+  float sone = __clc_as_float(0x3f800000U | xs);
   z = y > large_threshold ? sone : z;
   z = aux < 0x39000000 || aux > 0x7f800000 ? x : z;
 
@@ -78,10 +78,10 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_tanh(double x) {
   // The point at which e^-x is insignificant compared to e^x = ln(2^27)
   const double large_threshold = 0x1.2b708872320e2p+4;
 
-  ulong ux = as_ulong(x);
+  ulong ux = __clc_as_ulong(x);
   ulong ax = ux & ~SIGNBIT_DP64;
   ulong sx = ux ^ ax;
-  double y = as_double(ax);
+  double y = __clc_as_double(ax);
   double y2 = y * y;
 
   // y < 0.9
@@ -134,7 +134,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_tanh(double x) {
 
   z = y > large_threshold ? 1.0 : z;
 
-  return as_double(sx | as_ulong(z));
+  return __clc_as_double(sx | __clc_as_ulong(z));
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_tanh, double);

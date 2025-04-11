@@ -3557,9 +3557,9 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     SPIRVType *ResCompTy = this->getType();
     if (ResCompTy->isTypeCooperativeMatrixKHR())
-      return getVec(internal::CapabilityBfloat16ConversionINTEL,
+      return getVec(CapabilityBFloat16ConversionINTEL,
                     internal::CapabilityJointMatrixBF16ComponentTypeINTEL);
-    return getVec(internal::CapabilityBfloat16ConversionINTEL);
+    return getVec(CapabilityBFloat16ConversionINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
@@ -3613,7 +3613,7 @@ protected:
       InCompTy =
           static_cast<SPIRVTypeCooperativeMatrixKHR *>(InCompTy)->getCompType();
     }
-    if (OC == internal::OpConvertFToBF16INTEL) {
+    if (OC == OpConvertFToBF16INTEL) {
       SPVErrLog.checkError(
           ResCompTy->isTypeInt(16), SPIRVEC_InvalidInstruction,
           InstName + "\nResult value must be a scalar or vector of integer "
@@ -3641,7 +3641,7 @@ protected:
 };
 
 #define _SPIRV_OP(x)                                                           \
-  typedef SPIRVBfloat16ConversionINTELInstBase<internal::Op##x> SPIRV##x;
+  typedef SPIRVBfloat16ConversionINTELInstBase<Op##x> SPIRV##x;
 _SPIRV_OP(ConvertFToBF16INTEL)
 _SPIRV_OP(ConvertBF16ToFINTEL)
 #undef _SPIRV_OP
@@ -3830,50 +3830,6 @@ _SPIRV_OP(GroupLogicalOr, true, 6, false, 1)
 _SPIRV_OP(GroupLogicalXor, true, 6, false, 1)
 #undef _SPIRV_OP
 
-class SPIRVComplexFloat : public SPIRVInstTemplateBase {
-protected:
-  void validate() const override {
-    SPIRVId Op1 = Ops[0];
-    SPIRVId Op2 = Ops[1];
-    SPIRVType *Op1Ty, *Op2Ty;
-    SPIRVInstruction::validate();
-    if (getValue(Op1)->isForward() || getValue(Op2)->isForward())
-      return;
-    if (getValueType(Op1)->isTypeVector()) {
-      Op1Ty = getValueType(Op1)->getVectorComponentType();
-      Op2Ty = getValueType(Op2)->getVectorComponentType();
-      assert(getValueType(Op1)->getVectorComponentCount() ==
-                 getValueType(Op2)->getVectorComponentCount() &&
-             "Inconsistent Vector component width");
-    } else {
-      Op1Ty = getValueType(Op1);
-      Op2Ty = getValueType(Op2);
-    }
-    (void)Op1Ty;
-    (void)Op2Ty;
-    assert(Op1Ty->isTypeFloat() && "Invalid type for complex instruction");
-    assert(Op1Ty == Op2Ty && "Invalid type for complex instruction");
-  }
-
-public:
-  SPIRVCapVec getRequiredCapability() const override {
-    return getVec(internal::CapabilityComplexFloatMulDivINTEL);
-  }
-
-  std::optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_INTEL_complex_float_mul_div;
-  }
-};
-
-template <Op OC>
-class SPIRVComplexFloatInst
-    : public SPIRVInstTemplate<SPIRVComplexFloat, OC, true, 5, false> {};
-
-#define _SPIRV_OP(x) typedef SPIRVComplexFloatInst<internal::Op##x> SPIRV##x;
-_SPIRV_OP(ComplexFMulINTEL)
-_SPIRV_OP(ComplexFDivINTEL)
-#undef _SPIRV_OP
-
 class SPIRVMaskedGatherScatterINTELInstBase : public SPIRVInstTemplateBase {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
@@ -4028,9 +3984,9 @@ protected:
   SPIRVCapVec getRequiredCapability() const override {
     SPIRVType *ResCompTy = this->getType();
     if (ResCompTy->isTypeCooperativeMatrixKHR())
-      return getVec(internal::CapabilityTensorFloat32RoundingINTEL,
+      return getVec(CapabilityTensorFloat32RoundingINTEL,
                     internal::CapabilityJointMatrixTF32ComponentTypeINTEL);
-    return getVec(internal::CapabilityTensorFloat32RoundingINTEL);
+    return getVec(CapabilityTensorFloat32RoundingINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
@@ -4101,7 +4057,7 @@ protected:
 };
 
 #define _SPIRV_OP(x)                                                           \
-  typedef SPIRVTensorFloat32RoundingINTELInstBase<internal::Op##x> SPIRV##x;
+  typedef SPIRVTensorFloat32RoundingINTELInstBase<Op##x> SPIRV##x;
 _SPIRV_OP(RoundFToTF32INTEL)
 #undef _SPIRV_OP
 
@@ -4382,6 +4338,69 @@ protected:
   std::vector<SPIRVId> Locality;
   std::vector<SPIRVId> CacheTy;
 };
+
+class SPIRVSubgroup2DBlockIOINTELInst : public SPIRVInstTemplateBase {
+public:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_2d_block_io;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilitySubgroup2DBlockIOINTEL);
+  }
+};
+
+class SPIRVSubgroup2DBlockLoadTransposeINTELInst
+    : public SPIRVSubgroup2DBlockIOINTELInst {
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilitySubgroup2DBlockTransposeINTEL);
+  }
+};
+
+class SPIRVSubgroup2DBlockLoadTransformINTELInst
+    : public SPIRVSubgroup2DBlockIOINTELInst {
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilitySubgroup2DBlockTransformINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVSubgroup2DBlockIOINTELInst, Op##x##INTEL,     \
+                            __VA_ARGS__>                                       \
+      SPIRV##x##INTEL;
+_SPIRV_OP(Subgroup2DBlockLoad, false, 11)
+_SPIRV_OP(Subgroup2DBlockPrefetch, false, 10)
+_SPIRV_OP(Subgroup2DBlockStore, false, 11)
+#undef _SPIRV_OP
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVSubgroup2DBlockLoadTransposeINTELInst,        \
+                            Op##x##INTEL, __VA_ARGS__>                         \
+      SPIRV##x##INTEL;
+_SPIRV_OP(Subgroup2DBlockLoadTranspose, false, 11)
+#undef _SPIRV_OP
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVSubgroup2DBlockLoadTransformINTELInst,        \
+                            Op##x##INTEL, __VA_ARGS__>                         \
+      SPIRV##x##INTEL;
+_SPIRV_OP(Subgroup2DBlockLoadTransform, false, 11)
+#undef _SPIRV_OP
+
+class SPIRVSubgroupMatrixMultiplyAccumulateINTELInst
+    : public SPIRVInstTemplateBase {
+public:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_subgroup_matrix_multiply_accumulate;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilitySubgroupMatrixMultiplyAccumulateINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVSubgroupMatrixMultiplyAccumulateINTELInst,    \
+                            Op##x##INTEL, __VA_ARGS__>                         \
+      SPIRV##x##INTEL;
+_SPIRV_OP(SubgroupMatrixMultiplyAccumulate, true, 7, true, 4)
+#undef _SPIRV_OP
 
 } // namespace SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

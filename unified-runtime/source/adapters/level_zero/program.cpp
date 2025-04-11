@@ -490,15 +490,16 @@ ur_result_t urProgramLinkExp(
       // because the ZeBuildLog tells which symbols are unresolved.
       if (ZeResult == ZE_RESULT_SUCCESS) {
         ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
-        if (ZeResult != ZE_RESULT_SUCCESS) {
-          return ze2urResult(ZeResult);
-        }
+        UrResult = ze2urResult(ZeResult);
       }
       UrProgram->setZeModule(ZeDevice, ZeModule);
       UrProgram->setBuildLog(ZeDevice, ZeBuildLog);
       UrProgram->setState(ZeDevice, (UrResult == UR_RESULT_SUCCESS)
                                         ? ur_program_handle_t_::Exe
                                         : ur_program_handle_t_::Invalid);
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        return UrResult;
+      }
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -956,7 +957,6 @@ ur_result_t urProgramCreateWithNativeHandle(
   UR_ASSERT(Context && NativeProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   auto ZeModule = ur_cast<ze_module_handle_t>(NativeProgram);
-
   // We assume here that programs created from a native handle always
   // represent a fully linked executable (state Exe) and not an unlinked
   // executable (state Object).
@@ -1077,16 +1077,16 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   }
   if (!resourcesReleased) {
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap) {
-      if (DeviceData.ZeBuildLog)
+      if (DeviceData.ZeBuildLog && checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (DeviceData.ZeBuildLog));
     }
-
     // interop api
-    if (InteropZeModule && OwnZeModule)
+    if (InteropZeModule && OwnZeModule && checkL0LoaderTeardown()) {
       ZE_CALL_NOCHECK(zeModuleDestroy, (InteropZeModule));
+    }
 
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap)
-      if (DeviceData.ZeModule)
+      if (DeviceData.ZeModule && checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleDestroy, (DeviceData.ZeModule));
 
     this->DeviceDataMap.clear();

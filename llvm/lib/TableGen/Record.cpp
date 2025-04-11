@@ -25,6 +25,7 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TableGen/Error.h"
@@ -106,7 +107,8 @@ void detail::RecordKeeperImpl::dumpAllocationStats(raw_ostream &OS) const {
   OS << "TheArgumentInitPool size = " << TheArgumentInitPool.size() << '\n';
   OS << "TheBitsInitPool size = " << TheBitsInitPool.size() << '\n';
   OS << "TheIntInitPool size = " << TheIntInitPool.size() << '\n';
-  OS << "TheBitsInitPool size = " << TheBitsInitPool.size() << '\n';
+  OS << "StringInitStringPool size = " << StringInitStringPool.size() << '\n';
+  OS << "StringInitCodePool size = " << StringInitCodePool.size() << '\n';
   OS << "TheListInitPool size = " << TheListInitPool.size() << '\n';
   OS << "TheUnOpInitPool size = " << TheUnOpInitPool.size() << '\n';
   OS << "TheBinOpInitPool size = " << TheBinOpInitPool.size() << '\n';
@@ -1317,6 +1319,23 @@ const Init *BinOpInit::Fold(const Record *CurRec) const {
     }
     break;
   }
+  case MATCH: {
+    const auto *StrInit = dyn_cast<StringInit>(LHS);
+    if (!StrInit)
+      return this;
+
+    const auto *RegexInit = dyn_cast<StringInit>(RHS);
+    if (!RegexInit)
+      return this;
+
+    StringRef RegexStr = RegexInit->getValue();
+    llvm::Regex Matcher(RegexStr);
+    if (!Matcher.isValid())
+      PrintFatalError(Twine("invalid regex '") + RegexStr + Twine("'"));
+
+    return BitInit::get(LHS->getRecordKeeper(),
+                        Matcher.match(StrInit->getValue()));
+  }
   case LISTCONCAT: {
     const auto *LHSs = dyn_cast<ListInit>(LHS);
     const auto *RHSs = dyn_cast<ListInit>(RHS);
@@ -1585,6 +1604,9 @@ std::string BinOpInit::getAsString() const {
   case RANGEC:
     return LHS->getAsString() + "..." + RHS->getAsString();
   case CONCAT: Result = "!con"; break;
+  case MATCH:
+    Result = "!match";
+    break;
   case ADD: Result = "!add"; break;
   case SUB: Result = "!sub"; break;
   case MUL: Result = "!mul"; break;

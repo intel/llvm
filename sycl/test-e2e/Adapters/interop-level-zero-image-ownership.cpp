@@ -7,6 +7,16 @@
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
 
+// 1. There is a SPIR-V spec issue that blocks generation of valid SPIR-V code
+// for the OpenCL environments support of the "Unknown" image format:
+// https://github.com/KhronosGroup/SPIRV-Headers/issues/487
+// 2. The PR https://github.com/llvm/llvm-project/pull/127242 in upstream needs
+// to be merged with intel/llvm to address an issue of mapping from SPIR-V
+// friendly builtins to Image Read/Write instructions After the 1 issue is
+// resolved and 2 is merged we will re-enable Image support.
+// UNSUPPORTED: spirv-backend && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/KhronosGroup/SPIRV-Headers/issues/487
+
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
@@ -134,6 +144,14 @@ void test(sycl::ext::oneapi::level_zero::ownership Ownership) {
 
 int main() {
 #ifdef SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+  // Initialize Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, the driver will not be init otherwise.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed\n";
+    return 1;
+  }
+
   std::cout << "test  ownership::transfer" << std::endl;
   test(sycl::ext::oneapi::level_zero::ownership::transfer);
 
