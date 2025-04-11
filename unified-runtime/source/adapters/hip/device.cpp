@@ -1023,6 +1023,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 #else
     return ReturnValue(ur_bool_t{false});
 #endif
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IL_VERSION:
@@ -1181,9 +1183,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;
-  ur_adapter_handle_t AdapterHandle = &adapter;
-  ur_result_t Result =
-      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
+  ur_adapter_handle_t AdapterHandle = ur::hip::adapter;
+  ur_result_t Result = urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -1193,7 +1194,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   ur_platform_handle_t Platform = nullptr;
 
-  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, &Platform, nullptr);
+  Result = urPlatformGet(AdapterHandle, NumPlatforms, &Platform, nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 

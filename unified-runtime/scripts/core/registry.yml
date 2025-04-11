@@ -643,9 +643,15 @@ etors:
 - name: USM_POOL_SET_INFO_EXP
   desc: Enumerator for $xUSMPoolSetInfoExp
   value: '265'
+- name: ADAPTER_SET_LOGGER_CALLBACK
+  desc: Enumerator for $xAdapterSetLoggerCallback
+  value: '266'
+- name: ADAPTER_SET_LOGGER_CALLBACK_LEVEL
+  desc: Enumerator for $xAdapterSetLoggerCallbackLevel
+  value: '267'
 - name: USM_CONTEXT_MEMCPY_EXP
   desc: Enumerator for $xUSMContextMemcpyExp
-  value: '266'
+  value: '268'
 ---
 type: enum
 desc: Defines structure types
@@ -756,3 +762,6 @@ etors:
 - name: USM_ALLOC_LOCATION_DESC
   desc: $x_usm_alloc_location_desc_t
   value: '35'
+- name: USM_POOL_BUFFER_DESC
+  desc: $x_usm_pool_buffer_desc_t
+  value: '36'

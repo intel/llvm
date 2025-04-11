@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
+#include "platform.hpp"
 #include "usm.hpp"
 
 #include <cassert>

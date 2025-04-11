@@ -8,30 +8,37 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "program.hpp"
 #include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 
-static ur_result_t
-getDevicesFromProgram(ur_program_handle_t hProgram,
-                      std::vector<cl_device_id> &DevicesInProgram) {
+#include <vector>
 
-  cl_uint DeviceCount;
-  CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
-                                        CL_PROGRAM_NUM_DEVICES, sizeof(cl_uint),
-                                        &DeviceCount, nullptr));
-
-  if (DeviceCount < 1) {
-    return UR_RESULT_ERROR_INVALID_CONTEXT;
+ur_result_t ur_program_handle_t_::makeWithNative(native_type NativeProg,
+                                                 ur_context_handle_t Context,
+                                                 ur_program_handle_t &Program) {
+  if (!Context) {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
-
-  DevicesInProgram.resize(DeviceCount);
-
-  CL_RETURN_ON_FAILURE(clGetProgramInfo(
-      cl_adapter::cast<cl_program>(hProgram), CL_PROGRAM_DEVICES,
-      DeviceCount * sizeof(cl_device_id), DevicesInProgram.data(), nullptr));
+  try {
+    cl_context CLContext;
+    CL_RETURN_ON_FAILURE(clGetProgramInfo(NativeProg, CL_PROGRAM_CONTEXT,
+                                          sizeof(CLContext), &CLContext,
+                                          nullptr));
+    if (Context->CLContext != CLContext) {
+      return UR_RESULT_ERROR_INVALID_CONTEXT;
+    }
+    auto URProgram = std::make_unique<ur_program_handle_t_>(
+        NativeProg, Context, Context->DeviceCount, Context->Devices.data());
+    Program = URProgram.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -40,29 +47,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_context_handle_t hContext, const void *pIL, size_t length,
     const ur_program_properties_t *, ur_program_handle_t *phProgram) {
 
-  std::unique_ptr<std::vector<cl_device_id>> DevicesInCtx;
-  CL_RETURN_ON_FAILURE_AND_SET_NULL(
-      cl_adapter::getDevicesFromContext(hContext, DevicesInCtx), phProgram);
-
-  cl_platform_id CurPlatform;
-  CL_RETURN_ON_FAILURE_AND_SET_NULL(
-      clGetDeviceInfo((*DevicesInCtx)[0], CL_DEVICE_PLATFORM,
-                      sizeof(cl_platform_id), &CurPlatform, nullptr),
-      phProgram);
+  ur_platform_handle_t CurPlatform = hContext->Devices[0]->Platform;
 
   oclv::OpenCLVersion PlatVer;
-  CL_RETURN_ON_FAILURE_AND_SET_NULL(
-      cl_adapter::getPlatformVersion(CurPlatform, PlatVer), phProgram);
+  CL_RETURN_ON_FAILURE_AND_SET_NULL(CurPlatform->getPlatformVersion(PlatVer),
+                                    phProgram);
 
   cl_int Err = CL_SUCCESS;
+  cl_program Program;
   if (PlatVer >= oclv::V2_1) {
 
     /* Make sure all devices support CL 2.1 or newer as well. */
-    for (cl_device_id Dev : *DevicesInCtx) {
+    for (ur_device_handle_t URDev : hContext->Devices) {
       oclv::OpenCLVersion DevVer;
 
-      CL_RETURN_ON_FAILURE_AND_SET_NULL(
-          cl_adapter::getDeviceVersion(Dev, DevVer), phProgram);
+      CL_RETURN_ON_FAILURE_AND_SET_NULL(URDev->getDeviceVersion(DevVer),
+                                        phProgram);
 
       /* If the device does not support CL 2.1 or greater, we need to make sure
        * it supports the cl_khr_il_program extension.
@@ -70,8 +70,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
       if (DevVer < oclv::V2_1) {
         bool Supported = false;
         CL_RETURN_ON_FAILURE_AND_SET_NULL(
-            cl_adapter::checkDeviceExtensions(Dev, {"cl_khr_il_program"},
-                                              Supported),
+            URDev->checkDeviceExtensions({"cl_khr_il_program"}, Supported),
             phProgram);
 
         if (!Supported) {
@@ -80,18 +79,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
       }
     }
 
-    *phProgram = cl_adapter::cast<ur_program_handle_t>(clCreateProgramWithIL(
-        cl_adapter::cast<cl_context>(hContext), pIL, length, &Err));
+    Program = clCreateProgramWithIL(hContext->CLContext, pIL, length, &Err);
   } else {
-
     /* If none of the devices conform with CL 2.1 or newer make sure they all
      * support the cl_khr_il_program extension.
      */
-    for (cl_device_id Dev : *DevicesInCtx) {
+    for (ur_device_handle_t URDev : hContext->Devices) {
       bool Supported = false;
       CL_RETURN_ON_FAILURE_AND_SET_NULL(
-          cl_adapter::checkDeviceExtensions(Dev, {"cl_khr_il_program"},
-                                            Supported),
+          URDev->checkDeviceExtensions({"cl_khr_il_program"}, Supported),
           phProgram);
 
       if (!Supported) {
@@ -102,12 +98,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
     cl_ext::clCreateProgramWithILKHR_fn CreateProgramWithIL = nullptr;
 
     UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext(
-        cl_adapter::cast<cl_context>(hContext),
-        cl_ext::ExtFuncPtrCache->clCreateProgramWithILKHRCache,
+        hContext->CLContext,
+        ur::cl::getAdapter()->fnCache.clCreateProgramWithILKHRCache,
         cl_ext::CreateProgramWithILName, &CreateProgramWithIL));
 
-    *phProgram = cl_adapter::cast<ur_program_handle_t>(CreateProgramWithIL(
-        cl_adapter::cast<cl_context>(hContext), pIL, length, &Err));
+    Program = CreateProgramWithIL(hContext->CLContext, pIL, length, &Err);
   }
 
   // INVALID_VALUE is only returned in three circumstances according to the cl
@@ -129,6 +124,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
     CL_RETURN_ON_FAILURE(Err);
   }
 
+  try {
+    auto URProgram = std::make_unique<ur_program_handle_t_>(
+        Program, hContext, hContext->DeviceCount, hContext->Devices.data());
+    *phProgram = URProgram.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -136,15 +141,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, uint32_t numDevices,
     ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
     const ur_program_properties_t *, ur_program_handle_t *phProgram) {
-  std::vector<cl_device_id> Devices(numDevices);
+  std::vector<cl_device_id> CLDevices(numDevices);
   for (uint32_t i = 0; i < numDevices; ++i)
-    Devices[i] = cl_adapter::cast<cl_device_id>(phDevices[i]);
+    CLDevices[i] = phDevices[i]->CLDevice;
   std::vector<cl_int> BinaryStatus(numDevices);
   cl_int CLResult;
-  *phProgram = cl_adapter::cast<ur_program_handle_t>(clCreateProgramWithBinary(
-      cl_adapter::cast<cl_context>(hContext),
-      cl_adapter::cast<cl_uint>(numDevices), Devices.data(), pLengths,
-      ppBinaries, BinaryStatus.data(), &CLResult));
+  cl_program Program = clCreateProgramWithBinary(
+      hContext->CLContext, static_cast<cl_uint>(numDevices), CLDevices.data(),
+      pLengths, ppBinaries, BinaryStatus.data(), &CLResult);
+  CL_RETURN_ON_FAILURE(CLResult);
+  auto URProgram = std::make_unique<ur_program_handle_t_>(
+      Program, hContext, numDevices, phDevices);
+  *phProgram = URProgram.release();
   for (uint32_t i = 0; i < numDevices; ++i) {
     CL_RETURN_ON_FAILURE(BinaryStatus[i]);
   }
@@ -157,12 +165,14 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCompile([[maybe_unused]] ur_context_handle_t hContext,
                  ur_program_handle_t hProgram, const char *pOptions) {
 
-  std::vector<cl_device_id> DevicesInProgram;
-  UR_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
+  uint32_t DeviceCount = hProgram->NumDevices;
+  std::vector<cl_device_id> CLDevicesInProgram(DeviceCount);
+  for (uint32_t i = 0; i < DeviceCount; i++) {
+    CLDevicesInProgram[i] = hProgram->Devices[i]->CLDevice;
+  }
 
-  CL_RETURN_ON_FAILURE(clCompileProgram(cl_adapter::cast<cl_program>(hProgram),
-                                        DevicesInProgram.size(),
-                                        DevicesInProgram.data(), pOptions, 0,
+  CL_RETURN_ON_FAILURE(clCompileProgram(hProgram->CLProgram, DeviceCount,
+                                        CLDevicesInProgram.data(), pOptions, 0,
                                         nullptr, nullptr, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
@@ -197,17 +207,38 @@ static cl_int mapURProgramInfoToCL(ur_program_info_t URPropName) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
-  size_t CheckPropSize = 0;
-  auto ClResult = clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
-                                   mapURProgramInfoToCL(propName), propSize,
-                                   pPropValue, &CheckPropSize);
-  if (pPropValue && CheckPropSize != propSize) {
-    return UR_RESULT_ERROR_INVALID_SIZE;
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  const cl_program_info CLPropName = mapURProgramInfoToCL(propName);
+
+  switch (static_cast<uint32_t>(propName)) {
+  case UR_PROGRAM_INFO_CONTEXT: {
+    return ReturnValue(hProgram->Context);
   }
-  CL_RETURN_ON_FAILURE(ClResult);
-  if (pPropSizeRet) {
-    *pPropSizeRet = CheckPropSize;
+  case UR_PROGRAM_INFO_NUM_DEVICES: {
+    cl_uint DeviceCount = hProgram->NumDevices;
+    return ReturnValue(DeviceCount);
   }
+  case UR_PROGRAM_INFO_DEVICES: {
+    return ReturnValue(hProgram->Devices.data(), hProgram->NumDevices);
+  }
+  case UR_PROGRAM_INFO_REFERENCE_COUNT: {
+    return ReturnValue(hProgram->getReferenceCount());
+  }
+  default: {
+    size_t CheckPropSize = 0;
+    auto ClResult = clGetProgramInfo(hProgram->CLProgram, CLPropName, propSize,
+                                     pPropValue, &CheckPropSize);
+    if (pPropValue && CheckPropSize != propSize) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    CL_RETURN_ON_FAILURE(ClResult);
+    if (pPropSizeRet) {
+      *pPropSizeRet = CheckPropSize;
+    }
+  }
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -215,12 +246,15 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramBuild([[maybe_unused]] ur_context_handle_t hContext,
                ur_program_handle_t hProgram, const char *pOptions) {
 
-  std::vector<cl_device_id> DevicesInProgram;
-  UR_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
+  uint32_t DeviceCount = hProgram->NumDevices;
+  std::vector<cl_device_id> CLDevicesInProgram(DeviceCount);
+  for (uint32_t i = 0; i < DeviceCount; i++) {
+    CLDevicesInProgram[i] = hProgram->Devices[i]->CLDevice;
+  }
 
-  CL_RETURN_ON_FAILURE(clBuildProgram(
-      cl_adapter::cast<cl_program>(hProgram), DevicesInProgram.size(),
-      DevicesInProgram.data(), pOptions, nullptr, nullptr));
+  CL_RETURN_ON_FAILURE(
+      clBuildProgram(hProgram->CLProgram, CLDevicesInProgram.size(),
+                     CLDevicesInProgram.data(), pOptions, nullptr, nullptr));
   return UR_RESULT_SUCCESS;
 }
 
@@ -230,19 +264,29 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
               ur_program_handle_t *phProgram) {
 
   cl_int CLResult;
-  *phProgram = cl_adapter::cast<ur_program_handle_t>(
-      clLinkProgram(cl_adapter::cast<cl_context>(hContext), 0, nullptr,
-                    pOptions, cl_adapter::cast<cl_uint>(count),
-                    cl_adapter::cast<const cl_program *>(phPrograms), nullptr,
-                    nullptr, &CLResult));
+  std::vector<cl_program> CLPrograms(count);
+  for (uint32_t i = 0; i < count; i++) {
+    CLPrograms[i] = phPrograms[i]->CLProgram;
+  }
+  cl_program Program = clLinkProgram(
+      hContext->CLContext, 0, nullptr, pOptions, static_cast<cl_uint>(count),
+      CLPrograms.data(), nullptr, nullptr, &CLResult);
 
   if (CL_INVALID_BINARY == CLResult) {
     // Some OpenCL drivers incorrectly return CL_INVALID_BINARY here, convert it
     // to CL_LINK_PROGRAM_FAILURE
     CLResult = CL_LINK_PROGRAM_FAILURE;
   }
-
   CL_RETURN_ON_FAILURE(CLResult);
+  try {
+    auto URProgram = std::make_unique<ur_program_handle_t_>(
+        Program, hContext, hContext->DeviceCount, hContext->Devices.data());
+    *phProgram = URProgram.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -317,15 +361,13 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
     UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
     cl_program_binary_type BinaryType;
     CL_RETURN_ON_FAILURE(clGetProgramBuildInfo(
-        cl_adapter::cast<cl_program>(hProgram),
-        cl_adapter::cast<cl_device_id>(hDevice),
+        hProgram->CLProgram, hDevice->CLDevice,
         mapURProgramBuildInfoToCL(propName), sizeof(cl_program_binary_type),
         &BinaryType, nullptr));
     return ReturnValue(mapCLBinaryTypeToUR(BinaryType));
   }
   size_t CheckPropSize = 0;
-  cl_int ClErr = clGetProgramBuildInfo(cl_adapter::cast<cl_program>(hProgram),
-                                       cl_adapter::cast<cl_device_id>(hDevice),
+  cl_int ClErr = clGetProgramBuildInfo(hProgram->CLProgram, hDevice->CLDevice,
                                        mapURProgramBuildInfoToCL(propName),
                                        propSize, pPropValue, &CheckPropSize);
   if (pPropValue && CheckPropSize != propSize) {
@@ -341,34 +383,35 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-
-  CL_RETURN_ON_FAILURE(clRetainProgram(cl_adapter::cast<cl_program>(hProgram)));
+  hProgram->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-
-  CL_RETURN_ON_FAILURE(
-      clReleaseProgram(cl_adapter::cast<cl_program>(hProgram)));
+  if (hProgram->decrementReferenceCount() == 0) {
+    delete hProgram;
+  }
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_handle_t hProgram, ur_native_handle_t *phNativeProgram) {
 
-  *phNativeProgram = reinterpret_cast<ur_native_handle_t>(hProgram);
+  *phNativeProgram = reinterpret_cast<ur_native_handle_t>(hProgram->CLProgram);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
-    ur_native_handle_t hNativeProgram, ur_context_handle_t,
+    ur_native_handle_t hNativeProgram, ur_context_handle_t hContext,
     const ur_program_native_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
-  *phProgram = reinterpret_cast<ur_program_handle_t>(hNativeProgram);
-  if (!pProperties || !pProperties->isNativeHandleOwned) {
-    return urProgramRetain(*phProgram);
-  }
+  cl_program NativeHandle = reinterpret_cast<cl_program>(hNativeProgram);
+
+  UR_RETURN_ON_FAILURE(
+      ur_program_handle_t_::makeWithNative(NativeHandle, hContext, *phProgram));
+  (*phProgram)->IsNativeHandleOwned =
+      pProperties ? pProperties->isNativeHandleOwned : false;
   return UR_RESULT_SUCCESS;
 }
 
@@ -376,21 +419,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     ur_program_handle_t hProgram, uint32_t count,
     const ur_specialization_constant_info_t *pSpecConstants) {
 
-  cl_program CLProg = cl_adapter::cast<cl_program>(hProgram);
-  cl_context Ctx = nullptr;
-  size_t RetSize = 0;
-
-  CL_RETURN_ON_FAILURE(clGetProgramInfo(CLProg, CL_PROGRAM_CONTEXT, sizeof(Ctx),
-                                        &Ctx, &RetSize));
-
-  std::unique_ptr<std::vector<cl_device_id>> DevicesInCtx;
-  UR_RETURN_ON_FAILURE(cl_adapter::getDevicesFromContext(
-      cl_adapter::cast<ur_context_handle_t>(Ctx), DevicesInCtx));
-
-  cl_platform_id CurPlatform;
-  CL_RETURN_ON_FAILURE(clGetDeviceInfo((*DevicesInCtx)[0], CL_DEVICE_PLATFORM,
-                                       sizeof(cl_platform_id), &CurPlatform,
-                                       nullptr));
+  cl_program CLProg = hProgram->CLProgram;
+  if (!hProgram->Context) {
+    return UR_RESULT_ERROR_INVALID_PROGRAM;
+  }
+  ur_context_handle_t Ctx = hProgram->Context;
+  if (!Ctx->DeviceCount || !Ctx->Devices[0]->Platform) {
+    return UR_RESULT_ERROR_INVALID_CONTEXT;
+  }
 
   if (ur::cl::getAdapter()->clSetProgramSpecializationConstant) {
     for (uint32_t i = 0; i < count; ++i) {
@@ -436,16 +472,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     ur_device_handle_t hDevice, ur_program_handle_t hProgram,
     const char *pFunctionName, void **ppFunctionPointer) {
 
-  cl_context CLContext = nullptr;
-  CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
-                                        CL_PROGRAM_CONTEXT, sizeof(CLContext),
-                                        &CLContext, nullptr));
+  cl_context CLContext = hProgram->Context->CLContext;
 
   cl_ext::clGetDeviceFunctionPointer_fn FuncT = nullptr;
 
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<cl_ext::clGetDeviceFunctionPointer_fn>(
-          CLContext, cl_ext::ExtFuncPtrCache->clGetDeviceFunctionPointerCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clGetDeviceFunctionPointerCache,
           cl_ext::GetDeviceFunctionPointerName, &FuncT));
 
   // Check if the kernel name exists to prevent the OpenCL runtime from throwing
@@ -455,15 +489,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   // throws exceptions.
   *ppFunctionPointer = 0;
   size_t Size;
-  CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
-                                        CL_PROGRAM_KERNEL_NAMES, 0, nullptr,
-                                        &Size));
+  CL_RETURN_ON_FAILURE(clGetProgramInfo(
+      hProgram->CLProgram, CL_PROGRAM_KERNEL_NAMES, 0, nullptr, &Size));
 
   std::string KernelNames(Size, ' ');
 
-  CL_RETURN_ON_FAILURE(clGetProgramInfo(
-      cl_adapter::cast<cl_program>(hProgram), CL_PROGRAM_KERNEL_NAMES,
-      KernelNames.size(), &KernelNames[0], nullptr));
+  CL_RETURN_ON_FAILURE(
+      clGetProgramInfo(hProgram->CLProgram, CL_PROGRAM_KERNEL_NAMES,
+                       KernelNames.size(), &KernelNames[0], nullptr));
 
   // Get rid of the null terminator and search for the kernel name. If the
   // function cannot be found, return an error code to indicate it exists.
@@ -473,8 +506,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   }
 
   const cl_int CLResult =
-      FuncT(cl_adapter::cast<cl_device_id>(hDevice),
-            cl_adapter::cast<cl_program>(hProgram), pFunctionName,
+      FuncT(hDevice->CLDevice, hProgram->CLProgram, pFunctionName,
             reinterpret_cast<cl_ulong *>(ppFunctionPointer));
   // GPU runtime sometimes returns CL_INVALID_ARG_VALUE if the function address
   // cannot be found but the kernel exists. As the kernel does exist, return
@@ -495,20 +527,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
     void **ppGlobalVariablePointerRet) {
 
   cl_context CLContext = nullptr;
-  CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
-                                        CL_PROGRAM_CONTEXT, sizeof(CLContext),
-                                        &CLContext, nullptr));
+  CL_RETURN_ON_FAILURE(clGetProgramInfo(hProgram->CLProgram, CL_PROGRAM_CONTEXT,
+                                        sizeof(CLContext), &CLContext,
+                                        nullptr));
 
   cl_ext::clGetDeviceGlobalVariablePointer_fn FuncT = nullptr;
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<
                        cl_ext::clGetDeviceGlobalVariablePointer_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clGetDeviceGlobalVariablePointerCache,
+      CLContext,
+      ur::cl::getAdapter()->fnCache.clGetDeviceGlobalVariablePointerCache,
       cl_ext::GetDeviceGlobalVariablePointerName, &FuncT));
 
   const cl_int CLResult =
-      FuncT(cl_adapter::cast<cl_device_id>(hDevice),
-            cl_adapter::cast<cl_program>(hProgram), pGlobalVariableName,
+      FuncT(hDevice->CLDevice, hProgram->CLProgram, pGlobalVariableName,
             pGlobalVariableSizeRet, ppGlobalVariablePointerRet);
 
   if (CLResult != CL_SUCCESS) {

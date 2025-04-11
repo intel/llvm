@@ -670,35 +670,35 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceImageProperties->maxImageArraySlices});
-  // Handle SIMD widths.
-  // TODO: can we do better than this?
+  // Handle SIMD widths, matching compute-runtime OpenCL implementation:
+  // https://github.com/intel/compute-runtime/blob/291745cdf76d83f5dc40e7ef41d347366235ccdb/opencl/source/cl_device/cl_device_caps.cpp#L236
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 1);
+    return ReturnValue(uint32_t{16});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 2);
+    return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 4);
+    return ReturnValue(uint32_t{4});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 8);
+    return ReturnValue(uint32_t{1});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT:
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 4);
+    return ReturnValue(uint32_t{1});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE:
     // Must return 0 for *vector_width_double* if the device does not have fp64.
     if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP64))
       return ReturnValue(uint32_t{0});
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 8);
+    return ReturnValue(uint32_t{1});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
   case UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF:
     // Must return 0 for *vector_width_half* if the device does not have fp16.
     if (!(Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP16))
       return ReturnValue(uint32_t{0});
-    return ReturnValue(Device->ZeDeviceProperties->physicalEUSimdWidth / 2);
+    return ReturnValue(uint32_t{8});
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Max_num_sub_Groups = maxTotalGroupSize/min(set of subGroupSizes);
     uint32_t MinSubGroupSize =
@@ -1038,6 +1038,14 @@ ur_result_t urDeviceGetInfo(
       return ze2urResult(errc);
     return ReturnValue(UrRootDev);
   }
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
+    bool Bfloat16ConversionSupport =
+        (Device->Platform->zeDriverExtensionMap.count(
+            ZE_BFLOAT16_CONVERSIONS_EXT_NAME)) ||
+        ((Device->ZeDeviceProperties->deviceId & 0xfff) == 0x201 ||
+         (Device->ZeDeviceProperties->deviceId & 0xff0) == 0xbd0);
+    return ReturnValue(Bfloat16ConversionSupport);
+  }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
@@ -1220,6 +1228,8 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
@@ -1530,7 +1540,6 @@ ur_result_t urDeviceCreateWithNativeHandle(
   if (Dev == nullptr)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
-  Dev->IsInteropNativeHandle = true;
   *Device = Dev;
   return UR_RESULT_SUCCESS;
 }
@@ -1668,22 +1677,6 @@ bool ur_device_handle_t_::useRelaxedAllocationLimits() {
   }();
 
   return EnableRelaxedAllocationLimits;
-}
-
-bool ur_device_handle_t_::useDriverInOrderLists() {
-  // Use in-order lists implementation from L0 driver instead
-  // of adapter's implementation.
-
-  static const bool UseDriverInOrderLists = [&] {
-    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    // bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
-    //     1, 3, L0_DRIVER_INORDER_MIN_VERSION);
-    if (!UrRet)
-      return false;
-    return std::atoi(UrRet) != 0;
-  }();
-
-  return UseDriverInOrderLists;
 }
 
 bool ur_device_handle_t_::useDriverCounterBasedEvents() {

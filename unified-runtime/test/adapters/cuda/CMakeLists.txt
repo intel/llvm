@@ -3,6 +3,12 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+if(NOT UR_DPCXX)
+    message(WARNING
+        "UR_DPCXX is not defined, skipping adapter-specific tests for Cuda")
+    return()
+endif()
+
 add_adapter_test(cuda
     FIXTURE DEVICES
     SOURCES

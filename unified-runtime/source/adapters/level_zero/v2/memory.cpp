@@ -107,17 +107,14 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
 
 ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     ur_context_handle_t hContext, void *hostPtr, size_t size,
-    device_access_mode_t accessMode, bool ownHostPtr, bool interopNativeHandle)
+    device_access_mode_t accessMode, bool ownHostPtr)
     : ur_mem_buffer_t(hContext, size, accessMode) {
-  this->IsInteropNativeHandle = interopNativeHandle;
-  this->ptr =
-      usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr, this](void *ptr) {
-        if (!ownHostPtr ||
-            (this->IsInteropNativeHandle && !checkL0LoaderTeardown())) {
-          return;
-        }
-        ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
-      });
+  this->ptr = usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr](void *ptr) {
+    if (!ownHostPtr || !checkL0LoaderTeardown()) {
+      return;
+    }
+    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+  });
 }
 
 void *ur_integrated_buffer_handle_t::getDevicePtr(
@@ -161,13 +158,15 @@ getSyncCommandListForCopy(ur_context_handle_t hContext,
 
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
                                      ur_device_handle_t hDevice, void *dst,
-                                     const void *src, size_t size) {
+                                     const void *src, size_t size) try {
   auto commandList = getSyncCommandListForCopy(hContext, hDevice);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (commandList.get(), dst, src, size, nullptr, 0, nullptr));
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
@@ -223,7 +222,7 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
 ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, void *devicePtr,
     size_t size, device_access_mode_t accessMode, void *writeBackMemory,
-    bool ownZePtr, bool interopNativeHandle)
+    bool ownZePtr)
     : ur_mem_buffer_t(hContext, size, accessMode),
       deviceAllocations(hContext->getPlatform()->getNumDevices()),
       activeAllocationDevice(hDevice), writeBackPtr(writeBackMemory),
@@ -233,11 +232,10 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     hDevice = hDevice ? hDevice : hContext->getDevices()[0];
     devicePtr = allocateOnDevice(hDevice, size);
   } else {
-    this->IsInteropNativeHandle = interopNativeHandle;
+    assert(hDevice);
     deviceAllocations[hDevice->Id.value()] = usm_unique_ptr_t(
-        devicePtr, [this, hContext = this->hContext, ownZePtr](void *ptr) {
-          if (!ownZePtr ||
-              (this->IsInteropNativeHandle && !checkL0LoaderTeardown())) {
+        devicePtr, [hContext = this->hContext, ownZePtr](void *ptr) {
+          if (!ownZePtr || !checkL0LoaderTeardown()) {
             return;
           }
           ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
@@ -363,6 +361,34 @@ void ur_discrete_buffer_handle_t::unmapHostPtr(
   hostAllocations.erase(hostAlloc);
 }
 
+ur_shared_buffer_handle_t::ur_shared_buffer_handle_t(
+    ur_context_handle_t hContext, void *sharedPtr, size_t size,
+    device_access_mode_t accesMode, bool ownDevicePtr)
+    : ur_mem_buffer_t(hContext, size, accesMode),
+      ptr(sharedPtr, [hContext, ownDevicePtr](void *ptr) {
+        if (!ownDevicePtr || !checkL0LoaderTeardown()) {
+          return;
+        }
+        ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+      }) {}
+
+void *ur_shared_buffer_handle_t::getDevicePtr(
+    ur_device_handle_t, device_access_mode_t, size_t offset, size_t,
+    std::function<void(void *src, void *dst, size_t)>) {
+  return reinterpret_cast<char *>(ptr.get()) + offset;
+}
+
+void *ur_shared_buffer_handle_t::mapHostPtr(
+    ur_map_flags_t, size_t offset, size_t,
+    std::function<void(void *src, void *dst, size_t)>) {
+  return reinterpret_cast<char *>(ptr.get()) + offset;
+}
+
+void ur_shared_buffer_handle_t::unmapHostPtr(
+    void *, std::function<void(void *src, void *dst, size_t)>) {
+  // nop
+}
+
 static bool useHostBuffer(ur_context_handle_t hContext) {
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
@@ -390,20 +416,20 @@ void *ur_mem_sub_buffer_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
     size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->getDevicePtr(
-      hDevice, access, offset + this->offset, size, migrate);
+      hDevice, access, offset + this->offset, size, std::move(migrate));
 }
 
 void *ur_mem_sub_buffer_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t size,
     std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
-                                          migrate);
+                                          std::move(migrate));
 }
 
 void ur_mem_sub_buffer_t::unmapHostPtr(
     void *pMappedPtr,
     std::function<void(void *src, void *dst, size_t)> migrate) {
-  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, migrate);
+  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, std::move(migrate));
 }
 
 ur_shared_mutex &ur_mem_sub_buffer_t::getMutex() {
@@ -439,10 +465,8 @@ ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
 ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
                                const ur_image_format_t *pImageFormat,
                                const ur_image_desc_t *pImageDesc,
-                               ze_image_handle_t zeImage, bool ownZeImage,
-                               bool interopNativeHandle)
+                               ze_image_handle_t zeImage, bool ownZeImage)
     : hContext(hContext), zeImage(zeImage, ownZeImage) {
-  this->IsInteropNativeHandle = interopNativeHandle;
   UR_CALL_THROWS(ur2zeImageDesc(pImageFormat, pImageDesc, zeImageDesc));
 }
 
@@ -584,21 +608,24 @@ ur_result_t urMemBufferCreateWithNativeHandle(
 
   if (useHostBuffer(hContext) && memoryAttrs.type == ZE_MEMORY_TYPE_HOST) {
     *phMem = ur_mem_handle_t_::create<ur_integrated_buffer_handle_t>(
-        hContext, ptr, size, accessMode, ownNativeHandle, true);
+        hContext, ptr, size, accessMode, ownNativeHandle);
     // if useHostBuffer(hContext) is true but the allocation is on device, we'll
     // treat it as discrete memory
+  } else if (memoryAttrs.type == ZE_MEMORY_TYPE_SHARED) {
+    // For shared allocation, we can use it directly
+    *phMem = ur_mem_handle_t_::create<ur_shared_buffer_handle_t>(
+        hContext, ptr, size, accessMode, ownNativeHandle);
   } else {
     if (memoryAttrs.type == ZE_MEMORY_TYPE_HOST) {
       // For host allocation, we need to copy the data to a device buffer
       // and then copy it back on release
       *phMem = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
-          hContext, hDevice, nullptr, size, accessMode, ptr, ownNativeHandle,
-          true);
+          hContext, hDevice, nullptr, size, accessMode, ptr, ownNativeHandle);
     } else {
-      // For device/shared allocation, we can use it directly
+      // For device allocation, we can use it directly
+      assert(hDevice);
       *phMem = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
-          hContext, hDevice, ptr, size, accessMode, nullptr, ownNativeHandle,
-          true);
+          hContext, hDevice, ptr, size, accessMode, nullptr, ownNativeHandle);
     }
   }
 
@@ -708,7 +735,7 @@ ur_result_t urMemImageCreateWithNativeHandle(
   bool ownNativeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
   *phMem = ur_mem_handle_t_::create<ur_mem_image_t>(
-      hContext, pImageFormat, pImageDesc, zeImage, ownNativeHandle, true);
+      hContext, pImageFormat, pImageDesc, zeImage, ownNativeHandle);
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

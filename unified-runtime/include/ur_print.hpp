@@ -295,6 +295,7 @@ operator<<(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_adapter_backend_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_logger_level_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_platform_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value);
@@ -517,6 +518,9 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_exp_async_usm_alloc_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_usm_pool_buffer_desc_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
 inline std::ostream &
@@ -1234,6 +1238,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
   case UR_FUNCTION_USM_POOL_SET_INFO_EXP:
     os << "UR_FUNCTION_USM_POOL_SET_INFO_EXP";
     break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK:
+    os << "UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK";
+    break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL:
+    os << "UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL";
+    break;
   case UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP:
     os << "UR_FUNCTION_USM_CONTEXT_MEMCPY_EXP";
     break;
@@ -1354,6 +1364,9 @@ inline std::ostream &operator<<(std::ostream &os,
     break;
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC:
     os << "UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC";
+    break;
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC:
+    os << "UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC";
     break;
   case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
     os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
@@ -1616,6 +1629,12 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
   case UR_STRUCTURE_TYPE_USM_ALLOC_LOCATION_DESC: {
     const ur_usm_alloc_location_desc_t *pstruct =
         (const ur_usm_alloc_location_desc_t *)ptr;
+    printPtr(os, pstruct);
+  } break;
+
+  case UR_STRUCTURE_TYPE_USM_POOL_BUFFER_DESC: {
+    const ur_usm_pool_buffer_desc_t *pstruct =
+        (const ur_usm_pool_buffer_desc_t *)ptr;
     printPtr(os, pstruct);
   } break;
 
@@ -2347,6 +2366,34 @@ inline std::ostream &operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_logger_level_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_logger_level_t value) {
+  switch (value) {
+  case UR_LOGGER_LEVEL_DEBUG:
+    os << "UR_LOGGER_LEVEL_DEBUG";
+    break;
+  case UR_LOGGER_LEVEL_INFO:
+    os << "UR_LOGGER_LEVEL_INFO";
+    break;
+  case UR_LOGGER_LEVEL_WARN:
+    os << "UR_LOGGER_LEVEL_WARN";
+    break;
+  case UR_LOGGER_LEVEL_ERROR:
+    os << "UR_LOGGER_LEVEL_ERROR";
+    break;
+  case UR_LOGGER_LEVEL_QUIET:
+    os << "UR_LOGGER_LEVEL_QUIET";
+    break;
+  default:
+    os << "unknown enumerator";
+    break;
+  }
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_platform_info_t type
 /// @returns
 ///     std::ostream &
@@ -2956,6 +3003,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     break;
   case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     os << "UR_DEVICE_INFO_MAX_POWER_LIMIT";
+    break;
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    os << "UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE";
     break;
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
@@ -4684,6 +4734,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     if (sizeof(int32_t) > size) {
       os << "invalid size (is: " << size << ", expected: >=" << sizeof(int32_t)
          << ")";
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    os << (const void *)(tptr) << " (";
+
+    os << *tptr;
+
+    os << ")";
+  } break;
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE: {
+    const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+    if (sizeof(ur_bool_t) > size) {
+      os << "invalid size (is: " << size
+         << ", expected: >=" << sizeof(ur_bool_t) << ")";
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
     os << (const void *)(tptr) << " (";
@@ -10943,6 +11006,46 @@ operator<<(std::ostream &os,
   return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_usm_pool_buffer_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_pool_buffer_desc_t params) {
+  os << "(struct ur_usm_pool_buffer_desc_t){";
+
+  os << ".stype = ";
+
+  os << (params.stype);
+
+  os << ", ";
+  os << ".pNext = ";
+
+  ur::details::printStruct(os, (params.pNext));
+
+  os << ", ";
+  os << ".pMem = ";
+
+  ur::details::printPtr(os, (params.pMem));
+
+  os << ", ";
+  os << ".size = ";
+
+  os << (params.size);
+
+  os << ", ";
+  os << ".memType = ";
+
+  os << (params.memType);
+
+  os << ", ";
+  os << ".device = ";
+
+  ur::details::printPtr(os, (params.device));
+
+  os << "}";
+  return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_image_copy_flag_t type
 /// @returns
 ///     std::ostream &
@@ -12327,6 +12430,59 @@ inline std::ostream &operator<<(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_set_logger_callback_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_adapter_set_logger_callback_params_t
+               *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".pfnLoggerCallback = ";
+
+  os << reinterpret_cast<void *>(*(params->ppfnLoggerCallback));
+
+  os << ", ";
+  os << ".pUserData = ";
+
+  ur::details::printPtr(os, *(params->ppUserData));
+
+  os << ", ";
+  os << ".level = ";
+
+  os << *(params->plevel);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_adapter_set_logger_callback_level_params_t
+/// type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(
+    std::ostream &os,
+    [[maybe_unused]] const struct ur_adapter_set_logger_callback_level_params_t
+        *params) {
+
+  os << ".hAdapter = ";
+
+  ur::details::printPtr(os, *(params->phAdapter));
+
+  os << ", ";
+  os << ".level = ";
+
+  os << *(params->plevel);
+
+  return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_platform_get_params_t type
 /// @returns
 ///     std::ostream &
@@ -12334,25 +12490,9 @@ inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_platform_get_params_t *params) {
 
-  os << ".phAdapters = ";
-  ur::details::printPtr(os,
-                        reinterpret_cast<const void *>(*(params->pphAdapters)));
-  if (*(params->pphAdapters) != NULL) {
-    os << " {";
-    for (size_t i = 0; i < *params->pNumAdapters; ++i) {
-      if (i != 0) {
-        os << ", ";
-      }
+  os << ".hAdapter = ";
 
-      ur::details::printPtr(os, (*(params->pphAdapters))[i]);
-    }
-    os << "}";
-  }
-
-  os << ", ";
-  os << ".NumAdapters = ";
-
-  os << *(params->pNumAdapters);
+  ur::details::printPtr(os, *(params->phAdapter));
 
   os << ", ";
   os << ".NumEntries = ";
@@ -20654,6 +20794,12 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os,
   } break;
   case UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED: {
     os << (const struct ur_loader_config_set_mocking_enabled_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK: {
+    os << (const struct ur_adapter_set_logger_callback_params_t *)params;
+  } break;
+  case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL: {
+    os << (const struct ur_adapter_set_logger_callback_level_params_t *)params;
   } break;
   case UR_FUNCTION_PLATFORM_GET: {
     os << (const struct ur_platform_get_params_t *)params;
