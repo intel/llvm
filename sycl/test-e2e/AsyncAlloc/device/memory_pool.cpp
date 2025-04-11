@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: level_zero
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17772
+
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/queue_properties.hpp>

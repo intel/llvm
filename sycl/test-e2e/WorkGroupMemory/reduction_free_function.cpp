@@ -2,9 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16004
-
 #include "common_free_function.hpp"
 
 // Basic usage reduction test using free function kernels.

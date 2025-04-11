@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_buffer.hpp"
+#include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
@@ -25,7 +26,8 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   cl_ext::clReleaseCommandBufferKHR_fn clReleaseCommandBufferKHR = nullptr;
   cl_int Res =
       cl_ext::getExtFuncFromContext<decltype(clReleaseCommandBufferKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clReleaseCommandBufferKHRCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clReleaseCommandBufferKHRCache,
           cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
   assert(Res == CL_SUCCESS);
   (void)Res;
@@ -42,7 +44,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
   cl_ext::clCreateCommandBufferKHR_fn clCreateCommandBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCreateCommandBufferKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clCreateCommandBufferKHRCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clCreateCommandBufferKHRCache,
           cl_ext::CreateCommandBufferName, &clCreateCommandBufferKHR));
 
   const bool IsUpdatable = pCommandBufferDesc->isUpdatable;
@@ -116,7 +119,8 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   cl_ext::clFinalizeCommandBufferKHR_fn clFinalizeCommandBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clFinalizeCommandBufferKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clFinalizeCommandBufferKHRCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clFinalizeCommandBufferKHRCache,
           cl_ext::FinalizeCommandBufferName, &clFinalizeCommandBufferKHR));
 
   CL_RETURN_ON_FAILURE(
@@ -148,7 +152,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   cl_ext::clCommandNDRangeKernelKHR_fn clCommandNDRangeKernelKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandNDRangeKernelKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clCommandNDRangeKernelKHRCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clCommandNDRangeKernelKHRCache,
           cl_ext::CommandNRRangeKernelName, &clCommandNDRangeKernelKHR));
 
   cl_mutable_command_khr CommandHandle = nullptr;
@@ -238,7 +243,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
   cl_ext::clCommandCopyBufferKHR_fn clCommandCopyBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandCopyBufferKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clCommandCopyBufferKHRCache,
+          CLContext, ur::cl::getAdapter()->fnCache.clCommandCopyBufferKHRCache,
           cl_ext::CommandCopyBufferName, &clCommandCopyBufferKHR));
 
   const bool IsInOrder = hCommandBuffer->IsInOrder;
@@ -280,7 +285,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
   cl_ext::clCommandCopyBufferRectKHR_fn clCommandCopyBufferRectKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandCopyBufferRectKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clCommandCopyBufferRectKHRCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clCommandCopyBufferRectKHRCache,
           cl_ext::CommandCopyBufferRectName, &clCommandCopyBufferRectKHR));
 
   const bool IsInOrder = hCommandBuffer->IsInOrder;
@@ -388,7 +394,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
   cl_ext::clCommandFillBufferKHR_fn clCommandFillBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandFillBufferKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clCommandFillBufferKHRCache,
+          CLContext, ur::cl::getAdapter()->fnCache.clCommandFillBufferKHRCache,
           cl_ext::CommandFillBufferName, &clCommandFillBufferKHR));
 
   const bool IsInOrder = hCommandBuffer->IsInOrder;
@@ -459,7 +465,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   cl_ext::clEnqueueCommandBufferKHR_fn clEnqueueCommandBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clEnqueueCommandBufferKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clEnqueueCommandBufferKHRCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clEnqueueCommandBufferKHRCache,
           cl_ext::EnqueueCommandBufferName, &clEnqueueCommandBufferKHR));
 
   const uint32_t NumberOfQueues = 1;
@@ -618,7 +625,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   cl_ext::clUpdateMutableCommandsKHR_fn clUpdateMutableCommandsKHR = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clUpdateMutableCommandsKHR)>(
-          CLContext, cl_ext::ExtFuncPtrCache->clUpdateMutableCommandsKHRCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clUpdateMutableCommandsKHRCache,
           cl_ext::UpdateMutableCommandsName, &clUpdateMutableCommandsKHR));
 
   std::vector<cl_mutable_dispatch_config_khr> ConfigList(numKernelUpdates);
@@ -754,7 +762,7 @@ ur_result_t UR_APICALL urCommandBufferAppendNativeCommandExp(
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<decltype(clCommandBarrierWithWaitListKHR)>(
           CLContext,
-          cl_ext::ExtFuncPtrCache->clCommandBarrierWithWaitListKHRCache,
+          ur::cl::getAdapter()->fnCache.clCommandBarrierWithWaitListKHRCache,
           cl_ext::CommandBarrierWithWaitListName,
           &clCommandBarrierWithWaitListKHR));
 
