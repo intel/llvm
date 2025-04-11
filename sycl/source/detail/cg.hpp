@@ -144,6 +144,9 @@ public:
   void reset(sycl::range<3> &N, bool SetNumWorkGroups, int DimsArg) {
     GlobalSize = SetNumWorkGroups ? sycl::range<3>{0, 0, 0} : N;
     NumWorkGroups = SetNumWorkGroups ? N : sycl::range<3>{0, 0, 0};
+    LocalSize = sycl::range<3>{0, 0, 0};
+    GlobalOffset = sycl::id<3>{0, 0, 0};
+    ClusterDimensions = sycl::range<3>{1, 1, 1};
     Dims = size_t(DimsArg);
     setNDRangeLeftover();
   }
@@ -151,6 +154,9 @@ public:
   void reset(sycl::range<3> &NumWorkItems, sycl::id<3> &Offset, int DimsArg) {
     GlobalSize = NumWorkItems;
     GlobalOffset = Offset;
+    NumWorkGroups = sycl::range<3>{0, 0, 0};
+    LocalSize = sycl::range<3>{0, 0, 0};
+    ClusterDimensions = sycl::range<3>{1, 1, 1};
     Dims = size_t(DimsArg);
   }
 
@@ -159,6 +165,8 @@ public:
     GlobalSize = NumWorkItems;
     LocalSize = LocalSizeArg;
     GlobalOffset = Offset;
+    NumWorkGroups = sycl::range<3>{0, 0, 0};
+    ClusterDimensions = sycl::range<3>{1, 1, 1};
     Dims = size_t(DimsArg);
     setNDRangeLeftover();
   }
