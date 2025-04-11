@@ -154,10 +154,10 @@ public:
     Dims = size_t(DimsArg);
   }
 
-  void reset(sycl::range<3> &NumWorkItems, sycl::range<3> &LocalSize,
+  void reset(sycl::range<3> &NumWorkItems, sycl::range<3> &LocalSizeArg,
              sycl::id<3> &Offset, int DimsArg) {
     GlobalSize = NumWorkItems;
-    LocalSize = LocalSize;
+    LocalSize = LocalSizeArg;
     GlobalOffset = Offset;
     Dims = size_t(DimsArg);
     setNDRangeLeftover();
