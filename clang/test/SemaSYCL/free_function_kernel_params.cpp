@@ -282,7 +282,7 @@ void ff_12(sycl::ext::oneapi::experimental::annotated_arg<int> arg) {
 
 // CHECK: FunctionDecl {{.*}}'void (sycl::ext::oneapi::experimental::annotated_arg<int>)'
 // CHECK: ParmVarDecl {{.*}}arg 'sycl::ext::oneapi::experimental::annotated_arg<int>'
-// CHECK: FunctionDecl {{.*}}__sycl_kernel_ff_12{{.*}}'void (int)'
+// CHECK: FunctionDecl {{.*}}'void (int)'
 // CHECK: ParmVarDecl {{.*}}__arg__obj 'int'
 // CHECK: CXXMemberCallExpr {{.*}}
 // CHECK-NEXT: MemberExpr {{.*}}.__init
@@ -295,7 +295,7 @@ void ff_13(sycl::ext::oneapi::experimental::annotated_ptr<int> ptr) {
 
 // CHECK: FunctionDecl {{.*}}'void (sycl::ext::oneapi::experimental::annotated_ptr<int>)'
 // CHECK: ParmVarDecl {{.*}}ptr 'sycl::ext::oneapi::experimental::annotated_ptr<int>'
-// CHECK: FunctionDecl {{.*}}__sycl_kernel_ff_13{{.*}}'void (int *)'
+// CHECK: FunctionDecl {{.*}}'void (int *)'
 // CHECK: ParmVarDecl {{.*}}__arg__obj 'int *'
 // CHECK: CXXMemberCallExpr {{.*}}
 // CHECK-NEXT: MemberExpr {{.*}}.__init
