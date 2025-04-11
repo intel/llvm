@@ -22,6 +22,8 @@
 using cuda_stream_queue = stream_queue_t<CUstream, 128, 64, CUevent>;
 struct ur_queue_handle_t_ : public cuda_stream_queue {};
 
+using InteropGuard = cuda_stream_queue::interop_guard;
+
 // Function which creates the profiling stream. Called only from makeNative
 // event when profiling is required.
 template <> inline void cuda_stream_queue::createHostSubmitTimeStream() {
@@ -38,24 +40,3 @@ inline void cuda_stream_queue::createStreamWithPriority(CUstream *Stream,
                                                         int Priority) {
   UR_CHECK_ERROR(cuStreamCreateWithPriority(Stream, Flags, Priority));
 }
-
-// RAII object to make hQueue stream getter methods all return the same stream
-// within the lifetime of this object.
-//
-// This is useful for urEnqueueNativeCommandExp where we want guarantees that
-// the user submitted native calls will be dispatched to a known stream, which
-// must be "got" within the user submitted fuction.
-class ScopedStream {
-  ur_queue_handle_t hQueue;
-
-public:
-  ScopedStream(ur_queue_handle_t hQueue, uint32_t NumEventsInWaitList,
-               const ur_event_handle_t *EventWaitList)
-      : hQueue{hQueue} {
-    ur_stream_guard Guard;
-    hQueue->getThreadLocalStream() =
-        hQueue->getNextComputeStream(NumEventsInWaitList, EventWaitList, Guard);
-  }
-  CUstream getStream() { return hQueue->getThreadLocalStream(); }
-  ~ScopedStream() { hQueue->getThreadLocalStream() = CUstream{0}; }
-};
