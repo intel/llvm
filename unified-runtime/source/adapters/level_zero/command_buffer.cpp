@@ -1135,8 +1135,8 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
 
   if (Command) {
     UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, GlobalWorkSize,
-                                NumKernelAlternatives,
-                                KernelAlternatives, Command));
+                                NumKernelAlternatives, KernelAlternatives,
+                                Command));
   }
   std::vector<ze_event_handle_t> ZeEventList;
   ze_event_handle_t ZeLaunchEvent = nullptr;
