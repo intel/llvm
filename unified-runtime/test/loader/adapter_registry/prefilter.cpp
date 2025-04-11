@@ -63,7 +63,7 @@ TEST_F(adapterPreFilterTest, testPrefilterDiscardFilterMultipleBackends) {
 }
 
 TEST_F(adapterPreFilterTest, testPrefilterAcceptAndDiscardFilter) {
-  SetUp("!cuda:*;level_zero:*");
+  SetUp("level_zero:*;!cuda:*");
   auto levelZeroExists =
       std::any_of(registry->cbegin(), registry->cend(), haslevelzeroLibName);
   EXPECT_TRUE(levelZeroExists);
@@ -76,7 +76,7 @@ TEST_F(adapterPreFilterTest, testPrefilterAcceptAndDiscardFilter) {
 }
 
 TEST_F(adapterPreFilterTest, testPrefilterDiscardFilterAll) {
-  SetUp("*");
+  SetUp("*:*");
   auto levelZeroExists =
       std::any_of(registry->cbegin(), registry->cend(), haslevelzeroLibName);
   EXPECT_TRUE(levelZeroExists);
@@ -115,10 +115,10 @@ TEST_F(adapterPreFilterTest, testPrefilterWithInvalidBackend) {
 }
 
 TEST_F(adapterPreFilterTest, testPrefilterWithNotAllAndAcceptFilter) {
-  SetUp("!*;level_zero");
+  SetUp("level_zero:*;!*:*");
   auto levelZeroExists =
       std::any_of(registry->cbegin(), registry->cend(), haslevelzeroLibName);
-  EXPECT_TRUE(levelZeroExists);
+  EXPECT_FALSE(levelZeroExists);
   auto openclExists =
       std::any_of(registry->cbegin(), registry->cend(), hasOpenclLibName);
   EXPECT_FALSE(openclExists);
@@ -128,7 +128,7 @@ TEST_F(adapterPreFilterTest, testPrefilterWithNotAllAndAcceptFilter) {
 }
 
 TEST_F(adapterPreFilterTest, testPrefilterWithNotAllFilter) {
-  SetUp("!*");
+  SetUp("!*:*");
   auto levelZeroExists =
       std::any_of(registry->cbegin(), registry->cend(), haslevelzeroLibName);
   EXPECT_FALSE(levelZeroExists);
