@@ -1425,7 +1425,8 @@ void exec_graph_impl::update(
     // other scheduler commands
     auto UpdateEvent =
         sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
-            this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
+            this, Nodes, AllocaQueue, std::move(UpdateRequirements),
+            MExecutionEvents);
 
     MExecutionEvents.push_back(UpdateEvent);
 

@@ -802,7 +802,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     assert(KernelCmd->isFusable());
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
 
-    KernelNameStrT KernelName = KernelCG->MKernelName;
+    KernelNameStrRefT KernelName = KernelCG->MKernelName;
     if (KernelName.empty()) {
       printPerformanceWarning(
           "Cannot fuse kernel with invalid kernel function name");
