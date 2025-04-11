@@ -224,13 +224,13 @@ public:
   using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
 
   using KernelByNameT =
-      ::boost::unordered_map<std::string, KernelBuildResultPtr>;
+      ::boost::unordered_map<KernelNameStrT, KernelBuildResultPtr>;
   using KernelCacheT =
       ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
 
   using KernelFastCacheKeyT =
       std::pair<ur_device_handle_t, /* UR device handle pointer */
-                std::string         /* Kernel Name */
+                KernelNameStrT      /* Kernel Name */
                 >;
 
   using KernelFastCacheValT =
@@ -415,8 +415,7 @@ public:
   }
 
   std::pair<KernelBuildResultPtr, bool>
-  getOrInsertKernel(ur_program_handle_t Program,
-                    const std::string &KernelName) {
+  getOrInsertKernel(ur_program_handle_t Program, KernelNameStrRefT KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
