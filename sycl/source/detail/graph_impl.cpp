@@ -1352,12 +1352,12 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
       sycl::detail::CGExecKernel *TargetCGExec =
           static_cast<sycl::detail::CGExecKernel *>(
               MNodeStorage[i]->MCommandGroup.get());
-      KernelNameStrT TargetKernelName = TargetCGExec->getKernelName();
+      KernelNameStrRefT TargetKernelName = TargetCGExec->getKernelName();
 
       sycl::detail::CGExecKernel *SourceCGExec =
           static_cast<sycl::detail::CGExecKernel *>(
               GraphImpl->MNodeStorage[i]->MCommandGroup.get());
-      KernelNameStrT SourceKernelName = SourceCGExec->getKernelName();
+      KernelNameStrRefT SourceKernelName = SourceCGExec->getKernelName();
 
       if (TargetKernelName.compare(SourceKernelName) != 0) {
         std::stringstream ErrorStream(
