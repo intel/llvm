@@ -131,18 +131,6 @@ ur_result_t urProgramCreateWithBinary(
 }
 
 ur_result_t urProgramBuild(
-    /// [in] handle of the context instance.
-    ur_context_handle_t Context,
-    /// [in] Handle of the program to build.
-    ur_program_handle_t Program,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *Options) {
-  std::vector<ur_device_handle_t> Devices = Context->getDevices();
-  return ur::level_zero::urProgramBuildExp(Program, Devices.size(),
-                                           Devices.data(), Options);
-}
-
-ur_result_t urProgramBuildExp(
     /// [in] Handle of the program to build.
     ur_program_handle_t hProgram,
     /// [in] number of devices
@@ -243,7 +231,7 @@ ur_result_t urProgramBuildExp(
   return Result;
 }
 
-ur_result_t urProgramCompileExp(
+ur_result_t urProgramCompile(
     /// [in][out] handle of the program to compile.
     ur_program_handle_t hProgram,
     /// [in] number of devices
@@ -286,36 +274,7 @@ ur_result_t urProgramCompileExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t urProgramCompile(
-    /// [in] handle of the context instance.
-    ur_context_handle_t Context,
-    /// [in][out] handle of the program to compile.
-    ur_program_handle_t Program,
-    /// [in][optional] pointer to build options null-terminated string.
-    const char *Options) {
-  auto devices = Context->getDevices();
-  return ur::level_zero::urProgramCompileExp(Program, devices.size(),
-                                             devices.data(), Options);
-}
-
 ur_result_t urProgramLink(
-    /// [in] handle of the context instance.
-    ur_context_handle_t Context,
-    /// [in] number of program handles in `phPrograms`.
-    uint32_t Count,
-    /// [in][range(0, count)] pointer to array of program handles.
-    const ur_program_handle_t *Programs,
-    /// [in][optional] pointer to linker options null-terminated string.
-    const char *Options,
-    /// [out] pointer to handle of program object created.
-    ur_program_handle_t *Program) {
-  std::vector<ur_device_handle_t> Devices = Context->getDevices();
-  return ur::level_zero::urProgramLinkExp(Context, Devices.size(),
-                                          Devices.data(), Count, Programs,
-                                          Options, Program);
-}
-
-ur_result_t urProgramLinkExp(
     /// [in] handle of the context instance.
     ur_context_handle_t hContext,
     /// [in] number of devices

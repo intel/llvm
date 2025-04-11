@@ -944,13 +944,8 @@ public:
     } // if(!FetchedFromCache)
 
     std::string XsFlags = extractXsFlags(BuildOptions);
-    auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
+    Adapter->call<errc::build, UrApiKind::urProgramBuild>(
         UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
-    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
-          ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
-    }
-    Adapter->checkUrResult<errc::build>(Res);
 
     // Get the number of kernels in the program.
     size_t NumKernels;

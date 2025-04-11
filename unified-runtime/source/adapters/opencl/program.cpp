@@ -162,16 +162,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramCompile([[maybe_unused]] ur_context_handle_t hContext,
-                 ur_program_handle_t hProgram, const char *pOptions) {
-
-  uint32_t DeviceCount = hProgram->NumDevices;
-  std::vector<cl_device_id> CLDevicesInProgram(DeviceCount);
-  for (uint32_t i = 0; i < DeviceCount; i++) {
-    CLDevicesInProgram[i] = hProgram->Devices[i]->CLDevice;
+urProgramCompile(ur_program_handle_t hProgram, uint32_t numDevices,
+                 ur_device_handle_t *phDevices, const char *pOptions) {
+  std::vector<cl_device_id> CLDevicesInProgram(numDevices);
+  for (uint32_t i = 0; i < numDevices; i++) {
+    CLDevicesInProgram[i] = phDevices[i]->CLDevice;
   }
 
-  CL_RETURN_ON_FAILURE(clCompileProgram(hProgram->CLProgram, DeviceCount,
+  CL_RETURN_ON_FAILURE(clCompileProgram(hProgram->CLProgram, numDevices,
                                         CLDevicesInProgram.data(), pOptions, 0,
                                         nullptr, nullptr, nullptr, nullptr));
 
@@ -243,13 +241,11 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramBuild([[maybe_unused]] ur_context_handle_t hContext,
-               ur_program_handle_t hProgram, const char *pOptions) {
-
-  uint32_t DeviceCount = hProgram->NumDevices;
-  std::vector<cl_device_id> CLDevicesInProgram(DeviceCount);
-  for (uint32_t i = 0; i < DeviceCount; i++) {
-    CLDevicesInProgram[i] = hProgram->Devices[i]->CLDevice;
+urProgramBuild(ur_program_handle_t hProgram, uint32_t numDevices,
+               ur_device_handle_t *phDevices, const char *pOptions) {
+  std::vector<cl_device_id> CLDevicesInProgram(numDevices);
+  for (uint32_t i = 0; i < numDevices; i++) {
+    CLDevicesInProgram[i] = phDevices[i]->CLDevice;
   }
 
   CL_RETURN_ON_FAILURE(
@@ -259,18 +255,26 @@ urProgramBuild([[maybe_unused]] ur_context_handle_t hContext,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramLink(ur_context_handle_t hContext, uint32_t count,
+urProgramLink(ur_context_handle_t hContext, uint32_t numDevices,
+              ur_device_handle_t *phDevices, uint32_t count,
               const ur_program_handle_t *phPrograms, const char *pOptions,
               ur_program_handle_t *phProgram) {
 
   cl_int CLResult;
+
+  std::vector<cl_device_id> CLDevices(numDevices);
+  for (uint32_t i = 0; i < numDevices; i++) {
+    CLDevices[i] = phDevices[i]->CLDevice;
+  }
+
   std::vector<cl_program> CLPrograms(count);
   for (uint32_t i = 0; i < count; i++) {
     CLPrograms[i] = phPrograms[i]->CLProgram;
   }
-  cl_program Program = clLinkProgram(
-      hContext->CLContext, 0, nullptr, pOptions, static_cast<cl_uint>(count),
-      CLPrograms.data(), nullptr, nullptr, &CLResult);
+  cl_program Program =
+      clLinkProgram(hContext->CLContext, numDevices, CLDevices.data(), pOptions,
+                    static_cast<cl_uint>(count), CLPrograms.data(), nullptr,
+                    nullptr, &CLResult);
 
   if (CL_INVALID_BINARY == CLResult) {
     // Some OpenCL drivers incorrectly return CL_INVALID_BINARY here, convert it
@@ -280,7 +284,7 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
   CL_RETURN_ON_FAILURE(CLResult);
   try {
     auto URProgram = std::make_unique<ur_program_handle_t_>(
-        Program, hContext, hContext->DeviceCount, hContext->Devices.data());
+        Program, hContext, numDevices, phDevices);
     *phProgram = URProgram.release();
   } catch (std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
@@ -289,29 +293,6 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
   }
 
   return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
-                                                        uint32_t,
-                                                        ur_device_handle_t *,
-                                                        const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
-                                                      uint32_t,
-                                                      ur_device_handle_t *,
-                                                      const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
-    ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
-    const ur_program_handle_t *, const char *, ur_program_handle_t *phProgram) {
-  if (nullptr != phProgram) {
-    *phProgram = nullptr;
-  }
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 static cl_int mapURProgramBuildInfoToCL(ur_program_build_info_t URPropName) {

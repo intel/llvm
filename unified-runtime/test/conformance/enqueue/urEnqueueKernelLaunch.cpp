@@ -533,7 +533,8 @@ struct urEnqueueKernelLaunchMultiDeviceTest
         uur::KernelsEnvironment::instance->CreateProgram(
             platform, context, devices[0], *il_binary, nullptr, &program));
 
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+    ASSERT_SUCCESS(
+        urProgramBuild(program, devices.size(), devices.data(), nullptr));
     ASSERT_SUCCESS(urKernelCreate(program, kernelName.data(), &kernel));
   }
 

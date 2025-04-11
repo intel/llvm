@@ -1776,16 +1776,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramBuildParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_program_build_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramBuildExpParams(
-    const struct ur_program_build_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_program_compile_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1796,16 +1786,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramCompileParams(
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_program_compile_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramCompileExpParams(
-    const struct ur_program_compile_exp_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_program_link_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1813,16 +1793,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramCompileExpParams(
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramLinkParams(
     const struct ur_program_link_params_t *params, char *buffer,
-    const size_t buff_size, size_t *out_size);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_program_link_exp_params_t struct
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_INVALID_SIZE
-///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintProgramLinkExpParams(
-    const struct ur_program_link_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////

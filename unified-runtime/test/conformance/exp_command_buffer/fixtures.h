@@ -255,7 +255,7 @@ struct TestKernel {
     std::string KernelName = KernelNames[0];
     ASSERT_FALSE(KernelName.empty());
 
-    ASSERT_SUCCESS(urProgramBuild(Context, Program, nullptr));
+    ASSERT_SUCCESS(urProgramBuild(Program, 1, &Device, nullptr));
     ASSERT_SUCCESS(urKernelCreate(Program, KernelName.data(), &Kernel));
   }
 

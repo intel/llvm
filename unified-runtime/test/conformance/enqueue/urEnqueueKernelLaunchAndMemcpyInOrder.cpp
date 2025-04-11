@@ -71,7 +71,7 @@ struct urMultiQueueLaunchMemcpyTest
               &programs[i]));
 
       UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-          urProgramBuild(context, programs[i], nullptr));
+          urProgramBuild(programs[i], 1, &devices[i], nullptr));
       ASSERT_SUCCESS(
           urKernelCreate(programs[i], KernelName.data(), &kernels[i]));
 

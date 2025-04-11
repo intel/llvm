@@ -14,14 +14,6 @@ UUR_INSTANTIATE_PLATFORM_TEST_SUITE(urMultiDeviceProgramTest);
 // Test binary sizes and binaries obtained from urProgramGetInfo when program is
 // built for a subset of devices in the context.
 TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfo) {
-  // Run test only for level zero backend which supports urProgramBuildExp.
-  ur_platform_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(backend), &backend, nullptr));
-  if (backend != UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-    GTEST_SKIP();
-  }
-
   std::vector<ur_device_handle_t> associated_devices(devices.size());
   ASSERT_SUCCESS(
       urProgramGetInfo(program, UR_PROGRAM_INFO_DEVICES,
@@ -33,7 +25,7 @@ TEST_P(urMultiDeviceProgramTest, urMultiDeviceProgramGetInfo) {
       associated_devices.begin(),
       associated_devices.begin() + associated_devices.size() / 2);
   ASSERT_SUCCESS(
-      urProgramBuildExp(program, subset.size(), subset.data(), nullptr));
+      urProgramBuild(program, subset.size(), subset.data(), nullptr));
 
   std::vector<size_t> binary_sizes(associated_devices.size());
   ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES,

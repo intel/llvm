@@ -226,23 +226,13 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
     switch (BinaryType) {
     case (UR_PROGRAM_BINARY_TYPE_NONE):
       if (State == bundle_state::object) {
-        auto Res = Adapter->call_nocheck<UrApiKind::urProgramCompileExp>(
-            UrProgram, 1, &Dev, nullptr);
-        if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-          Res = Adapter->call_nocheck<UrApiKind::urProgramCompile>(
-              ContextImpl->getHandleRef(), UrProgram, nullptr);
-        }
-        Adapter->checkUrResult<errc::build>(Res);
+        Adapter->call<errc::build, UrApiKind::urProgramCompile>(UrProgram, 1,
+                                                                &Dev, nullptr);
       }
 
       else if (State == bundle_state::executable) {
-        auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
-            UrProgram, 1, &Dev, nullptr);
-        if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-          Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
-              ContextImpl->getHandleRef(), UrProgram, nullptr);
-        }
-        Adapter->checkUrResult<errc::build>(Res);
+        Adapter->call<errc::build, UrApiKind::urProgramBuild>(UrProgram, 1,
+                                                              &Dev, nullptr);
       }
 
       break;
@@ -255,15 +245,9 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
                 detail::codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       if (State == bundle_state::executable) {
         ur_program_handle_t UrLinkedProgram = nullptr;
-        auto Res = Adapter->call_nocheck<UrApiKind::urProgramLinkExp>(
+        Adapter->call<errc::build, UrApiKind::urProgramLink>(
             ContextImpl->getHandleRef(), 1, &Dev, 1, &UrProgram, nullptr,
             &UrLinkedProgram);
-        if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-          Res = Adapter->call_nocheck<UrApiKind::urProgramLink>(
-              ContextImpl->getHandleRef(), 1, &UrProgram, nullptr,
-              &UrLinkedProgram);
-        }
-        Adapter->checkUrResult<errc::build>(Res);
         if (UrLinkedProgram != nullptr) {
           UrProgram = UrLinkedProgram;
         }

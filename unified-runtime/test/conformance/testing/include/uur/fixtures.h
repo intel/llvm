@@ -1314,7 +1314,7 @@ struct urBaseKernelTest : urProgramTest {
   }
 
   void Build() {
-    auto error = urProgramBuild(context, program, nullptr);
+    auto error = urProgramBuild(program, 1, &device, nullptr);
     if (UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE == error) {
       size_t property_size = 0;
 
@@ -1361,7 +1361,7 @@ struct urBaseKernelTestWithParam : urProgramTestWithParam<T> {
   }
 
   void Build() {
-    auto error = urProgramBuild(this->context, this->program, nullptr);
+    auto error = urProgramBuild(this->program, 1, &this->device, nullptr);
     if (UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE == error) {
       size_t property_size = 0;
 

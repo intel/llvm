@@ -11,7 +11,7 @@ struct urProgramGetInfoTest : uur::urProgramTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
     // Some queries need the program to be built.
-    ASSERT_SUCCESS(urProgramBuild(this->context, program, nullptr));
+    ASSERT_SUCCESS(urProgramBuild(program, 1, &this->device, nullptr));
   }
 };
 
