@@ -1,7 +1,5 @@
 // RUN: %clang -fno-sycl-force-inline-kernel-lambda -fsycl-device-only %s -S -emit-llvm -O0 -g -o - | FileCheck %s
 //
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17964
 //
 // Verify the SYCL kernel routine is marked artificial and has the
 // expected source correlation.
