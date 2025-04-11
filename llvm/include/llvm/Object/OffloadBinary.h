@@ -47,6 +47,7 @@ enum ImageKind : uint16_t {
   IMG_Cubin,
   IMG_Fatbinary,
   IMG_PTX,
+  IMG_SYCLBIN,
   IMG_LAST,
 };
 
