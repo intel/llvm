@@ -149,6 +149,8 @@ jobs:
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
+      # Disable the spirv-dis requirement as to not require SPIR-V Tools.
+      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
 
   e2e-win:
     needs: build-win

@@ -10,6 +10,7 @@ from pathlib import Path
 from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
 from utils.utils import download, run
+from abc import ABC, abstractmethod
 
 benchmark_tags = [
     BenchmarkTag("SYCL", "Benchmark uses SYCL runtime"),
@@ -34,10 +35,26 @@ benchmark_tags = [
 benchmark_tags_dict = {tag.name: tag for tag in benchmark_tags}
 
 
-class Benchmark:
+class Benchmark(ABC):
     def __init__(self, directory, suite):
         self.directory = directory
         self.suite = suite
+
+    @abstractmethod
+    def name(self) -> str:
+        pass
+
+    @abstractmethod
+    def setup(self):
+        pass
+
+    @abstractmethod
+    def teardown(self):
+        pass
+
+    @abstractmethod
+    def run(self, env_vars) -> list[Result]:
+        pass
 
     @staticmethod
     def get_adapter_full_path():
@@ -99,23 +116,11 @@ class Benchmark:
     def lower_is_better(self):
         return True
 
-    def setup(self):
-        raise NotImplementedError()
-
-    def run(self, env_vars) -> list[Result]:
-        raise NotImplementedError()
-
-    def teardown(self):
-        raise NotImplementedError()
-
     def stddev_threshold(self):
         return None
 
     def get_suite_name(self) -> str:
         return self.suite.name()
-
-    def name(self):
-        raise NotImplementedError()
 
     def description(self):
         return ""
@@ -146,12 +151,14 @@ class Benchmark:
         )
 
 
-class Suite:
+class Suite(ABC):
+    @abstractmethod
     def benchmarks(self) -> list[Benchmark]:
-        raise NotImplementedError()
+        pass
 
+    @abstractmethod
     def name(self) -> str:
-        raise NotImplementedError()
+        pass
 
     def setup(self):
         return

@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
@@ -400,7 +401,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   cl_ext::clEnqueueWriteGlobalVariable_fn F = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, cl_ext::ExtFuncPtrCache->clEnqueueWriteGlobalVariableCache,
+      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueWriteGlobalVariableCache,
       cl_ext::EnqueueWriteGlobalVariableName, &F));
 
   cl_int Res = F(hQueue->CLQueue, hProgram->CLProgram, name, blockingWrite,
@@ -422,7 +423,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   MapUREventsToCL(numEventsInWaitList, phEventWaitList, CLWaitEvents);
   cl_ext::clEnqueueReadGlobalVariable_fn F = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(F)>(
-      Ctx, cl_ext::ExtFuncPtrCache->clEnqueueReadGlobalVariableCache,
+      Ctx, ur::cl::getAdapter()->fnCache.clEnqueueReadGlobalVariableCache,
       cl_ext::EnqueueReadGlobalVariableName, &F));
 
   cl_int Res = F(hQueue->CLQueue, hProgram->CLProgram, name, blockingRead,
@@ -446,7 +447,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
   cl_ext::clEnqueueReadHostPipeINTEL_fn FuncPtr = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<cl_ext::clEnqueueReadHostPipeINTEL_fn>(
-          CLContext, cl_ext::ExtFuncPtrCache->clEnqueueReadHostPipeINTELCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clEnqueueReadHostPipeINTELCache,
           cl_ext::EnqueueReadHostPipeName, &FuncPtr));
 
   if (FuncPtr) {
@@ -474,7 +476,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
   cl_ext::clEnqueueWriteHostPipeINTEL_fn FuncPtr = nullptr;
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<cl_ext::clEnqueueWriteHostPipeINTEL_fn>(
-          CLContext, cl_ext::ExtFuncPtrCache->clEnqueueWriteHostPipeINTELCache,
+          CLContext,
+          ur::cl::getAdapter()->fnCache.clEnqueueWriteHostPipeINTELCache,
           cl_ext::EnqueueWriteHostPipeName, &FuncPtr));
 
   if (FuncPtr) {
