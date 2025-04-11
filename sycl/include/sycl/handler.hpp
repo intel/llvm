@@ -161,9 +161,11 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
-class graph_impl;
 class dynamic_parameter_base;
 class dynamic_work_group_memory_base;
+class dynamic_local_accessor_base;
+class graph_impl;
+class dynamic_parameter_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
@@ -705,16 +707,37 @@ private:
         *static_cast<T *>(detail::getValueFromDynamicParameter(DynamicParam));
     // Set the arg in the handler as normal
     setArgHelper(ArgIndex, std::move(ArgValue));
+
     // Register the dynamic parameter with the handler for later association
     // with the node being added
     registerDynamicParameter(DynamicParam, ArgIndex);
   }
 
-  // setArgHelper for graph dynamic_work_group_memory
   void
   setArgHelper(int ArgIndex,
                ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-                   &DynWorkGroupBase);
+                   &DynWorkGroupBase) {
+
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+        detail::getSyclObjImpl(DynWorkGroupBase).get();
+
+    addArg(detail::kernel_param_kind_t::kind_dynamic_work_group_memory,
+           DynParamImpl, 0, ArgIndex);
+    registerDynamicParameter(DynParamImpl, ArgIndex);
+  }
+
+  void
+  setArgHelper(int ArgIndex,
+               ext::oneapi::experimental::detail::dynamic_local_accessor_base
+                   &DynLocalAccessorBase) {
+
+    ext::oneapi::experimental::detail::dynamic_parameter_impl *DynParamImpl =
+        detail::getSyclObjImpl(DynLocalAccessorBase).get();
+
+    addArg(detail::kernel_param_kind_t::kind_dynamic_accessor, DynParamImpl, 0,
+           ArgIndex);
+    registerDynamicParameter(DynParamImpl, ArgIndex);
+  }
 
   // setArgHelper for the raw_kernel_arg extension type.
   void setArgHelper(int ArgIndex,
@@ -724,6 +747,8 @@ private:
            Arg.MArgSize, ArgIndex);
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  // TODO: Remove in the next ABI-breaking window.
   /// Registers a dynamic parameter with the handler for later association with
   /// the node being created
   /// @param DynamicParamBase
@@ -731,6 +756,16 @@ private:
   void registerDynamicParameter(
       ext::oneapi::experimental::detail::dynamic_parameter_base
           &DynamicParamBase,
+      int ArgIndex);
+#endif
+
+  /// Registers a dynamic parameter with the handler for later association with
+  /// the node being created
+  /// @param DynamicParamImpl
+  /// @param ArgIndex
+  void registerDynamicParameter(
+      ext::oneapi::experimental::detail::dynamic_parameter_impl
+          *DynamicParamImpl,
       int ArgIndex);
 
   /// Verifies the kernel bundle to be used if any is set. This throws a
@@ -1802,20 +1837,37 @@ public:
   // set_arg for graph dynamic_parameters
   template <typename T>
   void set_arg(int argIndex,
-               ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
+               [[maybe_unused]] ext::oneapi::experimental::dynamic_parameter<T>
+                   &dynamicParam) {
     setArgHelper(argIndex, dynamicParam);
   }
 
   // set_arg for graph dynamic_work_group_memory
   template <typename DataT, typename PropertyListT =
                                 ext::oneapi::experimental::empty_properties_t>
-  void set_arg(
-      int argIndex,
-      ext::oneapi::experimental::dynamic_work_group_memory<DataT, PropertyListT>
-          &dynWorkGroupMem) {
+  void
+  set_arg([[maybe_unused]] int argIndex,
+          [[maybe_unused]] ext::oneapi::experimental::dynamic_work_group_memory<
+              DataT, PropertyListT> &DynWorkGroupMem) {
+
+#ifndef __SYCL_DEVICE_ONLY__
     ext::oneapi::experimental::detail::dynamic_work_group_memory_base
-        &dynWorkGroupBase = dynWorkGroupMem;
-    setArgHelper(argIndex, dynWorkGroupBase);
+        &DynWorkGroupBase = DynWorkGroupMem;
+    setArgHelper(argIndex, DynWorkGroupBase);
+#endif
+  }
+
+  // set_arg for graph dynamic_local_accessor
+  template <typename DataT, int Dimensions>
+  void
+  set_arg([[maybe_unused]] int argIndex,
+          [[maybe_unused]] ext::oneapi::experimental::dynamic_local_accessor<
+              DataT, Dimensions> &DynLocalAccessor) {
+#ifndef __SYCL_DEVICE_ONLY__
+    ext::oneapi::experimental::detail::dynamic_local_accessor_base
+        &DynLocalAccessorBase = DynLocalAccessor;
+    setArgHelper(argIndex, DynLocalAccessorBase);
+#endif
   }
 
   // set_arg for the raw_kernel_arg extension type.
