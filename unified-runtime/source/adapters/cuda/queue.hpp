@@ -20,7 +20,7 @@
 #include <common/cuda-hip/stream_queue.hpp>
 
 using cuda_stream_queue = stream_queue_t<CUstream, 128, 64, CUevent>;
-struct ur_queue_handle_t_ : public cuda_stream_queue {};
+struct ur_queue_handle_t_ : public ur_handle_t_, public cuda_stream_queue {};
 
 // Function which creates the profiling stream. Called only from makeNative
 // event when profiling is required.

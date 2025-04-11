@@ -17,7 +17,7 @@
 #include <common/cuda-hip/stream_queue.hpp>
 
 using hip_stream_queue = stream_queue_t<hipStream_t, 64, 16, hipEvent_t>;
-struct ur_queue_handle_t_ : public hip_stream_queue {};
+struct ur_queue_handle_t_ : public ur_handle_t_, public hip_stream_queue {};
 
 template <>
 inline void hip_stream_queue::createStreamWithPriority(hipStream_t *Stream,
