@@ -1807,10 +1807,6 @@ void ProgramManager::cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img) {
       m_KernelUsesAssert.insert(Prop->Name);
 }
 
-bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
-  return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
-}
-
 void ProgramManager::cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
       Img.getImplicitLocalArg();
