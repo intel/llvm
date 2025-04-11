@@ -392,8 +392,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
         zeHandlePtr = zeHandles[zeHandles.size() - 1].get();
       }
 
-      setMutableMemObjArgDesc(ZeMutableArgDesc, NewMemObjArgDesc.argIndex,
-                              zeHandlePtr, NextDesc, Command->commandId);
+      UR_CALL(setMutableMemObjArgDesc(ZeMutableArgDesc, NewMemObjArgDesc.argIndex,
+                              zeHandlePtr, NextDesc, Command->commandId));
       NextDesc = ZeMutableArgDesc.get();
       Descs.push_back(std::move(ZeMutableArgDesc));
     }
@@ -462,10 +462,14 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
   using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
   uint32_t queueGroupOrdinal =
       device->QueueGroup[queue_group_type::Compute].ZeOrdinal;
+  v2::command_list_desc_t listDesc;
+  listDesc.IsInOrder = true;
+  listDesc.Ordinal = queueGroupOrdinal;
+  listDesc.CopyOffloadEnable = true;
+  listDesc.Mutable = commandBufferDesc->isUpdatable;
   v2::raii::command_list_unique_handle zeCommandList =
       context->getCommandListCache().getRegularCommandList(
-          device->ZeDevice, true, queueGroupOrdinal, true,
-          commandBufferDesc->isUpdatable);
+          device->ZeDevice, listDesc);
 
   *commandBuffer = new ur_exp_command_buffer_handle_t_(
       context, device, std::move(zeCommandList), commandBufferDesc);

@@ -1973,8 +1973,8 @@ ur_result_t setMutableMemObjArgDesc(
                                          CommandBuffer->Device, nullptr, 0u));
   }
 
-  setMutableMemObjArgDesc(Desc, NewMemObjArgDesc.argIndex, ZeHandlePtr,
-                          NextDesc, CommandID);
+  UR_CALL(setMutableMemObjArgDesc(Desc, NewMemObjArgDesc.argIndex, ZeHandlePtr,
+                          NextDesc, CommandID));
   return UR_RESULT_SUCCESS;
 }
 
