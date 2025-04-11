@@ -570,8 +570,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
       (void *)LaunchInfo.Data.Host.LocalArgs, LaunchInfo.Data.Host.NumLocalArgs,
       ToString(LaunchInfo.Data.Host.DeviceTy), LaunchInfo.Data.Host.Debug);
 
-  ur_result_t URes =
-      EnqueueWriteGlobal("__MsanLaunchInfo", &LaunchInfo.Data, sizeof(uptr));
+  ur_result_t URes = EnqueueWriteGlobal(
+      "__MsanLaunchInfo", &LaunchInfo.Data.DevicePtr, sizeof(uptr));
   if (URes != UR_RESULT_SUCCESS) {
     getContext()->logger.info("EnqueueWriteGlobal(__MsanLaunchInfo) "
                               "failed, maybe empty kernel: {}",
