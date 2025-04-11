@@ -6,20 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_OPTIONS_H
-#define SYCL_FUSION_JIT_COMPILER_OPTIONS_H
+#pragma once
 
-#include "Kernel.h"
+#include "DynArray.h"
+#include "JITBinaryInfo.h"
+#include "Macros.h"
 
 namespace jit_compiler {
 
-enum OptionID {
-  VerboseOutput,
-  EnableCaching,
-  TargetDeviceInfo,
-  TargetCPU,
-  TargetFeatures
-};
+enum OptionID { VerboseOutput, EnableCaching, TargetCPU, TargetFeatures };
 
 class OptionPtrBase {
 protected:
@@ -86,16 +81,6 @@ struct JITEnableVerbose
   using OptionBase::OptionBase;
 };
 
-struct JITEnableCaching
-    : public OptionBase<JITEnableCaching, OptionID::EnableCaching, bool> {
-  using OptionBase::OptionBase;
-};
-
-struct JITTargetInfo
-    : public OptionBase<JITTargetInfo, OptionID::TargetDeviceInfo, TargetInfo> {
-  using OptionBase::OptionBase;
-};
-
 struct JITTargetCPU
     : public OptionBase<JITTargetCPU, OptionID::TargetCPU, DynArray<char>> {
   using OptionBase::OptionBase;
@@ -108,6 +93,15 @@ struct JITTargetFeatures
 };
 
 } // namespace option
-} // namespace jit_compiler
 
-#endif // SYCL_FUSION_JIT_COMPILER_OPTIONS_H
+extern "C" {
+
+/// Clear all previously set options.
+JIT_EXPORT_SYMBOL void resetJITConfiguration();
+
+/// Add an option to the configuration.
+JIT_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt);
+
+} // extern "C"
+
+} // namespace jit_compiler

@@ -13,7 +13,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
     * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
-    * [Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion-and-jit-compilation)
+    * [Build DPC++ toolchain with extended support for runtime/JIT compilation](#build-dpc-toolchain-with-extended-support-for-runtimejit-compilation)
     * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
@@ -308,17 +308,17 @@ For CUDA support also add the `--cuda` flag.
 Currently, this has only been tried on Linux, with CUDA 12.3, and using a 
 Grace Hopper platform with a ARM64 processor and an H100 GPU.
 
-### Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation
+### Build DPC++ toolchain with extended support for runtime/JIT compilation
 
-Support for the experimental SYCL extension for user-driven kernel fusion at
-runtime is enabled by default. The same mechanism is used to allow JIT
-compilation of AMD and Nvidia kernels.
+Support for runtime compilation of SYCL source code (via the
+`sycl_ext_oneapi_kernel_compiler` extension) is enabled by default. The same
+mechanism is used to allow JIT compilation of AMD and Nvidia kernels, including
+materialization of specialization constants.
 
-To disable support for these features, follow the instructions for the Linux
-DPC++ toolchain, but add the `--disable-jit` flag.
+To disable support for these features, add the `--disable-jit` flag.
 
-Both kernel fusion and JIT compilation of AMD and Nvidia kernels are currently
-not yet supported on the Windows platform.
+JIT compilation of AMD and Nvidia kernels is not yet supported on the Windows
+platform.
 
 ### Build Doxygen documentation
 

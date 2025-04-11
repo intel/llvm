@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_JIT_COMPILER_RTC_ESIMD_H
-#define SYCL_JIT_COMPILER_RTC_ESIMD_H
+#pragma once
 
 #include "llvm/SYCLPostLink/ModuleSplitter.h"
 
@@ -19,5 +18,3 @@ namespace jit_compiler {
 void lowerEsimdConstructs(llvm::module_split::ModuleDesc &MD, bool PerformOpts);
 
 } // namespace jit_compiler
-
-#endif // SYCL_JIT_COMPILER_RTC_ESIMD_H

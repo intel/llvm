@@ -6,32 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SYCL_FUSION_JIT_COMPILER_TRANSLATION_SPIRVLLVMTRANSLATION_H
-#define SYCL_FUSION_JIT_COMPILER_TRANSLATION_SPIRVLLVMTRANSLATION_H
+#pragma once
 
-#include "Kernel.h"
+#include "JITContext.h"
 #include "LLVMSPIRVOpts.h"
-#include "fusion/JITContext.h"
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include <llvm/Support/Error.h>
-#include <vector>
 
 namespace jit_compiler {
-namespace translation {
 
 class SPIRVLLVMTranslator {
 public:
   ///
-  /// Load a list of SPIR-V kernels into a single LLVM module.
-  static llvm::Expected<std::unique_ptr<llvm::Module>>
-  loadSPIRVKernel(llvm::LLVMContext &LLVMCtx, SYCLKernelInfo &Kernel);
-
-  ///
   /// Translate the LLVM IR module Mod to SPIR-V, store it in the JITContext and
   /// return a pointer to its container.
-  static llvm::Expected<KernelBinary *>
-  translateLLVMtoSPIRV(llvm::Module &Mod, JITContext &JITCtx);
+  static llvm::Expected<JITBinary *> translateLLVMtoSPIRV(llvm::Module &Mod,
+                                                          JITContext &JITCtx);
 
 private:
   ///
@@ -39,7 +29,4 @@ private:
   static SPIRV::TranslatorOpts &translatorOpts();
 };
 
-} // namespace translation
 } // namespace jit_compiler
-
-#endif // SYCL_FUSION_JIT_COMPILER_TRANSLATION_SPIRVLLVMTRANSLATION_H
