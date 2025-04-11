@@ -8,7 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 #include "command_buffer.hpp"
+#include "command_buffer_command.hpp"
 #include "helpers/kernel_helpers.hpp"
+#include "helpers/mutable_helpers.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_api.h"
 #include "ur_interface_loader.hpp"
@@ -66,6 +68,29 @@ bool checkImmediateAppendSupport(ur_context_handle_t Context,
   return false;
 }
 
+ur_result_t getMemoryAccessType(
+    const ur_exp_command_buffer_update_memobj_arg_desc_t NewMemObjArgDesc,
+    ur_mem_handle_t_::access_mode_t &UrAccessMode) {
+  const ur_kernel_arg_mem_obj_properties_t *Properties =
+      NewMemObjArgDesc.pProperties;
+  UrAccessMode = ur_mem_handle_t_::read_write;
+  if (Properties) {
+    switch (Properties->memoryAccess) {
+    case UR_MEM_FLAG_READ_WRITE:
+      UrAccessMode = ur_mem_handle_t_::read_write;
+      break;
+    case UR_MEM_FLAG_WRITE_ONLY:
+      UrAccessMode = ur_mem_handle_t_::write_only;
+      break;
+    case UR_MEM_FLAG_READ_ONLY:
+      UrAccessMode = ur_mem_handle_t_::read_only;
+      break;
+    default:
+      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+  }
+  return UR_RESULT_SUCCESS;
+}
 // Checks whether counter based events are supported for a given Device.
 bool checkCounterBasedEventsSupport(ur_device_handle_t Device) {
   static const bool useDriverCounterBasedEvents = [] {
@@ -573,31 +598,6 @@ ur_result_t ur_exp_command_buffer_handle_t_::getFenceForQueue(
   return UR_RESULT_SUCCESS;
 }
 
-kernel_command_handle::kernel_command_handle(
-    ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-    uint64_t CommandId, uint32_t WorkDim, bool UserDefinedLocalSize,
-    uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives)
-    : ur_exp_command_buffer_command_handle_t_(CommandBuffer, CommandId),
-      WorkDim(WorkDim), UserDefinedLocalSize(UserDefinedLocalSize),
-      Kernel(Kernel) {
-  // Add the default kernel to the list of valid kernels
-  ur::level_zero::urKernelRetain(Kernel);
-  ValidKernelHandles.insert(Kernel);
-  // Add alternative kernels if provided
-  if (KernelAlternatives) {
-    for (size_t i = 0; i < NumKernelAlternatives; i++) {
-      ur::level_zero::urKernelRetain(KernelAlternatives[i]);
-      ValidKernelHandles.insert(KernelAlternatives[i]);
-    }
-  }
-}
-
-kernel_command_handle::~kernel_command_handle() {
-  for (const ur_kernel_handle_t &KernelHandle : ValidKernelHandles) {
-    ur::level_zero::urKernelRelease(KernelHandle);
-  }
-}
-
 namespace ur::level_zero {
 
 /**
@@ -984,7 +984,7 @@ ur_result_t setKernelPendingArguments(
  */
 ur_result_t createCommandHandle(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-    uint32_t WorkDim, const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
+    uint32_t WorkDim, const size_t *GlobalWorkSize,
     uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives,
     ur_exp_command_buffer_command_handle_t *Command) {
 
@@ -1055,8 +1055,8 @@ ur_result_t createCommandHandle(
 
   try {
     auto NewCommand = std::make_unique<kernel_command_handle>(
-        CommandBuffer, Kernel, CommandId, WorkDim, LocalWorkSize != nullptr,
-        NumKernelAlternatives, KernelAlternatives);
+        CommandBuffer, Kernel, CommandId, WorkDim, NumKernelAlternatives,
+        KernelAlternatives);
 
     NewCommand->setGlobalWorkSize(GlobalWorkSize);
 
@@ -1135,8 +1135,8 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
 
   if (Command) {
     UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, GlobalWorkSize,
-                                LocalWorkSize, NumKernelAlternatives,
-                                KernelAlternatives, Command));
+                                NumKernelAlternatives, KernelAlternatives,
+                                Command));
   }
   std::vector<ze_event_handle_t> ZeEventList;
   ze_event_handle_t ZeLaunchEvent = nullptr;
@@ -1844,7 +1844,7 @@ ur_result_t validateCommandDesc(
   logger::debug("Mutable features supported by device {}", SupportedFeatures);
 
   auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
-  UR_ASSERT(CommandBuffer == Command->CommandBuffer,
+  UR_ASSERT(CommandBuffer == Command->commandBuffer,
             UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP);
 
   UR_ASSERT(
@@ -1853,11 +1853,11 @@ ur_result_t validateCommandDesc(
       UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   // Check if the provided new kernel is in the list of valid alternatives.
   if (CommandDesc.hNewKernel &&
-      !Command->ValidKernelHandles.count(CommandDesc.hNewKernel)) {
+      !Command->validKernelHandles.count(CommandDesc.hNewKernel)) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  if (CommandDesc.newWorkDim != Command->WorkDim &&
+  if (CommandDesc.newWorkDim != Command->workDim &&
       (!CommandDesc.pNewGlobalWorkOffset || !CommandDesc.pNewGlobalWorkSize)) {
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
@@ -1918,58 +1918,9 @@ ur_result_t updateKernelHandle(ur_exp_command_buffer_handle_t CommandBuffer,
 
   ZE2UR_CALL(Platform->ZeMutableCmdListExt
                  .zexCommandListUpdateMutableCommandKernelsExp,
-             (ZeCommandList, 1, &Command->CommandId, &KernelHandle));
+             (ZeCommandList, 1, &Command->commandId, &KernelHandle));
   // Set current kernel to be the new kernel
-  Command->Kernel = NewKernel;
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t setMutableOffsetDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>> &Desc,
-    uint32_t Dim, size_t *NewGlobalWorkOffset, const void *NextDesc,
-    uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->offsetX = NewGlobalWorkOffset[0];
-  DEBUG_LOG(Desc->offsetX);
-  Desc->offsetY = Dim >= 2 ? NewGlobalWorkOffset[1] : 0;
-  DEBUG_LOG(Desc->offsetY);
-  Desc->offsetZ = Dim == 3 ? NewGlobalWorkOffset[2] : 0;
-  DEBUG_LOG(Desc->offsetZ);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t setMutableGroupSizeDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_group_size_exp_desc_t>> &Desc,
-    uint32_t Dim, uint32_t *NewLocalWorkSize, const void *NextDesc,
-    uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->groupSizeX = NewLocalWorkSize[0];
-  DEBUG_LOG(Desc->groupSizeX);
-  Desc->groupSizeY = Dim >= 2 ? NewLocalWorkSize[1] : 1;
-  DEBUG_LOG(Desc->groupSizeY);
-  Desc->groupSizeZ = Dim == 3 ? NewLocalWorkSize[2] : 1;
-  DEBUG_LOG(Desc->groupSizeZ);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t setMutableGroupCountDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_group_count_exp_desc_t>> &Desc,
-    ze_group_count_t *ZeThreadGroupDimensions, const void *NextDesc,
-    uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->pGroupCount = ZeThreadGroupDimensions;
-  DEBUG_LOG(Desc->pGroupCount->groupCountX);
-  DEBUG_LOG(Desc->pGroupCount->groupCountY);
-  DEBUG_LOG(Desc->pGroupCount->groupCountZ);
+  Command->kernel = NewKernel;
   return UR_RESULT_SUCCESS;
 }
 
@@ -1979,24 +1930,8 @@ ur_result_t setMutableMemObjArgDesc(
     const ur_exp_command_buffer_update_memobj_arg_desc_t &NewMemObjArgDesc,
     const void *NextDesc, uint64_t CommandID) {
 
-  const ur_kernel_arg_mem_obj_properties_t *Properties =
-      NewMemObjArgDesc.pProperties;
-  ur_mem_handle_t_::access_mode_t UrAccessMode = ur_mem_handle_t_::read_write;
-  if (Properties) {
-    switch (Properties->memoryAccess) {
-    case UR_MEM_FLAG_READ_WRITE:
-      UrAccessMode = ur_mem_handle_t_::read_write;
-      break;
-    case UR_MEM_FLAG_WRITE_ONLY:
-      UrAccessMode = ur_mem_handle_t_::write_only;
-      break;
-    case UR_MEM_FLAG_READ_ONLY:
-      UrAccessMode = ur_mem_handle_t_::read_only;
-      break;
-    default:
-      return UR_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-  }
+  ur_mem_handle_t_::access_mode_t UrAccessMode;
+  UR_CALL(getMemoryAccessType(NewMemObjArgDesc, UrAccessMode));
 
   ur_mem_handle_t NewMemObjArg = NewMemObjArgDesc.hNewMemObjArg;
   // The NewMemObjArg may be a NULL pointer in which case a NULL value is used
@@ -2008,62 +1943,8 @@ ur_result_t setMutableMemObjArgDesc(
                                          CommandBuffer->Device, nullptr, 0u));
   }
 
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->argIndex = NewMemObjArgDesc.argIndex;
-  DEBUG_LOG(Desc->argIndex);
-  Desc->argSize = sizeof(void *);
-  DEBUG_LOG(Desc->argSize);
-  Desc->pArgValue = ZeHandlePtr;
-  DEBUG_LOG(Desc->pArgValue);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t setMutablePointerArgDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>> &Desc,
-    const ur_exp_command_buffer_update_pointer_arg_desc_t &NewPointerArgDesc,
-    const void *NextDesc, uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->argIndex = NewPointerArgDesc.argIndex;
-  DEBUG_LOG(Desc->argIndex);
-  Desc->argSize = sizeof(void *);
-  DEBUG_LOG(Desc->argSize);
-  Desc->pArgValue = NewPointerArgDesc.pNewPointerArg;
-  DEBUG_LOG(Desc->pArgValue);
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t setMutableValueArgDesc(
-    std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>> &Desc,
-    const ur_exp_command_buffer_update_value_arg_desc_t &NewValueArgDesc,
-    const void *NextDesc, uint64_t CommandID) {
-  Desc->commandId = CommandID;
-  DEBUG_LOG(Desc->commandId);
-  Desc->pNext = NextDesc;
-  DEBUG_LOG(Desc->pNext);
-  Desc->argIndex = NewValueArgDesc.argIndex;
-  DEBUG_LOG(Desc->argIndex);
-  Desc->argSize = NewValueArgDesc.argSize;
-  DEBUG_LOG(Desc->argSize);
-  // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
-  // in which case a NULL value will be used as the value for the argument
-  // declared as a pointer to global or constant memory in the kernel"
-  //
-  // We don't know the type of the argument but it seems that the only time
-  // SYCL RT would send a pointer to NULL in 'arg_value' is when the argument
-  // is a NULL pointer. Treat a pointer to NULL in 'arg_value' as a NULL.
-  const void *ArgValuePtr = NewValueArgDesc.pNewValueArg;
-  if (NewValueArgDesc.argSize == sizeof(void *) && ArgValuePtr &&
-      *(void **)(const_cast<void *>(ArgValuePtr)) == nullptr) {
-    ArgValuePtr = nullptr;
-  }
-  Desc->pArgValue = ArgValuePtr;
-  DEBUG_LOG(Desc->pArgValue);
+  UR_CALL(setMutableMemObjArgDesc(Desc, NewMemObjArgDesc.argIndex, ZeHandlePtr,
+                                  NextDesc, CommandID));
   return UR_RESULT_SUCCESS;
 }
 
@@ -2099,11 +1980,11 @@ ur_result_t updateCommandBuffer(
     auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
 
     std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Guard(
-        Command->Mutex, Command->Kernel->Mutex);
+        Command->Mutex, Command->kernel->Mutex);
 
     // Kernel handle must be updated first for a given CommandId if required
     ur_kernel_handle_t NewKernel = CommandDesc.hNewKernel;
-    if (NewKernel && Command->Kernel != NewKernel) {
+    if (NewKernel && Command->kernel != NewKernel) {
       updateKernelHandle(CommandBuffer, NewKernel, Command);
     }
 
@@ -2115,7 +1996,7 @@ ur_result_t updateCommandBuffer(
           std::make_unique<ZeStruct<ze_mutable_global_offset_exp_desc_t>>();
       UR_CALL(setMutableOffsetDesc(MutableGroupOffestDesc, Dim,
                                    NewGlobalWorkOffset, NextDesc,
-                                   Command->CommandId));
+                                   Command->commandId));
       NextDesc = MutableGroupOffestDesc.get();
       Descs.push_back(std::move(MutableGroupOffestDesc));
     }
@@ -2132,7 +2013,7 @@ ur_result_t updateCommandBuffer(
       }
 
       UR_CALL(setMutableGroupSizeDesc(MutableGroupSizeDesc, Dim, WG, NextDesc,
-                                      Command->CommandId));
+                                      Command->commandId));
       NextDesc = MutableGroupSizeDesc.get();
       Descs.push_back(std::move(MutableGroupSizeDesc));
     }
@@ -2145,7 +2026,7 @@ ur_result_t updateCommandBuffer(
       // If a new global work size is provided update that in the command,
       // otherwise the previous work group size will be used
       if (NewGlobalWorkSize) {
-        Command->WorkDim = Dim;
+        Command->workDim = Dim;
         Command->setGlobalWorkSize(NewGlobalWorkSize);
       }
 
@@ -2157,7 +2038,7 @@ ur_result_t updateCommandBuffer(
 
       ze_kernel_handle_t ZeKernel{};
       auto ZeDevice = CommandBuffer->Device->ZeDevice;
-      UR_CALL(getZeKernel(ZeDevice, Command->Kernel, &ZeKernel));
+      UR_CALL(getZeKernel(ZeDevice, Command->kernel, &ZeKernel));
 
       uint32_t WG[3];
 
@@ -2165,13 +2046,13 @@ ur_result_t updateCommandBuffer(
           ZeThreadGroupDimensionsList[i];
       UR_CALL(calculateKernelWorkDimensions(
           ZeKernel, CommandBuffer->Device, ZeThreadGroupDimensions, WG, Dim,
-          Command->GlobalWorkSize, NewLocalWorkSize));
+          Command->globalWorkSize, NewLocalWorkSize));
 
       auto MutableGroupCountDesc =
           std::make_unique<ZeStruct<ze_mutable_group_count_exp_desc_t>>();
       UR_CALL(setMutableGroupCountDesc(MutableGroupCountDesc,
                                        &ZeThreadGroupDimensions, NextDesc,
-                                       Command->CommandId));
+                                       Command->commandId));
       NextDesc = MutableGroupCountDesc.get();
       Descs.push_back(std::move(MutableGroupCountDesc));
 
@@ -2179,7 +2060,7 @@ ur_result_t updateCommandBuffer(
         auto MutableGroupSizeDesc =
             std::make_unique<ZeStruct<ze_mutable_group_size_exp_desc_t>>();
         UR_CALL(setMutableGroupSizeDesc(MutableGroupSizeDesc, Dim, WG, NextDesc,
-                                        Command->CommandId));
+                                        Command->commandId));
         NextDesc = MutableGroupSizeDesc.get();
         Descs.push_back(std::move(MutableGroupSizeDesc));
       }
@@ -2196,7 +2077,7 @@ ur_result_t updateCommandBuffer(
 
       UR_CALL(setMutableMemObjArgDesc(CommandBuffer, ZeMutableArgDesc,
                                       NewMemObjArgDesc, NextDesc,
-                                      Command->CommandId));
+                                      Command->commandId));
 
       NextDesc = ZeMutableArgDesc.get();
       Descs.push_back(std::move(ZeMutableArgDesc));
@@ -2212,7 +2093,7 @@ ur_result_t updateCommandBuffer(
           std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
 
       UR_CALL(setMutablePointerArgDesc(ZeMutableArgDesc, NewPointerArgDesc,
-                                       NextDesc, Command->CommandId));
+                                       NextDesc, Command->commandId));
 
       NextDesc = ZeMutableArgDesc.get();
       Descs.push_back(std::move(ZeMutableArgDesc));
@@ -2228,7 +2109,7 @@ ur_result_t updateCommandBuffer(
           std::make_unique<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>();
 
       UR_CALL(setMutableValueArgDesc(ZeMutableArgDesc, NewValueArgDesc,
-                                     NextDesc, Command->CommandId));
+                                     NextDesc, Command->commandId));
 
       NextDesc = ZeMutableArgDesc.get();
       Descs.push_back(std::move(ZeMutableArgDesc));
