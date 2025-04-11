@@ -272,7 +272,7 @@ public:
     return impl->CGData.MEvents;
   }
   std::vector<sycl::detail::ArgDesc> &getArgs() { return impl->MArgs; }
-  sycl::detail::KernelNameStrRefT getKernelName() { return MKernelName.data(); }
+  std::string getKernelName() { return MKernelName.data(); }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
   std::shared_ptr<sycl::detail::HostTask> &getHostTask() {
     return impl->MHostTask;
