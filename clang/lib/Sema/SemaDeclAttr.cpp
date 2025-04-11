@@ -5544,12 +5544,12 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
   }
 
   TargetInfo::CallingConvCheckResult A = TargetInfo::CCCR_OK;
+  auto *Aux = Context.getAuxTargetInfo();
   // CUDA functions may have host and/or device attributes which indicate
   // their targeted execution environment, therefore the calling convention
   // of functions in CUDA should be checked against the target deduced based
   // on their host/device attributes.
   if (LangOpts.CUDA) {
-    auto *Aux = Context.getAuxTargetInfo();
     assert(FD || CFT != CUDAFunctionTarget::InvalidTarget);
     auto CudaTarget = FD ? CUDA().IdentifyTarget(FD) : CFT;
     bool CheckHost = false, CheckDevice = false;
@@ -5574,6 +5574,12 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
       A = HostTI->checkCallingConvention(CC);
     if (A == TargetInfo::CCCR_OK && CheckDevice && DeviceTI)
       A = DeviceTI->checkCallingConvention(CC);
+  } else if (LangOpts.SYCLIsDevice && (Aux && Aux->getTriple().isOSWindows()) &&
+             TI.getTriple().isAMDGPU() &&
+             getSourceManager().isInSystemHeader(Attrs.getScopeLoc())) {
+    A = TI.checkCallingConvention(CC);
+    if (A != TargetInfo::CCCR_OK)
+      A = Aux->checkCallingConvention(CC);
   } else {
     A = TI.checkCallingConvention(CC);
   }
