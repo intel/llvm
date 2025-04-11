@@ -117,20 +117,10 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  // If we're reasonably sure this context is about to be detroyed we should
-  // clear the ext function pointer cache. This isn't foolproof sadly but it
-  // should drastically reduce the chances of the pathological case described
-  // in the comments in common.hpp.
   static std::mutex contextReleaseMutex;
-  auto clContext = hContext->CLContext;
 
   std::lock_guard<std::mutex> lock(contextReleaseMutex);
   if (hContext->decrementReferenceCount() == 0) {
-    // ExtFuncPtrCache is destroyed in an atexit() callback, so it doesn't
-    // necessarily outlive the adapter (or all the contexts).
-    if (cl_ext::ExtFuncPtrCache) {
-      cl_ext::ExtFuncPtrCache->clearCache(clContext);
-    }
     delete hContext;
   }
 

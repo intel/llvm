@@ -92,8 +92,19 @@ class DefaultLoggerWithFileSink : public UniquePtrLoggerWithFilesink {
 protected:
   void SetUp() override {
     logger = std::make_unique<logger::Logger>(
-        logger::Level::WARN,
+        UR_LOGGER_LEVEL_WARN,
         std::make_unique<logger::FileSink>(logger_name, file_path));
+  }
+};
+
+class LoggerWithCallbackSink : public ::testing::Test {
+protected:
+  std::unique_ptr<logger::Logger> logger;
+
+  void SetUp() override {
+    logger = std::make_unique<logger::Logger>(
+        UR_LOGGER_LEVEL_QUIET, nullptr, UR_LOGGER_LEVEL_WARN,
+        std::make_unique<logger::CallbackSink>("UR_LOG_CALLBACK"));
   }
 };
 

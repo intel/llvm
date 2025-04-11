@@ -54,7 +54,7 @@ namespace ur_tracing_layer
 
         getContext()->notify_end(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params, &result, instance);
 
-        if (logger.getLevel() <= logger::Level::INFO) {
+        if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
             std::ostringstream args_str;
             ur::extras::printFunctionParams(args_str, ${th.make_func_etor(n, tags, obj)}, &params);
             logger.info("   <--- ${th.make_func_name(n, tags, obj)}({}) -> {};\n", args_str.str(), result);

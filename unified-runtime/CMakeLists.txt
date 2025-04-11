@@ -56,7 +56,7 @@ option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
 option(UR_STATIC_LOADER "Build loader as a static library" OFF)
 option(UR_FORCE_LIBSTDCXX "Force use of libstdc++ in a build using libc++ on Linux" OFF)
 option(UR_ENABLE_LATENCY_HISTOGRAM "Enable latncy histogram" OFF)
-set(UR_EXTERNAL_DEPENDENCIES "" CACHE LIST
+set(UR_EXTERNAL_DEPENDENCIES "" CACHE STRING
     "List of external CMake targets for executables/libraries to depend on")
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")

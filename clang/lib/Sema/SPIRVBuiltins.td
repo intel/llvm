@@ -984,6 +984,42 @@ foreach name = ["GroupLogicalAndKHR", "GroupLogicalOrKHR"] in {
   def : SPVBuiltin<name, [Bool, Int, Int, Bool], Attr.Convergent>;
 }
 
+def SubgroupShuffleINTELVecType
+    : GenericType<"SubgroupShuffleINTELVecType",
+                  TypeList<[Char, UChar, Short, UShort, Int, UInt, Float]>,
+                  VecNoScalar>;
+
+foreach name = ["SubgroupShuffleINTEL", "SubgroupShuffleXorINTEL"] in {
+  def : SPVBuiltin<name, [AGenType1, AGenType1, UInt]>;
+  def : SPVBuiltin<name, [SubgroupShuffleINTELVecType,
+                          SubgroupShuffleINTELVecType, UInt]>;
+}
+
+foreach name = ["SubgroupShuffleUpINTEL", "SubgroupShuffleDownINTEL"] in {
+  def : SPVBuiltin<name, [AGenType1, AGenType1, AGenType1, UInt]>;
+  def : SPVBuiltin<name, [SubgroupShuffleINTELVecType,
+                          SubgroupShuffleINTELVecType,
+                          SubgroupShuffleINTELVecType, UInt]>;
+}
+
+foreach name = ["SubgroupBlockWriteINTEL"] in {
+  foreach AS = [GlobalAS, LocalAS] in {
+    foreach Ty = TLUnsignedInts.List in {
+      def : SPVBuiltin<name, [Void, PointerType<Ty, AS>, Ty]>;
+    }
+    foreach Ty = [UChar, UShort] in {
+      foreach v = [2, 4, 8, 16] in {
+        def : SPVBuiltin<name, [Void, PointerType<Ty, AS>, VectorType<Ty, v>]>;
+      }
+    }
+    foreach Ty = [UInt, ULong] in {
+      foreach v = [2, 4, 8] in {
+        def : SPVBuiltin<name, [Void, PointerType<Ty, AS>, VectorType<Ty, v>]>;
+      }
+    }
+  }
+}
+
 // 3.56.24. Non-Uniform Instructions
 
 foreach name = ["GroupNonUniformElect"] in {

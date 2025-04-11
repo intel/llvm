@@ -186,6 +186,9 @@ if config.sycl_headers_filter is not None:
         )
     )
 
+# Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
+llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
+
 # Dump-only tests do not have clang available
 if not dump_only_tests:
     llvm_config.use_clang(additional_flags=additional_flags)

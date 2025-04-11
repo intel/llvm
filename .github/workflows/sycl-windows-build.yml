@@ -29,6 +29,9 @@ on:
         type: string
         required: false
         default: "cl"
+      pack_release:
+        type: string
+        required: false
 
     outputs:
       build_conclusion:
@@ -66,6 +69,9 @@ on:
         options:
           - cl
           - icx
+      pack_release:
+        type: string
+        required: false
           
 permissions: read-all
 
@@ -179,12 +185,27 @@ jobs:
         name: sycl_windows_abi_symbols
         path: build/new_sycl_symbols_windows.dump
         retention-days: ${{ inputs.retention-days }}
-    - name: Install
+    - name: Install sycl-toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      run: |
+        cmake --build build --target deploy-sycl-toolchain
+
+    - name: Pack toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      run: tar -czf ${{ inputs.artifact_archive_name }} -C install .
+    - name: Upload toolchain release
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && inputs.pack_release == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_windows_release
+        path: ${{ inputs.artifact_archive_name }}
+        retention-days: ${{ inputs.retention-days }}
+
+    - name: Install utilities
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       shell: bash
       # TODO replace utility installation with a single CMake target
       run: |
-        cmake --build build --target deploy-sycl-toolchain
         cmake --build build --target utils/FileCheck/install
         cmake --build build --target utils/count/install
         cmake --build build --target utils/not/install
