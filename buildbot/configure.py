@@ -134,6 +134,9 @@ def do_configure(args, passthrough_args):
     if args.use_lld:
         llvm_enable_lld = "ON"
 
+    if args.use_zstd:
+        llvm_enable_zstd = "FORCE_ON"
+
     # CI Default conditionally appends to options, keep it at the bottom of
     # args handling
     if args.ci_defaults:
@@ -416,6 +419,9 @@ def main():
     parser.add_argument(
         "--native-cpu-libclc-targets",
         help="Target triples for libclc, used by the Native CPU backend",
+    )
+    parser.add_argument(
+        "--use-zstd", action="store_true", help="Force zstd linkage while building."
     )
     args, passthrough_args = parser.parse_known_intermixed_args()
 
