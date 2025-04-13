@@ -297,6 +297,15 @@ if the implementation supports this feature, or applications can test the
 macro's value to determine which of the extension's features the implementation
 supports.
 
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
 
 === Querying async memory alloc support
 
@@ -312,16 +321,6 @@ The device aspects for this query is:
 asynchronous memory allocation and memory pools.
 |======================
 
-
-[%header,cols="1,5"]
-|===
-|Value
-|Description
-
-|1
-|The APIs of this experimental extension are not versioned, so the
- feature-test macro always has this value.
-|===
 
 === Memory pool
 
@@ -363,12 +362,13 @@ them adhere to the following behaviors:
 * When an asynchronous malloc command executes it will allocate USM memory of
   the allocation kind from the memory pool.
 * When an asynchronous free command is enqueued, the USM pointer to be freed is
-  immediately no longer valid. The asynchronous free command may execute any
-  time between the command being enqueued and the command being synchronized
-  with. Once the asynchronous free command is enqueued memory allocated to that
-  USM pointer is now free for the memory pool to re-allocate to another USM
-  pointer either once the command has completed, or if an asynchronous command
-  is dependent on this asynchronous free command.
+  no longer valid once the dependencies of that command are satisfied. The
+  asynchronous free command may execute any time between the point when the
+  dependencies are satisfied and the command being synchronized with. Once the
+  asynchronous free command is enqueued memory allocated to that USM pointer is
+  now free for the memory pool to re-allocate to another USM pointer either once
+  the command has completed, or if an asynchronous command is dependent on this
+  asynchronous free command.
 * A memory pool may reserve further memory from the memory provider at any time
   to grow the size of the memory pool's reserve, though it may not exceed the
   maximum size of the memory pool.
@@ -436,11 +436,11 @@ memory_pool(const context &ctx, usm::alloc kind, Properties props = {});
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context `ctx`
-and all SYCL devices associated with it, with the allocation kind `kind` and
+and all SYCL devices associated with it, which allocates host USM memory,
 applying any properties in `props`.
 
-_Throws_: An exception with the `errc::invalid` error code if `kind` is
-`usm::alloc::device`, `usm::alloc::shared` or `usm::alloc::unknown`.
+_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
+is `usm::alloc::device`, `usm::alloc::shared` or `usm::alloc::unknown`.
 
 [source, c++]
 ----
@@ -450,11 +450,11 @@ memory_pool(const context &ctx, const device &dev, usm::alloc kind,
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context `ctx`
-and device `dev`, with the allocation kind `kind` and applying any properties in
-`props`.
+and device `dev`, which allocates either device or shared USM memory depending
+on the allocation kind `kind`, and applying any properties in `props`.
 
-_Throws_: An exception with the `errc::invalid` error code if `kind` is
-`usm::alloc::host` or `usm::alloc::unknown`.
+_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
+is `usm::alloc::host` or `usm::alloc::unknown`.
 
 [source, c++]
 ----
@@ -463,19 +463,23 @@ memory_pool(const queue &que, usm::alloc kind, Properties props = {});
 ----
 
 _Effects_: Constructs a memory pool which is associated with the context and
-device from the queue `que``, with the allocation kind `kind` and applying any
-properties in `props`. If `kind` is `usm::alloc::host` this is equivalent to
-calling `memory_pool(queue.get_context(), props)` otherwise this is equivalent
-to calling `memory_pool(queue.get_context(), queue.get_device(), props)`.
+device from the queue `que`, which allocates either device or shared USM memory
+depending on the allocation kind `kind`, and applying any properties in `props`.
+If `kind` is `usm::alloc::host` this is equivalent to calling
+`memory_pool(queue.get_context(), props)` otherwise this is equivalent to
+calling `memory_pool(queue.get_context(), queue.get_device(), props)`.
 
-_Throws_: An exception with the `errc::invalid` error code if `kind` is
-`usm::alloc::unknown`.
+_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
+is `usm::alloc::unknown`.
 
 [source, c++]
 ----
 template <typename Properties = empty_properties_t>
 memory_pool(const context &ctx, void *ptr, size_t size, Properties props = {});
 ----
+
+_Constraints_: Available when `props` does not contain either the `maximum_size`
+or `initial_threshold` properties.
 
 _Effects_: Constructs a memory pool which is associated with context `ctx`, 
 uses an existing USM memory allocation `ptr` of size (in bytes) `size`,
@@ -488,9 +492,6 @@ the size of memory allocated for `ptr` the result is undefined behavior. If
 `ptr` is freed or the memory it points to is written to whilst the memory pool
 is still alive the result is undefined behavior. The maximum size and initial
 threshold of the memory pool are set to `size`.
-
-_Throws_: An exception with the `errc::invalid` error code if `props` contains
-the `maximum_size` or `initial_threshold` properties.
 
 
 [source, c++]
@@ -634,8 +635,8 @@ is submitted to a device. -- end note]
 |The `zero_init` property adds the requirement that all memory reserved by the
  memory pool will be initialised to zero. Note that there is no guarantee that
  the memory allocation be re-initialized to zero when it is re-allocated from
- the pool, so users must re-initialize memory to zero if they wish for later
- allocations to have this behavior.
+ the pool, so users must re-initialize memory to zero before freeing it, if they
+ wish for later allocations to have this behavior.
 
 |===
 
@@ -671,10 +672,10 @@ memory_pool context::ext_oneapi_get_default_memory_pool(usm::alloc kind) const;
 ----
 
 _Returns_: The default memory pool associated with the context for allocating
-with the allocation kind `kind`.
+host USM memory.
 
-_Throws_: An exception with the `errc::invalid` error code if `kind` is
-`usm::alloc::device`, `usm::alloc::shared` or `usm::alloc::unknown`.
+_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
+is `usm::alloc::device`, `usm::alloc::shared` or `usm::alloc::unknown`.
 
 [source, c++]
 ----
@@ -683,11 +684,11 @@ memory_pool context::ext_oneapi_get_default_memory_pool(const device &dev,
 ----
 
 _Returns_: The default memory pool associated with the context and `dev` for
-allocating with the allocations of kind `kind`.
+allocating device or shared USM memory depending on the allocation kind `kind`.
 
-_Throws_: An exception with the `errc::invalid` error code if `dev` is not one
-of the devices associated with the context. An exception with the
-`errc::invalid` error code if `kind` is `usm::alloc::host` or
+_Throws_: A synchronous exception with the `errc::invalid` error code if `dev`
+is not one of the devices associated with the context. A synchronous exception
+with the `errc::invalid` error code if `kind` is `usm::alloc::host` or
 `usm::alloc::unknown`.
 
 
@@ -745,11 +746,7 @@ from the memory pool `pool` if provided, otherwise allocating from the default
 memory pool associated with the SYCL context and device associated with `que` or
 `cgh`. If a memory pool `pool` is provided the allocation kind is that of the
 memory pool, otherwise if an allocation kind `kind` parameter is provided, this
-is the allocation kind which is used. If a memory pool `pool` is provided, this
-must be associated with the same SYCL context and device as `que` or the SYCL
-queue associated with `cgh`. Memory can either be allocated directly from the
-memory pool or allocated to the memory pool to provide enough memory in the
-memory pool for the allocation. Accessing the memory at the address of the
+is the allocation kind which is used. Accessing the memory at the address of the
 pointer returned by asynchronous malloc functions before the command has
 completed execution is undefined behavior.
 
@@ -759,10 +756,12 @@ size is zero bytes, these functions behave in a manner consistent with C++
 pointer may not be used to access storage. If this pointer is not `null`, it
 must be passed to `sycl::async_free` to avoid a memory leak.
 
-_Throws_: An exception with the `errc::memory_allocation` error code if the
-allocation brings the memory pool over the maximum size. This error must be
-thrown asynchronously. An exception with the `errc::invalid` error code if
-`kind` is `usm::alloc::unknown`.
+_Throws_: A synchronous exception with the `errc::invalid` error code if `kind`
+is `usm::alloc::unknown`. A synchronous exception with the `errc::invalid` error
+code if a memory pool `pool` is provided and it is not associated with the same
+SYCL context and device as `que` or the SYCL queue associated with `cgh`. An
+asynchronous exception with the `errc::memory_allocation` error code if the
+allocation brings the memory pool over the maximum size.
 
 [source, c++]
 ----
@@ -771,11 +770,14 @@ void async_free(const queue &que, void *ptr);
 void async_free(handler &cgh, void *ptr);
 ----
 
+_Preconditions_: The pointer `ptr` is the address of a memory allocation
+allocated from a memory pool using the queue `que` or from the same queue as
+that which is associated with the handler `cgh`.
+
 _Effects_: Enqueues a command to `que` or the SYCL queue associated with `cgh`
 which will asynchronously free the memory allocation at the address of `ptr`.
 Accessing the memory at the address of `ptr` after the asynchronous free command
-has completed execution is undefined behavior. If `ptr` is not the address of a
-memory allocation allocated to a memory pool this is undefined behavior. 
+has completed execution is undefined behavior.
 
 
 == Implementation notes
