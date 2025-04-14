@@ -3025,19 +3025,8 @@ bool Sema::FindAllocationFunctions(
       return true;
   }
 
-  // new[] will force emission of vector deleting dtor which needs delete[].
-  bool MaybeVectorDeletingDtor = false;
-  if (Context.getTargetInfo().getCXXABI().isMicrosoft()) {
-    if (AllocElemType->isRecordType() && IsArray) {
-      auto *RD =
-          cast<CXXRecordDecl>(AllocElemType->castAs<RecordType>()->getDecl());
-      CXXDestructorDecl *DD = RD->getDestructor();
-      MaybeVectorDeletingDtor = DD && DD->isVirtual() && !DD->isDeleted();
-    }
-  }
-
   // We don't need an operator delete if we're running under -fno-exceptions.
-  if (!getLangOpts().Exceptions && !MaybeVectorDeletingDtor) {
+  if (!getLangOpts().Exceptions) {
     OperatorDelete = nullptr;
     return false;
   }
@@ -3596,8 +3585,8 @@ Sema::FindUsualDeallocationFunction(SourceLocation StartLoc,
 
 FunctionDecl *Sema::FindDeallocationFunctionForDestructor(SourceLocation Loc,
                                                           CXXRecordDecl *RD,
-                                                          DeclarationName Name,
                                                           bool Diagnose) {
+  DeclarationName Name = Context.DeclarationNames.getCXXOperatorName(OO_Delete);
 
   FunctionDecl *OperatorDelete = nullptr;
   QualType DeallocType = Context.getRecordType(RD);
@@ -3611,7 +3600,8 @@ FunctionDecl *Sema::FindDeallocationFunctionForDestructor(SourceLocation Loc,
   if (OperatorDelete)
     return OperatorDelete;
 
-  // If there's no class-specific operator delete, look up the global delete.
+  // If there's no class-specific operator delete, look up the global
+  // non-array delete.
   QualType RecordType = Context.getRecordType(RD);
   IDP.PassAlignment =
       alignedAllocationModeFromBool(hasNewExtendedAlignment(*this, RecordType));
@@ -3628,11 +3618,8 @@ bool Sema::FindDeallocationFunction(SourceLocation StartLoc, CXXRecordDecl *RD,
   // Try to find operator delete/operator delete[] in class scope.
   LookupQualifiedName(Found, RD);
 
-  if (Found.isAmbiguous()) {
-    if (!Diagnose)
-      Found.suppressDiagnostics();
+  if (Found.isAmbiguous())
     return true;
-  }
 
   Found.suppressDiagnostics();
 
