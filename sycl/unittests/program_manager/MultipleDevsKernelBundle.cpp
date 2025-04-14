@@ -35,11 +35,45 @@ MOCK_INTEGRATION_HEADER(DevLibTestKernel)
 
 using namespace sycl::unittest;
 
+inline void createDummyDeviceLib(sycl::detail::DeviceLibExt Ext) {
+  // Create a dummy fallback library correpsonding to the extension (if it
+  // doesn't exist).
+  std::string ExtName;
+  switch (Ext) {
+  case sycl::detail::DeviceLibExt::cl_intel_devicelib_math:
+    ExtName = "libsycl-fallback-cmath";
+    break;
+  case sycl::detail::DeviceLibExt::cl_intel_devicelib_assert:
+    ExtName = "libsycl-fallback-cassert";
+    break;
+  default:
+    FAIL() << "Unknown device library extension";
+  }
+
+  auto DSOPath = sycl::detail::OSUtil::getCurrentDSODir();
+  std::string LibPath = DSOPath + detail::OSUtil::DirSep + ExtName + ".spv";
+  std::string MathLibPath =
+      DSOPath + detail::OSUtil::DirSep + "libsycl-fallback-cmath.spv";
+  std::ifstream LibFile(LibPath);
+  if (LibFile.good()) {
+    LibFile.close();
+  } else {
+    std::ofstream LibFile(LibPath);
+    LibFile << "0";
+    LibFile.close();
+  }
+}
+
 // Function to geneate mock device image which uses device libraries.
 inline sycl::unittest::MockDeviceImage generateImage(
     std::initializer_list<std::string> KernelNames,
     sycl::detail::ur::DeviceBinaryType BinType, const char *DeviceTargetSpec,
     const std::vector<sycl::detail::DeviceLibExt> &DeviceLibExts = {}) {
+  // Create dummy device libraries if they don't exist.
+  for (auto Ext : DeviceLibExts) {
+    createDummyDeviceLib(Ext);
+  }
+
   MockPropertySet PropSet(DeviceLibExts);
 
   std::string Combined;
@@ -297,31 +331,6 @@ TEST_P(MultipleDevsKernelBundleTest, BuildTwiceWithOverlappingDevices) {
 // excersise additional logic in the program manager. Checks are used to test
 // that program and device libraries caching works as expected.
 TEST_P(MultipleDevsKernelBundleTest, DeviceLibs) {
-  // Create dummy libsycl-fallback-cassert.spv and libsycl-fallback-cmath.spv
-  // fallback libraries if they don't exist.
-  auto DSOPath = sycl::detail::OSUtil::getCurrentDSODir();
-  std::string AssertLibPath =
-      DSOPath + detail::OSUtil::DirSep + "libsycl-fallback-cassert.spv";
-  std::string MathLibPath =
-      DSOPath + detail::OSUtil::DirSep + "libsycl-fallback-cmath.spv";
-  std::ifstream AssertLibFile(AssertLibPath);
-  if (AssertLibFile.good()) {
-    AssertLibFile.close();
-  } else {
-    std::ofstream AssertLibFile(AssertLibPath);
-    AssertLibFile << "0";
-    AssertLibFile.close();
-  }
-
-  std::ifstream MathLibFile(MathLibPath);
-  if (MathLibFile.good()) {
-    MathLibFile.close();
-  } else {
-    std::ofstream MathLibFile(MathLibPath);
-    MathLibFile << "0";
-    MathLibFile.close();
-  }
-
   // Unset the SYCL_DEVICELIB_NO_FALLBACK so that fallback libraries are used.
   ScopedEnvVar var("SYCL_DEVICELIB_NO_FALLBACK", nullptr,
                    SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::reset);
