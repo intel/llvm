@@ -649,7 +649,7 @@ ur_result_t USMLaunchInfo::initialize() {
 
 MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
   if (Host.CleanShadow) {
-    auto Result =
+    [[maybe_unused]] auto Result =
         getContext()->urDdiTable.USM.pfnFree(Context, (void *)Host.CleanShadow);
     assert(Result == UR_RESULT_SUCCESS);
   }
