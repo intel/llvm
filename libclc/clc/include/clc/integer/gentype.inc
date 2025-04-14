@@ -101,6 +101,7 @@
 #undef __CLC_GENTYPE
 #undef __CLC_U_GENTYPE
 #undef __CLC_S_GENTYPE
+#undef __CLC_VECSIZE_OR_1
 #undef __CLC_SPIRV_INTERFACE_GENTYPE
 
 #ifndef __CLC_NO_SCHAR
