@@ -2231,7 +2231,8 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
 }
 
-void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
+void handler::saveCodeLoc(const detail::code_location &CodeLoc,
+                          bool IsTopCodeLoc) {
   MCodeLoc = CodeLoc;
   impl->MIsTopCodeLoc = IsTopCodeLoc;
 }
