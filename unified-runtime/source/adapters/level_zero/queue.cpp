@@ -2356,10 +2356,11 @@ ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
   Event->WaitList = ActiveBarriersWaitList;
   Event->OwnNativeHandle = true;
 
-  // If there are more active barriers, insert a barrier on the command-list. We
-  // do not need an event for finishing so we pass nullptr.
+  // If there are more active barriers, insert a barrier on the command-list.
+  // We need to signal the current active barrier event otherwise we will leak
+  // the Event object when we replace the active barrier.
   ZE2UR_CALL(zeCommandListAppendBarrier,
-             (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
+             (CmdList->first, Event->ZeEvent, ActiveBarriersWaitList.Length,
               ActiveBarriersWaitList.ZeEventList));
   return UR_RESULT_SUCCESS;
 }
