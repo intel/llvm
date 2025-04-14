@@ -3154,9 +3154,10 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
       GenerateIntrinsics =
           ConstWithoutErrnoOrExceptions && ErrnoOverridenToFalseWithOpt;
   }
-  GenerateIntrinsics &=
-      !(getLangOpts().SYCLIsDevice && (getTarget().getTriple().isNVPTX() ||
-                                       getTarget().getTriple().isAMDGCN()));
+  bool IsSYCLDeviceWithoutIntrinsics =
+      getLangOpts().SYCLIsDevice &&
+      (getTarget().getTriple().isNVPTX() || getTarget().getTriple().isAMDGCN());
+  GenerateIntrinsics &= IsSYCLDeviceWithoutIntrinsics;
   if (GenerateIntrinsics) {
     switch (BuiltinIDIfNoAsmLabel) {
     case Builtin::BIacos:
@@ -4257,7 +4258,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_modf:
   case Builtin::BI__builtin_modff:
   case Builtin::BI__builtin_modfl:
-    if (Builder.getIsFPConstrained() || !GenerateIntrinsics)
+    if (Builder.getIsFPConstrained() || IsSYCLDeviceWithoutIntrinsics)
       break; // TODO: Emit constrained modf intrinsic once one exists.
     return RValue::get(emitModfBuiltin(*this, E, Intrinsic::modf));
   case Builtin::BI__builtin_isgreater:
