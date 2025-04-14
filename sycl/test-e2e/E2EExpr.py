@@ -34,6 +34,8 @@ class E2EExpr(BooleanExpression):
         "hip_dev_kit",
         "zstd",
         "vulkan",
+        "hip_options",
+        "cuda_options",
         "host=None",
         "target=None",
         "shell",
