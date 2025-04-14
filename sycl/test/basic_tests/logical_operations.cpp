@@ -1,5 +1,5 @@
-// RUN: %clang -fpreview-breaking-changes -fsycl -o - %s
-// RUN: %clang -fsycl -o - %s
+// RUN: %clang -fpreview-breaking-changes -fsycl -fsyntax-only %s
+// RUN: %clang -fsycl -fsyntax-only %s
 
 #include <cassert>
 #include <sycl/functional.hpp>
