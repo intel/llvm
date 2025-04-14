@@ -160,7 +160,7 @@ ur_result_t ur_command_list_manager::appendRegionCopyUnlocked(
 wait_list_view ur_command_list_manager::getWaitListView(
     const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
     ur_event_handle_t additionalWaitEvent) {
-
+// TODO remove events that are not enabled if we add enabled operation
   uint32_t totalNumWaitEvents =
       numWaitEvents + (additionalWaitEvent != nullptr ? 1 : 0);
   waitList.resize(totalNumWaitEvents);
