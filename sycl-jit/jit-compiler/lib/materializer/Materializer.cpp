@@ -17,7 +17,7 @@
 
 using namespace jit_compiler;
 
-extern "C" JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
+JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     const char *KernelName, const JITBinaryInfo &BinaryInfo,
     BinaryFormat TargetFormat, View<unsigned char> SpecConstBlob) {
   if (TargetFormat != BinaryFormat::PTX &&

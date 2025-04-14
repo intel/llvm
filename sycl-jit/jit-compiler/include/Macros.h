@@ -9,9 +9,9 @@
 #pragma once
 
 #ifdef _WIN32
-#define JIT_EXPORT_SYMBOL __declspec(dllexport)
+#define JIT_EXPORT_SYMBOL extern "C" __declspec(dllexport)
 #else
-#define JIT_EXPORT_SYMBOL
+#define JIT_EXPORT_SYMBOL extern "C"
 #endif
 
 #ifdef __clang__

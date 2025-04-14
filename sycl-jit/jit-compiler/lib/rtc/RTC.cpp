@@ -24,9 +24,9 @@
 
 using namespace jit_compiler;
 
-extern "C" JIT_EXPORT_SYMBOL RTCHashResult
-calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-              View<const char *> UserArgs) {
+JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
+                                              View<InMemoryFile> IncludeFiles,
+                                              View<const char *> UserArgs) {
   auto UserArgListOrErr = parseUserArgs(UserArgs);
   if (!UserArgListOrErr) {
     return RTCHashResult::failure(
@@ -54,9 +54,10 @@ calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   return RTCHashResult::success(Hash.c_str());
 }
 
-extern "C" JIT_EXPORT_SYMBOL RTCResult
-compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-            View<const char *> UserArgs, View<char> CachedIR, bool SaveIR) {
+JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
+                                        View<InMemoryFile> IncludeFiles,
+                                        View<const char *> UserArgs,
+                                        View<char> CachedIR, bool SaveIR) {
   llvm::LLVMContext Context;
   std::string BuildLog;
   configureDiagnostics(Context, BuildLog);
@@ -163,6 +164,6 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   return RTCResult{std::move(BundleInfo), std::move(IR), BuildLog.c_str()};
 }
 
-extern "C" JIT_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address) {
+JIT_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address) {
   JITContext::getInstance().destroyBinary(Address);
 }

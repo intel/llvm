@@ -12,10 +12,8 @@ using namespace jit_compiler;
 
 thread_local Config ConfigHelper::Cfg;
 
-extern "C" JIT_EXPORT_SYMBOL void resetJITConfiguration() {
-  ConfigHelper::reset();
-}
+JIT_EXPORT_SYMBOL void resetJITConfiguration() { ConfigHelper::reset(); }
 
-extern "C" JIT_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt) {
+JIT_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt) {
   ConfigHelper::getConfig().set(std::move(Opt));
 }

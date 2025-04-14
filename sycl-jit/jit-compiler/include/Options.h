@@ -94,14 +94,10 @@ struct JITTargetFeatures
 
 } // namespace option
 
-extern "C" {
-
 /// Clear all previously set options.
 JIT_EXPORT_SYMBOL void resetJITConfiguration();
 
 /// Add an option to the configuration.
 JIT_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt);
-
-} // extern "C"
 
 } // namespace jit_compiler

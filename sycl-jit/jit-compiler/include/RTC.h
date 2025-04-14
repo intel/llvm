@@ -151,8 +151,6 @@ private:
   sycl::detail::string BuildLog;
 };
 
-extern "C" {
-
 JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
                                               View<InMemoryFile> IncludeFiles,
                                               View<const char *> UserArgs);
@@ -163,7 +161,5 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                         View<char> CachedIR, bool SaveIR);
 
 JIT_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
-
-} // end of extern "C"
 
 } // namespace jit_compiler
