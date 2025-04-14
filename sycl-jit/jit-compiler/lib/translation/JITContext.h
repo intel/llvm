@@ -24,6 +24,16 @@ class JITBinary {
 public:
   explicit JITBinary(std::string &&Binary, BinaryFormat Format);
 
+  // Prevent potentially expensive copies.
+  JITBinary(const JITBinary &) = delete;
+  JITBinary &operator=(const JITBinary &) = delete;
+
+  // Disallow moving as it could hypothetically invalidate the `BinaryAddress`
+  // associated with this object if `std::string` implements small string
+  // optimization.
+  JITBinary(JITBinary &&) = delete;
+  JITBinary &operator=(const JITBinary &&) = delete;
+
   jit_compiler::BinaryAddress address() const;
 
   size_t size() const;

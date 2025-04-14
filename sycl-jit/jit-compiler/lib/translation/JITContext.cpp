@@ -14,7 +14,9 @@ JITBinary::JITBinary(std::string &&Binary, BinaryFormat Fmt)
     : Blob{std::move(Binary)}, Format{Fmt} {}
 
 jit_compiler::BinaryAddress JITBinary::address() const {
-  // FIXME: Verify it's a good idea to perform this reinterpret_cast here.
+  // The `reinterpret_cast` is deemed safe here because `JITBinary` instances
+  // cannot be copied or moved, hence the `Blob` member will remain unmodified
+  // during the object's lifetime.
   return reinterpret_cast<jit_compiler::BinaryAddress>(Blob.c_str());
 }
 
