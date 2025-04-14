@@ -293,24 +293,6 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
-static event
-getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
-  // This function should not be called when a queue is recording to a graph,
-  // as a graph can record from multiple queues and we cannot guarantee the
-  // last node added by an in-order queue will be the last node added to the
-  // graph.
-  assert(!QueueImpl->hasCommandGraph() &&
-         "Should not be called in on graph recording.");
-
-  sycl::detail::optional<event> LastEvent = QueueImpl->getLastEvent();
-  if (LastEvent)
-    return *LastEvent;
-
-  // If there was no last event, we create an empty one.
-  return detail::createSyclObjFromImpl<event>(
-      std::make_shared<detail::event_impl>(std::nullopt));
-}
-
 /// Prevents any commands submitted afterward to this queue from executing
 /// until all commands previously submitted to this queue have entered the
 /// complete state.
@@ -321,10 +303,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
   if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
       !impl->MIsProfilingEnabled) {
-    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
-    // If the last event was discarded, fall back to enqueuing a barrier.
-    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
-      return InOrderLastEvent;
+    return detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));
   }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
@@ -346,13 +325,10 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
         auto EventImpl = detail::getSyclObjImpl(Event);
         return (EventImpl->isDefaultConstructed() || EventImpl->isNOP()) &&
                !EventImpl->hasCommandGraph();
-      });
+      }); // TODO: is this needed?
   if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
       !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
-    event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
-    // If the last event was discarded, fall back to enqueuing a barrier.
-    if (!detail::getSyclObjImpl(InOrderLastEvent)->isDiscarded())
-      return InOrderLastEvent;
+    return detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));
   }
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
@@ -432,20 +408,7 @@ sycl::detail::optional<event> queue::ext_oneapi_get_last_event_impl() const {
         make_error_code(errc::invalid),
         "ext_oneapi_get_last_event() can only be called on in-order queues.");
 
-  sycl::detail::optional<event> LastEvent = impl->getLastEvent();
-
-  // If there was no last event, the queue is yet to have any work submitted and
-  // we return a std::nullopt.
-  if (!LastEvent)
-    return std::nullopt;
-
-  // If the last event was discarded or a NOP, we insert a marker to represent
-  // an event at end.
-  auto LastEventImpl = detail::getSyclObjImpl(*LastEvent);
-  if (LastEventImpl->isDiscarded() || LastEventImpl->isNOP())
-    LastEvent =
-        detail::createSyclObjFromImpl<event>(impl->insertMarkerEvent(impl));
-  return LastEvent;
+  return impl->getLastEvent(impl);
 }
 
 void queue::ext_oneapi_set_external_event(const event &external_event) {

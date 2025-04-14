@@ -180,8 +180,6 @@ public:
 #endif
   }
 
-  sycl::detail::optional<event> getLastEvent();
-
 private:
   void queue_impl_interop(ur_queue_handle_t UrQueue) {
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
@@ -676,6 +674,9 @@ public:
     return Result;
   }
 
+  sycl::detail::optional<event>
+  getLastEvent(const std::shared_ptr<queue_impl> &Self);
+
   const std::vector<event> &
   getExtendDependencyList(const std::vector<event> &DepEvents,
                           std::vector<event> &MutableVec,
@@ -742,35 +743,6 @@ protected:
     // Hence, here is the lock for thread-safety.
     std::lock_guard<std::mutex> Lock{MMutex};
 
-    auto &EventToBuildDeps = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
-                                              : MExtGraphDeps.LastEventPtr;
-
-    // This dependency is needed for the following purposes:
-    //    - host tasks are handled by the runtime and cannot be implicitly
-    //    synchronized by the backend.
-    //    - to prevent the 2nd kernel enqueue when the 1st kernel is blocked
-    //    by a host task. This dependency allows to build the enqueue order in
-    //    the RT but will not be passed to the backend. See getPIEvents in
-    //    Command.
-    if (EventToBuildDeps) {
-      // In the case where the last event was discarded and we are to run a
-      // host_task, we insert a barrier into the queue and use the resulting
-      // event as the dependency for the host_task.
-      // Note that host_task events can never be discarded, so this will not
-      // insert barriers between host_task enqueues.
-      if (EventToBuildDeps->isDiscarded() &&
-          Handler.getType() == CGType::CodeplayHostTask)
-        EventToBuildDeps = insertHelperBarrier(Handler);
-
-      // depends_on after an async alloc is explicitly disallowed. Async alloc
-      // handles in order queue dependencies preemptively, so we skip them.
-      // Note: This could be improved by moving the handling of dependencies
-      // to before calling the CGF.
-      if (!EventToBuildDeps->isDiscarded() &&
-          !(Handler.getType() == CGType::AsyncAlloc))
-        Handler.depends_on(EventToBuildDeps);
-    }
-
     // If there is an external event set, add it as a dependency and clear it.
     // We do not need to hold the lock as MLastEventMtx will ensure the last
     // event reflects the corresponding external event dependence as well.
@@ -778,8 +750,25 @@ protected:
     if (ExternalEvent)
       Handler.depends_on(*ExternalEvent);
 
+    if (LastHostTaskEvent && Handler.getType() == CGType::CodeplayHostTask) {
+      // is this needed?
+      Handler.depends_on(
+          detail::createSyclObjFromImpl<event>(LastHostTaskEvent));
+      LastHostTaskEvent = nullptr;
+    } else if (!LastHostTaskEvent &&
+               Handler.getType() == CGType::CodeplayHostTask) {
+      auto Event = insertHelperBarrier(Handler);
+      Handler.depends_on(Event);
+    } else if (LastHostTaskEvent) {
+      LastHostTaskEvent->wait(LastHostTaskEvent);
+      LastHostTaskEvent = nullptr;
+    }
+
     auto EventRet = Handler.finalize();
-    EventToBuildDeps = getSyclObjImpl(EventRet);
+
+    if (getSyclObjImpl(EventRet)->isHost()) {
+      LastHostTaskEvent = getSyclObjImpl(EventRet);
+    }
 
     return EventRet;
   }
@@ -849,6 +838,7 @@ protected:
   template <typename HandlerType = handler>
   event finalizeHandler(HandlerType &Handler,
                         const optional<SubmitPostProcessF> &PostProcessorFunc) {
+    MEmpty = false;
     if (PostProcessorFunc) {
       return finalizeHandlerPostProcess(Handler, PostProcessorFunc);
     } else {
@@ -955,6 +945,11 @@ protected:
 
   /// List of queues created for FPGA device from a single SYCL queue.
   ur_queue_handle_t MQueue;
+
+  // TODO: this is for in-order queue only. Move it to separate struct.
+  EventImplPtr LastHostTaskEvent = nullptr;
+
+  bool MEmpty = true;
 
   // Access should be guarded with MMutex
   struct DependencyTrackingItems {
