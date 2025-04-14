@@ -57,15 +57,6 @@ struct ur_usm_pool_handle_t_ {
   CUmemoryPool getCudaPool() { return CUmemPool; };
 };
 
-// Exception type to pass allocation errors
-class UsmAllocationException {
-  const ur_result_t Error;
-
-public:
-  UsmAllocationException(ur_result_t Err) : Error{Err} {}
-  ur_result_t getError() const { return Error; }
-};
-
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t Device,
                                ur_usm_device_mem_flags_t Flags, size_t Size,
