@@ -538,9 +538,8 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    ur_result_t Error = Adapter->call_nocheck<UrApiKind::urQueueCreate>(
-        Context, Device, &Properties, &Queue);
-    Adapter->checkUrResult(Error);
+    Adapter->call<UrApiKind::urQueueCreate>(Context, Device, &Properties,
+                                            &Queue);
 
     return Queue;
   }
