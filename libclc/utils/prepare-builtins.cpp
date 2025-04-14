@@ -116,7 +116,12 @@ int main(int argc, char **argv) {
   // functions were inlined prior to incompatible functions pass. Now that the
   // inliner runs later in the pipeline we have to remove all of the target
   // features, so libclc functions will not be earmarked for deletion.
-  if (M->getTargetTriple().str().find("amdgcn") != std::string::npos) {
+  //
+  // NativeCPU uses the same builtins for multiple host targets and should
+  // likewise not have features that limit the builtins to any particular
+  // target.
+  if (M->getTargetTriple().str().find("amdgcn") != std::string::npos ||
+      M->getTargetTriple().str() != "native_cpu") {
     AttributeMask AM;
     AM.addAttribute("target-features");
     AM.addAttribute("target-cpu");
