@@ -52,8 +52,6 @@ inline void createDummyDeviceLib(sycl::detail::DeviceLibExt Ext) {
 
   auto DSOPath = sycl::detail::OSUtil::getCurrentDSODir();
   std::string LibPath = DSOPath + detail::OSUtil::DirSep + ExtName + ".spv";
-  std::string MathLibPath =
-      DSOPath + detail::OSUtil::DirSep + "libsycl-fallback-cmath.spv";
   std::ifstream LibFile(LibPath);
   if (LibFile.good()) {
     LibFile.close();
