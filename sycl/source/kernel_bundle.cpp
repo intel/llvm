@@ -379,6 +379,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
 namespace ext::oneapi::experimental {
 
 using source_kb = kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+using obj_kb = kernel_bundle<bundle_state::object>;
 using exe_kb = kernel_bundle<bundle_state::executable>;
 using kernel_bundle_impl = sycl::detail::kernel_bundle_impl;
 
@@ -456,6 +457,38 @@ source_kb make_kernel_bundle_from_source(const context &SyclContext,
   std::shared_ptr<kernel_bundle_impl> KBImpl =
       std::make_shared<kernel_bundle_impl>(SyclContext, Language, Bytes);
   return sycl::detail::createSyclObjFromImpl<source_kb>(std::move(KBImpl));
+}
+
+/////////////////////////
+// syclex::detail::compile_from_source(source_kb) => obj_kb
+/////////////////////////
+
+obj_kb compile_from_source(
+    source_kb &SourceKB, const std::vector<device> &Devices,
+    const std::vector<sycl::detail::string_view> &BuildOptions,
+    sycl::detail::string *LogView,
+    const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
+  std::vector<std::string> Options;
+  for (const sycl::detail::string_view option : BuildOptions)
+    Options.push_back(option.data());
+
+  std::vector<std::string> KernelNames;
+  for (const sycl::detail::string_view name : RegisteredKernelNames)
+    KernelNames.push_back(name.data());
+
+  std::string Log;
+  std::string *LogPtr = nullptr;
+  if (LogView)
+    LogPtr = &Log;
+  std::vector<device> UniqueDevices =
+      sycl::detail::removeDuplicateDevices(Devices);
+  std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->compile_from_source(
+      UniqueDevices, Options, LogPtr, KernelNames);
+  auto result = sycl::detail::createSyclObjFromImpl<obj_kb>(KBImpl);
+  if (LogView)
+    *LogView = Log;
+  return result;
 }
 
 /////////////////////////

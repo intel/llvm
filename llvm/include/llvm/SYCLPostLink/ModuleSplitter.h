@@ -300,6 +300,11 @@ std::unique_ptr<ModuleSplitterBase>
 getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
                       bool EmitOnlyKernelsAsEntryPoints);
 
+std::unique_ptr<ModuleSplitterBase>
+getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
+                      bool EmitOnlyKernelsAsEntryPoints,
+                      bool OverwriteAllowDeviceImageDependencies);
+
 #ifndef NDEBUG
 void dumpEntryPoints(const EntryPointSet &C, const char *Msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
