@@ -11,7 +11,8 @@ void singleTaskKernelReference(int &Ref) {}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::nd_range_kernel<2>)
 void ndRangeKernelReference(int &Ref) {}
 
-// Diagnostic for these violations of the restrictions haven't been implemented yet.
+// Diagnostic for these violations of the restrictions haven't been implemented
+// yet.
 // TODO: Add expected error when it will be implemented.
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclexp::single_task_kernel)
 void singleTaskKernelVariadic(...) {}
