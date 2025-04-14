@@ -123,6 +123,8 @@ struct ThreadSanitizerOnSpirv {
   bool instrumentAllocInst(Function *F,
                            SmallVectorImpl<Instruction *> &AllocaInsts);
 
+  bool instrumentControlBarrier(CallInst *CI);
+
   void appendDebugInfoToArgs(Instruction *I, SmallVectorImpl<Value *> &Args);
 
 private:
@@ -148,8 +150,12 @@ private:
   // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
   static const size_t kNumberOfAccessSizes = 5;
   FunctionCallee TsanCleanupPrivate;
+  FunctionCallee TsanDeviceBarrier;
+  FunctionCallee TsanGroupBarrier;
   FunctionCallee TsanRead[kNumberOfAccessSizes];
   FunctionCallee TsanWrite[kNumberOfAccessSizes];
+  FunctionCallee TsanUnalignedRead[kNumberOfAccessSizes];
+  FunctionCallee TsanUnalignedWrite[kNumberOfAccessSizes];
 
   friend struct ThreadSanitizer;
 };
@@ -269,6 +275,14 @@ void ThreadSanitizerOnSpirv::initialize() {
       M.getOrInsertFunction("__tsan_cleanup_private", Attr, IRB.getVoidTy(),
                             IntptrTy, IRB.getInt32Ty());
 
+  TsanDeviceBarrier = M.getOrInsertFunction(
+      "__tsan_device_barrier", Attr.addFnAttribute(C, Attribute::Convergent),
+      IRB.getVoidTy());
+
+  TsanGroupBarrier = M.getOrInsertFunction(
+      "__tsan_group_barrier", Attr.addFnAttribute(C, Attribute::Convergent),
+      IRB.getVoidTy());
+
   for (size_t i = 0; i < kNumberOfAccessSizes; ++i) {
     const unsigned ByteSize = 1U << i;
     std::string ByteSizeStr = utostr(ByteSize);
@@ -287,6 +301,16 @@ void ThreadSanitizerOnSpirv::initialize() {
     TsanWrite[i] = M.getOrInsertFunction(WriteName, Attr, IRB.getVoidTy(),
                                          IntptrTy, IRB.getInt32Ty(), Int8PtrTy,
                                          IRB.getInt32Ty(), Int8PtrTy);
+
+    SmallString<32> UnalignedReadName("__tsan_unaligned_read" + ByteSizeStr);
+    TsanUnalignedRead[i] = M.getOrInsertFunction(
+        UnalignedReadName, Attr, IRB.getVoidTy(), IntptrTy, IRB.getInt32Ty(),
+        Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
+
+    SmallString<32> UnalignedWriteName("__tsan_unaligned_write" + ByteSizeStr);
+    TsanUnalignedWrite[i] = M.getOrInsertFunction(
+        UnalignedWriteName, Attr, IRB.getVoidTy(), IntptrTy, IRB.getInt32Ty(),
+        Int8PtrTy, IRB.getInt32Ty(), Int8PtrTy);
   }
 }
 
@@ -310,6 +334,21 @@ bool ThreadSanitizerOnSpirv::instrumentAllocInst(
   }
 
   return Changed;
+}
+
+bool ThreadSanitizerOnSpirv::instrumentControlBarrier(CallInst *CI) {
+  assert(isa<ConstantInt>(CI->getArgOperand(0)));
+  uint64_t Scope = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
+  // is not device scope or work group scope
+  if (Scope != 1 && Scope != 2)
+    return false;
+
+  InstrumentationIRBuilder IRB(CI);
+  CallInst *NewCI =
+      IRB.CreateCall(Scope == 1 ? TsanDeviceBarrier : TsanGroupBarrier, {});
+  NewCI->setAttributes(NewCI->getCalledFunction()->getAttributes());
+  CI->eraseFromParent();
+  return true;
 }
 
 void ThreadSanitizerOnSpirv::appendDebugInfoToArgs(
@@ -379,9 +418,9 @@ bool ThreadSanitizerOnSpirv::isUnsupportedDeviceGlobal(
   // TODO: Will support global variable with local address space later.
   if (G.getAddressSpace() == kSpirOffloadLocalAS)
     return true;
-  // Global variables have constant value or constant address space will not
-  // trigger race condition.
-  if (G.isConstant() || G.getAddressSpace() == kSpirOffloadConstantAS)
+  // Global variables have constant address space will not trigger race
+  // condition.
+  if (G.getAddressSpace() == kSpirOffloadConstantAS)
     return true;
   return false;
 }
@@ -664,7 +703,7 @@ static bool shouldInstrumentReadWriteFromAddress(const Module *M, Value *Addr) {
   if (Triple(M->getTargetTriple()).isSPIROrSPIRV()) {
     auto *OrigValue = getUnderlyingObject(Addr);
     if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
-      return true;
+      return false;
 
     auto AddrAS = cast<PointerType>(Addr->getType()->getScalarType())
                       ->getPointerAddressSpace();
@@ -824,6 +863,7 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
   SmallVector<Instruction*, 8> AtomicAccesses;
   SmallVector<Instruction*, 8> MemIntrinCalls;
   SmallVector<Instruction *, 8> Allocas;
+  SmallVector<CallInst *, 8> SpirControlBarrierCalls;
   bool Res = false;
   bool HasCalls = false;
   bool SanitizeFunction = F.hasFnAttribute(Attribute::SanitizeThread);
@@ -844,8 +884,16 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
         Allocas.push_back(&Inst);
       else if ((isa<CallInst>(Inst) && !isa<DbgInfoIntrinsic>(Inst)) ||
                isa<InvokeInst>(Inst)) {
-        if (CallInst *CI = dyn_cast<CallInst>(&Inst))
+        if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
           maybeMarkSanitizerLibraryCallNoBuiltin(CI, &TLI);
+          if (Spirv) {
+            Function *CalledFn = CI->getCalledFunction();
+            if (CalledFn &&
+                CalledFn->getName() == "_Z22__spirv_ControlBarrieriii") {
+              SpirControlBarrierCalls.push_back(CI);
+            }
+          }
+        }
         if (isa<MemIntrinsic>(Inst))
           MemIntrinCalls.push_back(&Inst);
         HasCalls = true;
@@ -883,6 +931,11 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
     if (HasCalls)
       InsertRuntimeIgnores(F);
   }
+
+  if (Spirv)
+    for (auto *CI : SpirControlBarrierCalls) {
+      Res |= Spirv->instrumentControlBarrier(CI);
+    }
 
   // FIXME: We need to skip the check for private memory, otherwise OpenCL CPU
   // device may generate false positive reports due to stack re-use in different
@@ -975,6 +1028,9 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
     else if (IsVolatile)
       OnAccessFunc = IsWrite ? TsanUnalignedVolatileWrite[Idx]
                              : TsanUnalignedVolatileRead[Idx];
+    else if (Spirv)
+      OnAccessFunc = IsWrite ? Spirv->TsanUnalignedWrite[Idx]
+                             : Spirv->TsanUnalignedRead[Idx];
     else
       OnAccessFunc = IsWrite ? TsanUnalignedWrite[Idx] : TsanUnalignedRead[Idx];
   }

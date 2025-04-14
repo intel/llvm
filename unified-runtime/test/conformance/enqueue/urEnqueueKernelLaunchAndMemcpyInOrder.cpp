@@ -34,9 +34,6 @@ struct urMultiQueueLaunchMemcpyTest
   using uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::queues;
 
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::urMultiQueueMultiDeviceTestWithParam<minDevices, T>::SetUp());
 
@@ -49,14 +46,13 @@ struct urMultiQueueLaunchMemcpyTest
     kernels.resize(devices.size());
     SharedMem.resize(devices.size());
 
-    KernelName =
-        uur::KernelsEnvironment::instance->GetEntryPointNames(ProgramName)[0];
-
     std::shared_ptr<std::vector<char>> il_binary;
     std::vector<ur_program_metadata_t> metadatas{};
 
-    uur::KernelsEnvironment::instance->LoadSource(ProgramName, platform,
-                                                  il_binary);
+    UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+        ProgramName, platform, il_binary));
+    KernelName =
+        uur::KernelsEnvironment::instance->GetEntryPointNames(ProgramName)[0];
 
     for (size_t i = 0; i < devices.size(); i++) {
       const ur_program_properties_t properties = {

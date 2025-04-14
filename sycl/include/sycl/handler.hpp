@@ -1617,8 +1617,10 @@ private:
                                             MergedProps...>(
               std::forward<decltype(args)>(args)...);
         } else {
-          // Always false, but template-dependent.
-          static_assert(WrapAsVal != WrapAsVal, "Unexpected WrapAsVal");
+          // Always false, but template-dependent. Can't compare `WrapAsVal`
+          // with itself because of `-Wtautological-compare` warning.
+          static_assert(!std::is_same_v<KernelName, KernelName>,
+                        "Unexpected WrapAsVal");
         }
       };
       if constexpr (detail::KernelLambdaHasKernelHandlerArgT<

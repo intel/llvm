@@ -46,7 +46,7 @@ class ComputeBench(Suite):
         return "https://github.com/intel/compute-benchmarks.git"
 
     def git_hash(self) -> str:
-        return "c10baa895b4364899e253e44127ff128a8efa5d5"
+        return "420842fc3f0c01aac7b328bf192c25d3e7b9fd9e"
 
     def setup(self):
         if options.sycl is None:
@@ -127,9 +127,20 @@ class ComputeBench(Suite):
         for runtime in self.enabled_runtimes():
             for in_order_queue in [0, 1]:
                 for measure_completion in [0, 1]:
-                    benches.append(
-                        SubmitKernel(self, runtime, in_order_queue, measure_completion)
-                    )
+                    for enqueue_functions in [0, 1]:
+                        # only SYCL backend supports enqueue functions
+                        if enqueue_functions == 1 and runtime != RUNTIMES.SYCL:
+                            continue
+
+                        benches.append(
+                            SubmitKernel(
+                                self,
+                                runtime,
+                                in_order_queue,
+                                measure_completion,
+                                enqueue_functions,
+                            )
+                        )
 
         # Add SinKernelGraph benchmarks
         for runtime in self.enabled_runtimes():
@@ -176,6 +187,15 @@ class ComputeBench(Suite):
                 MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
                 MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
                 MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
+                UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256, "Both"),
+                UsmMemoryAllocation(self, RUNTIMES.UR, "Device", 256 * 1024, "Both"),
+                UsmBatchMemoryAllocation(self, RUNTIMES.UR, "Device", 128, 256, "Both"),
+                UsmBatchMemoryAllocation(
+                    self, RUNTIMES.UR, "Device", 128, 16 * 1024, "Both"
+                ),
+                UsmBatchMemoryAllocation(
+                    self, RUNTIMES.UR, "Device", 128, 128 * 1024, "Both"
+                ),
             ]
 
         return benches
@@ -278,10 +298,13 @@ class ComputeBenchmark(Benchmark):
 
 
 class SubmitKernel(ComputeBenchmark):
-    def __init__(self, bench, runtime: RUNTIMES, ioq, measure_completion=0):
+    def __init__(
+        self, bench, runtime: RUNTIMES, ioq, MeasureCompletion=0, EnqueueFunctions=0
+    ):
         self.ioq = ioq
         self.runtime = runtime
-        self.measure_completion = measure_completion
+        self.MeasureCompletion = MeasureCompletion
+        self.EnqueueFunctions = EnqueueFunctions
         super().__init__(
             bench, f"api_overhead_benchmark_{runtime.value}", "SubmitKernel"
         )
@@ -291,12 +314,17 @@ class SubmitKernel(ComputeBenchmark):
 
     def name(self):
         order = "in order" if self.ioq else "out of order"
-        completion_str = " with measure completion" if self.measure_completion else ""
-        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}"
+        completion_str = " with measure completion" if self.MeasureCompletion else ""
+        enqueue_str = " using eventless SYCL enqueue" if self.EnqueueFunctions else ""
+        return f"api_overhead_benchmark_{self.runtime.value} SubmitKernel {order}{completion_str}{enqueue_str}"
 
     def explicit_group(self):
+        # make eventless enqueue its own group, since only SYCL supports this mode
+        if self.EnqueueFunctions:
+            return "Submit Kernel using eventless SYCL enqueue"
+
         order = "In Order" if self.ioq else "Out Of Order"
-        completion_str = " With Completion" if self.measure_completion else ""
+        completion_str = " With Completion" if self.MeasureCompletion else ""
         return f"SubmitKernel {order}{completion_str}"
 
     def description(self) -> str:
@@ -305,15 +333,11 @@ class SubmitKernel(ComputeBenchmark):
 
         completion_desc = ""
         if self.runtime == RUNTIMES.UR:
-            completion_desc = f", {'including' if self.measure_completion else 'excluding'} kernel completion time"
-
-        l0_specific = ""
-        if self.runtime == RUNTIMES.LEVEL_ZERO:
-            l0_specific = " Uses immediate command lists"
+            completion_desc = f", {'including' if self.MeasureCompletion else 'excluding'} kernel completion time"
 
         return (
             f"Measures CPU time overhead of submitting {order} kernels through {runtime_name} API{completion_desc}. "
-            f"Runs 10 simple kernels with minimal execution time to isolate API overhead from kernel execution time. {l0_specific}"
+            f"Runs 10 simple kernels with minimal execution time to isolate API overhead from kernel execution time."
         )
 
     def range(self) -> tuple[float, float]:
@@ -323,11 +347,12 @@ class SubmitKernel(ComputeBenchmark):
         return [
             f"--Ioq={self.ioq}",
             "--DiscardEvents=0",
-            f"--MeasureCompletion={self.measure_completion}",
+            f"--MeasureCompletion={self.MeasureCompletion}",
             "--iterations=100000",
             "--Profiling=0",
             "--NumKernels=10",
             "--KernelExecTime=1",
+            f"--EnqueueFunctions={self.EnqueueFunctions}",
         ]
 
 
@@ -699,4 +724,102 @@ class UllsKernelSwitch(ComputeBenchmark):
             f"--hostVisible={self.hostVisible}",
             f"--ioq={self.ioq}",
             f"--ctrBasedEvents={self.ctrBasedEvents}",
+        ]
+
+
+class UsmMemoryAllocation(ComputeBenchmark):
+    def __init__(
+        self, bench, runtime: RUNTIMES, usm_memory_placement, size, measure_mode
+    ):
+        self.runtime = runtime
+        self.usm_memory_placement = usm_memory_placement
+        self.size = size
+        self.measure_mode = measure_mode
+        super().__init__(
+            bench, f"api_overhead_benchmark_{runtime.value}", "UsmMemoryAllocation"
+        )
+
+    def get_tags(self):
+        return [runtime_to_tag_name(self.runtime), "micro", "latency", "memory"]
+
+    def name(self):
+        return (
+            f"api_overhead_benchmark_{self.runtime.value} UsmMemoryAllocation "
+            f"usmMemoryPlacement:{self.usm_memory_placement} size:{self.size} measureMode:{self.measure_mode}"
+        )
+
+    def explicit_group(self):
+        return f"UsmMemoryAllocation"
+
+    def description(self) -> str:
+        what_is_measured = "Both memory allocation and memory free are timed"
+        if self.measure_mode == "Allocate":
+            what_is_measured = "Only memory allocation is timed"
+        elif self.measure_mode == "Free":
+            what_is_measured = "Only memory free is timed"
+        return (
+            f"Measures memory allocation overhead by allocating {self.size} bytes of "
+            f"usm {self.usm_memory_placement} memory and free'ing it immediately. "
+            f"{what_is_measured}. "
+        )
+
+    def bin_args(self) -> list[str]:
+        return [
+            f"--type={self.usm_memory_placement}",
+            f"--size={self.size}",
+            f"--measureMode={self.measure_mode}",
+            "--iterations=10000",
+        ]
+
+
+class UsmBatchMemoryAllocation(ComputeBenchmark):
+    def __init__(
+        self,
+        bench,
+        runtime: RUNTIMES,
+        usm_memory_placement,
+        allocation_count,
+        size,
+        measure_mode,
+    ):
+        self.runtime = runtime
+        self.usm_memory_placement = usm_memory_placement
+        self.allocation_count = allocation_count
+        self.size = size
+        self.measure_mode = measure_mode
+        super().__init__(
+            bench, f"api_overhead_benchmark_{runtime.value}", "UsmBatchMemoryAllocation"
+        )
+
+    def get_tags(self):
+        return [runtime_to_tag_name(self.runtime), "micro", "latency", "memory"]
+
+    def name(self):
+        return (
+            f"api_overhead_benchmark_{self.runtime.value} UsmBatchMemoryAllocation "
+            f"usmMemoryPlacement:{self.usm_memory_placement} allocationCount:{self.allocation_count} size:{self.size} measureMode:{self.measure_mode}"
+        )
+
+    def explicit_group(self):
+        return f"UsmBatchMemoryAllocation"
+
+    def description(self) -> str:
+        what_is_measured = "Both memory allocation and memory free are timed"
+        if self.measure_mode == "Allocate":
+            what_is_measured = "Only memory allocation is timed"
+        elif self.measure_mode == "Free":
+            what_is_measured = "Only memory free is timed"
+        return (
+            f"Measures memory allocation overhead by allocating {self.size} bytes of "
+            f"usm {self.usm_memory_placement} memory {self.allocation_count} times, then free'ing it all at once. "
+            f"{what_is_measured}. "
+        )
+
+    def bin_args(self) -> list[str]:
+        return [
+            f"--type={self.usm_memory_placement}",
+            f"--allocationCount={self.allocation_count}",
+            f"--size={self.size}",
+            f"--measureMode={self.measure_mode}",
+            "--iterations=1000",
         ]

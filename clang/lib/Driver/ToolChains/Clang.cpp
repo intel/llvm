@@ -5470,8 +5470,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                          const ArgList &Args, const char *LinkingOutput) const {
   const auto &TC = getToolChain();
   const llvm::Triple &RawTriple = TC.getTriple();
-  const llvm::Triple &Triple = TC.getEffectiveTriple();
-  const std::string &TripleStr = Triple.getTriple();
+  llvm::Triple Triple = TC.getEffectiveTriple();
+  std::string TripleStr = Triple.getTriple();
 
   bool KernelOrKext =
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
@@ -5513,7 +5513,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsUsingLTO = LTOMode != LTOK_None;
   bool IsFPGASYCLOffloadDevice =
       IsSYCLDevice && Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
-  const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
   const bool IsSYCLCUDACompat = isSYCLCudaCompatEnabled(Args);
 
   // Perform the SYCL host compilation using an external compiler if the user
@@ -5572,6 +5571,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Windows), we need to pass Windows-specific flags to cc1.
   if (IsCuda || IsHIP || IsSYCL)
     IsWindowsMSVC |= AuxTriple && AuxTriple->isWindowsMSVCEnvironment();
+
+  // Adjust for SYCL NativeCPU compilations.  When compiling in device mode, the
+  // first compilation uses the NativeCPU target for LLVM IR generation, the
+  // second compilation uses the host target for machine code generation.
+  const bool IsSYCLNativeCPU = isSYCLNativeCPU(Triple);
+  if (IsSYCL && IsSYCLDevice && IsSYCLNativeCPU && AuxTriple &&
+      isa<AssembleJobAction>(JA)) {
+    Triple = *AuxTriple;
+    TripleStr = Triple.getTriple();
+  }
 
   // C++ is not supported for IAMCU.
   if (IsIAMCU && types::isCXX(Input.getType()))
@@ -5748,27 +5757,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-Wno-sycl-strict");
       }
 
-      // If no optimization controlling flags (-O) are provided, check if
-      // any debug information flags(-g) are passed.
-      // "-fintelfpga" implies "-g" and we preserve the default optimization for
-      // this flow(-O2).
-      // if "-g" is explicitly passed from the command-line, set default
-      // optimization to -O0.
-
-      if (!Args.hasArgNoClaim(options::OPT_O_Group, options::OPT__SLASH_O)) {
-        StringRef OptLevel = "-O2";
-        const Arg *DebugInfoGroup = Args.getLastArg(options::OPT_g_Group);
-        // -fintelfpga -g case
-        if ((Args.hasArg(options::OPT_fintelfpga) &&
-             Args.hasMultipleArgs(options::OPT_g_Group)) ||
-            /* -fsycl -g case */ (!Args.hasArg(options::OPT_fintelfpga) &&
-                                  DebugInfoGroup)) {
-          if (!DebugInfoGroup->getOption().matches(options::OPT_g0)) {
-            OptLevel = "-O0";
-          }
-        }
-        CmdArgs.push_back(OptLevel.data());
-      }
+      // Set O2 optimization level by default
+      if (!Args.getLastArg(options::OPT_O_Group))
+        CmdArgs.push_back("-O2");
 
       // Add the integration header option to generate the header.
       StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
@@ -6112,6 +6103,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CollectArgsForIntegratedAssembler(C, Args, CmdArgs, D);
     }
     if (IsSYCLDevice && IsSYCLNativeCPU) {
+      // NativeCPU generates an initial LLVM module for an unknown target, then
+      // compiles that for host. Avoid generating a warning for that.
+      CmdArgs.push_back("-Wno-override-module");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-native-cpu-backend");
     }
@@ -10439,10 +10433,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TargetTripleOpt = ("llvm_" + TargetTripleOpt).str();
     }
 
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
-    if (IsSYCLNativeCPU) {
-      TargetTripleOpt = "native_cpu";
-    }
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));
 
@@ -11075,25 +11065,7 @@ static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
                     [=](char c) { return c == S[0]; }))
       return std::string("-O") + S[0];
   }
-  // If no optimization controlling flags (-O) are provided, check if
-  // any debug information flags(-g) are passed.
-  // "-fintelfpga" implies "-g" and we preserve the default optimization for
-  // this flow(-O2).
-  // if "-g" is explicitly passed from the command-line, set default
-  // optimization to -O0.
 
-  if (!Args.hasArg(options::OPT_O_Group)) {
-    const Arg *DebugInfoGroup = Args.getLastArg(options::OPT_g_Group);
-    // -fintelfpga -g case
-    if ((Args.hasArg(options::OPT_fintelfpga) &&
-         Args.hasMultipleArgs(options::OPT_g_Group)) ||
-        /* -fsycl -g case */
-        (!Args.hasArg(options::OPT_fintelfpga) && DebugInfoGroup)) {
-      if (!DebugInfoGroup->getOption().matches(options::OPT_g0)) {
-        return "-O0";
-      }
-    }
-  }
   // The default for SYCL device code optimization
   return "-O2";
 }
@@ -11180,7 +11152,7 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                      options::OPT_fsycl_remove_unused_external_funcs, false))
     return false;
-  if (isSYCLNativeCPU(TC))
+  if (isSYCLNativeCPU(Triple))
     return true;
   // When supporting dynamic linking, non-kernels in a device image can be
   // called.
@@ -11239,7 +11211,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (!Triple.isAMDGCN())
     addArgs(PostLinkArgs, TCArgs, {"-emit-param-info"});
   // Enable program metadata
-  if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(TC))
+  if (Triple.isNVPTX() || Triple.isAMDGCN() || isSYCLNativeCPU(Triple))
     addArgs(PostLinkArgs, TCArgs, {"-emit-program-metadata"});
   if (OutputType != types::TY_LLVM_BC) {
     assert(OutputType == types::TY_Tempfiletable);

@@ -968,6 +968,10 @@ static bool isValidSYCLTriple(llvm::Triple T) {
       !T.hasEnvironment())
     return true;
 
+  // 'native_cpu' is valid for Native CPU.
+  if (isSYCLNativeCPU(T))
+    return true;
+
   // Check for invalid SYCL device triple values.
   // Non-SPIR/SPIRV arch.
   if (!T.isSPIROrSPIRV())
@@ -1326,17 +1330,21 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
   checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
 
-  // Evaluation of -fsycl-device-obj is slightly different, we will emit
-  // a warning and inform the user of the default behavior used.
+  // Evaluation of -fsycl-device-obj is slightly different, we will emit a
+  // warning and inform the user of the default behavior used.
   // TODO: General usage of this option is to check for 'spirv' and fallthrough
   // to using llvmir.  This can be improved to be more obvious in usage.
   if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
           options::OPT_fsycl_device_obj_EQ)) {
+    const bool SYCLDeviceOnly = C.getDriver().offloadDeviceOnly();
+    const bool EmitAsm = C.getInputArgs().getLastArgNoClaim(options::OPT_S);
     StringRef ArgValue(DeviceObj->getValue());
-    SmallVector<StringRef, 2> DeviceObjValues = {"spirv", "llvmir"};
+    SmallVector<StringRef, 3> DeviceObjValues = {"spirv", "llvmir", "asm"};
     if (llvm::find(DeviceObjValues, ArgValue) == DeviceObjValues.end())
       Diag(clang::diag::warn_ignoring_value_using_default)
           << DeviceObj->getSpelling().split('=').first << ArgValue << "llvmir";
+    else if (ArgValue == "asm" && (!SYCLDeviceOnly || !EmitAsm))
+      Diag(clang::diag::warn_drv_fsycl_device_obj_asm_device_only);
   }
 
   Arg *SYCLForceTarget =
@@ -1392,12 +1400,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             }
             Arch = Device->data();
             UserTargetName = "amdgcn-amd-amdhsa";
-          } else if (Val == "native_cpu") {
-            const ToolChain *HostTC =
-                C.getSingleOffloadToolChain<Action::OFK_Host>();
-            llvm::Triple HostTriple = HostTC->getTriple();
-            SYCLTriples.insert(HostTriple.normalize());
-            continue;
           }
 
           llvm::Triple DeviceTriple(getSYCLDeviceTriple(UserTargetName));
@@ -1571,6 +1573,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
     }
   }
+
   // -fno-sycl-libspirv flag is reserved for very unusual cases where the
   // libspirv library is not linked when using CUDA/HIP: so output appropriate
   // warnings.
@@ -5349,6 +5352,15 @@ class OffloadingActionBuilder final {
                                                        types::TY_SPIRV);
             if (SYCLDeviceOnly)
               continue;
+          } else if (SYCLDeviceOnly && Args.hasArg(options::OPT_S) &&
+                     Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+                         .equals_insensitive("asm")) {
+            auto *CompileAction =
+                C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
+            A = C.MakeAction<BackendJobAction>(CompileAction, types::TY_PP_Asm);
+
+            if (SYCLDeviceOnly)
+              continue;
           } else {
             if (Args.hasArg(options::OPT_fsyntax_only))
               OutputType = types::TY_Nothing;
@@ -5667,9 +5679,7 @@ class OffloadingActionBuilder final {
       auto IsAMDGCN = TargetTriple.isAMDGCN();
       auto IsSPIR = TargetTriple.isSPIROrSPIRV();
       bool IsSpirvAOT = TargetTriple.isSPIRAOT();
-      const bool IsSYCLNativeCPU =
-          TC->getAuxTriple() &&
-          driver::isSYCLNativeCPU(TargetTriple, *TC->getAuxTriple());
+      bool IsSYCLNativeCPU = isSYCLNativeCPU(TargetTriple);
       for (const auto &Input : ListIndex) {
         if (TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
             types::isFPGA(Input->getType())) {
@@ -6733,12 +6743,6 @@ class OffloadingActionBuilder final {
                   C.getDriver().getSYCLDeviceTriple("amdgcn-amd-amdhsa"),
                   ValidDevice->data());
               UserTargetName = "amdgcn-amd-amdhsa";
-            } else if (Val == "native_cpu") {
-              const ToolChain *HostTC =
-                  C.getSingleOffloadToolChain<Action::OFK_Host>();
-              llvm::Triple TT = HostTC->getTriple();
-              SYCLTripleList.push_back(TT);
-              continue;
             }
 
             llvm::Triple TT(
@@ -7277,10 +7281,6 @@ public:
   /// Offload deps output is then forwarded to active device action builders so
   /// they can add it to the device linker inputs.
   void addDeviceLinkDependenciesFromHost(ActionList &LinkerInputs) {
-    if (isSYCLNativeCPU(C.getArgs())) {
-      // SYCL Native CPU doesn't need deps from clang-offload-deps.
-      return;
-    }
     // Link image for reading dependencies from it.
     auto *LA = C.MakeAction<LinkJobAction>(LinkerInputs,
                                            types::TY_Host_Dependencies_Image);
@@ -9684,9 +9684,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       Action::OffloadKind DependentOffloadKind;
       if (UI.DependentOffloadKind == Action::OFK_SYCL &&
           TargetDeviceOffloadKind == Action::OFK_None &&
-          !(isSYCLNativeCPU(Args) &&
-            isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
-                            TC->getTriple()) &&
+          !(isSYCLNativeCPU(C.getDefaultToolChain().getTriple()) &&
             UA->getDependentActionsInfo().size() > 1))
         DependentOffloadKind = Action::OFK_Host;
       else
@@ -10581,9 +10579,9 @@ const ToolChain &Driver::getOffloadToolChain(
                                                            *HostTC, Args, Kind);
       break;
     default:
-      if (Kind == Action::OFK_SYCL && isSYCLNativeCPU(Args))
-          TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target,
-                                                           *HostTC, Args);
+      if (Kind == Action::OFK_SYCL && isSYCLNativeCPU(Target))
+        TC = std::make_unique<toolchains::SYCLToolChain>(*this, Target, *HostTC,
+                                                         Args);
       break;
     }
   }

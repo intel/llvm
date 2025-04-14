@@ -29,6 +29,11 @@ using __nativecpu_state = native_cpu::state;
 #define DEVICE_EXTERNAL_C DEVICE_EXTERN_C __attribute__((always_inline))
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((always_inline))
 
+// Several functions are used implicitly by WorkItemLoopsPass and
+// PrepareSYCLNativeCPUPass and need to be marked as used to prevent them being
+// removed early.
+#define USED __attribute__((used))
+
 #define OCL_LOCAL __attribute__((opencl_local))
 #define OCL_GLOBAL __attribute__((opencl_global))
 #define OCL_PRIVATE __attribute__((opencl_private))
@@ -73,10 +78,8 @@ DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL);
   __spirv_SubgroupBlockReadINTEL<Type>(const OCL_GLOBAL PType *Ptr) noexcept { \
     return Ptr[__spirv_SubgroupLocalInvocationId()];                           \
   }                                                                            \
-  template <>                                                                  \
-  __SYCL_CONVERGENT__ DEVICE_EXTERNAL void                                     \
-  __spirv_SubgroupBlockWriteINTEL<Type>(PType OCL_GLOBAL * ptr,                \
-                                        Type v) noexcept {                     \
+  __SYCL_CONVERGENT__ DEVICE_EXTERNAL void __spirv_SubgroupBlockWriteINTEL(    \
+      PType OCL_GLOBAL *ptr, Type v) noexcept {                                \
     ((Type *)ptr)[__spirv_SubgroupLocalInvocationId()] = v;                    \
   }                                                                            \
   static_assert(true)
@@ -252,9 +255,8 @@ DefineBroadCast(int64_t, i64, int64_t);
 #define DefShuffleINTEL(Type, Sfx, MuxType)                                    \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_##Sfx(MuxType val,           \
                                                         int32_t lid) noexcept; \
-  template <>                                                                  \
-  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleINTEL<Type>(                     \
-      Type val, unsigned id) noexcept {                                        \
+  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleINTEL(Type val,                  \
+                                                    unsigned id) noexcept {    \
     return (Type)__mux_sub_group_shuffle_##Sfx((MuxType)val, id);              \
   }                                                                            \
   static_assert(true)
@@ -262,8 +264,7 @@ DefineBroadCast(int64_t, i64, int64_t);
 #define DefShuffleUpINTEL(Type, Sfx, MuxType)                                  \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_up_##Sfx(                    \
       MuxType prev, MuxType curr, int32_t delta) noexcept;                     \
-  template <>                                                                  \
-  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleUpINTEL<Type>(                   \
+  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleUpINTEL(                         \
       Type prev, Type curr, unsigned delta) noexcept {                         \
     return (Type)__mux_sub_group_shuffle_up_##Sfx((MuxType)prev,               \
                                                   (MuxType)curr, delta);       \
@@ -273,8 +274,7 @@ DefineBroadCast(int64_t, i64, int64_t);
 #define DefShuffleDownINTEL(Type, Sfx, MuxType)                                \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_down_##Sfx(                  \
       MuxType curr, MuxType next, int32_t delta) noexcept;                     \
-  template <>                                                                  \
-  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleDownINTEL<Type>(                 \
+  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleDownINTEL(                       \
       Type curr, Type next, unsigned delta) noexcept {                         \
     return (Type)__mux_sub_group_shuffle_down_##Sfx((MuxType)curr,             \
                                                     (MuxType)next, delta);     \
@@ -284,8 +284,7 @@ DefineBroadCast(int64_t, i64, int64_t);
 #define DefShuffleXorINTEL(Type, Sfx, MuxType)                                 \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_xor_##Sfx(MuxType val,       \
                                                             int32_t xor_val);  \
-  template <>                                                                  \
-  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleXorINTEL<Type>(                  \
+  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleXorINTEL(                        \
       Type data, unsigned value) noexcept {                                    \
     return (Type)__mux_sub_group_shuffle_xor_##Sfx((MuxType)data, value);      \
   }                                                                            \
@@ -309,8 +308,20 @@ DefShuffleINTEL_All(double, f64, double);
 DefShuffleINTEL_All(float, f32, float);
 DefShuffleINTEL_All(_Float16, f16, _Float16);
 
-// Vector versions of shuffle are generated by the FixABIBuiltinsSYCLNativeCPU
-// pass
+#define DefineShuffleVec(T, N, Sfx, MuxType)                                   \
+  using vt##T##N = sycl::vec<T, N>::vector_t;                                  \
+  using vt##MuxType##N = sycl::vec<MuxType, N>::vector_t;                      \
+  DefShuffleINTEL_All(vt##T##N, v##N##Sfx, vt##MuxType##N)
+
+#define DefineShuffleVec2to16(Type, Sfx, MuxType)                              \
+  DefineShuffleVec(Type, 2, Sfx, MuxType);                                     \
+  DefineShuffleVec(Type, 4, Sfx, MuxType);                                     \
+  DefineShuffleVec(Type, 8, Sfx, MuxType);                                     \
+  DefineShuffleVec(Type, 16, Sfx, MuxType)
+
+DefineShuffleVec2to16(int32_t, i32, int32_t);
+DefineShuffleVec2to16(uint32_t, i32, int32_t);
+DefineShuffleVec2to16(float, f32, float);
 
 #define Define2ArgForward(Type, Name, Callee)                                  \
   DEVICE_EXTERNAL Type Name(Type a, Type b) noexcept { return Callee(a, b); }  \
@@ -354,7 +365,7 @@ using MakeGlobalType = typename sycl::detail::DecoratedType<
     T, sycl::access::address_space::global_space>::type;
 
 #define DefStateSetWithType(name, field, type)                                 \
-  DEVICE_EXTERNAL_C void __dpcpp_nativecpu_##name(                             \
+  DEVICE_EXTERNAL_C USED void __dpcpp_nativecpu_##name(                        \
       type value, MakeGlobalType<__nativecpu_state> *s) {                      \
     s->field = value;                                                          \
   }                                                                            \
@@ -366,7 +377,7 @@ DefStateSetWithType(set_sub_group_id, SubGroup_id, uint32_t);
 DefStateSetWithType(set_max_sub_group_size, SubGroup_size, uint32_t);
 
 #define DefineStateGetWithType(name, field, type)                              \
-  DEVICE_EXTERNAL_C GET_PROPS type __dpcpp_nativecpu_##name(                   \
+  DEVICE_EXTERNAL_C GET_PROPS USED type __dpcpp_nativecpu_##name(              \
       MakeGlobalType<const __nativecpu_state> *s) {                            \
     return s->field;                                                           \
   }                                                                            \
@@ -382,7 +393,7 @@ DefineStateGet_U32(get_max_sub_group_size, SubGroup_size);
 DefineStateGet_U32(get_num_sub_groups, NumSubGroups);
 
 #define DefineStateGetWithType2(name, field, rtype, ptype)                     \
-  DEVICE_EXTERNAL_C GET_PROPS rtype __dpcpp_nativecpu_##name(                  \
+  DEVICE_EXTERNAL_C GET_PROPS USED rtype __dpcpp_nativecpu_##name(             \
       ptype dim, MakeGlobalType<const __nativecpu_state> *s) {                 \
     return s->field[dim];                                                      \
   }                                                                            \
@@ -400,9 +411,9 @@ DefineStateGet_U64(get_num_groups, MNumGroups);
 DefineStateGet_U64(get_wg_size, MWorkGroup_size);
 DefineStateGet_U64(get_wg_id, MWorkGroup_id);
 
-DEVICE_EXTERNAL_C
-void __dpcpp_nativecpu_set_local_id(uint32_t dim, uint64_t value,
-                                    MakeGlobalType<__nativecpu_state> *s) {
+DEVICE_EXTERNAL_C USED void
+__dpcpp_nativecpu_set_local_id(uint32_t dim, uint64_t value,
+                               MakeGlobalType<__nativecpu_state> *s) {
   s->MLocal_id[dim] = value;
   s->MGlobal_id[dim] = s->MWorkGroup_size[dim] * s->MWorkGroup_id[dim] +
                        s->MLocal_id[dim] + s->MGlobalOffset[dim];
