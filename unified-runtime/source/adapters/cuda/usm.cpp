@@ -346,10 +346,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
     ur_usm_pool_desc_t *PoolDesc,
     /// [out] pointer to USM memory pool
     ur_usm_pool_handle_t *Pool) {
-  // Without pool tracking we can't free pool allocations.
-  if (PoolDesc->flags & UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK) {
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-  }
+  // Zero initializing seems to be the default behavior for CUDA so no need to
+  // handle that flag here.
   try {
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, PoolDesc));
