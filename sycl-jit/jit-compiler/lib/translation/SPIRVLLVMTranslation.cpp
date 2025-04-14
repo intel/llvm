@@ -87,12 +87,6 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
     const llvm::SmallVector<llvm::StringRef, 4> AllowedIntrinsics = {
         "llvm.genx."};
     TransOpt.setSPIRVAllowUnknownIntrinsics(AllowedIntrinsics);
-    // TODO: We need to take care of specialization constants, either by
-    // instantiating them by the user-supplied value from the SYCL runtime or by
-    // making sure they are correctly represented in the output?
-    // Currently, no: The materializer does not produce SPIR-V output, and
-    // specialization constants cannot be set on kernel bundles in
-    // `ext_oneapi_source` state.
     return TransOpt;
   }();
   return Opts;

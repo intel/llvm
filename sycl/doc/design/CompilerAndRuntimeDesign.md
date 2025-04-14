@@ -786,9 +786,9 @@ with target `llvm_nvptx64` for the CUDA backend and `llvm_amdgcn` for the HIP
 backend.
 
 This device binary in LLVM IR format can be retrieved by the SYCL runtime and
-used by the JIT compiler. For the CUDA backend, the resulting fused kernel is
+used by the JIT compiler. For the CUDA backend, the resulting LLVM module is
 compiled to PTX assembly by the JIT compiler at runtime. For the HIP backend,
-the resulting fused kernel is compiled to an AMDGCN binary by the JIT compiler
+the resulting LLVM module is compiled to an AMDGCN binary by the JIT compiler
 at runtime, however this output requires finalization by `lld`. Rather than
 adding another dependency to the JIT library, a `Requires finalization` property
 is added the binary. The HIP UR adapter will then use the AMD Compiler Object

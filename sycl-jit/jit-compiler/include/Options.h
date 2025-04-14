@@ -14,7 +14,7 @@
 
 namespace jit_compiler {
 
-enum OptionID { VerboseOutput, EnableCaching, TargetCPU, TargetFeatures };
+enum OptionID { VerboseOutput, TargetCPU, TargetFeatures };
 
 class OptionPtrBase {
 protected:

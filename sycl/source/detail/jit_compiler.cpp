@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/feature_test.hpp>
 #if SYCL_EXT_JIT_ENABLE
-#include <Materializer.h>
-#include <RTC.h>
 #include <detail/jit_compiler.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <sycl/detail/os_util.hpp>

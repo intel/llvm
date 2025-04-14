@@ -8,7 +8,6 @@
 
 #include "MaterializerPipeline.h"
 
-#include "helper/ConfigHelper.h"
 #include "materializer/SYCLSpecConstMaterializer.h"
 
 #include "llvm/IR/PassManager.h"
