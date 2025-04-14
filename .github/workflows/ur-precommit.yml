@@ -110,7 +110,6 @@ jobs:
         -DCMAKE_BUILD_TYPE=Release
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
-        -DUMF_ENABLE_POOL_TRACKING=ON
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(sysctl -n hw.logicalcpu)
