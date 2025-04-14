@@ -2453,7 +2453,8 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) > 1)>
   parallel_for(range<1> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
@@ -2461,7 +2462,8 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) > 1)>
   parallel_for(range<2> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
@@ -2469,7 +2471,8 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value &&
+                   (sizeof...(RestT) > 1)>
   parallel_for(range<3> Range, RestT &&...Rest) {
     parallel_for<KernelName>(Range,
                              ext::oneapi::experimental::empty_properties_t{},
