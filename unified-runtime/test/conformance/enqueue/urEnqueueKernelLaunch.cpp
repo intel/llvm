@@ -527,10 +527,12 @@ struct urEnqueueKernelLaunchMultiDeviceTest
     auto kernelName =
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
-    uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
+    UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+        "foo", platform, il_binary));
 
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, devices[0], *il_binary, nullptr, &program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, devices[0], *il_binary, nullptr, &program));
 
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
     ASSERT_SUCCESS(urKernelCreate(program, kernelName.data(), &kernel));

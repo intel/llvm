@@ -710,14 +710,18 @@ public:
   void *getTraceEvent() { return MTraceEvent; }
 
   void setExternalEvent(const event &Event) {
-    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
-    MInOrderExternalEvent = Event;
+    MInOrderExternalEvent.set([&](std::optional<event> &InOrderExternalEvent) {
+      InOrderExternalEvent = Event;
+    });
   }
 
   std::optional<event> popExternalEvent() {
-    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
     std::optional<event> Result = std::nullopt;
-    std::swap(Result, MInOrderExternalEvent);
+
+    MInOrderExternalEvent.unset(
+        [&](std::optional<event> &InOrderExternalEvent) {
+          std::swap(Result, InOrderExternalEvent);
+        });
     return Result;
   }
 
@@ -838,12 +842,12 @@ protected:
     // dependency so in the case where some commands were not enqueued
     // (blocked), we track them to prevent barrier from being enqueued
     // earlier.
-    {
-      std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
-      for (auto &UpdatedGraph : MMissedCleanupRequests)
-        doUnenqueuedCommandCleanup(UpdatedGraph);
-      MMissedCleanupRequests.clear();
-    }
+    MMissedCleanupRequests.unset(
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+          for (auto &UpdatedGraph : MissedCleanupRequests)
+            doUnenqueuedCommandCleanup(UpdatedGraph);
+          MissedCleanupRequests.clear();
+        });
     auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
     if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
       Handler.depends_on(Deps.UnenqueuedCmdEvents);
@@ -870,17 +874,15 @@ protected:
   event finalizeHandlerPostProcess(
       HandlerType &Handler,
       const optional<SubmitPostProcessF> &PostProcessorFunc) {
-    auto HandlerImpl = detail::getSyclObjImpl(Handler);
-    const CGType Type = HandlerImpl->MCGType;
-
-    bool IsKernel = Type == CGType::Kernel;
+    bool IsKernel = Handler.getType() == CGType::Kernel;
     bool KernelUsesAssert = false;
 
     if (IsKernel)
       // Kernel only uses assert if it's non interop one
-      KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-                         ProgramManager::getInstance().kernelUsesAssert(
-                             Handler.MKernelName.c_str());
+      KernelUsesAssert =
+          (!Handler.MKernel || Handler.MKernel->hasSYCLMetadata()) &&
+          ProgramManager::getInstance().kernelUsesAssert(
+              Handler.MKernelName.c_str());
 
     auto Event = MIsInorder ? finalizeHandlerInOrder(Handler)
                             : finalizeHandlerOutOfOrder(Handler);
@@ -1027,6 +1029,36 @@ protected:
     }
   } MDefaultGraphDeps, MExtGraphDeps;
 
+  // Implement check-lock-check pattern to not lock empty MData as the locks
+  // come with runtime overhead.
+  template <typename DataType> class CheckLockCheck {
+    DataType MData;
+    std::atomic_bool MIsSet = false;
+    mutable std::mutex MDataMtx;
+
+  public:
+    template <typename F> void set(F &&func) {
+      std::lock_guard<std::mutex> Lock(MDataMtx);
+      MIsSet.store(true, std::memory_order_release);
+      std::forward<F>(func)(MData);
+    }
+    template <typename F> void unset(F &&func) {
+      if (MIsSet.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> Lock(MDataMtx);
+        if (MIsSet.load(std::memory_order_acquire)) {
+          std::forward<F>(func)(MData);
+          MIsSet.store(false, std::memory_order_release);
+        }
+      }
+    }
+    DataType read() {
+      if (!MIsSet.load(std::memory_order_acquire))
+        return DataType{};
+      std::lock_guard<std::mutex> Lock(MDataMtx);
+      return MData;
+    }
+  };
+
   const bool MIsInorder;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
@@ -1047,10 +1079,9 @@ protected:
 
   // This event can be optionally provided by users for in-order queues to add
   // an additional dependency for the subsequent submission in to the queue.
-  // Access to the event should be guarded with MInOrderExternalEventMtx.
+  // Access to the event should be guarded with mutex.
   // NOTE: std::optional must not be exposed in the ABI.
-  std::optional<event> MInOrderExternalEvent;
-  mutable std::mutex MInOrderExternalEventMtx;
+  CheckLockCheck<std::optional<event>> MInOrderExternalEvent;
 
 public:
   // Queue constructed with the discard_events property
@@ -1073,9 +1104,9 @@ protected:
   unsigned long long MQueueID;
   static std::atomic<unsigned long long> MNextAvailableQueueID;
 
-  std::deque<std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>
-      MMissedCleanupRequests;
-  std::mutex MMissedCleanupRequestsMtx;
+  using MissedCleanupRequestsType = std::deque<
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>>;
+  CheckLockCheck<MissedCleanupRequestsType> MMissedCleanupRequests;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 

@@ -23,6 +23,7 @@ jobs:
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
 
+  # Build used for performance testing only: not intended for testing
   linux_shared_build:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
@@ -31,7 +32,7 @@ jobs:
       build_cache_root: "/__w/"
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
-      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu'
+      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu --no-assertions'
 
       artifact_archive_name: sycl_linux_shared.tar.zst
 
@@ -148,6 +149,8 @@ jobs:
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
+      # Disable the spirv-dis requirement as to not require SPIR-V Tools.
+      build_configure_extra_args: -DLLVM_SPIRV_ENABLE_LIBSPIRV_DIS=off
 
   e2e-win:
     needs: build-win

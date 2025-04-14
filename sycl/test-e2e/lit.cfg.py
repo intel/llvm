@@ -168,6 +168,8 @@ if config.extra_environment:
             lit_config.note("\tUnset " + var)
             llvm_config.with_environment(var, "")
 
+# Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
+llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
 # Temporarily modify environment to be the same that we use when running tests
 class test_env:
@@ -246,6 +248,12 @@ def check_igc_tag_and_add_feature():
             if "igc-dev" in contents:
                 config.available_features.add("igc-dev")
 
+
+def quote_path(path):
+    if platform.system() == "Windows":
+        return f'"{path}"'
+    return shlex.quote(path)
+
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
 
@@ -305,10 +313,10 @@ with open_check_file(check_l0_file) as fp:
         file=fp,
     )
 
-config.level_zero_libs_dir = shlex.quote(
+config.level_zero_libs_dir = quote_path(
     lit_config.params.get("level_zero_libs_dir", config.level_zero_libs_dir)
 )
-config.level_zero_include = shlex.quote(
+config.level_zero_include = quote_path(
     lit_config.params.get(
         "level_zero_include",
         (
@@ -416,10 +424,10 @@ with open_check_file(check_cuda_file) as fp:
         file=fp,
     )
 
-config.cuda_libs_dir = shlex.quote(
+config.cuda_libs_dir = quote_path(
     lit_config.params.get("cuda_libs_dir", config.cuda_libs_dir)
 )
-config.cuda_include = shlex.quote(
+config.cuda_include = quote_path(
     lit_config.params.get(
         "cuda_include",
         (config.cuda_include if config.cuda_include else config.sycl_include),
@@ -465,10 +473,10 @@ with open_check_file(check_hip_file) as fp:
         ),
         file=fp,
     )
-config.hip_libs_dir = shlex.quote(
+config.hip_libs_dir = quote_path(
     lit_config.params.get("hip_libs_dir", config.hip_libs_dir)
 )
-config.hip_include = shlex.quote(
+config.hip_include = quote_path(
     lit_config.params.get(
         "hip_include",
         (config.hip_include if config.hip_include else config.sycl_include),
@@ -505,6 +513,8 @@ with test_env():
 
 # Check for OpenCL ICD
 if config.opencl_libs_dir:
+    config.opencl_libs_dir = quote_path(config.opencl_libs_dir)
+    config.opencl_include_dir = quote_path(config.opencl_include_dir)
     if cl_options:
         config.substitutions.append(
             ("%opencl_lib", " " + config.opencl_libs_dir + "/OpenCL.lib")
@@ -612,13 +622,17 @@ if (
     if "amdgcn" in sp[1]:
         config.sycl_build_targets.add("target-amd")
 
+cmd = "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
+sycl_ls_output = subprocess.check_output(cmd, text=True, shell=True)
+
+# In contrast to `cpu` feature this is a compile-time feature, which is needed
+# to check if we can build cpu AOT tests.
+if "opencl:cpu" in sycl_ls_output:
+    config.available_features.add("opencl-cpu-rt")
+
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     devices = set()
-    cmd = (
-        "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
-    )
-    sp = subprocess.check_output(cmd, text=True, shell=True)
-    for line in sp.splitlines():
+    for line in sycl_ls_output.splitlines():
         if not line.startswith("["):
             continue
         (backend, device) = line[1:].split("]")[0].split(":")
@@ -1011,6 +1025,10 @@ if lit_config.params.get("print_features", False):
 try:
     import psutil
 
-    lit_config.maxIndividualTestTime = 600
+    if config.test_mode == "run-only":
+        lit_config.maxIndividualTestTime = 300
+    else:
+        lit_config.maxIndividualTestTime = 600
+
 except ImportError:
     pass

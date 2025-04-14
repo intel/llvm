@@ -16,109 +16,38 @@
 #include <cassert>
 #include <cuda.h>
 
-void ur_queue_handle_t_::computeStreamWaitForBarrierIfNeeded(CUstream Stream,
-                                                             uint32_t StreamI) {
+template <>
+void cuda_stream_queue::computeStreamWaitForBarrierIfNeeded(CUstream Stream,
+                                                            uint32_t StreamI) {
   if (BarrierEvent && !ComputeAppliedBarrier[StreamI]) {
     UR_CHECK_ERROR(cuStreamWaitEvent(Stream, BarrierEvent, 0));
     ComputeAppliedBarrier[StreamI] = true;
   }
 }
 
-void ur_queue_handle_t_::transferStreamWaitForBarrierIfNeeded(
-    CUstream Stream, uint32_t StreamI) {
+template <>
+void cuda_stream_queue::transferStreamWaitForBarrierIfNeeded(CUstream Stream,
+                                                             uint32_t StreamI) {
   if (BarrierEvent && !TransferAppliedBarrier[StreamI]) {
     UR_CHECK_ERROR(cuStreamWaitEvent(Stream, BarrierEvent, 0));
     TransferAppliedBarrier[StreamI] = true;
   }
 }
 
-CUstream ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
-  if (getThreadLocalStream() != CUstream{0})
-    return getThreadLocalStream();
-  uint32_t StreamI;
-  uint32_t Token;
-  while (true) {
-    if (NumComputeStreams < ComputeStreams.size()) {
-      // the check above is for performance - so as not to lock mutex every time
-      std::lock_guard<std::mutex> guard(ComputeStreamMutex);
-      // The second check is done after mutex is locked so other threads can not
-      // change NumComputeStreams after that
-      if (NumComputeStreams < ComputeStreams.size()) {
-        UR_CHECK_ERROR(cuStreamCreateWithPriority(
-            &ComputeStreams[NumComputeStreams], Flags, Priority));
-        ++NumComputeStreams;
-      }
-    }
-    Token = ComputeStreamIndex++;
-    StreamI = Token % ComputeStreams.size();
-    // if a stream has been reused before it was next selected round-robin
-    // fashion, we want to delay its next use and instead select another one
-    // that is more likely to have completed all the enqueued work.
-    if (DelayCompute[StreamI]) {
-      DelayCompute[StreamI] = false;
-    } else {
-      break;
-    }
-  }
-  if (StreamToken) {
-    *StreamToken = Token;
-  }
-  CUstream res = ComputeStreams[StreamI];
-  computeStreamWaitForBarrierIfNeeded(res, StreamI);
-  return res;
+template <>
+ur_queue_handle_t cuda_stream_queue::getEventQueue(const ur_event_handle_t e) {
+  return e->getQueue();
 }
 
-CUstream ur_queue_handle_t_::getNextComputeStream(
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_stream_guard_ &Guard, uint32_t *StreamToken) {
-  if (getThreadLocalStream() != CUstream{0})
-    return getThreadLocalStream();
-  for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
-    uint32_t Token = EventWaitList[i]->getComputeStreamToken();
-    if (reinterpret_cast<ur_queue_handle_t>(EventWaitList[i]->getQueue()) ==
-            this &&
-        canReuseStream(Token)) {
-      std::unique_lock<std::mutex> ComputeSyncGuard(ComputeStreamSyncMutex);
-      // redo the check after lock to avoid data races on
-      // LastSyncComputeStreams
-      if (canReuseStream(Token)) {
-        uint32_t StreamI = Token % DelayCompute.size();
-        DelayCompute[StreamI] = true;
-        if (StreamToken) {
-          *StreamToken = Token;
-        }
-        Guard = ur_stream_guard_{std::move(ComputeSyncGuard)};
-        CUstream Result = EventWaitList[i]->getStream();
-        computeStreamWaitForBarrierIfNeeded(Result, StreamI);
-        return Result;
-      }
-    }
-  }
-  Guard = {};
-  return getNextComputeStream(StreamToken);
+template <>
+uint32_t
+cuda_stream_queue::getEventComputeStreamToken(const ur_event_handle_t e) {
+  return e->getComputeStreamToken();
 }
 
-CUstream ur_queue_handle_t_::getNextTransferStream() {
-  if (getThreadLocalStream() != CUstream{0})
-    return getThreadLocalStream();
-  if (TransferStreams.empty()) { // for example in in-order queue
-    return getNextComputeStream();
-  }
-  if (NumTransferStreams < TransferStreams.size()) {
-    // the check above is for performance - so as not to lock mutex every time
-    std::lock_guard<std::mutex> Guuard(TransferStreamMutex);
-    // The second check is done after mutex is locked so other threads can not
-    // change NumTransferStreams after that
-    if (NumTransferStreams < TransferStreams.size()) {
-      UR_CHECK_ERROR(cuStreamCreateWithPriority(
-          &TransferStreams[NumTransferStreams], Flags, Priority));
-      ++NumTransferStreams;
-    }
-  }
-  uint32_t StreamI = TransferStreamIndex++ % TransferStreams.size();
-  CUstream Result = TransferStreams[StreamI];
-  transferStreamWaitForBarrierIfNeeded(Result, StreamI);
-  return Result;
+template <>
+CUstream cuda_stream_queue::getEventStream(const ur_event_handle_t e) {
+  return e->getStream();
 }
 
 /// Creates a `ur_queue_handle_t` object on the CUDA backend.
@@ -162,14 +91,8 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       }
     }
 
-    std::vector<CUstream> ComputeCuStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumComputeStreams : 1);
-    std::vector<CUstream> TransferCuStreams(
-        IsOutOfOrder ? ur_queue_handle_t_::DefaultNumTransferStreams : 0);
-
     Queue = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
-        std::move(ComputeCuStreams), std::move(TransferCuStreams), hContext,
-        hDevice, Flags, URFlags, Priority});
+        {IsOutOfOrder, hContext, hDevice, Flags, URFlags, Priority}});
 
     *phQueue = Queue.release();
 
@@ -257,7 +180,7 @@ urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
 
   ScopedContext Active(hQueue->getDevice());
   *phNativeQueue =
-      reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
+      reinterpret_cast<ur_native_handle_t>(hQueue->getInteropStream());
   return UR_RESULT_SUCCESS;
 }
 
@@ -281,23 +204,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   else
     die("Unknown cuda stream");
 
-  std::vector<CUstream> ComputeCuStreams(1, CuStream);
-  std::vector<CUstream> TransferCuStreams(0);
-
   auto isNativeHandleOwned =
       pProperties ? pProperties->isNativeHandleOwned : false;
 
-  // Create queue and set num_compute_streams to 1, as computeCuStreams has
-  // valid stream
-  *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
-                                    std::move(TransferCuStreams),
-                                    hContext,
-                                    hDevice,
-                                    CuFlags,
-                                    Flags,
-                                    /*priority*/ 0,
-                                    /*backend_owns*/ isNativeHandleOwned};
-  (*phQueue)->NumComputeStreams = 1;
+  // Create queue from a native stream
+  *phQueue = new ur_queue_handle_t_{
+      {CuStream, hContext, hDevice, CuFlags, Flags, isNativeHandleOwned}};
 
   return UR_RESULT_SUCCESS;
 }
