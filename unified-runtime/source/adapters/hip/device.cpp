@@ -1018,11 +1018,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
-#ifdef UMF_ENABLE_POOL_TRACKING
     return ReturnValue(ur_bool_t{true});
-#else
-    return ReturnValue(ur_bool_t{false});
-#endif
   case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
     return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
