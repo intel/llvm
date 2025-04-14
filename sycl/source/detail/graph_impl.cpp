@@ -505,8 +505,10 @@ graph_impl::add(std::function<void(handler &)> CGF,
   // by adding a parameter to the graph.add function, but this will
   // break the API. At least capture code location from TLS, user
   // can set it before calling graph.add
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   sycl::detail::tls_code_loc_t Tls;
   Handler.saveCodeLoc(Tls.query(), Tls.isToplevel());
+#endif
 
   CGF(Handler);
 

@@ -1171,7 +1171,9 @@ template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
   if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
     AuxHandler.depends_on(E);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   AuxHandler.copyCodeLoc(CGH);
+#endif
   Func(AuxHandler);
   CGH.MLastEvent = AuxHandler.finalize();
   return;

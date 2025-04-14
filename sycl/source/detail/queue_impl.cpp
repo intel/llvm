@@ -362,8 +362,9 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const SubmissionInfo &SubmitInfo) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+#ifdef XPTI_ENABLE_INSTRUMENTATION
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
-
+#endif
   {
     NestedCallsTracker tracker;
     CGF(Handler);
