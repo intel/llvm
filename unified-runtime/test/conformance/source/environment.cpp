@@ -80,12 +80,12 @@ uur::PlatformEnvironment::PlatformEnvironment() : AdapterEnvironment() {
 void uur::PlatformEnvironment::populatePlatforms() {
   for (auto a : adapters) {
     uint32_t count = 0;
-    ASSERT_SUCCESS(urPlatformGet(&a, 1, 0, nullptr, &count));
+    ASSERT_SUCCESS(urPlatformGet(a, 0, nullptr, &count));
     if (count == 0) {
       continue;
     }
     std::vector<ur_platform_handle_t> platform_list(count);
-    ASSERT_SUCCESS(urPlatformGet(&a, 1, count, platform_list.data(), nullptr));
+    ASSERT_SUCCESS(urPlatformGet(a, count, platform_list.data(), nullptr));
 
     for (auto p : platform_list) {
       platforms.push_back(p);

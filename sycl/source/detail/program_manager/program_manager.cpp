@@ -1824,10 +1824,6 @@ void ProgramManager::cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img) {
       m_KernelUsesAssert.insert(Prop->Name);
 }
 
-bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
-  return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
-}
-
 void ProgramManager::cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img) {
   const RTDeviceBinaryImage::PropertyRange &ImplicitLocalArgRange =
       Img.getImplicitLocalArg();
@@ -2190,8 +2186,8 @@ void ProgramManager::removeImages(sycl_device_binaries DeviceBinary) {
 
       if (auto It = m_KernelName2KernelIDs.find(EntriesIt->GetName());
           It != m_KernelName2KernelIDs.end()) {
-        m_KernelName2KernelIDs.erase(It);
         m_KernelIDs2BinImage.erase(It->second);
+        m_KernelName2KernelIDs.erase(It);
       }
     }
 
