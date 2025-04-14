@@ -41,7 +41,6 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-c++98-compat-extra-semi")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-warning-option")
     endif()
-    set(BUILD_STATIC ON)
 
     if (UR_LEVEL_ZERO_LOADER_REPO STREQUAL "")
         set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
@@ -67,8 +66,43 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     if(MSVC)
         set(USE_Z7 ON)
     endif()
+    set(BUILD_STATIC ON)
     FetchContent_MakeAvailable(level-zero-loader)
     FetchContent_GetProperties(level-zero-loader)
+    set(BUILD_STATIC OFF)
+
+    # Create a second copy of the repository for the second configuration
+    set(level-zero-loader-dynamic_SOURCE_DIR "${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-src")
+
+    if(NOT EXISTS ${level-zero-loader-dynamic_SOURCE_DIR})
+        file(COPY ${level-zero-loader_SOURCE_DIR} DESTINATION ${level-zero-loader-dynamic_SOURCE_DIR})
+    endif()
+
+    # Build dynamic configuration
+    set(BUILD_STATIC OFF)
+    # Manually configure the dynamic build to avoid redefining the ze_loader target
+    set(level-zero-loader-dynamic_BUILD_DIR ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build)
+    file(MAKE_DIRECTORY ${level-zero-loader-dynamic_BUILD_DIR})
+    execute_process(COMMAND ${CMAKE_COMMAND} -DBUILD_STATIC=OFF -S ${level-zero-loader-dynamic_SOURCE_DIR}/level-zero-loader-src -B ${level-zero-loader-dynamic_BUILD_DIR})
+    # Store the dynamic build directory globally for use in the level_zero UR cmake
+    set(LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR ${level-zero-loader-dynamic_BUILD_DIR} CACHE PATH "Path to the Level Zero dynamic loader build directory")
+
+    message(${CMAKE_BINARY_DIR})
+    if(WIN32)
+        add_custom_target(
+            LEVEL_ZERO_DYNAMIC_LOADER_INSTALL
+            ALL
+            COMMAND ${CMAKE_COMMAND} --build ${LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy ${LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR}/bin/*.dll ${CMAKE_BINARY_DIR}/bin/
+        )
+    else()
+        add_custom_target(
+            LEVEL_ZERO_DYNAMIC_LOADER_INSTALL
+            ALL
+            COMMAND ${CMAKE_COMMAND} --build ${LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy ${LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR}/lib/*.so* ${CMAKE_BINARY_DIR}/lib/
+        )
+    endif()
 
     # Restore original flags
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
