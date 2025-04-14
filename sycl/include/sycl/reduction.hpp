@@ -44,6 +44,8 @@
 #include <sycl/sycl_span.hpp>                       // for dynamic_e...
 #include <sycl/usm.hpp>                             // for malloc_de...
 
+#include <xpti/xpti_trace_framework.hpp> // for xptiTraceEnabled
+
 #include <algorithm>   // for min
 #include <array>       // for array
 #include <assert.h>    // for assert
@@ -1171,7 +1173,9 @@ template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
   if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
     AuxHandler.depends_on(E);
-  AuxHandler.copyCodeLoc(CGH);
+  if (xptiTraceEnabled()) {
+    AuxHandler.copyCodeLoc(CGH);
+  }
   Func(AuxHandler);
   CGH.MLastEvent = AuxHandler.finalize();
   return;
