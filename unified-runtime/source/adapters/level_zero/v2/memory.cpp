@@ -15,19 +15,6 @@
 #include "../helpers/memory_helpers.hpp"
 #include "../image_common.hpp"
 
-static ur_mem_buffer_t::device_access_mode_t
-getDeviceAccessMode(ur_mem_flags_t memFlag) {
-  if (memFlag & UR_MEM_FLAG_READ_WRITE) {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  } else if (memFlag & UR_MEM_FLAG_READ_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::read_only;
-  } else if (memFlag & UR_MEM_FLAG_WRITE_ONLY) {
-    return ur_mem_buffer_t::device_access_mode_t::write_only;
-  } else {
-    return ur_mem_buffer_t::device_access_mode_t::read_write;
-  }
-}
-
 static bool isAccessCompatible(ur_mem_buffer_t::device_access_mode_t requested,
                                ur_mem_buffer_t::device_access_mode_t actual) {
   return requested == actual ||
@@ -523,7 +510,7 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   }
 
   void *hostPtr = pProperties ? pProperties->pHost : nullptr;
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   if (useHostBuffer(hContext)) {
     auto hostPtrAction =
@@ -554,7 +541,7 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hMem, ur_mem_flags_t flags,
              pRegion->size <= hBuffer->getSize()),
             UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
-  auto accessMode = getDeviceAccessMode(flags);
+  auto accessMode = ur_mem_buffer_t::getDeviceAccessMode(flags);
 
   UR_ASSERT(isAccessCompatible(accessMode, hBuffer->getDeviceAccessMode()),
             UR_RESULT_ERROR_INVALID_VALUE);

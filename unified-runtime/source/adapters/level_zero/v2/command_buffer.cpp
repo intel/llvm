@@ -137,7 +137,8 @@ ur_result_t ur_exp_command_buffer_handle_t_::updateKernelArguments(
           newMemObjArgDesc.pProperties;
       auto urAccessMode = ur_mem_buffer_t::device_access_mode_t::read_write;
       if (properties != nullptr) {
-        urAccessMode = ur_mem_buffer_t::getAccessMode(properties->memoryAccess);
+        urAccessMode =
+            ur_mem_buffer_t::getDeviceAccessMode(properties->memoryAccess);
       }
       auto ptr = ur_cast<char *>(memBuffer->getDevicePtr(
           device, urAccessMode, 0, memBuffer->getSize(),
@@ -370,10 +371,10 @@ ur_result_t ur_exp_command_buffer_handle_t_::checkUpdateParameters(
 ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
     uint32_t numUpdateCommands,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands) {
+  auto commandListLocked = commandListManager.lock();
   if (!isFinalized) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
-  auto commandListLocked = commandListManager.lock();
   UR_CALL(checkUpdateParameters(numUpdateCommands, updateCommands));
 
   if (currentExecution) {
