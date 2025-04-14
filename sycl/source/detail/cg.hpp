@@ -292,9 +292,9 @@ public:
 
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
-  std::vector<ArgDesc> getArguments() const { return MArgs; }
-  std::string getKernelName() const { return MKernelName; }
-  std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
+  const std::vector<ArgDesc> &getArguments() const { return MArgs; }
+  const std::string &getKernelName() const { return MKernelName; }
+  const std::vector<std::shared_ptr<detail::stream_impl>> &getStreams() const {
     return MStreams;
   }
 
@@ -304,7 +304,7 @@ public:
   }
   void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 
-  std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
+  const std::shared_ptr<detail::kernel_bundle_impl> &getKernelBundle() {
     return MKernelBundle;
   }
 
@@ -530,7 +530,7 @@ public:
         PipeName(Name), Blocking(Block), HostPtr(Ptr), TypeSize(Size),
         IsReadOp(Read) {}
 
-  std::string getPipeName() { return PipeName; }
+  const std::string &getPipeName() { return PipeName; }
   void *getHostPtr() { return HostPtr; }
   size_t getTypeSize() { return TypeSize; }
   bool isBlocking() { return Blocking; }

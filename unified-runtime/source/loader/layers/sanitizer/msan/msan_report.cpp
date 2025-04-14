@@ -31,20 +31,22 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
   KernelName = DemangleName(KernelName);
 
   if (Report.Origin) {
-    UR_LOG_LOGGER(getContext()->logger, ALWAYS, 
+    UR_LOG_L(
+        getContext()->logger, QUIET,
         "====WARNING: DeviceSanitizer: use-of-uninitialized-value (shadow: {})",
         (void *)Report.Origin);
   } else {
-    UR_LOG_LOGGER(getContext()->logger, ALWAYS, 
-        "====WARNING: DeviceSanitizer: use-of-uninitialized-value");
+    UR_LOG_L(getContext()->logger, QUIET,
+             "====WARNING: DeviceSanitizer: use-of-uninitialized-value");
   }
 
-  UR_LOG_LOGGER(getContext()->logger, ALWAYS, "use of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
-                   "{}, {})",
-                   Report.AccessSize, KernelName.c_str(), Report.LID0,
-                   Report.LID1, Report.LID2, Report.GID0, Report.GID1,
-                   Report.GID2);
-  UR_LOG_LOGGER(getContext()->logger, ALWAYS, "  #0 {} {}:{}", Func, File, Report.Line);
+  UR_LOG_L(getContext()->logger, QUIET,
+           "use of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
+           "{}, {})",
+           Report.AccessSize, KernelName.c_str(), Report.LID0, Report.LID1,
+           Report.LID2, Report.GID0, Report.GID1, Report.GID2);
+  UR_LOG_L(getContext()->logger, QUIET, "  #0 {} {}:{}", Func, File,
+           Report.Line);
 }
 
 } // namespace msan

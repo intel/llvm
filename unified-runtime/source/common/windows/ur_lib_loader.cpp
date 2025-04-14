@@ -17,8 +17,9 @@ void LibLoader::freeAdapterLibrary(HMODULE handle) {
   if (handle) {
     BOOL res = FreeLibrary(handle);
     if (!res) {
-      UR_LOG(ERR, "Failed to unload the library with the handle at address 0x{}",
-            handle);
+      UR_LOG(ERROR,
+             "Failed to unload the library with the handle at address 0x{}",
+             handle);
     } else {
       UR_LOG(INFO, "unloaded adapter 0x{}", handle);
     }
@@ -32,7 +33,7 @@ LibLoader::loadAdapterLibrary(const char *name) {
     return std::unique_ptr<HMODULE, LibLoader::lib_dtor>{handle};
   } else {
     UR_LOG(DEBUG, "loading adapter failed with error {}: {}", GetLastError(),
-          name);
+           name);
   }
   return nullptr;
 }

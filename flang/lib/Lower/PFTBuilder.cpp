@@ -654,7 +654,7 @@ private:
     }
   }
 
-  /// Mark IO statement ERR, EOR, and END specifier branch targets.
+  /// Mark IO statement ERROR, EOR, and END specifier branch targets.
   /// Mark an IO statement with an assigned format as unstructured.
   template <typename A>
   void analyzeIoBranches(lower::pft::Evaluation &eval, const A &stmt) {

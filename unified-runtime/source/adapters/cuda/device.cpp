@@ -287,7 +287,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     } else if (std::getenv("SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
       Enabled = true;
     } else {
-      UR_LOG(ALWAYS, 
+      UR_LOG(
+          QUIET,
           "Images are not fully supported by the CUDA BE, their support is "
           "disabled by default. Their partial support can be activated by "
           "setting SYCL_UR_CUDA_ENABLE_IMAGE_SUPPORT environment variable at "
@@ -1284,16 +1285,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;
-  ur_adapter_handle_t AdapterHandle = &adapter;
-  ur_result_t Result =
-      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
+  ur_adapter_handle_t AdapterHandle = ur::cuda::adapter;
+  ur_result_t Result = urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
   std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
 
   Result =
-      urPlatformGet(&AdapterHandle, 1, NumPlatforms, Platforms.data(), nullptr);
+      urPlatformGet(AdapterHandle, NumPlatforms, Platforms.data(), nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 

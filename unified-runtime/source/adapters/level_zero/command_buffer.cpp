@@ -44,18 +44,18 @@ bool checkImmediateAppendSupport(ur_context_handle_t Context,
     const bool EnableAppendPath = std::atoi(UrRet) == 1;
 
     if (EnableAppendPath && !Device->ImmCommandListUsed) {
-      UR_LOG(ERR,
-            "{} is set but immediate command-lists are currently "
-            "disabled. Immediate command-lists are "
-            "required to use the immediate append path.",
-            AppendEnvVarName);
+      UR_LOG(ERROR,
+             "{} is set but immediate command-lists are currently "
+             "disabled. Immediate command-lists are "
+             "required to use the immediate append path.",
+             AppendEnvVarName);
       std::abort();
     }
     if (EnableAppendPath && !DriverSupportsImmediateAppend) {
-      UR_LOG(ERR,
-            "{} is set but the current driver does not support the "
-            "zeCommandListImmediateAppendCommandListsExp entrypoint.",
-            AppendEnvVarName);
+      UR_LOG(ERROR,
+             "{} is set but the current driver does not support the "
+             "zeCommandListImmediateAppendCommandListsExp entrypoint.",
+             AppendEnvVarName);
       std::abort();
     }
 
@@ -1871,7 +1871,7 @@ ur_result_t validateCommandDesc(
   if (NewGlobalWorkOffset) {
     if (!CommandBuffer->Context->getPlatform()
              ->ZeDriverGlobalOffsetExtensionFound) {
-      UR_LOG(ERR, "No global offset extension found on this driver");
+      UR_LOG(ERROR, "No global offset extension found on this driver");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }

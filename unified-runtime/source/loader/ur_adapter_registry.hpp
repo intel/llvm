@@ -50,8 +50,8 @@ struct FilterTerm {
     auto backendIter = backendNameMap.find(backend);
     if (backendIter == backendNameMap.end()) {
       UR_LOG(DEBUG,
-            "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal backend '{}' ",
-            backend);
+             "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal backend '{}' ",
+             backend);
       return false;
     }
     if (backendIter->second == match_backend) {
@@ -75,8 +75,8 @@ struct FilterTerm {
       auto deviceIter = deviceTypeMap.find(deviceString);
       if (deviceIter == deviceTypeMap.end()) {
         UR_LOG(DEBUG,
-              "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal device '{}' ",
-              deviceString);
+               "ONEAPI_DEVICE_SELECTOR Pre-Filter with illegal device '{}' ",
+               deviceString);
         continue;
       }
       if (deviceIter->second == match_device) {
@@ -102,7 +102,7 @@ public:
     try {
       forceLoadedAdaptersOpt = getenv_to_vec("UR_ADAPTERS_FORCE_LOAD");
     } catch (const std::invalid_argument &e) {
-      UR_LOG(ERR, e.what());
+      UR_LOG(ERROR, e.what());
     }
 
     if (forceLoadedAdaptersOpt.has_value()) {
@@ -110,9 +110,9 @@ public:
         auto path = fs::path(s);
         if (path.filename().extension() == STATIC_LIBRARY_EXTENSION) {
           UR_LOG(WARN,
-                "UR_ADAPTERS_FORCE_LOAD contains a path to a static"
-                "library {}, it will be skipped",
-                s);
+                 "UR_ADAPTERS_FORCE_LOAD contains a path to a static"
+                 "library {}, it will be skipped",
+                 s);
           continue;
         }
 
@@ -120,7 +120,7 @@ public:
         try {
           exists = fs::exists(path);
         } catch (std::exception &e) {
-          UR_LOG(ERR, e.what());
+          UR_LOG(ERROR, e.what());
         }
 
         if (exists) {
@@ -128,9 +128,9 @@ public:
           adaptersLoadPaths.emplace_back(std::vector{std::move(path)});
         } else {
           UR_LOG(WARN,
-                "Detected nonexistent path {} in environment "
-                "variable UR_ADAPTERS_FORCE_LOAD",
-                s);
+                 "Detected nonexistent path {} in environment "
+                 "variable UR_ADAPTERS_FORCE_LOAD",
+                 s);
         }
       }
     } else {
@@ -205,7 +205,7 @@ private:
     try {
       pathStringsOpt = getenv_to_vec("UR_ADAPTERS_SEARCH_PATH");
     } catch (const std::invalid_argument &e) {
-      UR_LOG(ERR, e.what());
+      UR_LOG(ERROR, e.what());
       return std::nullopt;
     }
 
@@ -217,9 +217,9 @@ private:
           paths.emplace_back(path);
         } else {
           UR_LOG(WARN,
-                "Detected nonexistent path {} in environmental "
-                "variable UR_ADAPTERS_SEARCH_PATH",
-                s);
+                 "Detected nonexistent path {} in environmental "
+                 "variable UR_ADAPTERS_SEARCH_PATH",
+                 s);
         }
       }
     }
@@ -235,12 +235,12 @@ private:
     } catch (...) {
       // If the selector is malformed, then we ignore selector and return
       // success.
-      UR_LOG(ERR, "ERROR: missing backend, format of filter = "
-                 "'[!]backend:filterStrings'");
+      UR_LOG(ERROR, "ERROR: missing backend, format of filter = "
+                    "'[!]backend:filterStrings'");
       return UR_RESULT_SUCCESS;
     }
     UR_LOG(DEBUG, "getenv_to_map parsed env var and {} a map",
-          (odsEnvMap.has_value() ? "produced" : "failed to produce"));
+           (odsEnvMap.has_value() ? "produced" : "failed to produce"));
 
     // if the ODS env var is not set at all, then pretend it was set to the
     // default
@@ -258,16 +258,16 @@ private:
       if (backend.empty()) {
         // FIXME: never true because getenv_to_map rejects this case
         // malformed term: missing backend -- output ERROR, then continue
-        UR_LOG(ERR, "ERROR: missing backend, format of filter = "
-                   "'[!]backend:filterStrings'");
+        UR_LOG(ERROR, "ERROR: missing backend, format of filter = "
+                      "'[!]backend:filterStrings'");
         continue;
       }
       UR_LOG(DEBUG, "ONEAPI_DEVICE_SELECTOR Pre-Filter with backend '{}' ",
-            backend);
+             backend);
 
       bool PositiveFilter = backend.front() != '!';
       UR_LOG(DEBUG, "term is a {} filter",
-            (PositiveFilter ? "positive" : "negative"));
+             (PositiveFilter ? "positive" : "negative"));
       if (!PositiveFilter) {
         UR_LOG(DEBUG, "DEBUG: backend was '{}'", backend);
         // Trim off the "!" from the backend
@@ -341,9 +341,10 @@ private:
             std::string(adapterName).find("v2") != std::string::npos;
 
         if (v2Requested != v2Adapter) {
-          UR_LOG(INFO, "The adapter '{}' is skipped because {} {}.", adapterName,
-                "UR_LOADER_USE_LEVEL_ZERO_V2 or SYCL_UR_USE_LEVEL_ZERO_V2",
-                v2Requested ? "is set" : "is not set");
+          UR_LOG(INFO, "The adapter '{}' is skipped because {} {}.",
+                 adapterName,
+                 "UR_LOADER_USE_LEVEL_ZERO_V2 or SYCL_UR_USE_LEVEL_ZERO_V2",
+                 v2Requested ? "is set" : "is not set");
           continue;
         }
       }

@@ -14,12 +14,14 @@
 
 namespace logger {
 
-Logger create_logger(std::string logger_name, bool skip_prefix = false,
-                     bool skip_linebreak = false,
-                     Level default_log_level = Level::ALWAYS);
+Logger
+create_logger(std::string logger_name, bool skip_prefix = false,
+              bool skip_linebreak = false,
+              ur_logger_level_t default_log_level = UR_LOGGER_LEVEL_QUIET);
 
-inline Logger &get_logger(std::string name = "common",
-                          Level default_log_level = Level::ALWAYS) {
+inline Logger &
+get_logger(std::string name = "common",
+           ur_logger_level_t default_log_level = UR_LOGGER_LEVEL_QUIET) {
   static Logger logger =
       create_logger(std::move(name), /*skip_prefix*/ false,
                     /*slip_linebreak*/ false, default_log_level);
@@ -29,16 +31,17 @@ inline Logger &get_logger(std::string name = "common",
 inline void init(const std::string &name) { get_logger(name.c_str()); }
 
 #define UR_LOG(...) URLOG_(logger::get_logger(), __VA_ARGS__)
-#define UR_LOG_LOGGER(...) URLOG_(__VA_ARGS__)
 #define UR_LOG_LEGACY(...) URLOG_LEGACY_(logger::get_logger(), __VA_ARGS__)
+#define UR_LOG_L(...) URLOG_(__VA_ARGS__)
 
-#define URLOG_ALWAYS(...) URLOG_ALWAYS_(logger::get_logger(), __VA_ARGS__)
-// #define URLOG_CTX(...) URLOG_(getContext()->logger, __VA_ARGS__)
-// #define URLOG_CTX_ALWAYS(...) URLOG_(getContext()->logger, ALWAYS, __VA_ARGS__)
+// TODO: consider removing UR_LOG_L and maybe UR_LOG_LEGACY macros, using UR_LOG
+// instead
 
-inline void setLevel(Level level) { get_logger().setLevel(level); }
+inline void setLevel(ur_logger_level_t level) { get_logger().setLevel(level); }
 
-inline void setFlushLevel(Level level) { get_logger().setFlushLevel(level); }
+inline void setFlushLevel(ur_logger_level_t level) {
+  get_logger().setFlushLevel(level);
+}
 
 template <typename T> inline std::string toHex(T t) {
   std::stringstream s;
@@ -51,8 +54,10 @@ inline bool str_to_bool(const std::string &str) {
     std::string lower_value = str;
     std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(),
                    [](unsigned char c) { return std::tolower(c); });
-    const std::initializer_list<std::string> true_str = {"y", "yes", "t", "true", "1"};
-    return std::find(true_str.begin(), true_str.end(), lower_value) != true_str.end();
+    const std::initializer_list<std::string> true_str = {"y", "yes", "t",
+                                                         "true", "1"};
+    return std::find(true_str.begin(), true_str.end(), lower_value) !=
+           true_str.end();
   }
 
   return false;
@@ -84,24 +89,23 @@ inline bool str_to_bool(const std::string &str) {
 ///                            to be printed immediately as they occur
 ///             - output: stderr
 inline Logger create_logger(std::string logger_name, bool skip_prefix,
-                            bool skip_linebreak, Level default_log_level) {
+                            bool skip_linebreak, ur_logger_level_t level) {
   std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
                  ::toupper);
-  const auto default_flush_level = Level::ERR;
+  const std::string env_var_name = "UR_LOG_" + logger_name;
+  const auto default_flush_level = UR_LOGGER_LEVEL_ERROR;
   const std::string default_output = "stderr";
   const bool default_fileline = false;
-  auto level = default_log_level;
   auto flush_level = default_flush_level;
   bool fileline = default_fileline;
   std::unique_ptr<Sink> sink;
 
-  auto env_var_name = "UR_LOG_" + logger_name;
   try {
     auto map = getenv_to_map(env_var_name.c_str());
     if (!map.has_value()) {
-      return Logger(default_log_level,
-                    std::make_unique<StderrSink>(std::move(logger_name),
-                                                 skip_prefix, skip_linebreak));
+      return Logger(level,
+                    std::make_unique<logger::StderrSink>(
+                        std::move(logger_name), skip_prefix, skip_linebreak));
     }
 
     auto kv = map->find("level");
@@ -125,7 +129,7 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
       map->erase(kv);
     }
 
-    std::vector<std::string> values = {std::move(default_output)};
+    std::vector<std::string> values = {default_output};
     kv = map->find("output");
     if (kv != map->end()) {
       values = kv->second;
@@ -135,9 +139,9 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
     if (!map->empty()) {
       std::cerr << "Wrong logger environment variable parameter: '"
                 << map->begin()->first << "'. Default logger options are set.";
-      return Logger(default_log_level,
-                    std::make_unique<StderrSink>(std::move(logger_name),
-                                                 skip_prefix, skip_linebreak));
+      return Logger(level,
+                    std::make_unique<logger::StderrSink>(
+                        std::move(logger_name), skip_prefix, skip_linebreak));
     }
 
     sink = values.size() == 2 ? sink_from_str(logger_name, values[0], values[1],
@@ -148,10 +152,11 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
     std::cerr << "Error when creating a logger instance from the '"
               << env_var_name << "' environment variable:\n"
               << e.what() << std::endl;
-    return Logger(default_log_level,
-                  std::make_unique<StderrSink>(std::move(logger_name),
-                                               skip_prefix, skip_linebreak));
+    return Logger(level,
+                  std::make_unique<logger::StderrSink>(
+                      std::move(logger_name), skip_prefix, skip_linebreak));
   }
+
   sink->setFlushLevel(flush_level);
   sink->setFileLine(fileline);
 

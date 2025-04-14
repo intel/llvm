@@ -171,8 +171,9 @@ ur_result_t urContextSetExtendedDeleter(
   std::ignore = Context;
   std::ignore = Deleter;
   std::ignore = UserData;
-  UR_LOG_LEGACY(ERR, logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-          "{} function not implemented!", __FUNCTION__);
+  UR_LOG_LEGACY(ERROR,
+                logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 } // namespace ur::level_zero
@@ -463,7 +464,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     if (ProfilingEnabled)
       ZeEventPoolDesc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
     UR_LOG(DEBUG, "ze_event_pool_desc_t flags set to: {}",
-          ZeEventPoolDesc.flags);
+           ZeEventPoolDesc.flags);
     if (CounterBasedEventEnabled) {
       if (UsingImmCmdList) {
         counterBasedExt.flags = ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_IMMEDIATE;
@@ -472,7 +473,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
             ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_NON_IMMEDIATE;
       }
       UR_LOG(DEBUG, "ze_event_pool_desc_t counter based flags set to: {}",
-            counterBasedExt.flags);
+             counterBasedExt.flags);
       if (InterruptBasedEventEnabled) {
         counterBasedExt.pNext = &eventSyncMode;
       }
@@ -513,10 +514,10 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
                     CounterBasedEventEnabled, InterruptBasedEventEnabled);
   if (Cache->empty()) {
     UR_LOG(INFO,
-          "Cache empty (Host Visible: {}, Profiling: {}, Counter: {}, "
-          "Interrupt: {}, Device: {})",
-          HostVisible, WithProfiling, CounterBasedEventEnabled,
-          InterruptBasedEventEnabled, Device);
+           "Cache empty (Host Visible: {}, Profiling: {}, Counter: {}, "
+           "Interrupt: {}, Device: {})",
+           HostVisible, WithProfiling, CounterBasedEventEnabled,
+           InterruptBasedEventEnabled, Device);
     return nullptr;
   }
 
@@ -528,11 +529,11 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
   Event->reset();
 
   UR_LOG(INFO,
-        "Using {} event (Host Visible: {}, Profiling: {}, Counter: {}, "
-        "Interrupt: {}, Device: {}) from cache {}",
-        Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
-        Event->CounterBasedEventsEnabled, Event->InterruptBasedEventsEnabled,
-        Device, Cache);
+         "Using {} event (Host Visible: {}, Profiling: {}, Counter: {}, "
+         "Interrupt: {}, Device: {}) from cache {}",
+         Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
+         Event->CounterBasedEventsEnabled, Event->InterruptBasedEventsEnabled,
+         Device, Cache);
 
   return Event;
 }
@@ -549,10 +550,10 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
       Event->isHostVisible(), Event->isProfilingEnabled(), Device,
       Event->CounterBasedEventsEnabled, Event->InterruptBasedEventsEnabled);
   UR_LOG(INFO,
-        "Inserting {} event (Host Visible: {}, Profiling: {}, Counter: {}, "
-        "Device: {}) into cache {}",
-        Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
-        Event->CounterBasedEventsEnabled, Device, Cache);
+         "Inserting {} event (Host Visible: {}, Profiling: {}, Counter: {}, "
+         "Device: {}) into cache {}",
+         Event, Event->HostVisibleEvent, Event->isProfilingEnabled(),
+         Event->CounterBasedEventsEnabled, Device, Cache);
   Cache->emplace_back(Event);
 }
 

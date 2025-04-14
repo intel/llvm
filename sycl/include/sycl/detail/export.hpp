@@ -12,11 +12,6 @@
 #ifndef __SYCL_EXPORT
 #ifdef _WIN32
 
-// MSVC discourages export of classes, that use STL class in API. This
-// results in a warning, treated as compile error. Silence C4251 to workaround.
-#pragma warning(disable : 4251)
-#pragma warning(disable : 4275)
-
 #define __SYCL_DLL_LOCAL
 
 #if __SYCL_BUILD_SYCL_DLL

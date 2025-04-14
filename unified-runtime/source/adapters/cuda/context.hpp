@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cuda.h>
+#include <memory>
 #include <ur_api.h>
 
 #include <atomic>
@@ -17,6 +18,7 @@
 #include <set>
 #include <vector>
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "device.hpp"
 #include "umf_helpers.hpp"
@@ -127,15 +129,12 @@ struct ur_context_handle_t_ {
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
       : Devices{Devs, Devs + NumDevices}, RefCount{1} {
-    for (auto &Dev : Devices) {
-      urDeviceRetain(Dev);
-    }
-
     // Create UMF CUDA memory provider for the host memory
     // (UMF_MEMORY_TYPE_HOST) from any device (Devices[0] is used here, because
     // it is guaranteed to exist).
     UR_CHECK_ERROR(CreateHostMemoryProviderPool(Devices[0], &MemoryProviderHost,
                                                 &MemoryPoolHost));
+    UR_CHECK_ERROR(urAdapterRetain(ur::cuda::adapter));
   };
 
   ~ur_context_handle_t_() {
@@ -145,9 +144,7 @@ struct ur_context_handle_t_ {
     if (MemoryProviderHost) {
       umfMemoryProviderDestroy(MemoryProviderHost);
     }
-    for (auto &Dev : Devices) {
-      urDeviceRelease(Dev);
-    }
+    UR_CHECK_ERROR(urAdapterRelease(ur::cuda::adapter));
   }
 
   void invokeExtendedDeleters() {

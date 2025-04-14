@@ -86,7 +86,7 @@ std::string time_to_str(std::chrono::nanoseconds dur, enum time_unit unit) {
     ostr << d.count() << "s";
   } break;
   default: {
-    UR_LOG_LOGGER(out, ERR, "invalid time unit {}", unit);
+    UR_LOG_L(out, ERROR, "invalid time unit {}", unit);
     break;
   }
   }
@@ -123,7 +123,7 @@ static class cli_args {
       return std::nullopt;
     }
     if (arg_values.size() != 1) {
-      UR_LOG_LOGGER(out, WARN, "{} requires a single argument, skipping...", name);
+      UR_LOG_L(out, WARN, "{} requires a single argument, skipping...", name);
       return std::nullopt;
     }
     return arg_values.at(0);
@@ -161,20 +161,20 @@ public:
           try {
             filter = filter_str;
           } catch (const std::regex_error &err) {
-            UR_LOG_LOGGER(out, WARN, "invalid filter regex {} {}", *filter_str,
-                   err.what());
+            UR_LOG_L(out, WARN, "invalid filter regex {} {}", *filter_str,
+                     err.what());
           }
         } else {
-          UR_LOG_LOGGER(out, WARN, "unknown {} argument {}.", ARGS_ENV, arg_name);
+          UR_LOG_L(out, WARN, "unknown {} argument {}.", ARGS_ENV, arg_name);
         }
       }
     }
-    UR_LOG_LOGGER(out, DEBUG,
-           "collector args (.print_begin = {}, .profiling = {}, "
-           ".time_unit = {}, .filter = {}, .output_format = {})",
-           print_begin, profiling, time_unit_str[time_unit],
-           filter_str.has_value() ? *filter_str : "none",
-           output_format_str[output_format]);
+    UR_LOG_L(out, DEBUG,
+             "collector args (.print_begin = {}, .profiling = {}, "
+             ".time_unit = {}, .filter = {}, .output_format = {})",
+             print_begin, profiling, time_unit_str[time_unit],
+             filter_str.has_value() ? *filter_str : "none",
+             output_format_str[output_format]);
   }
 
   enum time_unit time_unit;
@@ -204,7 +204,7 @@ public:
 class HumanReadable : public TraceWriter {
   void begin(uint64_t id, const char *fname, std::string args) override {
     if (cli_args.print_begin) {
-      UR_LOG_LOGGER(out, INFO, "begin({}) - {}({});", id, fname, args);
+      UR_LOG_L(out, INFO, "begin({}) - {}({});", id, fname, args);
     }
   }
   void end(uint64_t id, const char *fname, std::string args, Timepoint tp,
@@ -220,8 +220,8 @@ class HumanReadable : public TraceWriter {
           std::chrono::duration_cast<std::chrono::nanoseconds>(tp - start_tp);
       profile_str << " (" << time_to_str(dur, cli_args.time_unit) << ")";
     }
-    UR_LOG_LOGGER(out, INFO, "{}{}({}) -> {};{}", prefix_str.str(), fname, args,
-           *resultp, profile_str.str());
+    UR_LOG_L(out, INFO, "{}{}({}) -> {};{}", prefix_str.str(), fname, args,
+             *resultp, profile_str.str());
   }
 };
 
@@ -236,16 +236,16 @@ public:
       // not much we can do here...
     }
   }
-  void prologue() override { UR_LOG_LOGGER(out, INFO, "{{\n \"traceEvents\": ["); }
+  void prologue() override { UR_LOG_L(out, INFO, "{{\n \"traceEvents\": ["); }
   void epilogue() override {
     // Empty trace to avoid ending in a comma
     // To prevent that last comma from being printed in the first place
     // we could synchronize the entire 'end' function, while reversing the
     // logic and printing commas at the front. Not worth it probably.
-    UR_LOG_LOGGER(out, INFO,
-           "{{\"name\": \"\", \"cat\": \"\", \"ph\": \"\", \"pid\": \"\", "
-           "\"tid\": \"\", \"ts\": \"\"}}");
-    UR_LOG_LOGGER(out, INFO, "]\n}}");
+    UR_LOG_L(out, INFO,
+             "{{\"name\": \"\", \"cat\": \"\", \"ph\": \"\", \"pid\": \"\", "
+             "\"tid\": \"\", \"ts\": \"\"}}");
+    UR_LOG_L(out, INFO, "]\n}}");
   }
   void begin(uint64_t, const char *, std::string) override {}
 
@@ -257,7 +257,7 @@ public:
                      .count();
     auto dur_us =
         std::chrono::duration_cast<std::chrono::microseconds>(dur).count();
-    UR_LOG_LOGGER(out, INFO, "{{\
+    UR_LOG_L(out, INFO, "{{\
             \"cat\": \"UR\", \
             \"ph\": \"X\",\
             \"pid\": {},\
@@ -267,7 +267,8 @@ public:
             \"name\": \"{}\",\
             \"args\": \"({})\"\
         }},",
-           ur_getpid(), std::this_thread::get_id(), ts_us, dur_us, fname, args);
+             ur_getpid(), std::this_thread::get_id(), ts_us, dur_us, fname,
+             args);
   }
 };
 
@@ -322,8 +323,9 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type, xpti::trace_event_data_t *,
 
   if (auto regex = cli_args.filter) {
     if (!std::regex_match(args->function_name, *regex)) {
-      UR_LOG_LOGGER(out, DEBUG, "function {} does not match regex filter, skipping...",
-             args->function_name);
+      UR_LOG_L(out, DEBUG,
+               "function {} does not match regex filter, skipping...",
+               args->function_name);
       return;
     }
   }
@@ -344,10 +346,10 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type, xpti::trace_event_data_t *,
   } else if (trace_type == TRACE_FN_END) {
     auto ctx = pop_instance_data(instance);
     if (!ctx) {
-      UR_LOG_LOGGER(out, ERR,
-             "Received TRACE_FN_END without corresponding "
-             "TRACE_FN_BEGIN, instance {}. Skipping...",
-             instance);
+      UR_LOG_L(out, ERROR,
+               "Received TRACE_FN_END without corresponding "
+               "TRACE_FN_BEGIN, instance {}. Skipping...",
+               instance);
       return;
     }
     auto resultp = static_cast<const ur_result_t *>(args->ret_data);
@@ -355,7 +357,7 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type, xpti::trace_event_data_t *,
     writer()->end(instance, args->function_name, args_str.str(), time_for_end,
                   *ctx->start, resultp);
   } else {
-    UR_LOG_LOGGER(out, WARN, "unsupported trace type");
+    UR_LOG_L(out, WARN, "unsupported trace type");
   }
 }
 
@@ -368,27 +370,28 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                                      unsigned int minor_version, const char *,
                                      const char *stream_name) {
   if (stream_name == nullptr) {
-    UR_LOG_LOGGER(out, DEBUG, "Found stream with null name. Skipping...");
+    UR_LOG_L(out, DEBUG, "Found stream with null name. Skipping...");
     return;
   }
   if (std::string_view(stream_name) != UR_STREAM_NAME) {
-    UR_LOG_LOGGER(out, DEBUG, "Found stream: {}. Expected: {}. Skipping...",
-           stream_name, UR_STREAM_NAME);
+    UR_LOG_L(out, DEBUG, "Found stream: {}. Expected: {}. Skipping...",
+             stream_name, UR_STREAM_NAME);
     return;
   }
 
   if (UR_MAKE_VERSION(major_version, minor_version) != UR_API_VERSION_CURRENT) {
-    UR_LOG_LOGGER(
-        out, ERR, "Invalid stream version: {}.{}. Expected: {}.{}. Skipping...",
-        major_version, minor_version, UR_MAJOR_VERSION(UR_API_VERSION_CURRENT),
-        UR_MINOR_VERSION(UR_API_VERSION_CURRENT));
+    UR_LOG_L(out, ERROR,
+             "Invalid stream version: {}.{}. Expected: {}.{}. Skipping...",
+             major_version, minor_version,
+             UR_MAJOR_VERSION(UR_API_VERSION_CURRENT),
+             UR_MINOR_VERSION(UR_API_VERSION_CURRENT));
     return;
   }
 
   uint8_t stream_id = xptiRegisterStream(stream_name);
 
-  UR_LOG_LOGGER(out, DEBUG, "Registered stream {} ({}.{}).", stream_name,
-         major_version, minor_version);
+  UR_LOG_L(out, DEBUG, "Registered stream {} ({}.{}).", stream_name,
+           major_version, minor_version);
 
   writer()->prologue();
   xptiRegisterCallback(stream_id, TRACE_FN_BEGIN, trace_cb);
@@ -400,12 +403,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
  */
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   if (stream_name == nullptr) {
-    UR_LOG_LOGGER(out, DEBUG, "Found stream with null name. Skipping...");
+    UR_LOG_L(out, DEBUG, "Found stream with null name. Skipping...");
     return;
   }
   if (std::string_view(stream_name) != UR_STREAM_NAME) {
-    UR_LOG_LOGGER(out, DEBUG, "Found stream: {}. Expected: {}. Skipping...",
-           stream_name, UR_STREAM_NAME);
+    UR_LOG_L(out, DEBUG, "Found stream: {}. Expected: {}. Skipping...",
+             stream_name, UR_STREAM_NAME);
     return;
   }
 

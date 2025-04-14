@@ -129,10 +129,10 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
     }
   }
   default:
-    UR_LOG(ERR,
-          "Unsupported ParamName in urQueueGetInfo: "
-          "ParamName=ParamName={}(0x{})",
-          propName, logger::toHex(propName));
+    UR_LOG(ERROR,
+           "Unsupported ParamName in urQueueGetInfo: "
+           "ParamName=ParamName={}(0x{})",
+           propName, logger::toHex(propName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -191,7 +191,7 @@ ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
   try {
     UR_CALL_THROWS(queueFinish());
   } catch (...) {
-    UR_LOG(ERR, "Failed to finish queue on destruction");
+    UR_LOG(ERROR, "Failed to finish queue on destruction");
   }
 }
 
@@ -871,7 +871,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
       "ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp");
 
   auto commandListLocked = commandListManager.lock();
-  if (!phEvent && !*phEvent) {
+  if (!phEvent) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
   getSignalEvent(commandListLocked, phEvent,

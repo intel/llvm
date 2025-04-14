@@ -242,8 +242,8 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 
       // cuda backend has only one platform containing all devices
       ur_platform_handle_t platform;
-      ur_adapter_handle_t AdapterHandle = &adapter;
-      Result = urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr);
+      ur_adapter_handle_t AdapterHandle = ur::cuda::adapter;
+      Result = urPlatformGet(AdapterHandle, 1, &platform, nullptr);
 
       // get the device from the platform
       ur_device_handle_t Device = platform->Devices[DeviceIndex].get();
@@ -445,7 +445,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       // Set maximum size is effectively ignored.
       if (Limits->maxPoolableSize > 0)
         UR_LOG(WARN, "The memory pool maximum size feature requires CUDA "
-                    "12.2 or later.\n");
+                     "12.2 or later.\n");
 #endif
       maxSize = Limits->maxPoolableSize;
       size_t chunkSize = 33554432; // 32MB

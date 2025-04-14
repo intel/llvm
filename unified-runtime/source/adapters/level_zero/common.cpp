@@ -76,8 +76,9 @@ bool setEnvVar(const char *name, const char *value) {
   int Res = setenv(name, value, 1);
 #endif
   if (Res != 0) {
-    UR_LOG(DEBUG, "UR L0 Adapter was unable to set the environment variable: {}",
-          name);
+    UR_LOG(DEBUG,
+           "UR L0 Adapter was unable to set the environment variable: {}",
+           name);
     return false;
   }
   return true;
@@ -150,7 +151,7 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (TraceError) {
     const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);
-    UR_LOG(ERR, "Error ({}) in {}", ErrorString, ZeName);
+    UR_LOG(ERROR, "Error ({}) in {}", ErrorString, ZeName);
   }
   return ZeResult;
 }

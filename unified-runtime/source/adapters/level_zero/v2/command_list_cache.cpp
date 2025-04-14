@@ -68,7 +68,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
 
   if (!ZeCopyOffloadExtensionSupported && requestedCopyOffload) {
     UR_LOG(INFO,
-          "Copy offload is requested but is not supported by the driver.");
+           "Copy offload is requested but is not supported by the driver.");
     requestedCopyOffload = false;
   }
 
@@ -90,9 +90,9 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     QueueDesc.pNext = &offloadDesc;
 
     UR_LOG(DEBUG,
-          "create command list ordinal: {}, type: immediate, "
-          "device: {}, inOrder: {}",
-          ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder);
+           "create command list ordinal: {}, type: immediate, "
+           "device: {}, inOrder: {}",
+           ImmCmdDesc->Ordinal, ImmCmdDesc->ZeDevice, ImmCmdDesc->IsInOrder);
 
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,
@@ -107,9 +107,9 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     CmdListDesc.pNext = &offloadDesc;
 
     UR_LOG(DEBUG,
-          "create command list ordinal: {}, type: immediate, "
-          "device: {}, inOrder: {}",
-          RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder);
+           "create command list ordinal: {}, type: immediate, "
+           "device: {}, inOrder: {}",
+           RegCmdDesc.Ordinal, RegCmdDesc.ZeDevice, RegCmdDesc.IsInOrder);
 
     ze_command_list_handle_t ZeCommandList;
     ZE2UR_CALL_THROWS(zeCommandListCreate, (ZeContext, RegCmdDesc.ZeDevice,

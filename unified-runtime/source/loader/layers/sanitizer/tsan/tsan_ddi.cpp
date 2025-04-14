@@ -31,7 +31,7 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
     UR_CALL(getTsanInterceptor()->insertDevice(phDevices[i], DI));
     DI->Type = GetDeviceType(Context, DI->Handle);
     if (DI->Type == DeviceType::UNKNOWN) {
-      UR_LOG_LOGGER(getContext()->logger, ERR, "Unsupport device");
+      UR_LOG_L(getContext()->logger, ERROR, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
     if (!DI->Shadow)
@@ -54,7 +54,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     const ur_context_properties_t *pProperties,
     /// [out] pointer to handle of context object created
     ur_context_handle_t *phContext) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urContextCreate");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextCreate");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnCreate(numDevices, phDevices,
                                                      pProperties, phContext));
@@ -78,7 +78,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     const ur_context_native_properties_t *pProperties,
     /// [out] pointer to the handle of the context object created.
     ur_context_handle_t *phContext) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urContextCreateWithNativeHandle");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextCreateWithNativeHandle");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnCreateWithNativeHandle(
       hNativeContext, hAdapter, numDevices, phDevices, pProperties, phContext));
@@ -94,13 +94,13 @@ ur_result_t urContextRetain(
 
     /// [in] handle of the context to get a reference of.
     ur_context_handle_t hContext) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urContextRetain");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextRetain");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnRetain(hContext));
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    UR_LOG_LOGGER(getContext()->logger, ERR, "Invalid context");
+    UR_LOG_L(getContext()->logger, ERROR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
   ContextInfo->RefCount++;
@@ -113,13 +113,13 @@ ur_result_t urContextRetain(
 ur_result_t urContextRelease(
     /// [in] handle of the context to release.
     ur_context_handle_t hContext) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urContextRelease");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextRelease");
 
   UR_CALL(getContext()->urDdiTable.Context.pfnRelease(hContext));
 
   auto ContextInfo = getTsanInterceptor()->getContextInfo(hContext);
   if (!ContextInfo) {
-    UR_LOG_LOGGER(getContext()->logger, ERR, "Invalid context");
+    UR_LOG_L(getContext()->logger, ERROR, "Invalid context");
     return UR_RESULT_ERROR_INVALID_CONTEXT;
   }
 
@@ -138,7 +138,7 @@ ur_result_t urProgramBuild(
     ur_program_handle_t hProgram,
     /// [in] string of build options
     const char *pOptions) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urProgramBuild");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuild");
 
   UR_CALL(
       getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions));
@@ -161,7 +161,7 @@ ur_result_t urProgramLink(
     const char *pOptions,
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *phProgram) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urProgramLink");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLink");
 
   UR_CALL(getContext()->urDdiTable.Program.pfnLink(hContext, count, phPrograms,
                                                    pOptions, phProgram));
@@ -182,7 +182,7 @@ ur_result_t urProgramBuildExp(
     ur_device_handle_t *phDevices,
     /// [in][optional] pointer to build options null-terminated string.
     const char *pOptions) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urProgramBuildExp");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuildExp");
 
   UR_CALL(getContext()->urDdiTable.ProgramExp.pfnBuildExp(hProgram, numDevices,
                                                           phDevices, pOptions));
@@ -207,7 +207,7 @@ ur_result_t urProgramLinkExp(
     const char *pOptions,
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *phProgram) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urProgramLinkExp");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLinkExp");
 
   UR_CALL(getContext()->urDdiTable.ProgramExp.pfnLinkExp(
       hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram));
@@ -234,7 +234,7 @@ ur_result_t urMemBufferCreate(
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urMemBufferCreate");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemBufferCreate");
 
   void *Host = nullptr;
   if (pProperties) {
@@ -270,7 +270,7 @@ ur_result_t urMemBufferCreate(
 ur_result_t urMemRetain(
     /// [in] handle of the memory object to get access
     ur_mem_handle_t hMem) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urMemRetain");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRetain");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
     MemBuffer->RefCount++;
@@ -286,7 +286,7 @@ ur_result_t urMemRetain(
 ur_result_t urMemRelease(
     /// [in] handle of the memory object to release
     ur_mem_handle_t hMem) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urMemRelease");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRelease");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
     if (--MemBuffer->RefCount != 0) {
@@ -315,7 +315,7 @@ ur_result_t urMemBufferPartition(
     const ur_buffer_region_t *pRegion,
     /// [out] pointer to the handle of sub buffer created
     ur_mem_handle_t *phMem) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urMemBufferPartition");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemBufferPartition");
 
   if (auto ParentBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     if (ParentBuffer->Size < (pRegion->origin + pRegion->size)) {
@@ -340,7 +340,7 @@ ur_result_t urMemGetNativeHandle(
     ur_mem_handle_t hMem, ur_device_handle_t hDevice,
     /// [out] a pointer to the native handle of the mem.
     ur_native_handle_t *phNativeMem) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urMemGetNativeHandle");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemGetNativeHandle");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
     char *Handle = nullptr;
@@ -371,7 +371,7 @@ ur_result_t urMemGetInfo(
     /// [out][optional] pointer to the actual size in bytes of the queried
     /// propName.
     size_t *pPropSizeRet) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urMemGetInfo");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemGetInfo");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMemory)) {
     UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
@@ -419,7 +419,7 @@ ur_result_t urEnqueueMemBufferRead(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueMemBufferRead");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferRead");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     ur_device_handle_t Device = GetDevice(hQueue);
@@ -462,7 +462,7 @@ ur_result_t urEnqueueMemBufferWrite(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueMemBufferWrite");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferWrite");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     ur_device_handle_t Device = GetDevice(hQueue);
@@ -525,7 +525,7 @@ ur_result_t urEnqueueMemBufferReadRect(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueMemBufferReadRect");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferReadRect");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     char *SrcHandle = nullptr;
@@ -583,7 +583,7 @@ ur_result_t urEnqueueMemBufferWriteRect(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueMemBufferWriteRect");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferWriteRect");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     char *DstHandle = nullptr;
@@ -629,7 +629,7 @@ ur_result_t urEnqueueMemBufferCopy(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueMemBufferCopy");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferCopy");
 
   auto SrcBuffer = getTsanInterceptor()->getMemBuffer(hBufferSrc);
   auto DstBuffer = getTsanInterceptor()->getMemBuffer(hBufferDst);
@@ -700,7 +700,7 @@ ur_result_t urEnqueueMemBufferCopyRect(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueMemBufferCopyRect");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferCopyRect");
 
   auto SrcBuffer = getTsanInterceptor()->getMemBuffer(hBufferSrc);
   auto DstBuffer = getTsanInterceptor()->getMemBuffer(hBufferDst);
@@ -755,7 +755,7 @@ ur_result_t urEnqueueMemBufferFill(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueMemBufferFill");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferFill");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     char *Handle = nullptr;
@@ -809,7 +809,7 @@ ur_result_t urEnqueueMemBufferMap(
     ur_event_handle_t *phEvent,
     /// [out] return mapped pointer. TODO: move it before numEventsInWaitList?
     void **ppRetMap) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueMemBufferMap");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferMap");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hBuffer)) {
     // Translate the host access mode info.
@@ -888,7 +888,7 @@ ur_result_t urEnqueueMemUnmap(
     /// [out][optional] return an event object that identifies this particular
     /// command instance.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueMemUnmap");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemUnmap");
 
   if (auto MemBuffer = getTsanInterceptor()->getMemBuffer(hMem)) {
     MemBuffer::Mapping Mapping{};
@@ -932,7 +932,7 @@ ur_result_t UR_APICALL urKernelCreate(
     const char *pKernelName,
     /// [out][alloc] pointer to handle of kernel object created.
     ur_kernel_handle_t *phKernel) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urKernelCreate");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelCreate");
 
   UR_CALL(getContext()->urDdiTable.Kernel.pfnCreate(hProgram, pKernelName,
                                                     phKernel));
@@ -952,7 +952,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     const ur_kernel_native_properties_t *pProperties,
     /// [out][alloc] pointer to the handle of the kernel object created.
     ur_kernel_handle_t *phKernel) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urKernelCreate");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelCreate");
 
   UR_CALL(getContext()->urDdiTable.Kernel.pfnCreateWithNativeHandle(
       hNativeKernel, hContext, hProgram, pProperties, phKernel));
@@ -967,7 +967,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 ur_result_t urKernelRetain(
     /// [in] handle for the Kernel to retain
     ur_kernel_handle_t hKernel) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urKernelRetain");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelRetain");
 
   UR_CALL(getContext()->urDdiTable.Kernel.pfnRetain(hKernel));
 
@@ -984,7 +984,7 @@ ur_result_t urKernelRelease(
     ur_kernel_handle_t hKernel) {
   auto pfnRelease = getContext()->urDdiTable.Kernel.pfnRelease;
 
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urKernelRelease");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelRelease");
 
   auto &KernelInfo = getTsanInterceptor()->getKernelInfo(hKernel);
   if (--KernelInfo.RefCount == 0) {
@@ -1008,7 +1008,7 @@ ur_result_t urKernelSetArgValue(
     const ur_kernel_arg_value_properties_t *pProperties,
     /// [in] argument value represented as matching arg type.
     const void *pArgValue) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urKernelSetArgValue");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgValue");
 
   std::shared_ptr<MemBuffer> MemBuffer;
   if (argSize == sizeof(ur_mem_handle_t) &&
@@ -1036,7 +1036,7 @@ ur_result_t urKernelSetArgMemObj(
     const ur_kernel_arg_mem_obj_properties_t *pProperties,
     /// [in][optional] handle of Memory object.
     ur_mem_handle_t hArgValue) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urKernelSetArgMemObj");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgMemObj");
 
   if (std::shared_ptr<MemBuffer> MemBuffer =
           getTsanInterceptor()->getMemBuffer(hArgValue)) {
@@ -1066,7 +1066,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     size_t size,
     /// [out] pointer to USM device memory object
     void **ppMem) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urUSMDeviceAlloc");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMDeviceAlloc");
 
   return getTsanInterceptor()->allocateMemory(
       hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
@@ -1085,7 +1085,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     size_t size,
     /// [out] pointer to USM host memory object
     void **ppMem) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urUSMHostAlloc");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAlloc");
 
   return getTsanInterceptor()->allocateMemory(hContext, nullptr, pUSMDesc, pool,
                                               size, AllocType::HOST_USM, ppMem);
@@ -1106,7 +1106,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     size_t size,
     /// [out] pointer to USM shared memory object
     void **ppMem) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urUSMSharedAlloc");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMSharedAlloc");
 
   return getTsanInterceptor()->allocateMemory(
       hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
@@ -1144,7 +1144,7 @@ ur_result_t urEnqueueKernelLaunch(
     /// [out][optional] return an event object that identifies this
     /// particular kernel execution instance.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
+  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
 
   LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
 
@@ -1191,7 +1191,8 @@ ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     /// are not NULL, phEvent must not refer to an element of the
     /// phEventWaitList array.
     ur_event_handle_t *phEvent) {
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "==== urEnqueueCooperativeKernelLaunchExp");
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "==== urEnqueueCooperativeKernelLaunchExp");
 
   LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue));
 
@@ -1408,7 +1409,7 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   ur_result_t result = UR_RESULT_SUCCESS;
 
-  UR_LOG_LOGGER(getContext()->logger, ALWAYS, "==== DeviceSanitizer: TSAN");
+  UR_LOG_L(getContext()->logger, QUIET, "==== DeviceSanitizer: TSAN");
 
   if (UR_RESULT_SUCCESS == result) {
     result = ur_sanitizer_layer::tsan::urCheckVersion(UR_API_VERSION_CURRENT);
@@ -1453,7 +1454,8 @@ ur_result_t initTsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (result != UR_RESULT_SUCCESS) {
-    UR_LOG_LOGGER(getContext()->logger, ERR, "Initialize TSAN DDI table failed: {}", result);
+    UR_LOG_L(getContext()->logger, ERROR,
+             "Initialize TSAN DDI table failed: {}", result);
   }
 
   return result;

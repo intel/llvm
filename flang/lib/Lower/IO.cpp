@@ -1401,7 +1401,7 @@ static void threadSpecs(Fortran::lower::AbstractConverter &converter,
 }
 
 /// Most IO statements allow one or more of five optional exception condition
-/// handling specifiers: ERR, EOR, END, IOSTAT, and IOMSG. The first three
+/// handling specifiers: ERROR, EOR, END, IOSTAT, and IOMSG. The first three
 /// cause control flow to transfer to another statement. The final two return
 /// information from the runtime, via a variable, about the nature of the
 /// condition that occurred. These condition specifiers are handled here.

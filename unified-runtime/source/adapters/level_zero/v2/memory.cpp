@@ -95,7 +95,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     this->ptr = usm_unique_ptr_t(rawPtr, [hContext](void *ptr) {
       auto ret = hContext->getDefaultUSMPool()->free(ptr);
       if (ret != UR_RESULT_SUCCESS) {
-        UR_LOG(ERR, "Failed to free host memory: {}", ret);
+        UR_LOG(ERROR, "Failed to free host memory: {}", ret);
       }
     });
 
@@ -158,13 +158,15 @@ getSyncCommandListForCopy(ur_context_handle_t hContext,
 
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
                                      ur_device_handle_t hDevice, void *dst,
-                                     const void *src, size_t size) {
+                                     const void *src, size_t size) try {
   auto commandList = getSyncCommandListForCopy(hContext, hDevice);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (commandList.get(), dst, src, size, nullptr, 0, nullptr));
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
@@ -182,7 +184,7 @@ void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
       usm_unique_ptr_t(ptr, [hContext = this->hContext](void *ptr) {
         auto ret = hContext->getDefaultUSMPool()->free(ptr);
         if (ret != UR_RESULT_SUCCESS) {
-          UR_LOG(ERR, "Failed to free device memory: {}", ret);
+          UR_LOG(ERROR, "Failed to free device memory: {}", ret);
         }
       });
 
@@ -311,7 +313,7 @@ void *ur_discrete_buffer_handle_t::mapHostPtr(
         if (ownsAlloc) {
           auto ret = hContext->getDefaultUSMPool()->free(p);
           if (ret != UR_RESULT_SUCCESS) {
-            UR_LOG(ERR, "Failed to mapped memory: {}", ret);
+            UR_LOG(ERROR, "Failed to mapped memory: {}", ret);
           }
         }
       });
@@ -414,20 +416,20 @@ void *ur_mem_sub_buffer_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
     size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->getDevicePtr(
-      hDevice, access, offset + this->offset, size, migrate);
+      hDevice, access, offset + this->offset, size, std::move(migrate));
 }
 
 void *ur_mem_sub_buffer_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t size,
     std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
-                                          migrate);
+                                          std::move(migrate));
 }
 
 void ur_mem_sub_buffer_t::unmapHostPtr(
     void *pMappedPtr,
     std::function<void(void *src, void *dst, size_t)> migrate) {
-  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, migrate);
+  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, std::move(migrate));
 }
 
 ur_shared_mutex &ur_mem_sub_buffer_t::getMutex() {
@@ -742,7 +744,7 @@ ur_result_t urMemImageCreateWithNativeHandle(
 ur_result_t urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t propName,
                               size_t propSize, void *pPropValue,
                               size_t *pPropSizeRet) {
-  UR_LOG(ERR, "{} function not implemented!", __FUNCTION__);
+  UR_LOG(ERROR, "{} function not implemented!", __FUNCTION__);
 
   std::ignore = hMemory;
   std::ignore = propName;

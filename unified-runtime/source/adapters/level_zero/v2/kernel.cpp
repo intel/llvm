@@ -117,10 +117,11 @@ ur_result_t ur_kernel_handle_t_::release() {
 void ur_kernel_handle_t_::completeInitialization() {
   // Cache kernel name. Should be the same for all devices
   assert(deviceKernels.size() > 0);
-  nonEmptyKernel =
-      &std::find_if(deviceKernels.begin(), deviceKernels.end(),
-                    [](const auto &kernel) { return kernel.has_value(); })
-           ->value();
+  auto nonEmptyKernelIt =
+      std::find_if(deviceKernels.begin(), deviceKernels.end(),
+                   [](const auto &kernel) { return kernel.has_value(); });
+  assert(nonEmptyKernelIt != deviceKernels.end());
+  nonEmptyKernel = &nonEmptyKernelIt->value();
 
   zeCommonProperties.Compute = [kernel = nonEmptyKernel](
                                    common_properties_t &props) {
@@ -264,7 +265,7 @@ ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
       ZE2UR_CALL(zeKernelSetCacheConfig,
                  (kernel->hKernel.get(), zeCacheConfig););
     } else {
-      UR_LOG(ERR, "urKernelSetExecInfo: unsupported ParamName");
+      UR_LOG(ERROR, "urKernelSetExecInfo: unsupported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -560,8 +561,9 @@ ur_result_t urKernelGetGroupInfo(
     // No corresponding enumeration in Level Zero
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default: {
-    UR_LOG(ERR, "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
-          paramName, logger::toHex(paramName));
+    UR_LOG(ERROR,
+           "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
+           paramName, logger::toHex(paramName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   }
@@ -644,8 +646,9 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue(static_cast<const char *>(attributes.data()));
   }
   default:
-    UR_LOG(ERR, "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
-          paramName, logger::toHex(paramName));
+    UR_LOG(ERROR,
+           "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
+           paramName, logger::toHex(paramName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 

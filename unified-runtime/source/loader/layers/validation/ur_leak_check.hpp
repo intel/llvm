@@ -68,13 +68,14 @@ private:
             ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
                                 getCurrentBacktrace()});
       } else {
-        UR_LOG_LOGGER(getContext()->logger, ERR, "Handle {} already exists", ptr);
+        UR_LOG_L(getContext()->logger, ERROR, "Handle {} already exists", ptr);
         return;
       }
       break;
     case REFCOUNT_INCREASE:
       if (it == counts.end()) {
-        UR_LOG_LOGGER(getContext()->logger, ERR, "Attempting to retain nonexistent handle {}", ptr);
+        UR_LOG_L(getContext()->logger, ERROR,
+                 "Attempting to retain nonexistent handle {}", ptr);
         return;
       } else {
         it->second.refCount++;
@@ -90,15 +91,16 @@ private:
       }
 
       if (it->second.refCount < 0) {
-        UR_LOG(ERR, "Attempting to release nonexistent handle {}", ptr);
+        UR_LOG(ERROR, "Attempting to release nonexistent handle {}", ptr);
       } else if (it->second.refCount == 0 && isAdapterHandle) {
         adapterCount--;
       }
       break;
     }
 
-    UR_LOG_LOGGER(getContext()->logger, DEBUG, "Reference count for handle {} changed to {}", ptr,
-              it->second.refCount);
+    UR_LOG_L(getContext()->logger, DEBUG,
+             "Reference count for handle {} changed to {}", ptr,
+             it->second.refCount);
 
     if (it->second.refCount == 0) {
       counts.erase(ptr);
@@ -143,22 +145,23 @@ public:
 
   void logInvalidReferences(const char *filename, const char *lineno) {
     for (auto &[ptr, refRuntimeInfo] : counts) {
-      getContext()->logger.log(logger::Level::ERR, filename, lineno,
+      getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, filename, lineno,
                                "Retained {} reference(s) to handle {}",
                                refRuntimeInfo.refCount, ptr);
       getContext()->logger.log(
-          logger::Level::ERR, filename, lineno,
+          UR_LOGGER_LEVEL_ERROR, filename, lineno,
           "Handle {} was recorded for first time here:", ptr);
       for (size_t i = 0; i < refRuntimeInfo.backtrace.size(); i++) {
-        getContext()->logger.log(logger::Level::ERR, filename, lineno, "#{} {}",
-                                 i, refRuntimeInfo.backtrace[i].c_str());
+        getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, filename, lineno,
+                                 "#{} {}", i,
+                                 refRuntimeInfo.backtrace[i].c_str());
       }
     }
   }
 
   void logInvalidReference(const char *filename, const char *lineno,
                            void *ptr) {
-    getContext()->logger.log(logger::Level::ERR, filename, lineno,
+    getContext()->logger.log(UR_LOGGER_LEVEL_ERROR, filename, lineno,
                              "There are no valid references to handle {}", ptr);
   }
 };

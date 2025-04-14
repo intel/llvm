@@ -27,7 +27,7 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
 
   if ((asanEnabled + msanEnabled + tsanEnabled) >= 2) {
     UR_LOG(WARN,
-          "Enabling ASAN or MSAN or TSAN at the same time is not supported.");
+           "Enabling ASAN or MSAN or TSAN at the same time is not supported.");
     return UR_RESULT_SUCCESS;
   } else if (asanEnabled) {
     enabledType = SanitizerType::AddressSanitizer;

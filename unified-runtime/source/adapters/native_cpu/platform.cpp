@@ -18,7 +18,7 @@
 #include <iostream>
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
+urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
               ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   UR_ASSERT(pNumPlatforms || phPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
@@ -29,7 +29,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
 
   if (NumEntries == 0) {
     if (phPlatforms != nullptr) {
-      UR_LOG(ERR, "Invalid argument combination for urPlatformsGet");
+      UR_LOG(ERROR, "Invalid argument combination for urPlatformsGet");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     return UR_RESULT_SUCCESS;

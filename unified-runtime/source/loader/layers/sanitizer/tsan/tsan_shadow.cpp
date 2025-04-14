@@ -29,7 +29,7 @@ std::shared_ptr<ShadowMemory> GetShadowMemory(ur_context_handle_t Context,
   } else if (Type == DeviceType::GPU_PVC) {
     return std::make_shared<ShadowMemoryPVC>(Context, Device);
   } else {
-    UR_LOG_LOGGER(getContext()->logger, ERR, "Unsupport device type");
+    UR_LOG_L(getContext()->logger, ERROR, "Unsupport device type");
     return nullptr;
   }
 }
@@ -71,8 +71,8 @@ ur_result_t ShadowMemoryCPU::CleanShadow(ur_queue_handle_t, uptr Ptr,
     Size = RoundUpTo(Size, kShadowCell);
 
     RawShadow *Begin = MemToShadow(Ptr);
-    UR_LOG_LOGGER(getContext()->logger, DEBUG, "CleanShadow(addr={}, count={})", (void *)Begin,
-              Size / kShadowCell);
+    UR_LOG_L(getContext()->logger, DEBUG, "CleanShadow(addr={}, count={})",
+             (void *)Begin, Size / kShadowCell);
     memset((void *)Begin, 0, Size / kShadowCell * kShadowCnt * kShadowSize);
   }
   return UR_RESULT_SUCCESS;
@@ -91,8 +91,9 @@ ur_result_t ShadowMemoryGPU::Setup() {
   auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
       Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
   if (Result != UR_RESULT_SUCCESS) {
-    UR_LOG_LOGGER(getContext()->logger, ERR, "Shadow memory reserved failed with size {}: {}",
-              (void *)ShadowSize, Result);
+    UR_LOG_L(getContext()->logger, ERROR,
+             "Shadow memory reserved failed with size {}: {}",
+             (void *)ShadowSize, Result);
     return Result;
   }
   ShadowEnd = ShadowBegin + ShadowSize;
@@ -146,7 +147,8 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
         auto URes = getContext()->urDdiTable.PhysicalMem.pfnCreate(
             Context, Device, PageSize, &Desc, &PhysicalMem);
         if (URes != UR_RESULT_SUCCESS) {
-          UR_LOG_LOGGER(getContext()->logger, ERR, "urPhysicalMemCreate(): {}", URes);
+          UR_LOG_L(getContext()->logger, ERROR, "urPhysicalMemCreate(): {}",
+                   URes);
           return URes;
         }
 
@@ -154,18 +156,19 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
             Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
             UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
         if (URes != UR_RESULT_SUCCESS) {
-          UR_LOG_LOGGER(getContext()->logger, ERR, "urVirtualMemMap({}, {}): {}", (void *)MappedPtr,
-                    PageSize, URes);
+          UR_LOG_L(getContext()->logger, ERROR, "urVirtualMemMap({}, {}): {}",
+                   (void *)MappedPtr, PageSize, URes);
           return URes;
         }
 
-        UR_LOG_LOGGER(getContext()->logger, DEBUG, "urVirtualMemMap: {} ~ {}", (void *)MappedPtr,
-                  (void *)(MappedPtr + PageSize - 1));
+        UR_LOG_L(getContext()->logger, DEBUG, "urVirtualMemMap: {} ~ {}",
+                 (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
 
         // Initialize to zero
         URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize);
         if (URes != UR_RESULT_SUCCESS) {
-          UR_LOG_LOGGER(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}", URes);
+          UR_LOG_L(getContext()->logger, ERROR, "EnqueueUSMBlockingSet(): {}",
+                   URes);
           return URes;
         }
 
@@ -177,12 +180,12 @@ ur_result_t ShadowMemoryGPU::CleanShadow(ur_queue_handle_t Queue, uptr Ptr,
   auto URes = EnqueueUSMBlockingSet(
       Queue, (void *)Begin, 0, Size / kShadowCell * kShadowCnt * kShadowSize);
   if (URes != UR_RESULT_SUCCESS) {
-    UR_LOG_LOGGER(getContext()->logger, ERR, "EnqueueUSMBlockingSet(): {}", URes);
+    UR_LOG_L(getContext()->logger, ERROR, "EnqueueUSMBlockingSet(): {}", URes);
     return URes;
   }
 
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "CleanShadow(addr={}, count={})", (void *)Begin,
-            Size / kShadowCell);
+  UR_LOG_L(getContext()->logger, DEBUG, "CleanShadow(addr={}, count={})",
+           (void *)Begin, Size / kShadowCell);
 
   return UR_RESULT_SUCCESS;
 }

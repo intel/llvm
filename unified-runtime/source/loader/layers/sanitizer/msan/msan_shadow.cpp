@@ -45,7 +45,7 @@ GetMsanShadowMemory(ur_context_handle_t Context, ur_device_handle_t Device,
         std::make_shared<MsanShadowMemoryDG2>(Context, Device);
     return ShadowDG2;
   } else {
-    UR_LOG_LOGGER(getContext()->logger, ERR, "Unsupport device type");
+    UR_LOG_L(getContext()->logger, ERROR, "Unsupport device type");
     return nullptr;
   }
 }
@@ -118,9 +118,10 @@ ur_result_t MsanShadowMemoryCPU::EnqueuePoisonShadow(
     const uptr ShadowBegin = MemToShadow(Ptr);
     const uptr ShadowEnd = MemToShadow(Ptr + Size - 1);
     assert(ShadowBegin <= ShadowEnd);
-    UR_LOG_LOGGER(getContext()->logger, DEBUG, "EnqueuePoisonShadow(addr={}, count={}, value={})",
-              (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-              (void *)(size_t)Value);
+    UR_LOG_L(getContext()->logger, DEBUG,
+             "EnqueuePoisonShadow(addr={}, count={}, value={})",
+             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+             (void *)(size_t)Value);
     memset((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
   }
 
@@ -146,8 +147,9 @@ ur_result_t MsanShadowMemoryGPU::Setup() {
     auto Result = getContext()->urDdiTable.VirtualMem.pfnReserve(
         Context, StartAddress, ShadowSize, (void **)&ShadowBegin);
     if (Result != UR_RESULT_SUCCESS) {
-      UR_LOG_LOGGER(getContext()->logger, ERR, "Shadow memory reserved failed with size {}: {}",
-                (void *)ShadowSize, Result);
+      UR_LOG_L(getContext()->logger, ERROR,
+               "Shadow memory reserved failed with size {}: {}",
+               (void *)ShadowSize, Result);
       return Result;
     }
     ShadowEnd = ShadowBegin + ShadowSize;
@@ -191,7 +193,8 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
       auto URes = getContext()->urDdiTable.PhysicalMem.pfnCreate(
           Context, Device, PageSize, nullptr, &PhysicalMem);
       if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_LOGGER(getContext()->logger, ERR, "urPhysicalMemCreate(): {}", URes);
+        UR_LOG_L(getContext()->logger, ERROR, "urPhysicalMemCreate(): {}",
+                 URes);
         return URes;
       }
 
@@ -199,20 +202,20 @@ ur_result_t MsanShadowMemoryGPU::EnqueueMapShadow(
           Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
           UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
       if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_LOGGER(getContext()->logger, ERR, "urVirtualMemMap({}, {}): {}", (void *)MappedPtr,
-                  PageSize, URes);
+        UR_LOG_L(getContext()->logger, ERROR, "urVirtualMemMap({}, {}): {}",
+                 (void *)MappedPtr, PageSize, URes);
         return URes;
       }
 
-      UR_LOG_LOGGER(getContext()->logger, DEBUG, "urVirtualMemMap: {} ~ {}", (void *)MappedPtr,
-                (void *)(MappedPtr + PageSize - 1));
+      UR_LOG_L(getContext()->logger, DEBUG, "urVirtualMemMap: {} ~ {}",
+               (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
 
       // Initialize to zero
       URes = EnqueueUSMBlockingSet(Queue, (void *)MappedPtr, 0, PageSize,
                                    EventWaitList.size(), EventWaitList.data(),
                                    OutEvent);
       if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_LOGGER(getContext()->logger, ERR, "EnqueueUSMSet(): {}", URes);
+        UR_LOG_L(getContext()->logger, ERROR, "EnqueueUSMSet(): {}", URes);
         return URes;
       }
 
@@ -256,9 +259,10 @@ ur_result_t MsanShadowMemoryGPU::EnqueuePoisonShadow(
                                       ShadowEnd - ShadowBegin + 1,
                                       Events.size(), Events.data(), OutEvent);
 
-  UR_LOG_LOGGER(getContext()->logger, DEBUG, "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",
-            (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
-            (void *)(size_t)Value, Result);
+  UR_LOG_L(getContext()->logger, DEBUG,
+           "EnqueuePoisonShadow(addr={}, count={}, value={}): {}",
+           (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
+           (void *)(size_t)Value, Result);
 
   return Result;
 }
@@ -283,8 +287,8 @@ MsanShadowMemoryGPU::ReleaseShadow(std::shared_ptr<MsanAllocInfo> AI) {
           Context, (void *)MappedPtr, PageSize));
       UR_CALL(getContext()->urDdiTable.PhysicalMem.pfnRelease(
           VirtualMemMaps[MappedPtr].first));
-      UR_LOG_LOGGER(getContext()->logger, DEBUG, "urVirtualMemUnmap: {} ~ {}", (void *)MappedPtr,
-                (void *)(MappedPtr + PageSize - 1));
+      UR_LOG_L(getContext()->logger, DEBUG, "urVirtualMemUnmap: {} ~ {}",
+               (void *)MappedPtr, (void *)(MappedPtr + PageSize - 1));
     }
   }
 

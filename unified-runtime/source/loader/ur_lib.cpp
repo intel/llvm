@@ -325,7 +325,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
   // something similar.)
   auto maybeEnvVarMap = getenv_to_map("ONEAPI_DEVICE_SELECTOR", false);
   UR_LOG(DEBUG, "getenv_to_map parsed env var and {} a map",
-        (maybeEnvVarMap.has_value() ? "produced" : "failed to produce"));
+         (maybeEnvVarMap.has_value() ? "produced" : "failed to produce"));
 
   // if the ODS env var is not set at all, then pretend it was set to the
   // default
@@ -460,8 +460,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     if (backend.empty()) {
       // FIXME: never true because getenv_to_map rejects this case
       // malformed term: missing backend -- output ERROR, then continue
-      UR_LOG(ERR, "ERROR: missing backend, format of filter = "
-                 "'[!]backend:filterStrings'");
+      UR_LOG(ERROR, "ERROR: missing backend, format of filter = "
+                    "'[!]backend:filterStrings'");
       continue;
     }
     enum FilterType {
@@ -469,7 +469,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
       DiscardFilter,
     } termType = (backend.front() != '!') ? AcceptFilter : DiscardFilter;
     UR_LOG(DEBUG, "termType is {}",
-          (termType != AcceptFilter ? "DiscardFilter" : "AcceptFilter"));
+           (termType != AcceptFilter ? "DiscardFilter" : "AcceptFilter"));
     auto &deviceList =
         (termType != AcceptFilter) ? discardDeviceList : acceptDeviceList;
     if (termType != AcceptFilter) {
@@ -490,13 +490,13 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                     })) {
       // irrelevant term for current request: different backend -- silently
       // ignore
-      UR_LOG(ERR, "unrecognised backend '{}'", backend);
+      UR_LOG(ERROR, "unrecognised backend '{}'", backend);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     if (termPair.second.size() == 0) {
       // malformed term: missing filterStrings -- output ERROR
-      UR_LOG(ERR, "missing filterStrings, format of filter = "
-                 "'[!]backend:filterStrings'");
+      UR_LOG(ERROR, "missing filterStrings, format of filter = "
+                    "'[!]backend:filterStrings'");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     if (std::find_if(termPair.second.cbegin(), termPair.second.cend(),
@@ -505,7 +505,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
       // FIXME: never true because getenv_to_map rejects this case
       // malformed term: missing filterString -- output warning, then continue
       UR_LOG(WARN, "WARNING: empty filterString, format of filterStrings "
-                  "= 'filterString[,filterString[,...]]'");
+                   "= 'filterString[,filterString[,...]]'");
       continue;
     }
     if (std::find_if(termPair.second.cbegin(), termPair.second.cend(),
@@ -513,8 +513,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                        return std::count(s.cbegin(), s.cend(), '.') > 2;
                      }) != termPair.second.cend()) {
       // malformed term: too many dots in filterString
-      UR_LOG(ERR, "too many dots in filterString, format of "
-                 "filterString = 'root[.sub[.subsub]]'");
+      UR_LOG(ERROR, "too many dots in filterString, format of "
+                    "filterString = 'root[.sub[.subsub]]'");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     if (std::find_if(termPair.second.cbegin(), termPair.second.cend(),
@@ -535,7 +535,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                        return false; // no BAD things, so must be okay
                      }) != termPair.second.cend()) {
       // malformed term: star dot no-star in filterString
-      UR_LOG(ERR, "invalid wildcard in filterString, '*.' => '*.*'");
+      UR_LOG(ERROR, "invalid wildcard in filterString, '*.' => '*.*'");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
@@ -594,9 +594,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                           0, 0, nullptr});
   }
 
-  UR_LOG(DEBUG, "DEBUG: size of acceptDeviceList = {}", acceptDeviceList.size());
+  UR_LOG(DEBUG, "DEBUG: size of acceptDeviceList = {}",
+         acceptDeviceList.size());
   UR_LOG(DEBUG, "DEBUG: size of discardDeviceList = {}",
-        discardDeviceList.size());
+         discardDeviceList.size());
 
   std::vector<DeviceSpec> rootDevices;
   std::vector<DeviceSpec> subDevices;
@@ -723,18 +724,18 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
       matches = (filter.hwType == device.hwType) ||
                 (filter.hwType == DeviceHardwareType::UR_DEVICE_TYPE_ALL);
       UR_LOG(DEBUG, "DEBUG: In ApplyFilter, if block case 1, matches = {}",
-            matches);
+             matches);
     } else if (filter.rootId != device.rootId) {
       // root part in filter is a number but does not match the number in the
       // root part of device
       matches = false;
       UR_LOG(DEBUG,
-            "DEBUG: In ApplyFilter, if block case 2, matches = ", matches);
+             "DEBUG: In ApplyFilter, if block case 2, matches = ", matches);
     } else if (filter.level == DevicePartLevel::ROOT) {
       // this is a root device filter with a number that matches
       matches = true;
       UR_LOG(DEBUG,
-            "DEBUG: In ApplyFilter, if block case 3, matches = ", matches);
+             "DEBUG: In ApplyFilter, if block case 3, matches = ", matches);
     } else if (filter.subId == DeviceIdTypeALL) {
       // sub type of star always matches (when root part matches, which we
       // already know here) if this is a subdevice filter, then it must be
@@ -742,30 +743,30 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
       // 'matches.*.*'
       matches = true;
       UR_LOG(DEBUG,
-            "DEBUG: In ApplyFilter, if block case 4, matches = ", matches);
+             "DEBUG: In ApplyFilter, if block case 4, matches = ", matches);
     } else if (filter.subId != device.subId) {
       // sub part in filter is a number but does not match the number in the sub
       // part of device
       matches = false;
       UR_LOG(DEBUG,
-            "DEBUG: In ApplyFilter, if block case 5, matches = ", matches);
+             "DEBUG: In ApplyFilter, if block case 5, matches = ", matches);
     } else if (filter.level == DevicePartLevel::SUB) {
       // this is a sub device number filter, numbers match in both parts
       matches = true;
       UR_LOG(DEBUG,
-            "DEBUG: In ApplyFilter, if block case 6, matches = ", matches);
+             "DEBUG: In ApplyFilter, if block case 6, matches = ", matches);
     } else if (filter.subsubId == DeviceIdTypeALL) {
       // subsub type of star always matches (when other parts match, which we
       // already know here) this is a subsub device filter, it must be
       // 'matches.matches.*'
       matches = true;
       UR_LOG(DEBUG,
-            "DEBUG: In ApplyFilter, if block case 7, matches = ", matches);
+             "DEBUG: In ApplyFilter, if block case 7, matches = ", matches);
     } else {
       // this is a subsub device filter, numbers in all three parts match
       matches = (filter.subsubId == device.subsubId);
       UR_LOG(DEBUG,
-            "DEBUG: In ApplyFilter, if block case 8, matches = ", matches);
+             "DEBUG: In ApplyFilter, if block case 8, matches = ", matches);
     }
     return matches;
   };
@@ -830,10 +831,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     }
     if (numAlreadySelected == selectedDevices.size()) {
       UR_LOG(WARN,
-            "WARNING: an accept term was ignored because it "
-            "does not select any additional devices"
-            "selectedDevices.size() = {}",
-            selectedDevices.size());
+             "WARNING: an accept term was ignored because it "
+             "does not select any additional devices"
+             "selectedDevices.size() = {}",
+             selectedDevices.size());
     }
   }
 

@@ -1557,7 +1557,7 @@ private:
   /// or REAL type.
   ///
   /// A nonpositive \p valuelist value indicates an IO statement context
-  /// (0 for ERR, -1 for END, -2 for EOR). An ERR branch must be taken for
+  /// (0 for ERROR, -1 for END, -2 for EOR). An ERR branch must be taken for
   /// any positive (IOSTAT) value. A missing (zero) label requires a branch
   /// to \p defaultEval for that value.
   ///
