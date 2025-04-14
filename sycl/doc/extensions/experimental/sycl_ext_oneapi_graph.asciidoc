@@ -321,6 +321,9 @@ devices with full graph support are more prevalent.
 
 |===
 
+A device which reports `aspect::ext_oneapi_graph` must also report
+`aspect::ext_oneapi_limited_graph`, as `aspect::ext_oneapi_graph` is a
+superset of the limited aspect.
 
 === Node
 
