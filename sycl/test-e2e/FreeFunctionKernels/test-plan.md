@@ -157,7 +157,7 @@ A series of checks should be performed to check compatibility of free function k
 #### Free function kernels compatibility with OpenCL backend:
 A series of checks should be performed to check compatibility of free function kernels with OpenCL Backend without going through the SYCL host runtime.
 
-#### Test template support in free function kernels
+#### Test template support in free function kernels:
 A series of checks should be performed to check compatibility of free function kernels with templateed kernel parameters.
 
 [spec-link]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc
