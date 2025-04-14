@@ -15,7 +15,8 @@ struct urMultiDeviceProgramCreateWithBinaryTest
     UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceProgramTest::SetUp());
 
     // First obtain binaries for all devices from the compiled SPIRV program.
-    ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+    ASSERT_SUCCESS(
+        urProgramBuild(program, devices.size(), devices.data(), nullptr));
     size_t binary_sizes_len = 0;
     ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES, 0,
                                     nullptr, &binary_sizes_len));
@@ -69,7 +70,7 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest,
 
   for (size_t i = 1; i < devices.size(); i++) {
     uur::raii::Kernel kernel;
-    ASSERT_SUCCESS(urProgramBuild(context, binary_program, nullptr));
+    ASSERT_SUCCESS(urProgramBuild(binary_program, 1, &devices[i], nullptr));
     ASSERT_SUCCESS(
         urKernelCreate(binary_program, kernelName.data(), kernel.ptr()));
 
@@ -90,16 +91,19 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest, CheckCompileAndLink) {
   ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
                                    sizeof(backend), &backend, nullptr));
   if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-    ASSERT_EQ(urProgramCompile(context, binary_program, nullptr),
+    ASSERT_EQ(urProgramCompile(binary_program, devices.size(), devices.data(),
+                               nullptr),
               UR_RESULT_ERROR_INVALID_OPERATION);
     uur::raii::Program linked_program;
-    ASSERT_EQ(urProgramLink(context, 1, &binary_program, nullptr,
-                            linked_program.ptr()),
+    ASSERT_EQ(urProgramLink(context, devices.size(), devices.data(), 1,
+                            &binary_program, nullptr, linked_program.ptr()),
               UR_RESULT_ERROR_INVALID_OPERATION);
   } else if (backend == UR_PLATFORM_BACKEND_OPENCL) {
-    ASSERT_SUCCESS(urProgramCompile(context, binary_program, nullptr));
+    ASSERT_SUCCESS(urProgramCompile(binary_program, devices.size(),
+                                    devices.data(), nullptr));
     uur::raii::Program linked_program;
-    ASSERT_SUCCESS(urProgramLink(context, 1, &binary_program, nullptr,
+    ASSERT_SUCCESS(urProgramLink(context, devices.size(), devices.data(), 1,
+                                 &binary_program, nullptr,
                                  linked_program.ptr()));
   } else {
     GTEST_SKIP();
@@ -123,32 +127,25 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest,
 // Test the case when program is built multiple times for different devices from
 // context.
 TEST_P(urMultiDeviceProgramCreateWithBinaryTest, MultipleBuildCalls) {
-  // Run test only for level zero backend which supports urProgramBuildExp.
-  ur_platform_backend_t backend;
-  ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
-                                   sizeof(backend), &backend, nullptr));
-  if (backend != UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-    GTEST_SKIP();
-  }
   auto first_subset = std::vector<ur_device_handle_t>(
       devices.begin(), devices.begin() + devices.size() / 2);
   auto second_subset = std::vector<ur_device_handle_t>(
       devices.begin() + devices.size() / 2, devices.end());
-  ASSERT_SUCCESS(urProgramBuildExp(binary_program, first_subset.size(),
-                                   first_subset.data(), nullptr));
+  ASSERT_SUCCESS(urProgramBuild(binary_program, first_subset.size(),
+                                first_subset.data(), nullptr));
   auto kernelName =
       uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
   uur::raii::Kernel kernel;
   ASSERT_SUCCESS(
       urKernelCreate(binary_program, kernelName.data(), kernel.ptr()));
-  ASSERT_SUCCESS(urProgramBuildExp(binary_program, second_subset.size(),
-                                   second_subset.data(), nullptr));
+  ASSERT_SUCCESS(urProgramBuild(binary_program, second_subset.size(),
+                                second_subset.data(), nullptr));
   ASSERT_SUCCESS(
       urKernelCreate(binary_program, kernelName.data(), kernel.ptr()));
 
   // Building for the same subset of devices should not fail.
-  ASSERT_SUCCESS(urProgramBuildExp(binary_program, first_subset.size(),
-                                   first_subset.data(), nullptr));
+  ASSERT_SUCCESS(urProgramBuild(binary_program, first_subset.size(),
+                                first_subset.data(), nullptr));
 }
 
 // Test the case we get native binaries from program created with multiple
@@ -209,7 +206,8 @@ TEST_P(urMultiDeviceProgramCreateWithBinaryTest, CheckProgramGetInfo) {
   }
 
   // Now build the program and check that we can get the info.
-  ASSERT_SUCCESS(urProgramBuild(context, binary_program, nullptr));
+  ASSERT_SUCCESS(
+      urProgramBuild(binary_program, devices.size(), devices.data(), nullptr));
 
   size_t logSize;
   std::string log;
@@ -256,7 +254,8 @@ struct urMultiDeviceCommandBufferExpTest
     auto kernelName =
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
-    ASSERT_SUCCESS(urProgramBuild(context, binary_program, nullptr));
+    ASSERT_SUCCESS(urProgramBuild(binary_program, devices.size(),
+                                  devices.data(), nullptr));
     ASSERT_SUCCESS(urKernelCreate(binary_program, kernelName.data(), &kernel));
   }
 

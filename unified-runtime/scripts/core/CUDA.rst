@@ -102,7 +102,7 @@ Currently ``maxrregcount`` is the only supported argument.
 
 .. parsed-literal::
 
-   ${x}ProgramBuild(ctx, program, "maxrregcount=128");
+   ${x}ProgramBuild(program, numDevices, phDevices, "maxrregcount=128");
 
 
 Using SASS Modules in UR

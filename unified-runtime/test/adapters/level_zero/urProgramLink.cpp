@@ -12,10 +12,10 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urLevelZeroProgramLinkTest);
 
 TEST_P(urLevelZeroProgramLinkTest, InvalidLinkOptionsPrintedInLog) {
   ur_program_handle_t linked_program = nullptr;
-  ASSERT_SUCCESS(urProgramCompile(context, program, "-foo"));
+  ASSERT_SUCCESS(urProgramCompile(program, 1, &device, "-foo"));
   ASSERT_EQ_RESULT(
       UR_RESULT_ERROR_PROGRAM_LINK_FAILURE,
-      urProgramLink(context, 1, &program, "-foo", &linked_program));
+      urProgramLink(context, 1, &device, 1, &program, "-foo", &linked_program));
 
   size_t logSize;
   std::vector<char> log;

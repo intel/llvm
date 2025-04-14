@@ -33,10 +33,10 @@ int main() {
   sycl::kernel_bundle kernelBundleInput =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(ctx, {kid});
   // CHECK: urProgramCreateWithIL(
-  // CHECK: urProgramBuildExp(
+  // CHECK: urProgramBuild(
   auto KernelBundleExe1 = build(kernelBundleInput, {dev1, dev2});
   // CHECK: urProgramCreateWithIL(
-  // CHECK: urProgramBuildExp(
+  // CHECK: urProgramBuild(
   auto KernelBundleExe2 = build(kernelBundleInput, {dev2, dev3});
   // No other program creation calls are expected.
   // CHECK-NOT: urProgramCreateWithIL(
