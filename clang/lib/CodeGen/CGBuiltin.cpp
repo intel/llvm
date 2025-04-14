@@ -3157,8 +3157,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   bool IsSYCLDeviceWithoutIntrinsics =
       getLangOpts().SYCLIsDevice &&
       (getTarget().getTriple().isNVPTX() || getTarget().getTriple().isAMDGCN());
-  GenerateIntrinsics &= IsSYCLDeviceWithoutIntrinsics;
-  if (GenerateIntrinsics) {
+  if (GenerateIntrinsics && !IsSYCLDeviceWithoutIntrinsics) {
     switch (BuiltinIDIfNoAsmLabel) {
     case Builtin::BIacos:
     case Builtin::BIacosf:
