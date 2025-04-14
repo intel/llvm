@@ -73,10 +73,8 @@ DefGenericCastToPtrExpl(ToGlobal, OCL_GLOBAL);
   __spirv_SubgroupBlockReadINTEL<Type>(const OCL_GLOBAL PType *Ptr) noexcept { \
     return Ptr[__spirv_SubgroupLocalInvocationId()];                           \
   }                                                                            \
-  template <>                                                                  \
-  __SYCL_CONVERGENT__ DEVICE_EXTERNAL void                                     \
-  __spirv_SubgroupBlockWriteINTEL<Type>(PType OCL_GLOBAL * ptr,                \
-                                        Type v) noexcept {                     \
+  __SYCL_CONVERGENT__ DEVICE_EXTERNAL void __spirv_SubgroupBlockWriteINTEL(    \
+      PType OCL_GLOBAL *ptr, Type v) noexcept {                                \
     ((Type *)ptr)[__spirv_SubgroupLocalInvocationId()] = v;                    \
   }                                                                            \
   static_assert(true)
@@ -252,9 +250,8 @@ DefineBroadCast(int64_t, i64, int64_t);
 #define DefShuffleINTEL(Type, Sfx, MuxType)                                    \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_##Sfx(MuxType val,           \
                                                         int32_t lid) noexcept; \
-  template <>                                                                  \
-  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleINTEL<Type>(                     \
-      Type val, unsigned id) noexcept {                                        \
+  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleINTEL(Type val,                  \
+                                                    unsigned id) noexcept {    \
     return (Type)__mux_sub_group_shuffle_##Sfx((MuxType)val, id);              \
   }                                                                            \
   static_assert(true)
@@ -262,8 +259,7 @@ DefineBroadCast(int64_t, i64, int64_t);
 #define DefShuffleUpINTEL(Type, Sfx, MuxType)                                  \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_up_##Sfx(                    \
       MuxType prev, MuxType curr, int32_t delta) noexcept;                     \
-  template <>                                                                  \
-  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleUpINTEL<Type>(                   \
+  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleUpINTEL(                         \
       Type prev, Type curr, unsigned delta) noexcept {                         \
     return (Type)__mux_sub_group_shuffle_up_##Sfx((MuxType)prev,               \
                                                   (MuxType)curr, delta);       \
@@ -273,8 +269,7 @@ DefineBroadCast(int64_t, i64, int64_t);
 #define DefShuffleDownINTEL(Type, Sfx, MuxType)                                \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_down_##Sfx(                  \
       MuxType curr, MuxType next, int32_t delta) noexcept;                     \
-  template <>                                                                  \
-  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleDownINTEL<Type>(                 \
+  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleDownINTEL(                       \
       Type curr, Type next, unsigned delta) noexcept {                         \
     return (Type)__mux_sub_group_shuffle_down_##Sfx((MuxType)curr,             \
                                                     (MuxType)next, delta);     \
@@ -284,8 +279,7 @@ DefineBroadCast(int64_t, i64, int64_t);
 #define DefShuffleXorINTEL(Type, Sfx, MuxType)                                 \
   DEVICE_EXTERN_C MuxType __mux_sub_group_shuffle_xor_##Sfx(MuxType val,       \
                                                             int32_t xor_val);  \
-  template <>                                                                  \
-  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleXorINTEL<Type>(                  \
+  DEVICE_EXTERNAL Type __spirv_SubgroupShuffleXorINTEL(                        \
       Type data, unsigned value) noexcept {                                    \
     return (Type)__mux_sub_group_shuffle_xor_##Sfx((MuxType)data, value);      \
   }                                                                            \

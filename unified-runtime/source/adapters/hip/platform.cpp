@@ -36,7 +36,7 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
     return ReturnValue("");
   }
   case UR_PLATFORM_INFO_ADAPTER: {
-    return ReturnValue(&adapter);
+    return ReturnValue(ur::hip::adapter);
   }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -56,7 +56,6 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
   try {
     static std::once_flag InitFlag;
     static uint32_t NumPlatforms = 1;
-    static ur_platform_handle_t_ Platform;
 
     UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
     UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_VALUE);
@@ -87,18 +86,20 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
 
               // Use the default stream to record base event counter
               UR_CHECK_ERROR(hipEventRecord(EvBase, 0));
-              Platform.Devices.emplace_back(
-                  new ur_device_handle_t_{Device, EvBase, &Platform, i});
+              ur::hip::adapter->Platform->Devices.emplace_back(
+                  new ur_device_handle_t_{Device, EvBase,
+                                          ur::hip::adapter->Platform.get(), i});
 
-              ScopedDevice Active(Platform.Devices.front().get());
+              ScopedDevice Active(
+                  ur::hip::adapter->Platform->Devices.front().get());
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
-            Platform.Devices.clear();
+            ur::hip::adapter->Platform->Devices.clear();
             Err = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
           } catch (ur_result_t CatchErr) {
             // Clear and rethrow to allow retry
-            Platform.Devices.clear();
+            ur::hip::adapter->Platform->Devices.clear();
             Err = CatchErr;
             throw CatchErr;
           } catch (...) {
@@ -113,7 +114,7 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
     }
 
     if (phPlatforms != nullptr) {
-      *phPlatforms = &Platform;
+      *phPlatforms = ur::hip::adapter->Platform.get();
     }
 
     return Result;

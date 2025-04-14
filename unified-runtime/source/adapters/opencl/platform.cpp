@@ -10,6 +10,7 @@
 
 #include "platform.hpp"
 #include "adapter.hpp"
+#include "device.hpp"
 
 static cl_int mapURPlatformInfoToCL(ur_platform_info_t URPropName) {
 
@@ -190,4 +191,44 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
     return UR_RESULT_SUCCESS;
   }
   return UR_RESULT_ERROR_INVALID_VALUE;
+}
+
+ur_result_t ur_platform_handle_t_::InitDevices() {
+  if (Devices.empty()) {
+    cl_uint DeviceNum = 0;
+    cl_int Res =
+        clGetDeviceIDs(CLPlatform, CL_DEVICE_TYPE_ALL, 0, nullptr, &DeviceNum);
+
+    // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in num_devices
+    if (Res == CL_DEVICE_NOT_FOUND) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    CL_RETURN_ON_FAILURE(Res);
+
+    std::vector<cl_device_id> CLDevices(DeviceNum);
+    Res = clGetDeviceIDs(CLPlatform, CL_DEVICE_TYPE_ALL, DeviceNum,
+                         CLDevices.data(), nullptr);
+
+    // Absorb the CL_DEVICE_NOT_FOUND and just return 0 in num_devices
+    if (Res == CL_DEVICE_NOT_FOUND) {
+      return UR_RESULT_SUCCESS;
+    }
+
+    CL_RETURN_ON_FAILURE(Res);
+
+    try {
+      Devices.resize(DeviceNum);
+      for (size_t i = 0; i < DeviceNum; i++) {
+        Devices[i] =
+            std::make_unique<ur_device_handle_t_>(CLDevices[i], this, nullptr);
+      }
+    } catch (std::bad_alloc &) {
+      return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+    } catch (...) {
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
 }
