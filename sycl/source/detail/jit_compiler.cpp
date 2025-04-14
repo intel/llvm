@@ -350,7 +350,7 @@ std::pair<sycl_device_binaries, std::string> jit_compiler::compileSYCL(
   const char *BuildLog = Result.getBuildLog();
   appendToLog(BuildLog);
   switch (Result.getErrorCode()) {
-    using RTCErrC = ::jit_compiler::RTCErrorCode;
+    using RTCErrC = ::jit_compiler::RTCResult::RTCErrorCode;
   case RTCErrC::BUILD:
     throw sycl::exception(sycl::errc::build, BuildLog);
   case RTCErrC::INVALID:

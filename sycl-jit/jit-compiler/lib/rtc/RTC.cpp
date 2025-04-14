@@ -29,18 +29,17 @@ JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
                                               View<const char *> UserArgs) {
   auto UserArgListOrErr = parseUserArgs(UserArgs);
   if (!UserArgListOrErr) {
-    return RTCHashResult::failure(
-        formatError(UserArgListOrErr.takeError(),
-                    "Parsing of user arguments failed")
-            .c_str());
+    return errorTo<RTCHashResult>(UserArgListOrErr.takeError(),
+                                  "Parsing of user arguments failed",
+                                  /*IsHash=*/false);
   }
   llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 
   auto Start = std::chrono::high_resolution_clock::now();
   auto HashOrError = calculateHash(SourceFile, IncludeFiles, UserArgList);
   if (!HashOrError) {
-    return RTCHashResult::failure(
-        formatError(HashOrError.takeError(), "Hashing failed").c_str());
+    return errorTo<RTCHashResult>(HashOrError.takeError(), "Hashing failed",
+                                  /*IsHash=*/false);
   }
   auto Hash = *HashOrError;
   auto Stop = std::chrono::high_resolution_clock::now();
@@ -51,7 +50,7 @@ JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
                  << int(HashTime.count()) << " ms\n";
   }
 
-  return RTCHashResult::success(Hash.c_str());
+  return RTCHashResult{Hash.c_str()};
 }
 
 JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
@@ -66,7 +65,7 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
   if (!UserArgListOrErr) {
     return errorTo<RTCResult>(UserArgListOrErr.takeError(),
                               "Parsing of user arguments failed",
-                              RTCErrorCode::INVALID);
+                              RTCResult::RTCErrorCode::INVALID);
   }
   llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 

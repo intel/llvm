@@ -87,15 +87,10 @@ using RTCDeviceCodeIR = DynArray<char>;
 
 class RTCHashResult {
 public:
-  static RTCHashResult success(const char *Hash) {
-    return RTCHashResult{/*Failed=*/false, Hash};
-  }
+  explicit RTCHashResult(const char *HashOrLog, bool IsHash = true)
+      : HashOrLog(HashOrLog), IsHash(IsHash) {}
 
-  static RTCHashResult failure(const char *PreprocLog) {
-    return RTCHashResult{/*Failed=*/true, PreprocLog};
-  }
-
-  bool failed() { return Failed; }
+  bool failed() { return !IsHash; }
 
   const char *getPreprocLog() {
     assert(failed() && "No preprocessor log");
@@ -108,17 +103,14 @@ public:
   }
 
 private:
-  RTCHashResult(bool Failed, const char *HashOrLog)
-      : Failed(Failed), HashOrLog(HashOrLog) {}
-
-  bool Failed;
   sycl::detail::string HashOrLog;
+  bool IsHash;
 };
-
-enum class RTCErrorCode { SUCCESS, BUILD, INVALID };
 
 class RTCResult {
 public:
+  enum class RTCErrorCode { SUCCESS, BUILD, INVALID };
+
   explicit RTCResult(const char *BuildLog,
                      RTCErrorCode ErrorCode = RTCErrorCode::BUILD)
       : ErrorCode{ErrorCode}, BundleInfo{}, BuildLog{BuildLog} {
