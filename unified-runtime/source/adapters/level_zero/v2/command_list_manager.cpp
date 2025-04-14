@@ -20,7 +20,7 @@ ur_command_list_manager::ur_command_list_manager(
     v2::raii::command_list_unique_handle &&commandList, v2::event_flags_t flags,
     ur_queue_t_ *queue)
     : context(context), device(device),
-      eventPool(context->getEventPoolCache().borrow(device->Id.value(), flags)),
+      eventPool(queue != nullptr ? context->getEventPoolCache().borrow(device->Id.value(), flags) : context->getEventPoolCache2().borrow(device->Id.value(), flags)),
       zeCommandList(std::move(commandList)), queue(queue) {
   UR_CALL_THROWS(ur::level_zero::urContextRetain(context));
   UR_CALL_THROWS(ur::level_zero::urDeviceRetain(device));
@@ -323,6 +323,8 @@ ur_result_t ur_command_list_manager::appendUSMPrefetch(
 ur_result_t
 ur_command_list_manager::appendUSMAdvise(const void *pMem, size_t size,
                                          ur_usm_advice_flags_t advice,
+                                         uint32_t numEventsInWaitList, 
+                                         const ur_event_handle_t *phEventWaitList,
                                          ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMAdvise");
 
@@ -330,7 +332,7 @@ ur_command_list_manager::appendUSMAdvise(const void *pMem, size_t size,
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_ADVISE);
 
-  auto [pWaitEvents, numWaitEvents] = getWaitListView(nullptr, 0);
+  auto [pWaitEvents, numWaitEvents] = getWaitListView(phEventWaitList, numEventsInWaitList);
 
   if (pWaitEvents) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,

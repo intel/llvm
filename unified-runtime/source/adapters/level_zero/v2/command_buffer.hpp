@@ -51,6 +51,8 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
       uint32_t numUpdateCommands,
       const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands);
 
+  void enableEvents();
+  void registerEvent(ur_event_handle_t event);
 private:
   const ur_context_handle_t context;
   const ur_device_handle_t device;
@@ -60,4 +62,5 @@ private:
   bool isFinalized = false;
 
   ur_event_handle_t currentExecution = nullptr;
+  std::vector<ur_event_handle_t> addedEvents;
 };
