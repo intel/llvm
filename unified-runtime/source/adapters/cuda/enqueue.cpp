@@ -97,10 +97,9 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 
   for (auto &UnmappedFlag : UnmappedMemAdviceFlags) {
     if (URAdviceFlags & UnmappedFlag) {
-      setErrorMessage("Memory advice ignored because the CUDA backend does not "
-                      "support some of the specified flags",
-                      UR_RESULT_SUCCESS);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      logger::warning("Memory advice ignored because the CUDA backend does not "
+                      "support some of the specified flags.");
+      return UR_RESULT_SUCCESS;
     }
   }
 
@@ -1613,19 +1612,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   // for managed memory. Therefore, ignore prefetch hint if concurrent managed
   // memory access is not available.
   if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
-    setErrorMessage("Prefetch hint ignored as device does not support "
-                    "concurrent managed access",
-                    UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    logger::warning("Prefetch hint ignored as device does not support "
+                    "concurrent managed access.");
+    return UR_RESULT_SUCCESS;
   }
 
   unsigned int IsManaged;
   UR_CHECK_ERROR(cuPointerGetAttribute(
       &IsManaged, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)pMem));
   if (!IsManaged) {
-    setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
-                    UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    logger::warning("Prefetch hint ignored as prefetch only works with USM.");
+    return UR_RESULT_SUCCESS;
   }
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -1675,10 +1672,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       (advice & UR_USM_ADVICE_FLAG_DEFAULT)) {
     ur_device_handle_t Device = hQueue->getDevice();
     if (!getAttribute(Device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
-      setErrorMessage("Mem advise ignored as device does not support "
-                      "concurrent managed access",
-                      UR_RESULT_SUCCESS);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      logger::warning("Mem advise ignored as device does not support "
+                      "concurrent managed access.");
+      return UR_RESULT_SUCCESS;
     }
 
     // TODO: If ptr points to valid system-allocated pageable memory we should
