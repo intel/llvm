@@ -140,6 +140,3 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 bool checkUSMAlignment(uint32_t &alignment, const ur_usm_desc_t *pUSMDesc);
 
 bool checkUSMImplAlignment(uint32_t Alignment, void **ResultPtr);
-
-ur_result_t umfPoolMallocHelper(ur_usm_pool_handle_t hPool, void **ppMem,
-                                size_t size, uint32_t alignment);

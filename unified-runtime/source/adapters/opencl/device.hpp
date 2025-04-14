@@ -28,6 +28,8 @@ struct ur_device_handle_t_ {
     RefCount = 1;
     if (Parent) {
       Type = Parent->Type;
+      [[maybe_unused]] auto Res = clRetainDevice(CLDevice);
+      assert(Res == CL_SUCCESS);
     } else {
       [[maybe_unused]] auto Res = clGetDeviceInfo(
           CLDevice, CL_DEVICE_TYPE, sizeof(cl_device_type), &Type, nullptr);
@@ -41,6 +43,8 @@ struct ur_device_handle_t_ {
       // exactly once. However, to prevent issues with the OpenCL handle being
       // reused, CLDevice must still be alive here.
       Platform->SubDevices.erase(CLDevice);
+      [[maybe_unused]] auto Res = clReleaseDevice(CLDevice);
+      assert(Res == CL_SUCCESS);
     }
     if (ParentDevice && IsNativeHandleOwned) {
       clReleaseDevice(CLDevice);

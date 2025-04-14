@@ -47,6 +47,7 @@ jobs:
       build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize --hip --cuda'
       build_image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       build_ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
+      pack_release: 'true'
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
@@ -106,6 +107,7 @@ jobs:
     with:
       ref: ${{ inputs.testing_branch || 'sycl-rel-6_1_0'  }}
       build_configure_extra_args: '--disable-jit --no-assertions --add_security_flags=sanitize'
+      pack_release: 'true'
 
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
@@ -220,3 +222,19 @@ jobs:
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
       sycl_cts_artifact: sycl_cts_bin_linux
+
+  hardening-check:
+    needs: [ubuntu2204_build, build-win]
+    if: |
+      always()
+      && !cancelled()
+      && needs.ubuntu2204_build.outputs.build_conclusion == 'success'
+      && needs.build-win.outputs.build_conclusion == 'success'
+    uses: ./.github/workflows/sycl-hardening-check.yml
+    with:
+      sycl_linux_artifact: sycl_linux_release
+      sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_linux_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
+      sycl_windows_artifact: sycl_windows_release
+      sycl_windows_archive: ${{ needs.build-win.outputs.artifact_archive_name }}

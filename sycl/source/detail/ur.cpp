@@ -233,7 +233,7 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
     const char *env_value = std::getenv("UR_LOG_CALLBACK");
     if (env_value == nullptr || std::string(env_value) != "disabled") {
       CHECK_UR_SUCCESS(adapterSetLoggerCallback(UrAdapter, urLoggerCallback,
-                                                nullptr, UR_LOGGER_LEVEL_INFO));
+                                                nullptr, UR_LOGGER_LEVEL_WARN));
     }
   }
 
