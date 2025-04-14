@@ -420,7 +420,7 @@ public:
       if (HostTask.MHostTask->isInteropTask()) {
         assert(HostTask.MQueue &&
                "Host task submissions should have an associated queue");
-        interop_handle IH{std::move(MReqToMem), HostTask.MQueue,
+        interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
                           HostTask.MQueue->getContextImplPtr()};
         // TODO: should all the backends that support this entry point use this
