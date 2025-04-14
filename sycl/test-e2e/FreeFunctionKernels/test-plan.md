@@ -27,6 +27,8 @@ Perform tests on free function kernels requirments which should check the follow
 
  - that compiler will emit diagnostic when free function kernel return type is not `void`.
 
+ - that compiler will emit diagnostic when a non-static member function is used as a kernel. Only static member function at class scope are allowed as free function kernel.
+
 Perform tests on new traits for free function kernels which should check the following:
  - that `is_nd_range_kernel_v` trait returns true if function declaration is decorated with `nd_range_kernel` property and false if it is not.
 
@@ -42,11 +44,11 @@ Perform tests on new kernel bundle member functions for free function kernels wh
 
 - that `get_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` member function returns kernel bundle in which associated free function kernel can be found.
 
-- that `has_kernel_bundle(const context& ctxt)` returns true when free function kernel can be represent in a device image of state and free function kernel is compatible with at least one of the devices in context.
+- that `has_kernel_bundle(const context& ctxt)` returns true when free function kernel can be represented in a device image of state and free function kernel is compatible with at least one of the devices in context.
 
-- that `has_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` returns true when free function kernel can be represent in a device image of state and free function kernel is compatible with at least one of the devices.
+- that `has_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` returns true when free function kernel can be represented in a device image of state and free function kernel is compatible with at least one of the devices.
 
-- that `has_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` returns true when free function kernel can be represent in a device image of state and free function kernel is compatible with at least one of the devices.
+- that `has_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` returns true when free function kernel can be represented in a device image of state and free function kernel is compatible with at least one of the devices.
 
 - that `is_compatible(const device& dev)` returns true when free function kernel is compatible with the device.
 
@@ -58,6 +60,9 @@ Perform tests on new kernel bundle member functions for free function kernels wh
 
 - that `ext_oneapi_get_kernel` throws exception with the error code `errc::invalid` if the free function kernel does not reside in this kernel bundle.
 
+- that `get_kernel_ids()` returns all of the kernels defined in the source, whether they were defined as free function kernels, lambda expressions or named kernel objects.
+
+- that `info::kernel::num_args` returns  the number of parameters in the function definition of free function kernel.
 
 Perform tests on new free functions to query kernel information descriptors which should check the following:
 
@@ -82,6 +87,10 @@ Perform tests on new free functions to query kernel information descriptors whic
     sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
     auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>(dev);
     ```
+
+Perform tests on use of illegal types for kernel paramters:
+- that A class type S with a virtual base class of type T can not be used as free function kernel parameter type.
+- that A class type S with a virtual member function can not be used as free function kernel parameter type.
 
 ### End-to-end tests
 
@@ -119,15 +128,36 @@ A series of checks should be performed that we can pass `sampled_image_accessor`
 A series of checks should be performed that we can pass `unsampled_image_accessor` as kernel parameter to free function kernel and use it within kernel.
 
 #### Test `local_accessor` as kernel parameter: 
-A series of checks should be performed that we can pass `local_accessor` as kernel parameter to free function kernel and use it within kernel
+A series of checks should be performed that we can pass `local_accessor` as kernel parameter to free function kernel and use it within kernel.
 
-#### Interaction with additional kernel properties
+#### Test structs that contain one of the following `accessor`, `local_accessor`, `sampled_image_accessor` or  `unsampled_image_accessor` types when used as kernel parameter:
+A series of checks should be performed that we can pass struct that contain one of the following `accessor`, `local_accessor`, `sampled_image_accessor` or  `unsampled_image_accessor` types as kernel parameter to free function kernel and use it within kernel.
+
+#### Test `struct` defined at namespace scope as kernel parameter:
+A series of checks should be performed that we can pass `struct` as kernel parameter and use it within kernel.
+
+#### Test `class` defined at namespace scope as kernel parameter:
+A series of checks should be performed that we can pass `class` as kernel parameter and use it within kernel.
+
+#### Test scoped enumeration defined at namespace scope as kernel parameter:
+A series of checks should be performed that we can pass scoped enumeration as kernel parameter and use it within kernel.
+
+#### Test unscoped enumeration that has an explicit underlying type defined at namespace scope as kernel parameter:
+A series of checks should be performed that we can pass unscoped enumeration that has an explicit underlying type as kernel parameter and use it within kernel.
+
+#### Test type aliases to allowed kernel paramater types as kernel parameter:
+A series of checks should be performed that we can pass type aliases to allowed kernel paramater types as kernel parameter and use it within kernel.
+
+#### Interaction with additional kernel properties:
 A series of checks should be performed to check that to the free function kernels may also be decorated with any of the properties defined in `sycl_ext_oneapi_kernel_properties`. This test should perform simple checks verifying if applied kernel_properties work within defined kernels.
 
-#### Free function kernels compatibility with L0 backend
+#### Free function kernels compatibility with L0 backend:
 A series of checks should be performed to check compatibility of free function kernels with Level Zero Backend without going through the SYCL host runtime.
 
-#### Free function kernels compatibility with OpenCL backend
+#### Free function kernels compatibility with OpenCL backend:
 A series of checks should be performed to check compatibility of free function kernels with OpenCL Backend without going through the SYCL host runtime.
+
+#### Test template support in free function kernels
+A series of checks should be performed to check compatibility of free function kernels with templateed kernel parameters.
 
 [spec-link]: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc
