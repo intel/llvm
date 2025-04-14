@@ -6,10 +6,18 @@ import re
 import argparse
 
 
-def get_latest_release(repo):
-    releases = urlopen("https://api.github.com/repos/" + repo + "/releases").read()
-    return json.loads(releases)[0]
-
+def get_latest_release(repo, allow_prerelease=True):
+    url = "https://api.github.com/repos/" + repo + "/releases"
+    releases_raw = urlopen(url).read()
+    releases = json.loads(releases_raw)
+    if allow_prerelease:
+        return releases[0]
+    # The GitHub API doesn't allow us to filter prereleases
+    # in the query so do it manually.
+    for release in releases:
+        if release["prerelease"] == False:
+            return release
+    raise ValueError("No prereleases required but no releases found")
 
 def get_latest_workflow_runs(repo, workflow_name):
     action_runs = urlopen(
@@ -66,7 +74,7 @@ def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
     config[platform_tag]['cm']['version'] = cm['tag_name'].replace('cmclang-', '')
     config[platform_tag]['cm']['url'] = 'https://github.com/intel/cm-compiler/releases/tag/' + cm['tag_name']
 
-    level_zero = get_latest_release('oneapi-src/level-zero')
+    level_zero = get_latest_release('oneapi-src/level-zero', allow_prerelease=False)
     config[platform_tag]['level_zero']['github_tag'] = level_zero['tag_name']
     config[platform_tag]['level_zero']['version'] = level_zero['tag_name']
     config[platform_tag]['level_zero']['url'] = 'https://github.com/oneapi-src/level-zero/releases/tag/' + level_zero['tag_name']
