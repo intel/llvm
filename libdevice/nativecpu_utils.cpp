@@ -29,6 +29,11 @@ using __nativecpu_state = native_cpu::state;
 #define DEVICE_EXTERNAL_C DEVICE_EXTERN_C __attribute__((always_inline))
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((always_inline))
 
+// Several functions are used implicitly by WorkItemLoopsPass and
+// PrepareSYCLNativeCPUPass and need to be marked as used to prevent them being
+// removed early.
+#define USED __attribute__((used))
+
 #define OCL_LOCAL __attribute__((opencl_local))
 #define OCL_GLOBAL __attribute__((opencl_global))
 #define OCL_PRIVATE __attribute__((opencl_private))
@@ -360,7 +365,7 @@ using MakeGlobalType = typename sycl::detail::DecoratedType<
     T, sycl::access::address_space::global_space>::type;
 
 #define DefStateSetWithType(name, field, type)                                 \
-  DEVICE_EXTERNAL_C void __dpcpp_nativecpu_##name(                             \
+  DEVICE_EXTERNAL_C USED void __dpcpp_nativecpu_##name(                        \
       type value, MakeGlobalType<__nativecpu_state> *s) {                      \
     s->field = value;                                                          \
   }                                                                            \
@@ -372,7 +377,7 @@ DefStateSetWithType(set_sub_group_id, SubGroup_id, uint32_t);
 DefStateSetWithType(set_max_sub_group_size, SubGroup_size, uint32_t);
 
 #define DefineStateGetWithType(name, field, type)                              \
-  DEVICE_EXTERNAL_C GET_PROPS type __dpcpp_nativecpu_##name(                   \
+  DEVICE_EXTERNAL_C GET_PROPS USED type __dpcpp_nativecpu_##name(              \
       MakeGlobalType<const __nativecpu_state> *s) {                            \
     return s->field;                                                           \
   }                                                                            \
@@ -388,7 +393,7 @@ DefineStateGet_U32(get_max_sub_group_size, SubGroup_size);
 DefineStateGet_U32(get_num_sub_groups, NumSubGroups);
 
 #define DefineStateGetWithType2(name, field, rtype, ptype)                     \
-  DEVICE_EXTERNAL_C GET_PROPS rtype __dpcpp_nativecpu_##name(                  \
+  DEVICE_EXTERNAL_C GET_PROPS USED rtype __dpcpp_nativecpu_##name(             \
       ptype dim, MakeGlobalType<const __nativecpu_state> *s) {                 \
     return s->field[dim];                                                      \
   }                                                                            \
@@ -406,9 +411,9 @@ DefineStateGet_U64(get_num_groups, MNumGroups);
 DefineStateGet_U64(get_wg_size, MWorkGroup_size);
 DefineStateGet_U64(get_wg_id, MWorkGroup_id);
 
-DEVICE_EXTERNAL_C
-void __dpcpp_nativecpu_set_local_id(uint32_t dim, uint64_t value,
-                                    MakeGlobalType<__nativecpu_state> *s) {
+DEVICE_EXTERNAL_C USED void
+__dpcpp_nativecpu_set_local_id(uint32_t dim, uint64_t value,
+                               MakeGlobalType<__nativecpu_state> *s) {
   s->MLocal_id[dim] = value;
   s->MGlobal_id[dim] = s->MWorkGroup_size[dim] * s->MWorkGroup_id[dim] +
                        s->MLocal_id[dim] + s->MGlobalOffset[dim];
