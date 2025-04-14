@@ -1080,8 +1080,7 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
 }
 
 static void unsupportedFreeFunctionParamType() {
-  llvm::report_fatal_error("Only scalars and pointers are permitted as "
-                           "free function parameters");
+  llvm::report_fatal_error("Unsupported free kernel parameter type!");
 }
 
 class MarkWIScopeFnVisitor : public RecursiveASTVisitor<MarkWIScopeFnVisitor> {
@@ -2833,13 +2832,13 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   // lambda kernel by taking the value ParmVarDecl or FieldDecl respectively.
   template <typename ParentDecl>
   bool handleSpecialType(ParentDecl *decl, QualType Ty) {
-    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    assert(RecordDecl && "The type must be a RecordDecl");
+    const auto *RD = Ty->getAsCXXRecordDecl();
+    assert(RD && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
         KernelDecl->hasAttr<SYCLSimdAttr>() && isSyclAccessorType(Ty)
             ? InitESIMDMethodName
             : InitMethodName;
-    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
+    CXXMethodDecl *InitMethod = getMethodByName(RD, MethodName);
     assert(InitMethod && "The type must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
@@ -2869,7 +2868,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       // added, this code needs to be refactored to call
       // handleAccessorPropertyList for each class which requires it.
       if (ParamTy.getTypePtr()->isPointerType() && isSyclAccessorType(Ty))
-        handleAccessorType(Ty, RecordDecl, decl->getBeginLoc());
+        handleAccessorType(Ty, RD, decl->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -4900,7 +4899,8 @@ public:
                SYCLIntegrationHeader::kind_dynamic_work_group_memory);
 
     else {
-      unsupportedFreeFunctionParamType(); // TODO
+      llvm_unreachable(
+          "Unexpected SYCL special class when generating integration header");
     }
     return true;
   }
