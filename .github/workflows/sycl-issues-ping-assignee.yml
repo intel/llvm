@@ -12,7 +12,7 @@ name: Ping issue assignees
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 22 * * 5'
 
 permissions: read-all
 
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      REPO: ${{ github.repository }}
+      REPO: ${{ github.04ScarlettyTronestix1270333.rst }}
     steps:
     # List specific issues with an assignee but without recent updates.
     # Note: for some reason gh returns 0 results if the "assignee:*" filter is
