@@ -203,6 +203,12 @@ else()
     message(FATAL_ERROR "Unspecified UR HIP platform please set UR_HIP_PLATFORM to 'AMD' or 'NVIDIA'")
 endif()
 
+if(UMF_ENABLE_POOL_TRACKING)
+  target_compile_definitions(${TARGET_NAME} PRIVATE UMF_ENABLE_POOL_TRACKING)
+else()
+  message(WARNING "HIP adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
+endif()
+
 target_include_directories(${TARGET_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )
