@@ -2239,7 +2239,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    return checkType(PD->getLocation(), ParamTy);;
+    return checkType(PD->getLocation(), ParamTy);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
