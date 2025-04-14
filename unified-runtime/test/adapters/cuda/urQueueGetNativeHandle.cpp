@@ -30,7 +30,7 @@ TEST_P(urCudaQueueGetNativeHandleTest, OutOfOrder) {
   ASSERT_SUCCESS_CUDA(cuStreamSynchronize(Stream));
 }
 
-TEST_P(urCudaQueueGetNativeHandleTest, ScopedStream) {
+TEST_P(urCudaQueueGetNativeHandleTest, InteropGuard) {
   CUstream Stream1, Stream2;
   ur_queue_properties_t props = {
       /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
@@ -50,7 +50,7 @@ TEST_P(urCudaQueueGetNativeHandleTest, ScopedStream) {
   ASSERT_NE(Stream1, Stream2);
 
   {
-    ScopedStream ActiveStream(OutOfOrderQueue, 0, nullptr);
+    InteropGuard ActiveStream(OutOfOrderQueue, 0, nullptr);
 
     ASSERT_SUCCESS(urQueueGetNativeHandle(OutOfOrderQueue, nullptr,
                                           (ur_native_handle_t *)&Stream1));

@@ -1330,17 +1330,21 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
   checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
 
-  // Evaluation of -fsycl-device-obj is slightly different, we will emit
-  // a warning and inform the user of the default behavior used.
+  // Evaluation of -fsycl-device-obj is slightly different, we will emit a
+  // warning and inform the user of the default behavior used.
   // TODO: General usage of this option is to check for 'spirv' and fallthrough
   // to using llvmir.  This can be improved to be more obvious in usage.
   if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
           options::OPT_fsycl_device_obj_EQ)) {
+    const bool SYCLDeviceOnly = C.getDriver().offloadDeviceOnly();
+    const bool EmitAsm = C.getInputArgs().getLastArgNoClaim(options::OPT_S);
     StringRef ArgValue(DeviceObj->getValue());
-    SmallVector<StringRef, 2> DeviceObjValues = {"spirv", "llvmir"};
+    SmallVector<StringRef, 3> DeviceObjValues = {"spirv", "llvmir", "asm"};
     if (llvm::find(DeviceObjValues, ArgValue) == DeviceObjValues.end())
       Diag(clang::diag::warn_ignoring_value_using_default)
           << DeviceObj->getSpelling().split('=').first << ArgValue << "llvmir";
+    else if (ArgValue == "asm" && (!SYCLDeviceOnly || !EmitAsm))
+      Diag(clang::diag::warn_drv_fsycl_device_obj_asm_device_only);
   }
 
   Arg *SYCLForceTarget =
@@ -1569,6 +1573,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
     }
   }
+
   // -fno-sycl-libspirv flag is reserved for very unusual cases where the
   // libspirv library is not linked when using CUDA/HIP: so output appropriate
   // warnings.
@@ -5348,6 +5353,15 @@ class OffloadingActionBuilder final {
                 C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
             A = C.MakeAction<SPIRVTranslatorJobAction>(CompileAction,
                                                        types::TY_SPIRV);
+            if (SYCLDeviceOnly)
+              continue;
+          } else if (SYCLDeviceOnly && Args.hasArg(options::OPT_S) &&
+                     Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+                         .equals_insensitive("asm")) {
+            auto *CompileAction =
+                C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
+            A = C.MakeAction<BackendJobAction>(CompileAction, types::TY_PP_Asm);
+
             if (SYCLDeviceOnly)
               continue;
           } else {

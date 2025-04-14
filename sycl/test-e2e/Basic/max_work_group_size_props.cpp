@@ -43,7 +43,7 @@ template <size_t... Is> struct KernelFunctorWithMaxWGSizeProp {
   void operator()(nd_item<sizeof...(Is)>) const {}
   void operator()(item<sizeof...(Is)>) const {}
 
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::max_work_group_size<Is...>};
   }

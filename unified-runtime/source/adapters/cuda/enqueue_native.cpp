@@ -25,7 +25,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
   try {
     ScopedContext ActiveContext(hQueue->getDevice());
-    ScopedStream ActiveStream(hQueue, NumEventsInWaitList, phEventWaitList);
+    InteropGuard ActiveStream(hQueue, NumEventsInWaitList, phEventWaitList);
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
     if (hQueue->getContext()->getDevices().size() > 1) {

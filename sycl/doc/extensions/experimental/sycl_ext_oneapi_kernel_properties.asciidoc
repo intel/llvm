@@ -295,7 +295,7 @@ that it depends upon for correctness.
 
 To enable this use-case, this extension adds a mechanism for implementations to
 extract a property list from a kernel functor, if a kernel functor declares
-a member function named `get` accepting a `sycl::ext::oneapi::experimental::properties_tag`
+a const member function named `get` accepting a `sycl::ext::oneapi::experimental::properties_tag`
 tag type and returning an instance of `sycl::ext::oneapi::experimental::properties`.
 
 ```c++
@@ -338,7 +338,7 @@ struct KernelFunctor {
     a[i] = b[i] + c[i];
   }
 
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{sycl::ext::oneapi::experimental::work_group_size<8, 8>,
                                                        sycl::ext::oneapi::experimental::sub_group_size<8>};
   }

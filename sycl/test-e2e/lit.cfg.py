@@ -434,7 +434,7 @@ config.cuda_include = quote_path(
     )
 )
 
-cuda_options = cuda_options = (
+cuda_options = (
     (" -L" + config.cuda_libs_dir if config.cuda_libs_dir else "")
     + " -lcuda "
     + " -I"
@@ -446,6 +446,10 @@ if cl_options:
         + (config.cuda_libs_dir + "/cuda.lib " if config.cuda_libs_dir else "cuda.lib")
         + " /I"
         + config.cuda_include
+    )
+if platform.system() == "Windows":
+    cuda_options += (
+        " --cuda-path=" + os.path.dirname(os.path.dirname(config.cuda_libs_dir)) + f'"'
     )
 
 config.substitutions.append(("%cuda_options", cuda_options))
@@ -483,7 +487,7 @@ config.hip_include = quote_path(
     )
 )
 
-hip_options = hip_options = (
+hip_options = (
     (" -L" + config.hip_libs_dir if config.hip_libs_dir else "")
     + " -lamdhip64 "
     + " -I"
@@ -500,7 +504,8 @@ if cl_options:
         + " /I"
         + config.hip_include
     )
-
+if platform.system() == "Windows":
+    hip_options += " --rocm-path=" + os.path.dirname(config.hip_libs_dir) + f'"'
 with test_env():
     sp = subprocess.getstatusoutput(
         config.dpcpp_compiler + " -fsycl  " + check_hip_file + hip_options
