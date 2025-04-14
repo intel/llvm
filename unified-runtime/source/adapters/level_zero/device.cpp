@@ -1082,7 +1082,11 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(UpdateCapabilities);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
+  #ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    return ReturnValue(true);
+  #else
     return ReturnValue(false);
+  #endif
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {

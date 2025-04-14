@@ -605,7 +605,7 @@ ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMAdvise");
 
   auto commandListLocked = commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMAdvise(pMem, size, advice, phEvent));
+  UR_CALL(commandListLocked->appendUSMAdvise(pMem, size, advice, 0, nullptr, phEvent));
   return UR_RESULT_SUCCESS;
 }
 
@@ -912,6 +912,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCommandBufferExp(
       1, &commandBufferCommandList, phEvent, numEventsInWaitList,
       phEventWaitList, UR_COMMAND_ENQUEUE_COMMAND_BUFFER_EXP, executionEvent));
   UR_CALL(hCommandBuffer->registerExecutionEventUnlocked(*phEvent));
+  hCommandBuffer->enableEvents();
   if (internalEvent != nullptr) {
     internalEvent->release();
   }
