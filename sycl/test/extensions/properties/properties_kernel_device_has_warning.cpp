@@ -76,7 +76,7 @@ template <typename T> struct K_funcIndirectlyUsingFP16 {
   T *Props;
   K_funcIndirectlyUsingFP16(T Props_param) { Props = &Props_param; };
   void operator()() const { int a = funcIndirectlyUsingFP16(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcIndirectlyUsingFP16_Warn16 {
@@ -84,14 +84,14 @@ template <typename T> struct K_funcIndirectlyUsingFP16_Warn16 {
   K_funcIndirectlyUsingFP16_Warn16(T Props_param) { Props = &Props_param; };
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp16' not listed in its 'device_has' property}}
   void operator()() const { int a = funcIndirectlyUsingFP16(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingFP16AndFP64 {
   T *Props;
   K_funcUsingFP16AndFP64(T Props_param) { Props = &Props_param; };
   void operator()() const { int a = funcUsingFP16AndFP64(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingFP16AndFP64_Warn16 {
@@ -99,7 +99,7 @@ template <typename T> struct K_funcUsingFP16AndFP64_Warn16 {
   K_funcUsingFP16AndFP64_Warn16(T Props_param) { Props = &Props_param; };
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp16' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingFP16AndFP64(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingFP16AndFP64_Warn64 {
@@ -107,7 +107,7 @@ template <typename T> struct K_funcUsingFP16AndFP64_Warn64 {
   K_funcUsingFP16AndFP64_Warn64(T Props_param) { Props = &Props_param; };
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingFP16AndFP64(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingFP16AndFP64_Warn1664 {
@@ -116,7 +116,7 @@ template <typename T> struct K_funcUsingFP16AndFP64_Warn1664 {
   // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'fp16' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingFP16AndFP64(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingFP16AndFP64_False {
@@ -127,21 +127,21 @@ template <typename T> struct K_funcUsingFP16AndFP64_False {
       int a = funcUsingFP16AndFP64(1, 2);
     }
   }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingCPUHasFP64 {
   T *Props;
   K_funcUsingCPUHasFP64(T Props_param) { Props = &Props_param; };
   void operator()() const { int a = funcUsingCPUHasFP64(1); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcIndirectlyUsingCPU {
   T *Props;
   K_funcIndirectlyUsingCPU(T Props_param) { Props = &Props_param; };
   void operator()() const { int a = funcIndirectlyUsingCPU(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcIndirectlyUsingCPU_WarnCPU {
@@ -149,14 +149,14 @@ template <typename T> struct K_funcIndirectlyUsingCPU_WarnCPU {
   K_funcIndirectlyUsingCPU_WarnCPU(T Props_param) { Props = &Props_param; };
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'cpu' not listed in its 'device_has' property}}
   void operator()() const { int a = funcIndirectlyUsingCPU(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingCPUAndFP64 {
   T *Props;
   K_funcUsingCPUAndFP64(T Props_param) { Props = &Props_param; };
   void operator()() const { int a = funcUsingCPUAndFP64(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingCPUAndFP64_WarnCPU {
@@ -164,7 +164,7 @@ template <typename T> struct K_funcUsingCPUAndFP64_WarnCPU {
   K_funcUsingCPUAndFP64_WarnCPU(T Props_param) { Props = &Props_param; };
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'cpu' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingCPUAndFP64(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingCPUAndFP64_Warn64 {
@@ -172,7 +172,7 @@ template <typename T> struct K_funcUsingCPUAndFP64_Warn64 {
   K_funcUsingCPUAndFP64_Warn64(T Props_param) { Props = &Props_param; };
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingCPUAndFP64(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingCPUAndFP64_Warn64CPU {
@@ -181,7 +181,7 @@ template <typename T> struct K_funcUsingCPUAndFP64_Warn64CPU {
   // expected-warning-re@+2 {{function '{{.*}}' uses aspect 'cpu' not listed in its 'device_has' property}}
   // expected-warning-re@+1 {{function '{{.*}}' uses aspect 'fp64' not listed in its 'device_has' property}}
   void operator()() const { int a = funcUsingCPUAndFP64(1, 2); }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 template <typename T> struct K_funcUsingCPUAndFP64_False {
@@ -192,7 +192,7 @@ template <typename T> struct K_funcUsingCPUAndFP64_False {
       int a = funcUsingCPUAndFP64(1, 2);
     }
   }
-  auto get(properties_tag) { return *Props; }
+  auto get(properties_tag) const { return *Props; }
 };
 
 int main() {
