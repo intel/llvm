@@ -58,6 +58,12 @@ public:
     return result;
   }
 
+  void reset(size_t value) {
+    for (int i = 0; i < dimensions; i++) {
+      common_array[i] = value;
+    }
+  }
+
   size_t get(int dimension) const {
     check_dimension(dimension);
     return common_array[dimension];
