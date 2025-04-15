@@ -174,9 +174,9 @@ private:
 
 //===- Entrypoints --------------------------------------------------------===//
 
-/// Calculates a 32-byte BLAKE3 hash of the pre-processed source string
-/// described by \p SourceFile, considering any additional \p IncludeFiles as
-/// well as the \p UserArgs.
+/// Calculates a BLAKE3 hash of the pre-processed source string described by
+/// \p SourceFile (considering any additional \p IncludeFiles) and the
+/// concatenation of the \p UserArgs.
 JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
                                               View<InMemoryFile> IncludeFiles,
                                               View<const char *> UserArgs);
