@@ -141,7 +141,7 @@ public:
       ClusterDimensions[I] = (I < Dims) ? N[I] : 1;
   }
 
-  void reset(sycl::range<3> &N, bool SetNumWorkGroups, int DimsArg) {
+  void reset(const sycl::range<3> &N, bool SetNumWorkGroups, int DimsArg) {
     if (SetNumWorkGroups) {
       GlobalSize.reset(0);
       NumWorkGroups = N;
@@ -156,7 +156,8 @@ public:
     setNDRangeLeftover();
   }
 
-  void reset(sycl::range<3> &NumWorkItems, sycl::id<3> &Offset, int DimsArg) {
+  void reset(const sycl::range<3> &NumWorkItems, const sycl::id<3> &Offset,
+             int DimsArg) {
     GlobalSize = NumWorkItems;
     GlobalOffset = Offset;
     NumWorkGroups.reset(0);
@@ -165,8 +166,9 @@ public:
     Dims = size_t(DimsArg);
   }
 
-  void reset(sycl::range<3> &NumWorkItems, sycl::range<3> &LocalSizeArg,
-             sycl::id<3> &Offset, int DimsArg) {
+  void reset(const sycl::range<3> &NumWorkItems,
+             const sycl::range<3> &LocalSizeArg, const sycl::id<3> &Offset,
+             int DimsArg) {
     GlobalSize = NumWorkItems;
     LocalSize = LocalSizeArg;
     GlobalOffset = Offset;

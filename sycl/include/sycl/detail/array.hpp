@@ -59,9 +59,7 @@ public:
   }
 
   void reset(size_t value) {
-    for (int i = 0; i < dimensions; i++) {
-      common_array[i] = value;
-    }
+    std::fill(common_array, common_array + dimensions, value);
   }
 
   size_t get(int dimension) const {
