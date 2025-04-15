@@ -1,4 +1,4 @@
-// UNSUPPORTED: arch-intel_gpu_bmg_g21
+// UNSUPPORTED: spirv-backend
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
 // RUN: %{build} -fno-builtin %{mathflags} -o %t1.out
