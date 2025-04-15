@@ -190,12 +190,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
-    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
-    uint32_t *pGroupCountRet) {
+    ur_kernel_handle_t hKernel, ur_device_handle_t /*hDevice*/,
+    uint32_t workDim, const size_t *pLocalWorkSize,
+    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_KERNEL);
-
-  std::ignore = hDevice;
 
   size_t localWorkSize = pLocalWorkSize[0];
   localWorkSize *= (workDim >= 2 ? pLocalWorkSize[1] : 1);
@@ -244,9 +242,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *pProperties,
+    const ur_kernel_arg_value_properties_t * /*pProperties*/,
     const void *pArgValue) {
-  std::ignore = pProperties;
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -260,8 +257,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_local_properties_t *pProperties) {
-  std::ignore = pProperties;
+    const ur_kernel_arg_local_properties_t * /*pProperties*/) {
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -357,11 +353,10 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_pointer_properties_t *pProperties,
-                      const void *pArgValue) {
-  std::ignore = pProperties;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_pointer_properties_t * /*pProperties*/,
+    const void *pArgValue) {
   try {
     // setKernelArg is expecting a pointer to our argument
     hKernel->setKernelArg(argIndex, sizeof(pArgValue), &pArgValue);
@@ -416,14 +411,11 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
 }
 
 // A NOP for the CUDA backend
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
-    ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName, size_t propSize,
-    const ur_kernel_exec_info_properties_t *pProperties,
-    const void *pPropValue) {
-  std::ignore = hKernel;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pProperties;
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetExecInfo(ur_kernel_handle_t /*hKernel*/,
+                    ur_kernel_exec_info_t propName, size_t /*propSize*/,
+                    const ur_kernel_exec_info_properties_t * /*pProperties*/,
+                    const void * /*pPropValue*/) {
 
   switch (propName) {
   case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS:
@@ -436,23 +428,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ur_context_handle_t hContext,
-    ur_program_handle_t hProgram,
-    const ur_kernel_native_properties_t *pProperties,
-    ur_kernel_handle_t *phKernel) {
-  std::ignore = hNativeKernel;
-  std::ignore = hContext;
-  std::ignore = hProgram;
-  std::ignore = pProperties;
-  std::ignore = phKernel;
+    ur_native_handle_t /*hNativeKernel*/, ur_context_handle_t /*hContext*/,
+    ur_program_handle_t /*hProgram*/,
+    const ur_kernel_native_properties_t * /*pProperties*/,
+    ur_kernel_handle_t * /*phKernel*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_sampler_properties_t *pProperties,
-                      ur_sampler_handle_t hArgValue) {
-  std::ignore = pProperties;
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
+    ur_kernel_handle_t hKernel, uint32_t argIndex,
+    const ur_kernel_arg_sampler_properties_t * /*pProperties*/,
+    ur_sampler_handle_t hArgValue) {
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
