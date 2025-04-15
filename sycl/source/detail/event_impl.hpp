@@ -58,15 +58,23 @@ public:
     SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
   }
 
-  /// Constructs an event instance from a plug-in event handle.
+  /// Constructs an event instance from a UR event handle.
   ///
-  /// The SyclContext must match the plug-in context associated with the
-  /// ClEvent.
+  /// The SyclContext must match the UR context associated with the
+  /// ur_event_handle_t.
   ///
-  /// \param Event is a valid instance of plug-in event.
+  /// \param Event is a valid instance of UR event.
   /// \param SyclContext is an instance of SYCL context.
   event_impl(ur_event_handle_t Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
+
+  /// Sets a queue associated with the event
+  ///
+  /// Please note that this function changes the event state
+  /// as it was constructed with the queue based constructor.
+  ///
+  /// \param Queue is a queue to be associated with the event
+  void setQueue(const QueueImplPtr &Queue);
 
   /// Waits for the event.
   ///
@@ -151,6 +159,9 @@ public:
 
   /// Clear the event state
   void setStateIncomplete();
+
+  /// Set state as discarded.
+  void setStateDiscarded() { MState = HES_Discarded; }
 
   /// Returns command that is associated with the event.
   ///
@@ -296,6 +307,8 @@ public:
   getCommandGraph() const {
     return MGraph.lock();
   }
+
+  bool hasCommandGraph() const { return !MGraph.expired(); }
 
   void setEventFromSubmittedExecCommandBuffer(bool value) {
     MEventFromSubmittedExecCommandBuffer = value;

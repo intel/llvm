@@ -1,7 +1,6 @@
 #include <clc/clc.h>
-#include <spirv/spirv.h>
-
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
+#include <libspirv/spirv.h>
 
 _CLC_DEFINE_BINARY_BUILTIN(float, fmax, __spirv_ocl_fmax, float, float);
 

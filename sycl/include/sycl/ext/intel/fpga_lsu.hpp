@@ -8,6 +8,7 @@
 #pragma once
 
 #include "fpga_utils.hpp"
+#include <cstdint>
 #include <sycl/detail/defines.hpp>
 #include <sycl/pointers.hpp>
 

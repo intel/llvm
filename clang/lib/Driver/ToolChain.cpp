@@ -19,13 +19,11 @@
 #include "clang/Config/config.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
 #include "clang/Driver/XRayArgs.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -110,7 +108,8 @@ ToolChain::ToolChain(const Driver &D, const llvm::Triple &T,
 llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>>
 ToolChain::executeToolChainProgram(StringRef Executable) const {
   llvm::SmallString<64> OutputFile;
-  llvm::sys::fs::createTemporaryFile("toolchain-program", "txt", OutputFile);
+  llvm::sys::fs::createTemporaryFile("toolchain-program", "txt", OutputFile,
+                                     llvm::sys::fs::OF_Text);
   llvm::FileRemover OutputRemover(OutputFile.c_str());
   std::optional<llvm::StringRef> Redirects[] = {
       {""},
@@ -129,7 +128,8 @@ ToolChain::executeToolChainProgram(StringRef Executable) const {
                                          *Str + "'");
     SecondsToWait = std::max(SecondsToWait, 0); // infinite
   }
-  if (llvm::sys::ExecuteAndWait(Executable, {}, {}, Redirects, SecondsToWait,
+  if (llvm::sys::ExecuteAndWait(Executable, {Executable}, {}, Redirects,
+                                SecondsToWait,
                                 /*MemoryLimit=*/0, &ErrorMessage))
     return llvm::createStringError(std::error_code(),
                                    Executable + ": " + ErrorMessage);
@@ -197,12 +197,23 @@ bool ToolChain::defaultToIEEELongDouble() const {
   return PPC_LINUX_DEFAULT_IEEELONGDOUBLE && getTriple().isOSLinux();
 }
 
+static void processMultilibCustomFlags(Multilib::flags_list &List,
+                                       const llvm::opt::ArgList &Args) {
+  for (const Arg *MultilibFlagArg :
+       Args.filtered(options::OPT_fmultilib_flag)) {
+    List.push_back(MultilibFlagArg->getAsString(Args));
+    MultilibFlagArg->claim();
+  }
+}
+
 static void getAArch64MultilibFlags(const Driver &D,
                                           const llvm::Triple &Triple,
                                           const llvm::opt::ArgList &Args,
                                           Multilib::flags_list &Result) {
   std::vector<StringRef> Features;
-  tools::aarch64::getAArch64TargetFeatures(D, Triple, Args, Features, false);
+  tools::aarch64::getAArch64TargetFeatures(D, Triple, Args, Features,
+                                           /*ForAS=*/false,
+                                           /*ForMultilib=*/true);
   const auto UnifiedFeatures = tools::unifyTargetFeatures(Features);
   llvm::DenseSet<StringRef> FeatureSet(UnifiedFeatures.begin(),
                                        UnifiedFeatures.end());
@@ -228,6 +239,27 @@ static void getAArch64MultilibFlags(const Driver &D,
   if (BranchProtectionArg) {
     Result.push_back(BranchProtectionArg->getAsString(Args));
   }
+
+  if (Arg *AlignArg = Args.getLastArg(
+          options::OPT_mstrict_align, options::OPT_mno_strict_align,
+          options::OPT_mno_unaligned_access, options::OPT_munaligned_access)) {
+    if (AlignArg->getOption().matches(options::OPT_mstrict_align) ||
+        AlignArg->getOption().matches(options::OPT_mno_unaligned_access))
+      Result.push_back(AlignArg->getAsString(Args));
+  }
+
+  if (Arg *Endian = Args.getLastArg(options::OPT_mbig_endian,
+                                    options::OPT_mlittle_endian)) {
+    if (Endian->getOption().matches(options::OPT_mbig_endian))
+      Result.push_back(Endian->getAsString(Args));
+  }
+
+  const Arg *ABIArg = Args.getLastArgNoClaim(options::OPT_mabi_EQ);
+  if (ABIArg) {
+    Result.push_back(ABIArg->getAsString(Args));
+  }
+
+  processMultilibCustomFlags(Result, Args);
 }
 
 static void getARMMultilibFlags(const Driver &D,
@@ -281,6 +313,21 @@ static void getARMMultilibFlags(const Driver &D,
   if (BranchProtectionArg) {
     Result.push_back(BranchProtectionArg->getAsString(Args));
   }
+
+  if (Arg *AlignArg = Args.getLastArg(
+          options::OPT_mstrict_align, options::OPT_mno_strict_align,
+          options::OPT_mno_unaligned_access, options::OPT_munaligned_access)) {
+    if (AlignArg->getOption().matches(options::OPT_mstrict_align) ||
+        AlignArg->getOption().matches(options::OPT_mno_unaligned_access))
+      Result.push_back(AlignArg->getAsString(Args));
+  }
+
+  if (Arg *Endian = Args.getLastArg(options::OPT_mbig_endian,
+                                    options::OPT_mlittle_endian)) {
+    if (Endian->getOption().matches(options::OPT_mbig_endian))
+      Result.push_back(Endian->getAsString(Args));
+  }
+  processMultilibCustomFlags(Result, Args);
 }
 
 static void getRISCVMultilibFlags(const Driver &D, const llvm::Triple &Triple,
@@ -382,6 +429,9 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
       {"cl", "--driver-mode=cl"},
       {"++", "--driver-mode=g++"},
       {"flang", "--driver-mode=flang"},
+      // For backwards compatibility, we create a symlink for `flang` called
+      // `flang-new`. This will be removed in the future.
+      {"flang-new", "--driver-mode=flang"},
       {"clang-dxc", "--driver-mode=dxc"},
   };
 
@@ -645,6 +695,7 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::DsymutilJobClass:
   case Action::VerifyDebugInfoJobClass:
   case Action::BinaryAnalyzeJobClass:
+  case Action::BinaryTranslatorJobClass:
     llvm_unreachable("Invalid tool kind.");
 
   case Action::CompileJobClass:
@@ -652,7 +703,6 @@ Tool *ToolChain::getTool(Action::ActionClass AC) const {
   case Action::PreprocessJobClass:
   case Action::ExtractAPIJobClass:
   case Action::AnalyzeJobClass:
-  case Action::MigrateJobClass:
   case Action::VerifyPCHJobClass:
   case Action::BackendJobClass:
     return getClang();
@@ -885,8 +935,24 @@ ToolChain::getTargetSubDirPath(StringRef BaseDir) const {
     return {};
   };
 
-  if (auto Path = getPathForTriple(getTriple()))
+  const llvm::Triple &T = getTriple();
+  if (auto Path = getPathForTriple(T))
     return *Path;
+
+  if (T.isOSzOS() &&
+      (!T.getOSVersion().empty() || !T.getEnvironmentVersion().empty())) {
+    // Build the triple without version information
+    const llvm::Triple &TripleWithoutVersion =
+        (T.hasEnvironment()
+             ? llvm::Triple(
+                   T.getArchName(), T.getVendorName(),
+                   llvm::Triple::getOSTypeName(T.getOS()),
+                   llvm::Triple::getEnvironmentTypeName(T.getEnvironment()))
+             : llvm::Triple(T.getArchName(), T.getVendorName(),
+                            llvm::Triple::getOSTypeName(T.getOS())));
+    if (auto Path = getPathForTriple(TripleWithoutVersion))
+      return *Path;
+  }
 
   // When building with per target runtime directories, various ways of naming
   // the Arm architecture may have been normalised to simply "arm".
@@ -903,14 +969,14 @@ ToolChain::getTargetSubDirPath(StringRef BaseDir) const {
   //
   // M profile Arm is bare metal and we know they will not be using the per
   // target runtime directory layout.
-  if (getTriple().getArch() == Triple::arm && !getTriple().isArmMClass()) {
-    llvm::Triple ArmTriple = getTriple();
+  if (T.getArch() == Triple::arm && !T.isArmMClass()) {
+    llvm::Triple ArmTriple = T;
     ArmTriple.setArch(Triple::arm);
     if (auto Path = getPathForTriple(ArmTriple))
       return *Path;
   }
 
-  if (getTriple().isAndroid())
+  if (T.isAndroid())
     return getFallbackAndroidTargetPath(BaseDir);
 
   return {};
@@ -967,7 +1033,8 @@ bool ToolChain::needsProfileRT(const ArgList &Args) {
          Args.hasArg(options::OPT_fprofile_instr_generate) ||
          Args.hasArg(options::OPT_fprofile_instr_generate_EQ) ||
          Args.hasArg(options::OPT_fcreate_profile) ||
-         Args.hasArg(options::OPT_forder_file_instrumentation);
+         Args.hasArg(options::OPT_fprofile_generate_cold_function_coverage) ||
+         Args.hasArg(options::OPT_fprofile_generate_cold_function_coverage_EQ);
 }
 
 bool ToolChain::needsGCovInstrumentation(const llvm::opt::ArgList &Args) {
@@ -1165,6 +1232,12 @@ std::string ToolChain::ComputeLLVMTriple(const ArgList &Args,
   }
   case llvm::Triple::aarch64_32:
     return getTripleString();
+  case llvm::Triple::amdgcn: {
+    llvm::Triple Triple = getTriple();
+    if (Args.getLastArgValue(options::OPT_mcpu_EQ) == "amdgcnspirv")
+      Triple.setArch(llvm::Triple::ArchType::spirv64);
+    return Triple.getTriple();
+  }
   case llvm::Triple::arm:
   case llvm::Triple::armeb:
   case llvm::Triple::thumb:
@@ -1519,7 +1592,7 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
-void ToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+void ToolChain::addSYCLIncludeArgs(const ArgList &DriverArgs,
                                    ArgStringList &CC1Args) const {}
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
@@ -1596,6 +1669,8 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
   DerivedArgList *DAL = new DerivedArgList(Args.getBaseArgs());
   const OptTable &Opts = getDriver().getOpts();
   bool Modified = false;
+  auto &Triple = getTriple();
+  const bool IsSYCL = DeviceOffloadKind == Action::OFK_SYCL;
 
   // Handle -Xopenmp-target and -Xsycl-target-frontend flags
   for (auto *A : Args) {
@@ -1610,13 +1685,15 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
       // to correctly set metadata in intermediate files.
       if (SameTripleAsHost ||
           A->getOption().matches(options::OPT_mcode_object_version_EQ) ||
-          (getTriple().getArch() == llvm::Triple::amdgcn &&
-           DeviceOffloadKind != Action::OFK_SYCL)) {
+          (Triple.getArch() == llvm::Triple::amdgcn && !IsSYCL)) {
         DAL->append(A);
         continue;
       }
-      // SPIR/SPIR-V special case for -mlong-double
-      if (getTriple().isSPIROrSPIRV() &&
+      // SPIR/SPIR-V and SYCL GPU special case for -mlong-double. We have to
+      // make sure that if user requested 64bit long double it is honored on
+      // both host and device.
+      if ((Triple.isSPIROrSPIRV() ||
+           (IsSYCL && (Triple.isAMDGCN() || Triple.isNVPTX()))) &&
           A->getOption().matches(options::OPT_LongDouble_Group)) {
         DAL->append(A);
         continue;
@@ -1639,7 +1716,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     // is similar, can be improved
     if (DeviceOffloadKind == Action::OFK_OpenMP) {
       XOffloadTargetNoTriple =
-        A->getOption().matches(options::OPT_Xopenmp_target);
+          A->getOption().matches(options::OPT_Xopenmp_target);
       if (A->getOption().matches(options::OPT_Xopenmp_target_EQ)) {
         llvm::Triple TT(getOpenMPTriple(A->getValue(0)));
 
@@ -1655,12 +1732,12 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         DAL->append(A);
         continue;
       }
-    } else if (DeviceOffloadKind == Action::OFK_SYCL) {
+    } else if (IsSYCL) {
       XOffloadTargetNoTriple =
-        A->getOption().matches(options::OPT_Xsycl_frontend);
+          A->getOption().matches(options::OPT_Xsycl_frontend);
       if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
         // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
-        if (getDriver().getSYCLDeviceTriple(A->getValue(0)) == getTriple())
+        if (getDriver().getSYCLDeviceTriple(A->getValue(0), A) == Triple)
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;
@@ -1700,8 +1777,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
       }
-      if (DeviceOffloadKind == Action::OFK_SYCL &&
-          !SingleTargetTripleCount(options::OPT_fsycl_targets_EQ)) {
+      if (IsSYCL && !SingleTargetTripleCount(options::OPT_fsycl_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
             << A->getSpelling();
         continue;
@@ -1735,9 +1811,11 @@ void ToolChain::TranslateXarchArgs(
       A->getOption().matches(options::OPT_Xarch_host))
     ValuePos = 0;
 
-  unsigned Index = Args.getBaseArgs().MakeIndex(A->getValue(ValuePos));
+  const InputArgList &BaseArgs = Args.getBaseArgs();
+  unsigned Index = BaseArgs.MakeIndex(A->getValue(ValuePos));
   unsigned Prev = Index;
-  std::unique_ptr<llvm::opt::Arg> XarchArg(Opts.ParseOneArg(Args, Index));
+  std::unique_ptr<llvm::opt::Arg> XarchArg(Opts.ParseOneArg(
+      Args, Index, llvm::opt::Visibility(clang::driver::options::ClangOption)));
 
   // If the argument parsing failed or more than one argument was
   // consumed, the -Xarch_ argument's parameter tried to consume
@@ -1759,8 +1837,31 @@ void ToolChain::TranslateXarchArgs(
     Diags.Report(DiagID) << A->getAsString(Args);
     return;
   }
+
   XarchArg->setBaseArg(A);
   A = XarchArg.release();
+
+  // Linker input arguments require custom handling. The problem is that we
+  // have already constructed the phase actions, so we can not treat them as
+  // "input arguments".
+  if (A->getOption().hasFlag(options::LinkerInput)) {
+    // Convert the argument into individual Zlinker_input_args. Need to do this
+    // manually to avoid memory leaks with the allocated arguments.
+    for (const char *Value : A->getValues()) {
+      auto Opt = Opts.getOption(options::OPT_Zlinker_input);
+      unsigned Index = BaseArgs.MakeIndex(Opt.getName(), Value);
+      auto NewArg =
+          new Arg(Opt, BaseArgs.MakeArgString(Opt.getPrefix() + Opt.getName()),
+                  Index, BaseArgs.getArgString(Index + 1), A);
+
+      DAL->append(NewArg);
+      if (!AllocatedArgs)
+        DAL->AddSynthesizedArg(NewArg);
+      else
+        AllocatedArgs->push_back(NewArg);
+    }
+  }
+
   if (!AllocatedArgs)
     DAL->AddSynthesizedArg(A);
   else
@@ -1784,19 +1885,17 @@ llvm::opt::DerivedArgList *ToolChain::TranslateXarchArgs(
     } else if (A->getOption().matches(options::OPT_Xarch_host)) {
       NeedTrans = !IsDevice;
       Skip = IsDevice;
-    } else if (A->getOption().matches(options::OPT_Xarch__) && IsDevice) {
-      // Do not translate -Xarch_ options for non CUDA/HIP toolchain since
-      // they may need special translation.
-      // Skip this argument unless the architecture matches BoundArch
-      if (BoundArch.empty() || A->getValue(0) != BoundArch)
-        Skip = true;
-      else
-        NeedTrans = true;
+    } else if (A->getOption().matches(options::OPT_Xarch__)) {
+      NeedTrans = A->getValue() == getArchName() ||
+                  (!BoundArch.empty() && A->getValue() == BoundArch);
+      Skip = !NeedTrans;
     }
     if (NeedTrans || Skip)
       Modified = true;
-    if (NeedTrans)
+    if (NeedTrans) {
+      A->claim();
       TranslateXarchArgs(Args, A, DAL, AllocatedArgs);
+    }
     if (!Skip)
       DAL->append(A);
   }

@@ -13,16 +13,16 @@
 // UNSUPPORTED: opencl && gpu
 
 // HIP backend currently returns invalid values for submission time queries.
-// https://github.com/intel/llvm/issues/12904
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12904
 
 // FPGA emulator seems to return unexpected start time for the fallback barrier.
-// https://github.com/intel/llvm/issues/14315
 // UNSUPPORTED: accelerator
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14315
 
 // Flaky on CUDA
-// https://github.com/intel/llvm/issues/14053
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14053
 
 #include "common.hpp"
 

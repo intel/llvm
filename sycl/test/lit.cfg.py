@@ -168,7 +168,7 @@ if "nvptx64-nvidia-cuda" in triple:
 
 if "amdgcn-amd-amdhsa" in triple:
     llvm_config.with_system_environment("ROCM_PATH")
-    config.available_features.add("hip_amd")
+    config.available_features.add("hip")
     # For AMD the specific GPU has to be specified with --offload-arch
     if not any([f.startswith("--offload-arch") for f in additional_flags]):
         # If the offload arch wasn't specified in SYCL_CLANG_EXTRA_FLAGS,
@@ -185,6 +185,9 @@ if config.sycl_headers_filter is not None:
             config.sycl_headers_filter
         )
     )
+
+# Disable the UR logger callback sink during test runs as output to SYCL RT can interfere with some tests relying on standard input/output
+llvm_config.with_environment("UR_LOG_CALLBACK", "disabled")
 
 # Dump-only tests do not have clang available
 if not dump_only_tests:

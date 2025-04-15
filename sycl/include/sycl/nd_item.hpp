@@ -25,7 +25,6 @@
 #include <sycl/nd_range.hpp>  // for nd_range
 #include <sycl/pointers.hpp>  // for decorated_global_ptr, decor...
 #include <sycl/range.hpp>     // for range
-#include <sycl/sub_group.hpp> // for sub_group
 
 #include <cstddef>     // for size_t
 #include <stdint.h>    // for uint32_t
@@ -33,6 +32,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+struct sub_group;
 namespace detail {
 class Builder;
 }
@@ -117,7 +117,8 @@ public:
                                         get_group_range(), get_group_id());
   }
 
-  sub_group get_sub_group() const { return sub_group(); }
+  // Out-of-class definition in sub_group.hpp
+  sub_group get_sub_group() const;
 
   size_t __SYCL_ALWAYS_INLINE get_group(int Dimension) const {
     size_t Id = get_group_id()[Dimension];

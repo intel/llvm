@@ -161,7 +161,7 @@ int bar() { return weak; }
 // RUN:   --linker-path=/usr/bin/ld %t.o %t.a %t.a -o a.out 2>&1 \
 // RUN: | FileCheck %s --check-prefix=LIBRARY-GLOBAL-DEFINED
 
-// LIBRARY-GLOBAL-DEFINED: clang{{.*}} -o {{.*}}.img --target=nvptx64-nvidia-cuda -march=sm_70 {{.*}} {{.*}}.o
+// LIBRARY-GLOBAL-DEFINED: clang{{.*}} -o {{.*}}.img --target=nvptx64-nvidia-cuda -march=sm_70 {{.*}}.o {{.*}}.o
 // LIBRARY-GLOBAL-DEFINED-NOT: {{.*}}gfx1030{{.*}}.o
 // LIBRARY-GLOBAL-DEFINED: clang{{.*}} -o {{.*}}.img --target=amdgcn-amd-amdhsa -mcpu=gfx1030 {{.*}}.o {{.*}}.o
 
@@ -185,7 +185,7 @@ int bar() { return weak; }
 // RUN:   --linker-path=/usr/bin/ld %t.o --whole-archive %t.a -o a.out 2>&1 \
 // RUN: | FileCheck %s --check-prefix=LIBRARY-WHOLE-ARCHIVE
 
-// LIBRARY-WHOLE-ARCHIVE: clang{{.*}} -o {{.*}}.img --target=nvptx64-nvidia-cuda -march=sm_70 {{.*}} {{.*}}.o
+// LIBRARY-WHOLE-ARCHIVE: clang{{.*}} -o {{.*}}.img --target=nvptx64-nvidia-cuda -march=sm_70 {{.*}}.o {{.*}}.o
 // LIBRARY-WHOLE-ARCHIVE: clang{{.*}} -o {{.*}}.img --target=amdgcn-amd-amdhsa -mcpu=gfx1030 {{.*}}.o {{.*}}.o
 // LIBRARY-WHOLE-ARCHIVE: clang{{.*}} -o {{.*}}.img --target=nvptx64-nvidia-cuda -march=sm_52 {{.*}}.o
 // LIBRARY-WHOLE-ARCHIVE: clang{{.*}} -o {{.*}}.img --target=amdgcn-amd-amdhsa -mcpu=gfx90a {{.*}}.o

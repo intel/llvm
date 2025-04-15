@@ -69,6 +69,13 @@ inline bool isAtomicOpCode(Op OpCode) {
          OpCode == OpAtomicFlagTestAndSet || OpCode == OpAtomicFlagClear ||
          isFPAtomicOpCode(OpCode);
 }
+inline bool isAtomicOpCodeUntypedPtrSupported(Op OpCode) {
+  static_assert(OpAtomicLoad < OpAtomicXor, "");
+  return ((unsigned)OpCode >= OpAtomicLoad &&
+          (unsigned)OpCode <= OpAtomicXor) ||
+         isFPAtomicOpCode(OpCode);
+}
+
 inline bool isBinaryOpCode(Op OpCode) {
   return ((unsigned)OpCode >= OpIAdd && (unsigned)OpCode <= OpFMod) ||
          OpCode == OpDot || OpCode == OpIAddCarry || OpCode == OpISubBorrow ||
@@ -141,6 +148,13 @@ inline bool isGenericNegateOpCode(Op OpCode) {
 
 inline bool isAccessChainOpCode(Op OpCode) {
   return OpCode == OpAccessChain || OpCode == OpInBoundsAccessChain;
+}
+
+inline bool isUntypedAccessChainOpCode(Op OpCode) {
+  return OpCode == OpUntypedAccessChainKHR ||
+         OpCode == OpUntypedInBoundsAccessChainKHR ||
+         OpCode == OpUntypedPtrAccessChainKHR ||
+         OpCode == OpUntypedInBoundsPtrAccessChainKHR;
 }
 
 inline bool hasExecScope(Op OpCode) {

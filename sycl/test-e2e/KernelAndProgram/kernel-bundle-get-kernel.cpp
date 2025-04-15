@@ -6,6 +6,7 @@
 // object retrieved via other methods.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class KernelA;
 

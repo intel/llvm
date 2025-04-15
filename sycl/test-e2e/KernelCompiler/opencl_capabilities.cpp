@@ -1,4 +1,4 @@
-//==- opencl_capabilities.cpp ----------------------------------------------==//
+//==--- opencl_capabilities.cpp --- kernel_compiler extension tests --------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,6 +25,7 @@
 // successfully run and pass these tests.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 using namespace sycl;
 namespace syclex = sycl::ext::oneapi::experimental;

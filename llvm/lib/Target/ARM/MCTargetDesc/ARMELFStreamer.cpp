@@ -50,10 +50,8 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>
 #include <cassert>
 #include <climits>
-#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -80,8 +78,9 @@ class ARMTargetAsmStreamer : public ARMTargetStreamer {
   void emitPersonality(const MCSymbol *Personality) override;
   void emitPersonalityIndex(unsigned Index) override;
   void emitHandlerData() override;
-  void emitSetFP(unsigned FpReg, unsigned SpReg, int64_t Offset = 0) override;
-  void emitMovSP(unsigned Reg, int64_t Offset = 0) override;
+  void emitSetFP(MCRegister FpReg, MCRegister SpReg,
+                 int64_t Offset = 0) override;
+  void emitMovSP(MCRegister Reg, int64_t Offset = 0) override;
   void emitPad(int64_t Offset) override;
   void emitRegSave(const SmallVectorImpl<MCRegister> &RegList,
                    bool isVector) override;
@@ -101,6 +100,7 @@ class ARMTargetAsmStreamer : public ARMTargetStreamer {
   void finishAttributeSection() override;
 
   void annotateTLSDescriptorSequence(const MCSymbolRefExpr *SRE) override;
+  void emitThumbFunc(MCSymbol *Symbol) override;
   void emitThumbSet(MCSymbol *Symbol, const MCExpr *Value) override;
 
   void emitARMWinCFIAllocStack(unsigned Size, bool Wide) override;
@@ -139,7 +139,7 @@ void ARMTargetAsmStreamer::emitPersonalityIndex(unsigned Index) {
 
 void ARMTargetAsmStreamer::emitHandlerData() { OS << "\t.handlerdata\n"; }
 
-void ARMTargetAsmStreamer::emitSetFP(unsigned FpReg, unsigned SpReg,
+void ARMTargetAsmStreamer::emitSetFP(MCRegister FpReg, MCRegister SpReg,
                                      int64_t Offset) {
   OS << "\t.setfp\t";
   InstPrinter.printRegName(OS, FpReg);
@@ -150,7 +150,7 @@ void ARMTargetAsmStreamer::emitSetFP(unsigned FpReg, unsigned SpReg,
   OS << '\n';
 }
 
-void ARMTargetAsmStreamer::emitMovSP(unsigned Reg, int64_t Offset) {
+void ARMTargetAsmStreamer::emitMovSP(MCRegister Reg, int64_t Offset) {
   assert((Reg != ARM::SP && Reg != ARM::PC) &&
          "the operand of .movsp cannot be either sp or pc");
 
@@ -259,6 +259,17 @@ void ARMTargetAsmStreamer::finishAttributeSection() {}
 void ARMTargetAsmStreamer::annotateTLSDescriptorSequence(
     const MCSymbolRefExpr *S) {
   OS << "\t.tlsdescseq\t" << S->getSymbol().getName() << "\n";
+}
+
+void ARMTargetAsmStreamer::emitThumbFunc(MCSymbol *Symbol) {
+  const MCAsmInfo *MAI = Streamer.getContext().getAsmInfo();
+  OS << "\t.thumb_func";
+  // Only Mach-O hasSubsectionsViaSymbols()
+  if (MAI->hasSubsectionsViaSymbols()) {
+    OS << '\t';
+    Symbol->print(OS, MAI);
+  }
+  OS << '\n';
 }
 
 void ARMTargetAsmStreamer::emitThumbSet(MCSymbol *Symbol, const MCExpr *Value) {
@@ -401,8 +412,9 @@ private:
   void emitPersonality(const MCSymbol *Personality) override;
   void emitPersonalityIndex(unsigned Index) override;
   void emitHandlerData() override;
-  void emitSetFP(unsigned FpReg, unsigned SpReg, int64_t Offset = 0) override;
-  void emitMovSP(unsigned Reg, int64_t Offset = 0) override;
+  void emitSetFP(MCRegister FpReg, MCRegister SpReg,
+                 int64_t Offset = 0) override;
+  void emitMovSP(MCRegister Reg, int64_t Offset = 0) override;
   void emitPad(int64_t Offset) override;
   void emitRegSave(const SmallVectorImpl<MCRegister> &RegList,
                    bool isVector) override;
@@ -422,6 +434,7 @@ private:
   void emitLabel(MCSymbol *Symbol) override;
 
   void annotateTLSDescriptorSequence(const MCSymbolRefExpr *SRE) override;
+  void emitThumbFunc(MCSymbol *Symbol) override;
   void emitThumbSet(MCSymbol *Symbol, const MCExpr *Value) override;
 
   // Reset state between object emissions
@@ -469,8 +482,8 @@ public:
   void emitPersonality(const MCSymbol *Per);
   void emitPersonalityIndex(unsigned index);
   void emitHandlerData();
-  void emitSetFP(unsigned NewFpReg, unsigned NewSpReg, int64_t Offset = 0);
-  void emitMovSP(unsigned Reg, int64_t Offset = 0);
+  void emitSetFP(MCRegister NewFpReg, MCRegister NewSpReg, int64_t Offset = 0);
+  void emitMovSP(MCRegister Reg, int64_t Offset = 0);
   void emitPad(int64_t Offset);
   void emitRegSave(const SmallVectorImpl<MCRegister> &RegList, bool isVector);
   void emitUnwindRaw(int64_t Offset, const SmallVectorImpl<uint8_t> &Opcodes);
@@ -686,11 +699,6 @@ private:
     Symbol->setBinding(ELF::STB_LOCAL);
   }
 
-  void emitThumbFunc(MCSymbol *Func) override {
-    getAssembler().setIsThumbFunc(Func);
-    emitSymbolAttribute(Func, MCSA_ELF_TypeFunction);
-  }
-
   // Helper functions for ARM exception handling directives
   void EHReset();
 
@@ -721,7 +729,7 @@ private:
   MCSymbol *FnStart;
   const MCSymbol *Personality;
   unsigned PersonalityIndex;
-  unsigned FPReg; // Frame pointer register
+  MCRegister FPReg; // Frame pointer register
   int64_t FPOffset; // Offset: (final frame pointer) - (initial $sp)
   int64_t SPOffset; // Offset: (final $sp) - (initial $sp)
   int64_t PendingOffset; // Offset: (final $sp) - (emitted $sp)
@@ -753,12 +761,12 @@ void ARMTargetELFStreamer::emitHandlerData() {
   getStreamer().emitHandlerData();
 }
 
-void ARMTargetELFStreamer::emitSetFP(unsigned FpReg, unsigned SpReg,
+void ARMTargetELFStreamer::emitSetFP(MCRegister FpReg, MCRegister SpReg,
                                      int64_t Offset) {
   getStreamer().emitSetFP(FpReg, SpReg, Offset);
 }
 
-void ARMTargetELFStreamer::emitMovSP(unsigned Reg, int64_t Offset) {
+void ARMTargetELFStreamer::emitMovSP(MCRegister Reg, int64_t Offset) {
   getStreamer().emitMovSP(Reg, Offset);
 }
 
@@ -892,6 +900,7 @@ void ARMTargetELFStreamer::emitArchDefaultAttributes() {
   case ARM::ArchKind::ARMV9_3A:
   case ARM::ArchKind::ARMV9_4A:
   case ARM::ArchKind::ARMV9_5A:
+  case ARM::ArchKind::ARMV9_6A:
     S.setAttributeItem(CPU_arch_profile, ApplicationProfile, false);
     S.setAttributeItem(ARM_ISA_use, Allowed, false);
     S.setAttributeItem(THUMB_ISA_use, AllowThumb32, false);
@@ -1088,12 +1097,17 @@ void ARMTargetELFStreamer::emitLabel(MCSymbol *Symbol) {
   Streamer.getAssembler().registerSymbol(*Symbol);
   unsigned Type = cast<MCSymbolELF>(Symbol)->getType();
   if (Type == ELF::STT_FUNC || Type == ELF::STT_GNU_IFUNC)
-    Streamer.emitThumbFunc(Symbol);
+    emitThumbFunc(Symbol);
 }
 
 void ARMTargetELFStreamer::annotateTLSDescriptorSequence(
     const MCSymbolRefExpr *S) {
   getStreamer().EmitFixup(S, FK_Data_4);
+}
+
+void ARMTargetELFStreamer::emitThumbFunc(MCSymbol *Symbol) {
+  getStreamer().getAssembler().setIsThumbFunc(Symbol);
+  getStreamer().emitSymbolAttribute(Symbol, MCSA_ELF_TypeFunction);
 }
 
 void ARMTargetELFStreamer::emitThumbSet(MCSymbol *Symbol, const MCExpr *Value) {
@@ -1105,7 +1119,7 @@ void ARMTargetELFStreamer::emitThumbSet(MCSymbol *Symbol, const MCExpr *Value) {
     }
   }
 
-  getStreamer().emitThumbFunc(Symbol);
+  emitThumbFunc(Symbol);
   getStreamer().emitAssignment(Symbol, Value);
 }
 
@@ -1124,7 +1138,7 @@ void ARMTargetELFStreamer::finish() {
   // section from making the whole .text section non-execute-only, we
   // mark it execute-only if it is empty and there is at least one
   // execute-only section in the object.
-  MCContext &Ctx = getStreamer().getContext();
+  MCContext &Ctx = getContext();
   auto &Asm = getStreamer().getAssembler();
   if (any_of(Asm, [](const MCSection &Sec) {
         return cast<MCSectionELF>(Sec).getFlags() & ELF::SHF_ARM_PURECODE;
@@ -1373,7 +1387,7 @@ void ARMELFStreamer::emitPersonalityIndex(unsigned Index) {
   PersonalityIndex = Index;
 }
 
-void ARMELFStreamer::emitSetFP(unsigned NewFPReg, unsigned NewSPReg,
+void ARMELFStreamer::emitSetFP(MCRegister NewFPReg, MCRegister NewSPReg,
                                int64_t Offset) {
   assert((NewSPReg == ARM::SP || NewSPReg == FPReg) &&
          "the operand of .setfp directive should be either $sp or $fp");
@@ -1387,7 +1401,7 @@ void ARMELFStreamer::emitSetFP(unsigned NewFPReg, unsigned NewSPReg,
     FPOffset += Offset;
 }
 
-void ARMELFStreamer::emitMovSP(unsigned Reg, int64_t Offset) {
+void ARMELFStreamer::emitMovSP(MCRegister Reg, int64_t Offset) {
   assert((Reg != ARM::SP && Reg != ARM::PC) &&
          "the operand of .movsp cannot be either sp or pc");
   assert(FPReg == ARM::SP && "current FP must be SP");

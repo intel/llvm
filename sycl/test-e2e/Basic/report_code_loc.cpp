@@ -21,6 +21,6 @@ int main() {
   try {
     q.memcpy(mdlImag, 0, sizeof(XFLOAT));
   } catch (...) {
-    // CHECK: Exception caught at File: {{.*}}report_code_loc.cpp | Function: main | Line: 22 | Column: 5
+    // CHECK: Exception caught at File: {{.*}}report_code_loc.cpp | Function: main | Line: 22 | Column: 7
   }
 }

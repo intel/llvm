@@ -16,6 +16,9 @@
 #include <KernelFusion.h>
 #endif // SYCL_EXT_JIT_ENABLE
 
+#include <functional>
+#include <memory>
+#include <mutex>
 #include <unordered_map>
 
 namespace jit_compiler {
@@ -23,6 +26,8 @@ enum class BinaryFormat : uint32_t;
 class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
+struct RTCDevImgInfo;
+struct RTCBundleInfo;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
 using JITEnvVar = DynArray<char>;
@@ -39,16 +44,17 @@ public:
   fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
               const property_list &);
   ur_kernel_handle_t
-  materializeSpecConstants(QueueImplPtr Queue,
+  materializeSpecConstants(const QueueImplPtr &Queue,
                            const RTDeviceBinaryImage *BinImage,
                            const std::string &KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);
 
-  std::vector<uint8_t> compileSYCL(
-      const std::string &Id, const std::string &SYCLSource,
+  std::pair<sycl_device_binaries, std::string> compileSYCL(
+      const std::string &CompilationID, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
-      const std::vector<std::string> &UserArgs, std::string *LogPtr,
-      const std::vector<std::string> &RegisteredKernelNames);
+      const std::vector<std::string> &UserArgs, std::string *LogPtr);
+
+  void destroyDeviceBinaries(sycl_device_binaries Binaries);
 
   bool isAvailable() { return Available; }
 
@@ -69,6 +75,10 @@ private:
   createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
                        ::jit_compiler::BinaryFormat Format);
 
+  sycl_device_binaries
+  createDeviceBinaries(const ::jit_compiler::RTCBundleInfo &BundleInfo,
+                       const std::string &Prefix);
+
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;
 
@@ -76,24 +86,38 @@ private:
       const ::jit_compiler::SYCLKernelAttribute &Attr) const;
 
   // Indicate availability of the JIT compiler
-  bool Available;
+  bool Available = false;
 
   // Manages the lifetime of the UR structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
+
+  // Manages the lifetime of the UR structs for device binaries for SYCL-RTC.
+  std::unordered_map<sycl_device_binaries,
+                     std::unique_ptr<DeviceBinariesCollection>>
+      RTCDeviceBinaries;
+
+  // Protects access to map above.
+  std::mutex RTCDeviceBinariesMutex;
 
 #if SYCL_EXT_JIT_ENABLE
   // Handles to the entry points of the lazily loaded JIT library.
   using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
   using MaterializeSpecConstFuncT =
       decltype(::jit_compiler::materializeSpecConstants) *;
+  using CalculateHashFuncT = decltype(::jit_compiler::calculateHash) *;
   using CompileSYCLFuncT = decltype(::jit_compiler::compileSYCL) *;
+  using DestroyBinaryFuncT = decltype(::jit_compiler::destroyBinary) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
   FuseKernelsFuncT FuseKernelsHandle = nullptr;
   MaterializeSpecConstFuncT MaterializeSpecConstHandle = nullptr;
+  CalculateHashFuncT CalculateHashHandle = nullptr;
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
+  DestroyBinaryFuncT DestroyBinaryHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
+  static std::function<void(void *)> CustomDeleterForLibHandle;
+  std::unique_ptr<void, decltype(CustomDeleterForLibHandle)> LibraryHandle;
 #endif // SYCL_EXT_JIT_ENABLE
 };
 

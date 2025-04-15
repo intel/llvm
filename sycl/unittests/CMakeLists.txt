@@ -8,6 +8,8 @@ foreach(flag_var
 string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
 endforeach()
 
+add_compile_definitions(SYCL2020_DISABLE_DEPRECATION_WARNINGS)
+
 # suppress warnings which came from Google Test sources
 if (CXX_SUPPORTS_SUGGEST_OVERRIDE_FLAG)
   add_compile_options("-Wno-suggest-override")
@@ -23,15 +25,11 @@ string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
 
 include(AddSYCLUnitTest)
 
+add_subdirectory(mock_opencl)
+
 add_custom_target(check-sycl-unittests)
 
-# TODO UR tests require real hardware and must be moved to sycl/test-e2e.
-option(SYCL_UR_TESTS "Enable UR-specific unit tests" OFF)
-
-if (SYCL_UR_TESTS)
-    add_subdirectory(ur)
-endif()
-
+add_subdirectory(ur)
 add_subdirectory(allowlist)
 add_subdirectory(config)
 add_subdirectory(misc)

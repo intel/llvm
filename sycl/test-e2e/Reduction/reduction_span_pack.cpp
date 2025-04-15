@@ -1,13 +1,14 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// `Group algorithms are not supported on host device.` on Nvidia.
-// XFAIL: hip_nvidia
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 // This test performs basic checks of reductions initialized with a pack
 // containing at least one sycl::span
+
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && cpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
 
 #include <sycl/detail/core.hpp>
 

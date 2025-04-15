@@ -13,7 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/detail/vector_convert.hpp>
+#include <sycl/vector.hpp>
 
 constexpr int size = 2;
 

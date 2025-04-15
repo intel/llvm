@@ -19,11 +19,15 @@
 // CHECK-SPIRV-SAME: libsycl-itt-compiler-wrappers.new.o
 // CHECK-SPIRV-SAME: libsycl-itt-stubs.new.o
 
-// ITT annotations in device code are disabled by default.
+// ITT annotations in device code are disabled by default. However, for SYCL offloading,
+// we still link ITT annotations libraries to ensure ABI compatibility with previous release.
 // RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=spir64 -### %s 2>&1 \
-// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
+// RUN: | FileCheck -check-prefixes=CHECK-ITT-LINK-ONLY %s
 // RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
+
+// CHECK-ITT-LINK-ONLY-NOT: "-fsycl-instrument-device-code"
+// CHECK-ITT-LINK-ONLY: clang-linker-wrapper{{.*}} {{.*}}libsycl-itt-{{.*}}
 
 // RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s

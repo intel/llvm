@@ -86,6 +86,13 @@ def AspectExt_oneapi_cuda_cluster_group : Aspect<"ext_oneapi_cuda_cluster_group"
 def AspectExt_intel_fpga_task_sequence : Aspect<"ext_intel_fpga_task_sequence">;
 def AspectExt_oneapi_atomic16 : Aspect<"ext_oneapi_atomic16">;
 def AspectExt_oneapi_virtual_functions : Aspect<"ext_oneapi_virtual_functions">;
+def AspectExt_intel_spill_memory_size : Aspect<"ext_intel_spill_memory_size">;
+def AspectExt_oneapi_bindless_images_gather : Aspect<"ext_oneapi_bindless_images_gather">;
+def AspectExt_intel_current_clock_throttle_reasons : Aspect<"ext_intel_current_clock_throttle_reasons">;
+def AspectExt_intel_fan_speed : Aspect<"ext_intel_fan_speed">;
+def AspectExt_intel_power_limits : Aspect<"ext_intel_power_limits">;
+def AspectExt_oneapi_async_memory_alloc : Aspect<"ext_oneapi_async_memory_alloc">;
+
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
@@ -143,6 +150,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_bindless_sampled_image_fetch_1d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_1d,
     AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_2d,
     AspectExt_oneapi_bindless_sampled_image_fetch_3d,
+    AspectExt_oneapi_bindless_images_gather,
     AspectExt_intel_esimd,
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
@@ -150,7 +158,12 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem, AspectExt_oneapi_cuda_cluster_group, 
     AspectExt_intel_fpga_task_sequence,
     AspectExt_oneapi_atomic16,
-    AspectExt_oneapi_virtual_functions],
+    AspectExt_oneapi_virtual_functions,
+    AspectExt_intel_spill_memory_size,
+    AspectExt_intel_current_clock_throttle_reasons,
+    AspectExt_intel_fan_speed,
+    AspectExt_intel_power_limits,
+    AspectExt_oneapi_async_memory_alloc],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
@@ -188,8 +201,29 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 : TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
 // Note: only the "canonical" target names are listed here - see
 // SYCL::gen::resolveGenDevice().
-def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
+//
+// When adding the new Intel architectures, the ideal way to get these 
+// values is to run sycl-ls --verbose on the target machine. However,
+// if you don't have access to the target machine, then you can look in
+// the intel/compute-runtime source code to get the values. For 
+// the fp64 and atomic64 aspects, look for the definition 
+// of specific RuntimeCapabilityTable's. These will be defined in 
+// a file called hw_info_<device>.cpp. For example, for PVC, it 
+// would be hw_info_pvc.cpp. For fp16, this is supported by all 
+// Intel GPUs currently. (see definition of getDeviceExtensions in 
+// compiler_product_helper_base.inl). For the supported sub-group sizes,
+// it is not as straightforward. They are defined per family in 
+// GfxCoreHelperHw<Family>::getDeviceSubGroupSizes and by default
+// the default sub-group sizes are 8, 16, and 32. (see gfx_core_helper_base.inl)
+// However, this can be overriden by specific families. For example,
+// gfx_core_helper_xe_hpc_core.cpp defines the supported sub-group 
+// sizes to be 16 and 32, which corresponds to PVC having 16 and 32 
+// as sub-group sizes the supported sub-group sizes. 
+
+def : IntelTargetInfo<"intel_gpu_ptl_u", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_ptl_h", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_lnl_m", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;

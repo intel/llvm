@@ -194,7 +194,7 @@ static void updateInternalizationMD(Function *F, StringRef Kind,
 /// return an empty value.
 static std::optional<unsigned> getConstantByteOffset(GetElementPtrInst *GEPI,
                                                      const DataLayout &DL) {
-  MapVector<Value *, APInt> VariableOffsets;
+  SmallMapVector<Value *, APInt, 4> VariableOffsets;
   auto IW = DL.getIndexSizeInBits(GEPI->getPointerAddressSpace());
   APInt ConstantOffset = APInt::getZero(IW);
   if (GEPI->collectOffset(DL, IW, VariableOffsets, ConstantOffset) &&

@@ -1,0 +1,236 @@
+= sycl_ext_oneapi_work_group_static
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Overview
+
+This extension adds a way to allocate device local memory, without passing a
+kernel argument: `work_group_static`.
+Device local memory is memory that is shared by all work-items in a work-group.
+The behavior is similar to the CUDA `+__shared__+` keyword, and the extension
+draws some inspiration from the {cpp} `thread_local` keyword.
+
+`work_group_static` can only be used to declare variables at namespace, block or class scope,
+lifting many of the restrictions in the existing
+link:../supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
+extension. Note, however, that `work_group_static` variables currently place
+additional limits on the types that can be allocated, owing to differences in
+constructor behavior.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_WORK_GROUP_STATIC` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== `work_group_static` class template
+
+The `work_group_static` class template provides storage of
+an object into device local memory.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+class work_group_static final {
+public:
+
+  work_group_static() = default;
+  work_group_static(const work_group_static&) = delete;
+  work_group_static& operator=(const work_group_static&) = delete;
+
+  operator T&() const noexcept;
+
+  // Available only if: std::is_array_v<T> == false
+  const work_group_static& operator=(const T& value) const noexcept;
+
+  T* operator&() const noexcept;
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+`T` must be cv-unqualified, trivially constructible and trivially destructible.
+
+The storage for the object is allocated in device local memory before
+calling the user's kernel lambda, and deallocated when all work-items
+in the work-group have completed execution of the kernel.
+
+Objects of type `work_group_static` must only be declared at namespace, block, lambda or class scope.
+If the object is declared in class scope, it must be declared as a static data member.
+
+SYCL implementations conforming to the full feature set treat
+`work_group_static` similarly to the `thread_local` keyword, and when
+a `work_group_static` object is declared at block scope it behaves
+as if the `static` keyword was specified implicitly. SYCL implementations
+conforming to the reduced feature set require the `static` keyword to be
+specified explicitly.
+
+[NOTE]
+====
+If a `work_group_static` object is declared at a block scope, the
+device local memory associated with the object will be identical for all
+usages of that function within the kernel. In cases where a function is called
+multiple times, developers must take care to avoid race conditions (e.g., by
+calling `group_barrier` before and after using the memory).
+====
+
+SYCL 2020 requires that all global variables accessed by a device function are
+`const` or `constexpr`. This extension lifts that restriction for
+`work_group_static` variables.
+
+Each instance of `work_group_static<T>` is associated
+with a unique allocation in device local memory.
+
+[source,c++]
+----
+operator T&() noexcept;
+----
+_Returns_: A reference to the object stored in the device local memory
+associated with this instance of `work_group_static`.
+
+[source,c++]
+----
+work_group_static& operator=(const T& value) noexcept;
+----
+_Constraints_: Available only if `std::is_array_v<T>` is false.
+
+_Effects_: Copy `value` into the storage of the `work_group_static` instance.
+
+_Returns_: A reference to this instance of `work_group_static`.
+
+[source,c++]
+----
+T* operator&() noexcept;
+----
+_Returns_: A pointer to the device local memory associated with this
+instance of `work_group_static`.
+
+==== Interaction with common address space deduction rules
+
+Objects of type `work_group_static` are assigned to
+the local address space.
+
+
+=== Total allocation check
+
+If the total amount of device local memory requested exceeds a device's
+local memory capacity as reported by `info::device::local_mem_size`
+then the implementation must throw a synchronous exception with the
+`errc::memory_allocation` error code from the kernel invocation command
+(e.g. `parallel_for`). This check must take all APIs that allocation device
+local memory into account, whether via the `work_group_scratch_size` property
+or other APIs such as `local_accessor`.
+
+== Example
+
+[source,c++]
+----
+namespace syclex = sycl::ext::oneapi::experimental;
+
+/* optional: static */ syclex::work_group_static<int> program_scope_scalar;
+/* optional: static */ syclex::work_group_static<int[16]> program_scope_array;
+
+class ClassScope {
+  static syclex::work_group_static<int> class_scope_scalar;
+};
+
+syclex::work_group_static<int> ClassScope::class_scope_scalar;
+
+void foo() {
+  /* optional: static */ syclex::work_group_static<int> function_scope_scalar;
+  function_scope_scalar = 1; // assignment via overloaded = operator
+  function_scope_scalar += 2; // += operator via implicit conversion to int&
+  class_scope_scalar = 3;
+  int* ptr = &function_scope_scalar; // conversion to pointer via overloaded & operator
+}
+
+void bar() {
+  /* optional: static */ syclex::work_group_static<int[64]> function_scope_array;
+  function_scope_array[0] = 1; // [] operator via implicit conversion to int(&)[64]
+  int* ptr = function_scope_array; // conversion to pointer via implicit conversion to int(&)[64]
+}
+----
+
+
+== Issues
+
+* We should clean up the wording regarding the scopes at which
+  `work_group_static` variables may be declared.
+  The current wording says they may be "allocated at global or function scope".
+  However, "function scope" is not a {cpp} term.
+  I assume we meant "block scope" here?
+  I assume we also meant "namespace scope" instead of "global scope"?
+  What about class scope or lambda scope?
+  Are we intentionally omitting those, or is that an oversight?
+  Are there any scopes where a `work_group_static` variable may not be declared?
+  If not, we should just say that they may be allocated at any scope.
+** Extension changed to use namespace, block, class and lambda scopes
+** Require `work_group_static` objects to be declared as static data members if used in a class scope
+** `Are there any scopes where a `work_group_static` variable may not be declared?` yes, function parameter scope and non-static data members (just like for `thread_storage`)

@@ -44,7 +44,7 @@ SPIR-V Generation step
 ----------------------
 
 By default translator selects version of generated SPIR-V file based on features
-used in this file. For example, if it contains ``dereferencable`` LLVM IR
+used in this file. For example, if it contains the ``dereferenceable`` LLVM IR
 attribute, ``MaxByteOffset`` decoration will be generated and resulting SPIR-V
 version will be raised to 1.1.
 
@@ -78,8 +78,8 @@ the following things:
 
 * ignores LLVM IR entity in the input file.
 
-  For example, ``dereferencable`` LLVM IR attribute can be ignored if it is not
-  allowed to generate SPIR-V 1.1 and higher.
+  For example, the ``dereferenceable`` LLVM IR attribute can be ignored if it
+  is not allowed to generate SPIR-V 1.1 and higher.
 
 * tries to represent LLVM IR entity with allowed instructions.
 

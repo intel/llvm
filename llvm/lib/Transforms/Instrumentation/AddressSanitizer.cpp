@@ -465,6 +465,10 @@ static cl::opt<bool>
                           cl::desc("instrument generic pointer"), cl::Hidden,
                           cl::init(true));
 
+static cl::opt<bool> ClDeviceGlobals("asan-device-globals",
+                                     cl::desc("instrument device globals"),
+                                     cl::Hidden, cl::init(true));
+
 // Debug flags.
 
 static cl::opt<int> ClDebug("asan-debug", cl::desc("debug"), cl::Hidden,
@@ -642,6 +646,45 @@ void getAddressSanitizerParams(const Triple &TargetTriple, int LongSize,
   *OrShadowOffset = Mapping.OrShadowOffset;
 }
 
+void removeASanIncompatibleFnAttributes(Function &F, bool ReadsArgMem) {
+  // Sanitizer checks read from shadow, which invalidates memory(argmem: *).
+  //
+  // This is not only true for sanitized functions, because AttrInfer can
+  // infer those attributes on libc functions, which is not true if those
+  // are instrumented (Android) or intercepted.
+  //
+  // We might want to model ASan shadow memory more opaquely to get rid of
+  // this problem altogether, by hiding the shadow memory write in an
+  // intrinsic, essentially like in the AArch64StackTagging pass. But that's
+  // for another day.
+
+  // The API is weird. `onlyReadsMemory` actually means "does not write", and
+  // `onlyWritesMemory` actually means "does not read". So we reconstruct
+  // "accesses memory" && "does not read" <=> "writes".
+  bool Changed = false;
+  if (!F.doesNotAccessMemory()) {
+    bool WritesMemory = !F.onlyReadsMemory();
+    bool ReadsMemory = !F.onlyWritesMemory();
+    if ((WritesMemory && !ReadsMemory) || F.onlyAccessesArgMemory()) {
+      F.removeFnAttr(Attribute::Memory);
+      Changed = true;
+    }
+  }
+  if (ReadsArgMem) {
+    for (Argument &A : F.args()) {
+      if (A.hasAttribute(Attribute::WriteOnly)) {
+        A.removeAttr(Attribute::WriteOnly);
+        Changed = true;
+      }
+    }
+  }
+  if (Changed) {
+    // nobuiltin makes sure later passes don't restore assumptions about
+    // the function.
+    F.addFnAttr(Attribute::NoBuiltin);
+  }
+}
+
 ASanAccessInfo::ASanAccessInfo(int32_t Packed)
     : Packed(Packed),
       AccessSizeIndex((Packed >> kAccessSizeIndexShift) & kAccessSizeIndexMask),
@@ -719,11 +762,11 @@ public:
       }
 
       BasicBlock *Color = Colors.front();
-      Instruction *EHPad = Color->getFirstNonPHI();
+      BasicBlock::iterator EHPadIt = Color->getFirstNonPHIIt();
 
-      if (EHPad && EHPad->isEHPad()) {
+      if (EHPadIt != Color->end() && EHPadIt->isEHPad()) {
         // Replace CI with a clone with an added funclet OperandBundle
-        OperandBundleDef OB("funclet", EHPad);
+        OperandBundleDef OB("funclet", &*EHPadIt);
         auto *NewCall = CallBase::addOperandBundle(CI, LLVMContext::OB_funclet,
                                                    OB, CI->getIterator());
         NewCall->copyMetadata(*CI);
@@ -774,7 +817,7 @@ struct AddressSanitizer {
     IntptrTy = Type::getIntNTy(*C, LongSize);
     PtrTy = PointerType::getUnqual(*C);
     Int32Ty = Type::getInt32Ty(*C);
-    TargetTriple = Triple(M.getTargetTriple());
+    TargetTriple = M.getTargetTriple();
 
     Mapping = getShadowMapping(TargetTriple, LongSize, this->CompileKernel);
 
@@ -835,14 +878,10 @@ struct AddressSanitizer {
   bool maybeInsertAsanInitAtFunctionEntry(Function &F);
   bool maybeInsertDynamicShadowAtFunctionEntry(Function &F);
   void markEscapedLocalAllocas(Function &F);
-  void instrumentSyclStaticLocalMemory(CallInst *CI,
-                                       ArrayRef<Instruction *> RetVec);
   bool instrumentSyclDynamicLocalMemory(Function &F,
                                         ArrayRef<Instruction *> RetVec);
+  void instrumentInitAsanLaunchInfo(Function &F, const TargetLibraryInfo *TLI);
 
-  GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
-                                          StringRef Value,
-                                          unsigned AddressSpace);
   void AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
                              SmallVectorImpl<Value *> &Args);
 
@@ -887,12 +926,9 @@ private:
   ShadowMapping Mapping;
   FunctionCallee AsanHandleNoReturnFunc;
   FunctionCallee AsanPtrCmpFunction, AsanPtrSubFunction;
-  FunctionCallee AsanSetShadowStaticLocalFunc;
-  FunctionCallee AsanUnpoisonShadowStaticLocalFunc;
   FunctionCallee AsanSetShadowDynamicLocalFunc;
   FunctionCallee AsanUnpoisonShadowDynamicLocalFunc;
   Constant *AsanShadowGlobal;
-  StringMap<GlobalVariable *> GlobalStringMap;
   Constant *AsanLaunchInfo;
 
   // These arrays is indexed by AccessIsWrite, Experiment and log2(AccessSize).
@@ -957,7 +993,7 @@ public:
     int LongSize = M.getDataLayout().getPointerSizeInBits();
     IntptrTy = Type::getIntNTy(*C, LongSize);
     PtrTy = PointerType::getUnqual(*C);
-    TargetTriple = Triple(M.getTargetTriple());
+    TargetTriple = M.getTargetTriple();
     Mapping = getShadowMapping(TargetTriple, LongSize, this->CompileKernel);
 
     if (ClOverrideDestructorKind != AsanDtorKind::Invalid)
@@ -969,6 +1005,11 @@ public:
 
 private:
   void initializeCallbacks();
+
+  void instrumentDeviceGlobal(IRBuilder<> &IRB);
+  void instrumentSyclStaticLocalMemory(IRBuilder<> &IRB);
+  void initializeRetVecMap(Function *F);
+  void initializeKernelCallerMap(Function *F);
 
   void instrumentGlobals(IRBuilder<> &IRB, bool *CtorComdat);
   void InstrumentGlobalsCOFF(IRBuilder<> &IRB,
@@ -1028,10 +1069,15 @@ private:
   FunctionCallee AsanUnregisterImageGlobals;
   FunctionCallee AsanRegisterElfGlobals;
   FunctionCallee AsanUnregisterElfGlobals;
+  FunctionCallee AsanSetShadowStaticLocalFunc;
+  FunctionCallee AsanUnpoisonShadowStaticLocalFunc;
 
   Function *AsanCtorFunction = nullptr;
   Function *AsanDtorFunction = nullptr;
   GlobalVariable *ModuleName = nullptr;
+
+  DenseMap<Function *, SmallVector<Instruction *, 8>> KernelToRetVecMap;
+  DenseMap<Function *, DenseSet<Function *>> FuncToKernelCallerMap;
 };
 
 // Stack poisoning does not play well with exception handling.
@@ -1088,13 +1134,14 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
                         RuntimeCallInserter &RTCI)
       : F(F), ASan(ASan), RTCI(RTCI),
         DIB(*F.getParent(), /*AllowUnresolved*/ false), C(ASan.C),
-        IntptrTy(ASan.IntptrTy), IntptrPtrTy(PointerType::get(IntptrTy, 0)),
+        IntptrTy(ASan.IntptrTy),
+        IntptrPtrTy(PointerType::get(IntptrTy->getContext(), 0)),
         Mapping(ASan.Mapping),
         PoisonStack(
-            Triple(F.getParent()->getTargetTriple()).isSPIROrSPIRV()
-                ? ClSpirOffloadPrivates
-                : (ClStack &&
-                   !Triple(F.getParent()->getTargetTriple()).isAMDGPU())) {}
+          F.getParent()->getTargetTriple().isSPIROrSPIRV()
+          ? ClSpirOffloadPrivates
+          : (ClStack &&
+             !F.getParent()->getTargetTriple().isAMDGPU())) {}
 
   bool runOnFunction() {
     if (!PoisonStack)
@@ -1165,11 +1212,8 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
     // alloca. We have a special @llvm.get.dynamic.area.offset intrinsic for
     // this purpose.
     if (!isa<ReturnInst>(InstBefore)) {
-      Function *DynamicAreaOffsetFunc = Intrinsic::getDeclaration(
-          InstBefore->getModule(), Intrinsic::get_dynamic_area_offset,
-          {IntptrTy});
-
-      Value *DynamicAreaOffset = IRB.CreateCall(DynamicAreaOffsetFunc, {});
+      Value *DynamicAreaOffset = IRB.CreateIntrinsic(
+          Intrinsic::get_dynamic_area_offset, {IntptrTy}, {});
 
       DynamicAreaPtr = IRB.CreateAdd(IRB.CreatePtrToInt(SavedStack, IntptrTy),
                                      DynamicAreaOffset);
@@ -1298,22 +1342,95 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 
 } // end anonymous namespace
 
-// Append a new argument "launch_data" to user's spir_kernels
-static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
-  SmallVector<Function *> SpirFixupFuncs;
-  for (Function &F : M) {
-    // FIXME: We don't have a way to check if the kernel has been extended
-    // on Unified Runtime, so we always extend spir_kernels here, even it will
-    // not be instrumented by any asan function.
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
-      SpirFixupFuncs.emplace_back(&F);
-  }
+static StringMap<GlobalVariable *> GlobalStringMap;
 
+static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
+                                               StringRef Value,
+                                               unsigned AddressSpace) {
+  GlobalVariable *StringGV = nullptr;
+  if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
+    return GlobalStringMap.at(Value.str());
+
+  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
+  StringGV = new GlobalVariable(
+      M, Ty, true, GlobalValue::InternalLinkage,
+      ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
+      GlobalValue::NotThreadLocal, AddressSpace);
+  GlobalStringMap[Value.str()] = StringGV;
+
+  return StringGV;
+}
+
+// Append a new argument "__asan_launch" to user's spir_kernels
+static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
+                                 bool HasESIMD) {
+  SmallVector<Function *> SpirFixupKernels;
+  SmallVector<Constant *, 8> SpirKernelsMetadata;
+
+  const auto &DL = M.getDataLayout();
+  Type *IntptrTy = DL.getIntPtrType(M.getContext());
+
+  // SpirKernelsMetadata only saves fixed kernels, and is described by
+  // following structure:
+  //  uptr unmangled_kernel_name
+  //  uptr unmangled_kernel_name_size
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+
+  if (!HasESIMD)
+    for (Function &F : M) {
+      if (!F.hasFnAttribute(Attribute::SanitizeAddress) ||
+          F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+        continue;
+
+      if (F.getName().contains("__sycl_service_kernel__")) {
+        F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+        continue;
+      }
+
+      // Skip referenced-indirectly function as we insert access to shared
+      // local memory (SLM) __AsanLaunchInfo and access to SLM in
+      // referenced-indirectly function isn't supported yet in
+      // intel-graphics-compiler.
+      if (F.hasFnAttribute("referenced-indirectly")) {
+        F.addFnAttr(Attribute::DisableSanitizerInstrumentation);
+        continue;
+      }
+
+      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+        continue;
+
+      SpirFixupKernels.emplace_back(&F);
+
+      auto KernelName = F.getName();
+      auto *KernelNameGV = GetOrCreateGlobalString(
+          M, "__asan_kernel", KernelName, kSpirOffloadConstantAS);
+      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+          ConstantInt::get(IntptrTy, KernelName.size())));
+    }
+
+  // Create global variable to record spirv kernels' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  GlobalVariable *AsanSpirKernelMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__AsanKernelMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  AsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  // Add device global attributes
+  AsanSpirKernelMetadata->addAttribute(
+      "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
+  AsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
+  AsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
+  AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       "_Z20__AsanKernelMetadata");
+  AsanSpirKernelMetadata->setDSOLocal(true);
+
+  // Handle SpirFixupKernels
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
-  auto *IntptrTy =
-      M.getDataLayout().getIntPtrType(M.getContext(), kSpirOffloadGlobalAS);
 
-  for (auto *F : SpirFixupFuncs) {
+  for (auto *F : SpirFixupKernels) {
     SmallVector<Type *, 16> Types;
     for (Function::const_arg_iterator I = F->arg_begin(), E = F->arg_end();
          I != E; ++I) {
@@ -1321,7 +1438,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     }
 
     // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
-    Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
+    Types.push_back(llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1343,6 +1460,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     }
     // New argument name
     NewI->setName("__asan_launch");
+    NewI->addAttr(Attribute::NoUndef);
 
     NewF->splice(NewF->begin(), F);
     assert(F->isDeclaration() &&
@@ -1428,7 +1546,9 @@ void AddressSanitizerPass::printPipeline(
       OS, MapClassName2PassName);
   OS << '<';
   if (Options.CompileKernel)
-    OS << "kernel";
+    OS << "kernel;";
+  if (Options.UseAfterScope)
+    OS << "use-after-scope";
   OS << '>';
 }
 
@@ -1456,11 +1576,22 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
-    ExtendSpirKernelArgs(M, FAM);
     // FIXME: W/A skip instrumentation if this module has ESIMD
+    bool HasESIMD = false;
     for (auto &F : M) {
-      if (F.hasMetadata("sycl_explicit_simd"))
-        return PreservedAnalyses::all();
+      if (F.hasMetadata("sycl_explicit_simd")) {
+        HasESIMD = true;
+        break;
+      }
+    }
+
+    // Make sure "__AsanKernelMetadata" always exists
+    ExtendSpirKernelArgs(M, FAM, HasESIMD);
+    Modified = true;
+
+    if (HasESIMD) {
+      GlobalStringMap.clear();
+      return PreservedAnalyses::none();
     }
   }
 
@@ -1471,8 +1602,13 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
         Options.UseAfterScope, Options.UseAfterReturn);
     const TargetLibraryInfo &TLI = FAM.getResult<TargetLibraryAnalysis>(F);
     Modified |= FunctionSanitizer.instrumentFunction(F, &TLI);
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      FunctionSanitizer.instrumentInitAsanLaunchInfo(F, &TLI);
   }
   Modified |= ModuleSanitizer.instrumentModule();
+
+  GlobalStringMap.clear();
+
   if (!Modified)
     return PreservedAnalyses::all();
 
@@ -1548,7 +1684,8 @@ static TargetExtType *getTargetExtType(Type *Ty) {
 // store float %1, ptr %call, align 4
 // clang-format on
 static bool isJointMatrixAccess(Value *V) {
-  if (auto *CI = dyn_cast<CallInst>(V)) {
+  auto *ActualV = V->stripInBoundsOffsets();
+  if (auto *CI = dyn_cast<CallInst>(ActualV)) {
     for (Value *Op : CI->args()) {
       if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
         if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
@@ -1559,10 +1696,32 @@ static bool isJointMatrixAccess(Value *V) {
   return false;
 }
 
+static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
+  // Non image scope device globals are implemented by device USM, and the
+  // out-of-bounds check for them will be done by sanitizer USM part. So we
+  // exclude them here.
+  if (!G->hasAttribute("sycl-device-image-scope"))
+    return true;
+
+  // Skip instrumenting on "__AsanKernelMetadata" etc.
+  if (G->getName().starts_with("__Asan"))
+    return true;
+
+  if (G->getAddressSpace() == kSpirOffloadLocalAS)
+    return !ClSpirOffloadLocals;
+
+  Attribute Attr = G->getAttribute("sycl-device-image-scope");
+  return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
+}
+
 static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  GlobalVariable *GV = dyn_cast<GlobalVariable>(OrigValue);
+  if (GV && isUnsupportedDeviceGlobal(GV))
     return true;
 
   // Ignore load/store for target ext type since we can't know exactly what size
@@ -1601,22 +1760,6 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
   return true;
 }
 
-GlobalVariable *AddressSanitizer::GetOrCreateGlobalString(
-    Module &M, StringRef Name, StringRef Value, unsigned AddressSpace) {
-  GlobalVariable *StringGV = nullptr;
-  if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
-    return GlobalStringMap.at(Value.str());
-
-  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
-  StringGV = new GlobalVariable(
-      M, Ty, true, GlobalValue::InternalLinkage,
-      ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
-      GlobalValue::NotThreadLocal, AddressSpace);
-  GlobalStringMap[Value.str()] = StringGV;
-
-  return StringGV;
-}
-
 void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
                                              Value *Addr,
                                              SmallVectorImpl<Value *> &Args) {
@@ -1626,7 +1769,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // SPIR constant address space
   PointerType *ConstASPtrTy =
-      Type::getInt8Ty(C)->getPointerTo(kSpirOffloadConstantAS);
+      llvm::PointerType::get(Type::getInt8Ty(C), kSpirOffloadConstantAS);
 
   // File & Line
   if (Loc) {
@@ -1671,78 +1814,11 @@ Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB,
     return IRB.CreateAdd(Shadow, ShadowBase);
 }
 
-static uint64_t getSizeAndRedzoneSizeForLocal(uint64_t Size,
-                                              uint64_t Granularity,
-                                              uint64_t Alignment) {
-  uint64_t Res = 0;
-  if (Size <= 4)
-    Res = 16;
-  else if (Size <= 16)
-    Res = 32;
-  else if (Size <= 128)
-    Res = Size + 32;
-  else if (Size <= 512)
-    Res = Size + 64;
-  else if (Size <= 4096)
-    Res = Size + 128;
-  else
-    Res = Size + 256;
-  return alignTo(std::max(Res, 2 * Granularity), Alignment);
-}
-
-// Instument static local memory
-void AddressSanitizer::instrumentSyclStaticLocalMemory(
-    CallInst *CI, ArrayRef<Instruction *> RetVec) {
-  InstrumentationIRBuilder IRB(CI->getNextNode());
-  auto *Size = cast<ConstantInt>(CI->getArgOperand(0));
-  auto *Alignment = cast<ConstantInt>(CI->getArgOperand(1));
-
-  const auto Granularity = 1 << Mapping.Scale;
-  // The base address of local memory needs to align to granularity
-  const auto Align = alignTo(Alignment->getZExtValue(), Granularity);
-
-  auto *SizeWithRedZone = ConstantInt::get(
-      IntptrTy, getSizeAndRedzoneSizeForLocal(Size->getZExtValue(), Granularity,
-                                              Alignment->getZExtValue()));
-
-  auto *NewCI =
-      IRB.CreateCall(CI->getCalledFunction(),
-                     {SizeWithRedZone, ConstantInt::get(IntptrTy, Align)});
-
-  // __asan_set_shadow_static_local(
-  //   uptr beg,
-  //   size_t size,
-  //   size_t size_with_redzone,
-  // )
-  auto LocalAddr = IRB.CreatePointerCast(NewCI, IntptrTy);
-  IRB.CreateCall(AsanSetShadowStaticLocalFunc,
-                 {LocalAddr, Size, SizeWithRedZone});
-
-  // __asan_unpoison_shadow_static_local(
-  //   uptr beg,
-  //   size_t size,
-  //   size_t size_with_redzone,
-  // )
-  for (Instruction *Ret : RetVec) {
-    IRBuilder<> IRBRet(Ret);
-    IRBRet.CreateCall(AsanUnpoisonShadowStaticLocalFunc,
-                      {LocalAddr, Size, SizeWithRedZone});
-  }
-
-  CI->replaceAllUsesWith(NewCI);
-  CI->eraseFromParent();
-}
-
 // Instument dynamic local memory
 bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
     Function &F, ArrayRef<Instruction *> RetVec) {
-  InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
-
-  // Save "__asan_launch" into local memory "__AsanLaunchInfo"
-  auto *LastArg = F.getArg(F.arg_size() - 1);
-  assert(LastArg->getName() == "__asan_launch" &&
-         "Instrument on extended SPIR kernel function only");
-  IRB.CreateStore(LastArg, AsanLaunchInfo);
+  InstrumentationIRBuilder IRB(&F.getEntryBlock(),
+                               F.getEntryBlock().getFirstNonPHIIt());
 
   SmallVector<Argument *> LocalArgs;
   for (auto &Arg : F.args()) {
@@ -1762,7 +1838,7 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
     IRB.CreateStore(IRB.CreatePointerCast(LocalArgs[i], IntptrTy), StoreDest);
   }
 
-  auto ArgsArrayAddr = IRB.CreatePointerCast(ArgsArray, IntptrTy);
+  auto *ArgsArrayAddr = IRB.CreatePointerCast(ArgsArray, IntptrTy);
   IRB.CreateCall(AsanSetShadowDynamicLocalFunc,
                  {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
 
@@ -1774,6 +1850,27 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
   }
 
   return true;
+}
+
+// Initialize the value of local memory "__AsanLaunchInfo",  store
+// "__asan_launch" if it's an extended kernel, and store 0 if not
+void AddressSanitizer::instrumentInitAsanLaunchInfo(
+    Function &F, const TargetLibraryInfo *TLI) {
+  InstrumentationIRBuilder IRB(&F.getEntryBlock(),
+                               F.getEntryBlock().getFirstNonPHIIt());
+  if (F.arg_size()) {
+    auto *LastArg = F.getArg(F.arg_size() - 1);
+    if (LastArg->getName() == "__asan_launch") {
+      IRB.CreateStore(LastArg, AsanLaunchInfo);
+      return;
+    }
+  }
+  // FIXME: if the initial value of "__AsanLaunchInfo" is zero, we'll not need
+  // this step
+  initializeCallbacks(TLI);
+  IRB.CreateStore(ConstantPointerNull::get(
+                      llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS)),
+                  AsanLaunchInfo);
 }
 
 // Instrument memset/memmove/memcpy
@@ -1798,10 +1895,10 @@ void AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI,
 
 /// Check if we want (and can) handle this alloca.
 bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
-  auto PreviouslySeenAllocaInfo = ProcessedAllocas.find(&AI);
+  auto [It, Inserted] = ProcessedAllocas.try_emplace(&AI);
 
-  if (PreviouslySeenAllocaInfo != ProcessedAllocas.end())
-    return PreviouslySeenAllocaInfo->getSecond();
+  if (!Inserted)
+    return It->getSecond();
 
   bool IsInteresting =
       (AI.getAllocatedType()->isSized() &&
@@ -1821,7 +1918,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
        // size it is.
        !getTargetExtType(AI.getAllocatedType()));
 
-  ProcessedAllocas[&AI] = IsInteresting;
+  It->second = IsInteresting;
   return IsInteresting;
 }
 
@@ -2107,7 +2204,7 @@ void AddressSanitizer::instrumentMaskedLoadOrStore(
   if (Stride)
     Stride = IB.CreateZExtOrTrunc(Stride, IntptrTy);
 
-  SplitBlockAndInsertForEachLane(EVL, LoopInsertBefore,
+  SplitBlockAndInsertForEachLane(EVL, LoopInsertBefore->getIterator(),
                                  [&](IRBuilderBase &IRB, Value *Index) {
     Value *MaskElem = IRB.CreateExtractElement(Mask, Index);
     if (auto *MaskElemC = dyn_cast<ConstantInt>(MaskElem)) {
@@ -2309,11 +2406,9 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
 
   if (UseCalls && ClOptimizeCallbacks) {
     const ASanAccessInfo AccessInfo(IsWrite, CompileKernel, AccessSizeIndex);
-    Module *M = IRB.GetInsertBlock()->getParent()->getParent();
-    IRB.CreateCall(
-        Intrinsic::getDeclaration(M, Intrinsic::asan_check_memaccess),
-        {IRB.CreatePointerCast(Addr, PtrTy),
-         ConstantInt::get(Int32Ty, AccessInfo.Packed)});
+    IRB.CreateIntrinsic(Intrinsic::asan_check_memaccess, {},
+                        {IRB.CreatePointerCast(Addr, PtrTy),
+                         ConstantInt::get(Int32Ty, AccessInfo.Packed)});
     return;
   }
 
@@ -2343,7 +2438,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
 
   Type *ShadowTy =
       IntegerType::get(*C, std::max(8U, TypeStoreSize >> Mapping.Scale));
-  Type *ShadowPtrTy = PointerType::get(ShadowTy, 0);
+  Type *ShadowPtrTy = PointerType::get(*C, 0);
   Value *ShadowPtr = memToShadow(AddrLong, IRB);
   const uint64_t ShadowAlign =
       std::max<uint64_t>(Alignment.valueOrOne().value() >> Mapping.Scale, 1);
@@ -2702,6 +2797,24 @@ void ModuleAddressSanitizer::initializeCallbacks() {
   AsanUnregisterElfGlobals =
       M.getOrInsertFunction(kAsanUnregisterElfGlobalsName, IRB.getVoidTy(),
                             IntptrTy, IntptrTy, IntptrTy);
+
+  // __asan_set_shadow_static_local(
+  //   uptr ptr,
+  //   size_t size,
+  //   size_t size_with_redzone
+  // )
+  AsanSetShadowStaticLocalFunc =
+      M.getOrInsertFunction("__asan_set_shadow_static_local", IRB.getVoidTy(),
+                            IntptrTy, IntptrTy, IntptrTy);
+
+  // __asan_unpoison_shadow_static_local(
+  //   uptr ptr,
+  //   size_t size,
+  //   size_t size_with_redzone
+  // )
+  AsanUnpoisonShadowStaticLocalFunc =
+      M.getOrInsertFunction("__asan_unpoison_shadow_static_local",
+                            IRB.getVoidTy(), IntptrTy, IntptrTy, IntptrTy);
 }
 
 // Put the metadata and the instrumented global in the same group. This ensures
@@ -2769,6 +2882,238 @@ Instruction *ModuleAddressSanitizer::CreateAsanModuleDtor() {
   BasicBlock *AsanDtorBB = BasicBlock::Create(*C, "", AsanDtorFunction);
 
   return ReturnInst::Create(*C, AsanDtorBB);
+}
+
+void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
+  auto &DL = M.getDataLayout();
+  SmallVector<GlobalVariable *, 8> GlobalsToRemove;
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  Type *IntptrTy = M.getDataLayout().getIntPtrType(*C, kSpirOffloadGlobalAS);
+
+  // Device global meta data is described by a structure
+  //  size_t device_global_size
+  //  size_t device_global_size_with_red_zone
+  //  size_t beginning address of the device global
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
+
+  for (auto &G : M.globals()) {
+    // DeviceSanitizers cannot handle nameless globals, therefore we set a name
+    // for them so that we can handle them like regular globals.
+    if (G.getName().empty() && G.hasInternalLinkage())
+      G.setName("nameless_global");
+
+    if (isUnsupportedDeviceGlobal(&G))
+      continue;
+
+    // This case is handled by instrumentSyclStaticLocalMemory
+    if (G.getAddressSpace() == kSpirOffloadLocalAS)
+      continue;
+
+    Type *Ty = G.getValueType();
+    const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
+    const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
+    Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
+    StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
+    Constant *NewInitializer = ConstantStruct::get(
+        NewTy, G.getInitializer(), Constant::getNullValue(RightRedZoneTy));
+
+    // Create a new global variable with enough space for a redzone.
+    GlobalVariable *NewGlobal = new GlobalVariable(
+        M, NewTy, G.isConstant(), G.getLinkage(), NewInitializer, "", &G,
+        G.getThreadLocalMode(), G.getAddressSpace());
+    NewGlobal->copyAttributesFrom(&G);
+    NewGlobal->setComdat(G.getComdat());
+    NewGlobal->setAlignment(Align(getMinRedzoneSizeForGlobal()));
+    NewGlobal->copyMetadata(&G, 0);
+
+    Value *Indices2[2];
+    Indices2[0] = IRB.getInt32(0);
+    Indices2[1] = IRB.getInt32(0);
+
+    G.replaceAllUsesWith(
+        ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
+    NewGlobal->takeName(&G);
+    GlobalsToRemove.push_back(&G);
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy, ConstantInt::get(IntptrTy, SizeInBytes),
+        ConstantInt::get(IntptrTy, SizeInBytes + RightRedzoneSize),
+        ConstantExpr::getPointerCast(NewGlobal, IntptrTy)));
+  }
+
+  if (GlobalsToRemove.empty())
+    return;
+
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *AsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__AsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  AsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+
+  for (auto *G : GlobalsToRemove)
+    G->eraseFromParent();
+}
+
+static void getFunctionsOfUser(User *User, DenseSet<Function *> &Functions) {
+  if (Instruction *Inst = dyn_cast<Instruction>(User)) {
+    Functions.insert(Inst->getFunction());
+  } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(User)) {
+    for (auto *U : CE->users())
+      getFunctionsOfUser(U, Functions);
+  }
+}
+
+void ModuleAddressSanitizer::initializeRetVecMap(Function *F) {
+  if (KernelToRetVecMap.find(F) != KernelToRetVecMap.end())
+    return;
+
+  SmallVector<Instruction *, 8> RetVec;
+  for (auto &BB : *F) {
+    for (auto &Inst : BB) {
+      if (ReturnInst *RI = dyn_cast<ReturnInst>(&Inst)) {
+        if (CallInst *CI = RI->getParent()->getTerminatingMustTailCall())
+          RetVec.push_back(CI);
+        else
+          RetVec.push_back(RI);
+      } else if (ResumeInst *RI = dyn_cast<ResumeInst>(&Inst)) {
+        RetVec.push_back(RI);
+      } else if (CleanupReturnInst *CRI = dyn_cast<CleanupReturnInst>(&Inst)) {
+        RetVec.push_back(CRI);
+      }
+    }
+  }
+
+  KernelToRetVecMap[F] = std::move(RetVec);
+}
+
+void ModuleAddressSanitizer::initializeKernelCallerMap(Function *F) {
+  if (FuncToKernelCallerMap.find(F) != FuncToKernelCallerMap.end())
+    return;
+
+  for (auto *U : F->users()) {
+    if (Instruction *Inst = dyn_cast<Instruction>(U)) {
+      Function *Caller = Inst->getFunction();
+      if (Caller->getCallingConv() == CallingConv::SPIR_KERNEL) {
+        FuncToKernelCallerMap[F].insert(Caller);
+        continue;
+      }
+      initializeKernelCallerMap(Caller);
+      FuncToKernelCallerMap[F].insert(FuncToKernelCallerMap[Caller].begin(),
+                                      FuncToKernelCallerMap[Caller].end());
+    }
+  }
+}
+
+// Instument static local memory
+void ModuleAddressSanitizer::instrumentSyclStaticLocalMemory(IRBuilder<> &IRB) {
+  auto &DL = M.getDataLayout();
+  SmallVector<GlobalVariable *, 8> GlobalsToRemove;
+  SmallVector<GlobalVariable *, 8> LocalGlobals;
+
+  Type *IntptrTy = M.getDataLayout().getIntPtrType(*C, kSpirOffloadGlobalAS);
+
+  // Step1. Create a new global variable with enough space for a redzone.
+  for (auto &G : M.globals()) {
+    if (G.getAddressSpace() != kSpirOffloadLocalAS)
+      continue;
+    if (G.getName().starts_with("__Asan"))
+      continue;
+
+    Type *Ty = G.getValueType();
+    const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
+    const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
+    Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
+    StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
+    Constant *NewInitializer =
+        G.hasInitializer()
+            ? ConstantStruct::get(NewTy, G.getInitializer(),
+                                  Constant::getNullValue(RightRedZoneTy))
+            : nullptr;
+
+    GlobalVariable *NewGlobal = new GlobalVariable(
+        M, NewTy, G.isConstant(), G.getLinkage(), NewInitializer, "", &G,
+        G.getThreadLocalMode(), G.getAddressSpace());
+    NewGlobal->copyAttributesFrom(&G);
+    NewGlobal->setComdat(G.getComdat());
+    NewGlobal->setAlignment(Align(getMinRedzoneSizeForGlobal()));
+    NewGlobal->copyMetadata(&G, 0);
+
+    Value *Indices2[2];
+    Indices2[0] = IRB.getInt32(0);
+    Indices2[1] = IRB.getInt32(0);
+
+    G.replaceAllUsesWith(
+        ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
+    NewGlobal->takeName(&G);
+    GlobalsToRemove.push_back(&G);
+    LocalGlobals.push_back(NewGlobal);
+  }
+
+  if (GlobalsToRemove.empty())
+    return;
+
+  for (auto *G : GlobalsToRemove)
+    G->eraseFromParent();
+
+  // Step2. Instrument initialization functions on kernel
+  DenseMap<Function *, Instruction *> FuncToLaunchInfoMap;
+  auto Instrument = [&](GlobalVariable *G, Function *F) {
+    StructType *Type = cast<StructType>(G->getValueType());
+    const uint64_t Size = DL.getTypeAllocSize(Type->getElementType(0));
+    const uint64_t SizeWithRedZone = DL.getTypeAllocSize(Type);
+
+    // Poison shadow of static local memory
+    if (FuncToLaunchInfoMap.find(F) == FuncToLaunchInfoMap.end()) {
+      for (auto &Inst : F->getEntryBlock()) {
+        auto *SI = dyn_cast<StoreInst>(&Inst);
+        if (SI && (SI->getPointerOperand()->getName() == "__AsanLaunchInfo")) {
+          FuncToLaunchInfoMap[F] = &Inst;
+          break;
+        }
+      }
+    }
+    assert(FuncToLaunchInfoMap.find(F) != FuncToLaunchInfoMap.end() &&
+           "All spir kernels should be instrumented.");
+
+    IRBuilder<> Builder(FuncToLaunchInfoMap[F]->getNextNode());
+    Builder.CreateCall(AsanSetShadowStaticLocalFunc,
+                       {Builder.CreatePointerCast(G, IntptrTy),
+                        ConstantInt::get(IntptrTy, Size),
+                        ConstantInt::get(IntptrTy, SizeWithRedZone)});
+
+    // Unpoison shadow of static local memory, required by CPU device
+    initializeRetVecMap(F);
+    for (auto *RI : KernelToRetVecMap[F]) {
+      IRBuilder<> Builder(RI);
+      Builder.CreateCall(AsanUnpoisonShadowStaticLocalFunc,
+                         {Builder.CreatePointerCast(G, IntptrTy),
+                          ConstantInt::get(IntptrTy, Size),
+                          ConstantInt::get(IntptrTy, SizeWithRedZone)});
+    }
+  };
+
+  // We only instrument on spir_kernel, because local variables are
+  // kind of global variable
+  for (auto *G : LocalGlobals) {
+    DenseSet<Function *> InstrumentedFunc;
+    for (auto *User : G->users())
+      getFunctionsOfUser(User, InstrumentedFunc);
+    for (Function *F : InstrumentedFunc) {
+      if (F->getCallingConv() == CallingConv::SPIR_KERNEL) {
+        Instrument(G, F);
+        continue;
+      }
+      // Get root spir_kernel of spir_func
+      initializeKernelCallerMap(F);
+      for (Function *Kernel : FuncToKernelCallerMap[F])
+        if (!InstrumentedFunc.contains(Kernel))
+          Instrument(G, Kernel);
+    }
+  }
 }
 
 void ModuleAddressSanitizer::InstrumentGlobalsCOFF(
@@ -3181,7 +3526,7 @@ ModuleAddressSanitizer::getRedzoneSizeForGlobal(uint64_t SizeInBytes) const {
 
 int ModuleAddressSanitizer::GetAsanVersion() const {
   int LongSize = M.getDataLayout().getPointerSizeInBits();
-  bool isAndroid = Triple(M.getTargetTriple()).isAndroid();
+  bool isAndroid = M.getTargetTriple().isAndroid();
   int Version = 8;
   // 32-bit Android is one version ahead because of the switch to dynamic
   // shadow.
@@ -3202,6 +3547,9 @@ GlobalVariable *ModuleAddressSanitizer::getOrCreateModuleName() {
 
 bool ModuleAddressSanitizer::instrumentModule() {
   initializeCallbacks();
+
+  for (Function &F : M)
+    removeASanIncompatibleFnAttributes(F, /*ReadsArgMem=*/false);
 
   // Create a module constructor. A destructor is created lazily because not all
   // platforms, and not all modules need it.
@@ -3234,11 +3582,14 @@ bool ModuleAddressSanitizer::instrumentModule() {
   }
 
   if (TargetTriple.isSPIROrSPIRV()) {
-    // Add module metadata "device.sanitizer" for sycl-post-link
-    LLVMContext &Ctx = M.getContext();
-    auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");
-    Metadata *MDVals[] = {MDString::get(Ctx, "asan")};
-    MD->addOperand(MDNode::get(Ctx, MDVals));
+    if (ClSpirOffloadLocals) {
+      IRBuilder<> IRB(*C);
+      instrumentSyclStaticLocalMemory(IRB);
+    }
+    if (ClDeviceGlobals) {
+      IRBuilder<> IRB(*C);
+      instrumentDeviceGlobal(IRB);
+    }
   }
 
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);
@@ -3297,7 +3648,7 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
       // )
       if (TargetTriple.isSPIROrSPIRV()) {
         auto *Int8PtrTy =
-            Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
+            llvm::PointerType::get(Type::getInt8Ty(*C), kSpirOffloadConstantAS);
 
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
@@ -3381,23 +3732,6 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
                                            ArrayType::get(IRB.getInt8Ty(), 0));
 
   if (TargetTriple.isSPIROrSPIRV()) {
-    // __asan_set_shadow_static_local(
-    //   uptr ptr,
-    //   size_t size,
-    //   size_t size_with_redzone
-    // )
-    AsanSetShadowStaticLocalFunc =
-        M.getOrInsertFunction("__asan_set_shadow_static_local", IRB.getVoidTy(),
-                              IntptrTy, IntptrTy, IntptrTy);
-
-    // __asan_unpoison_shadow_static_local(
-    //   uptr ptr,
-    //   size_t size,
-    // )
-    AsanUnpoisonShadowStaticLocalFunc =
-        M.getOrInsertFunction("__asan_unpoison_shadow_static_local",
-                              IRB.getVoidTy(), IntptrTy, IntptrTy, IntptrTy);
-
     // __asan_set_shadow_dynamic_local(
     //   uptr ptr,
     //   uint32_t num_args
@@ -3414,9 +3748,10 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
                               IRB.getVoidTy(), IntptrTy, Int32Ty);
 
     AsanLaunchInfo = M.getOrInsertGlobal(
-        "__AsanLaunchInfo", IntptrTy->getPointerTo(kSpirOffloadGlobalAS), [&] {
+        "__AsanLaunchInfo",
+        llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), [&] {
           return new GlobalVariable(
-              M, IntptrTy->getPointerTo(kSpirOffloadGlobalAS), false,
+              M, llvm::PointerType::get(IntptrTy, kSpirOffloadGlobalAS), false,
               GlobalVariable::ExternalLinkage, nullptr, "__AsanLaunchInfo",
               nullptr, GlobalVariable::NotThreadLocal, kSpirOffloadLocalAS);
         });
@@ -3523,16 +3858,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (F.isPresplitCoroutine())
     return false;
 
-  if (TargetTriple.isSPIROrSPIRV()) {
-    if (F.getName().contains("__sycl_service_kernel__"))
-      return false;
-    // Skip referenced-indirectly function as we insert access to shared local
-    // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
-    // function isn't supported yet in intel-graphics-compiler.
-    if (F.hasFnAttribute("referenced-indirectly"))
-      return false;
-  }
-
   bool FunctionModified = false;
 
   // Do not apply any instrumentation for naked functions.
@@ -3573,7 +3898,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   SmallVector<Instruction *, 8> NoReturnCalls;
   SmallVector<BasicBlock *, 16> AllBlocks;
   SmallVector<Instruction *, 16> PointerComparisonsOrSubtracts;
-  SmallVector<CallInst *, 8> SyclAllocateLocalMemoryCalls;
 
   // Fill the set of memory operations to instrument.
   for (auto &BB : F) {
@@ -3626,16 +3950,8 @@ bool AddressSanitizer::instrumentFunction(Function &F,
               NoReturnCalls.push_back(CB);
           }
         }
-        if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
-          if (TargetTriple.isSPIROrSPIRV() && CI->getCalledFunction() &&
-              CI->getCalledFunction()->getCallingConv() ==
-                  llvm::CallingConv::SPIR_FUNC &&
-              CI->getCalledFunction()->getName() ==
-                  "__sycl_allocateLocalMemory")
-            SyclAllocateLocalMemoryCalls.push_back(CI);
-          else
-            maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
-        }
+        if (CallInst *CI = dyn_cast<CallInst>(&Inst))
+          maybeMarkSanitizerLibraryCallNoBuiltin(CI, TLI);
       }
       if (NumInsnsPerBB >= ClMaxInsnsToInstrumentPerBB) break;
     }
@@ -3681,13 +3997,9 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (ChangedStack || !NoReturnCalls.empty())
     FunctionModified = true;
 
-  // We need to instrument dynamic/static local arguments after stack poisoner
+  // We need to instrument dynamic local arguments after stack poisoner
   if (TargetTriple.isSPIROrSPIRV()) {
-    for (auto *CI : SyclAllocateLocalMemoryCalls) {
-      instrumentSyclStaticLocalMemory(CI, FSP.RetVec);
-      FunctionModified = true;
-    }
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (ClSpirOffloadLocals && F.getCallingConv() == CallingConv::SPIR_KERNEL) {
       FunctionModified |= instrumentSyclDynamicLocalMemory(F, FSP.RetVec);
     }
   }
@@ -4036,7 +4348,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
   assert(InsBeforeB == &F.getEntryBlock());
   for (auto *AI : StaticAllocasToMoveUp)
     if (AI->getParent() == InsBeforeB)
-      AI->moveBefore(InsBefore);
+      AI->moveBefore(InsBefore->getIterator());
 
   // Move stores of arguments into entry-block allocas as well. This prevents
   // extra stack slots from being generated (to house the argument values until
@@ -4045,10 +4357,11 @@ void FunctionStackPoisoner::processStaticAllocas() {
   SmallVector<Instruction *, 8> ArgInitInsts;
   findStoresToUninstrumentedArgAllocas(ASan, *InsBefore, ArgInitInsts);
   for (Instruction *ArgInitInst : ArgInitInsts)
-    ArgInitInst->moveBefore(InsBefore);
+    ArgInitInst->moveBefore(InsBefore->getIterator());
 
   // If we have a call to llvm.localescape, keep it in the entry block.
-  if (LocalEscapeCall) LocalEscapeCall->moveBefore(InsBefore);
+  if (LocalEscapeCall)
+    LocalEscapeCall->moveBefore(InsBefore->getIterator());
 
   SmallVector<ASanStackVariableDescription, 16> SVD;
   SVD.reserve(AllocaVec.size());
@@ -4194,7 +4507,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
     AI->replaceAllUsesWith(NewAllocaPtr);
   }
 
-  auto TargetTriple = Triple(F.getParent()->getTargetTriple());
+  const auto &TargetTriple = Triple(F.getParent()->getTargetTriple());
 
   // The left-most redzone has enough space for at least 4 pointers.
   Value *BasePlus0 = IRB.CreateIntToPtr(LocalStackBase, IntptrPtrTy);

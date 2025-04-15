@@ -1,8 +1,14 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t
-; RUN: FileCheck < %t %s
+; RUN: FileCheck < %t %s --check-prefixes=CHECK,CHECK-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -spirv-text -o %t
+; RUN: FileCheck < %t %s --check-prefixes=CHECK,CHECK-UNTYPED-PTR
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; TODO: enable back once we support untyped ptr access chaing instructions as spec constant operand
+; R/UN: spirv-val %t.spv
 
 ; CHECK: 119734787 {{[0-9]*}} {{[0-9]*}} {{[0-9]*}} 0
 ; CHECK-NEXT: {{[0-9]*}} Capability
@@ -48,23 +54,28 @@
 ; CHECK: {{[0-9]*}} Constant [[TypeInt32]] [[Int32Two:[0-9]+]] 2
 ; CHECK: {{[0-9]*}} TypeArray [[TypeArrayInt32:[0-9]+]] [[TypeInt32]] [[Int32Two]]
 ; CHECK: {{[0-9]*}} TypePointer [[TypePtr5ArrayInt32:[0-9]+]] 5 [[TypeArrayInt32]]
-; CHECK: {{[0-9]*}} TypePointer [[TypePtr5Int32:[0-9]+]] 5 [[TypeInt32]]
-; CHECK: {{[0-9]*}} TypePointer [[TypePtr5Ptr5Int32:[0-9]+]] 5 [[TypePtr5Int32]]
+; CHECK-TYPED-PTR: {{[0-9]*}} TypePointer [[TypePtr5Int32:[0-9]+]] 5 [[TypeInt32]]
+; CHECK-TYPED-PTR: {{[0-9]*}} TypePointer [[TypePtr5Ptr5Int32:[0-9]+]] 5 [[TypePtr5Int32]]
+; CHECK-UNTYPED-PTR: {{[0-9]*}} TypeUntypedPointerKHR [[Ptr:[0-9]+]] 5
 ; CHECK: {{[0-9]*}} TypeFloat [[TypeFloat:[0-9]+]]
 ; CHECK: {{[0-9]*}} TypeArray [[TypeArrayFloat:[0-9]+]] [[TypeFloat]] [[Int32Two]]
 ; CHECK: {{[0-9]*}} TypePointer [[TypePtr8ArrayFloat:[0-9]+]] 0 [[TypeArrayFloat]]
 ; CHECK: {{[0-9]*}} TypeVector [[TypeVectorInt32:[0-9]+]] [[TypeInt32]] 3
 ; CHECK: {{[0-9]*}} TypePointer [[TypePtr8VectorInt32:[0-9]+]] 0 [[TypeVectorInt32]]
-; CHECK: {{[0-9]*}} TypePointer [[TypePtr0Int8:[0-9]+]] 8 [[TypeInt8]]
+; CHECK-TYPED-PTR: {{[0-9]*}} TypePointer [[TypePtr0Int8:[0-9]+]] 8 [[TypeInt8]]
+; CHECK-UNTYPED-PTR: {{[0-9]*}} TypeUntypedPointerKHR [[TypePtr0Int8:[0-9]+]] 8
 ; CHECK: {{[0-9]*}} TypeStruct [[BID:[0-9]+]] {{[0-9]+}} [[TypePtr0Int8]]
 ; CHECK: {{[0-9]*}} TypeStruct [[CID:[0-9]+]] {{[0-9]+}} [[BID]]
 ; CHECK: {{[0-9]*}} TypeStruct [[AID:[0-9]+]] {{[0-9]+}} [[CID]]
 ; CHECK: {{[0-9]*}} TypeVoid [[Void:[0-9]+]]
-; CHECK: {{[0-9]*}} TypePointer [[TypePtr5Int8:[0-9]+]] 5 [[TypeInt8]]
-; CHECK: {{[0-9]*}} TypeFunction [[TypeBar1:[0-9]+]] [[Void]] [[TypePtr5Int8]]
+; CHECK-TYPED-PTR: {{[0-9]*}} TypePointer [[TypePtr5Int8:[0-9]+]] 5 [[TypeInt8]]
+; CHECK-TYPED-PTR: {{[0-9]*}} TypeFunction [[TypeBar1:[0-9]+]] [[Void]] [[TypePtr5Int8]]
+; CHECK-UNTYPED-PTR: {{[0-9]*}} TypeFunction [[TypeBar1:[0-9]+]] [[Void]] [[Ptr]]
 ; CHECK: {{[0-9]*}} Variable [[TypePtr5ArrayInt32]] [[Var:[0-9]+]]
-; CHECK: {{[0-9]*}} SpecConstantOp [[TypePtr5Int32]] [[SConstOp:[0-9]+]] 70 [[Var]]
-; CHECK: {{[0-9]*}} Variable {{[0-9]+}} {{[0-9]+}} 5 [[SConstOp]]
+; CHECK-TYPED-PTR: {{[0-9]*}} SpecConstantOp [[TypePtr5Int32]] [[SConstOp:[0-9]+]] 70 [[Var]]
+; CHECK-UNTYPED-PTR: {{[0-9]*}} SpecConstantOp [[Ptr]] [[SConstOp:[0-9]+]] 4424 [[TypeArrayInt32]] [[Var]]
+; CHECK-TYPED-PTR: {{[0-9]*}} Variable {{[0-9]+}} {{[0-9]+}} 5 [[SConstOp]]
+; CHECK-UNTYPED-PTR: {{[0-9]*}} UntypedVariableKHR {{[0-9]+}} {{[0-9]+}} 5 [[Ptr]] [[SConstOp]]
 
 ; CHECK-NOT: {{[0-9]*}} Capability
 ; CHECK-NOT: {{[0-9]*}} ExtInstImport

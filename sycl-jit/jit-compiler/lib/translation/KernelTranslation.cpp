@@ -17,6 +17,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 
@@ -132,8 +133,13 @@ KernelTranslator::loadKernels(llvm::LLVMContext &LLVMCtx,
         // read last. This could cause problems if different modules contain
         // definitions with the same name, but different body/content.
         // Check that this is not problematic.
-        Linker::linkModules(*Result, std::move(NewMod),
-                            Linker::Flags::OverrideFromSrc);
+        const bool HasErrors = Linker::linkModules(
+            *Result, std::move(NewMod), Linker::Flags::OverrideFromSrc);
+        if (HasErrors) {
+          return createStringError(inconvertibleErrorCode(),
+                                   "Failed to link modules");
+        }
+
         if (AddressBits != BinInfo.AddressBits) {
           return createStringError(
               inconvertibleErrorCode(),
@@ -222,6 +228,22 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
   return Error::success();
 }
 
+llvm::Expected<RTCDevImgBinaryInfo>
+KernelTranslator::translateDevImgToSPIRV(llvm::Module &Mod,
+                                         JITContext &JITCtx) {
+  llvm::TimeTraceScope TTS{"translateDevImgToSPIRV"};
+
+  llvm::Expected<KernelBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
+  if (auto Error = BinaryOrError.takeError()) {
+    return Error;
+  }
+  KernelBinary *Binary = *BinaryOrError;
+  RTCDevImgBinaryInfo DIBI{BinaryFormat::SPIRV,
+                           Mod.getDataLayout().getPointerSizeInBits(),
+                           Binary->address(), Binary->size()};
+  return DIBI;
+}
+
 llvm::Expected<KernelBinary *>
 KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
   return SPIRVLLVMTranslator::translateLLVMtoSPIRV(Mod, JITCtx);
@@ -283,9 +305,9 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
   }
 
   // FIXME: Check whether we can provide more accurate target information here
-  auto *TargetMachine = Target->createTargetMachine(
-      TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
-      llvm::CodeGenOptLevel::Default);
+  std::unique_ptr<TargetMachine> TargetMachine(Target->createTargetMachine(
+      Mod.getTargetTriple(), CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      llvm::CodeGenOptLevel::Default));
 
   llvm::legacy::PassManager PM;
 
@@ -363,9 +385,9 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
   }
 
   // FIXME: Check whether we can provide more accurate target information here
-  auto *TargetMachine = Target->createTargetMachine(
-      TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
-      llvm::CodeGenOptLevel::Default);
+  std::unique_ptr<TargetMachine> TargetMachine(Target->createTargetMachine(
+      Mod.getTargetTriple(), CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      llvm::CodeGenOptLevel::Default));
 
   std::string AMDObj;
   {

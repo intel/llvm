@@ -9,8 +9,8 @@ name: In-tree build & tests
 on:
   push:
     branches:
+      # This check is expensive; do not run it after pushes to llvm_release_*
       - main
-      - llvm_release_*
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
       - '**.md'   # README
@@ -32,7 +32,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 20
+  LLVM_VERSION: 21
 
 jobs:
   build_and_test_linux:

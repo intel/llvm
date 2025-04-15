@@ -4,7 +4,17 @@
 
 void SubmitKernelNode(
     exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph, queue Queue,
-    int32_t *Ptr, exp_ext::raw_kernel_arg &RawArg) {
+    int32_t *Ptr, exp_ext::raw_kernel_arg &RawArg, kernel Kernel) {
+
+  add_node(Graph, Queue, [&](handler &cgh) {
+    cgh.set_arg(0, RawArg);
+    cgh.set_arg(1, Ptr);
+    cgh.parallel_for(sycl::range<1>{Size}, Kernel);
+  });
+}
+
+int main() {
+  queue Queue{};
 
   auto constexpr CLSource = R"===(
 __kernel void RawArgKernel(int scalar, __global int *out) {
@@ -17,18 +27,9 @@ __kernel void RawArgKernel(int scalar, __global int *out) {
       sycl::ext::oneapi::experimental::create_kernel_bundle_from_source(
           Queue.get_context(),
           sycl::ext::oneapi::experimental::source_language::opencl, CLSource);
-  auto ExecKB = sycl::ext::oneapi::experimental::build(SourceKB);
-
-  add_node(Graph, Queue, [&](handler &cgh) {
-    cgh.set_arg(0, RawArg);
-    cgh.set_arg(1, Ptr);
-    cgh.parallel_for(sycl::range<1>{Size},
-                     ExecKB.ext_oneapi_get_kernel("RawArgKernel"));
-  });
-}
-
-int main() {
-  queue Queue{};
+  auto Kernel =
+      sycl::ext::oneapi::experimental::build(SourceKB).ext_oneapi_get_kernel(
+          "RawArgKernel");
 
   exp_ext::command_graph GraphA{Queue};
 
@@ -40,7 +41,7 @@ int main() {
   sycl::ext::oneapi::experimental::raw_kernel_arg RawScalarA(&ScalarA,
                                                              sizeof(int32_t));
 
-  SubmitKernelNode(GraphA, Queue, PtrA, RawScalarA);
+  SubmitKernelNode(GraphA, Queue, PtrA, RawScalarA, Kernel);
   auto ExecGraphA = GraphA.finalize(exp_ext::property::graph::updatable{});
 
   // PtrA should be filled with values based on ScalarA
@@ -62,7 +63,7 @@ int main() {
                                                              sizeof(int32_t));
 
   // Swap ScalarB and PtrB to be the new inputs/outputs
-  SubmitKernelNode(GraphB, Queue, PtrB, RawScalarB);
+  SubmitKernelNode(GraphB, Queue, PtrB, RawScalarB, Kernel);
   ExecGraphA.update(GraphB);
   Queue.ext_oneapi_graph(ExecGraphA).wait();
 

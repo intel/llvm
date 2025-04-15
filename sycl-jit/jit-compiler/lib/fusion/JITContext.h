@@ -70,7 +70,15 @@ public:
 
   template <typename... Ts> KernelBinary &emplaceKernelBinary(Ts &&...Args) {
     WriteLockT WriteLock{BinariesMutex};
-    return Binaries.emplace_back(std::forward<Ts>(Args)...);
+    auto KBUPtr = std::make_unique<KernelBinary>(std::forward<Ts>(Args)...);
+    KernelBinary &KB = *KBUPtr;
+    Binaries.emplace(KB.address(), std::move(KBUPtr));
+    return KB;
+  }
+
+  void destroyKernelBinary(BinaryAddress Addr) {
+    WriteLockT WriteLock{BinariesMutex};
+    Binaries.erase(Addr);
   }
 
   std::optional<SYCLKernelInfo> getCacheEntry(CacheKeyT &Identifier) const;
@@ -96,7 +104,7 @@ private:
 
   MutexT BinariesMutex;
 
-  std::vector<KernelBinary> Binaries;
+  std::unordered_map<BinaryAddress, std::unique_ptr<KernelBinary>> Binaries;
 
   mutable MutexT CacheMutex;
 

@@ -476,6 +476,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
     return ClassifyInternal(Ctx, cast<CoroutineSuspendExpr>(E)->getResumeExpr());
   case Expr::SYCLUniqueStableNameExprClass:
   case Expr::SYCLUniqueStableIdExprClass:
+  case Expr::OpenACCAsteriskSizeExprClass:
     return Cl::CL_PRValue;
     break;
 
@@ -709,7 +710,8 @@ static Cl::ModifiableType IsModifiable(ASTContext &Ctx, const Expr *E,
     return Cl::CM_ConstAddrSpace;
 
   // Arrays are not modifiable, only their elements are.
-  if (CT->isArrayType())
+  if (CT->isArrayType() &&
+      !(Ctx.getLangOpts().HLSL && CT->isConstantArrayType()))
     return Cl::CM_ArrayType;
   // Incomplete types are not modifiable.
   if (CT->isIncompleteType())

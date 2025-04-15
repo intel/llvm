@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13.4)
 
 if(NOT DEFINED BASE_LLVM_VERSION)
-  set (BASE_LLVM_VERSION 20.0.0)
+  set (BASE_LLVM_VERSION 21.0.0)
 endif(NOT DEFINED BASE_LLVM_VERSION)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
@@ -144,7 +144,9 @@ if (NOT SPIRV_TOOLS_FOUND)
   endif()
 endif()
 
-if (NOT SPIRV_TOOLS_FOUND)
+option(LLVM_SPIRV_ENABLE_LIBSPIRV_DIS "Enable --spirv-tools-dis support.")
+
+if (NOT SPIRV_TOOLS_FOUND AND LLVM_SPIRV_ENABLE_LIBSPIRV_DIS)
   message(STATUS "SPIRV-Tools not found; project will be built without "
           "--spirv-tools-dis support.")
 endif()

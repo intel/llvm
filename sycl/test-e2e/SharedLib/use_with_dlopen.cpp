@@ -13,9 +13,8 @@
 // RUN: %{compile} -o %t3.out -DRUN_MIDDLE_AFTER
 // RUN: %{run} %t3.out
 
-// This causes SEG. FAULT.
-// RUNx: %{compile} -o %t4.out -DRUN_LAST
-// RUNx: %{run} %t4.out
+// RUN: %{compile} -o %t4.out -DRUN_LAST
+// RUN: %{run} %t4.out
 
 #include <sycl/detail/core.hpp>
 

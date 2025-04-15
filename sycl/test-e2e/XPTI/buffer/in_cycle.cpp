@@ -1,5 +1,5 @@
 // REQUIRES: xptifw, opencl
-// RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
+// RUN: %build_collector
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
@@ -45,7 +45,7 @@ bool func(sycl::queue &Queue, int depth = 0) {
   }
 
   if (depth > 0)
-    MismatchFound &= func(Queue, depth - 1);
+    MismatchFound |= func(Queue, depth - 1);
   return MismatchFound;
 }
 int main() {
@@ -66,7 +66,7 @@ int main() {
   // CHECK:{{[0-9]+}}|Release buffer|[[USERID3]]|[[BEID3]]
   // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID3]]
   for (int i = 0; i < 3; i++)
-    MismatchFound &= func(Queue);
+    MismatchFound |= func(Queue);
   return MismatchFound;
 }
 

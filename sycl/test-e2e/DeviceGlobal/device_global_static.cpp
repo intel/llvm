@@ -4,7 +4,7 @@
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 //
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15329
 //
 // Tests static device_global access through device kernels.

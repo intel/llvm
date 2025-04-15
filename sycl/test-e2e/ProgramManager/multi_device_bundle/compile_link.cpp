@@ -6,6 +6,7 @@
 // Test to check that we can compile and link a kernel bundle for multiple
 // devices and run the kernel on each device.
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 class Kernel;
 

@@ -102,7 +102,7 @@ int main() {
 
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto device = q.get_device();
-  std::cout << "Device name: " << device.get_info<info::device::name>()
+  std::cout << "Device name: " << device.get_info<sycl::info::device::name>()
             << std::endl;
 
   int error = testUSM<8>(q);

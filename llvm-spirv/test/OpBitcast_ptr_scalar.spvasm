@@ -1,0 +1,31 @@
+; Check support of OpBitcast with pointer operands
+; Converts to scalar integers, which is supported by all SPIR-V versions
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Int64
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %kernel "test"
+       %uint = OpTypeInt 32 0
+      %ulong = OpTypeInt 64 0
+       %void = OpTypeVoid
+   %pptr_int = OpTypePointer Function %uint
+ %kernel_sig = OpTypeFunction %void
+     %kernel = OpFunction %void None %kernel_sig
+      %entry = OpLabel
+     %srcptr = OpVariable %pptr_int Function
+     %dstint = OpBitcast %ulong %srcptr
+     %dstptr = OpBitcast %pptr_int %dstint
+               OpReturn
+               OpFunctionEnd
+
+
+; CHECK-LLVM: [[SRCPTR:%[a-z0-9.]+]] = alloca i32, align 4
+; CHECK-LLVM: [[DSTINT:%[a-z0-9.]+]] = ptrtoint ptr [[SRCPTR]] to i64
+; CHECK-LLVM: [[DSTPTR:%[a-z0-9.]+]] = inttoptr i64 [[DSTINT]] to ptr

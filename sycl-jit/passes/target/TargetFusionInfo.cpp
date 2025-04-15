@@ -188,17 +188,16 @@ public:
       }
       if (InsertWrappers) {
         if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator())) {
-          auto *WrapperCall =
-              CallInst::Create(WrapperFuncTy, FinishWrapperFunc, "", RI->getIterator());
+          auto *WrapperCall = CallInst::Create(WrapperFuncTy, FinishWrapperFunc,
+                                               "", RI->getIterator());
           WrapperCall->setCallingConv(CallingConv::SPIR_FUNC);
         }
       }
     }
     if (InsertWrappers) {
-      KernelFunc->getEntryBlock().getFirstInsertionPt();
-      auto *WrapperCall =
-          CallInst::Create(WrapperFuncTy, StartWrapperFunc, "",
-                           KernelFunc->getEntryBlock().getFirstInsertionPt());
+      auto InsertionPt = KernelFunc->getEntryBlock().getFirstInsertionPt();
+      auto *WrapperCall = CallInst::Create(WrapperFuncTy, StartWrapperFunc, "",
+                                           InsertionPt->getIterator());
       WrapperCall->setCallingConv(CallingConv::SPIR_FUNC);
     }
   }
@@ -214,7 +213,7 @@ public:
         {Attribute::get(LLVMMod->getContext(), Attribute::AttrKind::Convergent),
          Attribute::get(LLVMMod->getContext(), Attribute::AttrKind::NoUnwind)});
 
-    static constexpr StringLiteral N{"_Z22__spirv_ControlBarrierjjj"};
+    static constexpr StringLiteral N{"_Z22__spirv_ControlBarrieriii"};
 
     Function *F = LLVMMod->getFunction(N);
     if (!F) {
@@ -356,9 +355,12 @@ public:
     Name = Name.drop_front(Name.find(SPIRVBuiltinPrefix) +
                            SPIRVBuiltinPrefix.size());
     // Check that Name does not start with any name in UnsafeBuiltIns
-    const auto *Iter =
-        std::upper_bound(UnsafeBuiltIns.begin(), UnsafeBuiltIns.end(), Name);
-    return Iter == UnsafeBuiltIns.begin() || !Name.starts_with(*(Iter - 1));
+    for (const StringRef &Unsafe : UnsafeBuiltIns) {
+      if (Name.starts_with(Unsafe)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   unsigned getIndexSpaceBuiltinBitwidth() const override { return 64; }
@@ -456,6 +458,7 @@ public:
     SmallPtrSet<Constant *, 8> DeletedFuncs{Funcs.begin(), Funcs.end()};
     SmallVector<MDNode *> ValidKernels;
     auto *OldAnnotations = LLVMMod->getNamedMetadata(MDName);
+    assert(OldAnnotations && "Failed to retrieve old annotations");
     for (auto *Op : OldAnnotations->operands()) {
       if (auto *TOp = dyn_cast<MDTuple>(Op)) {
         if (auto *COp = dyn_cast_if_present<ConstantAsMetadata>(

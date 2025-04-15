@@ -1,7 +1,6 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
-//
-// XFAIL: hip_nvidia
+
 #include <cassert>
 #include <cstddef>
 #include <sycl/detail/core.hpp>

@@ -7,16 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/Compilation.h"
+#include "ToolChains/SYCL.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Driver.h"
-#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Job.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Driver/Util.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptSpecifier.h"
 #include "llvm/Option/Option.h"
@@ -130,7 +128,8 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
     if (DeviceOffloadKind == Action::OFK_OpenMP ||
         DeviceOffloadKind == Action::OFK_SYCL) {
       const ToolChain *HostTC = getSingleOffloadToolChain<Action::OFK_Host>();
-      bool SameTripleAsHost = (TC->getTriple() == HostTC->getTriple());
+      bool SameTripleAsHost = (TC->getTriple() == HostTC->getTriple()) ||
+                              isSYCLNativeCPU(TC->getTriple());
       OffloadArgs = TC->TranslateOffloadTargetArgs(
           *TranslatedArgs, SameTripleAsHost, AllocatedArgs, DeviceOffloadKind);
     }

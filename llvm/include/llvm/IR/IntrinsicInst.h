@@ -569,9 +569,9 @@ public:
   /// \brief Declares a llvm.vp.* intrinsic in \p M that matches the parameters
   /// \p Params. Additionally, the load and gather intrinsics require
   /// \p ReturnType to be specified.
-  static Function *getDeclarationForParams(Module *M, Intrinsic::ID,
-                                           Type *ReturnType,
-                                           ArrayRef<Value *> Params);
+  static Function *getOrInsertDeclarationForParams(Module *M, Intrinsic::ID,
+                                                   Type *ReturnType,
+                                                   ArrayRef<Value *> Params);
 
   static std::optional<unsigned> getMaskParamPos(Intrinsic::ID IntrinsicID);
   static std::optional<unsigned> getVectorLengthParamPos(
@@ -718,7 +718,7 @@ public:
   /// Check the callsite attributes for this FPBuiltinIntrinsic against a list
   /// of FP attributes that the caller knows how to process to see if the
   /// current intrinsic has unrecognized attributes
-  bool hasUnrecognizedFPAttrs(const StringSet<> HandledAttrs);
+  bool hasUnrecognizedFPAttrs(const StringSet<> HandledAttrs) const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   /// @{
@@ -1282,6 +1282,41 @@ public:
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const IntrinsicInst *I) {
     return I->getIntrinsicID() == Intrinsic::memset_inline;
+  }
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+};
+
+/// This is the base class for llvm.experimental.memset.pattern
+class MemSetPatternIntrinsic : public MemIntrinsicBase<MemIntrinsic> {
+private:
+  enum { ARG_VOLATILE = 3 };
+
+public:
+  ConstantInt *getVolatileCst() const {
+    return cast<ConstantInt>(const_cast<Value *>(getArgOperand(ARG_VOLATILE)));
+  }
+
+  bool isVolatile() const { return !getVolatileCst()->isZero(); }
+
+  void setVolatile(Constant *V) { setArgOperand(ARG_VOLATILE, V); }
+
+  // Methods for support of type inquiry through isa, cast, and dyn_cast:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::experimental_memset_pattern;
+  }
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+};
+
+/// This class wraps the llvm.experimental.memset.pattern intrinsic.
+class MemSetPatternInst : public MemSetBase<MemSetPatternIntrinsic> {
+public:
+  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::experimental_memset_pattern;
   }
   static bool classof(const Value *V) {
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
@@ -1863,15 +1898,20 @@ public:
     return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
   }
 
-  bool isAnchor() {
+  bool isAnchor() const {
     return getIntrinsicID() == Intrinsic::experimental_convergence_anchor;
   }
-  bool isEntry() {
+  bool isEntry() const {
     return getIntrinsicID() == Intrinsic::experimental_convergence_entry;
   }
-  bool isLoop() {
+  bool isLoop() const {
     return getIntrinsicID() == Intrinsic::experimental_convergence_loop;
   }
+
+  static ConvergenceControlInst *CreateAnchor(BasicBlock &BB);
+  static ConvergenceControlInst *CreateEntry(BasicBlock &BB);
+  static ConvergenceControlInst *CreateLoop(BasicBlock &BB,
+                                            ConvergenceControlInst *Parent);
 };
 
 /// This represents the llvm.sycl.alloca intrinsic.

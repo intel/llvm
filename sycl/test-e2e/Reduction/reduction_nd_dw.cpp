@@ -1,8 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// Group algorithms are not supported on Nvidia.
-// XFAIL: hip_nvidia
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows

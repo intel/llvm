@@ -15,7 +15,6 @@ set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
 
 # TEST_INCLUDE_PATH is used for syntax-only verification of type information.
 list(APPEND test_includes ${SYCL_INCLUDE})
-list(APPEND test_includes ${SYCL_INCLUDE}/sycl)
 list(APPEND test_includes ${SYCL_SOURCE_DIR}/source)
 list(APPEND test_includes ${BOOST_UNORDERED_INCLUDE_DIRS})
 if(SYCL_ENABLE_EXTENSION_JIT)
@@ -69,10 +68,10 @@ add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
 set_target_properties(check-sycl-deploy PROPERTIES FOLDER "SYCL tests")
 
 set(TRIPLES "spir64-unknown-unknown")
-if (SYCL_BUILD_BACKEND_CUDA OR (SYCL_BUILD_BACKEND_HIP AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA"))
+if (SYCL_BUILD_BACKEND_CUDA)
   set(TRIPLES "${TRIPLES},nvptx64-nvidia-cuda")
 endif()
-if ((SYCL_BUILD_BACKEND_HIP AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD"))
+if (SYCL_BUILD_BACKEND_HIP)
   set(TRIPLES "${TRIPLES},amdgcn-amd-amdhsa")
 endif()
 
@@ -96,6 +95,7 @@ add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
   EXCLUDE_FROM_CHECK_ALL
   )
 
-if(SYCL_ENABLE_EXTENSION_JIT)
+if(NOT WIN32 AND SYCL_ENABLE_EXTENSION_JIT)
+  # lit-based testing of JIT passes isn't supported on Windows.
   add_dependencies(check-sycl check-sycl-jit)
-endif(SYCL_ENABLE_EXTENSION_JIT)
+endif()

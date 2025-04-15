@@ -136,7 +136,7 @@ arrayinit.end8:                                   ; preds = %arrayinit.body3
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* captures(none)) #1
 
 ; CHECK-SPIRV: Function {{.*}} [[TYPE_EMB_FUNC]]
 ; CHECK-LLVM: define internal spir_func void {{.*}}(ptr addrspace(4) %this)
@@ -266,7 +266,7 @@ for.end20:                                        ; preds = %for.cond.cleanup
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* captures(none)) #1
 
 ; Function Attrs: convergent norecurse uwtable
 define dso_local spir_kernel void @_ZTSZ4mainE18VaryingSafelenOnPointersTest(i32 addrspace(1)* %_arg_, i32 addrspace(1)* %_arg_1) #0 !kernel_arg_buffer_location !4 {

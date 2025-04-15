@@ -96,7 +96,7 @@ declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range 
 ; CHECK-NEXT:    br label %[[EXIT]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  [[EXIT]]:
-; CHECK-NEXT:    call spir_func void @_Z22__spirv_ControlBarrierjjj
+; CHECK-NEXT:    call spir_func void @_Z22__spirv_ControlBarrieriii
 ; CHECK-NEXT:    %[[GID:.*]] = call spir_func i64 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS:.*]]
 ; CHECK-NEXT:    %[[CMP:.*]] = icmp ult i64 %[[GID]], 8
 ; CHECK-NEXT:    br i1 %[[CMP]], label %[[CALL:.*]], label %[[EXIT:.*]]
@@ -115,7 +115,7 @@ declare !sycl.kernel.fused !13 !sycl.kernel.nd-ranges !15 !sycl.kernel.nd-range 
 ; CHECK-NEXT:    br label %[[EXIT]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT:  [[EXIT]]:
-; CHECK-NEXT:    call spir_func void @_Z22__spirv_ControlBarrierjjj
+; CHECK-NEXT:    call spir_func void @_Z22__spirv_ControlBarrieriii
 ; CHECK-NEXT:    call spir_func i64 @__global_size_remapper_1_48_1_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X2]]) #[[ATTRS]]
 ; CHECK-NEXT:    call spir_func i64 @__group_id_remapper_1_48_1_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X2]]) #[[ATTRS]]
 ; CHECK-NEXT:    call spir_func i64 @__local_size_remapper_1_48_1_1_2_1_1_3_48_1_1_2_1_1(i32 %[[X2]]) #[[ATTRS]]
@@ -181,7 +181,7 @@ declare !sycl.kernel.fused !31 !sycl.kernel.nd-ranges !25 !sycl.kernel.nd-range 
 ; CHECK-NEXT:     br label %[[EXIT]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   [[EXIT]]:
-; CHECK-NEXT:     call spir_func void @_Z22__spirv_ControlBarrierjjj
+; CHECK-NEXT:     call spir_func void @_Z22__spirv_ControlBarrieriii
 ; CHECK-NEXT:     %[[GID:.*]] = call spir_func i64 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS:.*]]
 ; CHECK-NEXT:     %[[CMP:.*]] = icmp ult i64 %[[GID]], 10
 ; CHECK-NEXT:     br i1 %[[CMP]], label %[[CALL:.*]], label %[[EXIT:.*]]
@@ -200,7 +200,7 @@ declare !sycl.kernel.fused !31 !sycl.kernel.nd-ranges !25 !sycl.kernel.nd-range 
 ; CHECK-NEXT:     label %[[EXIT]]
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   [[EXIT]]:
-; CHECK-NEXT:     call spir_func void @_Z22__spirv_ControlBarrierjjj
+; CHECK-NEXT:     call spir_func void @_Z22__spirv_ControlBarrieriii
 ; CHECK-NEXT:     %[[GID:.*]] = call spir_func i64 @__global_linear_id_3_48_1_1_2_1_1() #[[ATTRS:.*]]
 ; CHECK-NEXT:     %[[CMP:.*]] = icmp ult i64 %[[GID]], 20
 ; CHECK-NEXT:     br i1 %[[CMP]], label %[[CALL:.*]], label %[[EXIT:.*]]

@@ -119,6 +119,7 @@ public:
     ConstIterator begin() const { return ConstIterator(Begin); }
     ConstIterator end() const { return ConstIterator(End); }
     size_t size() const { return std::distance(begin(), end()); }
+    bool empty() const { return begin() == end(); }
     friend class RTDeviceBinaryImage;
     bool isAvailable() const { return !(Begin == nullptr); }
 
@@ -214,6 +215,9 @@ public:
     return SpecConstDefaultValuesMap;
   }
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
+  const PropertyRange &getDeviceLibMetadata() const {
+    return DeviceLibMetadata;
+  }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
@@ -230,6 +234,10 @@ public:
   }
   const PropertyRange &getHostPipes() const { return HostPipes; }
   const PropertyRange &getVirtualFunctions() const { return VirtualFunctions; }
+  const PropertyRange &getImplicitLocalArg() const { return ImplicitLocalArg; }
+  const PropertyRange &getRegisteredKernels() const {
+    return RegisteredKernels;
+  }
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
@@ -246,6 +254,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
+  RTDeviceBinaryImage::PropertyRange DeviceLibMetadata;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;
@@ -255,6 +264,8 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
+  RTDeviceBinaryImage::PropertyRange ImplicitLocalArg;
+  RTDeviceBinaryImage::PropertyRange RegisteredKernels;
 
   std::vector<ur_program_metadata_t> ProgramMetadataUR;
 
@@ -303,7 +314,7 @@ public:
   }
 
 private:
-  std::unique_ptr<char> m_DecompressedData;
+  std::unique_ptr<char[]> m_DecompressedData;
   size_t m_ImageSize;
 };
 #endif // SYCL_RT_ZSTD_NOT_AVAIABLE

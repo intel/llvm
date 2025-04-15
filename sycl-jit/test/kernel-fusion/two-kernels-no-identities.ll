@@ -271,7 +271,7 @@ attributes #5 = { nounwind }
 ; FUSION:   [[IN2:%.*]] = load float
 ; FUSION:   [[ADD:%.*]] = fadd float [[IN1]], [[IN2]]
 ; FUSION:   store float [[ADD]]
-; FUSION-LABEL:   call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 784)
+; FUSION-LABEL:   call spir_func void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 784)
 ; FUSION:   [[IN3:%.*]] = load float
 ; FUSION:   [[IN4:%.*]] = load float
 ; FUSION:   [[MUL:%.*]] = fmul float [[IN3]], [[IN4]]

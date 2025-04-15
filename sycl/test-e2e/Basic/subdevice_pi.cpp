@@ -39,8 +39,10 @@ static std::vector<device> partition_affinity(device dev) {
 }
 
 static std::vector<device> partition_equally(device dev) {
+  auto maxUnits = dev.get_info<info::device::max_compute_units>();
   std::vector<device> subdevices =
-      dev.create_sub_devices<info::partition_property::partition_equally>(1);
+      dev.create_sub_devices<info::partition_property::partition_equally>(
+          maxUnits / 2);
 
   return subdevices;
 }

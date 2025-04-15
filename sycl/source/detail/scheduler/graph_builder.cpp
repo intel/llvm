@@ -486,6 +486,9 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
 
   std::vector<Command *> ToCleanUp;
   for (Command *Dep : Deps) {
+    if (Dep->MEnqueueStatus == EnqueueResultT::SyclEnqueueFailed)
+      continue;
+
     Command *ConnCmd = MemCpyCmd->addDep(
         DepDesc{Dep, MemCpyCmd->getRequirement(), SrcAllocaCmd}, ToCleanUp);
     if (ConnCmd)
@@ -1024,7 +1027,7 @@ Command *Scheduler::GraphBuilder::addCG(
   }
 
   // Register all the events as dependencies
-  for (detail::EventImplPtr e : Events) {
+  for (const detail::EventImplPtr &e : Events) {
     if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
   }

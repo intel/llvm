@@ -1,5 +1,5 @@
 #include <clc/clc.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF float atomic_xchg(volatile global float *p, float val) {
   /* TODO: Stop manually mangling this name. Need C++ namespaces to get the exact mangling. */

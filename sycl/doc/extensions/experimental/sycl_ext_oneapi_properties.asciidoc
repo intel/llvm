@@ -199,21 +199,14 @@ inline constexpr boo_key::value_t<Ts...> boo;
 
 === Property traits
 
-All runtime and compile-time-constant properties must have a specialization of 
-`is_property_key` and `is_property_value` that inherits from
-`std::true_type`, and they must have a specialization of `is_property_key_of`
-and `is_property_value_of`
-that inherits from `std::true_type` for each SYCL runtime class that the
-property can be applied to. All have a base case which inherits from `std::false_type`.
+Properties may add a specialization of `is_property_key_of` that inherits from
+`std::true_type` for each SYCL runtime class that the property can be applied
+to. All have a base case which inherits from `std::false_type`.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 //Base case
-template<typename> struct is_property_key : std::false_type {};
 template<typename, typename> struct is_property_key_of : std::false_type {};
-
-template<> struct is_property_key<foo_key> : std::true_type {};
-template<> struct is_property_key<bar_key> : std::true_type {};
 
 // These properties can be applied to any SYCL object.
 template<typename SyclObjectT>
@@ -221,17 +214,11 @@ struct is_property_key_of<foo_key, SyclObjectT> : std::true_type {};
 template<typename SyclObjectT>
 struct is_property_key_of<bar_key, SyclObjectT> : std::true_type {};
 
-// is_property_value and is_property_value_of based on is_property_key(_of)
-template<typename V, typename=void> struct is_property_value;
-template<typename V, typename O, typename=void> struct is_property_value_of;
-// Specialization for runtime properties
-template<typename V> struct is_property_value<V, std::enable_if_t<(sizeof(V)>0)>> : is_property_key<V> {};
-template<typename V, typename O> struct is_property_value_of<V, O, std::enable_if_t<(sizeof(V)>0)>> : is_property_key_of<V,O> {};
-// Specialization for compile-time-constant properties
-template<typename V> struct is_property_value<V, std::void_t<typename V::key_t>> :
-  is_property_key<typename V::key_t> {};
-template<typename V, typename O> struct is_property_value_of<V, O, std::void_t<typename V::key_t>> :
-  is_property_key_of<typename V::key_t, O> {};
+
+// is_property_value is provided by the properties infrastructure in implementation-defined way
+template<typename V> struct is_property_value;
+// is_property_value_of is based on is_property_key_of, implementation is provided by the properties infrastructure
+template<typename V, typename O> struct is_property_value_of;
 
 } // namespace experimental::oneapi::ext::sycl
 ```
@@ -636,7 +623,7 @@ This section provides more detailed information for implementers. It is non-norm
 Adding a new compile-time constant property requires implementers to introduce the following:
 
 * A new class representing the property key
-* Specializations of `sycl::is_property_key` and `sycl::is_property_key_of` for the new property class
+* Specialization of `sycl::is_property_key_of` for the new property class
 * A global variable that represents an object of the property value
 
 === Example of a Compile-time Constant Property
@@ -656,10 +643,6 @@ struct foo_key {
 // property list with this property
 template<int K>
 inline constexpr foo::value_t<K> foo;
-
-// foo is a property
-template<>
-struct is_property_key<foo_key> : std::true_type {};
 
 // foo can be applied to any object
 template<typename SyclObjectT>

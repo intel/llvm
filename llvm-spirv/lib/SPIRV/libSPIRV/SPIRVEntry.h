@@ -807,6 +807,12 @@ public:
       return nullptr;
     return Loc->second;
   }
+  SPIRVExecutionModeId *getExecutionModeId(SPIRVExecutionModeKind EMK) const {
+    auto Loc = ExecModes.find(EMK);
+    if (Loc == ExecModes.end())
+      return nullptr;
+    return static_cast<SPIRVExecutionModeId *>(Loc->second);
+  }
   SPIRVExecutionModeRange
   getExecutionModeRange(SPIRVExecutionModeKind EMK) const {
     return ExecModes.equal_range(EMK);
@@ -960,7 +966,7 @@ public:
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_INTEL_long_constant_composite;
+    return ExtensionID::SPV_INTEL_long_composites;
   }
 
   SPIRVWord getNumElements() const { return Elements.size(); }
@@ -1089,7 +1095,6 @@ _SPIRV_OP(NamedBarrierInitialize)
 _SPIRV_OP(MemoryNamedBarrier)
 _SPIRV_OP(GetKernelMaxNumSubgroups)
 _SPIRV_OP(GetKernelLocalSizeForSubgroupCount)
-_SPIRV_OP(SizeOf)
 #undef _SPIRV_OP
 
 } // namespace SPIRV

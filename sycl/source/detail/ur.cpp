@@ -49,7 +49,7 @@ namespace pi {
 void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
-  auto impl = getSyclObjImpl(context);
+  const auto &impl = getSyclObjImpl(context);
   const auto &Adapter = impl->getAdapter();
   Adapter->call<UrApiKind::urContextSetExtendedDeleter>(
       impl->getHandleRef(),
@@ -70,13 +70,17 @@ void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   // entry point introduced for the now deleted ESIMD adapter. All calls to this
   // entry point returned a similar error code to INVALID_OPERATION and would
   // have resulted in a similar throw to this one
-  throw exception(
-      make_error_code(errc::feature_not_supported),
-      "This operation is not supported by any existing backends.");
+  throw exception(make_error_code(errc::feature_not_supported),
+                  "This operation is not supported by any existing backends.");
   return nullptr;
 }
 
 ur_code_location_t codeLocationCallback(void *);
+
+void urLoggerCallback([[maybe_unused]] ur_logger_level_t level, const char *msg,
+                      [[maybe_unused]] void *userData) {
+  std::cerr << msg << std::endl;
+}
 
 namespace ur {
 bool trace(TraceLevel Level) {
@@ -139,10 +143,15 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   UrFuncInfo<UrApiKind::urAdapterGetInfo> adapterGetInfoInfo;
   auto adapterGetInfo =
       adapterGetInfoInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterSetLoggerCallback>
+      adapterSetLoggerCallbackInfo;
+  auto adapterSetLoggerCallback =
+      adapterSetLoggerCallbackInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
-  if(!LoaderConfig) {
+  if (!LoaderConfig) {
     CHECK_UR_SUCCESS(loaderConfigCreate(&LoaderConfig))
     OwnLoaderConfig = true;
   }
@@ -168,23 +177,18 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
   CHECK_UR_SUCCESS(loaderConfigSetCodeLocationCallback(
       LoaderConfig, codeLocationCallback, nullptr));
 
-  if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      loaderConfigRelease(LoaderConfig);
-      std::cerr << "Failed to enable ASAN layer\n";
-      return;
-    }
-  }
-
-  loaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
-                                      nullptr);
-
-  if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      loaderConfigRelease(LoaderConfig);
-      std::cerr << "Failed to enable ASAN layer\n";
-      return;
-    }
+  switch (ProgramManager::getInstance().kernelUsesSanitizer()) {
+  case SanitizerType::AddressSanitizer:
+    CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN"));
+    break;
+  case SanitizerType::MemorySanitizer:
+    CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_MSAN"));
+    break;
+  case SanitizerType::ThreadSanitizer:
+    CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TSAN"));
+    break;
+  default:
+    break;
   }
 
   ur_device_init_flags_t device_flags = 0;
@@ -225,6 +229,12 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
     Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
+
+    const char *env_value = std::getenv("UR_LOG_CALLBACK");
+    if (env_value == nullptr || std::string(env_value) != "disabled") {
+      CHECK_UR_SUCCESS(adapterSetLoggerCallback(UrAdapter, urLoggerCallback,
+                                                nullptr, UR_LOGGER_LEVEL_WARN));
+    }
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

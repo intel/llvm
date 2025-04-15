@@ -13,7 +13,7 @@
 #include <cmath>
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 #include <unordered_set>
 
 using namespace sycl;

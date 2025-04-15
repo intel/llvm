@@ -17,7 +17,7 @@ int main() {
   sycl::kernel_single_task<class first_kernel>([]() {});
 }
 // CHECK: #ifndef SYCL_LANGUAGE_VERSION
-// CHECK-NEXT: #define SYCL_LANGUAGE_VERSION 202001
+// CHECK-NEXT: #define SYCL_LANGUAGE_VERSION 202012
 // CHECK-NEXT: #endif //SYCL_LANGUAGE_VERSION
 
 // CHECK-RANGE: #ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__

@@ -3,7 +3,9 @@
     /* Export the library entry points */
     fuseKernels;
     materializeSpecConstants;
+    calculateHash;
     compileSYCL;
+    destroyBinary;
     resetJITConfiguration;
     addToJITConfiguration;
 

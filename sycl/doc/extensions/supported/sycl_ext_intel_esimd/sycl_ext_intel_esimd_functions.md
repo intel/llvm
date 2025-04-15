@@ -552,7 +552,7 @@ Loads and returns a vector `simd<T, N>` where `N` is `BlockWidth * BlockHeight *
 `props` - The optional compile-time properties. Only cache hint properties are used.
 
 ### Restrictions
-* This function is available only for Intel® Data Center GPU Max Series (aka PVC).
+* This function is available only for devices with the `ext::intel::esimd::info::device::has_2d_block_io_support` information descriptor value equal to `true`.
 * `Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
 * `Transformed` and `Transposed` cannot be set to true at the same time.
 * `BlockWidth` * `BlockHeight` * `NBlocks` * sizeof(`T`) must not exceed 2048.
@@ -598,7 +598,7 @@ Prefetches elements from a memory block of the size `BlockWidth * BlockHeight * 
 `props` - The compile-time properties, which must specify cache-hints.
 
 ### Restrictions
-* This function is available only for Intel® Data Center GPU Max Series (aka PVC).
+* This function is available only for devices with the `ext::intel::esimd::info::device::has_2d_block_io_support` information descriptor value equal to `true`.
 * `Cache-hint` properties must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-prefetch-functions) for `prefetch` functions.
 * `BlockWidth` * `BlockHeight` * `NBlocks` * sizeof(`T`) must not exceed 2048.
 * `NBlocks` must be {1,2,4} for `bytes` and `words`, {1,2} for `dwords`, 1 for `qwords`.
@@ -630,7 +630,7 @@ Stores the vector `Vals` of the type `simd<T, N>` to 2D memory block where `N` i
 `props` - The optional compile-time properties. Only cache hint properties are used.
 
 ### Restrictions
-* This function is available only for Intel® Data Center GPU Max Series (aka PVC).
+* This function is available only for devices with the `ext::intel::esimd::info::device::has_2d_block_io_support` information descriptor value equal to `true`.
 * `Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
 * `BlockWidth` * `BlockHeight` * sizeof(`T`) must not exceed 512.
 * `BlockHeight` must not exceed 8.

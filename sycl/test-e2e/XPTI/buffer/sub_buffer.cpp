@@ -1,5 +1,5 @@
 // REQUIRES: xptifw, opencl
-// RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
+// RUN: %build_collector
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
@@ -24,7 +24,7 @@ int main() {
                                    sycl::range<1>{32}};
 
     Queue.submit([&](sycl::handler &cgh) {
-      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:24
+      // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID1:.*]]|2014|1025|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:34
       auto Accessor1 = SubBuffer.get_access<sycl::access::mode::write>(cgh);
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID1:.*]]
       // CHECK:{{[0-9]+}}|Associate buffer|[[USERID1]]|[[BEID2:.*]]

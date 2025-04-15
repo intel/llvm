@@ -90,7 +90,8 @@ BuiltinCallMutator::BuiltinCallMutator(BuiltinCallMutator &&Other)
 Value *BuiltinCallMutator::doConversion() {
   assert(CI && "Need to have a call instruction to do the conversion");
   auto Mangler = makeMangler(CI, Rules);
-  for (unsigned I = 0; I < Args.size(); I++) {
+  for (unsigned I = 0, E = std::min(Args.size(), PointerTypes.size()); I < E;
+       I++) {
     Mangler->getTypeMangleInfo(I).PointerTy =
         dyn_cast<TypedPointerType>(PointerTypes[I]);
   }
@@ -106,6 +107,9 @@ Value *BuiltinCallMutator::doConversion() {
   NewCall->copyMetadata(*CI);
   NewCall->setAttributes(CallAttrs);
   NewCall->setTailCall(CI->isTailCall());
+  if (isa<FPMathOperator>(CI))
+    NewCall->setFastMathFlags(CI->getFastMathFlags());
+
   if (CI->hasFnAttr("fpbuiltin-max-error")) {
     auto Attr = CI->getFnAttr("fpbuiltin-max-error");
     NewCall->addFnAttr(Attr);

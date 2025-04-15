@@ -4,9 +4,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: Jul 25, 2024
-    # Support MMX removal in LLVM upstream
-    set(LLVMGenXIntrinsics_GIT_TAG e1e2f81165ae75576a0201f342e7f1ea2ca40273)
+    # Date: Mar 7, 2025
+    # Update Triple usage after 979c275097
+    set(LLVMGenXIntrinsics_GIT_TAG 9e1935aedc2101deaab45b2f69f4b43ccf6f2b52)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -47,7 +47,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   RecordSYCLAspectNames.cpp
   CleanupSYCLMetadata.cpp
   CompileTimePropertiesPass.cpp
-  ComputeModuleRuntimeInfo.cpp
   DeviceGlobals.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
@@ -55,7 +54,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
-  ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
   SpecConstants.cpp
   SYCLAddOptLevelAttribute.cpp
@@ -65,15 +63,17 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLDeviceRequirements.cpp
   SYCLKernelParamOptInfo.cpp
   SYCLJointMatrixTransform.cpp
+  SYCLOptimizeBackToBackBarrier.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
-  SanitizeDeviceGlobal.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
+
+  SanitizerKernelMetadata.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

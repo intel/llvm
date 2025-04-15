@@ -1,0 +1,17 @@
+// --*- c++ -*---
+#ifndef __SYCL_DATA_LESS_PROP
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#endif
+#ifndef __SYCL_MANUALLY_DEFINED_PROP
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+#endif
+
+/// Property used to to add all previous graph leaves as dependencies when
+/// creating a new node with command_graph::add().
+__SYCL_DATA_LESS_PROP(property::node, depends_on_all_leaves, GraphDependOnAllLeaves)
+
+// Contains data field, defined explicitly.
+__SYCL_MANUALLY_DEFINED_PROP(property::node, depends_on)
+
+#undef __SYCL_DATA_LESS_PROP
+#undef __SYCL_MANUALLY_DEFINED_PROP

@@ -8,6 +8,7 @@ add_llvm_library(sycl-jit
    lib/fusion/JITContext.cpp
    lib/fusion/ModuleHelper.cpp
    lib/rtc/DeviceCompilation.cpp
+   lib/rtc/ESIMD.cpp
    lib/helper/ConfigHelper.cpp
 
    SHARED
@@ -17,18 +18,24 @@ add_llvm_library(sycl-jit
 
    LINK_COMPONENTS
    BitReader
+   BitWriter
    Core
    Support
+   Option
    Analysis
    IPO
    TransformUtils
    Passes
+   IRReader
    Linker
    ScalarOpts
    InstCombine
    Target
    TargetParser
    MC
+   SYCLLowerIR
+   SYCLPostLink
+   GenXIntrinsics
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS
@@ -39,6 +46,10 @@ add_llvm_library(sycl-jit
    clangTooling
    clangSerialization
 )
+
+if(WIN32)
+  target_link_libraries(sycl-jit PRIVATE Shlwapi)
+endif()
 
 target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 

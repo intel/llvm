@@ -84,7 +84,8 @@ public:
   static void checkPropsAndThrow(const property_list &PropList,
                                  std::function<bool(int)> FunctionForDataless,
                                  std::function<bool(int)> FunctionForData) {
-    PropList.checkPropsAndThrow(FunctionForDataless, FunctionForData);
+    PropList.checkPropsAndThrow(std::move(FunctionForDataless),
+                                std::move(FunctionForData));
   }
 };
 } // namespace detail

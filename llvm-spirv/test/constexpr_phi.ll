@@ -41,7 +41,7 @@ define dso_local i32 @_Z2f2i(i32 %0) {
   ret i32 %2
 }
 
-define dso_local i64 @_Z3runiiPi(i32 %0, i32 %1, ptr nocapture %2) local_unnamed_addr {
+define dso_local i64 @_Z3runiiPi(i32 %0, i32 %1, ptr captures(none) %2) local_unnamed_addr {
   %4 = icmp slt i32 %0, 10
   br i1 %4, label %5, label %7
 

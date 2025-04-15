@@ -10,7 +10,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_info.hpp>
-#include <sycl/backend.hpp>
+#include <sycl/backend_types.hpp>
 
 #include <algorithm>
 #include <regex>
@@ -289,6 +289,26 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
   return AllowListParsed;
 }
 
+static void traceAllowFiltering(const DeviceDescT &DeviceDesc, bool Allowed) {
+  bool shouldTrace = false;
+  if (Allowed) {
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_BASIC);
+  } else {
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL);
+  }
+
+  if (shouldTrace) {
+    auto selectionMsg = Allowed ? "allowed" : "filtered";
+    std::cout << "SYCL_UR_TRACE: Device " << selectionMsg
+              << " by SYCL_DEVICE_ALLOWLIST" << std::endl
+              << "SYCL_UR_TRACE: "
+              << "  platform: " << DeviceDesc.at(PlatformNameKeyName)
+              << std::endl
+              << "SYCL_UR_TRACE: "
+              << "  device: " << DeviceDesc.at(DeviceNameKeyName) << std::endl;
+  }
+}
+
 // Checking if we can allow device with device description DeviceDesc
 bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
                      const AllowListParsedT &AllowListParsed) {
@@ -423,9 +443,11 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     DeviceDesc[DeviceNameKeyName] = DeviceNameValue;
 
     // check if we can allow device with such device description DeviceDesc
-    if (deviceIsAllowed(DeviceDesc, AllowListParsed)) {
+    bool isAllowed = deviceIsAllowed(DeviceDesc, AllowListParsed);
+    if (isAllowed) {
       UrDevices[InsertIDx++] = Device;
     }
+    traceAllowFiltering(DeviceDesc, isAllowed);
   }
   UrDevices.resize(InsertIDx);
 }

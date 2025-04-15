@@ -490,7 +490,9 @@ with the machine learning types, `T` should be the element type
 ==== Appendix: Restrictions Per Hardware
 ===== Intel XMX
 The checked APIs are currently available in devices with the architecture
-`architecture::intel_gpu_pvc`. The following restrictions apply to
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`, `architecture::intel_gpu_ptl_h`, or
+`architecture::intel_gpu_ptl_u`. The following restrictions apply to
 these checked APIs:
 
 - The `stride` parameter has the following restrictions:

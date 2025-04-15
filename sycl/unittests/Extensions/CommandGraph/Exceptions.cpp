@@ -213,6 +213,115 @@ void addImagesCopies(experimental::detail::modifiable_command_graph &G,
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
+
+/// Tries to add nodes including asynchronous allocation instructions to the
+/// graph G. It tests that an invalid exception has been thrown since the
+/// sycl_ext_oneapi_async_alloc can not be used along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Size Size in bytes to allocate.
+/// @param MemPool Memory pool to allocate to.
+/// @param Ptr Generic pointer to allocated memory.
+template <OperationPath PathKind>
+void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
+                   size_t Size,
+                   sycl::ext::oneapi::experimental::memory_pool &memPool,
+                   [[maybe_unused]] void *Ptr) {
+  // simple alloc with specified pool
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        Ptr = sycl::ext::oneapi::experimental::async_malloc_from_pool(CGH, Size,
+                                                                      memPool);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Ptr = sycl::ext::oneapi::experimental::async_malloc_from_pool(Q, Size,
+                                                                    memPool);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        Ptr = sycl::ext::oneapi::experimental::async_malloc_from_pool(CGH, Size,
+                                                                      memPool);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+/// Tries to add nodes including asynchronous allocation instructions to the
+/// graph G. It tests that an invalid exception has been thrown since the
+/// sycl_ext_oneapi_async_alloc can not be used along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Size Size in bytes to allocate.
+/// @param Ptr Generic pointer to allocated memory.
+template <OperationPath PathKind>
+void addAsyncAlloc(experimental::detail::modifiable_command_graph &G, queue &Q,
+                   size_t Size, [[maybe_unused]] void *Ptr) {
+  // simple alloc
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        Ptr = sycl::ext::oneapi::experimental::async_malloc(
+            CGH, sycl::usm::alloc::device, Size);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Ptr = sycl::ext::oneapi::experimental::async_malloc(
+          Q, sycl::usm::alloc::device, Size);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        Ptr = sycl::ext::oneapi::experimental::async_malloc(
+            CGH, sycl::usm::alloc::device, Size);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+/// Tries to add nodes including asynchronous free instructions to the graph G.
+/// It tests that an invalid exception has been thrown since the
+/// sycl_ext_oneapi_async_alloc can not be used along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Ptr Pointer to asynchronously allocated memory to free.
+template <OperationPath PathKind>
+void addAsyncFree(experimental::detail::modifiable_command_graph &G, queue &Q,
+                  void *Ptr) {
+  // simple free
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        sycl::ext::oneapi::experimental::async_free(CGH, Ptr);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      sycl::ext::oneapi::experimental::async_free(Q, Ptr);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        sycl::ext::oneapi::experimental::async_free(CGH, Ptr);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
 } // anonymous namespace
 
 TEST_F(CommandGraphTest, ExplicitBarrierException) {
@@ -380,17 +489,25 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
   sycl::free(ImgMemUSM, Ctxt);
 }
 
-// ext_codeplay_enqueue_native_command isn't supported with SYCL graphs
-TEST_F(CommandGraphTest, EnqueueCustomCommandCheck) {
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Graph.add([&](sycl::handler &CGH) {
-      CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {});
-    });
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+// sycl_ext_oneapi_work_group_scratch_memory isn't supported with SYCL graphs
+TEST_F(CommandGraphTest, WorkGroupScratchMemoryCheck) {
+  ASSERT_THROW(
+      {
+        try {
+          Graph.add([&](handler &CGH) {
+            CGH.parallel_for(
+                range<1>{1},
+                ext::oneapi::experimental::properties{
+                    ext::oneapi::experimental::work_group_scratch_size(
+                        sizeof(int))},
+                [=](item<1> idx) {});
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
 }
 
 TEST_F(CommandGraphTest, MakeEdgeErrors) {
@@ -699,4 +816,198 @@ TEST_F(CommandGraphTest, RecordingWrongGraphDep) {
     CGH.single_task<class Kernel2>([=] {});
   }),
                sycl::exception);
+}
+
+// Error when a dynamic command-group is used with a graph belonging to a
+// different graph.
+TEST_F(CommandGraphTest, DynamicCommandGroupWrongGraph) {
+  experimental::command_graph Graph1{Queue.get_context(), Queue.get_device()};
+  experimental::command_graph Graph2{Queue.get_context(), Queue.get_device()};
+  auto CGF = [&](sycl::handler &CGH) {
+    CGH.single_task<TestKernel<>>([]() {});
+  };
+
+  experimental::dynamic_command_group DynCG(Graph2, {CGF});
+  ASSERT_THROW(Graph1.add(DynCG), sycl::exception);
+}
+
+// Error when a non-kernel command-group is included in a dynamic command-group
+TEST_F(CommandGraphTest, DynamicCommandGroupNotKernel) {
+  int *Ptr = malloc_device<int>(1, Queue);
+  auto CGF = [&](sycl::handler &CGH) { CGH.memset(Ptr, 1, 0); };
+
+  experimental::command_graph Graph{Queue};
+  ASSERT_THROW(experimental::dynamic_command_group DynCG(Graph, {CGF}),
+               sycl::exception);
+  sycl::free(Ptr, Queue);
+}
+
+// Error if edges are not the same for all command-groups in dynamic command
+// group, test using graph limited events to create edges
+TEST_F(CommandGraphTest, DynamicCommandGroupMismatchEventEdges) {
+  size_t N = 32;
+  int *PtrA = malloc_device<int>(N, Queue);
+  int *PtrB = malloc_device<int>(N, Queue);
+
+  experimental::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+  Graph.begin_recording(Queue);
+
+  auto EventA = Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(N, [=](item<1> Item) { PtrA[Item.get_id()] = 1; });
+  });
+
+  auto EventB = Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(N, [=](item<1> Item) { PtrB[Item.get_id()] = 4; });
+  });
+
+  Graph.end_recording();
+
+  auto CGFA = [&](handler &CGH) {
+    CGH.depends_on(EventA);
+    CGH.parallel_for(N, [=](item<1> Item) { PtrA[Item.get_id()] += 2; });
+  };
+
+  auto CGFB = [&](handler &CGH) {
+    CGH.depends_on(EventB);
+    CGH.parallel_for(N, [=](item<1> Item) { PtrB[Item.get_id()] += 0xA; });
+  };
+
+  experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+  ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+
+  sycl::free(PtrA, Queue);
+  sycl::free(PtrB, Queue);
+}
+
+// Test that an exception is thrown when a graph isn't created with buffer
+// property, but buffers are used.
+TEST_F(CommandGraphTest, DynamicCommandGroupBufferThrows) {
+  size_t N = 32;
+  std::vector<int> HostData(N, 0);
+  buffer Buf{HostData};
+  Buf.set_write_back(false);
+
+  experimental::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+  auto CGFA = [&](handler &CGH) {
+    auto Acc = Buf.get_access<access::mode::write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = 2; });
+  };
+
+  auto CGFB = [&](handler &CGH) {
+    auto Acc = Buf.get_access<access::mode::write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
+  };
+
+  experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+  ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+}
+
+// Test and exception is thrown when using a host-accessor to a buffer
+// used in a non active CGF node in the graph.
+TEST_F(CommandGraphTest, DynamicCommandGroupBufferHostAccThrows) {
+  size_t N = 32;
+  std::vector<int> HostData(N, 0);
+  buffer Buf{HostData};
+  Buf.set_write_back(false);
+
+  int *Ptr = malloc_device<int>(N, Queue);
+
+  {
+    ext::oneapi::experimental::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+    auto CGFA = [&](handler &CGH) {
+      CGH.parallel_for(N, [=](item<1> Item) { Ptr[Item.get_id()] = 2; });
+    };
+
+    auto CGFB = [&](handler &CGH) {
+      auto Acc = Buf.get_access<access::mode::write>(CGH);
+      CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
+    };
+
+    experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+    ASSERT_NO_THROW(Graph.add(DynCG));
+
+    ASSERT_THROW({ host_accessor HostAcc{Buf}; }, sycl::exception);
+  }
+
+  sycl::free(Ptr, Queue);
+}
+
+// Error if edges are not the same for all command-groups in dynamic command
+// group, test using accessors to create edges
+TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
+  size_t N = 32;
+  std::vector<int> HostData(N, 0);
+  buffer BufA{HostData};
+  buffer BufB{HostData};
+  BufA.set_write_back(false);
+  BufB.set_write_back(false);
+
+  experimental::command_graph Graph{
+      Queue.get_context(),
+      Queue.get_device(),
+      {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+  Graph.begin_recording(Queue);
+
+  Queue.submit([&](handler &CGH) {
+    auto AccA = BufA.get_access<access::mode::write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { AccA[Item.get_id()] = 1; });
+  });
+
+  Queue.submit([&](handler &CGH) {
+    auto AccB = BufB.get_access<access::mode::write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { AccB[Item.get_id()] = 4; });
+  });
+
+  Graph.end_recording();
+
+  auto CGFA = [&](handler &CGH) {
+    auto AccA = BufA.get_access<access::mode::read_write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { AccA[Item.get_id()] += 2; });
+  };
+
+  auto CGFB = [&](handler &CGH) {
+    auto AccB = BufB.get_access<access::mode::read_write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { AccB[Item.get_id()] += 0xA; });
+  };
+
+  experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+  ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+}
+
+// ext_oneapi_async_alloc isn't currently supported with SYCL graphs
+TEST_F(CommandGraphTest, AsyncAllocExceptionCheck) {
+  auto Context = Queue.get_context();
+  auto Device = Queue.get_device();
+
+  // Create pool
+  sycl::ext::oneapi::experimental::memory_pool MemPool(
+      Context, Device, sycl::usm::alloc::device);
+
+  void *Ptr1 = nullptr;
+  void *Ptr2 = nullptr;
+
+  Graph.begin_recording(Queue);
+
+  addAsyncAlloc<OperationPath::RecordReplay>(Graph, Queue, 1024, MemPool, Ptr1);
+  addAsyncAlloc<OperationPath::Shortcut>(Graph, Queue, 1024, Ptr2);
+
+  addAsyncFree<OperationPath::RecordReplay>(Graph, Queue, Ptr1);
+  addAsyncFree<OperationPath::Shortcut>(Graph, Queue, Ptr2);
+
+  Graph.end_recording();
+
+  void *Ptr3 = nullptr;
+  void *Ptr4 = nullptr;
+  addAsyncAlloc<OperationPath::Explicit>(Graph, Queue, 1024, MemPool, Ptr3);
+  addAsyncAlloc<OperationPath::Explicit>(Graph, Queue, 1024, Ptr4);
+
+  addAsyncFree<OperationPath::Explicit>(Graph, Queue, Ptr3);
+  addAsyncFree<OperationPath::Explicit>(Graph, Queue, Ptr4);
 }

@@ -1,4 +1,4 @@
-; RUN: %if hip_amd %{ opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext\
+; RUN: %if hip %{ opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext\
 ; RUN: --mtriple amdgcn-amd-amdhsa -passes=sycl-spec-const-materializer -S %s |\
 ; RUN: FileCheck --check-prefix=CHECK-MATERIALIZER %s %}
 
@@ -6,7 +6,7 @@
 ; RUN: --mtriple nvptx64-nvidia-cuda -passes=sycl-spec-const-materializer -S %s |\
 ; RUN: FileCheck --check-prefix=CHECK-MATERIALIZER %s %}
 
-; RUN: %if hip_amd %{ opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext\
+; RUN: %if hip %{ opt -load-pass-plugin %shlibdir/SYCLKernelJIT%shlibext\
 ; RUN: --mtriple amdgcn-amd-amdhsa -passes=sycl-spec-const-materializer,early-cse,adce -S %s |\
 ; RUN: FileCheck --check-prefix=CHECK-MATERIALIZER-CSE %s %}
 

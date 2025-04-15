@@ -9,10 +9,10 @@
 ; CHECK-SPIRV: Capability FPGALoopControlsINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_loop_controls"
 ; CHECK-SPIRV: Extension "SPV_INTEL_unstructured_loop_controls"
-; CHECK-SPIRV: EntryPoint [[#]] [[FOO:[0-9]+]] "foo"
-; CHECK-SPIRV: EntryPoint [[#]] [[BOO:[0-9]+]] "boo"
+; CHECK-SPIRV: Name [[FOO:[0-9]+]] "foo"
 ; CHECK-SPIRV: Name [[ENTRY_1:[0-9]+]] "entry"
 ; CHECK-SPIRV: Name [[FOR:[0-9]+]] "for.cond"
+; CHECK-SPIRV: Name [[BOO:[0-9]+]] "boo"
 ; CHECK-SPIRV: Name [[ENTRY_2:[0-9]+]] "entry"
 ; CHECK-SPIRV: Name [[WHILE:[0-9]+]] "while.body"
 

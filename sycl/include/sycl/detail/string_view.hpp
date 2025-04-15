@@ -37,13 +37,18 @@ public:
 
   const char *data() const noexcept { return str; }
 
-  friend bool operator==(const string_view &lhs,
-                         std::string_view rhs) noexcept {
+  friend bool operator==(string_view lhs, std::string_view rhs) noexcept {
     return rhs == lhs.data();
   }
-  friend bool operator==(std::string_view lhs,
-                         const string_view &rhs) noexcept {
+  friend bool operator==(std::string_view lhs, string_view rhs) noexcept {
     return lhs == rhs.data();
+  }
+
+  friend bool operator!=(string_view lhs, std::string_view rhs) noexcept {
+    return rhs != lhs.data();
+  }
+  friend bool operator!=(std::string_view lhs, string_view rhs) noexcept {
+    return lhs != rhs.data();
   }
 };
 

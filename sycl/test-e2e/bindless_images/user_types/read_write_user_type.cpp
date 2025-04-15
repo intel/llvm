@@ -1,4 +1,8 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+
+// UNSUPPORTED: hip || level_zero
+// UNSUPPORTED-INTENDED: Returning non-FP values from fetching fails on HIP.
+// Also, the feature is not fully implemented in the Level Zero stack.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -64,22 +68,26 @@ bool run_test() {
     q.wait_and_throw();
 
     q.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<KernelName>(sycl::range{16, 16}, [=](sycl::id<2> id) {
-        sycl::int2 coords = sycl::int2(id[0], id[1]);
-        sycl::float2 floatCoords =
-            sycl::float2(float(id[0]) + 0.5f, float(id[1]) + 0.5f);
+      cgh.parallel_for<KernelName>(
+          sycl::nd_range<2>{{16, 16}, {16, 16}}, [=](sycl::nd_item<2> it) {
+            size_t dim0 = it.get_local_id(0);
+            size_t dim1 = it.get_local_id(1);
+            sycl::int2 coords = sycl::int2(dim0, dim1);
+            sycl::float2 floatCoords =
+                sycl::float2(float(dim0) + 0.5f, float(dim1) + 0.5f);
 
-        MyType myPixel{};
+            MyType myPixel{};
 
-        // Unsampled fetch
-        myPixel = syclexp::fetch_image<MyType, OutType>(unsampledImgIn, coords);
+            // Unsampled fetch
+            myPixel =
+                syclexp::fetch_image<MyType, OutType>(unsampledImgIn, coords);
 
-        // Sampled read
-        myPixel +=
-            syclexp::sample_image<MyType, OutType>(sampledImgIn, floatCoords);
+            // Sampled read
+            myPixel += syclexp::sample_image<MyType, OutType>(sampledImgIn,
+                                                              floatCoords);
 
-        syclexp::write_image(imgOut, coords, myPixel);
-      });
+            syclexp::write_image(imgOut, coords, myPixel);
+          });
     });
     q.wait_and_throw();
 
