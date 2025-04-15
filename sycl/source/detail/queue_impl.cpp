@@ -360,9 +360,12 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+  handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(),
+                  CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
-  Handler.saveCodeLoc(Loc, IsTopCodeLoc);
+  if (xptiTraceEnabled()) {
+    Handler.saveCodeLoc(Loc, IsTopCodeLoc);
+  }
 
   {
     NestedCallsTracker tracker;
@@ -615,12 +618,12 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
 
-    {
-      std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
-      for (auto &UpdatedGraph : MMissedCleanupRequests)
-        doUnenqueuedCommandCleanup(UpdatedGraph);
-      MMissedCleanupRequests.clear();
-    }
+    MMissedCleanupRequests.unset(
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+          for (auto &UpdatedGraph : MissedCleanupRequests)
+            doUnenqueuedCommandCleanup(UpdatedGraph);
+          MissedCleanupRequests.clear();
+        });
   }
   // If the queue is either a host one or does not support OOO (and we use
   // multiple in-order queues as a result of that), wait for each event
@@ -797,8 +800,10 @@ void queue_impl::revisitUnenqueuedCommandsState(
   if (Lock.owns_lock())
     doUnenqueuedCommandCleanup(CompletedHostTask->getCommandGraph());
   else {
-    std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
-    MMissedCleanupRequests.push_back(CompletedHostTask->getCommandGraph());
+    MMissedCleanupRequests.set(
+        [&](MissedCleanupRequestsType &MissedCleanupRequests) {
+          MissedCleanupRequests.push_back(CompletedHostTask->getCommandGraph());
+        });
   }
 }
 

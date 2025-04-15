@@ -199,7 +199,7 @@ fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
                const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
@@ -266,7 +266,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &Desc,
                ur_exp_image_copy_flags_t ImageCopyFlags,
                sycl::range<3> SrcOffset = {0, 0, 0},
@@ -281,7 +281,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &Desc,
                ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
                size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
@@ -295,7 +295,7 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 }
 
 static void
-fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
+fill_copy_args(detail::handler_impl *impl,
                const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
                const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                ur_exp_image_copy_flags_t ImageCopyFlags,
@@ -313,21 +313,30 @@ fill_copy_args(std::shared_ptr<detail::handler_impl> &impl,
 } // namespace detail
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 bool CallerNeedsEvent)
-    : handler(Queue, Queue, nullptr, CallerNeedsEvent) {}
+                bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(Queue.get(), CallerNeedsEvent)), MQueue(Queue) {}
 
-handler::handler(
-    std::shared_ptr<detail::queue_impl> Queue,
-    std::shared_ptr<detail::queue_impl> PrimaryQueue,
-    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
-    bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
-                                                  CallerNeedsEvent)),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// TODO: This function is not used anymore, remove it in the next
+// ABI-breaking window.
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
+                 [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
+                 bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(
+          PrimaryQueue.get(), CallerNeedsEvent)),
+      MQueue(Queue) {}
+#endif
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 detail::queue_impl *PrimaryQueue,
+                 [[maybe_unused]] detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue, CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
-    : impl(std::make_shared<detail::handler_impl>(std::move(Graph))) {}
+    : impl(std::make_shared<detail::handler_impl>(Graph)) {}
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state
@@ -433,13 +442,13 @@ event handler::finalize() {
           !(MKernel && MKernel->isInterop()) &&
           (KernelBundleImpPtr->empty() ||
            KernelBundleImpPtr->hasSYCLOfflineImages()) &&
-          !KernelBundleImpPtr->tryGetKernel(MKernelName.c_str(),
+          !KernelBundleImpPtr->tryGetKernel(MKernelName.data(),
                                             KernelBundleImpPtr)) {
         auto Dev =
             impl->MGraph ? impl->MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(
-                MKernelName.c_str());
+                MKernelName.data());
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
@@ -502,7 +511,7 @@ event handler::finalize() {
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
             detail::ProgramManager::getInstance().kernelUsesAssert(
-                MKernelName.c_str());
+                MKernelName.data());
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -510,7 +519,7 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-          StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc, MKernelName.c_str(),
+          StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc, MKernelName.data(),
           MQueue, impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
@@ -524,12 +533,12 @@ event handler::finalize() {
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
           std::tie(BinImage, std::ignore) =
-              detail::retrieveKernelBinary(MQueue, MKernelName.c_str());
+              detail::retrieveKernelBinary(MQueue, MKernelName.data());
           assert(BinImage && "Failed to obtain a binary image.");
         }
         enqueueImpKernel(
             MQueue, impl->MNDRDesc, impl->MArgs, KernelBundleImpPtr, MKernel,
-            MKernelName.c_str(), RawEvents,
+            MKernelName.data(), RawEvents,
             DiscardEvent ? detail::EventImplPtr{} : LastEventImpl, nullptr,
             impl->MKernelCacheConfig, impl->MKernelIsCooperative,
             impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
@@ -577,7 +586,7 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(impl->MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(impl->MKernelBundle), std::move(impl->CGData),
-        std::move(impl->MArgs), MKernelName.c_str(), std::move(MStreamStorage),
+        std::move(impl->MArgs), MKernelName.data(), std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
@@ -1198,8 +1207,8 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-detail::string handler::getKernelName() {
-  return detail::string{MKernel->get_info<info::kernel::function_name>()};
+detail::ABINeutralKernelNameStrT handler::getKernelName() {
+  return MKernel->getName();
 }
 
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
@@ -1339,7 +1348,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, DestImgDesc,
+  detail::fill_copy_args(impl.get(), DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE);
 
   setType(detail::CGType::CopyImage);
@@ -1357,7 +1366,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, DestImgDesc,
+  detail::fill_copy_args(impl.get(), DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE, SrcOffset,
                          SrcExtent, DestOffset, {0, 0, 0}, CopyExtent);
 
@@ -1374,7 +1383,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  detail::fill_copy_args(impl, SrcImgDesc,
+  detail::fill_copy_args(impl.get(), SrcImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST);
 
   setType(detail::CGType::CopyImage);
@@ -1393,7 +1402,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  detail::fill_copy_args(impl, SrcImgDesc,
+  detail::fill_copy_args(impl.get(), SrcImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST, SrcOffset,
                          {0, 0, 0}, DestOffset, DestExtent, CopyExtent);
 
@@ -1417,7 +1426,7 @@ void handler::ext_oneapi_copy(
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
       ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(impl, Desc, ImageCopyFlags, DeviceRowPitch,
+    detail::fill_copy_args(impl.get(), Desc, ImageCopyFlags, DeviceRowPitch,
                            DeviceRowPitch);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
@@ -1447,13 +1456,13 @@ void handler::ext_oneapi_copy(
 
   // Fill the host extent based on the type of copy.
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    detail::fill_copy_args(impl, DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
-                           DeviceRowPitch, SrcOffset, HostExtent, DestOffset,
-                           {0, 0, 0}, CopyExtent);
+    detail::fill_copy_args(impl.get(), DeviceImgDesc, ImageCopyFlags,
+                           DeviceRowPitch, DeviceRowPitch, SrcOffset,
+                           HostExtent, DestOffset, {0, 0, 0}, CopyExtent);
   } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    detail::fill_copy_args(impl, DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
-                           DeviceRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
-                           HostExtent, CopyExtent);
+    detail::fill_copy_args(impl.get(), DeviceImgDesc, ImageCopyFlags,
+                           DeviceRowPitch, DeviceRowPitch, SrcOffset, {0, 0, 0},
+                           DestOffset, HostExtent, CopyExtent);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Copy Error: This copy function only performs host "
@@ -1475,7 +1484,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+  detail::fill_copy_args(impl.get(), SrcImgDesc, DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE);
 
   setType(detail::CGType::CopyImage);
@@ -1495,7 +1504,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+  detail::fill_copy_args(impl.get(), SrcImgDesc, DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcOffset,
                          {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
 
@@ -1514,7 +1523,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+  detail::fill_copy_args(impl.get(), SrcImgDesc, DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
                          DestRowPitch);
 
@@ -1535,9 +1544,10 @@ void handler::ext_oneapi_copy(
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  detail::fill_copy_args(
-      impl, SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
-      DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
+  detail::fill_copy_args(impl.get(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
+                         DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
+                         {0, 0, 0}, CopyExtent);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1554,7 +1564,7 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+  detail::fill_copy_args(impl.get(), SrcImgDesc, DestImgDesc,
                          UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcRowPitch,
                          0);
 
@@ -1575,9 +1585,10 @@ void handler::ext_oneapi_copy(
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  detail::fill_copy_args(
-      impl, SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
-      SrcRowPitch, 0, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
+  detail::fill_copy_args(impl.get(), SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcRowPitch,
+                         0, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0},
+                         CopyExtent);
 
   setType(detail::CGType::CopyImage);
 }
@@ -1601,7 +1612,7 @@ void handler::ext_oneapi_copy(
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
       ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
-    detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags,
+    detail::fill_copy_args(impl.get(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
                            SrcRowPitch, DestRowPitch);
   } else {
     throw sycl::exception(make_error_code(errc::invalid),
@@ -1628,7 +1639,7 @@ void handler::ext_oneapi_copy(
 
   if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
       ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
-    detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags,
+    detail::fill_copy_args(impl.get(), SrcImgDesc, DestImgDesc, ImageCopyFlags,
                            SrcRowPitch, DestRowPitch, SrcOffset, {0, 0, 0},
                            DestOffset, {0, 0, 0}, CopyExtent);
   } else {
@@ -1752,10 +1763,8 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
-  std::shared_ptr<detail::queue_impl> PrimaryQueue =
-      impl->MSubmissionPrimaryQueue;
-  if ((!impl->MGraph &&
-       (PrimaryQueue->get_context() != ExecBundle.get_context())) ||
+  if ((!impl->MGraph && (impl->MSubmissionPrimaryQueue->get_context() !=
+                         ExecBundle.get_context())) ||
       (impl->MGraph &&
        (impl->MGraph->getContext() != ExecBundle.get_context())))
     throw sycl::exception(

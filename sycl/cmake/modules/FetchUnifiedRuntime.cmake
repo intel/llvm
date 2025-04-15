@@ -33,7 +33,7 @@ set(UR_BUILD_XPTI_LIBS OFF)
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
-set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE LIST
+set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE STRING
   "List of external CMake targets for executables/libraries to depend on" FORCE)
 
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)

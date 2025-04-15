@@ -24,6 +24,9 @@ TEST_P(urDeviceCreateWithNativeHandleTest, Success) {
       urDeviceCreateWithNativeHandle(native_handle, adapter, nullptr, &dev));
   ASSERT_NE(dev, nullptr);
 
+  // Based on the spec we can expect these to be equal.
+  ASSERT_EQ(dev, device);
+
   uint32_t dev_id = 0;
   ASSERT_SUCCESS(urDeviceGetInfo(dev, UR_DEVICE_INFO_TYPE, sizeof(uint32_t),
                                  &dev_id, nullptr));
@@ -41,6 +44,7 @@ TEST_P(urDeviceCreateWithNativeHandleTest,
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urDeviceCreateWithNativeHandle(native_handle, adapter, &props, &dev));
   ASSERT_NE(dev, nullptr);
+  ASSERT_EQ(dev, device);
 }
 
 TEST_P(urDeviceCreateWithNativeHandleTest, InvalidNullHandlePlatform) {
