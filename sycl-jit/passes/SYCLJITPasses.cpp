@@ -19,14 +19,14 @@ llvm::PassPluginLibraryInfo getSYCLJITPassesPluginInfo() {
             PB.registerPipelineParsingCallback(
                 [](StringRef Name, ModulePassManager &MPM,
                    ArrayRef<PassBuilder::PipelineElement>) {
-                  if (Name == "sycl-spec-const-materializer") {
-                    FunctionPassManager FPM;
-                    FPM.addPass(SYCLSpecConstMaterializer());
-                    MPM.addPass(
-                        createModuleToFunctionPassAdaptor(std::move(FPM)));
-                    return true;
+                  if (Name != "sycl-spec-const-materializer") {
+                    return false;
                   }
-                  return false;
+                  FunctionPassManager FPM;
+                  FPM.addPass(SYCLSpecConstMaterializer());
+                  MPM.addPass(
+                      createModuleToFunctionPassAdaptor(std::move(FPM)));
+                  return true;
                 });
           }};
 }
