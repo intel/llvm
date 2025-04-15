@@ -360,7 +360,8 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+  handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(),
+                  CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
   if (xptiTraceEnabled()) {
     Handler.saveCodeLoc(Loc, IsTopCodeLoc);
