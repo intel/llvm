@@ -454,6 +454,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
   std::vector<DeviceSpec> acceptDeviceList;
   std::vector<DeviceSpec> discardDeviceList;
 
+  bool deviceIdsInUse = false;
   for (auto &termPair : mapODS) {
     std::string backend = termPair.first;
     // TODO: Figure out how to process all ODS errors rather than returning
@@ -578,6 +579,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
         deviceList.push_back(DeviceSpec{DevicePartLevel::ROOT, hardwareType,
                                         firstDeviceId, 0, 0, nullptr});
       }
+
+      if (deviceList.back().rootId != DeviceIdTypeALL) {
+        deviceIdsInUse = true;
+      }
     }
   }
 
@@ -621,7 +626,41 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
       return UR_RESULT_ERROR_DEVICE_NOT_FOUND;
     }
 
-    DeviceIdType deviceCount = 0;
+    uint32_t startIdCount = 0;
+    if (deviceIdsInUse) {
+      ur_adapter_handle_t adapter;
+      if (UR_RESULT_SUCCESS !=
+          urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_ADAPTER,
+                            sizeof(adapter), &adapter, nullptr)) {
+        return UR_RESULT_ERROR_INVALID_PLATFORM;
+      }
+
+      uint32_t numPlatforms;
+      if (UR_RESULT_SUCCESS !=
+          urPlatformGet(adapter, 0, nullptr, &numPlatforms)) {
+        return UR_RESULT_ERROR_INVALID_PLATFORM;
+      }
+      std::vector<ur_platform_handle_t> platforms;
+      platforms.resize(numPlatforms);
+      if (UR_RESULT_SUCCESS !=
+          urPlatformGet(adapter, numPlatforms, platforms.data(), nullptr)) {
+        return UR_RESULT_ERROR_INVALID_PLATFORM;
+      }
+
+      for (auto p : platforms) {
+        if (p == hPlatform) {
+          break;
+        }
+        uint32_t deviceCount;
+        if (UR_RESULT_SUCCESS !=
+            urDeviceGet(p, UR_DEVICE_TYPE_ALL, 0, nullptr, &deviceCount)) {
+          return UR_RESULT_ERROR_INVALID_PLATFORM;
+        }
+        startIdCount += deviceCount;
+      }
+    }
+
+    DeviceIdType deviceCount = startIdCount;
     std::transform(rootDeviceHandles.cbegin(), rootDeviceHandles.cend(),
                    std::back_inserter(rootDevices),
                    [&](ur_device_handle_t urDeviceHandle) {
