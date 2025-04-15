@@ -73,12 +73,6 @@ else()
   )
 endif()
 
-if(UMF_ENABLE_POOL_TRACKING)
-  target_compile_definitions("ur_adapter_cuda" PRIVATE UMF_ENABLE_POOL_TRACKING)
-else()
-  message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
-endif()
-
 # Only enable xpti tracing on Linux as tracing tools aren't available on
 # Windows yet.
 if (UR_ENABLE_TRACING AND UNIX)

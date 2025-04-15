@@ -117,10 +117,11 @@ ur_result_t ur_kernel_handle_t_::release() {
 void ur_kernel_handle_t_::completeInitialization() {
   // Cache kernel name. Should be the same for all devices
   assert(deviceKernels.size() > 0);
-  nonEmptyKernel =
-      &std::find_if(deviceKernels.begin(), deviceKernels.end(),
-                    [](const auto &kernel) { return kernel.has_value(); })
-           ->value();
+  auto nonEmptyKernelIt =
+      std::find_if(deviceKernels.begin(), deviceKernels.end(),
+                   [](const auto &kernel) { return kernel.has_value(); });
+  assert(nonEmptyKernelIt != deviceKernels.end());
+  nonEmptyKernel = &nonEmptyKernelIt->value();
 
   zeCommonProperties.Compute = [kernel = nonEmptyKernel](
                                    common_properties_t &props) {
@@ -361,7 +362,6 @@ urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
 
   *phKernel =
       new ur_kernel_handle_t_(hNativeKernel, hProgram, hContext, pProperties);
-  (*phKernel)->IsInteropNativeHandle = true;
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());

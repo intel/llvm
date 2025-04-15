@@ -313,7 +313,9 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
   auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
 
   if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
-    ZE2UR_CALL(zeImageDestroy, (item->second));
+    if (checkL0LoaderTeardown()) {
+      ZE2UR_CALL(zeImageDestroy, (item->second));
+    }
     hDevice->ZeOffsetToImageHandleMap.erase(item);
   } else {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
