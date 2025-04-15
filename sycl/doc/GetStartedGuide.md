@@ -97,7 +97,7 @@ The easiest way to get started is to use the buildbot
 
 In case you want to configure CMake manually the up-to-date reference for
 variables is in these files. Note that the CMake variables set by default by the [configure.py](../../buildbot/configure.py) script are the ones commonly used by
-the DPC++ developers and might not necsessarily suffice for your project-specific needs.
+ DPC++ developers and might not necessarily suffice for your project-specific needs.
 
 **Linux**:
 
@@ -345,7 +345,7 @@ You can install zstd using the package manager of your distribution. For example
 ```sh
 sudo apt-get install libzstd-dev
 ```
-Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug and the zstd static library is not built with `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd_1_5_6_ub24.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd_1_5_6_ub24.sh) script.
+Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd_1_5_6_ub24.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd_1_5_6_ub24.sh) script.
 
 **Windows**
 

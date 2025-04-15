@@ -1113,7 +1113,7 @@ private:
         if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable()) {
           return createStringError(
               inconvertibleErrorCode(),
-              "'--offload-compress' option is specified but the compiler is "
+              "'--offload-compress' is specified but the compiler is "
               "built without zstd support.\n"
               "If you are using a custom DPC++ build, please refer to "
               "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
