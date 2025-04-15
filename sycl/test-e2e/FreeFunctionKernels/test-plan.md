@@ -106,7 +106,7 @@ Tests in this category perform some meaningful actions with the extension to
 see that the extension works in a scenarios which mimic real-life usage of the
 extension.
 
-With the exception of the`single_task_kernel` free function kernels, all subsequent tests are executed with Dimensions = 1, 2, 3. 
+With the exception of the `single_task_kernel` free function kernels, all subsequent tests are executed with `Dimensions` $$\in {1, 2, 3}$$. 
 
 In all subsequent tests, free function kernels should be declared within a namespace, as static member functions of a class, or in the global namespace.
 
