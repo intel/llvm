@@ -168,15 +168,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 // There is no CUDA counterpart for queue flushing and we don't run into the
 // same problem of having to flush cross-queue dependencies as some of the
 // other plugins, so it can be left as no-op.
-UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  std::ignore = hQueue;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t /*hQueue*/) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
-                       ur_native_handle_t *phNativeQueue) {
-  std::ignore = pDesc;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
+    ur_queue_handle_t hQueue, ur_queue_native_desc_t * /*pDesc*/,
+    ur_native_handle_t *phNativeQueue) {
 
   ScopedContext Active(hQueue->getDevice());
   *phNativeQueue =
