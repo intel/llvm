@@ -77,7 +77,7 @@ Perform tests on new free functions to query kernel information descriptors whic
 - that `get_kernel_info(const context& ctxt)` produces the same result as would be computed by 
     ```
     auto bundle = sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
-    auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>()`
+    auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>();
     ```
 
 - that `get_kernel_info(const context& ctxt, const device& dev)` produces the same result as would be computed by 
