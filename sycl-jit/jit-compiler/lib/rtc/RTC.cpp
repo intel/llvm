@@ -106,8 +106,8 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
     }
   }
 
-  bool FromSource = false;
-  if (!Module) {
+  bool FromSource = !Module;
+  if (FromSource) {
     auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgList,
                                          BuildLog, Context);
     if (!ModuleOrErr) {
@@ -116,7 +116,6 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
     }
 
     Module = std::move(*ModuleOrErr);
-    FromSource = true;
   }
 
   RTCDeviceCodeIR IR;
