@@ -49,7 +49,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::device> Acc) {
 // CHECK-NEXT: 8 |         class std::__shared_count<> _M_refcount
 // CHECK-NEXT: 8 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::device, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_device> > (base) (empty)
+// CHECK-NEXT: 0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::device> > (base) (empty)
 // CHECK-NEXT: 16 | detail::AccHostDataT * MAccData
 // CHECK-NEXT: 24 |   char[8] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
