@@ -16,7 +16,6 @@
 namespace llvm {
 class Function;
 
-///
 /// Utility pass to insert specialization constants values into the module as a
 /// metadata node.
 class SYCLSpecConstDataInserter
@@ -31,7 +30,6 @@ private:
   ArrayRef<unsigned char> SpecConstData;
 };
 
-///
 /// Pass to materialize specialization constants. Specialization constants
 /// represent constants whose values can be set dynamically during execution of
 /// the SYCL application. The values of these constants are fixed when a SYCL

@@ -19,7 +19,6 @@ namespace jit_compiler {
 class Translator {
 
 public:
-  ///
   /// Translate `Mod` to the given target format. If the format is PTX or
   /// AMDGCN, the optional `KernelName` will be used to determine additional
   /// target attributes from the kernel function.
@@ -28,7 +27,6 @@ public:
             const char *KernelName = nullptr);
 
 private:
-  ///
   /// Pair of address and size to represent a binary blob.
   using BinaryBlob = std::pair<BinaryAddress, size_t>;
 
