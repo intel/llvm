@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "../helpers/mutable_helpers.hpp"
 #include "command_list_manager.hpp"
 #include "common.hpp"
 #include "context.hpp"
@@ -52,27 +53,16 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
 
 private:
   using device_ptr_storage_t = std::vector<std::unique_ptr<char *>>;
-  using desc_storage_t = std::vector<std::variant<
-      std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>,
-      std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>>,
-      std::unique_ptr<ZeStruct<ze_mutable_group_size_exp_desc_t>>,
-      std::unique_ptr<ZeStruct<ze_mutable_group_count_exp_desc_t>>>>;
+
   ur_result_t checkUpdateParameters(
       uint32_t numUpdateCommands,
       const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands);
+
   ur_result_t
   updateKernelHandle(locked<ur_command_list_manager> &commandListLocked,
                      ur_kernel_handle_t NewKernel,
                      kernel_command_handle *Command);
-  ur_result_t updateKernelSizes(
-      const ur_exp_command_buffer_update_kernel_launch_desc_t commandDesc,
-      kernel_command_handle *command, void **nextDesc,
-      ze_group_count_t &zeThreadGroupDimensionsList, desc_storage_t &descs);
-  ur_result_t updateKernelArguments(
-      locked<ur_command_list_manager> &commandListLocked,
-      const ur_exp_command_buffer_update_kernel_launch_desc_t commandDesc,
-      kernel_command_handle *command, void **nextDesc,
-      device_ptr_storage_t &zeHandles, desc_storage_t &descs);
+
   const ur_context_handle_t context;
   const ur_device_handle_t device;
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
