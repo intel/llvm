@@ -7,7 +7,7 @@
 The tests should be launched on every supported device configuration we have.
 
 ### Type coverage
-New APIs for new way to define a kernel as a simple C++ function, where the kernel arguments are parameters to this function described by the extension can take only allowed kernel parameter type as specified in section 4.12.4 "Rules for parameter passing to kernels" of the core SYCL specification with exceptions to parameters of type `reducer` or `kernel_handler`. 
+New APIs for new way to define a kernel as a simple C++ function, where the kernel arguments are parameters to this function described by the extension can take only allowed kernel parameter type as specified in section [4.12.4 of the SYCL 2020 specification](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:kernel.parameter.passing) with exceptions to parameters of type `reducer` or `kernel_handler`. 
 
 Therefore those tests should be structured in a way that checks are performed on all allowed kernel parameter types to ensure that everything works correctly.
 
