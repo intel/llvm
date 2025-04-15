@@ -92,7 +92,7 @@ Perform tests on new free functions to query kernel information descriptors whic
     sycl::context ctxt = q.get_context();
     sycl::device dev = q.get_device();
     auto bundle =
-    sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+      sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
     auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>(dev);
     ```
 
