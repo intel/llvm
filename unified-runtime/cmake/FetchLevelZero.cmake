@@ -78,32 +78,42 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         file(COPY ${level-zero-loader_SOURCE_DIR} DESTINATION ${level-zero-loader-dynamic_SOURCE_DIR})
     endif()
 
-    # Build dynamic configuration
+    # Build dynamic version for runtime purposes
     set(BUILD_STATIC OFF)
-    # Manually configure the dynamic build to avoid redefining the ze_loader target
     set(level-zero-loader-dynamic_BUILD_DIR ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build)
     file(MAKE_DIRECTORY ${level-zero-loader-dynamic_BUILD_DIR})
-    execute_process(COMMAND ${CMAKE_COMMAND} -DBUILD_STATIC=OFF -S ${level-zero-loader-dynamic_SOURCE_DIR}/level-zero-loader-src -B ${level-zero-loader-dynamic_BUILD_DIR})
-    # Store the dynamic build directory globally for use in the level_zero UR cmake
-    set(LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR ${level-zero-loader-dynamic_BUILD_DIR} CACHE PATH "Path to the Level Zero dynamic loader build directory")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -DBUILD_STATIC=OFF -S ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-src/level-zero-loader-src -B ${level-zero-loader-dynamic_BUILD_DIR}
+    )
 
-    message(${CMAKE_BINARY_DIR})
-    if(WIN32)
-        add_custom_target(
-            LEVEL_ZERO_DYNAMIC_LOADER_INSTALL
-            ALL
-            COMMAND ${CMAKE_COMMAND} --build ${LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR}
-            COMMAND ${CMAKE_COMMAND} -E copy ${LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR}/bin/*.dll ${CMAKE_BINARY_DIR}/bin/
+    add_custom_target(
+        LEVEL_ZERO_DYNAMIC_LOADER
+        ALL
+        COMMAND ${CMAKE_COMMAND} --build ${level-zero-loader-dynamic_BUILD_DIR}
+    )
+
+    # Ensure the install directory exists or create it
+    if (WIN32)
+        file(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/bin)
+        add_custom_command(
+            TARGET LEVEL_ZERO_DYNAMIC_LOADER POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build/bin/ze_loader.dll
+                ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build/bin/ze_validation_layer.dll
+                ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build/bin/ze_tracing_layer.dll
+                ${CMAKE_INSTALL_PREFIX}/bin
         )
     else()
-        add_custom_target(
-            LEVEL_ZERO_DYNAMIC_LOADER_INSTALL
-            ALL
-            COMMAND ${CMAKE_COMMAND} --build ${LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR}
-            COMMAND ${CMAKE_COMMAND} -E copy ${LEVEL_ZERO_LOADER_DYNAMIC_BUILD_DIR}/lib/*.so* ${CMAKE_BINARY_DIR}/lib/
+        file(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/lib)
+        add_custom_command(
+            TARGET LEVEL_ZERO_DYNAMIC_LOADER POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build/lib/libze_loader.so.1
+                ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build/lib/libze_validation_layer.so.1
+                ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build/lib/libze_tracing_layer.so.1
+                ${CMAKE_INSTALL_PREFIX}/lib
         )
     endif()
-
     # Restore original flags
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
     set(CMAKE_MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY_BAK}")
