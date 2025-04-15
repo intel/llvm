@@ -256,14 +256,14 @@ protected:
 
 public:
   GetLLVMModuleAction(LLVMContext &Context) : Context{Context}, Module{} {}
-  std::unique_ptr<llvm::Module> takeModule() {
+  ModuleUPtr takeModule() {
     assert(Module);
     return std::move(Module);
   }
 
 private:
   LLVMContext &Context;
-  std::unique_ptr<llvm::Module> Module;
+  ModuleUPtr Module;
 };
 
 class ClangDiagnosticWrapper {
@@ -400,7 +400,7 @@ jit_compiler::calculateHash(InMemoryFile SourceFile,
   return createStringError("Calculating source hash failed");
 }
 
-Expected<std::unique_ptr<llvm::Module>>
+Expected<ModuleUPtr>
 jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
                                 View<InMemoryFile> IncludeFiles,
                                 const InputArgList &UserArgList,
@@ -486,17 +486,18 @@ static bool getDeviceLibraries(const ArgList &Args,
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
-      {"libsycl-crt", "libc"},
-      {"libsycl-complex", "libm-fp32"},
-      {"libsycl-complex-fp64", "libm-fp64"},
-      {"libsycl-cmath", "libm-fp32"},
-      {"libsycl-cmath-fp64", "libm-fp64"},
+    {"libsycl-crt", "libc"},
+    {"libsycl-complex", "libm-fp32"},
+    {"libsycl-complex-fp64", "libm-fp64"},
+    {"libsycl-cmath", "libm-fp32"},
+    {"libsycl-cmath-fp64", "libm-fp64"},
 #if defined(_WIN32)
-      {"libsycl-msvc-math", "libm-fp32"},
+    {"libsycl-msvc-math", "libm-fp32"},
 #endif
-      {"libsycl-imf", "libimf-fp32"},
-      {"libsycl-imf-fp64", "libimf-fp64"},
-      {"libsycl-imf-bf16", "libimf-bf16"}};
+    {"libsycl-imf", "libimf-fp32"},
+    {"libsycl-imf-fp64", "libimf-fp64"},
+    {"libsycl-imf-bf16", "libimf-bf16"}
+  };
   // ITT annotation libraries are linked in separately whenever the device
   // code instrumentation is enabled.
   const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
@@ -526,10 +527,10 @@ static bool getDeviceLibraries(const ArgList &Args,
   return FoundUnknownLib;
 }
 
-static Expected<std::unique_ptr<llvm::Module>>
-loadBitcodeLibrary(StringRef LibPath, LLVMContext &Context) {
+static Expected<ModuleUPtr> loadBitcodeLibrary(StringRef LibPath,
+                                               LLVMContext &Context) {
   SMDiagnostic Diag;
-  std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Context);
+  ModuleUPtr Lib = parseIRFile(LibPath, Diag, Context);
   if (!Lib) {
     std::string DiagMsg;
     raw_string_ostream SOS(DiagMsg);
@@ -566,12 +567,12 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   for (const std::string &LibName : LibNames) {
     std::string LibPath = DPCPPRoot + "/lib/" + LibName;
 
-    auto LibOrErr = loadBitcodeLibrary(LibPath, Context);
-    if (!LibOrErr) {
-      return LibOrErr.takeError();
+    ModuleUPtr LibModule;
+    if (auto Error = loadBitcodeLibrary(LibPath, Context).moveInto(LibModule)) {
+      return Error;
     }
 
-    if (Linker::linkModules(Module, std::move(*LibOrErr),
+    if (Linker::linkModules(Module, std::move(LibModule),
                             Linker::LinkOnlyNeeded)) {
       return createStringError("Unable to link device library %s: %s",
                                LibPath.c_str(), BuildLog.c_str());
@@ -638,7 +639,7 @@ static void encodeProperties(PropertySetRegistry &Properties,
 }
 
 Expected<PostLinkResult>
-jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
+jit_compiler::performPostLink(ModuleUPtr Module,
                               const InputArgList &UserArgList) {
   TimeTraceScope TTS{"performPostLink"};
 
@@ -692,7 +693,7 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
   }
 
   SmallVector<RTCDevImgInfo> DevImgInfoVec;
-  SmallVector<std::unique_ptr<llvm::Module>> Modules;
+  SmallVector<ModuleUPtr> Modules;
 
   // TODO: The following logic is missing the ability to link ESIMD and SYCL
   //       modules back together, which would be requested via
@@ -763,12 +764,11 @@ jit_compiler::performPostLink(std::unique_ptr<llvm::Module> Module,
     auto &Ctx = Modules.front()->getContext();
     auto WrapLibraryInDevImg = [&](const std::string &LibName) -> Error {
       std::string LibPath = DPCPPRoot + "/lib/" + LibName;
-      auto LibOrErr = loadBitcodeLibrary(LibPath, Ctx);
-      if (!LibOrErr) {
-        return LibOrErr.takeError();
+      ModuleUPtr LibModule;
+      if (auto Error = loadBitcodeLibrary(LibPath, Ctx).moveInto(LibModule)) {
+        return Error;
       }
 
-      std::unique_ptr<llvm::Module> LibModule = std::move(*LibOrErr);
       PropertySetRegistry Properties =
           computeDeviceLibProperties(*LibModule, LibName);
       encodeProperties(Properties, DevImgInfoVec.emplace_back());

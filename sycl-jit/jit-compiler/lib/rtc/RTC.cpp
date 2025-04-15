@@ -27,21 +27,20 @@ using namespace jit_compiler;
 JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
                                               View<InMemoryFile> IncludeFiles,
                                               View<const char *> UserArgs) {
-  auto UserArgListOrErr = parseUserArgs(UserArgs);
-  if (!UserArgListOrErr) {
-    return errorTo<RTCHashResult>(UserArgListOrErr.takeError(),
+  llvm::opt::InputArgList UserArgList;
+  if (auto Error = parseUserArgs(UserArgs).moveInto(UserArgList)) {
+    return errorTo<RTCHashResult>(std::move(Error),
                                   "Parsing of user arguments failed",
                                   /*IsHash=*/false);
   }
-  llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 
   auto Start = std::chrono::high_resolution_clock::now();
-  auto HashOrError = calculateHash(SourceFile, IncludeFiles, UserArgList);
-  if (!HashOrError) {
-    return errorTo<RTCHashResult>(HashOrError.takeError(), "Hashing failed",
+  std::string Hash;
+  if (auto Error =
+          calculateHash(SourceFile, IncludeFiles, UserArgList).moveInto(Hash)) {
+    return errorTo<RTCHashResult>(std::move(Error), "Hashing failed",
                                   /*IsHash=*/false);
   }
-  auto Hash = *HashOrError;
   auto Stop = std::chrono::high_resolution_clock::now();
 
   if (UserArgList.hasArg(clang::driver::options::OPT_ftime_trace_EQ)) {
@@ -61,13 +60,12 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
   std::string BuildLog;
   configureDiagnostics(Context, BuildLog);
 
-  auto UserArgListOrErr = parseUserArgs(UserArgs);
-  if (!UserArgListOrErr) {
-    return errorTo<RTCResult>(UserArgListOrErr.takeError(),
+  llvm::opt::InputArgList UserArgList;
+  if (auto Error = parseUserArgs(UserArgs).moveInto(UserArgList)) {
+    return errorTo<RTCResult>(std::move(Error),
                               "Parsing of user arguments failed",
                               RTCResult::RTCErrorCode::INVALID);
   }
-  llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 
   llvm::StringRef TraceFileName;
   if (auto *Arg =
@@ -96,26 +94,20 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
     std::unique_ptr<llvm::MemoryBuffer> IRBuf =
         llvm::MemoryBuffer::getMemBuffer(IRStr, /*BufferName=*/"",
                                          /*RequiresNullTerminator=*/false);
-    auto ModuleOrError = llvm::parseBitcodeFile(*IRBuf, Context);
-    if (!ModuleOrError) {
+    if (auto Error = llvm::parseBitcodeFile(*IRBuf, Context).moveInto(Module)) {
       // Not a fatal error, we'll just compile the source string normally.
-      BuildLog.append(formatError(ModuleOrError.takeError(),
+      BuildLog.append(formatError(std::move(Error),
                                   "Loading of cached device code failed"));
-    } else {
-      Module = std::move(*ModuleOrError);
     }
   }
 
   bool FromSource = !Module;
   if (FromSource) {
-    auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgList,
-                                         BuildLog, Context);
-    if (!ModuleOrErr) {
-      return errorTo<RTCResult>(ModuleOrErr.takeError(),
-                                "Device compilation failed");
+    if (auto Error = compileDeviceCode(SourceFile, IncludeFiles, UserArgList,
+                                       BuildLog, Context)
+                         .moveInto(Module)) {
+      return errorTo<RTCResult>(std::move(Error), "Device compilation failed");
     }
-
-    Module = std::move(*ModuleOrErr);
   }
 
   RTCDeviceCodeIR IR;
@@ -139,13 +131,11 @@ JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
 
   for (auto [DevImgInfo, Module] :
        llvm::zip_equal(BundleInfo.DevImgInfos, Modules)) {
-    auto BinaryInfoOrError = Translator::translate(
-        *Module, JITContext::getInstance(), BinaryFormat::SPIRV);
-    if (!BinaryInfoOrError) {
-      return errorTo<RTCResult>(BinaryInfoOrError.takeError(),
-                                "SPIR-V translation failed");
+    if (auto Error = Translator::translate(*Module, JITContext::getInstance(),
+                                           BinaryFormat::SPIRV)
+                         .moveInto(DevImgInfo.BinaryInfo)) {
+      return errorTo<RTCResult>(std::move(Error), "SPIR-V translation failed");
     }
-    DevImgInfo.BinaryInfo = std::move(*BinaryInfoOrError);
   }
 
   encodeBuildOptions(BundleInfo, UserArgList);

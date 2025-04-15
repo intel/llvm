@@ -20,11 +20,13 @@
 
 namespace jit_compiler {
 
+using ModuleUPtr = std::unique_ptr<llvm::Module>;
+
 llvm::Expected<std::string>
 calculateHash(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
               const llvm::opt::InputArgList &UserArgList);
 
-llvm::Expected<std::unique_ptr<llvm::Module>>
+llvm::Expected<ModuleUPtr>
 compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                   const llvm::opt::InputArgList &UserArgList,
                   std::string &BuildLog, llvm::LLVMContext &Context);
@@ -33,11 +35,9 @@ llvm::Error linkDeviceLibraries(llvm::Module &Module,
                                 const llvm::opt::InputArgList &UserArgList,
                                 std::string &BuildLog);
 
-using PostLinkResult =
-    std::pair<RTCBundleInfo, llvm::SmallVector<std::unique_ptr<llvm::Module>>>;
+using PostLinkResult = std::pair<RTCBundleInfo, llvm::SmallVector<ModuleUPtr>>;
 llvm::Expected<PostLinkResult>
-performPostLink(std::unique_ptr<llvm::Module> Module,
-                const llvm::opt::InputArgList &UserArgList);
+performPostLink(ModuleUPtr Module, const llvm::opt::InputArgList &UserArgList);
 
 llvm::Expected<llvm::opt::InputArgList>
 parseUserArgs(View<const char *> UserArgs);

@@ -33,28 +33,28 @@ JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
   llvm::StringRef RawData(
       reinterpret_cast<const char *>(BinaryInfo.BinaryStart),
       BinaryInfo.BinarySize);
-  llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
-      llvm::parseBitcodeFile(
-          llvm::MemoryBuffer::getMemBuffer(RawData, KernelName,
-                                           /* RequiresNullTermnator*/ false)
-              ->getMemBufferRef(),
-          Ctx);
-  if (auto Error = ModOrError.takeError()) {
+  std::unique_ptr<llvm::Module> Module;
+  if (auto Error = llvm::parseBitcodeFile(llvm::MemoryBuffer::getMemBuffer(
+                                              RawData, KernelName,
+                                              /* RequiresNullTermnator*/ false)
+                                              ->getMemBufferRef(),
+                                          Ctx)
+                       .moveInto(Module)) {
     return errorTo<SCMResult>(std::move(Error), "Failed to load module");
   }
-  std::unique_ptr<llvm::Module> NewMod = std::move(*ModOrError);
   if (!MaterializerPipeline::runMaterializerPasses(
-          *NewMod, SpecConstBlob.to<llvm::ArrayRef>()) ||
-      !NewMod->getFunction(KernelName)) {
+          *Module, SpecConstBlob.to<llvm::ArrayRef>()) ||
+      !Module->getFunction(KernelName)) {
     return SCMResult{"Materializer passes should not fail"};
   }
 
-  auto BinInfoOrErr = Translator::translate(*NewMod, JITContext::getInstance(),
-                                            TargetFormat, KernelName);
-  if (!BinInfoOrErr) {
-    return errorTo<SCMResult>(BinInfoOrErr.takeError(),
+  JITBinaryInfo TranslatedBinaryInfo;
+  if (auto Error = Translator::translate(*Module, JITContext::getInstance(),
+                                         TargetFormat, KernelName)
+                       .moveInto(TranslatedBinaryInfo)) {
+    return errorTo<SCMResult>(std::move(Error),
                               "Translation to output format failed");
   }
 
-  return SCMResult{*BinInfoOrErr};
+  return SCMResult{TranslatedBinaryInfo};
 }

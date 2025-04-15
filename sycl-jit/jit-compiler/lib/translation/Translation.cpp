@@ -28,28 +28,21 @@ llvm::Expected<JITBinaryInfo> Translator::translate(llvm::Module &Mod,
   JITBinary *JITBin = nullptr;
   switch (Format) {
   case BinaryFormat::SPIRV: {
-    llvm::Expected<JITBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
-    if (auto Error = BinaryOrError.takeError()) {
+    if (auto Error = translateToSPIRV(Mod, JITCtx).moveInto(JITBin)) {
       return Error;
     }
-    JITBin = *BinaryOrError;
     break;
   }
   case BinaryFormat::PTX: {
-    llvm::Expected<JITBinary *> BinaryOrError =
-        translateToPTX(Mod, JITCtx, KernelName);
-    if (auto Error = BinaryOrError.takeError()) {
+    if (auto Error = translateToPTX(Mod, JITCtx, KernelName).moveInto(JITBin)) {
       return Error;
     }
-    JITBin = *BinaryOrError;
     break;
   }
   case BinaryFormat::AMDGCN: {
-    llvm::Expected<JITBinary *> BinaryOrError =
-        translateToAMDGCN(Mod, JITCtx, KernelName);
-    if (auto Error = BinaryOrError.takeError())
+    if (auto Error =
+            translateToAMDGCN(Mod, JITCtx, KernelName).moveInto(JITBin))
       return Error;
-    JITBin = *BinaryOrError;
     break;
   }
   default: {
