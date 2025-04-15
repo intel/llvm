@@ -646,7 +646,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
                                SmallVector<StringRef, 8> &PostLinkArgs,
                                const llvm::Triple Triple) {
   const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
-  bool SYCLNativeCPU = (HostTriple == Triple);
+  bool SYCLNativeCPU = Triple.str() == "native_cpu";
   bool SpecConstsSupported = (!Triple.isNVPTX() && !Triple.isAMDGCN() &&
                               !Triple.isSPIRAOT() && !SYCLNativeCPU);
   if (SpecConstsSupported)
@@ -1506,7 +1506,10 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (!ClangPath)
     return ClangPath.takeError();
 
-  const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  if (Triple.str() == "native_cpu")
+    Triple = llvm::Triple(Args.getLastArgValue(OPT_host_triple_EQ));
+
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
   // Create a new file to write the linked device image to. Assume that the
   // input filename already has the device and architecture.
@@ -1659,6 +1662,9 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::loongarch64:
     return generic::clang(InputFiles, Args);
   default:
+    if (Triple.str() == "native_cpu" && IsSYCLKind)
+      return generic::clang(InputFiles, Args);
+
     return createStringError(Triple.getArchName() +
                              " linking is not supported");
   }

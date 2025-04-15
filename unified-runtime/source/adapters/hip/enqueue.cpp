@@ -13,6 +13,7 @@
 #include "context.hpp"
 #include "event.hpp"
 #include "kernel.hpp"
+#include "logger/ur_logger.hpp"
 #include "memory.hpp"
 #include "queue.hpp"
 #include "ur_api.h"
@@ -150,11 +151,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(!(phEventWaitList == NULL && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+  UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   hBuffer->setLastQueueWritingToMemObj(hQueue);
@@ -198,11 +195,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
     size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(!(phEventWaitList == NULL && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+  UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
@@ -366,10 +359,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(!(phEventWaitList == NULL && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST)
-  UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST)
 
   try {
     ScopedDevice Active(hQueue->getDevice());
@@ -502,27 +491,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(!(phEventWaitList == NULL && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != NULL && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(region.width == 0 || region.height == 0 || region.width == 0),
-            UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(!(bufferRowPitch != 0 && bufferRowPitch < region.width),
-            UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(!(hostRowPitch != 0 && hostRowPitch < region.width),
-            UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(!(bufferSlicePitch != 0 &&
-              bufferSlicePitch < region.height * bufferRowPitch),
-            UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(!(bufferSlicePitch != 0 && bufferSlicePitch % bufferRowPitch != 0),
-            UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(
-      !(hostSlicePitch != 0 && hostSlicePitch < region.height * hostRowPitch),
-      UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(!(hostSlicePitch != 0 && hostSlicePitch % hostRowPitch != 0),
-            UR_RESULT_ERROR_INVALID_SIZE);
-
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -1407,10 +1375,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     // mem_advise.
     if (!Device->getManagedMemSupport()) {
       releaseEvent();
-      setErrorMessage("mem_advise ignored as device does not support "
-                      "managed memory access",
-                      UR_RESULT_SUCCESS);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      logger::warning("mem_advise ignored as device does not support "
+                      "managed memory access.");
+      return UR_RESULT_SUCCESS;
     }
 
     hipPointerAttribute_t attribs;
@@ -1423,9 +1390,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     // async prefetch requires USM pointer (or hip SVM) to work.
     if (!attribs.isManaged) {
       releaseEvent();
-      setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
-                      UR_RESULT_SUCCESS);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      logger::warning("Prefetch hint ignored as prefetch only works with USM.");
+      return UR_RESULT_SUCCESS;
     }
 
     UR_CHECK_ERROR(
@@ -1442,7 +1408,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
-  UR_ASSERT(pMem && size > 0, UR_RESULT_ERROR_INVALID_VALUE);
   void *HIPDevicePtr = const_cast<void *>(pMem);
   ur_device_handle_t Device = hQueue->getDevice();
 
@@ -1480,10 +1445,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     // mem_advise.
     if (!Device->getManagedMemSupport()) {
       releaseEvent();
-      setErrorMessage("mem_advise ignored as device does not support "
-                      "managed memory access",
-                      UR_RESULT_SUCCESS);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      logger::warning("mem_advise ignored as device does not support "
+                      "managed memory access.");
+      return UR_RESULT_SUCCESS;
     }
 
     // Passing MEM_ADVICE_SET/MEM_ADVICE_CLEAR_PREFERRED_LOCATION to
@@ -1498,10 +1462,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                   UR_USM_ADVICE_FLAG_DEFAULT)) {
       if (!Device->getConcurrentManagedAccess()) {
         releaseEvent();
-        setErrorMessage("mem_advise ignored as device does not support "
-                        "concurrent managed access",
-                        UR_RESULT_SUCCESS);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+        logger::warning("mem_advise ignored as device does not support "
+                        "concurrent memory access.");
+        return UR_RESULT_SUCCESS;
       }
 
       // TODO: If pMem points to valid system-allocated pageable memory, we
@@ -1519,10 +1482,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     if (auto ptrAttribs = getPointerAttributes(pMem);
         !ptrAttribs || !ptrAttribs->isManaged) {
       releaseEvent();
-      setErrorMessage("mem_advise is ignored as the pointer argument is not "
-                      "a shared USM pointer",
-                      UR_RESULT_SUCCESS);
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+      logger::warning("mem_advise is ignored as the pointer argument is not "
+                      "a shared USM pointer.");
+      return UR_RESULT_SUCCESS;
     }
 
     const auto DeviceID = Device->get();
@@ -1549,10 +1511,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       // the runtime.
       if (Result == UR_RESULT_ERROR_INVALID_ENUMERATION) {
         releaseEvent();
-        setErrorMessage("mem_advise is ignored as the advice argument is not "
-                        "supported by this device",
-                        UR_RESULT_SUCCESS);
-        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+        logger::warning("mem_advise is ignored as the advice argument is not "
+                        "supported by this device.");
+        return UR_RESULT_SUCCESS;
       }
       UR_CHECK_ERROR(Result);
     }

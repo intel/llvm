@@ -39,15 +39,6 @@ struct ur_usm_pool_handle_t_ {
   bool hasUMFPool(umf_memory_pool_t *umf_pool);
 };
 
-// Exception type to pass allocation errors
-class UsmAllocationException {
-  const ur_result_t Error;
-
-public:
-  UsmAllocationException(ur_result_t Err) : Error{Err} {}
-  ur_result_t getError() const { return Error; }
-};
-
 // Implements memory allocation via driver API for USM allocator interface
 class USMMemoryProvider {
 private:
@@ -140,6 +131,3 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 bool checkUSMAlignment(uint32_t &alignment, const ur_usm_desc_t *pUSMDesc);
 
 bool checkUSMImplAlignment(uint32_t Alignment, void **ResultPtr);
-
-ur_result_t umfPoolMallocHelper(ur_usm_pool_handle_t hPool, void **ppMem,
-                                size_t size, uint32_t alignment);

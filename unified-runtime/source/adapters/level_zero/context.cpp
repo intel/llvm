@@ -282,7 +282,7 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
   if (DestroyZeContext) {
     auto ZeResult = ZE_CALL_NOCHECK(zeContextDestroy, (DestroyZeContext));
     // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                      ZeResult != ZE_RESULT_ERROR_UNKNOWN))
       return ze2urResult(ZeResult);
     if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -311,7 +311,7 @@ ur_result_t ur_context_handle_t_::finalize() {
         if (checkL0LoaderTeardown()) {
           auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
           // Gracefully handle the case that L0 was already unloaded.
-          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                            ZeResult != ZE_RESULT_ERROR_UNKNOWN))
             return ze2urResult(ZeResult);
           if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -331,7 +331,7 @@ ur_result_t ur_context_handle_t_::finalize() {
         if (checkL0LoaderTeardown()) {
           auto ZeResult = ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
           // Gracefully handle the case that L0 was already unloaded.
-          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+          if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                            ZeResult != ZE_RESULT_ERROR_UNKNOWN))
             return ze2urResult(ZeResult);
           if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -347,7 +347,7 @@ ur_result_t ur_context_handle_t_::finalize() {
     // Destroy the command list used for initializations
     auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandListInit));
     // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+    if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                      ZeResult != ZE_RESULT_ERROR_UNKNOWN))
       return ze2urResult(ZeResult);
     if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -362,7 +362,7 @@ ur_result_t ur_context_handle_t_::finalize() {
       if (ZeCommandList && checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                          ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
         if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
@@ -377,7 +377,7 @@ ur_result_t ur_context_handle_t_::finalize() {
       if (ZeCommandList && checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED ||
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
                          ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
         if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
