@@ -1509,8 +1509,8 @@ Returns: A new executable graph object which can be submitted to a queue.
 Exceptions:
 
 * Throws with error code `invalid` if the graph contains
-<<graph-memory-allocations, graph-owned memory allocations>> and the graph has
-previously been finalized.
+<<graph-memory-allocations, graph-owned memory allocations>> and any instance of
+an executable graph created from this modifiable graph is still alive.
 
 |
 [source,c++]
