@@ -15,7 +15,7 @@ Therefore those tests should be structured in a way that checks are performed on
 
 ### Unit tests
 
-Tests in this category may not fully exercise the extension functionality, but are instead they are focused on making sure that all APIs are consistent with respect to other APIs.
+Tests in this category may not fully exercise the extension functionality, but are instead they are focused on making sure that all APIs are consistent with respect to existing APIs.
 
 
 Perform tests on free function kernels requirments which should check the following:
