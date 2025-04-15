@@ -44,7 +44,7 @@ void testQueriesAndProperties() {
               q, wgRange, wgRange.size() * sizeof(int));
   struct TestKernel0 {
     void operator()() const {}
-    auto get(sycl::ext::oneapi::experimental::properties_tag) {
+    auto get(sycl::ext::oneapi::experimental::properties_tag) const {
       return sycl::ext::oneapi::experimental::properties{
           sycl::ext::oneapi::experimental::use_root_sync};
     }
@@ -133,7 +133,7 @@ template <typename T> struct TestKernel2 {
           root.get_local_linear_range() == root.get_local_range().size();
     }
   }
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::use_root_sync};
   }
