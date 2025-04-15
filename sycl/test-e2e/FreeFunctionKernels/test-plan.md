@@ -29,6 +29,12 @@ Perform tests on free function kernels requirments which should check the follow
 
  - that compiler will emit diagnostic when a non-static member function is used as a kernel. Only static member function at class scope are allowed as free function kernel.
 
+Perform tests on free function kernel declaration with properties `nd_range_kernel` and `single_task_kernel` which should check the following:
+ - that if the property does not appear on the first declaration of the function in the translation unit, it will result in a compilation error.
+ - that if the property appears on the first declaration of the function, and the following redeclarations do not have this property, it will not result in a compilation error.
+ - that if a function is decorated with more than one of these properties, it will result in a compilation error.
+ - that if a redeclaration of a function is decorated with the same property but with different arguments, the program should result in a compilation error.
+
 Perform tests on new traits for free function kernels which should check the following:
  - that `is_nd_range_kernel_v` trait returns true if function declaration is decorated with `nd_range_kernel` property and false if it is not.
 
@@ -63,6 +69,8 @@ Perform tests on new kernel bundle member functions for free function kernels wh
 - that `get_kernel_ids()` returns all of the kernels defined in the source, whether they were defined as free function kernels, lambda expressions or named kernel objects.
 
 - that `info::kernel::num_args` returns  the number of parameters in the function definition of free function kernel.
+
+- that performs all the checks mentioned above on a free function kernel that is declared in one translation unit and defined in a separate one.
 
 Perform tests on new free functions to query kernel information descriptors which should check the following:
 
