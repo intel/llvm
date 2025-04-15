@@ -39,27 +39,27 @@ class GromacsBench(Suite):
 
     def benchmarks(self) -> list[Benchmark]:
         models_rf = [
-            "0001.5",
-            "0003",
+            # "0001.5",
+            # "0003",
             "0006",
-            "0012",
-            "0024",
-            "0048",
-            "0096",
-            "0192",
-            "0384",
+            # "0012",
+            # "0024",
+            # "0048",
+            # "0096",
+            # "0192",
+            # "0384",
         ]
         benches_rf = [GromacsBenchmark(self, model, "rf") for model in models_rf]
         models_pme = [
-            "0001.5",
-            "0003",
-            "0006",
-            "0012",
-            "0024",
-            "0048",
-            "0096",
+            # "0001.5",
+            # "0003",
+            # "0006",
+            # "0012",
+            # "0024",
+            # "0048",
+            # "0096",
             "0192",
-            "0384",
+            # "0384",
         ]
         benches_pme = [GromacsBenchmark(self, model, "pme") for model in models_pme]
         # Add more models as needed
@@ -102,19 +102,15 @@ class GromacsBench(Suite):
     def download_and_extract_grappa(self):
         grappa_tar_file = self.directory / self.grappa_file()
 
-        if not grappa_tar_file.exists():
-            model = download(
-                self.directory,
-                self.grappa_url(),
-                grappa_tar_file,
-                checksum="cc02be35ba85c8b044e47d097661dffa8bea57cdb3db8b5da5d01cdbc94fe6c8902652cfe05fb9da7f2af0698be283a2",
-                untar=True,
-            )
-            if options.verbose:
-                print(f"Grappa tar file downloaded and extracted to {model}")
-        else:
-            if options.verbose:
-                print(f"Grappa tar file already exists at {grappa_tar_file}")
+        model = download(
+            self.directory,
+            self.grappa_url(),
+            grappa_tar_file,
+            checksum="cc02be35ba85c8b044e47d097661dffa8bea57cdb3db8b5da5d01cdbc94fe6c8902652cfe05fb9da7f2af0698be283a2",
+            untar=True,
+        )
+        if options.verbose:
+            print(f"Grappa tar file downloaded and extracted to {model}")
 
     def teardown(self):
         pass
@@ -130,38 +126,25 @@ class GromacsBenchmark(Benchmark):
         self.gmx_path = suite.gromacs_build_path / "bin" / "gmx"
 
     def name(self):
-        return f"gromacs-{self.model}"
+        return f"gromacs-{self.model}-{self.type}"
 
     def setup(self):
         model_dir = self.grappa_dir / self.model
-        if self.type == "rf":
-            cmd_list = [
-                str(self.gmx_path),
-                "grompp",
-                "-f",
-                str(self.grappa_dir / "rf.mdp"),
-                "-c",
-                str(model_dir / "conf.gro"),
-                "-p",
-                str(model_dir / "topol.top"),
-                "-o",
-                str(model_dir / "rf.tpr"),
-            ]
-        elif self.type == "pme":
-            cmd_list = [
-                str(self.gmx_path),
-                "grompp",
-                "-f",
-                str(self.grappa_dir / "pme.mdp"),
-                "-c",
-                str(model_dir / "conf.gro"),
-                "-p",
-                str(model_dir / "topol.top"),
-                "-o",
-                str(model_dir / "pme.tpr"),
-            ]
-        else:
+        if self.type != "rf" and self.type != "pme":
             raise ValueError(f"Unknown benchmark type: {self.type}")
+
+        cmd_list = [
+            str(self.gmx_path),
+            "grompp",
+            "-f",
+            f"{str(self.grappa_dir)}/{self.type}.mdp",
+            "-c",
+            str(model_dir / "conf.gro"),
+            "-p",
+            str(model_dir / "topol.top"),
+            "-o",
+            f"{str(model_dir)}/{self.type}.tpr",
+        ]
 
         # Generate configuration files
         self.conf_result = run(
@@ -186,91 +169,72 @@ class GromacsBenchmark(Benchmark):
         )
 
         # Run benchmark
-        if self.type == "rf":
-            command = [
-                str(self.gmx_path),
-                "mdrun",
-                "-s",
-                str(model_dir / "rf.tpr"),
-                "-nb",
-                "gpu",
-                "-update",
-                "gpu",
-                "-bonded",
-                "gpu",
-                "-ntmpi",
-                "1",
-                "-ntomp",
-                "1",
-                "-nobackup",
-                "-noconfout",
-                "-nstlist",
-                "100",
-                "-pin",
-                "on",
-            ]
-        else:  # type == "pme"
-            command = [
-                str(self.gmx_path),
-                "mdrun",
-                "-s",
-                str(model_dir / "pme.tpr"),
+        if self.type == "pme":
+            pme_cmd_list = [
                 "-pme",
                 "gpu",
                 "-pmefft",
                 "gpu",
                 "-notunepme",
-                "-nb",
-                "gpu",
-                "-update",
-                "gpu",
-                "-bonded",
-                "gpu",
-                "-ntmpi",
-                "1",
-                "-ntomp",
-                "1",
-                "-nobackup",
-                "-noconfout",
-                "-nstlist",
-                "100",
-                "-pin",
-                "on",
             ]
+        else:
+            pme_cmd_list = []
 
-        mdrun_result = run(
+        command = [
+            str(self.gmx_path),
+            "mdrun",
+            "-s",
+            f"{str(model_dir)}/{self.type}.tpr",
+            "-nb",
+            "gpu",
+            "-update",
+            "gpu",
+            "-bonded",
+            "gpu",
+            "-ntmpi",
+            "1",
+            "-ntomp",
+            "1",
+            "-nobackup",
+            "-noconfout",
+            "-nstlist",
+            "100",
+            "-pin",
+            "on",
+        ] + pme_cmd_list
+
+        mdrun_output = self.run_bench(
             command,
+            env_vars,
             add_sycl=True,
+            use_stdout=False,
         )
-        mdrun_result_output = mdrun_result.stderr.decode()
-        time = self._extract_execution_time(mdrun_result_output, type)
+        time = self._extract_execution_time(mdrun_output)
 
         if options.verbose:
             print(f"[{self.name()}-RF] Time: {time:.3f} seconds")
 
-        # Return results as a list of Result objects
         return [
             Result(
                 label=f"{self.name()}-{self.type}",
                 value=time,
                 unit="s",
-                passed=(mdrun_result.returncode == 0),
                 command=" ".join(map(str, command)),
                 env=env_vars,
-                stdout=self.conf_result.stderr.decode() + mdrun_result.stderr.decode(),
+                stdout=mdrun_output,
                 git_url=self.suite.git_url(),
                 git_hash=self.suite.git_tag(),
             )
         ]
 
-    def _extract_execution_time(self, log_content, benchmark_type):
+    def _extract_execution_time(self, log_content):
         # Look for the line containing "Time:"
         # and extract the first numeric value after it
         time_lines = [line for line in log_content.splitlines() if "Time:" in line]
 
         if len(time_lines) != 1:
             raise ValueError(
-                f"Expected exactly 1 line containing 'Time:' in the log content for {benchmark_type}, "
+                f"Expected exactly 1 line containing 'Time:' in the log content, "
                 f"but found {len(time_lines)}."
             )
 
@@ -278,9 +242,7 @@ class GromacsBenchmark(Benchmark):
             if part.replace(".", "", 1).isdigit():
                 return float(part)
 
-        raise ValueError(
-            f"No numeric value found in the 'Time:' line for {benchmark_type}."
-        )
+        raise ValueError(f"No numeric value found in the 'Time:' line.")
 
     def teardown(self):
         pass
