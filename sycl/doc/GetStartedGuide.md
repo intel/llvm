@@ -326,14 +326,14 @@ not yet supported on the Windows platform.
 
 ### Build DPC++ toolchain with device image compression support
 
-Device image compression enables the compression of device code (SYCL Kernels) during compilation and decompressing them on-demand at application runtime.
+Device image compression enables the compression of device code (SYCL Kernels) during compilation and decompressing them on-demand during the execution of the corresponding SYCL application.
 This reduces the size of fat binaries for both Just-in-Time (JIT) and Ahead-of-Time (AOT) compilation. Refer to the [blog post](https://www.intel.com/content/www/us/en/developer/articles/technical/sycl-compilation-device-image-compression.html) for more details on this feature.
 
 To enable device image compression, you need to build the DPC++ toolchain with the
 zstd compression library. By default, zstd is optional for DPC++ builds i.e. CMake will search for zstd installation but if not found, it will not fail the build
 and this feature will simply be disabled.
 
-To override this behavior and force the build to use zstd, you can use the `--use-zstd` flag in the `configure.py` script.
+To override this behavior and force the build to use zstd, you can use the `--use-zstd` flag in the `configure.py` script or by adding `-DLLVM_ENABLE_ZSTD=FORCE_ON` to the CMake configuration command.
 
 #### How to obtain zstd?
 
@@ -349,8 +349,7 @@ Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](htt
 
 **Windows**
 
-For Windows, prebuilt zstd binaries can be obtained from the [facebook/zstd](https://github.com/facebook/zstd/releases/tag/v1.5.6) release page. After obtaining the zstd binaries, you can add
-to the `PATH` environment variable the path to the zstd installation directory.
+For Windows, prebuilt zstd binaries can be obtained from the [facebook/zstd](https://github.com/facebook/zstd/releases/tag/v1.5.6) release page. After obtaining the zstd binaries, you can add the path to the zstd installation directory to the `PATH` environment variable.
 
 ### Build Doxygen documentation
 
