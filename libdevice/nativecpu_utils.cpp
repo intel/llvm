@@ -29,6 +29,11 @@ using __nativecpu_state = native_cpu::state;
 #define DEVICE_EXTERNAL_C DEVICE_EXTERN_C __attribute__((always_inline))
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((always_inline))
 
+// Several functions are used implicitly by WorkItemLoopsPass and
+// PrepareSYCLNativeCPUPass and need to be marked as used to prevent them being
+// removed early.
+#define USED __attribute__((used))
+
 #define OCL_LOCAL __attribute__((opencl_local))
 #define OCL_GLOBAL __attribute__((opencl_global))
 #define OCL_PRIVATE __attribute__((opencl_private))
@@ -318,12 +323,6 @@ DefineShuffleVec2to16(int32_t, i32, int32_t);
 DefineShuffleVec2to16(uint32_t, i32, int32_t);
 DefineShuffleVec2to16(float, f32, float);
 
-#define Define2ArgForward(Type, Name, Callee)                                  \
-  DEVICE_EXTERNAL Type Name(Type a, Type b) noexcept { return Callee(a, b); }  \
-  static_assert(true)
-
-Define2ArgForward(uint64_t, __spirv_ocl_u_min, std::min);
-
 #define GET_PROPS __attribute__((pure))
 #define GEN_u32(bname, muxname)                                                \
   DEVICE_EXTERN_C GET_PROPS uint32_t muxname();                                \
@@ -333,8 +332,6 @@ Define2ArgForward(uint64_t, __spirv_ocl_u_min, std::min);
 GEN_u32(__spirv_SubgroupLocalInvocationId, __mux_get_sub_group_local_id);
 GEN_u32(__spirv_SubgroupMaxSize, __mux_get_max_sub_group_size);
 GEN_u32(__spirv_SubgroupId, __mux_get_sub_group_id);
-GEN_u32(__spirv_NumSubgroups, __mux_get_num_sub_groups);
-GEN_u32(__spirv_SubgroupSize, __mux_get_sub_group_size);
 
 // I64_I32
 #define GEN_p(bname, muxname, arg)                                             \
@@ -347,8 +344,6 @@ GEN_u32(__spirv_SubgroupSize, __mux_get_sub_group_size);
   GEN_p(bname##_y, ncpu_name, 1);                                              \
   GEN_p(bname##_z, ncpu_name, 2)
 
-GEN_xyz(__spirv_GlobalInvocationId, __mux_get_global_id);
-GEN_xyz(__spirv_GlobalSize, __mux_get_global_size);
 GEN_xyz(__spirv_GlobalOffset, __mux_get_global_offset);
 GEN_xyz(__spirv_LocalInvocationId, __mux_get_local_id);
 GEN_xyz(__spirv_NumWorkgroups, __mux_get_num_groups);
@@ -360,7 +355,7 @@ using MakeGlobalType = typename sycl::detail::DecoratedType<
     T, sycl::access::address_space::global_space>::type;
 
 #define DefStateSetWithType(name, field, type)                                 \
-  DEVICE_EXTERNAL_C void __dpcpp_nativecpu_##name(                             \
+  DEVICE_EXTERNAL_C USED void __dpcpp_nativecpu_##name(                        \
       type value, MakeGlobalType<__nativecpu_state> *s) {                      \
     s->field = value;                                                          \
   }                                                                            \
@@ -372,7 +367,7 @@ DefStateSetWithType(set_sub_group_id, SubGroup_id, uint32_t);
 DefStateSetWithType(set_max_sub_group_size, SubGroup_size, uint32_t);
 
 #define DefineStateGetWithType(name, field, type)                              \
-  DEVICE_EXTERNAL_C GET_PROPS type __dpcpp_nativecpu_##name(                   \
+  DEVICE_EXTERNAL_C GET_PROPS USED type __dpcpp_nativecpu_##name(              \
       MakeGlobalType<const __nativecpu_state> *s) {                            \
     return s->field;                                                           \
   }                                                                            \
@@ -388,7 +383,7 @@ DefineStateGet_U32(get_max_sub_group_size, SubGroup_size);
 DefineStateGet_U32(get_num_sub_groups, NumSubGroups);
 
 #define DefineStateGetWithType2(name, field, rtype, ptype)                     \
-  DEVICE_EXTERNAL_C GET_PROPS rtype __dpcpp_nativecpu_##name(                  \
+  DEVICE_EXTERNAL_C GET_PROPS USED rtype __dpcpp_nativecpu_##name(             \
       ptype dim, MakeGlobalType<const __nativecpu_state> *s) {                 \
     return s->field[dim];                                                      \
   }                                                                            \
@@ -406,9 +401,9 @@ DefineStateGet_U64(get_num_groups, MNumGroups);
 DefineStateGet_U64(get_wg_size, MWorkGroup_size);
 DefineStateGet_U64(get_wg_id, MWorkGroup_id);
 
-DEVICE_EXTERNAL_C
-void __dpcpp_nativecpu_set_local_id(uint32_t dim, uint64_t value,
-                                    MakeGlobalType<__nativecpu_state> *s) {
+DEVICE_EXTERNAL_C USED void
+__dpcpp_nativecpu_set_local_id(uint32_t dim, uint64_t value,
+                               MakeGlobalType<__nativecpu_state> *s) {
   s->MLocal_id[dim] = value;
   s->MGlobal_id[dim] = s->MWorkGroup_size[dim] * s->MWorkGroup_id[dim] +
                        s->MLocal_id[dim] + s->MGlobalOffset[dim];
