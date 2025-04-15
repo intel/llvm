@@ -18,16 +18,16 @@ Therefore those tests should be structured in a way that checks are performed on
 Tests in this category may not fully exercise the extension functionality, but are instead they are focused on making sure that all APIs are consistent with respect to existing APIs.
 
 
-Perform tests on free function kernels requirments which should check the following:
- - that compiler will emit diagnostic when free function kernel is declared with reference types as parameters.
+Perform tests on free function kernels requirements which should check that:
+ - the compiler will emit diagnostic when free function kernel is declared with reference types as parameters.
   
- - that compiler will emit diagnostic when free function kernel is declared with variadic arguments.
+ - the compiler will emit diagnostic when free function kernel is declared with variadic arguments.
 
- - that compiler will emit diagnostic when free function kernel provides default parameter values.
+ - the compiler will emit diagnostic when free function kernel provides default parameter values.
 
- - that compiler will emit diagnostic when free function kernel return type is not `void`.
+ - the compiler will emit diagnostic when free function kernel return type is not `void`.
 
- - that compiler will emit diagnostic when a non-static member function is used as a kernel. Only static member function at class scope are allowed as free function kernel.
+ - the compiler will emit diagnostic when a non-static member function is used as a kernel. Only static member function at class scope are allowed as free function kernel.
 
 Perform tests on free function kernel declaration with properties `nd_range_kernel` and `single_task_kernel` which should check the following:
  - that if the property does not appear on the first declaration of the function in the translation unit, it will result in a compilation error.
