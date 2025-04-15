@@ -9,13 +9,13 @@ The tests should be launched on every supported device configuration we have.
 ### Type coverage
 New APIs for new way to define a kernel as a simple C++ function, where the kernel arguments are parameters to this function described by the extension can take only allowed kernel parameter type as specified in section [4.12.4 of the SYCL 2020 specification](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:kernel.parameter.passing) with exceptions to parameters of type `reducer` or `kernel_handler`. 
 
-Therefore those tests should be structured in a way that checks are performed on all allowed kernel parameter types to ensure that everything works correctly.
+Therefore those tests should be structured in a way that checks are performed on set of types that satisfy the various requirements for kernel arguments to ensure that everything works correctly.
 
 ## Tests
 
 ### Unit tests
 
-Tests in this category may not fully exercise the extension functionality, but are instead they are focused on making sure that all APIs are consistent with respect to existing APIs.
+Tests in this category may not fully exercise the extension functionality, but are instead focused on making sure that all APIs are consistent with respect to other APIs.
 
 
 Perform tests on free function kernels requirements which should check that:
@@ -36,41 +36,41 @@ Perform tests on free function kernel declaration with properties `nd_range_kern
  - that if a redeclaration of a function is decorated with the same property but with different arguments, the program should result in a compilation error.
 
 Perform tests on new traits for free function kernels which should check the following:
- - that `is_nd_range_kernel_v` trait returns true if function declaration is decorated with `nd_range_kernel` property and false if it is not.
+ - that `is_nd_range_kernel_v` trait should be a subclass of `true_type` if function declaration is decorated with `nd_range_kernel` property and false if it is not.
 
- - that `is_single_task_kernel_v` trait returns true function if declaration is decorated with `single_task_kernel` and false if it is not.
+ - that `is_single_task_kernel_v` trait should be a subclass of `true_type` if declaration is decorated with `single_task_kernel` and false if it is not.
 
 - that `is_kernel_v` trait returns true for function whose declaration is decorated with either the `nd_range_kernel` property or the `single_task_kernel` property when it is not then it returns false.
 
 Perform tests on new `kernel_bundle` member functions for free function kernels which should check that:
 
-    - the `get_kernel_id` member function returns a valid kernel identifier that is associated with that kernel.
+- the `get_kernel_id` member function returns a valid kernel identifier that is associated with that kernel.
     
-    - the `get_kernel_bundle(const context& ctxt)` member function returns a kernel bundle in which the associated free function kernel can be found.
+- the `get_kernel_bundle(const context& ctxt)` member function returns a kernel bundle in which the associated free function kernel can be found.
     
-    - the `get_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` member function returns a kernel bundle in which the associated free function kernel can be found.
+- the `get_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` member function returns a kernel bundle in which the associated free function kernel can be found.
     
-    - the `has_kernel_bundle(const context& ctxt)` returns true when a free function kernel can be represented in a device image in the corresponding state and the associated free function kernel is compatible with at least one of the devices in `ctxt`.
+- the `has_kernel_bundle(const context& ctxt)` returns true when a free function kernel can be represented in a device image in the corresponding state and the associated free function kernel is compatible with at least one of the devices in `ctxt`.
     
-    - the `has_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` returns true when free function kernel can be represented in a device image in the corresponding state and free function kernel is compatible with at least one of the devices in `devs`.
+- the `has_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` returns true when free function kernel can be represented in a device image in the corresponding state and free function kernel is compatible with at least one of the devices in `devs`.
     
-    - the `has_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` returns true when free function kernel can be represented in a device image in the corresponding state and free function kernel is compatible with at least one of the devices in `devs`.
+- the `has_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` returns true when free function kernel can be represented in a device image in the corresponding state and free function kernel is compatible with at least one of the devices in `devs`.
     
-    - the `is_compatible(const device& dev)` returns true when the associated free function kernel is compatible with `dev`.
+- the `is_compatible(const device& dev)` returns true when the associated free function kernel is compatible with `dev`.
     
-    - the `ext_oneapi_has_kernel()` returns true only if the kernel bundle contains the associated free function kernel.
+- the `ext_oneapi_has_kernel()` returns true only if the kernel bundle contains the associated free function kernel.
     
-    - the `ext_oneapi_has_kernel(const device &dev)` returns true when kernel bundle contains the associated free function kernel and if that kernel is compatible with `dev`.
+- the `ext_oneapi_has_kernel(const device &dev)` returns true when kernel bundle contains the associated free function kernel and if that kernel is compatible with `dev`.
     
-    - the `ext_oneapi_get_kernel` returns the kernel object representing that kernel if the free function kernel resides in this kernel bundle. 
+- the `ext_oneapi_get_kernel` returns the kernel object representing that kernel if the free function kernel resides in this kernel bundle. 
     
-    - the `ext_oneapi_get_kernel` throws exception with the error code `errc::invalid` if the associated free function kernel does not reside in this kernel bundle.
+- the `ext_oneapi_get_kernel` throws exception with the error code `errc::invalid` if the associated free function kernel does not reside in this kernel bundle.
     
-    - the `get_kernel_ids()` returns all of the kernels defined in the source, whether they were defined as free function kernels, lambda expressions or named kernel objects.
+- the `get_kernel_ids()` returns all of the kernels defined in the source, whether they were defined as free function kernels, lambda expressions or named kernel objects.
     
-    - the `info::kernel::num_args` returns  the number of parameters in the function definition of the associated free function kernel.
+- the `info::kernel::num_args` returns  the number of parameters in the function definition of the associated free function kernel.
 
-- that performs all the checks mentioned above on a free function kernel that is declared in one translation unit and defined in a separate one.
+- that performs all the checks mentioned above on a free function kernel that is declared in one translation unit and defined in another.
 
 Perform tests on new free functions to query kernel information descriptors which should check the following:
 
@@ -121,7 +121,7 @@ A series of checks should be performed that USM memory with three types of memor
 A series of checks should be performed that we can pass `id<Dimensions>` where `Dimensions` is in {1, 2, 3} as kernel parameter to free function kernel and use it within kernel. 
 
 #### Test `range` as kernel parameter:
-A series of checks should be performed that we can pass `range` with different dimensions = 1, 2, 3 as kernel parameter to free function kernel and use it within kernel.
+A series of checks should be performed that we can pass `range` where `Dimensions` is in {1, 2, 3} as kernel parameter to free function kernel and use it within kernel.
 
 #### Test `marray<T, NumElements>` when `T` is device copyable as kernel parameter:
 A series of checks should be performed that we can pass `marray<T, NumElements>` as kernel parameter to free function kernel and use it within kernel.
