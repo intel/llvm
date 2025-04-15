@@ -112,8 +112,6 @@ launch(const dim3 &grid, const dim3 &threads, sycl::queue q, Args... args) {
   return launch<F>(sycl::nd_range<3>{grid * threads, threads}, q, args...);
 }
 
-
-
 template <auto F, typename... Args>
 std::enable_if_t<std::is_invocable_v<decltype(F), Args...>, sycl::event>
 launch(const dim3 &grid, const dim3 &threads, Args... args) {
