@@ -39,6 +39,9 @@ class __attribute__((sycl_special_class)) __SYCL_TYPE(sampler) sampler {
 
 public:
   void use(void) const {}
+#ifdef __SYCL_DEVICE_ONLY__
+  sampler() = default;
+#endif
 };
 
 template <int dimensions = 1>
