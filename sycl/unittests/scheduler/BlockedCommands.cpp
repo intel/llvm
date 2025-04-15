@@ -15,14 +15,12 @@ using namespace sycl;
 using namespace testing;
 
 TEST_F(SchedulerTest, BlockedCommands) {
-  /*
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
   MockCommand MockCmd(detail::getSyclObjImpl(Q));
 
   MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  MockCmd.MIsBlockable = true;
-  MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
+  MockCmd.MRetVal = UR_RESULT_ERROR_UNKNOWN;
 
   MockScheduler MS;
   auto Lock = MS.acquireGraphReadLock();
@@ -35,13 +33,13 @@ TEST_F(SchedulerTest, BlockedCommands) {
 
   MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   Res.MResult = detail::EnqueueResultT::SyclEnqueueSuccess;
-  MockCmd.MRetVal = CL_DEVICE_PARTITION_EQUALLY;
+  MockCmd.MRetVal = UR_RESULT_ERROR_UNKNOWN;
 
   Enqueued = MockScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
-  ASSERT_FALSE(Enqueued) << "Blocked command should not be enqueued\n";
+  ASSERT_FALSE(Enqueued) << "Failed command should not be enqueued\n";
   ASSERT_EQ(detail::EnqueueResultT::SyclEnqueueFailed, Res.MResult)
       << "The command is expected to fail to enqueue.\n";
-  ASSERT_EQ(CL_DEVICE_PARTITION_EQUALLY, MockCmd.MRetVal)
+  ASSERT_EQ(UR_RESULT_ERROR_UNKNOWN, MockCmd.MRetVal)
       << "Expected different error code.\n";
   ASSERT_EQ(&MockCmd, Res.MCmd) << "Expected different failed command.\n";
 
@@ -51,7 +49,7 @@ TEST_F(SchedulerTest, BlockedCommands) {
   Enqueued = MockScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
   ASSERT_TRUE(Enqueued &&
               Res.MResult == detail::EnqueueResultT::SyclEnqueueSuccess)
-      << "The command is expected to be successfully enqueued.\n";*/
+      << "The command is expected to be successfully enqueued.\n";
 }
 
 TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
@@ -60,21 +58,17 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
 
   MockCommand A(detail::getSyclObjImpl(Q));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  A.MIsBlockable = true;
   A.MRetVal = UR_RESULT_SUCCESS;
 
   MockCommand B(detail::getSyclObjImpl(Q));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  B.MIsBlockable = true;
   B.MRetVal = UR_RESULT_SUCCESS;
 
   MockCommand C(detail::getSyclObjImpl(Q));
   C.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  C.MIsBlockable = true;
 
   MockCommand D(detail::getSyclObjImpl(Q));
   D.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  D.MIsBlockable = true;
   D.MRetVal = UR_RESULT_SUCCESS;
 
   addEdge(&A, &B, nullptr);
@@ -110,7 +104,6 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
 
   MockCommand A(detail::getSyclObjImpl(Q));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
-  A.MIsBlockable = true;
 
   MockCommand B(detail::getSyclObjImpl(Q));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
@@ -156,12 +149,10 @@ TEST_F(SchedulerTest, EnqueueHostDependency) {
 
   MockCommand A(detail::getSyclObjImpl(Q));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  A.MIsBlockable = true;
   A.MRetVal = UR_RESULT_SUCCESS;
 
   MockCommand B(detail::getSyclObjImpl(Q));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  B.MIsBlockable = true;
   B.MRetVal = UR_RESULT_SUCCESS;
 
   sycl::detail::EventImplPtr DepEvent{

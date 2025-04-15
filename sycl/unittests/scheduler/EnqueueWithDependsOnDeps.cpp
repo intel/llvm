@@ -234,7 +234,6 @@ TEST_F(DependsOnTests, EnqueueNoMemObjDoubleKernelDepHostBlocked) {
   detail::Command *Cmd1 =
       AddTaskCG(TestCGType::HOST_TASK, Events, &CustomHostLambda);
   EventImplPtr Cmd1Event = Cmd1->getEvent();
-  Cmd1->MIsBlockable = true;
   Cmd1->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
 
   // Depends on host task
@@ -331,7 +330,6 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
   HostTaskEvent.wait();
   auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
   ASSERT_NE(Cmd, nullptr);
-  Cmd->MIsBlockable = true;
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
   HostTaskEventImpl->setStateIncomplete();
 
@@ -377,7 +375,6 @@ TEST_F(DependsOnTests, BarrierWithWaitList) {
   HostTaskEvent.wait();
   auto *Cmd = static_cast<detail::Command *>(HostTaskEventImpl->getCommand());
   ASSERT_NE(Cmd, nullptr);
-  Cmd->MIsBlockable = true;
   Cmd->MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
   HostTaskEventImpl->setStateIncomplete();
 
