@@ -355,7 +355,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
 
   auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
-    PrintUrBuildLog(hProgram, phDevices, numDevices);
+    if (UrRes != UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
+      PrintUrBuildLog(hProgram, phDevices, numDevices);
     return UrRes;
   }
 
