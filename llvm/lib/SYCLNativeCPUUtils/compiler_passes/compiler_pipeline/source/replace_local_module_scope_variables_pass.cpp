@@ -640,6 +640,11 @@ PreservedAnalyses compiler::utils::ReplaceLocalModuleScopeVariablesPass::run(
     // copy the calling convention too
     newFunc->setCallingConv(kernelFunc->getCallingConv());
 
+    // and clear spir_kernel from the original function
+    if (kernelFunc->getCallingConv() == llvm::CallingConv::SPIR_KERNEL) {
+      kernelFunc->setCallingConv(llvm::CallingConv::SPIR_FUNC);
+    }
+
     // we don't use exceptions
     newFunc->addFnAttr(Attribute::NoUnwind);
 
