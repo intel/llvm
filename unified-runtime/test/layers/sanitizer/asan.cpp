@@ -11,6 +11,9 @@
  *
  */
 
+// RUN: UR_LOG_SANITIZER="level:debug;flush:debug;output:stdout" asan-test
+// REQUIRES: sanitizer
+
 #include <gtest/gtest.h>
 #include <ur_api.h>
 
@@ -47,7 +50,7 @@ TEST(DeviceAsan, Initialization) {
     }
 
     ur_platform_handle_t platform;
-    status = urPlatformGet(&adapter, 1, 1, &platform, nullptr);
+    status = urPlatformGet(adapter, 1, &platform, nullptr);
     ASSERT_EQ(status, UR_RESULT_SUCCESS);
 
     ur_device_handle_t device;
@@ -109,7 +112,7 @@ TEST(DeviceAsan, UnsupportedFeature) {
     }
 
     ur_platform_handle_t platform;
-    status = urPlatformGet(&adapter, 1, 1, &platform, nullptr);
+    status = urPlatformGet(adapter, 1, &platform, nullptr);
     ASSERT_EQ(status, UR_RESULT_SUCCESS);
 
     ur_device_handle_t device;

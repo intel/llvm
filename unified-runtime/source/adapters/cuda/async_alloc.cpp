@@ -33,9 +33,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
                                    phEventWaitList));
 
   if (phEvent) {
-    RetImplEvent =
-        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-            UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+    RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
+        ur_event_handle_t_::makeNative(UR_COMMAND_ENQUEUE_USM_DEVICE_ALLOC_EXP,
+                                       hQueue, CuStream, StreamToken));
     UR_CHECK_ERROR(RetImplEvent->start());
   }
 
@@ -93,7 +93,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
   if (phEvent) {
     RetImplEvent =
         std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-            UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+            UR_COMMAND_ENQUEUE_USM_FREE_EXP, hQueue, CuStream, StreamToken));
     UR_CHECK_ERROR(RetImplEvent->start());
   }
 

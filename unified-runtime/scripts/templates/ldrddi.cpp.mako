@@ -101,49 +101,39 @@ namespace ur_loader
         }
 
         %elif func_basename == "PlatformGet":
-        uint32_t total_platform_handle_count = 0;
 
-        for( uint32_t adapter_index = 0; adapter_index < ${obj['params'][1]['name']}; adapter_index++)
+        // extract adapter's function pointer table
+        auto dditable =
+            reinterpret_cast<${n}_platform_object_t *>( ${obj['params'][0]['name']})->dditable;
+
+        uint32_t library_platform_handle_count = 0;
+
+        result = dditable->${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( ${obj['params'][0]['name']}, 0, nullptr, &library_platform_handle_count );
+        if( ${X}_RESULT_SUCCESS != result ) return result;
+
+        if( nullptr != ${obj['params'][2]['name']} && ${obj['params'][1]['name']} !=0)
         {
-            // extract adapter's function pointer table
-            auto dditable =
-                reinterpret_cast<${n}_platform_object_t *>( ${obj['params'][0]['name']}[adapter_index])->dditable;
+            if( library_platform_handle_count > ${obj['params'][1]['name']}) {
+                library_platform_handle_count = ${obj['params'][1]['name']};
+            }
+            result = dditable->${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( ${obj['params'][0]['name']}, library_platform_handle_count, ${obj['params'][2]['name']}, nullptr );
+            if( ${X}_RESULT_SUCCESS != result ) return result;
 
-            if( ( 0 < ${obj['params'][2]['name']} ) && ( ${obj['params'][2]['name']} == total_platform_handle_count))
-                break;
-
-            uint32_t library_platform_handle_count = 0;
-
-            result = dditable->${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( &${obj['params'][0]['name']}[adapter_index], 1, 0, nullptr, &library_platform_handle_count );
-            if( ${X}_RESULT_SUCCESS != result ) break;
-
-            if( nullptr != ${obj['params'][3]['name']} && ${obj['params'][2]['name']} !=0)
+            try
             {
-                if( total_platform_handle_count + library_platform_handle_count > ${obj['params'][2]['name']}) {
-                    library_platform_handle_count = ${obj['params'][2]['name']} - total_platform_handle_count;
-                }
-                result = dditable->${n}.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)}( &${obj['params'][0]['name']}[adapter_index], 1, library_platform_handle_count, &${obj['params'][3]['name']}[ total_platform_handle_count ], nullptr );
-                if( ${X}_RESULT_SUCCESS != result ) break;
-
-                try
-                {
-                    for( uint32_t i = 0; i < library_platform_handle_count; ++i ) {
-                        uint32_t platform_index = total_platform_handle_count + i;
-                        ${obj['params'][3]['name']}[ platform_index ] = reinterpret_cast<${n}_platform_handle_t>(
-                            context->factories.${n}_platform_factory.getInstance( ${obj['params'][3]['name']}[ platform_index ], dditable ) );
-                    }
-                }
-                catch( std::bad_alloc& )
-                {
-                    result = ${X}_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+                for( uint32_t i = 0; i < library_platform_handle_count; ++i ) {
+                    ${obj['params'][2]['name']}[ i ] = reinterpret_cast<${n}_platform_handle_t>(
+                        context->factories.${n}_platform_factory.getInstance( ${obj['params'][2]['name']}[ i ], dditable ) );
                 }
             }
-
-            total_platform_handle_count += library_platform_handle_count;
+            catch( std::bad_alloc& )
+            {
+                result = ${X}_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+            }
         }
 
-        if( ${X}_RESULT_SUCCESS == result && ${obj['params'][4]['name']} != nullptr )
-            *${obj['params'][4]['name']} = total_platform_handle_count;
+        if( ${X}_RESULT_SUCCESS == result && ${obj['params'][3]['name']} != nullptr )
+            *${obj['params'][3]['name']} = library_platform_handle_count;
 
         %else:
         <%param_replacements={}%>

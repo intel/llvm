@@ -4,7 +4,7 @@
 
 template <size_t... Is> struct KernelFunctorWithWGSize {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::work_group_size<Is...>};
   }
@@ -12,7 +12,7 @@ template <size_t... Is> struct KernelFunctorWithWGSize {
 
 template <size_t... Is> struct KernelFunctorWithWGSizeHint {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::work_group_size_hint<Is...>};
   }
@@ -20,7 +20,7 @@ template <size_t... Is> struct KernelFunctorWithWGSizeHint {
 
 template <uint32_t I> struct KernelFunctorWithSGSize {
   void operator()() const {}
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
     return sycl::ext::oneapi::experimental::properties{
         sycl::ext::oneapi::experimental::sub_group_size<I>};
   }
@@ -373,11 +373,49 @@ void check_max_linear_work_group_size() {
       []() {});
 }
 
+struct TestKernelNonConstGetter {
+  TestKernelNonConstGetter() {}
+  void operator()() const { return; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::use_root_sync};
+  }
+};
+
+struct TestKernelConstGetter {
+  TestKernelConstGetter() {}
+  void operator()() const { return; }
+  auto get(sycl::ext::oneapi::experimental::properties_tag) const {
+    return sycl::ext::oneapi::experimental::properties{
+        sycl::ext::oneapi::experimental::use_root_sync};
+  }
+};
+
+struct TestKernelNoGetter {
+  TestKernelNoGetter() {}
+  void operator()() const { return; }
+};
+
+void check_non_const_getter_warning() {
+  sycl::queue Q;
+
+  // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.+}}: get(sycl::ext::oneapi::experimental::properties_tag) member in kernel functor class must be declared as a const member function}}
+  Q.single_task(TestKernelNonConstGetter());
+
+  // No error expected for kernel functor with a const get(properties_tag)
+  // method
+  Q.single_task(TestKernelConstGetter());
+
+  // No error expected for kernel functor with no get(properties_tag) method
+  Q.single_task(TestKernelNoGetter());
+}
+
 int main() {
   check_work_group_size();
   check_work_group_size_hint();
   check_sub_group_size();
   check_max_work_group_size();
   check_max_linear_work_group_size();
+  check_non_const_getter_warning();
   return 0;
 }
