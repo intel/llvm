@@ -109,21 +109,21 @@ public:
   explicit RTCHashResult(const char *HashOrLog, bool IsHash = true)
       : HashOrLog(HashOrLog), IsHash(IsHash) {}
 
-  bool failed() { return !IsHash; }
+  bool failed() const noexcept { return !IsHash; }
 
-  const char *getPreprocLog() {
+  const char *getPreprocLog() const noexcept {
     assert(failed() && "No preprocessor log");
     return HashOrLog.c_str();
   }
 
-  const char *getHash() {
+  const char *getHash() const noexcept {
     assert(!failed() && "No hash");
     return HashOrLog.c_str();
   }
 
 private:
-  sycl::detail::string HashOrLog;
-  bool IsHash;
+  const sycl::detail::string HashOrLog;
+  const bool IsHash;
 };
 
 /// Result type for SYCL runtime compilation. A successful result contains the
@@ -151,25 +151,25 @@ public:
       : ErrorCode{RTCErrorCode::SUCCESS}, BundleInfo{std::move(BundleInfo)},
         DeviceCodeIR(std::move(DeviceCodeIR)), BuildLog{BuildLog} {}
 
-  RTCErrorCode getErrorCode() const { return ErrorCode; }
+  RTCErrorCode getErrorCode() const noexcept { return ErrorCode; }
 
-  const char *getBuildLog() const { return BuildLog.c_str(); }
+  const char *getBuildLog() const noexcept { return BuildLog.c_str(); }
 
-  const RTCBundleInfo &getBundleInfo() const {
+  const RTCBundleInfo &getBundleInfo() const noexcept {
     assert(ErrorCode == RTCErrorCode::SUCCESS && "No bundle info");
     return BundleInfo;
   }
 
-  const RTCDeviceCodeIR &getDeviceCodeIR() const {
+  const RTCDeviceCodeIR &getDeviceCodeIR() const noexcept {
     assert(ErrorCode == RTCErrorCode::SUCCESS && "No device code IR");
     return DeviceCodeIR;
   }
 
 private:
-  RTCErrorCode ErrorCode;
-  RTCBundleInfo BundleInfo;
-  RTCDeviceCodeIR DeviceCodeIR;
-  sycl::detail::string BuildLog;
+  const RTCErrorCode ErrorCode;
+  const RTCBundleInfo BundleInfo;
+  const RTCDeviceCodeIR DeviceCodeIR;
+  const sycl::detail::string BuildLog;
 };
 
 //===- Entrypoints --------------------------------------------------------===//

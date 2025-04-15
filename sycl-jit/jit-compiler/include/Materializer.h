@@ -31,22 +31,22 @@ public:
   explicit SCMResult(const JITBinaryInfo &BinaryInfo)
       : Failed{false}, BinaryInfo(BinaryInfo), ErrorMessage{} {}
 
-  bool failed() const { return Failed; }
+  bool failed() const noexcept { return Failed; }
 
-  const char *getErrorMessage() const {
+  const char *getErrorMessage() const noexcept {
     assert(failed() && "No error message present");
     return ErrorMessage.c_str();
   }
 
-  const JITBinaryInfo &getBinaryInfo() const {
+  const JITBinaryInfo &getBinaryInfo() const noexcept {
     assert(!failed() && "No binary info");
     return BinaryInfo;
   }
 
 private:
-  bool Failed;
-  JITBinaryInfo BinaryInfo;
-  sycl::detail::string ErrorMessage;
+  const bool Failed;
+  const JITBinaryInfo BinaryInfo;
+  const sycl::detail::string ErrorMessage;
 };
 
 /// Obtains an LLVM module from the \p BinaryInfo descriptor, replaces loads of
