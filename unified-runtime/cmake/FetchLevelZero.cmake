@@ -69,48 +69,33 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     set(BUILD_STATIC ON)
     FetchContent_MakeAvailable(level-zero-loader)
     FetchContent_GetProperties(level-zero-loader)
-    set(BUILD_STATIC OFF)
+    # Allow build and install of the dynamic loader on Linux for Runtime Use.
+    # Windows cannot install the L0 Loader custom due to security which requires the Loader to be installed to System32.
+    if (NOT WIN32)
+        set(BUILD_STATIC OFF)
+        # Create a second copy of the repository for the second configuration
+        set(level-zero-loader-dynamic_SOURCE_DIR "${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-src")
 
-    # Create a second copy of the repository for the second configuration
-    set(level-zero-loader-dynamic_SOURCE_DIR "${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-src")
+        if(NOT EXISTS ${level-zero-loader-dynamic_SOURCE_DIR})
+            file(COPY ${level-zero-loader_SOURCE_DIR} DESTINATION ${level-zero-loader-dynamic_SOURCE_DIR})
+        endif()
 
-    if(NOT EXISTS ${level-zero-loader-dynamic_SOURCE_DIR})
-        file(COPY ${level-zero-loader_SOURCE_DIR} DESTINATION ${level-zero-loader-dynamic_SOURCE_DIR})
-    endif()
+        # Build dynamic version for runtime purposes
+        set(BUILD_STATIC OFF)
+        set(level-zero-loader-dynamic_BUILD_DIR ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build)
+        file(MAKE_DIRECTORY ${level-zero-loader-dynamic_BUILD_DIR})
 
-    # Build dynamic version for runtime purposes
-    set(BUILD_STATIC OFF)
-    set(level-zero-loader-dynamic_BUILD_DIR ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build)
-    file(MAKE_DIRECTORY ${level-zero-loader-dynamic_BUILD_DIR})
-
-    if (WIN32)
-        execute_process(
-            COMMAND ${CMAKE_COMMAND} -G Ninja -DBUILD_STATIC=OFF -S ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-src/level-zero-loader-src -B ${level-zero-loader-dynamic_BUILD_DIR} -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-        )
-    else()
         execute_process(
             COMMAND ${CMAKE_COMMAND} -G Ninja -DBUILD_STATIC=OFF -S ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-src/level-zero-loader-src -B ${level-zero-loader-dynamic_BUILD_DIR} -Wno-error
         )
-    endif()
 
-    add_custom_target(
-        LEVEL_ZERO_DYNAMIC_LOADER
-        ALL
-        COMMAND ${CMAKE_COMMAND} --build ${level-zero-loader-dynamic_BUILD_DIR}
-    )
-
-    # Ensure the install directory exists or create it
-    if (WIN32)
-        file(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/bin)
-        add_custom_command(
-            TARGET LEVEL_ZERO_DYNAMIC_LOADER POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build/bin/ze_loader.dll
-                ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build/bin/ze_validation_layer.dll
-                ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build/bin/ze_tracing_layer.dll
-                ${CMAKE_INSTALL_PREFIX}/bin
+        add_custom_target(
+            LEVEL_ZERO_DYNAMIC_LOADER
+            ALL
+            COMMAND ${CMAKE_COMMAND} --build ${level-zero-loader-dynamic_BUILD_DIR}
         )
-    else()
+
+        # Ensure the install directory exists or create it
         file(MAKE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/lib)
         add_custom_command(
             TARGET LEVEL_ZERO_DYNAMIC_LOADER POST_BUILD
