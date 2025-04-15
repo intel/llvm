@@ -112,10 +112,25 @@ launch(const dim3 &grid, const dim3 &threads, sycl::queue q, Args... args) {
   return launch<F>(sycl::nd_range<3>{grid * threads, threads}, q, args...);
 }
 
+
+
 template <auto F, typename... Args>
 std::enable_if_t<std::is_invocable_v<decltype(F), Args...>, sycl::event>
 launch(const dim3 &grid, const dim3 &threads, Args... args) {
   return launch<F>(grid, threads, get_default_queue(), args...);
+}
+
+// Overload taking zero-argument function object
+template <class F, int Dim>
+std::enable_if_t<std::is_invocable_v<const F&>, sycl::event>
+launch(const F& f, const sycl::nd_range<Dim> &range, sycl::queue q=get_default_queue()) {
+  return q.parallel_for(detail::transform_nd_range<Dim>(range),  [=](sycl::nd_item<Dim>) { f(); });
+}
+// Alternative launch through dim3 objects
+template <class F>
+std::enable_if_t<std::is_invocable_v<const F&>, sycl::event>
+launch(const F& f, const dim3 &grid, const dim3 &threads, sycl::queue q=get_default_queue()) {
+  return launch(f, sycl::nd_range<3>{grid * threads, threads}, q);
 }
 
 } // namespace syclcompat
