@@ -313,25 +313,30 @@ fill_copy_args(detail::handler_impl *impl,
 } // namespace detail
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(Queue.get(), CallerNeedsEvent)), MQueue(Queue) {}
+                 bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(Queue.get(),
+                                                  CallerNeedsEvent)),
+      MQueue(Queue) {}
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // TODO: This function is not used anymore, remove it in the next
 // ABI-breaking window.
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
-                 [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
-                 bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(
-          PrimaryQueue.get(), CallerNeedsEvent)),
+handler::handler(
+    std::shared_ptr<detail::queue_impl> Queue,
+    std::shared_ptr<detail::queue_impl> PrimaryQueue,
+    [[maybe_unused]] std::shared_ptr<detail::queue_impl> SecondaryQueue,
+    bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue.get(),
+                                                  CallerNeedsEvent)),
       MQueue(Queue) {}
 #endif
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
                  detail::queue_impl *PrimaryQueue,
-                 [[maybe_unused]] detail::queue_impl *SecondaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue, CallerNeedsEvent)),
+                 [[maybe_unused]] detail::queue_impl *SecondaryQueue,
+                 bool CallerNeedsEvent)
+    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue,
+                                                  CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}
 
 handler::handler(
