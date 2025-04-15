@@ -367,9 +367,8 @@ public:
                           const std::shared_ptr<queue_impl> &Self,
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
-    event ResEvent =
-        submit_impl(CGF, Self, Self, nullptr,
-                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
+    event ResEvent = submit_impl(CGF, Self, Self, /*CallerNeedsEvent=*/true,
+                                 Loc, IsTopCodeLoc, SubmitInfo);
     return discard_or_return(ResEvent);
   }
 
@@ -378,8 +377,8 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-      submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
-                  IsTopCodeLoc, SubmitInfo);
+    submit_impl(CGF, Self, Self, /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc,
+                SubmitInfo);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -885,8 +884,6 @@ protected:
   /// \param Self is a pointer to this queue.
   /// \param PrimaryQueue is a pointer to the primary queue. This may be the
   ///        same as Self.
-  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
-  ///        same as Self.
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
   /// \param Loc is the code location of the submit call (default argument)
@@ -895,7 +892,6 @@ protected:
   event submit_impl(const detail::type_erased_cgfo_ty &CGF,
                     const std::shared_ptr<queue_impl> &Self,
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
-                    const std::shared_ptr<queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent, const detail::code_location &Loc,
                     bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
 

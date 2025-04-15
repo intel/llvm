@@ -332,9 +332,7 @@ handler::handler(
 #endif
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 detail::queue_impl *PrimaryQueue,
-                 [[maybe_unused]] detail::queue_impl *SecondaryQueue,
-                 bool CallerNeedsEvent)
+                 detail::queue_impl *PrimaryQueue, bool CallerNeedsEvent)
     : impl(std::make_shared<detail::handler_impl>(PrimaryQueue,
                                                   CallerNeedsEvent)),
       MQueue(std::move(Queue)) {}

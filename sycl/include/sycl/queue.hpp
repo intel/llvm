@@ -381,8 +381,8 @@ public:
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
-  /// On a kernel error, this command group function object is then scheduled
-  /// for execution on a secondary queue.
+  /// Using SecondaryQueue is optional as per SYCL Specification. We ignore
+  /// the SecondaryQueue parameter in our implementation.
   ///
   /// \param CGF is a function object containing command group.
   /// \param SecondaryQueue is a fallback SYCL queue.

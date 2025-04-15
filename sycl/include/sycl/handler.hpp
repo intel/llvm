@@ -429,6 +429,7 @@ private:
   ///        is needed by the caller.
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// Constructs SYCL handler from the associated queue and the submission's
   /// primary and secondary queue.
   ///
@@ -439,7 +440,6 @@ private:
   ///        is null if no secondary queue is associated with the submission.
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // TODO: This function is not used anymore, remove it in the next
   // ABI-breaking window.
   handler(std::shared_ptr<detail::queue_impl> Queue,
@@ -449,7 +449,6 @@ private:
 #endif
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
                            detail::queue_impl *PrimaryQueue,
-                           detail::queue_impl *SecondaryQueue,
                            bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from Graph.
