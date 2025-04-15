@@ -33,14 +33,14 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
     UR_CALL(getMsanInterceptor()->insertDevice(hDevice, DI));
     DI->Type = GetDeviceType(Context, hDevice);
     if (DI->Type == DeviceType::UNKNOWN) {
-      UR_LOG_L(getContext()->logger, ERROR, "Unsupport device");
+      UR_LOG_L(getContext()->logger, Error, "Unsupport device");
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
-    UR_LOG_L(getContext()->logger, INFO,
+    UR_LOG_L(getContext()->logger, Info,
              "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
              (void *)DI->Handle, ToString(DI->Type),
              DI->IsSupportSharedSystemUSM);
-    UR_LOG_L(getContext()->logger, INFO, "Add {} into context {}",
+    UR_LOG_L(getContext()->logger, Info, "Add {} into context {}",
              (void *)DI->Handle, (void *)Context);
     if (!DI->Shadow) {
       UR_CALL(DI->allocShadowMemory(Context));
@@ -99,7 +99,7 @@ ur_result_t urUSMDeviceAlloc(
     size_t size,
     /// [out] pointer to USM device memory object
     void **ppMem) {
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMDeviceAlloc");
+  UR_LOG_L(getContext()->logger, Debug, "==== urUSMDeviceAlloc");
 
   return getMsanInterceptor()->allocateMemory(
       hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
@@ -117,7 +117,7 @@ ur_result_t UR_APICALL urUSMHostAlloc(
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM host memory object
 ) {
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMHostAlloc");
+  UR_LOG_L(getContext()->logger, Debug, "==== urUSMHostAlloc");
 
   return getMsanInterceptor()->allocateMemory(hContext, nullptr, pUSMDesc, pool,
                                               size, AllocType::HOST_USM, ppMem);
@@ -136,7 +136,7 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
         size, ///< [in] size in bytes of the USM memory object to be allocated
     void **ppMem ///< [out] pointer to USM shared memory object
 ) {
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMSharedAlloc");
+  UR_LOG_L(getContext()->logger, Debug, "==== urUSMSharedAlloc");
 
   return getMsanInterceptor()->allocateMemory(
       hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
@@ -149,7 +149,7 @@ ur_result_t UR_APICALL urUSMFree(
     ur_context_handle_t hContext,
     /// [in] pointer to USM memory object
     void *pMem) {
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urUSMFree");
+  UR_LOG_L(getContext()->logger, Debug, "==== urUSMFree");
 
   return getMsanInterceptor()->releaseMemory(hContext, pMem);
 }
@@ -170,7 +170,7 @@ ur_result_t urProgramCreateWithIL(
   auto pfnProgramCreateWithIL =
       getContext()->urDdiTable.Program.pfnCreateWithIL;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramCreateWithIL");
+  UR_LOG_L(getContext()->logger, Debug, "==== urProgramCreateWithIL");
 
   UR_CALL(
       pfnProgramCreateWithIL(hContext, pIL, length, pProperties, phProgram));
@@ -202,7 +202,7 @@ ur_result_t urProgramCreateWithBinary(
   auto pfnProgramCreateWithBinary =
       getContext()->urDdiTable.Program.pfnCreateWithBinary;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramCreateWithBinary");
+  UR_LOG_L(getContext()->logger, Debug, "==== urProgramCreateWithBinary");
 
   UR_CALL(pfnProgramCreateWithBinary(hContext, numDevices, phDevices, pLengths,
                                      ppBinaries, pProperties, phProgram));
@@ -225,7 +225,7 @@ ur_result_t urProgramCreateWithNativeHandle(
   auto pfnProgramCreateWithNativeHandle =
       getContext()->urDdiTable.Program.pfnCreateWithNativeHandle;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramCreateWithNativeHandle");
+  UR_LOG_L(getContext()->logger, Debug, "==== urProgramCreateWithNativeHandle");
 
   UR_CALL(pfnProgramCreateWithNativeHandle(hNativeProgram, hContext,
                                            pProperties, phProgram));
@@ -242,7 +242,7 @@ urProgramRetain(ur_program_handle_t
                     hProgram) {
   auto pfnRetain = getContext()->urDdiTable.Program.pfnRetain;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramRetain");
+  UR_LOG_L(getContext()->logger, Debug, "==== urProgramRetain");
 
   UR_CALL(pfnRetain(hProgram));
 
@@ -264,7 +264,7 @@ ur_result_t urProgramBuild(
     const char *pOptions) {
   auto pfnProgramBuild = getContext()->urDdiTable.Program.pfnBuild;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuild");
+  UR_LOG_L(getContext()->logger, Debug, "==== urProgramBuild");
 
   auto UrRes = pfnProgramBuild(hContext, hProgram, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
@@ -291,7 +291,7 @@ ur_result_t urProgramBuildExp(
     const char *pOptions) {
   auto pfnBuildExp = getContext()->urDdiTable.ProgramExp.pfnBuildExp;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramBuildExp");
+  UR_LOG_L(getContext()->logger, Debug, "==== urProgramBuildExp");
 
   auto UrRes = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
   if (UrRes != UR_RESULT_SUCCESS) {
@@ -319,7 +319,7 @@ ur_result_t urProgramLink(
     ur_program_handle_t *phProgram) {
   auto pfnProgramLink = getContext()->urDdiTable.Program.pfnLink;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLink");
+  UR_LOG_L(getContext()->logger, Debug, "==== urProgramLink");
 
   auto UrRes = pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram);
   if (UrRes != UR_RESULT_SUCCESS) {
@@ -353,7 +353,7 @@ ur_result_t urProgramLinkExp(
     ur_program_handle_t *phProgram) {
   auto pfnProgramLinkExp = getContext()->urDdiTable.ProgramExp.pfnLinkExp;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramLinkExp");
+  UR_LOG_L(getContext()->logger, Debug, "==== urProgramLinkExp");
 
   auto UrRes = pfnProgramLinkExp(hContext, numDevices, phDevices, count,
                                  phPrograms, pOptions, phProgram);
@@ -375,7 +375,7 @@ ur_result_t urProgramRelease(
     ur_program_handle_t hProgram) {
   auto pfnProgramRelease = getContext()->urDdiTable.Program.pfnRelease;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urProgramRelease");
+  UR_LOG_L(getContext()->logger, Debug, "==== urProgramRelease");
 
   UR_CALL(pfnProgramRelease(hProgram));
 
@@ -423,7 +423,7 @@ ur_result_t urEnqueueKernelLaunch(
     ur_event_handle_t *phEvent) {
   auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueKernelLaunch");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueKernelLaunch");
 
   USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
                            pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
@@ -463,7 +463,7 @@ ur_result_t urContextCreate(
     ur_context_handle_t *phContext) {
   auto pfnCreate = getContext()->urDdiTable.Context.pfnCreate;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextCreate");
+  UR_LOG_L(getContext()->logger, Debug, "==== urContextCreate");
 
   ur_result_t result = pfnCreate(numDevices, phDevices, pProperties, phContext);
 
@@ -491,7 +491,7 @@ ur_result_t urContextCreateWithNativeHandle(
   auto pfnCreateWithNativeHandle =
       getContext()->urDdiTable.Context.pfnCreateWithNativeHandle;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextCreateWithNativeHandle");
+  UR_LOG_L(getContext()->logger, Debug, "==== urContextCreateWithNativeHandle");
 
   ur_result_t result = pfnCreateWithNativeHandle(
       hNativeContext, hAdapter, numDevices, phDevices, pProperties, phContext);
@@ -511,7 +511,7 @@ ur_result_t urContextRetain(
     ur_context_handle_t hContext) {
   auto pfnRetain = getContext()->urDdiTable.Context.pfnRetain;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextRetain");
+  UR_LOG_L(getContext()->logger, Debug, "==== urContextRetain");
 
   UR_CALL(pfnRetain(hContext));
 
@@ -529,7 +529,7 @@ ur_result_t urContextRelease(
     ur_context_handle_t hContext) {
   auto pfnRelease = getContext()->urDdiTable.Context.pfnRelease;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urContextRelease");
+  UR_LOG_L(getContext()->logger, Debug, "==== urContextRelease");
 
   UR_CALL(pfnRelease(hContext));
 
@@ -559,7 +559,7 @@ ur_result_t urMemBufferCreate(
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
   }
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemBufferCreate");
+  UR_LOG_L(getContext()->logger, Debug, "==== urMemBufferCreate");
 
   void *Host = nullptr;
   if (pProperties) {
@@ -615,7 +615,7 @@ ur_result_t urMemGetInfo(
     size_t *pPropSizeRet) {
   auto pfnGetInfo = getContext()->urDdiTable.Mem.pfnGetInfo;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemGetInfo");
+  UR_LOG_L(getContext()->logger, Debug, "==== urMemGetInfo");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hMemory)) {
     UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
@@ -644,7 +644,7 @@ ur_result_t urMemRetain(
     ur_mem_handle_t hMem) {
   auto pfnRetain = getContext()->urDdiTable.Mem.pfnRetain;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRetain");
+  UR_LOG_L(getContext()->logger, Debug, "==== urMemRetain");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hMem)) {
     MemBuffer->RefCount++;
@@ -662,7 +662,7 @@ ur_result_t urMemRelease(
     ur_mem_handle_t hMem) {
   auto pfnRelease = getContext()->urDdiTable.Mem.pfnRelease;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemRelease");
+  UR_LOG_L(getContext()->logger, Debug, "==== urMemRelease");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hMem)) {
     if (--MemBuffer->RefCount != 0) {
@@ -693,7 +693,7 @@ ur_result_t urMemBufferPartition(
     ur_mem_handle_t *phMem) {
   auto pfnBufferPartition = getContext()->urDdiTable.Mem.pfnBufferPartition;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemBufferPartition");
+  UR_LOG_L(getContext()->logger, Debug, "==== urMemBufferPartition");
 
   if (auto ParentBuffer = getMsanInterceptor()->getMemBuffer(hBuffer)) {
     if (ParentBuffer->Size < (pRegion->origin + pRegion->size)) {
@@ -720,7 +720,7 @@ ur_result_t urMemGetNativeHandle(
     ur_native_handle_t *phNativeMem) {
   auto pfnGetNativeHandle = getContext()->urDdiTable.Mem.pfnGetNativeHandle;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urMemGetNativeHandle");
+  UR_LOG_L(getContext()->logger, Debug, "==== urMemGetNativeHandle");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hMem)) {
     char *Handle = nullptr;
@@ -760,7 +760,7 @@ ur_result_t urEnqueueMemBufferRead(
     ur_event_handle_t *phEvent) {
   auto pfnMemBufferRead = getContext()->urDdiTable.Enqueue.pfnMemBufferRead;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferRead");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueMemBufferRead");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hBuffer)) {
     ur_device_handle_t Device = GetDevice(hQueue);
@@ -804,7 +804,7 @@ ur_result_t urEnqueueMemBufferWrite(
     ur_event_handle_t *phEvent) {
   auto pfnMemBufferWrite = getContext()->urDdiTable.Enqueue.pfnMemBufferWrite;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferWrite");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueMemBufferWrite");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hBuffer)) {
     ur_device_handle_t Device = GetDevice(hQueue);
@@ -881,7 +881,7 @@ ur_result_t urEnqueueMemBufferReadRect(
   auto pfnMemBufferReadRect =
       getContext()->urDdiTable.Enqueue.pfnMemBufferReadRect;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferReadRect");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueMemBufferReadRect");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hBuffer)) {
     char *SrcHandle = nullptr;
@@ -942,7 +942,7 @@ ur_result_t urEnqueueMemBufferWriteRect(
   auto pfnMemBufferWriteRect =
       getContext()->urDdiTable.Enqueue.pfnMemBufferWriteRect;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferWriteRect");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueMemBufferWriteRect");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hBuffer)) {
     char *DstHandle = nullptr;
@@ -990,7 +990,7 @@ ur_result_t urEnqueueMemBufferCopy(
     ur_event_handle_t *phEvent) {
   auto pfnMemBufferCopy = getContext()->urDdiTable.Enqueue.pfnMemBufferCopy;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferCopy");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueMemBufferCopy");
 
   auto SrcBuffer = getMsanInterceptor()->getMemBuffer(hBufferSrc);
   auto DstBuffer = getMsanInterceptor()->getMemBuffer(hBufferDst);
@@ -1075,7 +1075,7 @@ ur_result_t urEnqueueMemBufferCopyRect(
   auto pfnMemBufferCopyRect =
       getContext()->urDdiTable.Enqueue.pfnMemBufferCopyRect;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferCopyRect");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueMemBufferCopyRect");
 
   auto SrcBuffer = getMsanInterceptor()->getMemBuffer(hBufferSrc);
   auto DstBuffer = getMsanInterceptor()->getMemBuffer(hBufferDst);
@@ -1132,7 +1132,7 @@ ur_result_t urEnqueueMemBufferFill(
     ur_event_handle_t *phEvent) {
   auto pfnMemBufferFill = getContext()->urDdiTable.Enqueue.pfnMemBufferFill;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferFill");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueMemBufferFill");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hBuffer)) {
     char *Handle = nullptr;
@@ -1199,7 +1199,7 @@ ur_result_t urEnqueueMemBufferMap(
     void **ppRetMap) {
   auto pfnMemBufferMap = getContext()->urDdiTable.Enqueue.pfnMemBufferMap;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemBufferMap");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueMemBufferMap");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hBuffer)) {
 
@@ -1281,7 +1281,7 @@ ur_result_t urEnqueueMemUnmap(
     ur_event_handle_t *phEvent) {
   auto pfnMemUnmap = getContext()->urDdiTable.Enqueue.pfnMemUnmap;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueMemUnmap");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueMemUnmap");
 
   if (auto MemBuffer = getMsanInterceptor()->getMemBuffer(hMem)) {
     MemBuffer::Mapping Mapping{};
@@ -1322,7 +1322,7 @@ ur_result_t urKernelRetain(
     ur_kernel_handle_t hKernel) {
   auto pfnRetain = getContext()->urDdiTable.Kernel.pfnRetain;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelRetain");
+  UR_LOG_L(getContext()->logger, Debug, "==== urKernelRetain");
 
   UR_CALL(pfnRetain(hKernel));
 
@@ -1339,7 +1339,7 @@ ur_result_t urKernelRelease(
     ur_kernel_handle_t hKernel) {
   auto pfnRelease = getContext()->urDdiTable.Kernel.pfnRelease;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelRelease");
+  UR_LOG_L(getContext()->logger, Debug, "==== urKernelRelease");
 
   auto &KernelInfo = getMsanInterceptor()->getOrCreateKernelInfo(hKernel);
   if (--KernelInfo.RefCount == 0) {
@@ -1365,7 +1365,7 @@ ur_result_t urKernelSetArgValue(
     const void *pArgValue) {
   auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgValue");
+  UR_LOG_L(getContext()->logger, Debug, "==== urKernelSetArgValue");
 
   std::shared_ptr<MemBuffer> MemBuffer;
   if (argSize == sizeof(ur_mem_handle_t) &&
@@ -1394,7 +1394,7 @@ ur_result_t urKernelSetArgMemObj(
     ur_mem_handle_t hArgValue) {
   auto pfnSetArgMemObj = getContext()->urDdiTable.Kernel.pfnSetArgMemObj;
 
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urKernelSetArgMemObj");
+  UR_LOG_L(getContext()->logger, Debug, "==== urKernelSetArgMemObj");
 
   std::shared_ptr<MemBuffer> MemBuffer;
   std::shared_ptr<KernelInfo> KernelInfo;
@@ -1422,7 +1422,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     const ur_kernel_arg_local_properties_t *pProperties) {
   auto pfnSetArgLocal = getContext()->urDdiTable.Kernel.pfnSetArgLocal;
 
-  UR_LOG_L(getContext()->logger, DEBUG,
+  UR_LOG_L(getContext()->logger, Debug,
            "==== urKernelSetArgLocal (argIndex={}, argSize={})", argIndex,
            argSize);
 
@@ -1461,7 +1461,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill(
     /// must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) {
   auto pfnUSMFill = getContext()->urDdiTable.Enqueue.pfnUSMFill;
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueUSMFill");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueUSMFill");
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
@@ -1517,7 +1517,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     /// must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) {
   auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueUSMMemcpy");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueUSMMemcpy");
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
@@ -1594,7 +1594,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
     /// phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) {
   auto pfnUSMFill2D = getContext()->urDdiTable.Enqueue.pfnUSMFill2D;
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueUSMFill2D");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueUSMFill2D");
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
@@ -1658,7 +1658,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     /// phEvent must not refer to an element of the phEventWaitList array.
     ur_event_handle_t *phEvent) {
   auto pfnUSMMemcpy2D = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D;
-  UR_LOG_L(getContext()->logger, DEBUG, "==== urEnqueueUSMMemcpy2D");
+  UR_LOG_L(getContext()->logger, Debug, "==== urEnqueueUSMMemcpy2D");
 
   std::vector<ur_event_handle_t> Events;
   ur_event_handle_t Event{};
@@ -1948,7 +1948,7 @@ ur_result_t initMsanDDITable(ur_dditable_t *dditable) {
   }
 
   if (result != UR_RESULT_SUCCESS) {
-    UR_LOG_L(getContext()->logger, ERROR,
+    UR_LOG_L(getContext()->logger, Error,
              "Initialize MSAN DDI table failed: {}", result);
   }
 

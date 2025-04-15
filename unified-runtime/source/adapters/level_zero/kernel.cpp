@@ -189,7 +189,7 @@ ur_result_t urEnqueueKernelLaunch(
                 (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   }
 
-  UR_LOG(DEBUG, "calling zeCommandListAppendLaunchKernel() with ZeEvent {}",
+  UR_LOG(Debug, "calling zeCommandListAppendLaunchKernel() with ZeEvent {}",
          ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
 
@@ -316,14 +316,14 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
         }
 
         if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-          UR_LOG(ERROR,
+          UR_LOG(Error,
                  "urEnqueueCooperativeKernelLaunchExp: can't find a WG size "
                  "suitable for global work size > UINT32_MAX");
           return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
         }
         WG[I] = GroupSize[I];
       }
-      UR_LOG(DEBUG,
+      UR_LOG(Debug,
              "urEnqueueCooperativeKernelLaunchExp: using computed WG "
              "size = {{{}, {}, {}}}",
              WG[0], WG[1], WG[2]);
@@ -355,28 +355,28 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
     break;
 
   default:
-    UR_LOG(ERROR, "urEnqueueCooperativeKernelLaunchExp: unsupported work_dim");
+    UR_LOG(Error, "urEnqueueCooperativeKernelLaunchExp: unsupported work_dim");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   // Error handling for non-uniform group size case
   if (GlobalWorkSize3D[0] !=
       size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    UR_LOG(ERROR,
+    UR_LOG(Error,
            "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
            "range is not a multiple of the group size in the 1st dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[1] !=
       size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    UR_LOG(ERROR,
+    UR_LOG(Error,
            "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
            "range is not a multiple of the group size in the 2nd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
   if (GlobalWorkSize3D[2] !=
       size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
-    UR_LOG(DEBUG,
+    UR_LOG(Debug,
            "urEnqueueCooperativeKernelLaunchExp: invalid work_dim. The "
            "range is not a multiple of the group size in the 3rd dimension");
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
@@ -449,7 +449,7 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
                 (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   }
 
-  UR_LOG(DEBUG,
+  UR_LOG(Debug,
          "calling zeCommandListAppendLaunchCooperativeKernel() with ZeEvent {}",
          ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
@@ -790,7 +790,7 @@ ur_result_t urKernelGetInfo(
       return UR_RESULT_ERROR_UNKNOWN;
     }
   default:
-    UR_LOG(ERROR,
+    UR_LOG(Error,
            "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
            ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -879,7 +879,7 @@ ur_result_t urKernelGetGroupInfo(
     // No corresponding enumeration in Level Zero
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default: {
-    UR_LOG(ERROR,
+    UR_LOG(Error,
            "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
            ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -1025,7 +1025,7 @@ ur_result_t urKernelSetExecInfo(
         return UR_RESULT_ERROR_INVALID_VALUE;
       ZE2UR_CALL(zeKernelSetCacheConfig, (ZeKernel, ZeCacheConfig););
     } else {
-      UR_LOG(ERROR, "urKernelSetExecInfo: unsupported ParamName");
+      UR_LOG(Error, "urKernelSetExecInfo: unsupported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }
@@ -1177,7 +1177,7 @@ ur_result_t urKernelSetSpecializationConstants(
   std::ignore = Kernel;
   std::ignore = Count;
   std::ignore = SpecConstants;
-  UR_LOG_LEGACY(ERROR,
+  UR_LOG_LEGACY(Error,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

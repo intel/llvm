@@ -76,7 +76,7 @@ bool setEnvVar(const char *name, const char *value) {
   int Res = setenv(name, value, 1);
 #endif
   if (Res != 0) {
-    UR_LOG(DEBUG,
+    UR_LOG(Debug,
            "UR L0 Adapter was unable to set the environment variable: {}",
            name);
     return false;
@@ -139,7 +139,7 @@ void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
 
 ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
                            const char *ZeArgs, bool TraceError) {
-  UR_LOG(DEBUG, "ZE ---> {}{}", ZeName, ZeArgs);
+  UR_LOG(Debug, "ZE ---> {}{}", ZeName, ZeArgs);
 
   if (ZeResult == ZE_RESULT_SUCCESS) {
     if (UrL0LeaksDebug) {
@@ -151,7 +151,7 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (TraceError) {
     const char *ErrorString = "Unknown";
     zeParseError(ZeResult, ErrorString);
-    UR_LOG(ERROR, "Error ({}) in {}", ErrorString, ZeName);
+    UR_LOG(Error, "Error ({}) in {}", ErrorString, ZeName);
   }
   return ZeResult;
 }

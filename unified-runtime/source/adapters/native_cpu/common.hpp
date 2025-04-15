@@ -21,19 +21,19 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 
 #define DIE_NO_IMPLEMENTATION                                                  \
   do {                                                                         \
-    UR_LOG(ERROR, "Not Implemented : {}", __FUNCTION__)                        \
+    UR_LOG(Error, "Not Implemented : {}", __FUNCTION__)                        \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;                                \
   } while (false)
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   do {                                                                         \
-    UR_LOG(WARN, "Not Implemented : {}", __FUNCTION__)                         \
+    UR_LOG(Warning, "Not Implemented : {}", __FUNCTION__)                      \
     return UR_RESULT_SUCCESS;                                                  \
   } while (false)
 
 #define CASE_UR_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
-    UR_LOG(ERROR, "Unsupported UR case : {} in {}", #not_supported,            \
+    UR_LOG(Error, "Unsupported UR case : {} in {}", #not_supported,            \
            __FUNCTION__)                                                       \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 

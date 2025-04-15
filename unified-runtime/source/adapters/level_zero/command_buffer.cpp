@@ -19,7 +19,7 @@ https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CommandGraph.md#level-ze
 */
 
 // Print the name of a variable and its value in the L0 debug log
-#define DEBUG_LOG(VAR) UR_LOG(DEBUG, #VAR " {}", VAR);
+#define DEBUG_LOG(VAR) UR_LOG(Debug, #VAR " {}", VAR);
 
 namespace {
 
@@ -44,7 +44,7 @@ bool checkImmediateAppendSupport(ur_context_handle_t Context,
     const bool EnableAppendPath = std::atoi(UrRet) == 1;
 
     if (EnableAppendPath && !Device->ImmCommandListUsed) {
-      UR_LOG(ERROR,
+      UR_LOG(Error,
              "{} is set but immediate command-lists are currently "
              "disabled. Immediate command-lists are "
              "required to use the immediate append path.",
@@ -52,7 +52,7 @@ bool checkImmediateAppendSupport(ur_context_handle_t Context,
       std::abort();
     }
     if (EnableAppendPath && !DriverSupportsImmediateAppend) {
-      UR_LOG(ERROR,
+      UR_LOG(Error,
              "{} is set but the current driver does not support the "
              "zeCommandListImmediateAppendCommandListsExp entrypoint.",
              AppendEnvVarName);
@@ -1842,7 +1842,7 @@ ur_result_t validateCommandDesc(
   auto SupportedFeatures =
       CommandBuffer->Device->ZeDeviceMutableCmdListsProperties
           ->mutableCommandFlags;
-  UR_LOG(DEBUG, "Mutable features supported by device {}", SupportedFeatures);
+  UR_LOG(Debug, "Mutable features supported by device {}", SupportedFeatures);
 
   auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
   UR_ASSERT(CommandBuffer == Command->CommandBuffer,
@@ -1871,7 +1871,7 @@ ur_result_t validateCommandDesc(
   if (NewGlobalWorkOffset) {
     if (!CommandBuffer->Context->getPlatform()
              ->ZeDriverGlobalOffsetExtensionFound) {
-      UR_LOG(ERROR, "No global offset extension found on this driver");
+      UR_LOG(Error, "No global offset extension found on this driver");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
   }

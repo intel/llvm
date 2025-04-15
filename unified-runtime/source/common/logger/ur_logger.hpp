@@ -32,10 +32,10 @@ inline void init(const std::string &name) { get_logger(name.c_str()); }
 
 #define UR_LOG(...) URLOG_(logger::get_logger(), __VA_ARGS__)
 #define UR_LOG_LEGACY(...) URLOG_LEGACY_(logger::get_logger(), __VA_ARGS__)
-#define UR_LOG_L(...) URLOG_(__VA_ARGS__)
 
 // TODO: consider removing UR_LOG_L and maybe UR_LOG_LEGACY macros, using UR_LOG
 // instead
+#define UR_LOG_L(...) URLOG_(__VA_ARGS__)
 
 inline void setLevel(ur_logger_level_t level) { get_logger().setLevel(level); }
 

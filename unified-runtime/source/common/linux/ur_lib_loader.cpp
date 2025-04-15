@@ -25,11 +25,11 @@ void LibLoader::freeAdapterLibrary(HMODULE handle) {
   if (handle) {
     int res = dlclose(handle);
     if (res) {
-      UR_LOG(ERROR,
+      UR_LOG(Error,
              "Failed to unload the library with the handle at address {}",
              handle);
     } else {
-      UR_LOG(INFO, "unloaded adapter 0x{}", handle);
+      UR_LOG(Info, "unloaded adapter 0x{}", handle);
     }
   }
 }
@@ -59,21 +59,21 @@ LibLoader::loadAdapterLibrary(const char *name) {
         (strstr(err, name) == NULL || strstr(err, "required by") != NULL)) {
       // If the adapter cannot be loaded due to missing dependencies or any
       // other related error, it is considered as an error.
-      UR_LOG(ERROR, "failed to load adapter '{}' with error: {}", name, err);
+      UR_LOG(Error, "failed to load adapter '{}' with error: {}", name, err);
     } else {
       // Simply having the adapter library missing isn't an error.
-      UR_LOG(INFO, "failed to load adapter '{}' with error: {}", name,
+      UR_LOG(Info, "failed to load adapter '{}' with error: {}", name,
              err ? err : "unknown error");
     }
   } else {
 #if defined(ADD_FULL_PATH_LOG)
     struct link_map *dlinfo_map;
     if (dlinfo(handle, RTLD_DI_LINKMAP, &dlinfo_map) == 0) {
-      UR_LOG(INFO, "loaded adapter 0x{} ({}) from {}", handle, name,
+      UR_LOG(Info, "loaded adapter 0x{} ({}) from {}", handle, name,
              dlinfo_map->l_name);
     } else
 #endif
-      UR_LOG(INFO, "loaded adapter 0x{} ({})", handle, name);
+      UR_LOG(Info, "loaded adapter 0x{} ({})", handle, name);
   }
   return std::unique_ptr<HMODULE, LibLoader::lib_dtor>(handle);
 }

@@ -185,7 +185,7 @@ struct AsanRuntimeDataWrapper {
           Context, Device, nullptr, nullptr, sizeof(AsanRuntimeData),
           (void **)&DevicePtr);
       if (Result != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, ERROR,
+        UR_LOG_L(getContext()->logger, Error,
                  "Failed to alloc device usm for asan runtime data: {}",
                  Result);
       }
