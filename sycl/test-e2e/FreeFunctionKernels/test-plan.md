@@ -97,8 +97,8 @@ Perform tests on new free functions to query kernel information descriptors whic
     ```
 
 Perform tests on use of illegal types for kernel paramters:
-- that A class type S with a virtual base class of type T can not be used as free function kernel parameter type.
-- that A class type S with a virtual member function can not be used as free function kernel parameter type.
+- that a class type `S` with a virtual base class of type `T` can not be used as free function kernel parameter type.
+- that a class type `S` with a virtual member function can not be used as free function kernel parameter type.
 
 ### End-to-end tests
 
