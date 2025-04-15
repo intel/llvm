@@ -1301,12 +1301,11 @@ ASTNodeImporter::VisitVariableArrayType(const VariableArrayType *T) {
   Error Err = Error::success();
   QualType ToElementType = importChecked(Err, T->getElementType());
   Expr *ToSizeExpr = importChecked(Err, T->getSizeExpr());
-  SourceRange ToBracketsRange = importChecked(Err, T->getBracketsRange());
   if (Err)
     return std::move(Err);
   return Importer.getToContext().getVariableArrayType(
       ToElementType, ToSizeExpr, T->getSizeModifier(),
-      T->getIndexTypeCVRQualifiers(), ToBracketsRange);
+      T->getIndexTypeCVRQualifiers());
 }
 
 ExpectedType ASTNodeImporter::VisitDependentSizedArrayType(
@@ -1314,7 +1313,6 @@ ExpectedType ASTNodeImporter::VisitDependentSizedArrayType(
   Error Err = Error::success();
   QualType ToElementType = importChecked(Err, T->getElementType());
   Expr *ToSizeExpr = importChecked(Err, T->getSizeExpr());
-  SourceRange ToBracketsRange = importChecked(Err, T->getBracketsRange());
   if (Err)
     return std::move(Err);
   // SizeExpr may be null if size is not specified directly.
@@ -1322,7 +1320,7 @@ ExpectedType ASTNodeImporter::VisitDependentSizedArrayType(
 
   return Importer.getToContext().getDependentSizedArrayType(
       ToElementType, ToSizeExpr, T->getSizeModifier(),
-      T->getIndexTypeCVRQualifiers(), ToBracketsRange);
+      T->getIndexTypeCVRQualifiers());
 }
 
 ExpectedType ASTNodeImporter::VisitDependentSizedExtVectorType(

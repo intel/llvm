@@ -6138,7 +6138,7 @@ public:
     Policy.adjustForCPlusPlusFwdDecl();
     Policy.SuppressTypedefs = true;
     Policy.SuppressUnwrittenScope = true;
-    Policy.PrintCanonicalTypes = true;
+    Policy.PrintAsCanonical = true;
     Policy.SkipCanonicalizationOfTemplateTypeParms = true;
     Policy.SuppressFinalSpecifier = true;
   }
@@ -6827,7 +6827,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     std::string ParmListWithNames;
     bool FirstParam = true;
     Policy.SuppressDefaultTemplateArgs = false;
-    Policy.PrintCanonicalTypes = true;
+    Policy.PrintAsCanonical = true;
     llvm::raw_string_ostream ParmListWithNamesOstream{ParmListWithNames};
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (FirstParam)
@@ -6844,7 +6844,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     ParmListWithNamesOstream.flush();
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
-    Policy.PrintCanonicalTypes = false;
+    Policy.PrintAsCanonical = false;
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
     Policy.FullyQualifiedName = true;
@@ -7134,7 +7134,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.adjustForCPlusPlusFwdDecl();
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
-  Policy.PrintCanonicalTypes = true;
+  Policy.PrintAsCanonical = true;
 
   llvm::SmallSet<const VarDecl *, 8> Visited;
   bool EmittedFirstSpecConstant = false;

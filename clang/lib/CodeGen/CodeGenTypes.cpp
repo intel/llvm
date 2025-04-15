@@ -58,7 +58,7 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
   OS << RD->getKindName() << '.';
 
   // FIXME: We probably want to make more tweaks to the printing policy. For
-  // example, we should probably enable PrintCanonicalTypes and
+  // example, we should probably enable PrintAsCanonical and
   // FullyQualifiedNames.
   PrintingPolicy Policy = RD->getASTContext().getPrintingPolicy();
   Policy.SuppressInlineNamespace =

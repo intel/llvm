@@ -423,7 +423,7 @@ public:
     TypeHintPolicy.AnonymousTagLocations =
         false; // do not print lambda locations
 
-    // Not setting PrintCanonicalTypes for "auto" allows
+    // Not setting PrintAsCanonical for "auto" allows
     // SuppressDefaultTemplateArgs (set by default) to have an effect.
   }
 
