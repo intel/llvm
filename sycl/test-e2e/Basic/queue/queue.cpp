@@ -1,4 +1,5 @@
 // RUN: %{build} -o %t.out
+
 // RUN: %{run} %t.out
 
 //==--------------- queue.cpp - SYCL queue test ----------------------------==//
