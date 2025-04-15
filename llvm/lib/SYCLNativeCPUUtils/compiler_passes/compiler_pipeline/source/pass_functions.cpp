@@ -615,6 +615,11 @@ static llvm::Function *createKernelWrapperFunctionImpl(
   // copy the calling convention from the old function
   NewFunction.setCallingConv(F.getCallingConv());
 
+  // and remove spir_kernel from the old function
+  if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL) {
+    F.setCallingConv(llvm::CallingConv::SPIR_FUNC);
+  }
+
   // copy the metadata into the new kernel ignoring any debug info.
   copyFunctionMetadata(F, NewFunction);
 
