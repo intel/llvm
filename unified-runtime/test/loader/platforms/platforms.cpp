@@ -56,9 +56,10 @@ int main(int, char *[]) {
       UR_LOG_L(out, Error, "urPlatformGet failed with return code: {}", status);
       goto out;
     }
-    UR_LOG_L(out, Info, "urPlatformGet found {} platforms", platformCount);
+    UR_LOG_L(out, Info, "urPlatformGet found {} platforms",
+             adapterPlatformCount);
 
-    platforms.reserve(platformCount + adapterPlatformCount);
+    platforms.resize(platformCount + adapterPlatformCount);
     status = urPlatformGet(adapter, adapterPlatformCount,
                            &platforms[platformCount], &adapterPlatformCount);
     if (status != UR_RESULT_SUCCESS) {
@@ -67,7 +68,6 @@ int main(int, char *[]) {
     }
     platformCount += adapterPlatformCount;
   }
-  platforms.resize(platformCount);
 
   for (auto p : platforms) {
     size_t name_len;
