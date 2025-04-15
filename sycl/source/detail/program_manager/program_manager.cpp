@@ -641,10 +641,12 @@ bool ProgramManager::isSpecialDeviceImageShouldBeUsed(
     // TODO: re-design the encode of the devicelib metadata if we must support
     // more devicelib images in this way.
     enum { DEVICELIB_FALLBACK = 0, DEVICELIB_NATIVE };
+    ur_bool_t NativeBF16Supported = false;
     const std::shared_ptr<detail::device_impl> &DeviceImpl =
         detail::getSyclObjImpl(Dev);
-    std::string NativeBF16ExtName = "cl_intel_bfloat16_conversions";
-    bool NativeBF16Supported = (DeviceImpl->has_extension(NativeBF16ExtName));
+    DeviceImpl->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+        DeviceImpl->getHandleRef(), UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE,
+        sizeof(ur_bool_t), &NativeBF16Supported, nullptr);
     return NativeBF16Supported ==
            (Bfloat16DeviceLibVersion == DEVICELIB_NATIVE);
   }
