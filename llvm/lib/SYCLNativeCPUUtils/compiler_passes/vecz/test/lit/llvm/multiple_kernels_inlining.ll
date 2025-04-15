@@ -19,7 +19,7 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-define spir_kernel void @foo1(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
+define void @foo1(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
   %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %in, i64 %call
@@ -31,15 +31,15 @@ entry:
 
 declare i64 @__mux_get_global_id(i32)
 
-define spir_kernel void @foo2(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
+define void @foo2(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
-  call spir_kernel void @foo1(i32 addrspace(1)* %in, i32 addrspace(1)* %out)
+  call void @foo1(i32 addrspace(1)* %in, i32 addrspace(1)* %out)
   ret void
 }
 
 define spir_kernel void @foo3(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
-  call spir_kernel void @foo2(i32 addrspace(1)* %in, i32 addrspace(1)* %out)
+  call void @foo2(i32 addrspace(1)* %in, i32 addrspace(1)* %out)
   ret void
 }
 
