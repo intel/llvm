@@ -870,7 +870,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
       "ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp");
 
   auto commandListLocked = commandListManager.lock();
-  if (!phEvent && !*phEvent) {
+  if (!phEvent) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
   }
   getSignalEvent(commandListLocked, phEvent,
@@ -910,16 +910,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCommandListsExp(
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList,
                       additionalWaitEvent);
-  // zeCommandListImmediateAppendCommandListsExp is not working with in-order
-  // immediate lists what causes problems with synchronization
-  // TODO: remove synchronization when it is not needed
-  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
-                  (commandListLocked->getZeCommandList(), UINT64_MAX));
+
   ZE2UR_CALL(zeCommandListImmediateAppendCommandListsExp,
              (commandListLocked->getZeCommandList(), numCommandLists,
               phCommandLists, zeSignalEvent, numWaitEvents, pWaitEvents));
-  ZE_CALL_NOCHECK(zeCommandListHostSynchronize,
-                  (commandListLocked->getZeCommandList(), UINT64_MAX));
+
   return UR_RESULT_SUCCESS;
 }
 

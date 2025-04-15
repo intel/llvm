@@ -15,7 +15,7 @@
 namespace ur::level_zero {
 
 ur_result_t urPlatformGet(
-    ur_adapter_handle_t *, uint32_t,
+    ur_adapter_handle_t,
     /// [in] the number of platforms to be added to phPlatforms. If phPlatforms
     /// is not NULL, then NumEntries should be greater than zero, otherwise
     /// ::UR_RESULT_ERROR_INVALID_SIZE, will be returned.
@@ -141,12 +141,12 @@ ur_result_t urPlatformCreateWithNativeHandle(
 
   uint32_t NumPlatforms = 0;
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, 0, nullptr,
-                                        &NumPlatforms));
+  UR_CALL(
+      ur::level_zero::urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms));
 
   if (NumPlatforms) {
     std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
-    UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, NumPlatforms,
+    UR_CALL(ur::level_zero::urPlatformGet(AdapterHandle, NumPlatforms,
                                           Platforms.data(), nullptr));
 
     // The SYCL spec requires that the set of platforms must remain fixed for

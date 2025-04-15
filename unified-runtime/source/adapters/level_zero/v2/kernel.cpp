@@ -117,10 +117,11 @@ ur_result_t ur_kernel_handle_t_::release() {
 void ur_kernel_handle_t_::completeInitialization() {
   // Cache kernel name. Should be the same for all devices
   assert(deviceKernels.size() > 0);
-  nonEmptyKernel =
-      &std::find_if(deviceKernels.begin(), deviceKernels.end(),
-                    [](const auto &kernel) { return kernel.has_value(); })
-           ->value();
+  auto nonEmptyKernelIt =
+      std::find_if(deviceKernels.begin(), deviceKernels.end(),
+                   [](const auto &kernel) { return kernel.has_value(); });
+  assert(nonEmptyKernelIt != deviceKernels.end());
+  nonEmptyKernel = &nonEmptyKernelIt->value();
 
   zeCommonProperties.Compute = [kernel = nonEmptyKernel](
                                    common_properties_t &props) {
