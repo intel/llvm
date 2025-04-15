@@ -139,7 +139,7 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
 
 ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
-    const std::string &KernelName,
+    KernelNameStrRefT KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
 #ifndef _WIN32
   if (!BinImage) {
@@ -188,7 +188,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
       ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
 
   auto MaterializerResult = MaterializeSpecConstHandle(
-      KernelName.c_str(), BinInfo, Format, SpecConstBlob);
+      KernelName.data(), BinInfo, Format, SpecConstBlob);
   if (MaterializerResult.failed()) {
     std::string Message{"Compilation for kernel failed with message:\n"};
     Message.append(MaterializerResult.getErrorMessage());

@@ -230,7 +230,7 @@ jobs:
       && !cancelled()
       && needs.ubuntu2204_build.outputs.build_conclusion == 'success'
       && needs.build-win.outputs.build_conclusion == 'success'
-    uses: ./.github/workflows/hardening-check.yml
+    uses: ./.github/workflows/sycl-hardening-check.yml
     with:
       sycl_linux_artifact: sycl_linux_release
       sycl_linux_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}

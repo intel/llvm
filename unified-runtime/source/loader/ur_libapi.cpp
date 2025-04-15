@@ -1185,6 +1185,11 @@ ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///
 /// @details
 ///     - Creates runtime device handle from native driver device handle.
+///     - Will always return the same handle in `phDevice` for a given
+///       `hNativeDevice`.
+///     - If `hNativeDevice` is a root-level device, the handle returned in
+///       `phDevice` will be one of the handles that can be obtained by calling
+///       ::urDeviceGet with the ::UR_DEVICE_TYPE_ALL device type.
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.

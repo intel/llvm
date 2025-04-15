@@ -79,7 +79,9 @@ ur_code_location_t codeLocationCallback(void *);
 
 void urLoggerCallback([[maybe_unused]] ur_logger_level_t level, const char *msg,
                       [[maybe_unused]] void *userData) {
-  std::cerr << msg << std::endl;
+  if (level == UR_LOGGER_LEVEL_WARN) {
+    std::cerr << msg << std::endl;
+  }
 }
 
 namespace ur {
@@ -233,7 +235,7 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
     const char *env_value = std::getenv("UR_LOG_CALLBACK");
     if (env_value == nullptr || std::string(env_value) != "disabled") {
       CHECK_UR_SUCCESS(adapterSetLoggerCallback(UrAdapter, urLoggerCallback,
-                                                nullptr, UR_LOGGER_LEVEL_INFO));
+                                                nullptr, UR_LOGGER_LEVEL_WARN));
     }
   }
 

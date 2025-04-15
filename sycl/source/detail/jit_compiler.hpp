@@ -10,6 +10,7 @@
 
 #include <detail/jit_device_binaries.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/detail/kernel_name_str_t.hpp>
 #include <sycl/feature_test.hpp>
 #if SYCL_EXT_JIT_ENABLE
 #include <Materializer.h>
@@ -39,7 +40,7 @@ public:
   ur_kernel_handle_t
   materializeSpecConstants(const QueueImplPtr &Queue,
                            const RTDeviceBinaryImage *BinImage,
-                           const std::string &KernelName,
+                           KernelNameStrRefT KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);
 
   std::pair<sycl_device_binaries, std::string> compileSYCL(
