@@ -104,11 +104,11 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     return raii::ze_command_list_handle_t(ZeCommandList);
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
-    bool isMutable = RegCmdDesc.Mutable;
-    if (!ZeMutableCmdListExtentionSupported && isMutable) {
+    bool IsMutable = RegCmdDesc.Mutable;
+    if (!ZeMutableCmdListExtentionSupported && IsMutable) {
       logger::info("Mutable command lists are requested but are not supported "
                    "by the driver.");
-      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
+      throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
     ZeStruct<ze_command_list_desc_t> CmdListDesc;
     CmdListDesc.flags =
@@ -116,7 +116,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     CmdListDesc.commandQueueGroupOrdinal = RegCmdDesc.Ordinal;
     CmdListDesc.pNext = &offloadDesc;
     ZeStruct<ze_mutable_command_list_exp_desc_t> ZeMutableCommandListDesc;
-    if (isMutable) {
+    if (IsMutable) {
       ZeMutableCommandListDesc.flags = 0;
       offloadDesc.pNext = &ZeMutableCommandListDesc;
     }
