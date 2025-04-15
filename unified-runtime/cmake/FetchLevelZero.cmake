@@ -82,9 +82,16 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     set(BUILD_STATIC OFF)
     set(level-zero-loader-dynamic_BUILD_DIR ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-build)
     file(MAKE_DIRECTORY ${level-zero-loader-dynamic_BUILD_DIR})
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} -DBUILD_STATIC=OFF -S ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-src/level-zero-loader-src -B ${level-zero-loader-dynamic_BUILD_DIR}
-    )
+
+    if (WIN32)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -G Ninja -DBUILD_STATIC=OFF -S ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-src/level-zero-loader-src -B ${level-zero-loader-dynamic_BUILD_DIR} -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+        )
+    else()
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -G Ninja -DBUILD_STATIC=OFF -S ${CMAKE_BINARY_DIR}/level-zero-loader-dynamic-src/level-zero-loader-src -B ${level-zero-loader-dynamic_BUILD_DIR} -Wno-error
+        )
+    endif()
 
     add_custom_target(
         LEVEL_ZERO_DYNAMIC_LOADER
