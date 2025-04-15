@@ -6,6 +6,9 @@
 // XFAIL: spirv-backend && cpu
 // XFAIL-TRACKER: CMPLRLLVM-64705
 
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21 && (!build-mode && run-mode)
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17582
+
 // Checks that group_load runs even when the source code is fortified. This
 // failed at one point due to the use of std::memcpy in the implementation,
 // which would hold an assert in device code when fortified, which would fail
