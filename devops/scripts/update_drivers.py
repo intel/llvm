@@ -69,10 +69,12 @@ def uplift_linux_igfx_driver(config, platform_tag, igc_dev_only):
             "https://github.com/intel/intel-graphics-compiler/releases/tag/" + ver
         )
 
-    cm = get_latest_release('intel/cm-compiler', allow_prerelease=False)
-    config[platform_tag]['cm']['github_tag'] = cm['tag_name']
-    config[platform_tag]['cm']['version'] = cm['tag_name'].replace('cmclang-', '')
-    config[platform_tag]['cm']['url'] = 'https://github.com/intel/cm-compiler/releases/tag/' + cm['tag_name']
+    cm = get_latest_release("intel/cm-compiler", allow_prerelease=False)
+    config[platform_tag]["cm"]["github_tag"] = cm["tag_name"]
+    config[platform_tag]["cm"]["version"] = cm["tag_name"].replace("cmclang-", "")
+    config[platform_tag]["cm"]["url"] = (
+        "https://github.com/intel/cm-compiler/releases/tag/" + cm["tag_name"]
+    )
 
     level_zero = get_latest_release("oneapi-src/level-zero", allow_prerelease=False)
     config[platform_tag]["level_zero"]["github_tag"] = level_zero["tag_name"]
