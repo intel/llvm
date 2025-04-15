@@ -121,13 +121,15 @@ launch(const dim3 &grid, const dim3 &threads, Args... args) {
 // Overload taking zero-argument function object
 template <class F, int Dim>
 std::enable_if_t<std::is_invocable_v<const F&>, sycl::event>
-launch(const F& f, const sycl::nd_range<Dim> &range, sycl::queue q=get_default_queue()) {
+launch(const F& f, const sycl::nd_range<Dim> &range,
+  sycl::queue q=get_default_queue()) {
   return q.parallel_for(detail::transform_nd_range<Dim>(range),  [=](sycl::nd_item<Dim>) { f(); });
 }
 // Alternative launch through dim3 objects
 template <class F>
 std::enable_if_t<std::is_invocable_v<const F&>, sycl::event>
-launch(const F& f, const dim3 &grid, const dim3 &threads, sycl::queue q=get_default_queue()) {
+launch(const F& f, const dim3 &grid, const dim3 &threads,
+  sycl::queue q=get_default_queue()) {
   return launch(f, sycl::nd_range<3>{grid * threads, threads}, q);
 }
 
