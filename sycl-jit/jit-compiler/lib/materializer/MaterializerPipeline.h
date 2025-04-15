@@ -1,4 +1,4 @@
-//==--- MaterializerPipeline.h - LLVM pass pipeline for materializer -------==//
+//===- MaterializerPipeline.h - LLVM pass pipeline for materializer -------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,7 +14,6 @@ namespace jit_compiler {
 
 class MaterializerPipeline {
 public:
-  ///
   /// Run the necessary passes in a custom pass pipeline to perform
   /// materialization of kernel specialization constants.
   static bool

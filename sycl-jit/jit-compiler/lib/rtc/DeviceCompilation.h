@@ -1,4 +1,4 @@
-//==---- DeviceCompilation.h - Compile SYCL device code with libtooling ----==//
+//===- DeviceCompilation.h - Compile SYCL device code with libtooling -----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

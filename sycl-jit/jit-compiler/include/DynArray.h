@@ -1,4 +1,4 @@
-//==------------ DynArray.h - Non-STL replacement for std::array -----------==//
+//===- DynArray.h - Non-STL replacement for std::array --------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,7 +13,6 @@
 
 namespace jit_compiler {
 
-///
 /// A fixed-size, dynamically-allocated array, with an interface that is a
 /// subset of `std::array`.
 template <typename T> class DynArray {

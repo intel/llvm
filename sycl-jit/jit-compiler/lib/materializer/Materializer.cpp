@@ -1,4 +1,4 @@
-//==-------------------------- Materializer.cpp ----------------------------==//
+//===- Materializer.cpp ---------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,6 +20,9 @@ using namespace jit_compiler;
 JIT_EXPORT_SYMBOL SCMResult materializeSpecConstants(
     const char *KernelName, const JITBinaryInfo &BinaryInfo,
     BinaryFormat TargetFormat, View<unsigned char> SpecConstBlob) {
+  if (BinaryInfo.Format != BinaryFormat::LLVM) {
+    return SCMResult("Unsupported input format.");
+  }
   if (TargetFormat != BinaryFormat::PTX &&
       TargetFormat != BinaryFormat::AMDGCN) {
     return SCMResult("Output target format not supported by this build. "

@@ -1,4 +1,4 @@
-//==--- SPIRVLLVMTranslation.h - Translation between LLVM IR and SPIR-V ----==//
+//===- SPIRVLLVMTranslation.h - Translation between LLVM IR and SPIR-V ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,14 +17,12 @@ namespace jit_compiler {
 
 class SPIRVLLVMTranslator {
 public:
-  ///
   /// Translate the LLVM IR module Mod to SPIR-V, store it in the JITContext and
   /// return a pointer to its container.
   static llvm::Expected<JITBinary *> translateLLVMtoSPIRV(llvm::Module &Mod,
                                                           JITContext &JITCtx);
 
 private:
-  ///
   /// Default settings for the SPIRV translation options.
   static SPIRV::TranslatorOpts &translatorOpts();
 };

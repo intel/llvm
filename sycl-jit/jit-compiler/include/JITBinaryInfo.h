@@ -1,4 +1,4 @@
-//==------- JTIBinaryInfo.h - Non-owning descriptor for a binary image -----==//
+//===- JTIBinaryInfo.h - Non-owning descriptor for a binary image ---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,11 +14,11 @@ namespace jit_compiler {
 
 using BinaryAddress = const uint8_t *;
 
-/// Different binary formats supported as input to the JIT compiler.
+/// Different binary formats supported as input to/output from the JIT compiler.
 enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
 
-/// Information about a device intermediate representation module (e.g., SPIR-V,
-/// LLVM IR) from DPC++.
+/// Non-owning descriptor for a device intermediate representation module (e.g.,
+/// SPIR-V, LLVM IR) from DPC++.
 struct JITBinaryInfo {
   BinaryFormat Format = BinaryFormat::INVALID;
 

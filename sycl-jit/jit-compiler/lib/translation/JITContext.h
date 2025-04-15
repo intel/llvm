@@ -1,4 +1,4 @@
-//==------- JITContext.h - Context holding data for the JIT compiler -------==//
+//===- JITContext.h - Context holding data for the JIT compiler -----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,7 +18,6 @@
 
 namespace jit_compiler {
 
-///
 /// Wrapper around a blob created and owned by the JIT compiler.
 class JITBinary {
 public:
@@ -46,7 +45,6 @@ private:
   BinaryFormat Format;
 };
 
-///
 /// Context to persistenly store information across invocations of the JIT
 /// compiler and manage lifetimes of binaries.
 class JITContext {

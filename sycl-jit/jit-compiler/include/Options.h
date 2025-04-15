@@ -1,4 +1,4 @@
-//==-------- Options.h - Option infrastructure for the JIT compiler --------==//
+//===- Options.h - Option infrastructure for the JIT compiler -------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,6 +13,11 @@
 #include "Macros.h"
 
 namespace jit_compiler {
+
+/// Infrastructure to pass options to the SYCL-JIT library, for example:
+/// ```
+/// addToJITConfiguration(option::JITEnableVerbose::set(true))
+/// ```
 
 enum OptionID { VerboseOutput, TargetCPU, TargetFeatures };
 
@@ -67,6 +72,7 @@ struct OptionBase : public OptionPtrBase {
   explicit OptionBase(Args &&...As)
       : OptionPtrBase{ID}, Value{std::forward<Args>(As)...} {}
 
+  /// Create a suitable `OptionStorage` object with the given arguments.
   template <typename... Args> static OptionStorage set(Args &&...As) {
     return OptionStorage::makeOption<OptionT>(std::forward<Args>(As)...);
   }
@@ -76,16 +82,21 @@ struct OptionBase : public OptionPtrBase {
 
 namespace option {
 
+/// Enable verbose output.
 struct JITEnableVerbose
     : public OptionBase<JITEnableVerbose, OptionID::VerboseOutput, bool> {
   using OptionBase::OptionBase;
 };
 
+/// Set the target architecture to be used when JIT-ing kernels, e.g. SM version
+/// for Nvidia.
 struct JITTargetCPU
     : public OptionBase<JITTargetCPU, OptionID::TargetCPU, DynArray<char>> {
   using OptionBase::OptionBase;
 };
 
+/// Set the desired target features to be used when JIT-ing kernels, e.g. PTX
+/// version for Nvidia.
 struct JITTargetFeatures
     : public OptionBase<JITTargetFeatures, OptionID::TargetFeatures,
                         DynArray<char>> {

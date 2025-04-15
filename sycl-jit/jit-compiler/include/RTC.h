@@ -1,4 +1,4 @@
-//==--- RTC.h - Public interface for SYCL runtime compilation --------------==//
+//===- RTC.h - Public interface for SYCL runtime compilation --------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,12 +18,19 @@
 
 namespace jit_compiler {
 
+//===- Data structures ----------------------------------------------------===//
+
+/// Descriptor tuple for file intended to be placed into a virtual filesystem
+/// overlay.
 struct InMemoryFile {
   const char *Path;
   const char *Contents;
 };
 
+/// A non-owning descriptor of a device binary managed by the `JITContext`.
 using RTCDevImgBinaryInfo = JITBinaryInfo;
+
+/// Conceptually a vector of strings, but without using STL types.
 using FrozenSymbolTable = DynArray<sycl::detail::string>;
 
 // Note: `FrozenPropertyValue` and `FrozenPropertySet` constructors take
@@ -31,6 +38,7 @@ using FrozenSymbolTable = DynArray<sycl::detail::string>;
 // created from `llvm::SmallString`s, which don't contain the trailing '\0'
 // byte. Hence obtaining a C-string would cause an additional copy.
 
+/// Represents an `llvm::util::PropertyValue` without using LLVM data types.
 struct FrozenPropertyValue {
   sycl::detail::string Name;
   bool IsUIntValue;
@@ -49,6 +57,7 @@ struct FrozenPropertyValue {
   }
 };
 
+/// Represents an `llvm::util::PropertySet` without using LLVM data types.
 struct FrozenPropertySet {
   sycl::detail::string Name;
   DynArray<FrozenPropertyValue> Values;
@@ -61,8 +70,11 @@ struct FrozenPropertySet {
       : Name{Name}, Values{Size} {}
 };
 
+/// Represents an `llvm::util::PropertySetRegistry` without using LLVM data
+/// types.
 using FrozenPropertyRegistry = DynArray<FrozenPropertySet>;
 
+/// The counterpart to `sycl_device_binary_struct` in the SYCL runtime.
 struct RTCDevImgInfo {
   RTCDevImgBinaryInfo BinaryInfo;
   FrozenSymbolTable SymbolTable;
@@ -73,6 +85,7 @@ struct RTCDevImgInfo {
   RTCDevImgInfo &operator=(RTCDevImgInfo &&) = default;
 };
 
+/// The counterpart to `sycl_device_binaries_struct` in the SYCL runtime.
 struct RTCBundleInfo {
   DynArray<RTCDevImgInfo> DevImgInfos;
   sycl::detail::string CompileOptions;
@@ -82,11 +95,17 @@ struct RTCBundleInfo {
   RTCBundleInfo &operator=(RTCBundleInfo &&) = default;
 };
 
-// LLVM's APIs prefer `char *` for byte buffers.
+/// Represents an LLVM bitcode blob. Note that LLVM's APIs prefer `char *` for
+/// byte buffers.
 using RTCDeviceCodeIR = DynArray<char>;
 
+//===- Result types -------------------------------------------------------===//
+
+/// Result type for hash calculation: Wraps a string that is either the hash
+/// result or the preprocessor log.
 class RTCHashResult {
 public:
+  /// Constructs a result that indicates success iff \p IsHash is true.
   explicit RTCHashResult(const char *HashOrLog, bool IsHash = true)
       : HashOrLog(HashOrLog), IsHash(IsHash) {}
 
@@ -107,16 +126,26 @@ private:
   bool IsHash;
 };
 
+/// Result type for SYCL runtime compilation. A successful result contains the
+/// build log, the bundle info and optionally a device code IR blob suitable for
+/// persistent caching. In case of failure, only the build log and desired error
+/// code are wrapped.
 class RTCResult {
 public:
+  /// Enum modelling a subset of `sycl::errc`, used to signal to the runtime
+  /// which `sycl::exception` should be thrown in case of failure. NB: LLVM, and
+  /// in consequence the sycl-jit library, are usually compiled without support
+  /// for C++ exceptions.
   enum class RTCErrorCode { SUCCESS, BUILD, INVALID };
 
+  /// Constructs a result that indicates failure.
   explicit RTCResult(const char *BuildLog,
                      RTCErrorCode ErrorCode = RTCErrorCode::BUILD)
       : ErrorCode{ErrorCode}, BundleInfo{}, BuildLog{BuildLog} {
     assert(ErrorCode != RTCErrorCode::SUCCESS);
   }
 
+  /// Constructs a result that indicates success.
   RTCResult(RTCBundleInfo &&BundleInfo, RTCDeviceCodeIR &&DeviceCodeIR,
             const char *BuildLog)
       : ErrorCode{RTCErrorCode::SUCCESS}, BundleInfo{std::move(BundleInfo)},
@@ -143,15 +172,32 @@ private:
   sycl::detail::string BuildLog;
 };
 
+//===- Entrypoints --------------------------------------------------------===//
+
+/// Calculates a 32-byte BLAKE3 hash of the pre-processed source string
+/// described by \p SourceFile, considering any additional \p IncludeFiles as
+/// well as the \p UserArgs.
 JIT_EXPORT_SYMBOL RTCHashResult calculateHash(InMemoryFile SourceFile,
                                               View<InMemoryFile> IncludeFiles,
                                               View<const char *> UserArgs);
 
+/// Compiles, links against device libraries, and finalizes the device code in
+/// the source string described by \p SourceFile, considering any additional \p
+/// IncludeFiles as well as the \p UserArgs.
+///
+/// \p CachedIR can be either empty or an LLVM bitcode blob. If it is the
+/// latter, the corresponding module is used instead of invoking the clang
+/// frontend.
+///
+/// If \p SaveIR is true and \p CachedIR is empty, the LLVM module obtained from
+/// the frontend invocation is wrapped in bitcode format in the result object.
 JIT_EXPORT_SYMBOL RTCResult compileSYCL(InMemoryFile SourceFile,
                                         View<InMemoryFile> IncludeFiles,
                                         View<const char *> UserArgs,
                                         View<char> CachedIR, bool SaveIR);
 
+/// Requests that the JIT binary referenced by \p Address is deleted from the
+/// `JITContext`.
 JIT_EXPORT_SYMBOL void destroyBinary(BinaryAddress Address);
 
 } // namespace jit_compiler
