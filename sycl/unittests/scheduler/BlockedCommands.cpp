@@ -64,7 +64,8 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   B.MRetVal = UR_RESULT_SUCCESS;
 
-  MockCommand C(detail::getSyclObjImpl(Q));
+  MockCommand C(detail::getSyclObjImpl(Q),
+                detail::Command::CommandType::EMPTY_TASK);
   C.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
 
   MockCommand D(detail::getSyclObjImpl(Q));
@@ -102,7 +103,8 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
   sycl::unittest::UrMock<> Mock;
   sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
-  MockCommand A(detail::getSyclObjImpl(Q));
+  MockCommand A(detail::getSyclObjImpl(Q),
+                detail::Command::CommandType::EMPTY_TASK);
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
 
   MockCommand B(detail::getSyclObjImpl(Q));

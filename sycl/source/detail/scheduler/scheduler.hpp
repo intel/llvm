@@ -854,7 +854,7 @@ protected:
     static bool handleBlockingCmd(Command *Cmd, EnqueueResultT &EnqueueResult,
                                   Command *RootCommand, BlockingT Blocking);
     static bool handleBlockedCmd(Command *Cmd, EnqueueResultT &EnqueueResult,
-                                 Command *RootCommand, BlockingT Blocking);
+                                 Command *RootCommand);
   };
 
   /// This function waits on all of the graph leaves which somehow use the
@@ -881,8 +881,8 @@ protected:
       MAuxiliaryResources;
   std::mutex MAuxiliaryResourcesMutex;
 
-  std::unordered_map<Command *, Command *> Kernel2HT;
-  std::unordered_map<Command *, Command *> HT2Kernel;
+  std::unordered_multimap<Command *, Command *> Kernel2HT;
+  std::unordered_multimap<Command *, Command *> HT2Kernel;
   std::mutex MHTMapMutex;
 
   friend class Command;

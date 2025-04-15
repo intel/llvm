@@ -74,14 +74,9 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
 
 bool Scheduler::GraphProcessor::handleBlockedCmd(Command *Cmd,
                                                  EnqueueResultT &EnqueueResult,
-                                                 Command *RootCommand,
-                                                 BlockingT Blocking) {
-  if (Cmd == RootCommand || Blocking)
+                                                 Command *RootCommand) {
+  if (Cmd == RootCommand)
     return true;
-  if (Cmd->getType() == Command::CommandType::EMPTY_TASK) {
-    EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
-    return false;
-  }
   auto &Scheduler = Scheduler::getInstance();
 
   std::lock_guard<std::mutex> Guard(Scheduler.MHTMapMutex);
@@ -96,7 +91,10 @@ bool Scheduler::GraphProcessor::handleBlockedCmd(Command *Cmd,
   }
 
   RootCommand->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
-  EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+  // Doesn't really matter which exact HT to state as blocking if there are more
+  // than one.
+  EnqueueResult =
+      EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, range.first->second);
 
   RootCommand->copySubmissionCodeLocation();
 
@@ -113,9 +111,15 @@ bool Scheduler::GraphProcessor::enqueueCommand(
     return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
 
   // Exit early if the command is blocked and the enqueue type is non-blocking
-  if (Cmd->isEnqueueBlocked() &&
-      !handleBlockedCmd(Cmd, EnqueueResult, RootCommand, Blocking))
-    return false;
+  if (Cmd->isEnqueueBlocked() && !Blocking) {
+    if (Cmd->getType() == Command::CommandType::EMPTY_TASK) {
+      EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
+      return false;
+    }
+
+    if (!handleBlockedCmd(Cmd, EnqueueResult, RootCommand))
+      return false;
+  }
 
   // Reset enqueue status if reattempting
 
@@ -160,6 +164,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
   bool Result = Cmd->enqueue(EnqueueResult, Blocking, ToCleanUp);
+  if (Result)
+    Result = handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
   return Result;
 }
 
