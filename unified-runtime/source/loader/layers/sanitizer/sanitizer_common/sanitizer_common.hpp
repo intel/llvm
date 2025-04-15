@@ -48,16 +48,14 @@ inline constexpr bool IsAligned(uptr a, uptr alignment) {
   return (a & (alignment - 1)) == 0;
 }
 
-// Valid redzone sizes are 16, 32, 64, ... 2048, so we encode them in 3 bits.
+// Valid redzone sizes are 16, 32, 64 ..., so we encode them in 3 bits.
 // We use adaptive redzones: for larger allocation larger redzones are used.
 inline constexpr uptr RZLog2Size(uptr rz_log) {
-  assert(rz_log < 8);
   return 16 << rz_log;
 }
 
 inline constexpr uptr RZSize2Log(uptr rz_size) {
   assert(rz_size >= 16);
-  assert(rz_size <= 2048);
   assert(IsPowerOfTwo(rz_size));
   uptr res = log2(rz_size) - 4;
   assert(rz_size == RZLog2Size(res));
