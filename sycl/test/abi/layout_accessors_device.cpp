@@ -29,7 +29,7 @@ SYCL_EXTERNAL void hostAcc(accessor<int, 1, access::mode::read, access::target::
 // CHECK-NEXT: 16 |     class sycl::range<> MemRange
 // CHECK-NEXT: 16 |       class sycl::detail::array<> (base)
 // CHECK-NEXT: 16 |         size_t[1] common_array
-// CHECK-NEXT: 24 |   union sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer>
+// CHECK-NEXT: 24 |   union sycl::accessor<int, 1, sycl::access::mode::read, sycl::access::target::device>
 // CHECK-NEXT: 24 |     ConcreteASPtrType MData
 // CHECK-NEXT:     | [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT:     |  nvsize=32, nvalign=8]

@@ -1,13 +1,13 @@
 // RUN: %clang -fsycl -fsyntax-only -std=c++20 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
-#include <sycl/detail/core.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 class kernel;
+namespace sycl {
+class context;
+}
 
-sycl::device d;
-sycl::queue q{d};
-sycl::context ctxt = q.get_context();
+sycl::context ctxt;
 sycl::kernel_id id = sycl::get_kernel_id<kernel>();
 
 int main() {
