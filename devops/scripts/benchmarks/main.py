@@ -252,7 +252,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
             print(f"tearing down {benchmark.name()}... ", flush=True)
         benchmark.teardown()
         if options.verbose:
-            print("{benchmark.name()} teardown complete.")
+            print(f"{benchmark.name()} teardown complete.")
 
     this_name = options.current_run_name
     chart_data = {}
