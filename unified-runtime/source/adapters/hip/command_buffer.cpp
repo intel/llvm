@@ -298,9 +298,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   for (uint32_t i = 0; i < numKernelAlternatives; ++i) {
     UR_ASSERT(phKernelAlternatives[i] != hKernel,
               UR_RESULT_ERROR_INVALID_VALUE);
@@ -393,9 +390,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
         hCommandBuffer, numSyncPointsInWaitList, pSyncPointWaitList, DepsList));
@@ -429,8 +423,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   UR_ASSERT(size + dstOffset <= std::get<BufferMem>(hDstMem->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
   UR_ASSERT(size + srcOffset <= std::get<BufferMem>(hSrcMem->Mem).getSize(),
@@ -477,9 +469,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
         hCommandBuffer, numSyncPointsInWaitList, pSyncPointWaitList, DepsList));
@@ -525,9 +514,6 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
         hCommandBuffer, numSyncPointsInWaitList, pSyncPointWaitList, DepsList));
@@ -564,9 +550,6 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
   std::ignore = phCommand;
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -607,9 +590,6 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
   std::ignore = phCommand;
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -656,9 +636,6 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
         hCommandBuffer, numSyncPointsInWaitList, pSyncPointWaitList, DepsList));
@@ -703,9 +680,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
         hCommandBuffer, numSyncPointsInWaitList, pSyncPointWaitList, DepsList));
@@ -741,9 +715,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   // We implement it as an empty node to enforce dependencies.
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
-
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   try {
     UR_CHECK_ERROR(getNodesFromSyncPoints(
@@ -786,8 +757,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
   UR_ASSERT(ArgsAreMultiplesOfPatternSize && PatternIsValid &&
                 PatternSizeIsValid,
             UR_RESULT_ERROR_INVALID_SIZE);
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   auto DstDevice = std::get<BufferMem>(hBuffer->Mem)
                        .getPtrWithOffset(hCommandBuffer->Device, offset);
@@ -815,8 +784,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
   auto PatternSizeIsValid = ((patternSize & (patternSize - 1)) == 0) &&
                             (patternSize > 0); // is a positive power of two
 
-  UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   UR_ASSERT(PatternIsValid && PatternSizeIsValid, UR_RESULT_ERROR_INVALID_SIZE);
   return enqueueCommandBufferFillHelper(
       hCommandBuffer, pPtr, hipMemoryTypeUnified, pPattern, patternSize, size,
