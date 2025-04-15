@@ -23,8 +23,11 @@
 #include <cuda.h>
 
 namespace umf {
-ur_result_t getProviderNativeError(const char *, int32_t) {
-  // TODO: implement when UMF supports CUDA
+ur_result_t getProviderNativeError(const char *providerName, int32_t error) {
+  if (strcmp(providerName, "CUDA") == 0) {
+    return mapErrorUR(static_cast<CUresult>(error));
+  }
+
   return UR_RESULT_ERROR_UNKNOWN;
 }
 } // namespace umf
