@@ -134,7 +134,7 @@ jobs:
         python3 -m venv .venv
         . .venv/bin/activate
         echo "${PWD}/.venv/bin" >> $GITHUB_PATH
-        pip install -r third_party/requirements.txt
+        #pip install -r third_party/requirements.txt
         pip install -r third_party/requirements_testing.txt
 
 
