@@ -2187,7 +2187,8 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       Value *Cmp = convertToBool(ConvertedShadow, IRB, "_mscmp");
       Instruction *CheckTerm = SplitBlockAndInsertIfThen(
           Cmp, &*IRB.GetInsertPoint(),
-          /* Unreachable */ !MS.Recover, MS.ColdCallWeights);
+          /* Unreachable */ SpirOrSpirv ? false : !MS.Recover,
+          MS.ColdCallWeights);
 
       IRB.SetInsertPoint(CheckTerm);
       insertWarningFn(IRB, Origin);
