@@ -42,13 +42,13 @@ Tests in this category may not fully exercise the extension functionality, but a
 
 - that `is_kernel_v` trait should be a subclass of `true_type` for function whose declaration is decorated with either the `nd_range_kernel` property or the `single_task_kernel` property when it is not then it should be a subclass of `false_type`.
 
-#### Perform tests on new `kernel_bundle` member functions for free function kernel. These tests should declare `nd_range_kernel` and `single_task_kernel` free function kernels then check that:
+#### Perform tests on new `kernel_bundle` member functions for free function kernels by declaring `nd_range_kernel` and `single_task_kernel` and verifying that:
 
-- the `get_kernel_id` member function returns a valid kernel identifier that is associated with free function kernel.
+- the `get_kernel_id` member function returns a valid kernel identifier associated with free function kernel.
     
-- the `get_kernel_bundle(const context& ctxt)` member function returns a kernel bundle in which the associated free function kernel can be found.
-    
-- the `get_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` member function returns a kernel bundle in which the associated free function kernel can be found.
+- the `get_kernel_bundle(const context& ctxt)` member function returns a kernel bundle that contains the corresponding free function kernel.
+ 
+- the `get_kernel_bundle(const context& ctxt, const std::vector<device>& devs)` member function returns a kernel bundle that contains the corresponding free function kernel.
     
 - the `has_kernel_bundle(const context& ctxt)` returns true when a free function kernel can be represented in a device image in the corresponding state and the associated free function kernel is compatible with at least one of the devices in `ctxt`.
     
@@ -66,7 +66,7 @@ Tests in this category may not fully exercise the extension functionality, but a
     
 - the `get_kernel_ids()` returns all of the kernels defined in the source, whether they were defined as free function kernels, lambda expressions or named kernel objects.
     
-- the `info::kernel::num_args` returns  the number of parameters in the function definition of the associated free function kernel.
+- the `info::kernel::num_args` returns the number of parameters in the function definition of the associated free function kernel.
 
  Write test that perform all the checks mentioned above on `nd_range_kernel` and `single_task_kernel` free functions, which are declared in one translation unit and defined in another.
 
@@ -155,7 +155,7 @@ A series of checks should be performed that we can pass unscoped enumeration tha
 A series of checks should be performed that we can pass type aliases to allowed kernel paramater types as kernel parameter and use it within kernel.
 
 #### Interaction with additional kernel properties:
-A series of checks should be performed to check that to the free function kernels may also be decorated with any of the properties defined in `sycl_ext_oneapi_kernel_properties`. This test should perform simple checks verifying if applied kernel_properties work within defined kernels.
+A series of checks should be performed to check that to the free function kernels may also be decorated with the properties defined in `sycl_ext_oneapi_kernel_properties`. This test should perform simple checks verifying if applied kernel_properties work within defined kernels.
 
 #### Free function kernels compatibility with L0 backend:
 A series of checks should be performed to check compatibility of free function kernels with Level Zero Backend without going through the SYCL host runtime.
