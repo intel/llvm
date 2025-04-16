@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -DUNSAFE -O0 -g -o %t1.out
-// RUN: env UR_LAYER_ASAN_OPTIONS=redzone:4096 %{run} not %t1.out 2>&1 | FileCheck %s
+// RUN: env UR_LAYER_ASAN_OPTIONS=redzone:4000 %{run} not %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -DSAFE -O0 -g -o %t2.out
 
 // clang-format off
