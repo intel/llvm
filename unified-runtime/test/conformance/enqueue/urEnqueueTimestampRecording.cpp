@@ -46,7 +46,7 @@ void common_check(ur_event_handle_t event) {
 }
 
 TEST_P(urEnqueueTimestampRecordingExpTest, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::CUDA{});
+  UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{}, uur::HIP{}, uur::CUDA{});
 
   ur_event_handle_t event = nullptr;
   ASSERT_SUCCESS(

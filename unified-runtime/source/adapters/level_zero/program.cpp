@@ -65,10 +65,9 @@ ur_result_t urProgramCreateWithIL(
     /// [in] length of `pIL` in bytes.
     size_t Length,
     /// [in][optional] pointer to program creation properties.
-    const ur_program_properties_t *Properties,
+    const ur_program_properties_t * /*Properties*/,
     /// [out] pointer to handle of program object created.
     ur_program_handle_t *Program) {
-  std::ignore = Properties;
   UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(IL && Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   try {
@@ -835,7 +834,6 @@ ur_result_t urProgramGetBuildInfo(
     /// [out][optional] pointer to the actual size in bytes of data being
     /// queried by propName.
     size_t *PropSizeRet) {
-  std::ignore = Device;
 
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
@@ -903,17 +901,13 @@ ur_result_t urProgramGetBuildInfo(
 
 ur_result_t urProgramSetSpecializationConstant(
     /// [in] handle of the Program object
-    ur_program_handle_t Program,
+    ur_program_handle_t /*Program*/,
     /// [in] specification constant Id
-    uint32_t SpecId,
+    uint32_t /*SpecId*/,
     /// [in] size of the specialization constant value
-    size_t SpecSize,
+    size_t /*SpecSize*/,
     /// [in] pointer to the specialization value bytes
-    const void *SpecValue) {
-  std::ignore = Program;
-  std::ignore = SpecId;
-  std::ignore = SpecSize;
-  std::ignore = SpecValue;
+    const void * /*SpecValue*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -966,7 +960,6 @@ ur_result_t urProgramCreateWithNativeHandle(
         ur_program_handle_t_::Exe, Context, ZeModule,
         Properties ? Properties->isNativeHandleOwned : false);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
-    (*Program)->IsInteropNativeHandle = true;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -1078,7 +1071,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
   }
   if (!resourcesReleased) {
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap) {
-      if (DeviceData.ZeBuildLog)
+      if (DeviceData.ZeBuildLog && checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (DeviceData.ZeBuildLog));
     }
     // interop api
@@ -1087,7 +1080,7 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
     }
 
     for (auto &[ZeDevice, DeviceData] : this->DeviceDataMap)
-      if (DeviceData.ZeModule)
+      if (DeviceData.ZeModule && checkL0LoaderTeardown())
         ZE_CALL_NOCHECK(zeModuleDestroy, (DeviceData.ZeModule));
 
     this->DeviceDataMap.clear();

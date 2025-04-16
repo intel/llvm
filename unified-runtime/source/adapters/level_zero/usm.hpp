@@ -77,8 +77,8 @@ protected:
   virtual ur_result_t allocateImpl(void **, size_t, uint32_t) = 0;
 
 public:
-  virtual void get_last_native_error(const char **ErrMsg, int32_t *ErrCode) {
-    std::ignore = ErrMsg;
+  virtual void get_last_native_error(const char ** /*ErrMsg*/,
+                                     int32_t *ErrCode) {
     *ErrCode = static_cast<int32_t>(getLastStatusRef());
   };
   virtual umf_result_t initialize(ur_context_handle_t, ur_device_handle_t) {

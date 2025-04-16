@@ -408,8 +408,7 @@ template <typename T>
 ur_result_t getInfo(size_t param_value_size, void *param_value,
                     size_t *param_value_size_ret, T value) {
 
-  auto assignment = [](void *param_value, T value, size_t value_size) {
-    std::ignore = value_size;
+  auto assignment = [](void *param_value, T value, size_t /*value_size*/) {
     *static_cast<T *>(param_value) = value;
   };
 
