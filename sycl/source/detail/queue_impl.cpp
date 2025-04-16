@@ -352,14 +352,13 @@ void queue_impl::addSharedEvent(const event &Event) {
   MEventsShared.push_back(Event);
 }
 
-event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
-                              const std::shared_ptr<queue_impl> &Self,
-                              const std::shared_ptr<queue_impl> &PrimaryQueue,
-                              bool CallerNeedsEvent,
-                              const detail::code_location &Loc,
-                              bool IsTopCodeLoc,
-                              const SubmissionInfo &SubmitInfo) {
-  handler Handler(Self, PrimaryQueue.get(), CallerNeedsEvent);
+event queue_impl::submit_impl(
+    const detail::type_erased_cgfo_ty &CGF,
+    const std::shared_ptr<queue_impl> &Self,
+    [[maybe_unused]] const std::shared_ptr<queue_impl> &PrimaryQueue,
+    bool CallerNeedsEvent, const detail::code_location &Loc, bool IsTopCodeLoc,
+    const SubmissionInfo &SubmitInfo) {
+  handler Handler(Self, CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
   if (xptiTraceEnabled()) {
     Handler.saveCodeLoc(Loc, IsTopCodeLoc);
@@ -394,7 +393,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
     };
     detail::type_erased_cgfo_ty CGF{L};
     event FlushEvent =
-        submit_impl(CGF, Self, PrimaryQueue,
+        submit_impl(CGF, Self, nullptr,
                     /*CallerNeedsEvent*/ true, Loc, IsTopCodeLoc, {});
     EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
