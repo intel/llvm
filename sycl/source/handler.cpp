@@ -331,12 +331,6 @@ handler::handler(
       MQueue(Queue) {}
 #endif
 
-handler::handler(std::shared_ptr<detail::queue_impl> Queue,
-                 detail::queue_impl *PrimaryQueue, bool CallerNeedsEvent)
-    : impl(std::make_shared<detail::handler_impl>(PrimaryQueue,
-                                                  CallerNeedsEvent)),
-      MQueue(std::move(Queue)) {}
-
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
     : impl(std::make_shared<detail::handler_impl>(Graph)) {}
