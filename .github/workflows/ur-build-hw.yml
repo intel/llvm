@@ -188,7 +188,7 @@ jobs:
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_ENABLE_TRACING=ON
-        -DUR_BUILD_ADAPTER_OPENCL=ON \
+        -DUR_BUILD_ADAPTER_OPENCL=ON 
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_TESTS=ON
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
