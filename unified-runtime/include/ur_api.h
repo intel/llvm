@@ -1256,9 +1256,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 ///
 /// @details
 ///     - When the reference count of the adapter reaches zero, the adapter may
-///       perform adapter-specififc resource teardown. Resources must be left in
-///       a state where it safe for the adapter to be subsequently reinitialized
-///       with ::urAdapterGet
+///       perform adapter-specififc resource teardown. Any objects associated
+///       with the adapter should be considered invalid after this point.
+///     - Calling ::urAdapterGet after any adapter handle's reference count has
+///       reached zero will result in undefined behaviour.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
