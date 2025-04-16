@@ -190,7 +190,6 @@ jobs:
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
         cmake
-        -S unified-runtime \
         -B${{github.workspace}}/build
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
