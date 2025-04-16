@@ -34,6 +34,21 @@ inline constexpr bool IsPowerOfTwo(uptr x) {
   return (x & (x - 1)) == 0 && x != 0;
 }
 
+inline constexpr uptr RoundUpToPowerOfTwo(uptr x) {
+  if (x == 0)
+    return 1;
+  x--;
+  x |= x >> 1;
+  x |= x >> 2;
+  x |= x >> 4;
+  x |= x >> 8;
+  x |= x >> 16;
+  x |= x >> 32;
+  x++;
+  assert(IsPowerOfTwo(x));
+  return x;
+}
+
 inline constexpr uptr RoundUpTo(uptr Size, uptr boundary) {
   assert(IsPowerOfTwo(boundary));
   return (Size + boundary - 1) & ~(boundary - 1);

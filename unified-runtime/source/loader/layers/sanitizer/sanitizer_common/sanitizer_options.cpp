@@ -12,6 +12,7 @@
  */
 
 #include "sanitizer_options.hpp"
+#include "sanitizer_common/sanitizer_common.hpp"
 #include "sanitizer_options_impl.hpp"
 
 #include <cstring>
@@ -48,6 +49,8 @@ void SanitizerOptions::Init(const std::string &EnvName,
 
   Parser.ParseUint64("quarantine_size_mb", MaxQuarantineSizeMB, 0, UINT32_MAX);
   Parser.ParseUint64("redzone", MinRZSize, 16);
+  MinRZSize =
+      IsPowerOfTwo(MinRZSize) ? MinRZSize : RoundUpToPowerOfTwo(MinRZSize);
   if (MinRZSize > 16) {
     Logger.warning(
         "Increasing the redzone size may cause excessive memory overhead");
