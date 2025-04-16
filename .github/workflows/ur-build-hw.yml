@@ -98,6 +98,7 @@ jobs:
     - name: Install UR python dependencies in venv
       working-directory: ${{github.workspace}}/unified-runtime
       run: |
+        sudo apt-get install -y strace
         python3 -m venv .venv
         . .venv/bin/activate
         echo "$PATH" >> $GITHUB_PATH
