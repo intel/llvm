@@ -1744,31 +1744,6 @@ ur_result_t urEnqueueCommandBufferExp(
 // anonymous namespace of update helper functions
 namespace {
 
-ur_result_t updateKernelHandle(ur_exp_command_buffer_handle_t CommandBuffer,
-                               ur_kernel_handle_t NewKernel,
-                               kernel_command_handle *Command) {
-  auto Platform = CommandBuffer->Context->getPlatform();
-  auto ZeDevice = CommandBuffer->Device->ZeDevice;
-  ze_kernel_handle_t KernelHandle{};
-  ze_kernel_handle_t ZeNewKernel{};
-  UR_CALL(getZeKernel(ZeDevice, NewKernel, &ZeNewKernel));
-
-  ze_command_list_handle_t ZeCommandList = CommandBuffer->ZeComputeCommandList;
-  KernelHandle = ZeNewKernel;
-  if (!Platform->ZeMutableCmdListExt.LoaderExtension) {
-    ZeCommandList = CommandBuffer->ZeComputeCommandListTranslated;
-    ZE2UR_CALL(zelLoaderTranslateHandle,
-               (ZEL_HANDLE_KERNEL, ZeNewKernel, (void **)&KernelHandle));
-  }
-
-  ZE2UR_CALL(Platform->ZeMutableCmdListExt
-                 .zexCommandListUpdateMutableCommandKernelsExp,
-             (ZeCommandList, 1, &Command->commandId, &KernelHandle));
-  // Set current kernel to be the new kernel
-  Command->kernel = NewKernel;
-  return UR_RESULT_SUCCESS;
-}
-
 /**
  * Update the kernel command with the new values.
  * @param[in] CommandBuffer The command-buffer which is being updated.
@@ -1780,75 +1755,36 @@ ur_result_t updateCommandBuffer(
     ur_exp_command_buffer_handle_t CommandBuffer, uint32_t NumKernelUpdates,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDescs) {
   std::scoped_lock<ur_shared_mutex> Guard(CommandBuffer->Mutex);
-
-  // We need the created descriptors to live till the point when
-  // zeCommandListUpdateMutableCommandsExp is called at the end of the
-  // function.
-  std::vector<std::variant<
-      std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>,
-      std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>>,
-      std::unique_ptr<ZeStruct<ze_mutable_group_size_exp_desc_t>>,
-      std::unique_ptr<ZeStruct<ze_mutable_group_count_exp_desc_t>>>>
-      Descs;
-
-  std::vector<ze_group_count_t> ZeThreadGroupDimensionsList(
-      NumKernelUpdates, ze_group_count_t{1, 1, 1});
-  void *NextDesc = nullptr; // Used for pointer chaining
-  // Iterate over every UR update descriptor struct, which corresponds to
-  // several L0 update descriptor structs.
-  for (uint32_t i = 0; i < NumKernelUpdates; i++) {
-    const auto &CommandDesc = CommandDescs[i];
-    auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
-
-    std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Guard(
-        Command->Mutex, Command->kernel->Mutex);
-
-    // Kernel handle must be updated first for a given CommandId if required
-    ur_kernel_handle_t NewKernel = CommandDesc.hNewKernel;
-    if (NewKernel && Command->kernel != NewKernel) {
-      updateKernelHandle(CommandBuffer, NewKernel, Command);
-    }
-
-    auto GetZeKernelWrapped = [&](ur_kernel_handle_t Kernel,
-                                  ze_kernel_handle_t &ZeKernel) {
-      ze_kernel_handle_t Tmp{};
-      UR_CALL(getZeKernel(CommandBuffer->Device->ZeDevice, Kernel, &Tmp));
-      ZeKernel = Tmp;
-      return UR_RESULT_SUCCESS;
-    };
-
-    updateKernelSizes(CommandDesc, Command, &NextDesc,
-                      ZeThreadGroupDimensionsList[i], GetZeKernelWrapped,
-                      CommandBuffer->Device, Descs);
-    auto GetMemPtr = [&](ur_mem_handle_t MemObj,
-                         const ur_kernel_arg_mem_obj_properties_t *Properties,
-                         char **&ZeHandlePtr) {
-      ur_mem_handle_t_::access_mode_t UrAccessMode;
-      UR_CALL(getMemoryAccessType(Properties, UrAccessMode));
-
-      if (MemObj) {
-        UR_CALL(MemObj->getZeHandlePtr(
-            ZeHandlePtr, UrAccessMode, CommandBuffer->Device, nullptr, 0u));
-      }
-
-      return UR_RESULT_SUCCESS;
-    };
-    updateKernelArguments(CommandDesc, Command, &NextDesc, GetMemPtr, Descs);
-  }
-
   auto Platform = CommandBuffer->Context->getPlatform();
   ze_command_list_handle_t ZeCommandList =
       CommandBuffer->ZeComputeCommandListTranslated;
   if (Platform->ZeMutableCmdListExt.LoaderExtension) {
     ZeCommandList = CommandBuffer->ZeComputeCommandList;
   }
+  auto GetZeKernelWrapped = [&](ur_kernel_handle_t Kernel,
+                                ze_kernel_handle_t &ZeKernel) {
+    ze_kernel_handle_t Tmp{};
+    UR_CALL(getZeKernel(CommandBuffer->Device->ZeDevice, Kernel, &Tmp));
+    ZeKernel = Tmp;
+    return UR_RESULT_SUCCESS;
+  };
 
-  ZeStruct<ze_mutable_commands_exp_desc_t> MutableCommandDesc{};
-  MutableCommandDesc.pNext = NextDesc;
-  MutableCommandDesc.flags = 0;
-  ZE2UR_CALL(
-      Platform->ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp,
-      (ZeCommandList, &MutableCommandDesc));
+  auto GetMemPtr = [&](ur_mem_handle_t MemObj,
+                       const ur_kernel_arg_mem_obj_properties_t *Properties,
+                       char **&ZeHandlePtr) {
+    ur_mem_handle_t_::access_mode_t UrAccessMode;
+    UR_CALL(getMemoryAccessType(Properties, UrAccessMode));
+
+    if (MemObj) {
+      UR_CALL(MemObj->getZeHandlePtr(ZeHandlePtr, UrAccessMode,
+                                     CommandBuffer->Device, nullptr, 0u));
+    }
+
+    return UR_RESULT_SUCCESS;
+  };
+  UR_CALL(updateCommandBufferUnlocked(
+      GetZeKernelWrapped, GetMemPtr, ZeCommandList, Platform,
+      CommandBuffer->Device, NumKernelUpdates, CommandDescs));
 
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeComputeCommandList));
 

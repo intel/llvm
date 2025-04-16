@@ -13,6 +13,87 @@
 #include "../ur_interface_loader.hpp"
 #include "../ur_level_zero.hpp"
 #include "kernel_helpers.hpp"
+
+ur_result_t updateKernelHandle(
+    ur_kernel_handle_t NewKernel,
+    std::function<ur_result_t(ur_kernel_handle_t, ze_kernel_handle_t &)>
+        getZeKernel,
+    ur_platform_handle_t Platform, ze_command_list_handle_t ZeCommandList,
+    kernel_command_handle *Command) {
+  ze_kernel_handle_t KernelHandle{};
+  ze_kernel_handle_t ZeNewKernel{};
+  UR_CALL(getZeKernel(NewKernel, ZeNewKernel));
+
+  KernelHandle = ZeNewKernel;
+  if (!Platform->ZeMutableCmdListExt.LoaderExtension) {
+    ZE2UR_CALL(zelLoaderTranslateHandle,
+               (ZEL_HANDLE_KERNEL, ZeNewKernel, (void **)&KernelHandle));
+  }
+
+  ZE2UR_CALL(Platform->ZeMutableCmdListExt
+                 .zexCommandListUpdateMutableCommandKernelsExp,
+             (ZeCommandList, 1, &Command->commandId, &KernelHandle));
+  // Set current kernel to be the new kernel
+  Command->kernel = NewKernel;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t updateCommandBufferUnlocked(
+    std::function<ur_result_t(ur_kernel_handle_t, ze_kernel_handle_t &)>
+        GetZeKernel,
+    std::function<
+        ur_result_t(ur_mem_handle_t MemObj,
+                    const ur_kernel_arg_mem_obj_properties_t *Properties,
+                    char **&ZeHandlePtr)>
+        GetMemPtr,
+    ze_command_list_handle_t ZeCommandList, ur_platform_handle_t Platform,
+    ur_device_handle_t Device, uint32_t NumKernelUpdates,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDescs) {
+
+  // We need the created descriptors to live till the point when
+  // zeCommandListUpdateMutableCommandsExp is called at the end of the
+  // function.
+  std::vector<std::variant<
+      std::unique_ptr<ZeStruct<ze_mutable_kernel_argument_exp_desc_t>>,
+      std::unique_ptr<ZeStruct<ze_mutable_global_offset_exp_desc_t>>,
+      std::unique_ptr<ZeStruct<ze_mutable_group_size_exp_desc_t>>,
+      std::unique_ptr<ZeStruct<ze_mutable_group_count_exp_desc_t>>>>
+      Descs;
+
+  std::vector<ze_group_count_t> ZeThreadGroupDimensionsList(
+      NumKernelUpdates, ze_group_count_t{1, 1, 1});
+  void *NextDesc = nullptr; // Used for pointer chaining
+  // Iterate over every UR update descriptor struct, which corresponds to
+  // several L0 update descriptor structs.
+  for (uint32_t i = 0; i < NumKernelUpdates; i++) {
+    const auto &CommandDesc = CommandDescs[i];
+    auto Command = static_cast<kernel_command_handle *>(CommandDesc.hCommand);
+
+    std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Guard(
+        Command->Mutex, Command->kernel->Mutex);
+
+    ur_kernel_handle_t NewKernel = CommandDesc.hNewKernel;
+    if (NewKernel && Command->kernel != NewKernel) {
+      updateKernelHandle(NewKernel, GetZeKernel, Platform, ZeCommandList,
+                         Command);
+    }
+
+    updateKernelSizes(CommandDesc, Command, &NextDesc,
+                      ZeThreadGroupDimensionsList[i], GetZeKernel, Device,
+                      Descs);
+    updateKernelArguments(CommandDesc, Command, &NextDesc, GetMemPtr, Descs);
+  }
+
+  ZeStruct<ze_mutable_commands_exp_desc_t> MutableCommandDesc{};
+  MutableCommandDesc.pNext = NextDesc;
+  MutableCommandDesc.flags = 0;
+  ZE2UR_CALL(
+      Platform->ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp,
+      (ZeCommandList, &MutableCommandDesc));
+
+  return UR_RESULT_SUCCESS;
+}
+
 /**
  * Validates contents of the update command descriptions.
  * @param[in] CommandBuffer The command-buffer which is being updated.
@@ -276,8 +357,8 @@ ur_result_t updateKernelSizes(
 ur_result_t updateKernelArguments(
     const ur_exp_command_buffer_update_kernel_launch_desc_t commandDesc,
     kernel_command_handle *command, void **nextDesc,
-    std::function<ur_result_t(ur_mem_handle_t,
-                              const ur_kernel_arg_mem_obj_properties_t*, char **&)>
+    std::function<ur_result_t(
+        ur_mem_handle_t, const ur_kernel_arg_mem_obj_properties_t *, char **&)>
         getMemPtr,
     desc_storage_t &descs) {
   for (uint32_t newMemObjArgNum = commandDesc.numNewMemObjArgs;
