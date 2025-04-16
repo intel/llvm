@@ -69,11 +69,6 @@ jobs:
             docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
             image_options: -u 1001  --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path 
             other_adapter: NATIVE_CPU
-          - name: NATIVE_CPU
-            runner: UR_NATIVE_CPU
-            docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            
     uses: ./.github/workflows/ur-build-hw.yml
     with:
       adapter_name: ${{ matrix.name }}
