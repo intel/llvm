@@ -115,7 +115,7 @@ jobs:
     # - downloading DPC++ should be integrated somehow; most likely use nightly release.
     #
     - name: Checkout LLVM
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      uses: actions/checkout@v4
 
     # TODO: how other workflows (using dockers) deal with the path change?
     #   also, note: I don't think it's needed anywhere now - I guess we can only use the relative paths...?
