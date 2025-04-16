@@ -281,7 +281,7 @@ jobs:
       sycl_cts_artifact: sycl_cts_bin_win
 
   run-sycl-benchmarks:
-    needs: [ubuntu2204_build]
+    needs: [linux_shared_build]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
