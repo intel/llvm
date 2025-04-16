@@ -311,8 +311,10 @@ private:
            DeviceGlobalInitializer>
       MDeviceGlobalInitializers;
   std::mutex MDeviceGlobalInitializersMutex;
+  // The number of device globals that have not been initialized yet.
   size_t MDeviceGlobalNotInitializedCnt = 0;
-  std::atomic<bool> MAllDeviceGlobalsFullyInitialized = false;
+  // Set to true when all device globals have been initialized.
+  std::atomic<bool> MAllDeviceGlobalsFullyInitialized = true;
 
   // For device_global variables that are not used in any kernel code we still
   // allow copy operations on them. MDeviceGlobalUnregisteredData stores the

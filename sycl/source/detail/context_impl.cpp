@@ -341,21 +341,18 @@ void context_impl::addDeviceGlobalInitializer(
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
   for (const device &Dev : Devs) {
     auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
-    MDeviceGlobalInitializers.emplace(Key, BinImage);
+    auto [Iter, Inserted] = MDeviceGlobalInitializers.emplace(Key, BinImage);
+    if (Inserted && !Iter->second.MDeviceGlobalsFullyInitialized)
+      MDeviceGlobalNotInitializedCnt++;
   }
-  MDeviceGlobalNotInitializedCnt = std::count_if(MDeviceGlobalInitializers.begin(),
-                                                 MDeviceGlobalInitializers.end(),
-                                                 [](const auto &V) {
-                                                   return !V.second
-                                                      .MDeviceGlobalsFullyInitialized;
-                                                 });
-  MAllDeviceGlobalsFullyInitialized = MDeviceGlobalNotInitializedCnt == 0;
+  if (MDeviceGlobalNotInitializedCnt)
+    MAllDeviceGlobalsFullyInitialized = false;
 }
 
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg,
     const std::shared_ptr<queue_impl> &QueueImpl) {
-  if (MAllDeviceGlobalsFullyInitialized)
+  if (MAllDeviceGlobalsFullyInitialized.load(std::memory_order_acquire))
     return {};
 
   const AdapterPtr &Adapter = getAdapter();
