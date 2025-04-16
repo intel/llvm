@@ -24,9 +24,11 @@ class event_pool;
 }
 
 struct event_profiling_data_t {
-  event_profiling_data_t(ze_event_handle_t hZeEvent) : hZeEvent(hZeEvent) {}
+  event_profiling_data_t(ze_event_handle_t hZeEvent,
+                         ur_queue_handle_t_ *hURQueue,
+                         ur_device_handle_t hDevice);
+  ~event_profiling_data_t();
 
-  void recordStartTimestamp(ur_device_handle_t hDevice);
   uint64_t getEventStartTimestmap() const;
 
   uint64_t getEventEndTimestamp();
@@ -37,6 +39,7 @@ struct event_profiling_data_t {
 
 private:
   ze_event_handle_t hZeEvent;
+  ur_queue_handle_t_ *hURQueue;
 
   uint64_t adjustedEventStartTimestamp = 0;
   uint64_t recordEventEndTimestamp = 0;
@@ -89,6 +92,9 @@ public:
   // Queue associated with this event. Can be nullptr (for native events)
   ur_queue_t_ *getQueue() const;
 
+  // Device associated with this event. Can be nullptr (for native events)
+  ur_device_handle_t getDevice() const;
+
   // Context associated with this event
   ur_context_handle_t getContext() const;
 
@@ -98,7 +104,7 @@ public:
   // Record the start timestamp of the event, to be obtained by
   // urEventGetProfilingInfo. resetQueueAndCommand should be
   // called before this.
-  void recordStartTimestamp();
+  void recordStartTimestamp(ur_queue_handle_t_ *hURQueue);
 
   // Get pointer to the end timestamp, and ze event handle.
   // Caller is responsible for signaling the event once the timestamp is ready.
@@ -121,8 +127,9 @@ protected:
   // queue and commandType that this event is associated with, set by enqueue
   // commands
   ur_queue_t_ *hQueue = nullptr;
+  ur_device_handle_t hDevice = nullptr;
   ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
 
   v2::event_flags_t flags;
-  event_profiling_data_t profilingData;
+  std::optional<event_profiling_data_t> profilingData;
 };

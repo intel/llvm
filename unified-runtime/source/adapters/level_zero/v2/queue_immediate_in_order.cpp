@@ -98,6 +98,10 @@ ze_event_handle_t ur_queue_immediate_in_order_t::getSignalEvent(
   return commandList->getSignalEvent(hUserEvent, commandType);
 }
 
+void ur_queue_immediate_in_order_t::setURHandle(ur_queue_handle_t_ *hURQueue) {
+  this->hURQueue = hURQueue;
+}
+
 ur_result_t
 ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
                                             size_t propSize, void *pPropValue,
@@ -840,7 +844,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(commandListLocked, phEventWaitList, numEventsInWaitList);
 
-  (*phEvent)->recordStartTimestamp();
+  (*phEvent)->recordStartTimestamp(hURQueue);
 
   auto [timestampPtr, zeSignalEvent] =
       (*phEvent)->getEventEndTimestampAndHandle();

@@ -23,6 +23,8 @@
 #include "command_list_manager.hpp"
 #include "lockable.hpp"
 
+struct ur_queue_handle_t_;
+
 namespace v2 {
 
 using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
@@ -32,6 +34,10 @@ private:
   ur_context_handle_t hContext;
   ur_device_handle_t hDevice;
   ur_queue_flags_t flags;
+
+  // Needed for operations that call urQueueRetain/urQueueRelease
+  // TODO: using virtual destructor instead of relying on variant
+  ur_queue_handle_t_ *hURQueue;
 
   lockable<ur_command_list_manager> commandListManager;
   std::vector<ur_event_handle_t> deferredEvents;
@@ -76,6 +82,7 @@ public:
 
   ~ur_queue_immediate_in_order_t();
 
+  void setURHandle(ur_queue_handle_t_ *hURQueue);
   ur_result_t queueGetInfo(ur_queue_info_t propName, size_t propSize,
                            void *pPropValue, size_t *pPropSizeRet) override;
   ur_result_t queueGetNativeHandle(ur_queue_native_desc_t *pDesc,

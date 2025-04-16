@@ -60,7 +60,12 @@ uint64_t event_profiling_data_t::getEventEndTimestamp() {
   return adjustedEventEndTimestamp;
 }
 
-void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
+event_profiling_data_t::event_profiling_data_t(ze_event_handle_t hZeEvent,
+                                               ur_queue_handle_t_ *hURQueue,
+                                               ur_device_handle_t hDevice)
+    : hZeEvent(hZeEvent), hURQueue(hURQueue) {
+  UR_CALL_THROWS(hURQueue->queueRetain());
+
   zeTimerResolution = hDevice->ZeDeviceProperties->timerResolution;
   timestampMaxValue = hDevice->getTimestampMask();
 
@@ -70,6 +75,10 @@ void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
 
   assert(adjustedEventStartTimestamp == 0);
   adjustedEventStartTimestamp = deviceStartTimestamp;
+}
+
+event_profiling_data_t::~event_profiling_data_t() {
+  UR_CALL_NOCHECK(hURQueue->queueRelease());
 }
 
 uint64_t event_profiling_data_t::getEventStartTimestmap() const {
@@ -92,32 +101,35 @@ ur_event_handle_t_::ur_event_handle_t_(
     ur_context_handle_t hContext, ur_event_handle_t_::event_variant hZeEvent,
     v2::event_flags_t flags, v2::event_pool *pool)
     : hContext(hContext), event_pool(pool), hZeEvent(std::move(hZeEvent)),
-      flags(flags), profilingData(getZeEvent()) {}
+      flags(flags), profilingData(std::nullopt) {}
 
 void ur_event_handle_t_::resetQueueAndCommand(ur_queue_t_ *hQueue,
                                               ur_command_t commandType) {
   this->hQueue = hQueue;
   this->commandType = commandType;
-  profilingData = event_profiling_data_t(getZeEvent());
+
+  if (hQueue) {
+    UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
+                                        reinterpret_cast<void *>(&hDevice),
+                                        nullptr));
+  } else {
+    hDevice = nullptr;
+  }
+
+  profilingData.reset();
 }
 
-void ur_event_handle_t_::recordStartTimestamp() {
-  assert(hQueue); // queue must be set before calling this
-
-  ur_device_handle_t hDevice;
-  UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
-                                      reinterpret_cast<void *>(&hDevice),
-                                      nullptr));
-
-  profilingData.recordStartTimestamp(hDevice);
+void ur_event_handle_t_::recordStartTimestamp(ur_queue_handle_t_ *hURQueue) {
+  assert(&hURQueue->get() == hQueue);
+  profilingData.emplace(getZeEvent(), hURQueue, hDevice);
 }
 
 uint64_t ur_event_handle_t_::getEventStartTimestmap() const {
-  return profilingData.getEventStartTimestmap();
+  return profilingData.value().getEventStartTimestmap();
 }
 
 uint64_t ur_event_handle_t_::getEventEndTimestamp() {
-  return profilingData.getEventEndTimestamp();
+  return profilingData.value().getEventEndTimestamp();
 }
 
 void ur_event_handle_t_::reset() {
@@ -171,7 +183,7 @@ ur_result_t ur_event_handle_t_::release() {
 }
 
 bool ur_event_handle_t_::isTimestamped() const {
-  return profilingData.recordingStarted();
+  return profilingData.has_value();
 }
 
 bool ur_event_handle_t_::isProfilingEnabled() const {
@@ -180,10 +192,12 @@ bool ur_event_handle_t_::isProfilingEnabled() const {
 
 std::pair<uint64_t *, ze_event_handle_t>
 ur_event_handle_t_::getEventEndTimestampAndHandle() {
-  return {profilingData.eventEndTimestampAddr(), getZeEvent()};
+  return {profilingData.value().eventEndTimestampAddr(), getZeEvent()};
 }
 
 ur_queue_t_ *ur_event_handle_t_::getQueue() const { return hQueue; }
+
+ur_device_handle_t ur_event_handle_t_::getDevice() const { return hDevice; }
 
 ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 
@@ -211,6 +225,7 @@ ur_event_handle_t_::ur_event_handle_t_(
 
 ur_result_t ur_event_handle_t_::forceRelease() {
   if (event_pool) {
+    profilingData.reset();
     event_pool->free(this);
   } else {
     std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
@@ -323,18 +338,13 @@ ur_result_t urEventGetProfilingInfo(
     }
   }
 
-  auto hQueue = hEvent->getQueue();
-  if (!hQueue) {
+  auto hDevice = hEvent->getDevice();
+  if (!hDevice) {
     // no command has been enqueued with this event yet
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
   ze_kernel_timestamp_result_t tsResult;
-
-  ur_device_handle_t hDevice;
-  UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
-                                      reinterpret_cast<void *>(&hDevice),
-                                      nullptr));
 
   auto zeTimerResolution = hDevice->ZeDeviceProperties->timerResolution;
   auto timestampMaxValue = hDevice->getTimestampMask();
