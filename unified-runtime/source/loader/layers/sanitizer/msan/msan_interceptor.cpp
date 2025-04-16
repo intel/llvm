@@ -479,6 +479,9 @@ ur_result_t MsanInterceptor::prepareLaunch(
   UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
       ContextInfo->MaxAllocatedSize, (void **)&LaunchInfo.Data->CleanShadow));
+  UR_CALL(EnqueueUSMBlockingSet(Queue, (void *)LaunchInfo.Data->CleanShadow, 0,
+                                ContextInfo->MaxAllocatedSize, 0, nullptr,
+                                nullptr));
 
   if (LaunchInfo.LocalWorkSize.empty()) {
     LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
