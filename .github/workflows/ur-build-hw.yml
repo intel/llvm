@@ -134,21 +134,9 @@ jobs:
         python3 -m venv .venv
         . .venv/bin/activate
         echo "${PWD}/.venv/bin" >> $GITHUB_PATH
-        # pip install -r third_party/requirements.txt
+        pip install -r third_party/requirements.txt
         pip install -r third_party/requirements_testing.txt
 
-        # wget https://raw.githubusercontent.com/opensource-krzysztof/text/refs/heads/main/devops_utils_ur/intel-igc-cm_1.0.126%2Bi1_u20.04_amd64.deb
-        # PACKAGE="intel-igc-cm_1.0.126+i1_u20.04_amd64.deb"
-
-        # if [[ ! -f "$PACKAGE" ]]; then
-        #     echo " '$PACKAGE' doesn't exist"
-        #     exit 1
-        # fi
-
-        # echo "Installing: $PACKAGE"
-        # sudo dpkg --force-all -i "$PACKAGE"
-        # sudo apt-get install -f -y
-        # echo "Installation completed successfully!"
 
 
 
@@ -202,6 +190,7 @@ jobs:
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
         cmake
+        -S unified-runtime \
         -B${{github.workspace}}/build
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
