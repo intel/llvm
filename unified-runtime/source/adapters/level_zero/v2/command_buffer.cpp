@@ -227,26 +227,14 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t commandBuffer, ur_kernel_handle_t hKernel,
     uint32_t workDim, const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-    uint32_t /*numKernelAlternatives*/,
-    ur_kernel_handle_t * /*kernelAlternatives*/,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*syncPointWaitList*/,
     uint32_t /*numEventsInWaitList*/,
     const ur_event_handle_t * /*eventWaitList*/,
     ur_exp_command_buffer_sync_point_t * /*retSyncPoint*/,
     ur_event_handle_t * /*event*/,
-    ur_exp_command_buffer_command_handle_t * /*command*/) try {
-  // TODO: These parameters aren't implemented in V1 yet, and are a fair amount
-  // of work. Need to know semantics: should they be checked before kernel
-  // execution (difficult) or before kernel appending to list (easy fix).
-  std::ignore = numEventsInWaitList;
-  std::ignore = eventWaitList;
-  std::ignore = event;
-
-  // sync mechanic can be ignored, because all lists are in-order
-  std::ignore = numSyncPointsInWaitList;
-  std::ignore = syncPointWaitList;
-  std::ignore = retSyncPoint;
+    ur_exp_command_buffer_command_handle_t *command) try {
 
   if (command != nullptr && !commandBuffer->isUpdatable) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
