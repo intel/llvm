@@ -41,12 +41,12 @@ public:
   std::string str() const { return std::string(CurrentIndentationLevel, ' '); }
 
 private:
-  friend raw_ostream &operator<<(raw_ostream &OS, const ScopedIndent &IH);
+  friend raw_ostream &operator<<(raw_ostream &, const ScopedIndent &);
 
   const size_t Incremented;
 };
 
-raw_ostream &operator<<(raw_ostream &OS, const ScopedIndent &IH) {
+raw_ostream &operator<<(raw_ostream &OS, const ScopedIndent &) {
   return OS.indent(CurrentIndentationLevel);
 }
 
