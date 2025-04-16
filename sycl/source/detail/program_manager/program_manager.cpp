@@ -644,11 +644,18 @@ bool ProgramManager::isSpecialDeviceImageShouldBeUsed(
     ur_bool_t NativeBF16Supported = false;
     const std::shared_ptr<detail::device_impl> &DeviceImpl =
         detail::getSyclObjImpl(Dev);
-    bool CallSuccessful = DeviceImpl->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-        DeviceImpl->getHandleRef(), UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE,
-        sizeof(ur_bool_t), &NativeBF16Supported, nullptr);
-    return CallSuccessful && NativeBF16Supported ==
-           (Bfloat16DeviceLibVersion == DEVICELIB_NATIVE);
+    bool CallSuccessful =
+        DeviceImpl->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            DeviceImpl->getHandleRef(),
+            UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE, sizeof(ur_bool_t),
+            &NativeBF16Supported, nullptr);
+    if (!CallSuccessful) {
+      // If backend query is not successful, we will use fallback bfloat16
+      // device library for safety.
+      return Bfloat16DeviceLibVersion == DEVICELIB_FALLBACK;
+    } else
+      return NativeBF16Supported ==
+             (Bfloat16DeviceLibVersion == DEVICELIB_NATIVE);
   }
 
   return false;
