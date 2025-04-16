@@ -211,6 +211,9 @@ jobs:
       # This is to check that install command does not fail
       run: cmake --install build
 
+    - name: printenv
+      run: |
+        printenv
     - name: Test adapter specific.
       env:
         ZE_ENABLE_LOADER_DEBUG_TRACE: 1
