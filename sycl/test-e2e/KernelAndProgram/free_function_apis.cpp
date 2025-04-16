@@ -2,9 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda
-
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>

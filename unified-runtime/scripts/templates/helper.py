@@ -1890,18 +1890,22 @@ def _get_create_get_retain_release_functions(specs, namespace, tags):
                 funcs.append(make_func_name(namespace, tags, obj))
 
     create_suffixes = r"(Create[A-Za-z]*){1}$"
+    enqueue_prefixes = r"(Enqueue){1}"
     get_suffixes = r"(Get){1}$"
     retain_suffixes = r"(Retain){1}$"
     release_suffixes = r"(Release){1}$"
     common_prefix = r"^" + namespace
 
     create_exp = common_prefix + r"[A-Za-z]+" + create_suffixes
+    enqueue_exp = common_prefix + enqueue_prefixes + r"[A-Za-z]+$"
     get_exp = common_prefix + r"[A-Za-z]+" + get_suffixes
     retain_exp = common_prefix + r"[A-Za-z]+" + retain_suffixes
     release_exp = common_prefix + r"[A-Za-z]+" + release_suffixes
 
     create_funcs, get_funcs, retain_funcs, release_funcs = (
-        list(filter(lambda f: re.match(create_exp, f), funcs)),
+        list(
+            filter(lambda f: re.match(create_exp, f) or re.match(enqueue_exp, f), funcs)
+        ),
         list(filter(lambda f: re.match(get_exp, f), funcs)),
         list(filter(lambda f: re.match(retain_exp, f), funcs)),
         list(filter(lambda f: re.match(release_exp, f), funcs)),
@@ -1934,10 +1938,17 @@ def get_handle_create_get_retain_release_functions(specs, namespace, tags):
             continue
 
         class_type = subt(namespace, tags, h["class"])
-        create_funcs = list(filter(lambda f: class_type in f, funcs["create"]))
-        get_funcs = list(filter(lambda f: class_type in f, funcs["get"]))
-        retain_funcs = list(filter(lambda f: class_type in f, funcs["retain"]))
-        release_funcs = list(filter(lambda f: class_type in f, funcs["release"]))
+
+        prefixes = [class_type]
+        if class_type == namespace + "Event":
+            prefixes.append(namespace + "Enqueue")
+            # Functions prefixed with $xEnqueue are also 'create' functions for event handles
+
+        has_prefix = lambda f: any(p in f for p in prefixes)
+        create_funcs = list(filter(has_prefix, funcs["create"]))
+        get_funcs = list(filter(has_prefix, funcs["get"]))
+        retain_funcs = list(filter(has_prefix, funcs["retain"]))
+        release_funcs = list(filter(has_prefix, funcs["release"]))
 
         record = {}
         record["handle"] = subt(namespace, tags, h["name"])
@@ -1953,7 +1964,7 @@ def get_handle_create_get_retain_release_functions(specs, namespace, tags):
 
 """
 Public:
-    returns a list of objects representing functions that accept $x_queue_handle_t as a first param 
+    returns a list of objects representing functions that accept $x_queue_handle_t as a first param
 """
 
 
