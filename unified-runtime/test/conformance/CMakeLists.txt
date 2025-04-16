@@ -117,7 +117,7 @@ set(TEST_SUBDIRECTORIES_DPCXX
     "usm"
 )
 
-if(UR_DPCXX)
+if(UR_FOUND_DPCXX)
     add_custom_target(generate_device_binaries)
 
     set(UR_CONFORMANCE_DEVICE_BINARIES_DIR
