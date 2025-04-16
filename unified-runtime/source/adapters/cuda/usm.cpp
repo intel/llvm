@@ -23,8 +23,11 @@
 #include <cuda.h>
 
 namespace umf {
-ur_result_t getProviderNativeError(const char *, int32_t) {
-  // TODO: implement when UMF supports CUDA
+ur_result_t getProviderNativeError(const char *providerName, int32_t error) {
+  if (strcmp(providerName, "CUDA") == 0) {
+    return mapErrorUR(static_cast<CUresult>(error));
+  }
+
   return UR_RESULT_ERROR_UNKNOWN;
 }
 } // namespace umf
@@ -113,7 +116,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_device_handle_t Device,
                                ur_usm_device_mem_flags_t, size_t Size,
-                               uint32_t Alignment) {
+                               [[maybe_unused]] uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
     *ResultPtr = umfPoolMalloc(Device->MemoryPoolDevice, Size);
@@ -122,12 +125,8 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
     return Err;
   }
 
-#ifdef NDEBUG
-  std::ignore = Alignment;
-#else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
-#endif
   return UR_RESULT_SUCCESS;
 }
 
@@ -135,7 +134,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_device_handle_t Device,
                                ur_usm_host_mem_flags_t,
                                ur_usm_device_mem_flags_t, size_t Size,
-                               uint32_t Alignment) {
+                               [[maybe_unused]] uint32_t Alignment) {
   try {
     ScopedContext Active(Device);
     *ResultPtr = umfPoolMalloc(Device->MemoryPoolShared, Size);
@@ -144,18 +143,14 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
     return Err;
   }
 
-#ifdef NDEBUG
-  std::ignore = Alignment;
-#else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
-#endif
   return UR_RESULT_SUCCESS;
 }
 
 ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t hContext,
                              ur_usm_host_mem_flags_t, size_t Size,
-                             uint32_t Alignment) {
+                             [[maybe_unused]] uint32_t Alignment) {
   try {
     *ResultPtr = umfPoolMalloc(hContext->MemoryPoolHost, Size);
     UMF_CHECK_PTR(*ResultPtr);
@@ -163,12 +158,8 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t hContext,
     return Err;
   }
 
-#ifdef NDEBUG
-  std::ignore = Alignment;
-#else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
-#endif
   return UR_RESULT_SUCCESS;
 }
 
@@ -269,18 +260,14 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   return Result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
-                                                   void *HostPtr, size_t Size) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t, void *,
+                                                   size_t Size) {
   UR_ASSERT(Size > 0, UR_RESULT_ERROR_INVALID_VALUE);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
-                                                    void *HostPtr) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t,
+                                                    void *) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -301,7 +288,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       break;
     }
     default: {
-      throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     }
     pNext = BaseDesc->pNext;
@@ -353,8 +340,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
   try {
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, PoolDesc));
-  } catch (const UsmAllocationException &Ex) {
-    return Ex.getError();
+  } catch (ur_result_t e) {
+    return e;
   } catch (umf_result_t e) {
     return umf::umf2urResult(e);
   } catch (...) {
@@ -412,7 +399,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
     : Context{Context}, Device{Device} {
   if (!(PoolDesc->flags & UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP))
-    throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
 
   CUmemPoolProps MemPoolProps{};
   size_t threshold = 0;
@@ -451,7 +438,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       break;
     }
     default: {
-      throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     }
     pNext = BaseDesc->pNext;
@@ -487,8 +474,8 @@ urUSMPoolCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   try {
     *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, Device, pPoolDesc));
-  } catch (const UsmAllocationException &Ex) {
-    return Ex.getError();
+  } catch (ur_result_t e) {
+    return e;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
