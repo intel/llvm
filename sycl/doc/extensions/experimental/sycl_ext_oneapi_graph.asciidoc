@@ -983,6 +983,8 @@ Both the source and target graphs for the update must satisfy the following
 conditions:
 
 * Both graphs must have been created with the same device and context.
+* Neither graph may have any nodes of type `node_type::async_malloc` or
+  `node_type::async_free`.
 * Both graphs must be topologically identical. The graphs are considered
   topologically identical when:
 
@@ -991,8 +993,9 @@ conditions:
 ** Nodes must be added in the same order in the two graphs. Nodes may be added
    via `command_graph::add`, or for a recorded queue via `queue::submit` or
    queue shortcut functions.
-** Corresponding kernel nodes in each graph must be kernels that have the same
-type:
+** Corresponding nodes in each graph must have the same `node_type`.
+** Corresponding nodes of type `node_type::kernel` must have kernels with
+   identical types:
 
 *** When the kernel is defined as a lambda, the lambda must be the same.
 *** When the kernel is defined as a named function object, the kernel class
@@ -1138,10 +1141,6 @@ appropriate commands to the graph to do this.
 * `node_type::async_malloc` nodes within a graph will return a pointer to an
 allocation of the provided size. This pointer can then be used in other graph
 nodes ordered after that node in the same way any USM pointer would be. 
-+
-[Note: Returned pointers are not guaranteed to be unique. An implementation may
-return the same pointer as a previous `async_malloc` nodes if that pointer was
-previously freed via `async_free` at that point in the graph. -- end note]
 
 * `node_type::async_free` nodes within a graph indicate that a given allocation
 is no longer in use. They must be ordered after the associated allocation node.
@@ -1504,13 +1503,12 @@ Exceptions:
 * Throws synchronously with error code `feature_not_supported` if the graph
   contains a command that is not supported by the device.
 
-Returns: A new executable graph object which can be submitted to a queue.
-
-Exceptions:
-
-* Throws with error code `invalid` if the graph contains
+* Throws synchronously with error code `invalid` if the graph contains
 <<graph-memory-allocations, graph-owned memory allocations>> and any instance of
 an executable graph created from this modifiable graph is still alive.
+
+Returns: A new executable graph object which can be submitted to a queue.
+
 
 |
 [source,c++]
