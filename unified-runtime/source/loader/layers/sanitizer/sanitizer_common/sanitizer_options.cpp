@@ -12,7 +12,7 @@
  */
 
 #include "sanitizer_options.hpp"
-#include "sanitizer_common/sanitizer_common.hpp"
+#include "sanitizer_common.hpp"
 #include "sanitizer_options_impl.hpp"
 
 #include <cstring>
