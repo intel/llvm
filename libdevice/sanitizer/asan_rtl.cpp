@@ -339,6 +339,7 @@ void __asan_exit(ErrorType error_type) {
     __devicelib_exit();
     break;
   default:
+    break;
   }
 }
 
