@@ -188,6 +188,7 @@ jobs:
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
+        source .venv/bin/activate
         cmake
         -S unified-runtime
         -B build
@@ -210,11 +211,15 @@ jobs:
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
-      run: cmake --build build -j $(nproc)
+      run: |
+        . .venv/bin/activate
+        cmake --build build -j $(nproc)
 
     - name: Install
       # This is to check that install command does not fail
-      run: cmake --install build
+      run: |
+        . .venv/bin/activate
+        cmake --install build
 
     - name: Test adapter specific.
       env:
