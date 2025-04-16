@@ -9,6 +9,8 @@
 #include "llvm/Object/SYCLBIN.h"
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Object/OffloadBinary.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -149,7 +151,7 @@ SYCLBIN::createNativeDeviceCodeImageHeader(
 }
 
 Expected<SmallString<0>>
-SYCLBIN::write(const SmallVector<SYCLBIN::ModuleDesc> &ModuleDescs) {
+SYCLBIN::write(const ArrayRef<SYCLBIN::ModuleDesc> ModuleDescs) {
   // TODO: Merge by properties, so overlap can live in the same abstract module.
 
   FileHeaderType FileHeader;

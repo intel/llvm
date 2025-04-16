@@ -56,7 +56,7 @@ private:
 };
 
 std::vector<uint8_t> generateRandomImage() {
-  std::mt19937 Rng(std::random_device{}());
+  std::mt19937 Rng(42);
   std::uniform_int_distribution<uint64_t> SizeDist(0, 256);
   std::uniform_int_distribution<uint16_t> KindDist(0);
   std::uniform_int_distribution<uint16_t> BinaryDist(

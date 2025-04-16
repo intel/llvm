@@ -99,8 +99,6 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
     }
     (*CurPropSet)[Parts.first] = std::move(Prop);
   }
-  if (!CurPropSet)
-    return makeError("invalid property set registry");
 
   return Expected<std::unique_ptr<PropertySetRegistry>>(std::move(Res));
 }

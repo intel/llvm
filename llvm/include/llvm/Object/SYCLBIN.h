@@ -48,8 +48,9 @@ public:
 
   /// Serialize the contents of \p ModuleDescs to a binary buffer to be read
   /// later.
-  static Expected<SmallString<0>> write(const SmallVector<ModuleDesc> &);
+  static Expected<SmallString<0>> write(const ArrayRef<ModuleDesc> ModuleDescs);
 
+  /// Deserialize the contents of \p Source to produce a SYCLBIN object.
   static Expected<std::unique_ptr<SYCLBIN>> read(MemoryBufferRef Source);
 
   struct IRModule {

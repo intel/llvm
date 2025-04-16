@@ -1183,9 +1183,10 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
   return *OutputFileOrErr;
 }
 
-// Produce SYCLBIN data from a split module
+  /// Write an OffloadBinary containing the serialized SYCLBIN resulting from
+  /// \p ModuleDescs to the ExecutableName file with the .syclbin extension.
 static Expected<StringRef>
-packageSYCLBIN(const SmallVector<SYCLBIN::ModuleDesc> &Modules) {
+packageSYCLBIN(const ArrayRef<SYCLBIN::ModuleDesc> Modules) {
   auto ErrorOrSYCLBIN = SYCLBIN::write(Modules);
   if (!ErrorOrSYCLBIN)
     return ErrorOrSYCLBIN.takeError();
@@ -2660,7 +2661,9 @@ int main(int Argc, char **Argv) {
                                   "be used together."));
 
   OutputSYCLBIN = Args.hasArg(OPT_syclbin);
-  // TODO: Check conflicting options: sycl_embed_ir
+  if (OutputSYCLBIN && Args.hasArg(OPT_sycl_embed_ir))
+    reportError(createStringError(
+        "-sycl-embed_ir and -syclbin can't be used together."));
 
   if (Args.hasArg(OPT_sycl_module_split_mode_EQ)) {
     if (UseSYCLPostLinkTool)

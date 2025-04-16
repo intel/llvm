@@ -13,9 +13,9 @@
 #include "llvm/Object/OffloadBinary.h"
 #include "llvm/Object/SYCLBIN.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/raw_ostream.h"
 
-#include <fstream>
-#include <iostream>
 #include <iterator>
 #include <regex>
 #include <string>
@@ -41,13 +41,13 @@ public:
   std::string str() const { return std::string(CurrentIndentationLevel, ' '); }
 
 private:
-  friend std::ostream &operator<<(std::ostream &OS, const ScopedIndent &IH);
+  friend raw_ostream &operator<<(raw_ostream &OS, const ScopedIndent &IH);
 
   const size_t Incremented;
 };
 
-std::ostream &operator<<(std::ostream &OS, const ScopedIndent &IH) {
-  return (OS << IH.str());
+raw_ostream &operator<<(raw_ostream &OS, const ScopedIndent &IH) {
+  return OS.indent(CurrentIndentationLevel);
 }
 
 std::string_view StateToString(llvm::object::SYCLBIN::BundleState State) {
@@ -75,11 +75,12 @@ std::string PropertyValueToString(const llvm::util::PropertyValue &PropVal) {
   return "!UNKNOWN PROPERTY VALUE TYPE!";
 }
 
-void PrintProperties(llvm::util::PropertySetRegistry &Properties) {
-  for (auto PropertySet : Properties) {
+void PrintProperties(raw_ostream &OS,
+                     llvm::util::PropertySetRegistry &Properties) {
+  for (auto &PropertySet : Properties) {
     ScopedIndent Ind;
-    std::cout << Ind << PropertySet.first.c_str() << ":\n";
-    for (auto PropertyValue : PropertySet.second) {
+    OS << Ind << PropertySet.first << ":\n";
+    for (auto &PropertyValue : PropertySet.second) {
       ScopedIndent Ind;
       std::string PropValStr = PropertyValueToString(PropertyValue.second);
       // If there is a newline in the value, start at next line and do
@@ -93,8 +94,7 @@ void PrintProperties(llvm::util::PropertySetRegistry &Properties) {
         PropValStr =
             std::regex_replace(PropValStr, NewlineRegex, "\n" + Ind.str());
       }
-      std::cout << Ind << PropertyValue.first.c_str() << ": " << PropValStr
-                << "\n";
+      OS << Ind << PropertyValue.first << ": " << PropValStr << "\n";
     }
   }
 }
@@ -103,6 +103,10 @@ int main(int argc, char **argv) {
   cl::opt<std::string> TargetSYCLBIN(
       cl::Positional, cl::desc("<target syclbin>"), cl::Required);
 
+  cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"),
+                                      cl::value_desc("filename"),
+                                      cl::init("-"));
+
   cl::ParseCommandLineOptions(argc, argv);
 
   std::string TargetFilename{TargetSYCLBIN};
@@ -110,7 +114,16 @@ int main(int argc, char **argv) {
   auto FileMemBufferOrError = llvm::MemoryBuffer::getFileOrSTDIN(
       TargetFilename, /*IsText=*/false, /*RequiresNullTerminator=*/false);
   if (!FileMemBufferOrError) {
-    std::cerr << "Failed to open or read file: " << TargetFilename << std::endl;
+    errs() << "Failed to open or read file " << TargetFilename << "\n";
+    return 1;
+  }
+
+  std::error_code OSErr{};
+  raw_fd_ostream OS(OutputFilename, OSErr, sys::fs::CD_CreateAlways,
+                    sys::fs::FA_Write, sys::fs::OF_None);
+  if (OSErr) {
+    errs() << "Failed to open output file " << OutputFilename << " : "
+           << OSErr.message() << "\n";
     return 1;
   }
 
@@ -127,60 +140,58 @@ int main(int argc, char **argv) {
 
   std::unique_ptr<llvm::object::SYCLBIN> ParsedSYCLBIN;
   if (llvm::object::SYCLBIN::read(SYCLBINImageBuffer).moveInto(ParsedSYCLBIN)) {
-    std::cerr << "Failed to parse SYCLBIN file." << std::endl;
+    errs() << "Failed to parse SYCLBIN file.\n";
     return 1;
   }
 
-  std::cout << "Version: " << ParsedSYCLBIN->Version << "\n";
-  std::cout << "Global metadata:\n";
-  PrintProperties(*(ParsedSYCLBIN->GlobalMetadata));
-  std::cout << "Number of Abstract Modules: "
-            << ParsedSYCLBIN->AbstractModules.size() << "\n";
+  OS << "Version: " << ParsedSYCLBIN->Version << "\n";
+  OS << "Global metadata:\n";
+  PrintProperties(OS, *(ParsedSYCLBIN->GlobalMetadata));
+  OS << "Number of Abstract Modules: " << ParsedSYCLBIN->AbstractModules.size()
+     << "\n";
 
   for (size_t I = 0; I < ParsedSYCLBIN->AbstractModules.size(); ++I) {
     const llvm::object::SYCLBIN::AbstractModule &AM =
         ParsedSYCLBIN->AbstractModules[I];
 
-    std::cout << "Abstract Module " << I << ":\n";
+    OS << "Abstract Module " << I << ":\n";
 
     ScopedIndent Ind;
 
     // Metadata.
-    std::cout << Ind << "Metadata:\n";
-    PrintProperties(*AM.Metadata);
+    OS << Ind << "Metadata:\n";
+    PrintProperties(OS, *AM.Metadata);
 
     // IR Modules.
-    std::cout << Ind << "Number of IR Modules: " << AM.IRModules.size() << "\n";
+    OS << Ind << "Number of IR Modules: " << AM.IRModules.size() << "\n";
     for (size_t J = 0; J < AM.IRModules.size(); ++J) {
       const llvm::object::SYCLBIN::IRModule &IRM = AM.IRModules[J];
-      std::cout << Ind << "IR module " << J << ":\n";
+      OS << Ind << "IR module " << J << ":\n";
       {
         ScopedIndent Ind;
-        std::cout << Ind << "Metadata:\n";
-        PrintProperties(*IRM.Metadata);
-        std::cout << Ind << "Raw IR bytes: <Binary blob of "
-                  << IRM.RawIRBytes.size() << " bytes>\n";
+        OS << Ind << "Metadata:\n";
+        PrintProperties(OS, *IRM.Metadata);
+        OS << Ind << "Raw IR bytes: <Binary blob of " << IRM.RawIRBytes.size()
+           << " bytes>\n";
       }
     }
 
     // Native device code images.
-    std::cout << Ind << "Number of Native Device Code Images: "
-              << AM.NativeDeviceCodeImages.size() << "\n";
+    OS << Ind << "Number of Native Device Code Images: "
+       << AM.NativeDeviceCodeImages.size() << "\n";
     for (size_t J = 0; J < AM.NativeDeviceCodeImages.size(); ++J) {
       const llvm::object::SYCLBIN::NativeDeviceCodeImage &NDCI =
           AM.NativeDeviceCodeImages[J];
-      std::cout << Ind << "Native device code image " << J << ":\n";
+      OS << Ind << "Native device code image " << J << ":\n";
       {
         ScopedIndent Ind;
-        std::cout << Ind << "Metadata:\n";
-        PrintProperties(*NDCI.Metadata);
-        std::cout << Ind
-                  << "Raw native device code image bytes: <Binary blob of "
-                  << NDCI.RawDeviceCodeImageBytes.size() << " bytes>\n";
+        OS << Ind << "Metadata:\n";
+        PrintProperties(OS, *NDCI.Metadata);
+        OS << Ind << "Raw native device code image bytes: <Binary blob of "
+           << NDCI.RawDeviceCodeImageBytes.size() << " bytes>\n";
       }
     }
   }
 
-  std::cout << std::flush;
   return 0;
 }
