@@ -250,15 +250,13 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
+    const ur_usm_desc_t * /*pUSMDesc*/, ur_usm_pool_handle_t /*pool*/,
     size_t widthInBytes, size_t height, size_t elementSizeBytes, void **ppMem,
     size_t *pResultPitch) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  std::ignore = pUSMDesc;
-  std::ignore = pool;
 
   UR_ASSERT((height > 0), UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT((elementSizeBytes > 0), UR_RESULT_ERROR_INVALID_VALUE);
@@ -922,8 +920,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     [[maybe_unused]] ur_context_handle_t hContext,
-    ur_exp_image_mem_native_handle_t hImageMem, ur_image_info_t propName,
-    void *pPropValue, size_t *pPropSizeRet) {
+    [[maybe_unused]] ur_exp_image_mem_native_handle_t hImageMem,
+    [[maybe_unused]] ur_image_info_t propName,
+    [[maybe_unused]] void *pPropValue, [[maybe_unused]] size_t *pPropSizeRet) {
   // hipArrayGetDescriptor and hipArray3DGetDescriptor are supported only since
   // ROCm 5.6.0, so we can't query image array information for older versions.
 #if HIP_VERSION >= 50600000
@@ -1002,10 +1001,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 #else
-  std::ignore = hImageMem;
-  std::ignore = propName;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
 }
@@ -1123,20 +1118,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
+    ur_context_handle_t /*hContext*/, ur_device_handle_t /*hDevice*/,
+    const ur_image_format_t * /*pImageFormat*/,
+    const ur_image_desc_t * /*pImageDesc*/,
     [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem,
-    ur_exp_image_mem_native_handle_t *phImageMem) {
+    ur_exp_image_mem_native_handle_t * /*phImageMem*/) {
   // hipExternalMemoryGetMappedMipmappedArray should be introduced from ROCm 6.
   // However, there is an issue at the moment with the required function symbol
   // missing from the libamdhip64.so library, despite being shown in the docs.
   // TODO: Update this with a link to a bug report filed on the ROCm github.
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = pImageFormat;
-  std::ignore = pImageDesc;
-  std::ignore = hExternalMem;
-  std::ignore = phImageMem;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

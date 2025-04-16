@@ -224,19 +224,15 @@ struct _ur_image final : ur_mem_handle_t_ {
 
   ur_result_t getImageZeHandle(char *&ZeHandle, access_mode_t,
                                ur_device_handle_t,
-                               const ur_event_handle_t *phWaitEvents,
-                               uint32_t numWaitEvents) {
-    std::ignore = phWaitEvents;
-    std::ignore = numWaitEvents;
+                               const ur_event_handle_t * /* phWaitEvents*/,
+                               uint32_t /*numWaitEvents*/) {
     ZeHandle = reinterpret_cast<char *>(ZeImage);
     return UR_RESULT_SUCCESS;
   }
   ur_result_t getImageZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
                                   ur_device_handle_t,
-                                  const ur_event_handle_t *phWaitEvents,
-                                  uint32_t numWaitEvents) {
-    std::ignore = phWaitEvents;
-    std::ignore = numWaitEvents;
+                                  const ur_event_handle_t * /*phWaitEvents*/,
+                                  uint32_t /*numWaitEvents*/) {
     ZeHandlePtr = reinterpret_cast<char **>(&ZeImage);
     return UR_RESULT_SUCCESS;
   }
