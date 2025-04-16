@@ -3134,7 +3134,8 @@ bool SPIRVInstructionSelector::selectIntrinsic(Register ResVReg,
   case Intrinsic::spv_generic_cast_to_ptr_explicit: {
     bool Result = true;
     Register PtrReg = I.getOperand(I.getNumExplicitDefs() + 1).getReg();
-    SPIRV::StorageClass::StorageClass ResSC = GR.getPointerStorageClass(ResType);
+    SPIRV::StorageClass::StorageClass ResSC =
+        GR.getPointerStorageClass(ResType);
     Result &= isGenericCastablePtr(ResSC);
     return Result && BuildMI(BB, I, I.getDebugLoc(),
                              TII.get(SPIRV::OpGenericCastToPtrExplicit))

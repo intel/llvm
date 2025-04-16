@@ -167,9 +167,7 @@ public:
   // memcpy as per section 3 of the SPIR spec.
   bool useFP16ConversionIntrinsics() const override { return false; }
 
-  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override {
-    return {};
-  }
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   std::string_view getClobbers() const override { return ""; }
 
@@ -404,8 +402,6 @@ public:
   bool hasFeature(StringRef Feature) const override {
     return Feature == "spirv";
   }
-
-  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;

@@ -188,8 +188,6 @@ void SYCLInstallationDetector::addSYCLIncludeArgs(
   CC1Args.push_back(DriverArgs.MakeArgString(STLWrappersPath));
   CC1Args.push_back("-internal-isystem");
   CC1Args.push_back(DriverArgs.MakeArgString(IncludePath));
-  CC1Args.push_back("-include");
-  CC1Args.push_back("__clang_spirv_builtins.h");
 }
 
 void SYCLInstallationDetector::print(llvm::raw_ostream &OS) const {

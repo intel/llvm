@@ -35,8 +35,10 @@ static constexpr Builtin::Info BuiltinInfos[] = {
 static_assert(std::size(BuiltinInfos) == NumBuiltins);
 
 llvm::SmallVector<Builtin::InfosShard>
-BaseSPIRVTargetInfo::getTargetBuiltins() const {
-  return {{&BuiltinStrings, BuiltinInfos}};
+BaseSPIRTargetInfo::getTargetBuiltins() const {
+  if (getTriple().isSPIRV() || getTargetOpts().SYCLUseSPIRVBackend)
+    return {{&BuiltinStrings, BuiltinInfos}};
+  return {};
 }
 
 void SPIRTargetInfo::getTargetDefines(const LangOptions &Opts,

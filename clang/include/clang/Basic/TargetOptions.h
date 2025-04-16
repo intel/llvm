@@ -125,6 +125,9 @@ public:
 
   /// The entry point name for HLSL shader being compiled as specified by -E.
   std::string HLSLEntry;
+
+  /// Assume the use of the SPIR-V Backend.
+  bool SYCLUseSPIRVBackend = false;
 };
 
 } // end namespace clang
