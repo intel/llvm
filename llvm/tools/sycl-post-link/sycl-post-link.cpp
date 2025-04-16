@@ -629,9 +629,8 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
     Linked.restoreLinkageOfDirectInvokeSimdTargets();
     string_vector Names;
     Linked.saveEntryPointNames(Names);
-    Linked.cleanup(
-        AllowDeviceImageDependencies); // may remove some entry points, need to
-                                       // save/rebuild
+    // cleanup may remove some entry points, need to save/rebuild
+    Linked.cleanup(AllowDeviceImageDependencies);
     Linked.rebuildEntryPoints(Names);
     Result.clear();
     Result.emplace_back(std::move(Linked));
