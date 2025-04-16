@@ -8,9 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <tuple>
 #include <ur_api.h>
-#include <utility>
 
 namespace ur::level_zero {
 
