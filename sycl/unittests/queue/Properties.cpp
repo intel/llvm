@@ -27,8 +27,6 @@ TEST(QueueProperties, ValidDatalessProperties) {
   DatalessQueuePropertyCheck<sycl::property::queue::in_order>();
   DatalessQueuePropertyCheck<sycl::property::queue::enable_profiling>();
   DatalessQueuePropertyCheck<
-      sycl::ext::oneapi::property::queue::discard_events>();
-  DatalessQueuePropertyCheck<
       sycl::ext::oneapi::property::queue::priority_normal>();
   DatalessQueuePropertyCheck<
       sycl::ext::oneapi::property::queue::priority_low>();

@@ -319,7 +319,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
+  if (is_in_order() && !impl->hasCommandGraph() &&
       !impl->MIsProfilingEnabled) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
@@ -347,7 +347,7 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
         return (EventImpl->isDefaultConstructed() || EventImpl->isNOP()) &&
                !EventImpl->hasCommandGraph();
       });
-  if (is_in_order() && !impl->hasCommandGraph() && !impl->MDiscardEvents &&
+  if (is_in_order() && !impl->hasCommandGraph() &&
       !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
     event InOrderLastEvent = getBarrierEventForInorderQueueHelper(impl);
     // If the last event was discarded, fall back to enqueuing a barrier.
