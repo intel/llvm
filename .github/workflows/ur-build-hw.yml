@@ -201,25 +201,23 @@ jobs:
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
-        cmake
-        -S unified-runtime
-        -B build
-        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
-        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
-        -DUR_ENABLE_TRACING=ON
-        -DUR_DEVELOPER_MODE=ON
-        -DUR_BUILD_TESTS=ON
-        -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
-        -DUR_CONFORMANCE_TEST_LOADER=${{ matrix.adapter.other_name != '' && 'ON' || 'OFF' }}
-        ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
-        -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
-        -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
-        -DUR_DPCXX=./dpcpp_compiler/bin/clang++
-        -DUR_SYCL_LIBRARY_DIR=./dpcpp_compiler/lib
-        -DCMAKE_INSTALL_PREFIX=./install
-        ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
-        ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
+        cmake \
+        -S unified-runtime \
+        -B build \
+        -DCMAKE_C_COMPILER=gcc \
+        -DCMAKE_CXX_COMPILER=g++ \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DUR_ENABLE_TRACING=ON \
+        -DUR_DEVELOPER_MODE=ON \
+        -DUR_BUILD_TESTS=ON \
+        -DUR_BUILD_ADAPTER_OPENCL=ON \
+        -DUR_CONFORMANCE_TEST_LOADER=ON \
+        -DUR_BUILD_ADAPTER_NATIVE_CPU=ON \
+        -DUR_STATIC_LOADER=OFF \
+        -DUR_STATIC_ADAPTER_OPENCL=OFF \
+        -DUR_DPCXX=./dpcpp_compiler/bin/clang++ \
+        -DUR_SYCL_LIBRARY_DIR=./dpcpp_compiler/lib \
+        -DCMAKE_INSTALL_PREFIX=./install 
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
