@@ -16,4 +16,4 @@ void foo() {
 
 // CHECK-SPIRV: ExtInst [[#]] [[#InfoNone:]] [[#]] DebugInfoNone
 // CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugDeclare [[#]] [[#InfoNone]] [[#]]
-// CHECK-LLVM:  #dbg_declare(ptr poison, ![[#]], !DIExpression(DW_OP_constu, 0, DW_OP_swap, DW_OP_xderef), ![[#]])
+// CHECK-LLVM:  #dbg_declare(ptr null, ![[#]], !DIExpression(DW_OP_constu, 0, DW_OP_swap, DW_OP_xderef), ![[#]])

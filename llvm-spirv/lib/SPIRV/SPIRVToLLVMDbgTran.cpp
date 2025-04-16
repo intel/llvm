@@ -1574,25 +1574,17 @@ SPIRVToLLVMDbgTran::transDebugIntrinsic(const SPIRVExtInst *DebugInst,
   case SPIRVDebug::Declare: {
     using namespace SPIRVDebug::Operand::DebugDeclare;
     auto LocalVar = GetLocalVar(Ops[DebugLocalVarIdx]);
+    DebugLoc Loc = transDebugScope(DebugInst);
+    if (!Loc)
+      Loc = LocalVar.second;
     DIBuilder &DIB = getDIBuilder(DebugInst);
     if (getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[VariableIdx])) {
-      // If we don't have the variable(e.g. alloca might be promoted by mem2reg)
-      // we should generate the following IR:
-      // call void @llvm.dbg.declare(metadata !4, metadata !14, metadata !5)
-      // !4 = !{}
-      // DIBuilder::insertDeclare doesn't allow to pass nullptr for the Storage
-      // parameter. To work around this limitation we create a dummy temp
-      // alloca, use it to create llvm.dbg.declare, and then remove the alloca.
-      auto *AI =
-          new AllocaInst(Type::getInt8Ty(M->getContext()),
-                         M->getDataLayout().getAllocaAddrSpace(), "tmp", BB);
+      auto *Null =
+          ConstantPointerNull::get(PointerType::get(M->getContext(), 0));
       DbgInstPtr DbgDeclare = DIB.insertDeclare(
-          AI, LocalVar.first, GetExpression(Ops[ExpressionIdx]),
-          LocalVar.second, BB);
-      AI->eraseFromParent();
+          Null, LocalVar.first, GetExpression(Ops[ExpressionIdx]), Loc, BB);
       return DbgDeclare;
     }
-    DebugLoc Loc = transDebugScope(DebugInst);
     return DIB.insertDeclare(GetValue(Ops[VariableIdx]), LocalVar.first,
                              GetExpression(Ops[ExpressionIdx]), Loc,
                              BB);

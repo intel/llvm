@@ -25,7 +25,7 @@
 ; CHECK-SPIRV: ExtInst [[#]] [[#LocalVar:]] [[#]] DebugLocalVariable
 ; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugDeclare [[#LocalVar]] [[#None]] [[#]]
 
-; CHECK-LLVM: #dbg_declare(ptr poison, ![[#LocalVar:]], !DIExpression(DW_OP_constu, 4, DW_OP_swap, DW_OP_xderef), ![[#Loc:]])
+; CHECK-LLVM: #dbg_declare(ptr null, ![[#LocalVar:]], !DIExpression(DW_OP_constu, 4, DW_OP_swap, DW_OP_xderef), ![[#Loc:]])
 ; CHECK-LLVM-DAG: ![[#LocalVar]] = !DILocalVariable(name: "bar"
 ; CHECK-LLVM-DAG: ![[#Loc]] = !DILocation(line: 23
 
