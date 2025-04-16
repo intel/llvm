@@ -1616,6 +1616,9 @@ private:
     KernelWrapper<WrapAsVal, NameT, KernelType, ElementType, PropertiesT>::wrap(
         this, KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
+    if constexpr (WrapAsVal == WrapAs::single_task) {
+      throwOnKernelParameterMisuse<KernelName, KernelType>();
+    }
     throwIfActionIsCreated();
     if constexpr (std::is_same_v<MaybeKernelTy, kernel>) {
       // Ignore any set kernel bundles and use the one associated with the
@@ -1652,25 +1655,6 @@ private:
 
   // NOTE: to support kernel_handler argument in kernel lambdas, only
   // KernelWrapper<...>::wrap() must be called in this code.
-
-  /// Defines and invokes a SYCL kernel function as a function object type.
-  ///
-  /// If it is a named function object and the function object type is
-  /// globally visible, there is no need for the developer to provide
-  /// a kernel name for it.
-  ///
-  /// \param KernelFunc is a SYCL kernel function.
-  template <
-      typename KernelName, typename KernelType,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void single_task_lambda_impl(PropertiesT Props,
-                               const KernelType &KernelFunc) {
-    wrap_kernel<WrapAs::single_task, KernelName>(KernelFunc, nullptr /*Kernel*/,
-                                                 Props, range<1>{1});
-#ifndef __SYCL_DEVICE_ONLY__
-    throwOnKernelParameterMisuse<KernelName, KernelType>();
-#endif
-  }
 
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
@@ -1889,8 +1873,8 @@ public:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(const KernelType &KernelFunc) {
-    single_task_lambda_impl<KernelName>(
-        ext::oneapi::experimental::empty_properties_t{}, KernelFunc);
+    wrap_kernel<WrapAs::single_task, KernelName>(KernelFunc, nullptr /*Kernel*/,
+                                                 {} /*Props*/, range<1>{1});
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
@@ -2224,8 +2208,8 @@ public:
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
       PropertiesT>::value> single_task(PropertiesT Props,
                                        const KernelType &KernelFunc) {
-    single_task_lambda_impl<KernelName, KernelType, PropertiesT>(Props,
-                                                                 KernelFunc);
+    wrap_kernel<WrapAs::single_task, KernelName>(KernelFunc, nullptr /*Kernel*/,
+                                                 Props, range<1>{1});
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType,
@@ -3734,7 +3718,8 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
+  template <int Dims>
+  static sycl::range<3> padRange(const sycl::range<Dims> &Range) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
@@ -3745,7 +3730,7 @@ private:
     }
   }
 
-  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
+  template <int Dims> static sycl::id<3> padId(const sycl::id<Dims> &Id) {
     if constexpr (Dims == 3) {
       return Id;
     } else {
