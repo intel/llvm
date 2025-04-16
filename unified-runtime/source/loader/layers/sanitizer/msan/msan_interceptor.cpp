@@ -654,7 +654,7 @@ MsanRuntimeDataWrapper::~MsanRuntimeDataWrapper() {
     assert(Result == UR_RESULT_SUCCESS);
   }
   if (DevicePtr) {
-    auto Result =
+    [[maybe_unused]] auto Result =
         getContext()->urDdiTable.USM.pfnFree(Context, (void *)DevicePtr);
     assert(Result == UR_RESULT_SUCCESS);
   }
