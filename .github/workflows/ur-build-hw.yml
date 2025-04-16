@@ -137,6 +137,19 @@ jobs:
         pip install -r third_party/requirements.txt
         pip install -r third_party/requirements_testing.txt
 
+        wget https://raw.githubusercontent.com/opensource-krzysztof/text/refs/heads/main/devops_utils_ur/intel-igc-cm_1.0.126%2Bi1_u20.04_amd64.deb
+        PACKAGE="intel-igc-cm_1.0.126+i1_u20.04_amd64.deb"
+
+        if [[ ! -f "$PACKAGE" ]]; then
+            echo " '$PACKAGE' doesn't exist"
+            exit 1
+        fi
+
+        echo "Installing: $PACKAGE"
+        sudo dpkg --force-all -i "$PACKAGE"
+        sudo apt-get install -f -y
+        echo "Installation completed successfully!"
+
 
 
     - name: Download DPC++..
@@ -188,7 +201,6 @@ jobs:
     - name: Configure Unified Runtime project
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
-        source .venv/bin/activate
         cmake
         -S unified-runtime
         -B build
@@ -212,13 +224,11 @@ jobs:
     - name: Build
       # This is so that device binaries can find the sycl runtime library
       run: |
-        . .venv/bin/activate
         cmake --build build -j $(nproc)
 
     - name: Install
       # This is to check that install command does not fail
       run: |
-        . .venv/bin/activate
         cmake --install build
 
     - name: Test adapter specific.
