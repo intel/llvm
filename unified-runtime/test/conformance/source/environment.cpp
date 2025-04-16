@@ -243,6 +243,9 @@ KernelsEnvironment::getKernelSourcePath(const std::string &kernel_name,
 void KernelsEnvironment::LoadSource(
     const std::string &kernel_name, ur_platform_handle_t platform,
     std::shared_ptr<std::vector<char>> &binary_out) {
+  // We don't have a way to build device code for native cpu yet.
+  UUR_KNOWN_FAILURE_ON_PARAM(platform, uur::NativeCPU{});
+
   std::string source_path =
       instance->getKernelSourcePath(kernel_name, platform);
 

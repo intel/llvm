@@ -89,11 +89,13 @@ jobs:
 
     - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.0.0
       with:
-        python-version: 3.9
+        python-version: "3.10"
 
     - name: Install prerequisites
       working-directory: ${{github.workspace}}/unified-runtime
-      run: python3 -m pip install -r third_party/requirements.txt
+      run: |
+        python3 -m pip install -r third_party/requirements.txt
+        python3 -m pip install -r third_party/requirements_testing.txt
 
     - name: Install hwloc
       run: brew install hwloc
@@ -108,7 +110,6 @@ jobs:
         -DCMAKE_BUILD_TYPE=Release
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
-        -DUMF_ENABLE_POOL_TRACKING=ON
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(sysctl -n hw.logicalcpu)
