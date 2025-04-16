@@ -183,6 +183,7 @@ jobs:
         sudo apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
 
     - name: Configure Unified Runtime project
+      working-directory: ./unified-runtime
       # ">" is used to avoid adding "\" at the end of each line; this command is quite long
       run: >
         cmake
