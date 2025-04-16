@@ -31,11 +31,8 @@ enum class HandlerSubmissionState : std::uint8_t {
 
 class handler_impl {
 public:
-  handler_impl(std::shared_ptr<queue_impl> SubmissionPrimaryQueue,
-               std::shared_ptr<queue_impl> SubmissionSecondaryQueue,
-               bool EventNeeded)
-      : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
-        MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)),
+  handler_impl(queue_impl *SubmissionPrimaryQueue, bool EventNeeded)
+      : MSubmissionPrimaryQueue(SubmissionPrimaryQueue),
         MEventNeeded(EventNeeded) {};
 
   handler_impl(
@@ -73,13 +70,7 @@ public:
   /// Shared pointer to the primary queue implementation. This is different from
   /// the queue associated with the handler if the corresponding submission is
   /// a fallback from a previous submission.
-  std::shared_ptr<queue_impl> MSubmissionPrimaryQueue;
-
-  /// Shared pointer to the secondary queue implementation. Nullptr if no
-  /// secondary queue fallback was given in the associated submission. This is
-  /// equal to the queue associated with the handler if the corresponding
-  /// submission is a fallback from a previous submission.
-  std::shared_ptr<queue_impl> MSubmissionSecondaryQueue;
+  queue_impl *MSubmissionPrimaryQueue = nullptr;
 
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.
@@ -203,12 +194,8 @@ public:
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 
-  /// Memory pool and allocation size for asynchronous allocation - held for
-  /// potential logging.
   /// Event computed from async alloc which is passed through for processing.
-  std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl> MMemPool;
-  size_t MAllocSize;
-  ur_event_handle_t MAsyncAllocEvent;
+  ur_event_handle_t MAsyncAllocEvent = nullptr;
 
   // Allocation ptr to be freed asynchronously.
   void *MFreePtr = nullptr;

@@ -136,13 +136,15 @@ struct DemangleHandle {
 
   ~DemangleHandle() { std::free(p); }
 };
-static std::string demangleKernelName(std::string Name) {
+static std::string demangleKernelName(const std::string_view Name) {
   int Status = -1; // some arbitrary value to eliminate the compiler warning
-  DemangleHandle result(abi::__cxa_demangle(Name.c_str(), NULL, NULL, &Status));
-  return (Status == 0) ? result.p : Name;
+  DemangleHandle result(abi::__cxa_demangle(Name.data(), NULL, NULL, &Status));
+  return (Status == 0) ? result.p : std::string(Name);
 }
 #else
-static std::string demangleKernelName(std::string Name) { return Name; }
+static std::string demangleKernelName(const std::string_view Name) {
+  return std::string(Name);
+}
 #endif
 
 static std::string accessModeToString(access::mode Mode) {
@@ -1961,7 +1963,7 @@ ExecCGCommand::ExecCGCommand(
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::string instrumentationGetKernelName(
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const std::string &FunctionName, const std::string &SyclKernelName,
+    const std::string_view FunctionName, const std::string_view SyclKernelName,
     void *&Address, std::optional<bool> &FromSource) {
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
@@ -1979,7 +1981,7 @@ std::string instrumentationGetKernelName(
 void instrumentationAddExtraKernelMetadata(
     xpti_td *&CmdTraceEvent, const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    const std::string &KernelName,
+    KernelNameStrRefT KernelName,
     const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const QueueImplPtr &Queue,
     std::vector<ArgDesc> &CGArgs) // CGArgs are not const since they could be
@@ -1995,24 +1997,12 @@ void instrumentationAddExtraKernelMetadata(
   std::mutex *KernelMutex = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
-  std::shared_ptr<kernel_impl> SyclKernelImpl;
-  std::shared_ptr<device_image_impl> DeviceImageImpl;
-
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the
-  // kernels in interop kernel bundles (if any) do not have kernel_id and
-  // can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-    std::shared_ptr<kernel_impl> KernelImpl =
-        detail::getSyclObjImpl(SyclKernel);
-
-    EliminatedArgMask = KernelImpl->getKernelArgMask();
-    Program = KernelImpl->getDeviceImage()->get_ur_program_ref();
+  if (auto SyclKernelImpl = KernelBundleImplPtr
+                                ? KernelBundleImplPtr->tryGetKernel(
+                                      KernelName, KernelBundleImplPtr)
+                                : std::shared_ptr<kernel_impl>{nullptr}) {
+    EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
+    Program = SyclKernelImpl->getDeviceImage()->get_ur_program_ref();
   } else if (nullptr != SyclKernel) {
     Program = SyclKernel->getProgramRef();
     if (!SyclKernel->isCreatedFromSource())
@@ -2061,17 +2051,17 @@ void instrumentationFillCommonData(const std::string &KernelName,
   xpti::payload_t Payload;
   if (!FileName.empty()) {
     // File name has a valid string
-    Payload = xpti::payload_t(FuncName.empty() ? KernelName.c_str()
-                                               : FuncName.c_str(),
-                              FileName.c_str(), Line, Column, Address);
+    Payload =
+        xpti::payload_t(FuncName.empty() ? KernelName.data() : FuncName.data(),
+                        FileName.data(), Line, Column, Address);
     HasSourceInfo = true;
   } else if (Address) {
     // We have a valid function name and an address
-    Payload = xpti::payload_t(KernelName.c_str(), Address);
+    Payload = xpti::payload_t(KernelName.data(), Address);
   } else {
     // In any case, we will have a valid function name and we'll use that to
     // create the hash
-    Payload = xpti::payload_t(KernelName.c_str());
+    Payload = xpti::payload_t(KernelName.data());
   }
 
   uint64_t CGKernelInstanceNo;
@@ -2108,7 +2098,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
     const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    const std::string &SyclKernelName, const QueueImplPtr &Queue,
+    const std::string_view SyclKernelName, const QueueImplPtr &Queue,
     const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
@@ -2121,8 +2111,7 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
   void *Address = nullptr;
   std::optional<bool> FromSource;
   std::string KernelName = instrumentationGetKernelName(
-      SyclKernel, std::string(CodeLoc.functionName()), SyclKernelName, Address,
-      FromSource);
+      SyclKernel, CodeLoc.functionName(), SyclKernelName, Address, FromSource);
 
   auto &[CmdTraceEvent, InstanceID] = XptiObjects;
 
@@ -2147,9 +2136,9 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     if (Queue.get())
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
                                    getQueueID(Queue));
-    instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
-                                          KernelBundleImplPtr, SyclKernelName,
-                                          SyclKernel, Queue, CGArgs);
+    instrumentationAddExtraKernelMetadata(
+        CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
+        std::string(SyclKernelName), SyclKernel, Queue, CGArgs);
 
     xptiNotifySubscribers(
         StreamID, NotificationTraceType, detail::GSYCLGraphEvent, CmdTraceEvent,
@@ -2319,6 +2308,8 @@ void SetArgBasedOnType(
     const ContextImplPtr &ContextImpl, detail::ArgDesc &Arg,
     size_t NextTrueIndex) {
   switch (Arg.MType) {
+  case kernel_param_kind_t::kind_dynamic_work_group_memory:
+    break;
   case kernel_param_kind_t::kind_work_group_memory:
     break;
   case kernel_param_kind_t::kind_stream:
@@ -2400,7 +2391,7 @@ static ur_result_t SetKernelParamsAndLaunch(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     bool IsCooperative, bool KernelUsesClusterLaunch,
     uint32_t WorkGroupMemorySize, const RTDeviceBinaryImage *BinImage,
-    const std::string &KernelName) {
+    KernelNameStrRefT KernelName) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
 
@@ -2528,21 +2519,13 @@ getCGKernelInfo(const CGExecKernel &CommandGroup, ContextImplPtr ContextImpl,
   ur_kernel_handle_t UrKernel = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
+  auto &KernelBundleImplPtr = CommandGroup.MKernelBundle;
 
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the kernels
-  // in interop kernel bundles (if any) do not have kernel_id
-  // and can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
-      KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    kernel_id KernelID = detail::ProgramManager::getInstance().getSYCLKernelID(
-        CommandGroup.MKernelName);
-
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-
-    auto SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
+  if (auto SyclKernelImpl =
+          KernelBundleImplPtr
+              ? KernelBundleImplPtr->tryGetKernel(CommandGroup.MKernelName,
+                                                  KernelBundleImplPtr)
+              : std::shared_ptr<kernel_impl>{nullptr}) {
     UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
@@ -2677,7 +2660,7 @@ void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName, std::vector<ur_event_handle_t> &RawEvents,
+    KernelNameStrRefT KernelName, std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
@@ -2695,19 +2678,10 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
-  // Use kernel_bundle if available unless it is interop.
-  // Interop bundles can't be used in the first branch, because the kernels
-  // in interop kernel bundles (if any) do not have kernel_id
-  // and can therefore not be looked up, but since they are self-contained
-  // they can simply be launched directly.
-  if (KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    kernel SyclKernel =
-        KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
-
-    SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
-
+  if ((SyclKernelImpl = KernelBundleImplPtr
+                            ? KernelBundleImplPtr->tryGetKernel(
+                                  KernelName, KernelBundleImplPtr)
+                            : std::shared_ptr<kernel_impl>{nullptr})) {
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
 
@@ -3264,12 +3238,12 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
         ExecKernel->MSyclKernel;
-    const std::string &KernelName = ExecKernel->MKernelName;
+    KernelNameStrRefT KernelName = ExecKernel->MKernelName;
 
     if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
       bool KernelUsesAssert =
-          !(SyclKernel && SyclKernel->isInterop()) &&
+          (!SyclKernel || SyclKernel->hasSYCLMetadata()) &&
           ProgramManager::getInstance().kernelUsesAssert(KernelName);
       if (KernelUsesAssert) {
         EventImpl = MEvent;
@@ -3279,7 +3253,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const RTDeviceBinaryImage *BinImage = nullptr;
     if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
       std::tie(BinImage, std::ignore) =
-          retrieveKernelBinary(MQueue, KernelName.c_str());
+          retrieveKernelBinary(MQueue, KernelName.data());
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
@@ -3748,6 +3722,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     return UR_RESULT_SUCCESS;
   }
   case CGType::AsyncFree: {
+    assert(MQueue && "Async free submissions should have an associated queue");
     CGAsyncFree *AsyncFree = (CGAsyncFree *)MCommandGroup.get();
     const detail::AdapterPtr &Adapter = MQueue->getAdapter();
     void *ptr = AsyncFree->getPtr();

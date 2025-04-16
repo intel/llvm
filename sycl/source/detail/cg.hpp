@@ -108,9 +108,6 @@ public:
     setNDRangeLeftover();
   }
 
-  NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
-
   NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
            sycl::id<3> Offset, int DimsArg)
       : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
@@ -142,6 +139,43 @@ public:
 
     for (int I = 0; I < 3; ++I)
       ClusterDimensions[I] = (I < Dims) ? N[I] : 1;
+  }
+
+  void reset(const sycl::range<3> &N, bool SetNumWorkGroups, int DimsArg) {
+    if (SetNumWorkGroups) {
+      GlobalSize.reset(0);
+      NumWorkGroups = N;
+    } else {
+      GlobalSize = N;
+      NumWorkGroups.reset(0);
+    }
+    LocalSize.reset(0);
+    GlobalOffset.reset(0);
+    ClusterDimensions.reset(1);
+    Dims = size_t(DimsArg);
+    setNDRangeLeftover();
+  }
+
+  void reset(const sycl::range<3> &NumWorkItems, const sycl::id<3> &Offset,
+             int DimsArg) {
+    GlobalSize = NumWorkItems;
+    GlobalOffset = Offset;
+    NumWorkGroups.reset(0);
+    LocalSize.reset(0);
+    ClusterDimensions.reset(1);
+    Dims = size_t(DimsArg);
+  }
+
+  void reset(const sycl::range<3> &NumWorkItems,
+             const sycl::range<3> &LocalSizeArg, const sycl::id<3> &Offset,
+             int DimsArg) {
+    GlobalSize = NumWorkItems;
+    LocalSize = LocalSizeArg;
+    GlobalOffset = Offset;
+    NumWorkGroups.reset(0);
+    ClusterDimensions.reset(1);
+    Dims = size_t(DimsArg);
+    setNDRangeLeftover();
   }
 
   NDRDescT &operator=(const NDRDescT &Desc) = default;
@@ -256,7 +290,7 @@ public:
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
-  std::string MKernelName;
+  KernelNameStrT MKernelName;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -271,7 +305,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName,
+               KernelNameStrT KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -292,9 +326,9 @@ public:
 
   CGExecKernel(const CGExecKernel &CGExec) = default;
 
-  std::vector<ArgDesc> getArguments() const { return MArgs; }
-  std::string getKernelName() const { return MKernelName; }
-  std::vector<std::shared_ptr<detail::stream_impl>> getStreams() const {
+  const std::vector<ArgDesc> &getArguments() const { return MArgs; }
+  KernelNameStrRefT getKernelName() const { return MKernelName; }
+  const std::vector<std::shared_ptr<detail::stream_impl>> &getStreams() const {
     return MStreams;
   }
 
@@ -304,7 +338,7 @@ public:
   }
   void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 
-  std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
+  const std::shared_ptr<detail::kernel_bundle_impl> &getKernelBundle() {
     return MKernelBundle;
   }
 
@@ -530,7 +564,7 @@ public:
         PipeName(Name), Blocking(Block), HostPtr(Ptr), TypeSize(Size),
         IsReadOp(Read) {}
 
-  std::string getPipeName() { return PipeName; }
+  const std::string &getPipeName() { return PipeName; }
   void *getHostPtr() { return HostPtr; }
   size_t getTypeSize() { return TypeSize; }
   bool isBlocking() { return Blocking; }
@@ -671,29 +705,14 @@ public:
 /// "Async Alloc" command group class.
 class CGAsyncAlloc : public CG {
 
-  // These members are unused but kept in case of logging.
-  size_t MSize;
-  std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl> MMemPool;
-
   // Resulting event carried from async alloc execution.
   ur_event_handle_t MEvent;
 
 public:
-  CGAsyncAlloc(
-      size_t size,
-      std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl>
-          MemPool,
-      ur_event_handle_t event, CG::StorageInitHelper CGData,
-      detail::code_location loc = {})
-      : CG(CGType::AsyncAlloc, std::move(CGData), std::move(loc)), MSize(size),
-        MMemPool(MemPool), MEvent(event) {}
-
-  std::shared_ptr<ext::oneapi::experimental::detail::memory_pool_impl>
-  getMemPool() const {
-    return MMemPool;
-  }
-
-  size_t getSize() const { return MSize; }
+  CGAsyncAlloc(ur_event_handle_t event, CG::StorageInitHelper CGData,
+               detail::code_location loc = {})
+      : CG(CGType::AsyncAlloc, std::move(CGData), std::move(loc)),
+        MEvent(event) {}
 
   ur_event_handle_t getEvent() const { return MEvent; }
 };

@@ -14,16 +14,11 @@
 #include "ur/ur.hpp"
 #include "ur_api.h"
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
-                                                   ur_queue_info_t propName,
-                                                   size_t propSize,
-                                                   void *pPropValue,
-                                                   size_t *pPropSizeRet) {
-  std::ignore = hQueue;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t /*hQueue*/,
+                                                   ur_queue_info_t /*propName*/,
+                                                   size_t /*propSize*/,
+                                                   void * /*pPropValue*/,
+                                                   size_t * /*pPropSizeRet*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
@@ -40,7 +35,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  std::ignore = hQueue;
   hQueue->incrementReferenceCount();
 
   return UR_RESULT_SUCCESS;
@@ -52,25 +46,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
-                       ur_native_handle_t *phNativeQueue) {
-  std::ignore = hQueue;
-  std::ignore = pDesc;
-  std::ignore = phNativeQueue;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
+    ur_queue_handle_t /*hQueue*/, ur_queue_native_desc_t * /*pDesc*/,
+    ur_native_handle_t * /*phNativeQueue*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
-    ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
-    ur_queue_handle_t *phQueue) {
-  std::ignore = hNativeQueue;
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = pProperties;
-  std::ignore = phQueue;
+    ur_native_handle_t /*hNativeQueue*/, ur_context_handle_t /*hContext*/,
+    ur_device_handle_t /*hDevice*/,
+    const ur_queue_native_properties_t * /*pProperties*/,
+    ur_queue_handle_t * /*phQueue*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
@@ -80,8 +67,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  std::ignore = hQueue;
+UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t /*hQueue*/) {
 
   DIE_NO_IMPLEMENTATION;
 }

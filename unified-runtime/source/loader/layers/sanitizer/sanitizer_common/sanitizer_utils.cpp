@@ -256,4 +256,36 @@ ur_result_t EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr,
       Queue, Ptr, 1, &Value, Size, NumEvents, EventWaitList, OutEvent);
 }
 
+void PrintUrBuildLog(ur_program_handle_t hProgram,
+                     ur_device_handle_t *phDevices, size_t numDevices) {
+  getContext()->logger.error("Printing build log for program {}",
+                             (void *)hProgram);
+  for (size_t i = 0; i < numDevices; i++) {
+    std::vector<char> LogBuf;
+    size_t LogSize = 0;
+    auto hDevice = phDevices[i];
+
+    auto UrRes = getContext()->urDdiTable.Program.pfnGetBuildInfo(
+        hProgram, hDevice, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr, &LogSize);
+    if (UrRes != UR_RESULT_SUCCESS) {
+      getContext()->logger.error("For device {}: failed to get build log size.",
+                                 (void *)hDevice);
+      continue;
+    }
+
+    LogBuf.resize(LogSize);
+    UrRes = getContext()->urDdiTable.Program.pfnGetBuildInfo(
+        hProgram, hDevice, UR_PROGRAM_BUILD_INFO_LOG, LogSize, LogBuf.data(),
+        nullptr);
+    if (UrRes != UR_RESULT_SUCCESS) {
+      getContext()->logger.error("For device {}: failed to get build log.",
+                                 (void *)hDevice);
+      continue;
+    }
+
+    getContext()->logger.error("For device {}:\n{}", (void *)hDevice,
+                               LogBuf.data());
+  }
+}
+
 } // namespace ur_sanitizer_layer

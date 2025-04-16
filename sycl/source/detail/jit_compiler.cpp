@@ -180,6 +180,8 @@ translateArgType(kernel_param_kind_t Kind) {
     return PK::Stream;
   case kind::kind_work_group_memory:
     return PK::WorkGroupMemory;
+  case kind::kind_dynamic_work_group_memory:
+    return PK::DynamicWorkGroupMemory;
   case kind::kind_invalid:
     return PK::Invalid;
   }
@@ -660,7 +662,7 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
 
 ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,
-    const std::string &KernelName,
+    KernelNameStrRefT KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
 #ifndef _WIN32
   if (!BinImage) {
@@ -710,7 +712,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
       ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
 
   auto MaterializerResult =
-      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
+      MaterializeSpecConstHandle(KernelName.data(), BinInfo, SpecConstBlob);
   if (MaterializerResult.failed()) {
     std::string Message{"Compilation for kernel failed with message:\n"};
     Message.append(MaterializerResult.getErrorMessage());
@@ -800,7 +802,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     assert(KernelCmd->isFusable());
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
 
-    auto KernelName = KernelCG->MKernelName;
+    KernelNameStrRefT KernelName = KernelCG->MKernelName;
     if (KernelName.empty()) {
       printPerformanceWarning(
           "Cannot fuse kernel with invalid kernel function name");
@@ -808,7 +810,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     }
 
     auto [DeviceImage, Program] =
-        retrieveKernelBinary(Queue, KernelName.c_str(), KernelCG);
+        retrieveKernelBinary(Queue, KernelName.data(), KernelCG);
     if (!DeviceImage || !Program) {
       printPerformanceWarning("No suitable IR available for fusion");
       return nullptr;
@@ -912,7 +914,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         SYCLTypeToIndices(CurrentNDR.GlobalOffset)};
 
     Ranges.push_back(JITCompilerNDR);
-    InputKernelInfo.emplace_back(KernelName.c_str(), ArgDescriptor,
+    InputKernelInfo.emplace_back(KernelName.data(), ArgDescriptor,
                                  JITCompilerNDR, BinInfo);
 
     // Collect information for the fused kernel

@@ -2561,6 +2561,23 @@ TEST_P(urDeviceGetInfoTest, SuccessUseNativeAssert) {
                              property_value);
 }
 
+TEST_P(urDeviceGetInfoTest, SuccessBfloat16ConversionsNative) {
+  size_t property_size = 0;
+  const ur_device_info_t property_name =
+      UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE;
+
+  ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+      urDeviceGetInfo(device, property_name, 0, nullptr, &property_size),
+      property_name);
+  ASSERT_EQ(property_size, sizeof(ur_bool_t));
+
+  uint32_t property_value = 0;
+  ASSERT_QUERY_RETURNS_VALUE(urDeviceGetInfo(device, property_name,
+                                             property_size, &property_value,
+                                             nullptr),
+                             property_value);
+}
+
 TEST_P(urDeviceGetInfoTest, SuccessThrottleReasons) {
   // TODO: enable when driver/library version mismatch is fixed in CI.
   // See https://github.com/intel/llvm/issues/17614

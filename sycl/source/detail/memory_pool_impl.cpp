@@ -123,10 +123,14 @@ memory_pool_impl::~memory_pool_impl() {
   if (MIsDefaultPool)
     return;
 
-  ur_usm_pool_handle_t handle = this->get_handle();
-  sycl::context ctx = this->get_context();
-  sycl::device dev = this->get_device();
-  destroy_memory_pool(ctx, dev, handle);
+  try {
+    ur_usm_pool_handle_t handle = this->get_handle();
+    sycl::context ctx = this->get_context();
+    sycl::device dev = this->get_device();
+    destroy_memory_pool(ctx, dev, handle);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~memory_pool_impl", e);
+  }
 }
 
 size_t memory_pool_impl::get_threshold() const {

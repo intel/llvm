@@ -452,17 +452,28 @@ private:
 template <typename DataT>
 class __attribute__((sycl_special_class))
 __SYCL_TYPE(work_group_memory) work_group_memory {
-
-// Default constructor for objects later initialized with __init member.
-  work_group_memory() = default;
-
 public:
+  // Default constructor for objects later initialized with __init member.
+  work_group_memory() = default;
   work_group_memory(handler &CGH) {}
 
   void __init(__attribute((opencl_local)) DataT *Ptr) { this->Ptr = Ptr; }
   void use() const {}
 private:
   __attribute((opencl_local)) DataT *Ptr;
+};
+
+template <typename DataT>
+class __attribute__((sycl_special_class))
+__SYCL_TYPE(dynamic_work_group_memory) dynamic_work_group_memory {
+public:
+  dynamic_work_group_memory() = default;
+
+  void __init(__attribute((opencl_local)) DataT *Ptr) { this->LocalMem.__init(Ptr); }
+  work_group_memory<DataT> get() const { return LocalMem; }
+
+private:
+  work_group_memory<DataT> LocalMem;
 };
 
 namespace ext {

@@ -9,9 +9,6 @@
 
 struct urProgramCreateWithILTest : uur::urContextTest {
   void SetUp() override {
-    // We haven't got device code tests working on native cpu yet.
-    UUR_KNOWN_FAILURE_ON(uur::NativeCPU{});
-
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
     // TODO: This should use a query for urProgramCreateWithIL support or
     // rely on UR_RESULT_ERROR_UNSUPPORTED_FEATURE being returned.
@@ -22,7 +19,8 @@ struct urProgramCreateWithILTest : uur::urContextTest {
     if (backend == UR_PLATFORM_BACKEND_HIP) {
       GTEST_SKIP();
     }
-    uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
+    UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+        "foo", platform, il_binary));
   }
 
   void TearDown() override {
@@ -34,17 +32,17 @@ struct urProgramCreateWithILTest : uur::urContextTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE(urProgramCreateWithILTest);
 
 TEST_P(urProgramCreateWithILTest, Success) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::OpenCL{"gfx1100"});
 
   ur_program_handle_t program = nullptr;
-  ASSERT_SUCCESS(urProgramCreateWithIL(context, il_binary->data(),
-                                       il_binary->size(), nullptr, &program));
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urProgramCreateWithIL(
+      context, il_binary->data(), il_binary->size(), nullptr, &program));
   ASSERT_NE(nullptr, program);
   ASSERT_SUCCESS(urProgramRelease(program));
 }
 
 TEST_P(urProgramCreateWithILTest, SuccessWithProperties) {
-  UUR_KNOWN_FAILURE_ON(uur::CUDA{});
+  UUR_KNOWN_FAILURE_ON(uur::CUDA{}, uur::OpenCL{"gfx1100"});
 
   std::string string = "test metadata";
   ur_program_metadata_value_t md_value_string;
@@ -80,7 +78,7 @@ TEST_P(urProgramCreateWithILTest, SuccessWithProperties) {
       static_cast<uint32_t>(metadatas.size()), metadatas.data()};
 
   ur_program_handle_t program = nullptr;
-  ASSERT_SUCCESS(urProgramCreateWithIL(
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urProgramCreateWithIL(
       context, il_binary->data(), il_binary->size(), &properties, &program));
   ASSERT_NE(nullptr, program);
   ASSERT_SUCCESS(urProgramRelease(program));
@@ -140,7 +138,8 @@ TEST_P(urProgramCreateWithILTest, InvalidBinary) {
   auto result = urProgramCreateWithIL(context, &binary, 5, nullptr, &program);
   // The driver is not required to reject the binary
   ASSERT_TRUE(result == UR_RESULT_ERROR_INVALID_BINARY ||
-              result == UR_RESULT_SUCCESS);
+              result == UR_RESULT_SUCCESS ||
+              result == UR_RESULT_ERROR_COMPILER_NOT_AVAILABLE);
 }
 
 TEST_P(urProgramCreateWithILTest, CompilerNotAvailable) {

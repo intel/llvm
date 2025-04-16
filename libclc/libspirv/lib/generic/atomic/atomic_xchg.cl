@@ -14,18 +14,18 @@ _CLC_DEF float
 _Z22__spirv_AtomicExchangePU3AS1fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEf(
     volatile global float *p, enum Scope scope,
     enum MemorySemanticsMask semantics, float val) {
-  return as_float(
+  return __clc_as_float(
       _Z22__spirv_AtomicExchangePU3AS1jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEj(
-          (volatile global uint *)p, scope, semantics, as_uint(val)));
+          (volatile global uint *)p, scope, semantics, __clc_as_uint(val)));
 }
 
 _CLC_DEF float
 _Z22__spirv_AtomicExchangePU3AS3fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEf(
     volatile local float *p, enum Scope scope,
     enum MemorySemanticsMask semantics, float val) {
-  return as_float(
+  return __clc_as_float(
       _Z22__spirv_AtomicExchangePU3AS3jN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEj(
-          (volatile local uint *)p, scope, semantics, as_uint(val)));
+          (volatile local uint *)p, scope, semantics, __clc_as_uint(val)));
 }
 
 #define IMPL(TYPE, TYPE_MANGLED, AS, AS_MANGLED, SUB, FN_NAME)                                                                        \

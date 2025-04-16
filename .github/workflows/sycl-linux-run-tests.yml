@@ -25,7 +25,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Three possible options: "e2e", "cts", and "compute-benchmarks".
+          Three possible options: "e2e", "cts", and "benchmarks".
         type: string
         default: "e2e"
 
@@ -82,9 +82,6 @@ on:
         type: string
         default: 1
 
-      reset_intel_gpu:
-        type: string
-        required: False
       install_igc_driver:
         type: string
         required: False
@@ -112,6 +109,33 @@ on:
       sycl_cts_artifact:
         type: string
         default: ''
+        required: False
+
+      benchmark_upload_results:
+        description: |
+          Set to true to upload results to git repository storing benchmarking
+          results.
+        type: string
+        default: 'false'
+        required: False
+      benchmark_save_name:
+        description: |
+          Save name to use for benchmark results: Save names are stored in
+          metadata of result file, and are used to identify benchmark results in
+          the same series (e.g. same configuration, same device, etc.).
+
+          Note: Currently, benchmark result filenames are in the format of
+          <benchmark_save_name>_<Device>_<Backend>_YYYYMMDD_HHMMSS.json
+        type: string
+        default: ''
+        required: False
+      benchmark_preset:
+        description: |
+          Name of benchmark preset to run.
+
+          See /devops/scripts/benchmarks/presets.py for all presets available.
+        type: string
+        default: 'Minimal'
         required: False
 
   workflow_dispatch:
@@ -153,7 +177,7 @@ on:
         options:
           - e2e
           - cts
-          - compute-benchmarks
+          - benchmarks
 
       env:
         description: |
@@ -170,14 +194,6 @@ on:
         description: |
           Extra options to be added to LIT_OPTS.
         default: ''
-
-      reset_intel_gpu:
-        description: |
-          Reset Intel GPUs
-        type: choice
-        options:
-          - false
-          - true
 
       e2e_testing_mode:
         type: choice
@@ -199,24 +215,6 @@ jobs:
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
-    - name: Reset Intel GPU
-      if: inputs.reset_intel_gpu == 'true'
-      shell: bash      
-      run: |
-        if [[ '${{ inputs.runner }}' == '["Linux", "bmg"]' ]]; then
-          sudo bash -c 'echo 0000:05:00.0 > /sys/bus/pci/drivers/xe/unbind'
-          sudo bash -c 'echo 1 > /sys/bus/pci/devices/0000:05:00.0/reset'
-          sudo bash -c 'echo 0000:05:00.0 > /sys/bus/pci/drivers/xe/bind'
-        else
-          sudo mount -t debugfs none /sys/kernel/debug
-          base_dir="/sys/kernel/debug/dri"
-
-          for dir in "$base_dir"/*; do
-           if [ -f "$dir/i915_wedged" ]; then
-            sudo bash -c 'echo 1 > $0/i915_wedged' $dir
-           fi
-          done
-        fi
     - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.devops_ref || inputs.repo_ref }}
@@ -224,6 +222,8 @@ jobs:
           devops
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
+    - name: Reset Intel GPU
+      uses: ./devops/actions/reset_gpu
     - name: Install drivers
       if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
       env:
@@ -308,6 +308,7 @@ jobs:
     - name: Run E2E Tests
       if: inputs.tests_selector == 'e2e'
       uses: ./devops/actions/run-tests/e2e
+      timeout-minutes: 60
       with:
         ref: ${{ inputs.tests_ref || inputs.repo_ref || github.sha }}
         binaries_artifact: ${{ inputs.e2e_binaries_artifact }}
@@ -329,11 +330,14 @@ jobs:
         target_devices: ${{ inputs.target_devices }}
         retention-days: ${{ inputs.retention-days }}
 
-    - name: Run compute-benchmarks on SYCL
-      if: inputs.tests_selector == 'compute-benchmarks'
+    - name: Run benchmarks
+      if: inputs.tests_selector == 'benchmarks'
       uses: ./devops/actions/run-tests/benchmark
       with:
         target_devices: ${{ inputs.target_devices }}
+        upload_results: ${{ inputs.benchmark_upload_results }}
+        save_name: ${{ inputs.benchmark_save_name }}
+        preset: ${{ inputs.benchmark_preset }}
       env:
         RUNNER_TAG: ${{ inputs.runner }}
         GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

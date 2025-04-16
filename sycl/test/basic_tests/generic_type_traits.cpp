@@ -136,9 +136,17 @@ int main() {
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(
       std::is_same_v<d::ConvertToOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
+                     s::opencl::cl_int __attribute__((ext_vector_type(2)))>);
+  static_assert(
+      std::is_same_v<d::ConvertToOpenCLType_t<s::vec<long long, 2>>,
+                     s::opencl::cl_long __attribute__((ext_vector_type(2)))>);
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
+  static_assert(
+      std::is_same_v<d::ConvertToOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
                      s::vec<s::opencl::cl_int, 2>::vector_t>);
   static_assert(std::is_same_v<d::ConvertToOpenCLType_t<s::vec<long long, 2>>,
                                s::vec<s::opencl::cl_long, 2>::vector_t>);
+#endif
   static_assert(std::is_same_v<
                 d::ConvertToOpenCLType_t<s::multi_ptr<
                     s::opencl::cl_int, s::access::address_space::global_space,
@@ -147,6 +155,16 @@ int main() {
                              s::access::address_space::global_space,
                              s::access::decorated::yes>::pointer>);
   static_assert(
+      std::is_same_v<
+          d::ConvertToOpenCLType_t<
+              s::multi_ptr<s::vec<s::opencl::cl_int, 4>,
+                           s::access::address_space::global_space,
+                           s::access::decorated::yes>>,
+          s::multi_ptr<s::opencl::cl_int __attribute__((ext_vector_type(4))),
+                       s::access::address_space::global_space,
+                       s::access::decorated::yes>::pointer>);
+#if __SYCL_USE_LIBSYCL8_VEC_IMPL
+  static_assert(
       std::is_same_v<d::ConvertToOpenCLType_t<
                          s::multi_ptr<s::vec<s::opencl::cl_int, 4>,
                                       s::access::address_space::global_space,
@@ -154,6 +172,7 @@ int main() {
                      s::multi_ptr<s::vec<s::opencl::cl_int, 4>::vector_t,
                                   s::access::address_space::global_space,
                                   s::access::decorated::yes>::pointer>);
+#endif
 #endif
   static_assert(std::is_same_v<d::ConvertToOpenCLType_t<s::half>,
                                d::half_impl::BIsRepresentationT>);

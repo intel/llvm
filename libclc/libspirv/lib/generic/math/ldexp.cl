@@ -11,7 +11,7 @@
 #include <clc/clcmacro.h>
 #include <clc/math/clc_subnormal_config.h>
 #include <clc/math/math.h>
-#include <math/clc_ldexp.h>
+#include <clc/math/clc_ldexp.h>
 
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __clc_ldexp, float, int)
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __clc_ldexp, float, uint)

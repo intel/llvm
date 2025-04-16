@@ -603,12 +603,16 @@ public:
 
 /// copy 3D matrix specified by \p size from 3D matrix specified by \p from_ptr
 /// and \p from_range to another specified by \p to_ptr and \p to_range.
+template <typename T = void>
 static inline std::vector<sycl::event>
 memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
        sycl::range<3> to_range, sycl::range<3> from_range, sycl::id<3> to_id,
        sycl::id<3> from_id, sycl::range<3> size,
        const std::vector<sycl::event> &dep_events = {}) {
-
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::detail::memcpy overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   std::vector<sycl::event> event_list;
 
   size_t to_slice = to_range.get(1) * to_range.get(0);
@@ -727,9 +731,14 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
 }
 
 /// memcpy 2D/3D matrix specified by pitched_data.
+template <typename T = void>
 static inline std::vector<sycl::event>
 memcpy(sycl::queue q, pitched_data to, sycl::id<3> to_id, pitched_data from,
        sycl::id<3> from_id, sycl::range<3> size) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::detail::memcpy overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   return memcpy(q, to.get_data_ptr(), from.get_data_ptr(),
                 sycl::range<3>(to.get_pitch(), to.get_y(), 1),
                 sycl::range<3>(from.get_pitch(), from.get_y(), 1), to_id,
@@ -737,9 +746,14 @@ memcpy(sycl::queue q, pitched_data to, sycl::id<3> to_id, pitched_data from,
 }
 
 /// memcpy 2D matrix with pitch.
+template <typename T = void>
 static inline std::vector<sycl::event>
 memcpy(sycl::queue q, void *to_ptr, const void *from_ptr, size_t to_pitch,
        size_t from_pitch, size_t x, size_t y) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::detail::memcpy overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   return memcpy(q, to_ptr, from_ptr, sycl::range<3>(to_pitch, y, 1),
                 sycl::range<3>(from_pitch, y, 1), sycl::id<3>(0, 0, 0),
                 sycl::id<3>(0, 0, 0), sycl::range<3>(x, y, 1));
@@ -754,7 +768,6 @@ static sycl::event combine_events(std::vector<sycl::event> &events,
     cgh.host_task([]() {});
   });
 }
-
 } // namespace detail
 
 #ifdef SYCLCOMPAT_USM_LEVEL_NONE
@@ -856,8 +869,13 @@ static sycl::accessor<byte_t, 1, accessMode> get_access(const void *ptr,
 
 namespace experimental {
 namespace detail {
+template <typename T = void>
 static inline std::vector<sycl::event>
 memcpy(sycl::queue q, const experimental::memcpy_parameter &param) {
+  static_assert(std::is_same_v<T, void>,
+                "This syclcompat::experimental::detail::memcpy overload only "
+                "accepts a dummy template parameter, T = void, which prevents "
+                "SYCL kernel generation by default.");
   auto to = param.to.pitched;
   auto from = param.from.pitched;
 #ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
@@ -1123,6 +1141,7 @@ static void memcpy(type_identity_t<T> *to_ptr,
 /// specified by \p from_ptr and \p to_ptr. The function will return after the
 /// copy is completed.
 ///
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param to_ptr Pointer to destination memory address.
 /// \param to_pitch Range of dim x in bytes of destination matrix.
 /// \param from_ptr Pointer to source memory address.
@@ -1131,9 +1150,14 @@ static void memcpy(type_identity_t<T> *to_ptr,
 /// \param y Range of dim y of matrix to be copied.
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
+template <typename T = void>
 static inline void memcpy(void *to_ptr, size_t to_pitch, const void *from_ptr,
                           size_t from_pitch, size_t x, size_t y,
                           sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::memcpy overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   sycl::event::wait(
       detail::memcpy(q, to_ptr, from_ptr, to_pitch, from_pitch, x, y));
 }
@@ -1146,6 +1170,7 @@ static inline void memcpy(void *to_ptr, size_t to_pitch, const void *from_ptr,
 /// specified by \p from_ptr and \p to_ptr. The return of the function does NOT
 /// guarantee the copy is completed.
 ///
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param to_ptr Pointer to destination memory address.
 /// \param to_pitch Range of dim x in bytes of destination matrix.
 /// \param from_ptr Pointer to source memory address.
@@ -1154,10 +1179,15 @@ static inline void memcpy(void *to_ptr, size_t to_pitch, const void *from_ptr,
 /// \param y Range of dim y of matrix to be copied.
 /// \param q Queue to execute the copy task.
 /// \returns An event representing the memcpy operation.
+template <typename T = void>
 static inline sycl::event memcpy_async(void *to_ptr, size_t to_pitch,
                                        const void *from_ptr, size_t from_pitch,
                                        size_t x, size_t y,
                                        sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::memcpy overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   auto events = detail::memcpy(q, to_ptr, from_ptr, to_pitch, from_pitch, x, y);
   return detail::combine_events(events, q);
 }
@@ -1168,6 +1198,7 @@ namespace {
 /// by \p from_pos and \p to_pos The copied matrix size is specified by \p size.
 // The function will return after the copy is completed.
 ///
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param to Destination matrix info.
 /// \param to_pos Position of destination.
 /// \param from Source matrix info.
@@ -1175,10 +1206,15 @@ namespace {
 /// \param size Range of the submatrix to be copied.
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
+template <typename T = void>
 static inline void memcpy(pitched_data to, sycl::id<3> to_pos,
                           pitched_data from, sycl::id<3> from_pos,
                           sycl::range<3> size,
                           sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::memcpy overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   sycl::event::wait(detail::memcpy(q, to, to_pos, from, from_pos, size));
 }
 } // namespace
@@ -1195,10 +1231,15 @@ static inline void memcpy(pitched_data to, sycl::id<3> to_pos,
 /// \param size Range of the submatrix to be copied.
 /// \param q Queue to execute the copy task.
 /// \returns An event representing the memcpy operation.
+template <typename T = void>
 static inline sycl::event memcpy_async(pitched_data to, sycl::id<3> to_pos,
                                        pitched_data from, sycl::id<3> from_pos,
                                        sycl::range<3> size,
                                        sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::memcpy overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   auto events = detail::memcpy(q, to, to_pos, from, from_pos, size);
   return detail::combine_events(events, q);
 }
@@ -1243,11 +1284,17 @@ namespace experimental {
 /// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .
 /// The function will return after the copy is completed.
 ///
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param param Memory copy parameters.
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
+template <typename T = void>
 static inline void memcpy(const memcpy_parameter &param,
                           sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::memcpy overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   sycl::event::wait(syclcompat::experimental::detail::memcpy(q, param));
 }
 
@@ -1257,8 +1304,13 @@ static inline void memcpy(const memcpy_parameter &param,
 /// \param param Memory copy parameters.
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
+template <typename T = void>
 static inline void memcpy_async(const memcpy_parameter &param,
                                 sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::memcpy overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   syclcompat::experimental::detail::memcpy(q, param);
 }
 } // namespace experimental
@@ -1280,23 +1332,35 @@ static void memset(void *dev_ptr, int value, size_t size,
 
 /// \brief Sets 2 bytes data \p value to the first \p size elements starting
 /// from \p dev_ptr in \p q synchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] dev_ptr Pointer to the virtual device memory address.
 /// \param [in] value The value to be set.
 /// \param [in] size Number of elements to be set to the value.
 /// \param [in] q The queue in which the operation is done.
+template <typename T = void>
 static inline void memset_d16(void *dev_ptr, unsigned short value, size_t size,
                               sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_d16 only accepts a dummy template parameter, T = "
+      "void, which prevents SYCL kernel generation by default.");
   detail::fill<unsigned short>(q, dev_ptr, value, size).wait();
 }
 
 /// \brief Sets 4 bytes data \p value to the first \p size elements starting
 /// from \p dev_ptr in \p q synchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] dev_ptr Pointer to the virtual device memory address.
 /// \param [in] value The value to be set.
 /// \param [in] size Number of elements to be set to the value.
 /// \param [in] q The queue in which the operation is done.
+template <typename T = void>
 static inline void memset_d32(void *dev_ptr, unsigned int value, size_t size,
                               sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_d32 only accepts a dummy template parameter, T = "
+      "void, which prevents SYCL kernel generation by default.");
   detail::fill<unsigned int>(q, dev_ptr, value, size).wait();
 }
 
@@ -1313,75 +1377,106 @@ static inline sycl::event memset_async(void *dev_ptr, int value, size_t size,
 
 /// \brief Sets 2 bytes data \p value to the first \p size elements starting
 /// from \p dev_ptr in \p q asynchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] dev_ptr Pointer to the virtual device memory address.
 /// \param [in] value The value to be set.
 /// \param [in] size Number of elements to be set to the value.
 /// \param [in] q The queue in which the operation is done.
 /// \returns An event representing the memset operation.
+template <typename T = void>
 static inline sycl::event
 memset_d16_async(void *dev_ptr, unsigned short value, size_t size,
                  sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_d16_async only accepts a dummy template parameter, T "
+      "= void, which prevents SYCL kernel generation by default.");
   return detail::fill<unsigned short>(q, dev_ptr, value, size);
 }
 
 /// \brief Sets 4 bytes data \p value to the first \p size elements starting
 /// from \p dev_ptr in \p q asynchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] dev_ptr Pointer to the virtual device memory address.
 /// \param [in] value The value to be set.
 /// \param [in] size Number of elements to be set to the value.
 /// \param [in] q The queue in which the operation is done.
 /// \returns An event representing the memset operation.
+template <typename T = void>
 static inline sycl::event
 memset_d32_async(void *dev_ptr, unsigned int value, size_t size,
                  sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_d32_async only accepts a dummy template parameter, T "
+      "= void, which prevents SYCL kernel generation by default.");
   return detail::fill<unsigned int>(q, dev_ptr, value, size);
 }
 
 namespace {
 /// \brief Sets 1 byte data \p val to the pitched 2D memory region pointed by \p
 /// ptr in \p q synchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] ptr Pointer to the virtual device memory.
 /// \param [in] pitch The pitch size by number of elements, including padding.
 /// \param [in] val The value to be set.
 /// \param [in] x The width of memory region by number of elements.
 /// \param [in] y The height of memory region by number of elements.
 /// \param [in] q The queue in which the operation is done.
+template <typename T = void>
 static inline void memset(void *ptr, size_t pitch, int val, size_t x, size_t y,
                           sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "This syclcompat::memset overload only accepts a dummy template "
+      "parameter, T = void, which prevents SYCL kernel generation by default.");
   sycl::event::wait(detail::memset<unsigned char>(q, ptr, pitch, val, x, y));
 }
 } // namespace
 
 /// \brief Sets 2 bytes data \p val to the pitched 2D memory region pointed by
 /// ptr in \p q synchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] ptr Pointer to the virtual device memory.
 /// \param [in] pitch The pitch size by number of elements, including padding.
 /// \param [in] val The value to be set.
 /// \param [in] x The width of memory region by number of elements.
 /// \param [in] y The height of memory region by number of elements.
 /// \param [in] q The queue in which the operation is done.
+template <typename T = void>
 static inline void memset_d16(void *ptr, size_t pitch, unsigned short val,
                               size_t x, size_t y,
                               sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_d16 only accepts a dummy template parameter, T = "
+      "void, which prevents SYCL kernel generation by default.");
   sycl::event::wait(detail::memset(q, ptr, pitch, val, x, y));
 }
 
 /// \brief Sets 4 bytes data \p val to the pitched 2D memory region pointed by
 /// ptr in \p q synchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] ptr Pointer to the virtual device memory.
 /// \param [in] pitch The pitch size by number of elements, including padding.
 /// \param [in] val The value to be set.
 /// \param [in] x The width of memory region by number of elements.
 /// \param [in] y The height of memory region by number of elements.
 /// \param [in] q The queue in which the operation is done.
+template <typename T = void>
 static inline void memset_d32(void *ptr, size_t pitch, unsigned int val,
                               size_t x, size_t y,
                               sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_d32 only accepts a dummy template parameter, T = "
+      "void, which prevents SYCL kernel generation by default.");
   sycl::event::wait(detail::memset(q, ptr, pitch, val, x, y));
 }
 
 /// \brief Sets 1 byte data \p val to the pitched 2D memory region pointed by \p
 /// ptr in \p q asynchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] ptr Pointer to the virtual device memory.
 /// \param [in] pitch The pitch size by number of elements, including padding.
 /// \param [in] val The value to be set.
@@ -1389,16 +1484,21 @@ static inline void memset_d32(void *ptr, size_t pitch, unsigned int val,
 /// \param [in] y The height of memory region by number of elements.
 /// \param [in] q The queue in which the operation is done.
 /// \returns An event representing the memset operation.
+template <typename T = void>
 static inline sycl::event memset_async(void *ptr, size_t pitch, int val,
                                        size_t x, size_t y,
                                        sycl::queue q = get_default_queue()) {
-
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_async only accepts a dummy template parameter, T = "
+      "void, which prevents SYCL kernel generation by default.");
   auto events = detail::memset<unsigned char>(q, ptr, pitch, val, x, y);
   return detail::combine_events(events, q);
 }
 
 /// \brief Sets 2 bytes data \p val to the pitched 2D memory region pointed by
 /// \p ptr in \p q asynchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] ptr Pointer to the virtual device memory.
 /// \param [in] pitch The pitch size by number of elements, including padding.
 /// \param [in] val The value to be set.
@@ -1406,15 +1506,21 @@ static inline sycl::event memset_async(void *ptr, size_t pitch, int val,
 /// \param [in] y The height of memory region by number of elements.
 /// \param [in] q The queue in which the operation is done.
 /// \returns An event representing the memset operation.
+template <typename T = void>
 static inline sycl::event
 memset_d16_async(void *ptr, size_t pitch, unsigned short val, size_t x,
                  size_t y, sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_d16_async only accepts a dummy template parameter, T "
+      "= void, which prevents SYCL kernel generation by default.");
   auto events = detail::memset(q, ptr, pitch, val, x, y);
   return detail::combine_events(events, q);
 }
 
 /// \brief Sets 4 bytes data \p val to the pitched 2D memory region pointed by
 /// \p ptr in \p q asynchronously.
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param [in] ptr Pointer to the virtual device memory.
 /// \param [in] pitch The pitch size by number of elements, including padding.
 /// \param [in] val The value to be set.
@@ -1422,9 +1528,14 @@ memset_d16_async(void *ptr, size_t pitch, unsigned short val, size_t x,
 /// \param [in] y The height of memory region by number of elements.
 /// \param [in] q The queue in which the operation is done.
 /// \returns An event representing the memset operation.
+template <typename T = void>
 static inline sycl::event
 memset_d32_async(void *ptr, size_t pitch, unsigned int val, size_t x, size_t y,
                  sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_d32_async only accepts a dummy template parameter, T "
+      "= void, which prevents SYCL kernel generation by default.");
   auto events = detail::memset(q, ptr, pitch, val, x, y);
   return detail::combine_events(events, q);
 }
@@ -1434,13 +1545,18 @@ namespace {
 /// specify the setted 3D memory size. The function will return after the
 /// memset operation is completed.
 ///
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param pitch Specify the 3D memory region.
 /// \param value Value to be set.
 /// \param size The setted 3D memory size.
 /// \param q The queue in which the operation is done.
 /// \returns no return value.
+template <typename T = void>
 static inline void memset(pitched_data pitch, int val, sycl::range<3> size,
                           sycl::queue q = get_default_queue()) {
+  static_assert(std::is_same_v<T, void>,
+                "syclcompat::memset only accepts a dummy template parameter, T "
+                "= void, which prevents SYCL kernel generation by default.");
   sycl::event::wait(detail::memset<unsigned char>(q, pitch, val, size));
 }
 } // namespace
@@ -1449,14 +1565,20 @@ static inline void memset(pitched_data pitch, int val, sycl::range<3> size,
 /// specify the setted 3D memory size. The return of the function does NOT
 /// guarantee the memset operation is completed.
 ///
+/// \tparam T Dummy template parameter to delay SYCL kernel instantiation
 /// \param pitch Specify the 3D memory region.
 /// \param value Value to be set.
 /// \param size The setted 3D memory size.
 /// \param q The queue in which the operation is done.
 /// \returns An event representing the memset operation.
+template <typename T = void>
 static inline sycl::event memset_async(pitched_data pitch, int val,
                                        sycl::range<3> size,
                                        sycl::queue q = get_default_queue()) {
+  static_assert(
+      std::is_same_v<T, void>,
+      "syclcompat::memset_async only accepts a dummy template parameter, T = "
+      "void, which prevents SYCL kernel generation by default.");
   auto events = detail::memset<unsigned char>(q, pitch, val, size);
   return detail::combine_events(events, q);
 }

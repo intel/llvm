@@ -120,9 +120,13 @@ fn *dynLookupFunction(const char *WinName, const char *LinName,
                       const char *FunName) {
   return reinterpret_cast<fn *>(dynLookup(WinName, LinName, FunName));
 }
+// On Linux, the name of OpenCL that was used to link against may be either
+// `OpenCL.so`, `OpenCL.so.1` or possibly anything else.
+// `libur_adapter_opencl.so` is a more stable name, since it is hardcoded into
+// the loader.
 #define __SYCL_OCL_CALL(FN, ...)                                               \
   (sycl::_V1::detail::dynLookupFunction<decltype(FN)>(                         \
-      "OpenCL", "libOpenCL.so", #FN)(__VA_ARGS__))
+      "OpenCL", "libur_adapter_opencl.so", #FN)(__VA_ARGS__))
 
 } // namespace detail
 } // namespace _V1

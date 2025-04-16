@@ -15,9 +15,9 @@
 // RUN: %{run} %t.out
 
 // This tests support of col major layout for matrix B which does transpose and
-// then VNNI transform. This is currently only available on AMX
+// then VNNI transform. This is currently only available on AMX and PVC
 
-// XFAIL: gpu
+// XFAIL: gpu-intel-dg2
 // XFAIL-TRACKER: GSD-5768
 
 #include "common.hpp"
