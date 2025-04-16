@@ -13,9 +13,6 @@
 // UNSUPPORTED: target-amd
 // UNSUPPORTED: native_cpu
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21 && (!build-mode && run-mode)
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17582
-
 #include <cstdlib>
 #include <iostream>
 #include <sycl/detail/core.hpp>

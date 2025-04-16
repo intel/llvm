@@ -24,9 +24,6 @@
 // Such multi-threaded scenario is checked in this test. Test is expected to
 // pass when memory tracking is enabled and fail otherwise.
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21 && (!build-mode && run-mode)
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17582
-
 #include <cassert>
 #include <iostream>
 #include <thread>

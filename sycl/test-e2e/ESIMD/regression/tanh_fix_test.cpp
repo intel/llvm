@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21 && (!build-mode && run-mode)
-// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17582
-
 //==- tanh_fix_test.cpp - Test for tanh -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
