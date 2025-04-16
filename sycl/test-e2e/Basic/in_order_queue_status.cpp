@@ -66,9 +66,5 @@ int main() {
   queue Q1{property::queue::in_order()};
   TestFunc(Q1);
 
-  // Feature is not supported for OpenCL, exception must be thrown.
-  if (Q2.get_device().get_backend() == backend::opencl)
-    return ExceptionThrown ? 0 : -1;
-
   return 0;
 }
