@@ -98,12 +98,12 @@ options:
       auto adapter = adapters[adapterIndex];
       // Enumerate platforms
       uint32_t numPlatforms = 0;
-      UR_CHECK(urPlatformGet(&adapter, 1, 0, nullptr, &numPlatforms));
+      UR_CHECK(urPlatformGet(adapter, 0, nullptr, &numPlatforms));
       if (numPlatforms == 0) {
         continue;
       }
       adapterPlatformsMap[adapter].resize(numPlatforms);
-      UR_CHECK(urPlatformGet(&adapter, 1, numPlatforms,
+      UR_CHECK(urPlatformGet(adapter, numPlatforms,
                              adapterPlatformsMap[adapter].data(), nullptr));
 
       for (size_t platformIndex = 0; platformIndex < numPlatforms;

@@ -374,15 +374,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             recursion_limit=test.config.recursiveExpansionLimit,
         )
 
-        # TODO: workaround for lit hanging when executing non-existent binary
-        # inside our containers
         if len(script) == 0:
             return lit.Test.Result(lit.Test.UNSUPPORTED, "Lit script is empty")
-        useExternalSh = test.config.test_mode == "run-only"
 
-        result = lit.TestRunner._runShTest(
-            test, litConfig, useExternalSh, script, tmpBase
-        )
+        result = lit.TestRunner._runShTest(test, litConfig, False, script, tmpBase)
 
         # Single triple/device - might be an XFAIL.
         def map_result(features, code):

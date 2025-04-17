@@ -290,13 +290,16 @@ public:
 
   /// @brief  Get the platform impl serving this device
   /// @return PlatformImplPtr
-  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+  const PlatformImplPtr &getPlatformImpl() const { return MPlatform; }
 
   /// Get device info string
   std::string get_device_info_string(ur_device_info_t InfoCode) const;
 
   /// Get device architecture
   ext::oneapi::experimental::architecture getDeviceArch() const;
+
+  void setUSMAllocationPresent() { MSharedUSMAllocationPresent = true; }
+  bool isUSMAllocationPresent() const { return MSharedUSMAllocationPresent; }
 
 private:
   explicit device_impl(ur_native_handle_t InteropDevice,
@@ -313,6 +316,7 @@ private:
   mutable ext::oneapi::experimental::architecture MDeviceArch{};
   mutable std::once_flag MDeviceArchFlag;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
+  bool MSharedUSMAllocationPresent{};
 }; // class device_impl
 
 } // namespace detail

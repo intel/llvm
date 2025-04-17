@@ -404,7 +404,6 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
     *phEvent = hContext->getNativeEventsPool().allocate();
   } else {
     *phEvent = new ur_event_handle_t_(hContext, hNativeEvent, pProperties);
-    (*phEvent)->IsInteropNativeHandle = true;
   }
   return UR_RESULT_SUCCESS;
 } catch (...) {

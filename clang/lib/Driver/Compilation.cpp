@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Driver/Compilation.h"
+#include "ToolChains/SYCL.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Driver.h"
@@ -127,7 +128,8 @@ Compilation::getArgsForToolChain(const ToolChain *TC, StringRef BoundArch,
     if (DeviceOffloadKind == Action::OFK_OpenMP ||
         DeviceOffloadKind == Action::OFK_SYCL) {
       const ToolChain *HostTC = getSingleOffloadToolChain<Action::OFK_Host>();
-      bool SameTripleAsHost = (TC->getTriple() == HostTC->getTriple());
+      bool SameTripleAsHost = (TC->getTriple() == HostTC->getTriple()) ||
+                              isSYCLNativeCPU(TC->getTriple());
       OffloadArgs = TC->TranslateOffloadTargetArgs(
           *TranslatedArgs, SameTripleAsHost, AllocatedArgs, DeviceOffloadKind);
     }

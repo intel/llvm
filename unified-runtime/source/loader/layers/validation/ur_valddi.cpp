@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023-2025 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
  * Exceptions.
@@ -197,12 +197,82 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterSetLoggerCallback
+__urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallback(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] Function pointer to callback from the logger.
+    ur_logger_callback_t pfnLoggerCallback,
+    /// [in][out][optional] pointer to data to be passed to callback
+    void *pUserData,
+    /// [in] logging level
+    ur_logger_level_t level) {
+  auto pfnSetLoggerCallback =
+      getContext()->urDdiTable.Adapter.pfnSetLoggerCallback;
+
+  if (nullptr == pfnSetLoggerCallback) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == pfnLoggerCallback)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_LOGGER_LEVEL_QUIET < level)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+    getContext()->refCountContext->logInvalidReference(hAdapter);
+  }
+
+  ur_result_t result =
+      pfnSetLoggerCallback(hAdapter, pfnLoggerCallback, pUserData, level);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterSetLoggerCallbackLevel
+__urdlllocal ur_result_t UR_APICALL urAdapterSetLoggerCallbackLevel(
+    /// [in] handle of the adapter
+    ur_adapter_handle_t hAdapter,
+    /// [in] logging level
+    ur_logger_level_t level) {
+  auto pfnSetLoggerCallbackLevel =
+      getContext()->urDdiTable.Adapter.pfnSetLoggerCallbackLevel;
+
+  if (nullptr == pfnSetLoggerCallbackLevel) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (UR_LOGGER_LEVEL_QUIET < level)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+    getContext()->refCountContext->logInvalidReference(hAdapter);
+  }
+
+  ur_result_t result = pfnSetLoggerCallbackLevel(hAdapter, level);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
-    /// [in][range(0, NumAdapters)] array of adapters to query for platforms.
-    ur_adapter_handle_t *phAdapters,
-    /// [in] number of adapters pointed to by phAdapters
-    uint32_t NumAdapters,
+    /// [in] adapter to query for platforms.
+    ur_adapter_handle_t hAdapter,
     /// [in] the number of platforms to be added to phPlatforms.
     /// If phPlatforms is not NULL, then NumEntries should be greater than
     /// zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -221,8 +291,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
   }
 
   if (getContext()->enableParameterValidation) {
-    if (NULL == phAdapters)
-      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    if (NULL == hAdapter)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
 
     if (NumEntries == 0 && phPlatforms != NULL)
       return UR_RESULT_ERROR_INVALID_SIZE;
@@ -231,8 +301,12 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
       return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  ur_result_t result =
-      pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms, pNumPlatforms);
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+    getContext()->refCountContext->logInvalidReference(hAdapter);
+  }
+
+  ur_result_t result = pfnGet(hAdapter, NumEntries, phPlatforms, pNumPlatforms);
 
   return result;
 }
@@ -4370,7 +4444,8 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   ur_result_t result =
       pfnCreateWithNativeHandle(hNativeEvent, hContext, pProperties, phEvent);
 
-  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
     getContext()->refCountContext->createRefCount(*phEvent);
   }
 
@@ -4500,6 +4575,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -4552,6 +4632,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
 
   ur_result_t result =
       pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -4606,6 +4691,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 
   ur_result_t result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
                                                 phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -4688,6 +4778,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
       pfnMemBufferRead(hQueue, hBuffer, blockingRead, offset, size, pDst,
                        numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -4768,6 +4863,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   ur_result_t result =
       pfnMemBufferWrite(hQueue, hBuffer, blockingWrite, offset, size, pSrc,
                         numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -4892,6 +4992,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
       hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region,
       bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5018,6 +5123,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
       bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
       numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -5110,6 +5220,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   ur_result_t result =
       pfnMemBufferCopy(hQueue, hBufferSrc, hBufferDst, srcOffset, dstOffset,
                        size, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5241,6 +5356,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
       srcSlicePitch, dstRowPitch, dstSlicePitch, numEventsInWaitList,
       phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -5337,6 +5457,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
       pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset, size,
                        numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -5426,6 +5551,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
       hQueue, hImage, blockingRead, origin, region, rowPitch, slicePitch, pDst,
       numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -5514,6 +5644,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
   ur_result_t result = pfnMemImageWrite(
       hQueue, hImage, blockingWrite, origin, region, rowPitch, slicePitch, pSrc,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5614,6 +5749,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
       pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
                       region, numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -5701,6 +5841,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
       pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags, offset, size,
                       numEventsInWaitList, phEventWaitList, phEvent, ppRetMap);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -5767,6 +5912,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
 
   ur_result_t result = pfnMemUnmap(
       hQueue, hMem, pMappedPtr, numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -5852,6 +6002,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
       pfnUSMFill(hQueue, pMem, patternSize, pPattern, size, numEventsInWaitList,
                  phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -5936,6 +6091,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
                    phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -6010,6 +6170,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   ur_result_t result = pfnUSMPrefetch(
       hQueue, pMem, size, flags, numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -6060,6 +6225,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
   }
 
   ur_result_t result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -6351,6 +6521,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
       hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
       numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -6431,6 +6606,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   ur_result_t result = pfnDeviceGlobalVariableRead(
       hQueue, hProgram, name, blockingRead, count, offset, pDst,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -6513,6 +6693,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
   ur_result_t result =
       pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
                       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -6597,6 +6782,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
       pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
                        numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -6662,6 +6852,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
   ur_result_t result = pfnUSMDeviceAllocExp(hQueue, pPool, size, pProperties,
                                             numEventsInWaitList,
                                             phEventWaitList, ppMem, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -6729,6 +6924,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
                                             numEventsInWaitList,
                                             phEventWaitList, ppMem, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -6795,6 +6995,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
       pfnUSMHostAllocExp(hQueue, pPool, size, pProperties, numEventsInWaitList,
                          phEventWaitList, ppMem, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -6850,6 +7055,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
 
   ur_result_t result = pfnUSMFreeExp(hQueue, pPool, pMem, numEventsInWaitList,
                                      phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -9527,6 +9737,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCommandBufferExp(
   ur_result_t result = pfnCommandBufferExp(
       hQueue, hCommandBuffer, numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -9792,6 +10007,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -9916,6 +10136,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   ur_result_t result = pfnTimestampRecordingExp(
       hQueue, blocking, numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -10003,6 +10228,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
       hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
       pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
       numEventsInWaitList, phEventWaitList, phEvent);
+
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
 
   return result;
 }
@@ -10390,6 +10620,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
   ur_result_t result = pfnEventsWaitWithBarrierExt(
       hQueue, pProperties, numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -10461,6 +10696,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
       hQueue, pfnNativeEnqueue, data, numMemsInMemList, phMemList, pProperties,
       numEventsInWaitList, phEventWaitList, phEvent);
 
+  if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS &&
+      phEvent) {
+    getContext()->refCountContext->createRefCount(*phEvent);
+  }
+
   return result;
 }
 
@@ -10505,6 +10745,43 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
   dditable.pfnAdapterGetInfo = pDdiTable->pfnAdapterGetInfo;
   pDdiTable->pfnAdapterGetInfo = ur_validation_layer::urAdapterGetInfo;
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Adapter table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_adapter_dditable_t *pDdiTable) {
+  auto &dditable = ur_validation_layer::getContext()->urDdiTable.Adapter;
+
+  if (nullptr == pDdiTable)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+  if (UR_MAJOR_VERSION(ur_validation_layer::getContext()->version) !=
+          UR_MAJOR_VERSION(version) ||
+      UR_MINOR_VERSION(ur_validation_layer::getContext()->version) >
+          UR_MINOR_VERSION(version))
+    return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+
+  ur_result_t result = UR_RESULT_SUCCESS;
+
+  dditable.pfnSetLoggerCallback = pDdiTable->pfnSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallback =
+      ur_validation_layer::urAdapterSetLoggerCallback;
+
+  dditable.pfnSetLoggerCallbackLevel = pDdiTable->pfnSetLoggerCallbackLevel;
+  pDdiTable->pfnSetLoggerCallbackLevel =
+      ur_validation_layer::urAdapterSetLoggerCallbackLevel;
 
   return result;
 }
@@ -11815,6 +12092,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
   if (UR_RESULT_SUCCESS == result) {
     result = ur_validation_layer::urGetGlobalProcAddrTable(
         UR_API_VERSION_CURRENT, &dditable->Global);
+  }
+
+  if (UR_RESULT_SUCCESS == result) {
+    result = ur_validation_layer::urGetAdapterProcAddrTable(
+        UR_API_VERSION_CURRENT, &dditable->Adapter);
   }
 
   if (UR_RESULT_SUCCESS == result) {

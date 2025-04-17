@@ -113,10 +113,10 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 namespace usm {
 
+// Device ptr is not const to mark USM shared presence if needed.
 void *alignedAllocInternal(size_t Alignment, size_t Size,
-                           const context_impl *CtxImpl,
-                           const device_impl *DevImpl, alloc Kind,
-                           const property_list &PropList) {
+                           const context_impl *CtxImpl, device_impl *DevImpl,
+                           alloc Kind, const property_list &PropList) {
   if (Kind == alloc::device &&
       !DevImpl->has(sycl::aspect::usm_device_allocations)) {
     throw sycl::exception(sycl::errc::feature_not_supported,
@@ -198,6 +198,8 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     Error = Adapter->call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
+    if (Error == UR_RESULT_SUCCESS)
+      DevImpl->setUSMAllocationPresent();
 
     break;
   }
@@ -600,7 +602,8 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
   // The device is not necessarily a member of the context, it could be a
   // member's descendant instead. Fetch the corresponding device from the cache.
-  std::shared_ptr<detail::platform_impl> PltImpl = CtxImpl->getPlatformImpl();
+  const std::shared_ptr<detail::platform_impl> &PltImpl =
+      CtxImpl->getPlatformImpl();
   std::shared_ptr<detail::device_impl> DevImpl =
       PltImpl->getDeviceImpl(DeviceId);
   if (DevImpl)
