@@ -22,16 +22,6 @@
 
 #include <cuda.h>
 
-namespace umf {
-ur_result_t getProviderNativeError(const char *providerName, int32_t error) {
-  if (strcmp(providerName, "CUDA") == 0) {
-    return mapErrorUR(static_cast<CUresult>(error));
-  }
-
-  return UR_RESULT_ERROR_UNKNOWN;
-}
-} // namespace umf
-
 /// USM: Implements USM Host allocations using CUDA Pinned Memory
 /// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#page-locked-host-memory
 UR_APIEXPORT ur_result_t UR_APICALL
