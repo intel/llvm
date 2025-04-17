@@ -242,14 +242,14 @@ public:
       if (!MPtrPtr)
         return;
       assert(*MPtrPtr == nullptr);
-      *MPtrPtr = this;
+      *MPtrPtr = &MCache;
     }
     FastKernelCacheWrapper(const FastKernelCacheWrapper &) = delete;
     FastKernelCacheWrapper(FastKernelCacheWrapper &&) = default;
     ~FastKernelCacheWrapper() {
       if (!MPtrPtr)
         return;
-      assert(*MPtrPtr == this);
+      assert(*MPtrPtr == &MCache);
       *MPtrPtr = nullptr;
     }
 
@@ -444,15 +444,11 @@ public:
   FastKernelCacheValT tryToGetKernelFast(KernelNameStrRefT KernelName,
                                          ur_device_handle_t Device,
                                          void **KernelCacheHint) {
-    FastKernelCacheWrapper *KernelSubcachePtr =
-        KernelCacheHint
-            ? static_cast<FastKernelCacheWrapper *>(*KernelCacheHint)
-            : nullptr;
     KernelFastCacheReadLockT Lock(MFastKernelCacheMutex);
-    FastKernelSubcacheT *KernelSubcache;
-    if (KernelSubcachePtr) {
-      KernelSubcache = &KernelSubcachePtr->get();
-    } else {
+    FastKernelSubcacheT *KernelSubcache =
+        KernelCacheHint ? static_cast<FastKernelSubcacheT *>(*KernelCacheHint)
+                        : nullptr;
+    if (!KernelSubcache) {
       auto It = MFastKernelCache.try_emplace(KernelName, KernelCacheHint);
       KernelSubcache = &It.first->second.get();
     }
