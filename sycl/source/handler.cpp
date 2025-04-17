@@ -316,7 +316,7 @@ fill_copy_args(detail::handler_impl *impl,
 
 handler::handler(const std::shared_ptr<detail::queue_impl> &Queue,
                  bool CallerNeedsEvent)
-    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(), nullptr,
+    : MImplOwner(std::make_shared<detail::handler_impl>(Queue.get(),
                                                         CallerNeedsEvent)),
       impl(MImplOwner.get()), MQueue(Queue) {}
 
@@ -361,6 +361,8 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
 handler::handler(
     std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
     : impl(std::make_shared<detail::handler_impl>(Graph)) {}
+
+#endif
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
 // set. Throws a sycl::exception with errc::invalid if the current state

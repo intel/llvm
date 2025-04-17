@@ -319,8 +319,7 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::handler_impl HandlerImplVal(PrimaryQueue.get(), SecondaryQueue.get(),
-                                      CallerNeedsEvent);
+  detail::handler_impl HandlerImplVal(PrimaryQueue.get(), CallerNeedsEvent);
   detail::handler_impl *HandlerImpl = &HandlerImplVal;
   handler Handler(HandlerImpl, Self);
 #else
