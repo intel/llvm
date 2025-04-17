@@ -125,6 +125,7 @@
 // CHECK-NEXT: CL/cl_version.h
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
+// CHECK-NEXT: detail/kernel_cache_hint.hpp
 // CHECK-NEXT: detail/id_queries_fit_in_int.hpp
 // CHECK-NEXT: detail/kernel_name_str_t.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp

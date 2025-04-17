@@ -797,8 +797,8 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
                                       CGExec->MLine, CGExec->MColumn);
   auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
       StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-      CGExec->MKernelName.data(), nullptr, CGExec->MNDRDesc,
-      CGExec->MKernelBundle, CGExec->MArgs);
+      CGExec->MKernelName.data(), CGExec->MKernelCacheHint,
+      nullptr, CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
   if (CmdTraceEvent)
     sycl::detail::emitInstrumentationGeneral(
         StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
@@ -1121,7 +1121,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           auto OutEvent = CreateNewEvent();
           sycl::detail::enqueueImpKernel(
               Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle,
-              CG->MSyclKernel, CG->MKernelName, RawEvents, OutEvent,
+              CG->MSyclKernel, CG->MKernelName,
+              CG->MKernelCacheHint, RawEvents, OutEvent,
               // TODO: Pass accessor mem allocations
               nullptr,
               // TODO: Extract from handler
@@ -1550,7 +1551,8 @@ void exec_graph_impl::populateURKernelUpdateStructs(
     ur_program_handle_t UrProgram = nullptr;
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, ExecCG.MKernelName);
+            ContextImpl, DeviceImpl, ExecCG.MKernelName,
+            ExecCG.MKernelCacheHint);
     BundleObjs = std::make_pair(UrProgram, UrKernel);
   }
 
