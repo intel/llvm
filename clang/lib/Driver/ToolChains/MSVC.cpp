@@ -83,9 +83,6 @@ void visualstudio::Linker::constructMSVCLibCommand(Compilation &C,
     }
     CmdArgs.push_back(II.getFilename());
   }
-  if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
-      Args.hasArg(options::OPT_fintelfpga))
-    CmdArgs.push_back("/IGNORE:4221");
 
   // Suppress multiple section warning LNK4078
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))

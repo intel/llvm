@@ -7145,10 +7145,13 @@ defm sycl_force_inline_kernel_lambda
           NegFlag<SetFalse, [], [ClangOption, CLOption], "Disallow">,
           BothFlags<[], [ClangOption, CLOption, CC1Option], " force inline "
                     "SYCL kernels lambda in entry point">>;
-def fsycl_help_EQ : Joined<["-"], "fsycl-help=">, Flags<[NoXarchOption]>,
-  HelpText<"Emit help information from the related offline compilation tool. "
-           "Valid values: all, fpga, gen, x86_64.">,
-  Values<"all,fpga,gen,x86_64">;
+def fsycl_help_EQ
+    : Joined<["-"], "fsycl-help=">,
+      Flags<[NoXarchOption]>,
+      HelpText<
+          "Emit help information from the related offline compilation tool. "
+          "Valid values: all, gen, x86_64.">,
+      Values<"all,gen,x86_64">;
 def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
   Flags<[NoXarchOption]>, AliasArgs<["all"]>,
   HelpText<"Emit help information from all of the offline compilation tools">;
