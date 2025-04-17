@@ -27,10 +27,9 @@ ur_result_t urContextCreate(
     /// [in][range(0, DeviceCount)] array of handle of devices.
     const ur_device_handle_t *Devices,
     /// [in][optional] pointer to context creation properties.
-    const ur_context_properties_t *Properties,
+    const ur_context_properties_t * /*Properties*/,
     /// [out] pointer to handle of context object created
     ur_context_handle_t *RetContext) {
-  std::ignore = Properties;
 
   ur_platform_handle_t Platform = Devices[0]->Platform;
   ZeStruct<ze_context_desc_t> ContextDesc{};
@@ -163,14 +162,11 @@ ur_result_t urContextCreateWithNativeHandle(
 
 ur_result_t urContextSetExtendedDeleter(
     /// [in] handle of the context.
-    ur_context_handle_t Context,
+    ur_context_handle_t /*Context*/,
     /// [in] Function pointer to extended deleter.
-    ur_context_extended_deleter_t Deleter,
+    ur_context_extended_deleter_t /*Deleter*/,
     /// [in][out][optional] pointer to data to be passed to callback.
-    void *UserData) {
-  std::ignore = Context;
-  std::ignore = Deleter;
-  std::ignore = UserData;
+    void * /*UserData*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

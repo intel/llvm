@@ -78,16 +78,13 @@ public:
   umf_result_t allocation_split(void *, size_t, size_t) {
     return UMF_RESULT_ERROR_UNKNOWN;
   }
-  virtual const char *get_name() = 0;
+  const char *get_name() { return "HIP"; }
 
   virtual ~USMMemoryProvider() = default;
 };
 
 // Allocation routines for shared memory type
 class USMSharedMemoryProvider final : public USMMemoryProvider {
-public:
-  const char *get_name() override { return "USMSharedMemoryProvider"; }
-
 protected:
   ur_result_t allocateImpl(void **ResultPtr, size_t Size,
                            uint32_t Alignment) override;
@@ -95,9 +92,6 @@ protected:
 
 // Allocation routines for device memory type
 class USMDeviceMemoryProvider final : public USMMemoryProvider {
-public:
-  const char *get_name() override { return "USMSharedMemoryProvider"; }
-
 protected:
   ur_result_t allocateImpl(void **ResultPtr, size_t Size,
                            uint32_t Alignment) override;
@@ -105,9 +99,6 @@ protected:
 
 // Allocation routines for host memory type
 class USMHostMemoryProvider final : public USMMemoryProvider {
-public:
-  const char *get_name() override { return "USMSharedMemoryProvider"; }
-
 protected:
   ur_result_t allocateImpl(void **ResultPtr, size_t Size,
                            uint32_t Alignment) override;

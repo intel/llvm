@@ -1179,11 +1179,9 @@ static ur_result_t commonEnqueueMemImageNDCopy(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingRead,
-    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
-    size_t slicePitch, void *pDst, uint32_t numEventsInWaitList,
+    ur_rect_offset_t origin, ur_rect_region_t region, size_t /*rowPitch*/,
+    size_t /*slicePitch*/, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = rowPitch;
-  std::ignore = slicePitch;
 
   UR_ASSERT(hImage->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
@@ -1253,13 +1251,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
-    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool blockingWrite,
-    ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
-    size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
+    ur_queue_handle_t hQueue, ur_mem_handle_t hImage, bool /*blockingWrite*/,
+    ur_rect_offset_t origin, ur_rect_region_t region, size_t /*rowPitch*/,
+    size_t /*slicePitch*/, void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = blockingWrite;
-  std::ignore = rowPitch;
-  std::ignore = slicePitch;
 
   UR_ASSERT(hImage->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   auto &Image = std::get<SurfaceMem>(hImage->Mem);
@@ -1597,9 +1592,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
-    ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
+    ur_usm_migration_flags_t /*flags*/, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = flags;
 
   size_t PointerRangeSize = 0;
   UR_CHECK_ERROR(cuPointerGetAttribute(

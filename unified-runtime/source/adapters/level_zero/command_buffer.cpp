@@ -1079,12 +1079,11 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     uint32_t NumKernelAlternatives, ur_kernel_handle_t *KernelAlternatives,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *RetSyncPoint, ur_event_handle_t *Event,
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint,
+    ur_event_handle_t * /*Event*/,
     ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
 
   UR_ASSERT(Kernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   // Command handles can only be obtained from updatable command-buffers
@@ -1157,13 +1156,11 @@ ur_result_t urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t CommandBuffer, void *Dst, const void *Src,
     size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
 
   return enqueueCommandBufferMemCopyHelper(
       UR_COMMAND_USM_MEMCPY, CommandBuffer, Dst, Src, Size,
@@ -1177,13 +1174,11 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
     ur_mem_handle_t DstMem, size_t SrcOffset, size_t DstOffset, size_t Size,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
   auto SrcBuffer = ur_cast<_ur_buffer *>(SrcMem);
   auto DstBuffer = ur_cast<_ur_buffer *>(DstMem);
 
@@ -1215,13 +1210,11 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
     size_t SrcSlicePitch, size_t DstRowPitch, size_t DstSlicePitch,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
   auto SrcBuffer = ur_cast<_ur_buffer *>(SrcMem);
   auto DstBuffer = ur_cast<_ur_buffer *>(DstMem);
 
@@ -1252,13 +1245,11 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
     size_t Offset, size_t Size, const void *Src,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
   std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
@@ -1282,13 +1273,11 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
     size_t HostRowPitch, size_t HostSlicePitch, void *Src,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
   std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
@@ -1310,13 +1299,11 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
     size_t Offset, size_t Size, void *Dst, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
   std::scoped_lock<ur_shared_mutex> SrcLock(Buffer->Mutex);
 
   char *ZeHandleSrc = nullptr;
@@ -1339,13 +1326,11 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
     size_t HostRowPitch, size_t HostSlicePitch, void *Dst,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
   std::scoped_lock<ur_shared_mutex> SrcLock(Buffer->Mutex);
 
   char *ZeHandleSrc;
@@ -1364,16 +1349,13 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
 
 ur_result_t urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
-    ur_usm_migration_flags_t Flags, uint32_t NumSyncPointsInWaitList,
+    ur_usm_migration_flags_t /*Flags*/, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *RetSyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
-  std::ignore = Flags;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
 
   std::vector<ze_event_handle_t> ZeEventList;
   ze_event_handle_t ZeLaunchEvent = nullptr;
@@ -1407,13 +1389,11 @@ ur_result_t urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t CommandBuffer, const void *Mem, size_t Size,
     ur_usm_advice_flags_t Advice, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *RetSyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
   // A memory chunk can be advised with muliple memory advices
   // We therefore prefer if statements to switch cases to combine all potential
   // flags
@@ -1473,13 +1453,11 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
     const void *Pattern, size_t PatternSize, size_t Offset, size_t Size,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
 
   std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
 
@@ -1500,13 +1478,11 @@ ur_result_t urCommandBufferAppendUSMFillExp(
     const void *Pattern, size_t PatternSize, size_t Size,
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint, ur_event_handle_t *Event,
-    ur_exp_command_buffer_command_handle_t *Command) {
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = Command;
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/,
+    ur_exp_command_buffer_sync_point_t *SyncPoint,
+    ur_event_handle_t * /*Event*/,
+    ur_exp_command_buffer_command_handle_t * /*Command*/) {
 
   return enqueueCommandBufferFillHelper(
       UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, Ptr,
@@ -2304,18 +2280,15 @@ ur_result_t urCommandBufferUpdateKernelLaunchExp(
 }
 
 ur_result_t urCommandBufferUpdateSignalEventExp(
-    ur_exp_command_buffer_command_handle_t Command, ur_event_handle_t *Event) {
-  std::ignore = Command;
-  std::ignore = Event;
+    ur_exp_command_buffer_command_handle_t /*Command*/,
+    ur_event_handle_t * /*Event*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t urCommandBufferUpdateWaitEventsExp(
-    ur_exp_command_buffer_command_handle_t Command,
-    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList) {
-  std::ignore = Command;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
+    ur_exp_command_buffer_command_handle_t /*Command*/,
+    uint32_t /*NumEventsInWaitList*/,
+    const ur_event_handle_t * /*EventWaitList*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
