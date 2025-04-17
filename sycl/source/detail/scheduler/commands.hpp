@@ -161,21 +161,13 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
-  // Shows that command could not be enqueued, now it may be true for empty task
-  // only
+  // Shows that command could not be enqueued
   bool isEnqueueBlocked() const {
-    return MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
+    return MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked;
   }
   // Shows that command could be enqueued, but is blocking enqueue of all
   // commands depending on it. Regular usage - host task.
   bool isBlocking() const { return isHostTask() && !MEvent->isCompleted(); }
-
-  void addBlockedUserUnique(const EventImplPtr &NewUser) {
-    if (std::find(MBlockedUsers.begin(), MBlockedUsers.end(), NewUser) !=
-        MBlockedUsers.end())
-      return;
-    MBlockedUsers.push_back(NewUser);
-  }
 
   const QueueImplPtr &getQueue() const { return MQueue; }
 
@@ -312,8 +304,6 @@ public:
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
   std::unordered_set<Command *> MUsers;
-  /// Indicates whether the command can be blocked from enqueueing.
-  bool MIsBlockable = false;
   /// Counts the number of memory objects this command is a leaf for.
   unsigned MLeafCounter = 0;
 
@@ -328,7 +318,7 @@ public:
 
   enum class BlockReason : int { Unset = -1, HostAccessor = 0, HostTask };
 
-  // Only have reasonable value while MIsBlockable is true
+  // Only have reasonable value while EnqueueStatus is EnqueueBlocked
   BlockReason MBlockReason = BlockReason::Unset;
 
   /// Describes the status of the command.
@@ -379,14 +369,6 @@ public:
   /// be ignored by other cleanup mechanisms (e.g. during memory object
   /// removal).
   bool MMarkedForCleanup = false;
-
-  /// Contains list of commands that depends on the host command explicitly (by
-  /// depends_on). Not involved in the cleanup process since it is one-way link
-  /// and does not hold resources.
-  /// Using EventImplPtr since enqueueUnblockedCommands and event.wait may
-  /// intersect with command enqueue.
-  std::vector<EventImplPtr> MBlockedUsers;
-  std::mutex MBlockedUsersMutex;
 
 protected:
   /// Gets the command buffer (if any) associated with this command.

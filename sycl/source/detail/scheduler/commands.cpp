@@ -878,7 +878,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
     return true;
 
   // If the command is blocked from enqueueing
-  if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
+  if (isEnqueueBlocked()) {
     // Exit if enqueue type is not blocking
     if (!Blocking) {
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, this);
