@@ -68,7 +68,10 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
 
   *ResultPtr = Allocated;
 
-  ContextInfo->MaxAllocatedSize = std::max(ContextInfo->MaxAllocatedSize, Size);
+  if (Type != AllocType::DEVICE_USM) {
+    ContextInfo->CleanShadowSize =
+        std::max(ContextInfo->CleanShadowSize, Size);
+  }
 
   // For host/shared usm, we only record the alloc size.
   if (Type != AllocType::DEVICE_USM) {
@@ -287,8 +290,8 @@ MsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
            MsanShadowMemoryDG2::IsDeviceUSM(GVInfo.Addr))) {
         UR_CALL(DeviceInfo->Shadow->EnqueuePoisonShadow(Queue, GVInfo.Addr,
                                                         GVInfo.Size, 0));
-        ContextInfo->MaxAllocatedSize =
-            std::max(ContextInfo->MaxAllocatedSize, GVInfo.Size);
+        ContextInfo->CleanShadowSize =
+            std::max(ContextInfo->CleanShadowSize, GVInfo.Size);
       }
     }
   }
@@ -482,10 +485,10 @@ ur_result_t MsanInterceptor::prepareLaunch(
   // Its content is always zero, and is used for unsupport memory types
   UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
       ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-      ContextInfo->MaxAllocatedSize,
+      ContextInfo->CleanShadowSize,
       (void **)&LaunchInfo.Data.Host.CleanShadow));
   UR_CALL(EnqueueUSMBlockingSet(Queue, (void *)LaunchInfo.Data.Host.CleanShadow,
-                                0, ContextInfo->MaxAllocatedSize, 0, nullptr,
+                                0, ContextInfo->CleanShadowSize, 0, nullptr,
                                 nullptr));
 
   if (LaunchInfo.LocalWorkSize.empty()) {

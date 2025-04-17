@@ -134,7 +134,7 @@ struct ProgramInfo {
 
 struct ContextInfo {
   ur_context_handle_t Handle;
-  size_t MaxAllocatedSize = 1024;
+  size_t CleanShadowSize = 1024;
   std::atomic<int32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;
