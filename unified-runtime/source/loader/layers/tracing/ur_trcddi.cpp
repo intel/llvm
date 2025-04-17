@@ -4482,7 +4482,7 @@ __urdlllocal ur_result_t UR_APICALL urEventHostSignal(
   getContext()->notify_end(UR_FUNCTION_EVENT_HOST_SIGNAL, "urEventHostSignal",
                            &params, &result, instance);
 
-  if (logger.getLevel() <= logger::Level::INFO) {
+  if (logger.getLevel() <= UR_LOGGER_LEVEL_INFO) {
     std::ostringstream args_str;
     ur::extras::printFunctionParams(args_str, UR_FUNCTION_EVENT_HOST_SIGNAL,
                                     &params);

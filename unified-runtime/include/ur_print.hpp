@@ -1243,6 +1243,7 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     break;
   case UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL:
     os << "UR_FUNCTION_ADAPTER_SET_LOGGER_CALLBACK_LEVEL";
+    break;
   case UR_FUNCTION_EVENT_HOST_SIGNAL:
     os << "UR_FUNCTION_EVENT_HOST_SIGNAL";
     break;

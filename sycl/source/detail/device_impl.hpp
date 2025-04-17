@@ -298,6 +298,9 @@ public:
   /// Get device architecture
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
+  void setUSMAllocationPresent() { MSharedUSMAllocationPresent = true; }
+  bool isUSMAllocationPresent() const { return MSharedUSMAllocationPresent; }
+
 private:
   explicit device_impl(ur_native_handle_t InteropDevice,
                        ur_device_handle_t Device, PlatformImplPtr Platform,
@@ -313,6 +316,7 @@ private:
   mutable ext::oneapi::experimental::architecture MDeviceArch{};
   mutable std::once_flag MDeviceArchFlag;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
+  bool MSharedUSMAllocationPresent{};
 }; // class device_impl
 
 } // namespace detail

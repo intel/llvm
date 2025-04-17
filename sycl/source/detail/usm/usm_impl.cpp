@@ -113,10 +113,10 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 namespace usm {
 
+// Device ptr is not const to mark USM shared presence if needed.
 void *alignedAllocInternal(size_t Alignment, size_t Size,
-                           const context_impl *CtxImpl,
-                           const device_impl *DevImpl, alloc Kind,
-                           const property_list &PropList) {
+                           const context_impl *CtxImpl, device_impl *DevImpl,
+                           alloc Kind, const property_list &PropList) {
   if (Kind == alloc::device &&
       !DevImpl->has(sycl::aspect::usm_device_allocations)) {
     throw sycl::exception(sycl::errc::feature_not_supported,
@@ -198,6 +198,8 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
     Error = Adapter->call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
         C, Dev, &UsmDesc,
         /*pool=*/nullptr, Size, &RetVal);
+    if (Error == UR_RESULT_SUCCESS)
+      DevImpl->setUSMAllocationPresent();
 
     break;
   }
