@@ -62,12 +62,12 @@ jobs:
             runner: UR_OPENCL
             platform: "Intel(R) OpenCL"
             docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
-            image_options: -u 1001  --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path  
+            image_options: -u 1001 
           - name: OPENCL
             runner: UR_OPENCL
             platform: "OPENCL:Intel(R) OpenCL"
             docker_image: "ghcr.io/intel/llvm/ubuntu2404_intel_drivers:alldeps"
-            image_options: -u 1001  --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path 
+            image_options: -u 1001  
             other_adapter: NATIVE_CPU
     uses: ./.github/workflows/ur-build-hw.yml
     with:
