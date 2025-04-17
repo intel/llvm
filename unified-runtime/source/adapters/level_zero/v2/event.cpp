@@ -141,16 +141,10 @@ uint64_t ur_event_handle_t_::getEventEndTimestamp() {
   return profilingData.getEventEndTimestamp();
 }
 
-void ur_event_handle_t_::markEventAsNotInUse() {
-  isEventInUse = false;
-}
-void ur_event_handle_t_::markEventAsInUse() {
-  isEventInUse = true;
-}
+void ur_event_handle_t_::markEventAsNotInUse() { isEventInUse = false; }
+void ur_event_handle_t_::markEventAsInUse() { isEventInUse = true; }
 
-bool ur_event_handle_t_::getIsEventInUse() const { 
-  return isEventInUse; 
-}
+bool ur_event_handle_t_::getIsEventInUse() const { return isEventInUse; }
 
 void ur_event_handle_t_::reset() {
   // consider make an abstraction for regular/counter based
@@ -244,6 +238,11 @@ ur_result_t urEventWait(uint32_t numEvents,
                         const ur_event_handle_t *phEventWaitList) try {
   for (uint32_t i = 0; i < numEvents; ++i) {
     if (!phEventWaitList[i]->getIsEventInUse()) {
+      // TODO: This is a workaround for the underlying inconsistency
+      // between normal and counter events in L0 driver
+      // (the events that are not in use should be signaled by default, see
+      // /test/conformance/exp_command_buffer/kernel_event_sync.cpp
+      // KernelCommandEventSyncTest.SignalWaitBeforeEnqueue)
       continue;
     }
     ZE2UR_CALL(zeEventHostSynchronize,
