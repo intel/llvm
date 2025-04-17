@@ -105,6 +105,7 @@ add_clang_library(clangCodeGen
   CodeGenFunction.cpp
   CodeGenModule.cpp
   CodeGenPGO.cpp
+  CodeGenSYCL.cpp
   CodeGenTBAA.cpp
   CodeGenTypes.cpp
   ConstantInitBuilder.cpp
