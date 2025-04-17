@@ -69,8 +69,7 @@ ur_result_t MsanInterceptor::allocateMemory(ur_context_handle_t Context,
   *ResultPtr = Allocated;
 
   if (Type != AllocType::DEVICE_USM) {
-    ContextInfo->CleanShadowSize =
-        std::max(ContextInfo->CleanShadowSize, Size);
+    ContextInfo->CleanShadowSize = std::max(ContextInfo->CleanShadowSize, Size);
   }
 
   // For host/shared usm, we only record the alloc size.
