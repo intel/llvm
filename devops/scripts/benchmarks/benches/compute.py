@@ -70,6 +70,9 @@ class ComputeBench(Suite):
             f"-DALLOW_WARNINGS=ON",
         ]
 
+        if options.ur_adapter == "cuda":
+            configure_command += ["-DBUILD_SYCL_WITH_CUDA=ON"]
+
         if options.ur is not None:
             configure_command += [
                 f"-DBUILD_UR=ON",
@@ -118,7 +121,7 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return []
 
-        if options.ur_adapter == "cuda" or options.ur_adapter == "hip":
+        if options.ur_adapter == "hip":
             return []
 
         benches = []
