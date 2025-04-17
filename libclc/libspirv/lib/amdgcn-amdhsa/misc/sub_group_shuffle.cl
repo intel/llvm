@@ -11,13 +11,6 @@
 #define SELF __spirv_SubgroupLocalInvocationId();
 #define SUBGROUP_SIZE __spirv_SubgroupMaxSize()
 
-typedef _Float16 clc_fp16_t;
-typedef __attribute__((ext_vector_type(2))) clc_fp16_t clc_fp16x2_t;
-typedef __attribute__((ext_vector_type(3))) clc_fp16_t clc_fp16x3_t;
-typedef __attribute__((ext_vector_type(4))) clc_fp16_t clc_fp16x4_t;
-typedef __attribute__((ext_vector_type(8))) clc_fp16_t clc_fp16x8_t;
-typedef __attribute__((ext_vector_type(16))) clc_fp16_t clc_fp16x16_t;
-
 // Shuffle
 _CLC_OVERLOAD _CLC_DEF int
 __spirv_SubgroupShuffleINTEL(int Data, unsigned int InvocationId) {
@@ -59,14 +52,14 @@ __AMDGCN_CLC_SUBGROUP_SUB_I32(unsigned short, t);
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
-_CLC_OVERLOAD _CLC_DEF clc_fp16_t
-__spirv_SubgroupShuffleINTEL(clc_fp16_t Data, unsigned int InvocationId) {
+_CLC_OVERLOAD _CLC_DEF __clc_float16_t
+__spirv_SubgroupShuffleINTEL(__clc_float16_t Data, unsigned int InvocationId) {
   unsigned short tmp = __clc_as_ushort(Data);
   tmp = __spirv_SubgroupShuffleINTEL(tmp, InvocationId);
   return __clc_as_half(tmp);
 }
-_CLC_DEF clc_fp16_t _Z28__spirv_SubgroupShuffleINTELIDF16_ET_S0_j(
-    clc_fp16_t Data, unsigned int InvocationId) {
+_CLC_DEF __clc_float16_t _Z28__spirv_SubgroupShuffleINTELIDF16_ET_S0_j(
+    __clc_float16_t Data, unsigned int InvocationId) {
   return __spirv_SubgroupShuffleINTEL(Data, InvocationId);
 }
 #endif // cl_khr_fp16
@@ -172,10 +165,10 @@ __AMDGCN_CLC_SUBGROUP_TO_VEC(ulong8, 8)
 __AMDGCN_CLC_SUBGROUP_TO_VEC(ulong16, 16)
 // half
 #ifdef cl_khr_fp16
-__AMDGCN_CLC_SUBGROUP_TO_VEC(clc_fp16x2_t, 2)
-__AMDGCN_CLC_SUBGROUP_TO_VEC(clc_fp16x4_t, 4)
-__AMDGCN_CLC_SUBGROUP_TO_VEC(clc_fp16x8_t, 8)
-__AMDGCN_CLC_SUBGROUP_TO_VEC(clc_fp16x16_t, 16)
+__AMDGCN_CLC_SUBGROUP_TO_VEC(__clc_vec2_float16_t, 2)
+__AMDGCN_CLC_SUBGROUP_TO_VEC(__clc_vec4_float16_t, 4)
+__AMDGCN_CLC_SUBGROUP_TO_VEC(__clc_vec8_float16_t, 8)
+__AMDGCN_CLC_SUBGROUP_TO_VEC(__clc_vec16_float16_t, 16)
 #endif // cl_khr_fp16
 // float
 __AMDGCN_CLC_SUBGROUP_TO_VEC(float2, 2)
@@ -234,10 +227,10 @@ __AMDGCN_CLC_SUBGROUP_TO_VEC(ulong8, m, 8)
 __AMDGCN_CLC_SUBGROUP_TO_VEC(ulong16, m, 16)
 // half
 #ifdef cl_khr_fp16
-__AMDGCN_CLC_SUBGROUP_TO_VEC(clc_fp16x2_t, DF16_, 2)
-__AMDGCN_CLC_SUBGROUP_TO_VEC(clc_fp16x4_t, DF16_, 4)
-__AMDGCN_CLC_SUBGROUP_TO_VEC(clc_fp16x8_t, DF16_, 8)
-__AMDGCN_CLC_SUBGROUP_TO_VEC(clc_fp16x16_t, DF16_, 16)
+__AMDGCN_CLC_SUBGROUP_TO_VEC(__clc_vec2_float16_t, DF16_, 2)
+__AMDGCN_CLC_SUBGROUP_TO_VEC(__clc_vec4_float16_t, DF16_, 4)
+__AMDGCN_CLC_SUBGROUP_TO_VEC(__clc_vec8_float16_t, DF16_, 8)
+__AMDGCN_CLC_SUBGROUP_TO_VEC(__clc_vec16_float16_t, DF16_, 16)
 #endif // cl_khr_fp16
 // float
 __AMDGCN_CLC_SUBGROUP_TO_VEC(float2, f, 2)
@@ -278,8 +271,8 @@ __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned char);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(short);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned short);
 #ifdef cl_khr_fp16
-_CLC_OVERLOAD _CLC_DEF clc_fp16_t
-__spirv_SubgroupShuffleXorINTEL(clc_fp16_t Data, unsigned int InvocationId) {
+_CLC_OVERLOAD _CLC_DEF __clc_float16_t __spirv_SubgroupShuffleXorINTEL(
+    __clc_float16_t Data, unsigned int InvocationId) {
   unsigned short tmp = __clc_as_ushort(Data);
   tmp = (unsigned short)__spirv_SubgroupShuffleXorINTEL(tmp, InvocationId);
   return __clc_as_half(tmp);
@@ -303,8 +296,8 @@ __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned char, h);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(short, s);
 __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned short, t);
 #ifdef cl_khr_fp16
-_CLC_DEF clc_fp16_t _Z31__spirv_SubgroupShuffleXorINTELIDF16_ET_S0_j(
-    clc_fp16_t Data, unsigned int InvocationId) {
+_CLC_DEF __clc_float16_t _Z31__spirv_SubgroupShuffleXorINTELIDF16_ET_S0_j(
+    __clc_float16_t Data, unsigned int InvocationId) {
   return __spirv_SubgroupShuffleXorINTEL(Data, InvocationId);
 }
 #endif // cl_khr_fp16
@@ -416,10 +409,10 @@ __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(float8, 8)
 __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(float16, 16)
 // half
 #ifdef cl_khr_fp16
-__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(clc_fp16x2_t, 2)
-__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(clc_fp16x4_t, 4)
-__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(clc_fp16x8_t, 8)
-__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(clc_fp16x16_t, 16)
+__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(__clc_vec2_float16_t, 2)
+__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(__clc_vec4_float16_t, 4)
+__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(__clc_vec8_float16_t, 8)
+__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(__clc_vec16_float16_t, 16)
 #endif // cl_khr_fp16
 // double
 __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(double2, 2)
@@ -477,10 +470,10 @@ __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(float8, f, 8)
 __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(float16, f, 16)
 // half
 #ifdef cl_khr_fp16
-__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(clc_fp16x2_t, DF16_, 2)
-__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(clc_fp16x4_t, DF16_, 4)
-__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(clc_fp16x8_t, DF16_, 8)
-__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(clc_fp16x16_t, DF16_, 16)
+__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(__clc_vec2_float16_t, DF16_, 2)
+__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(__clc_vec4_float16_t, DF16_, 4)
+__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(__clc_vec8_float16_t, DF16_, 8)
+__AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(__clc_vec16_float16_t, DF16_, 16)
 #endif // cl_khr_fp16
 // double
 __AMDGCN_CLC_SUBGROUP_XOR_TO_VEC(double2, d, 2)
@@ -531,9 +524,8 @@ __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(unsigned short);
 
 // half
 #ifdef cl_khr_fp16
-_CLC_OVERLOAD _CLC_DEF clc_fp16_t __spirv_SubgroupShuffleUpINTEL(clc_fp16_t previous,
-                                                           clc_fp16_t current,
-                                                           unsigned int delta) {
+_CLC_OVERLOAD _CLC_DEF __clc_float16_t __spirv_SubgroupShuffleUpINTEL(
+    __clc_float16_t previous, __clc_float16_t current, unsigned int delta) {
   unsigned short tmpP = __clc_as_ushort(previous);
   unsigned short tmpC = __clc_as_ushort(current);
   tmpC = __spirv_SubgroupShuffleUpINTEL(tmpP, tmpC, delta);
@@ -559,8 +551,8 @@ __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(short, s);
 __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(unsigned short, t);
 // half
 #ifdef cl_khr_fp16
-_CLC_DEF clc_fp16_t _Z30__spirv_SubgroupShuffleUpINTELIDF16_ET_S0_S0_j(
-    clc_fp16_t previous, clc_fp16_t current, unsigned int delta) {
+_CLC_DEF __clc_float16_t _Z30__spirv_SubgroupShuffleUpINTELIDF16_ET_S0_S0_j(
+    __clc_float16_t previous, __clc_float16_t current, unsigned int delta) {
   return __spirv_SubgroupShuffleUpINTEL(previous, current, delta);
 }
 #endif // cl_khr_fp16
@@ -671,10 +663,10 @@ __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(ulong8, 8)
 __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(ulong16, 16)
 // half
 #ifdef cl_khr_fp16
-__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(clc_fp16x2_t, 2)
-__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(clc_fp16x4_t, 4)
-__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(clc_fp16x8_t, 8)
-__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(clc_fp16x16_t, 16)
+__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(__clc_vec2_float16_t, 2)
+__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(__clc_vec4_float16_t, 4)
+__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(__clc_vec8_float16_t, 8)
+__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(__clc_vec16_float16_t, 16)
 #endif // cl_khr_fp16
 // float
 __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(float2, 2)
@@ -732,10 +724,10 @@ __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(ulong8, m, 8)
 __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(ulong16, m, 16)
 // half
 #ifdef cl_khr_fp16
-__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(clc_fp16x2_t, DF16_, 2)
-__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(clc_fp16x4_t, DF16_, 4)
-__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(clc_fp16x8_t, DF16_, 8)
-__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(clc_fp16x16_t, DF16_, 16)
+__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(__clc_vec2_float16_t, DF16_, 2)
+__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(__clc_vec4_float16_t, DF16_, 4)
+__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(__clc_vec8_float16_t, DF16_, 8)
+__AMDGCN_CLC_SUBGROUP_UP_TO_VEC(__clc_vec16_float16_t, DF16_, 16)
 #endif // cl_khr_fp16
 // float
 __AMDGCN_CLC_SUBGROUP_UP_TO_VEC(float2, f, 2)
@@ -790,8 +782,8 @@ __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(short);
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(unsigned short);
 // half
 #ifdef cl_khr_fp16
-_CLC_OVERLOAD _CLC_DEF clc_fp16_t
-__spirv_SubgroupShuffleDownINTEL(clc_fp16_t current, clc_fp16_t next, unsigned int delta) {
+_CLC_OVERLOAD _CLC_DEF __clc_float16_t __spirv_SubgroupShuffleDownINTEL(
+    __clc_float16_t current, __clc_float16_t next, unsigned int delta) {
   unsigned short tmpC = __clc_as_ushort(current);
   unsigned short tmpN = __clc_as_ushort(next);
   tmpC = __spirv_SubgroupShuffleDownINTEL(tmpC, tmpN, delta);
@@ -817,8 +809,8 @@ __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(short, s);
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(unsigned short, t);
 // half
 #ifdef cl_khr_fp16
-_CLC_DEF clc_fp16_t _Z32__spirv_SubgroupShuffleDownINTELIDF16_ET_S0_S0_j(
-    clc_fp16_t current, clc_fp16_t next, unsigned int delta) {
+_CLC_DEF __clc_float16_t _Z32__spirv_SubgroupShuffleDownINTELIDF16_ET_S0_S0_j(
+    __clc_float16_t current, __clc_float16_t next, unsigned int delta) {
   return __spirv_SubgroupShuffleDownINTEL(current, next, delta);
 }
 #endif // cl_khr_fp16
@@ -927,10 +919,10 @@ __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(ulong8, 8)
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(ulong16, 16)
 // half
 #ifdef cl_khr_fp16
-__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(clc_fp16x2_t, 2)
-__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(clc_fp16x4_t, 4)
-__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(clc_fp16x8_t, 8)
-__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(clc_fp16x16_t, 16)
+__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(__clc_vec2_float16_t, 2)
+__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(__clc_vec4_float16_t, 4)
+__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(__clc_vec8_float16_t, 8)
+__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(__clc_vec16_float16_t, 16)
 #endif // cl_khr_fp16
 // float
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(float2, 2)
@@ -988,10 +980,10 @@ __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(ulong8, m, 8)
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(ulong16, m, 16)
 // half
 #ifdef cl_khr_fp16
-__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(clc_fp16x2_t, DF16_, 2)
-__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(clc_fp16x4_t, DF16_, 4)
-__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(clc_fp16x8_t, DF16_, 8)
-__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(clc_fp16x16_t, DF16_, 16)
+__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(__clc_vec2_float16_t, DF16_, 2)
+__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(__clc_vec4_float16_t, DF16_, 4)
+__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(__clc_vec8_float16_t, DF16_, 8)
+__AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(__clc_vec16_float16_t, DF16_, 16)
 #endif // cl_khr_fp16
 // float
 __AMDGCN_CLC_SUBGROUP_DOWN_TO_VEC(float2, f, 2)
