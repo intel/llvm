@@ -30,20 +30,6 @@ RUN apt update && apt install -yqq rocm-dev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
-COPY llvm/unified-runtime/third_party/requirements.txt /tmp/requirements.txt
-RUN apt update && apt install -y python3-venv && \
-    python3 -m venv /opt/unified-runtime/.venv && \
-    /opt/unified-runtime/.venv/bin/pip install --upgrade pip && \
-    /opt/unified-runtime/.venv/bin/pip install -r /tmp/requirements.txt && \
-    rm /tmp/requirements.txt
-
-RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-    | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
-    echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
-    | tee /etc/apt/sources.list.d/oneAPI.list && \
-    apt-get update && \
-    apt-get install -y intel-oneapi-runtime-opencl intel-oneapi-base-toolkit
-
 COPY scripts/create-sycl-user.sh /user-setup.sh
 RUN /user-setup.sh
 

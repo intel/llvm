@@ -9,9 +9,7 @@ ARG use_unstable_driver=true
 
 USER root
 
-RUN apt update && apt install -yqq wget ca-certificates gpg
-
-RUN apt-get update && apt --fix-broken install -y
+RUN apt update && apt install -yqq wget
 
 COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
