@@ -12303,7 +12303,8 @@ InstructionCost BoUpSLP::getSpillCost() const {
       Budget += BlockSize;
       if (Budget > BudgetLimit)
         return Res;
-      if (!CheckForNonVecCallsInSameBlock(&*BB->getFirstNonPHIOrDbgOrAlloca(),
+      if (!isa<CatchSwitchInst>(BB->getTerminator()) &&
+          !CheckForNonVecCallsInSameBlock(&*BB->getFirstNonPHIOrDbgOrAlloca(),
                                           BB->getTerminator()))
         return Res;
       Worklist.append(pred_begin(BB), pred_end(BB));
