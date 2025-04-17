@@ -64,9 +64,8 @@ bool EnqueuedPool::cleanup() {
     auto hPool = umfPoolByPtr(It.Ptr);
     assert(hPool != nullptr);
 
-    auto umfRet = umfPoolFree(hPool, It.Ptr);
+    auto umfRet [[maybe_unused]] = umfPoolFree(hPool, It.Ptr);
     assert(umfRet == UMF_RESULT_SUCCESS);
-    std::ignore = umfRet;
 
     urEventReleaseInternal(It.Event);
   }
@@ -88,9 +87,8 @@ bool EnqueuedPool::cleanupForQueue(ur_queue_handle_t Queue) {
     auto hPool = umfPoolByPtr(It->Ptr);
     assert(hPool != nullptr);
 
-    auto umfRet = umfPoolFree(hPool, It->Ptr);
+    auto umfRet [[maybe_unused]] = umfPoolFree(hPool, It->Ptr);
     assert(umfRet == UMF_RESULT_SUCCESS);
-    std::ignore = umfRet;
 
     urEventReleaseInternal(It->Event);
 

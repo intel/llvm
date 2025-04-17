@@ -643,6 +643,12 @@ etors:
 - name: USM_POOL_SET_INFO_EXP
   desc: Enumerator for $xUSMPoolSetInfoExp
   value: '265'
+- name: ADAPTER_SET_LOGGER_CALLBACK
+  desc: Enumerator for $xAdapterSetLoggerCallback
+  value: '266'
+- name: ADAPTER_SET_LOGGER_CALLBACK_LEVEL
+  desc: Enumerator for $xAdapterSetLoggerCallbackLevel
+  value: '267'
 ---
 type: enum
 desc: Defines structure types
