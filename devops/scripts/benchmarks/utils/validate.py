@@ -8,7 +8,7 @@ def validate_on_re(val: str, regex: re.Pattern, throw: Exception = None):
     If `throw` argument is not None: return val as-is if val matches regex,
     otherwise raise error defined by throw.
     """
-    is_matching: bool = re.compile(regex).match(val) is not None
+    is_matching: bool = re.compile(regex).match(val.strip()) is not None
 
     if throw is None:
         return is_matching
@@ -26,7 +26,7 @@ class Validate:
         """
         Returns True if runner_name is clean (no illegal characters).
         """
-        return validate_on_re(runner_name.strip(), r"^[a-zA-Z0-9_]+$", throw=throw)
+        return validate_on_re(runner_name, r"^[a-zA-Z0-9_]+$", throw=throw)
 
     @staticmethod
     def save_name(save: str, throw: Exception = None):
@@ -36,7 +36,7 @@ class Validate:
         If throw argument is specified: return save as is if save satisfies
         aforementioned regex, otherwise raise error defined by throw.
         """
-        return validate_on_re(save.strip(), r"^[a-zA-Z0-9_-]+$", throw=throw)
+        return validate_on_re(save, r"^[a-zA-Z0-9_-]+$", throw=throw)
 
     @staticmethod
     def timestamp(t: str, throw: Exception = None):
@@ -47,7 +47,7 @@ class Validate:
         format, otherwise raise error defined by throw.
         """
         return validate_on_re(
-            t.strip(),
+            t,
             r"^\d{4}(0[1-9]|1[0-2])([0-2][0-9]|3[01])_([01][0-9]|2[0-3])[0-5][0-9][0-5][0-9]$",
             throw=throw,
         )
@@ -61,7 +61,7 @@ class Validate:
         aforementioned format, otherwise raise error defined by throw.
         """
         return validate_on_re(
-            re.sub(r"^https?://github.com/", "", repo.strip()),
+            re.sub(r"^https?://github.com/", "", repo),
             r"^[a-zA-Z0-9_-]{1,39}/[a-zA-Z0-9_.-]{1,100}$",
             throw=throw,
         )
@@ -77,6 +77,6 @@ class Validate:
         """
         commit_re = r"^[a-f0-9]{7,40}$"
         if throw is None:
-            return validate_on_re(commit.strip(), commit_re)
+            return validate_on_re(commit, commit_re)
         else:
-            return validate_on_re(commit.strip(), commit_re, throw=throw)[:trunc]
+            return validate_on_re(commit, commit_re, throw=throw)[:trunc]
