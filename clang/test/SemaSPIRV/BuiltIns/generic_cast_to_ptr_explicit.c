@@ -1,5 +1,8 @@
 // RUN: %clang_cc1 -O1 -triple spirv64 -fsycl-is-device -verify %s -o -
+// RUN: %clang_cc1 -O1 -triple spir64 -fsycl-use-spirv-backend-for-spirv-gen -fsycl-is-device -verify %s -o -
+// RUN: %clang_cc1 -O1 -triple spir -fsycl-use-spirv-backend-for-spirv-gen -fsycl-is-device -verify %s -o -
 // RUN: %clang_cc1 -O1 -triple spirv64 -verify %s -cl-std=CL3.0 -x cl -o -
+// RUN: %clang_cc1 -O1 -triple spirv32 -verify %s -cl-std=CL3.0 -x cl -o -
 
 #ifdef __OPENCL_C_VERSION__
 #define SYCL_DEVICE

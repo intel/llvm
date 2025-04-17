@@ -1,5 +1,8 @@
 // RUN: %clang_cc1 -O1 -triple spirv64 -fsycl-is-device %s -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -O1 -triple spir64 -fsycl-is-device -fsycl-use-spirv-backend-for-spirv-gen %s -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -O1 -triple spir -fsycl-is-device -fsycl-use-spirv-backend-for-spirv-gen %s -emit-llvm -o - | FileCheck %s
 // RUN: %clang_cc1 -O1 -triple spirv64 -cl-std=CL3.0 -x cl %s -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -O1 -triple spirv32 -cl-std=CL3.0 -x cl %s -emit-llvm -o - | FileCheck %s
 
 #ifdef __OPENCL_C_VERSION__
 #define SYCL_DEVICE
@@ -7,7 +10,7 @@
 #define SYCL_DEVICE __attribute__((sycl_device))
 #endif
 
-// CHECK-LABEL: define spir_func noundef ptr @test_cast_to_private(
+// CHECK: spir_func noundef ptr @test_cast_to_private(
 // CHECK-SAME: ptr addrspace(4) noundef readnone [[P:%.*]]
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[SPV_CAST:%.*]] = tail call noundef ptr @llvm.spv.generic.cast.to.ptr.explicit.p0(ptr addrspace(4) %p)
@@ -18,7 +21,7 @@ __attribute__((opencl_private)) int* test_cast_to_private(int* p) {
     return __builtin_spirv_generic_cast_to_ptr_explicit(p, 7);
 }
 
-// CHECK-LABEL: define spir_func noundef ptr addrspace(1) @test_cast_to_global(
+// CHECK: spir_func noundef ptr addrspace(1) @test_cast_to_global(
 // CHECK-SAME: ptr addrspace(4) noundef readnone [[P:%.*]]
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[SPV_CAST:%.*]] = tail call noundef ptr addrspace(1) @llvm.spv.generic.cast.to.ptr.explicit.p1(ptr addrspace(4) %p)
@@ -29,7 +32,7 @@ __attribute__((opencl_global)) int* test_cast_to_global(int* p) {
     return __builtin_spirv_generic_cast_to_ptr_explicit(p, 5);
 }
 
-// CHECK-LABEL: define spir_func noundef ptr addrspace(3) @test_cast_to_local(
+// CHECK: spir_func noundef ptr addrspace(3) @test_cast_to_local(
 // CHECK-SAME: ptr addrspace(4) noundef readnone [[P:%.*]]
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[SPV_CAST:%.*]] = tail call noundef ptr addrspace(3) @llvm.spv.generic.cast.to.ptr.explicit.p3(ptr addrspace(4) %p)

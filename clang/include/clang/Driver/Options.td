@@ -7158,6 +7158,7 @@ def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">,
   HelpText<"Disable check for libspirv">;
 def fsycl_use_spirv_backend_for_spirv_gen : Flag<["-"], "fsycl-use-spirv-backend-for-spirv-gen">,
   Flags<[HelpHidden]>,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
   MarshallingInfoFlag<TargetOpts<"SYCLUseSPIRVBackend">>,
   HelpText<"Use the SPIR-V backend for SPIR-V code generation. "
            "Has effect only for SPIR-based targets. It is off by default and "
