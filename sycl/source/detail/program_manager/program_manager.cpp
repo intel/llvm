@@ -1124,8 +1124,8 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   ur_device_handle_t UrDevice = DeviceImpl->getHandleRef();
 
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    auto ret_tuple = Cache.tryToGetKernelFast(KernelName, UrDevice,
-                                              KernelCacheHint);
+    auto ret_tuple =
+        Cache.tryToGetKernelFast(KernelName, UrDevice, KernelCacheHint);
     constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
     constexpr size_t Program = 3; // see KernelFastCacheValT tuple
     if (std::get<Kernel>(ret_tuple)) {

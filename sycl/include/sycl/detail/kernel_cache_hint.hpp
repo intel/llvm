@@ -11,6 +11,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+// Retrieves a kernel name type based hint pointer that can be used by the
+// runtime to avoid kernel name based lookup.
 template <typename KernelName> void **getKernelCacheHint() {
   static void *Instance = nullptr;
   return &Instance;

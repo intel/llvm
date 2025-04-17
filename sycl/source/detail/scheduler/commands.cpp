@@ -2139,8 +2139,8 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                    getQueueID(Queue));
     instrumentationAddExtraKernelMetadata(
         CmdTraceEvent, NDRDesc, KernelBundleImplPtr,
-        std::string(SyclKernelName), KernelCacheHint, SyclKernel,
-        Queue, CGArgs);
+        std::string(SyclKernelName), KernelCacheHint, SyclKernel, Queue,
+        CGArgs);
 
     xptiNotifySubscribers(
         StreamID, NotificationTraceType, detail::GSYCLGraphEvent, CmdTraceEvent,
@@ -2708,8 +2708,7 @@ void enqueueImpKernel(
   } else {
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
-            ContextImpl, DeviceImpl, KernelName, KernelCacheHint,
-            NDRDesc);
+            ContextImpl, DeviceImpl, KernelName, KernelCacheHint, NDRDesc);
   }
 
   // We may need more events for the launch, so we make another reference.
@@ -3262,8 +3261,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     }
     enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
-        KernelName, ExecKernel->MKernelCacheHint, RawEvents,
-        EventImpl, getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
+        KernelName, ExecKernel->MKernelCacheHint, RawEvents, EventImpl,
+        getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
         ExecKernel->MKernelIsCooperative, ExecKernel->MKernelUsesClusterLaunch,
         ExecKernel->MKernelWorkGroupMemorySize, BinImage);
 

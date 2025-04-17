@@ -797,8 +797,8 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
                                       CGExec->MLine, CGExec->MColumn);
   auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
       StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-      CGExec->MKernelName.data(), CGExec->MKernelCacheHint,
-      nullptr, CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
+      CGExec->MKernelName.data(), CGExec->MKernelCacheHint, nullptr,
+      CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
   if (CmdTraceEvent)
     sycl::detail::emitInstrumentationGeneral(
         StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
