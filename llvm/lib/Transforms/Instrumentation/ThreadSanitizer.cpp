@@ -439,6 +439,11 @@ void ThreadSanitizerOnSpirv::instrumentGlobalVariables() {
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
 
   for (auto &G : M.globals()) {
+    // DeviceSanitizers cannot handle nameless globals, therefore we set a name
+    // for them so that we can handle them like regular globals.
+    if (G.getName().empty() && G.hasInternalLinkage())
+      G.setName("nameless_global");
+
     if (isUnsupportedDeviceGlobal(G)) {
       for (auto *User : G.users())
         if (auto *Inst = dyn_cast<Instruction>(User))
@@ -916,7 +921,9 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
 
   // Instrument atomic memory accesses in any case (they can be used to
   // implement synchronization).
-  if (ClInstrumentAtomics)
+  // TODO: Disable atomics check for spirv target temporarily, will support it
+  // later.
+  if (!Spirv && ClInstrumentAtomics)
     for (auto *Inst : AtomicAccesses) {
       Res |= instrumentAtomic(Inst, DL);
     }
@@ -980,7 +987,8 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
   int Idx = getMemoryAccessFuncIndex(OrigTy, Addr, DL);
   if (Idx < 0)
     return false;
-  if (IsWrite && isVtableAccess(II.Inst)) {
+  // There is no race-free access scenario to vtable for spirv target.
+  if (!Spirv && IsWrite && isVtableAccess(II.Inst)) {
     LLVM_DEBUG(dbgs() << "  VPTR : " << *II.Inst << "\n");
     Value *StoredValue = cast<StoreInst>(II.Inst)->getValueOperand();
     // StoredValue may be a vector type if we are storing several vptrs at once.
@@ -996,7 +1004,7 @@ bool ThreadSanitizer::instrumentLoadOrStore(const InstructionInfo &II,
     NumInstrumentedVtableWrites++;
     return true;
   }
-  if (!IsWrite && isVtableAccess(II.Inst)) {
+  if (!Spirv && !IsWrite && isVtableAccess(II.Inst)) {
     IRB.CreateCall(TsanVptrLoad, Addr);
     NumInstrumentedVtableReads++;
     return true;
