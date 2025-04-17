@@ -16,7 +16,6 @@
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -533,11 +532,11 @@ int main() {
   if (!ok) {
     return -1;
   }
-
+  // Run test_device_libraries twice to verify bfloat16 device library.
   return test_build_and_run(q) || test_device_code_split(q) ||
          test_device_libraries(q) || test_esimd(q) ||
-         test_unsupported_options(q) || test_error(q) ||
-         test_no_visible_ids(q) || test_warning(q);
+         test_device_libraries(q) || test_unsupported_options(q) ||
+         test_error(q) || test_no_visible_ids(q) || test_warning(q);
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif

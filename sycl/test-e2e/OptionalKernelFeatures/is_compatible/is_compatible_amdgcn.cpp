@@ -1,7 +1,9 @@
-// REQUIRES: target-amd, opencl, gpu, cpu
+// REQUIRES: hip_dev_kit
 
-// RUN: %clangxx -fsycl -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx906 -fsycl-targets=amdgcn-amd-amdhsa %S/Inputs/is_compatible_with_env.cpp -o %t.out
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17515
+// ROCm libraries are not installed correctly.
 
-// RUN: env ONEAPI_DEVICE_SELECTOR=hip:gpu %{run} %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %{run} not %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run} not %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx1030 %S/Inputs/is_compatible_with_env.cpp -o %t.out
+
+// RUN: %if !hip %{ not %} %{run} %t.out

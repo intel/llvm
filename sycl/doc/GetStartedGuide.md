@@ -13,8 +13,9 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
     * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
-    * [Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion-and-jit-compilation)
+    * [Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation](#build-dpc-toolchain-with-additional-features-enabled-that-require-runtimejit-compilation)
     * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
+    * [Build DPC++ toolchain with device image compression support](#build-dpc-toolchain-with-device-image-compression-support)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
   * [Use DPC++ toolchain](#use-dpc-toolchain)
@@ -39,15 +40,15 @@ and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Prerequisites
 
-* `git` - [Download](https://git-scm.com/downloads)
-* `cmake` version 3.20 or later - [Download](http://www.cmake.org/download/)
-* `python` - [Download](https://www.python.org/downloads/)
-* `ninja` -
-[Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
-* `hwloc` version 2.3 or later (Linux only)
-  * libhwloc-dev or hwloc-devel package on linux
-* C++ compiler
-  * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
+| Software                                                                    | Version                                                                                                                              |
+| ---                                                                         | ---                                                                                                                                  |
+| [Git](https://git-scm.com/downloads)                                        |                                                                                                                                      |
+| [CMake](http://www.cmake.org/download/)                                     | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Python](https://www.python.org/downloads/)                                 | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#software)                                            |
+| [Ninja](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages) |                                                                                                                                      |
+| `hwloc`                                                                     | >= 2.3 (Linux only, `libhwloc-dev` or `hwloc-devel`)                                                                                 |
+| C++ compiler                                                                | [See LLVM](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library) |
+|`zstd` (optional) | >= 1.4.8 (see [ZSTD](#build-dpc-toolchain-with-device-image-compression-support)) |
 
 Alternatively, you can create a Docker image that has everything you need for
 building pre-installed using the [Ubuntu 24.04 build Dockerfile](https://github.com/intel/llvm/blob/sycl/devops/containers/ubuntu2404_build.Dockerfile).
@@ -95,7 +96,8 @@ The easiest way to get started is to use the buildbot
 [compile](../../buildbot/compile.py) scripts.
 
 In case you want to configure CMake manually the up-to-date reference for
-variables is in these files.
+variables is in these files. Note that the CMake variables set by default by the [configure.py](../../buildbot/configure.py) script are the ones commonly used by
+ DPC++ developers and might not necessarily suffice for your project-specific needs.
 
 **Linux**:
 
@@ -128,6 +130,7 @@ flags can be found by launching the script with `--help`):
 * `-t` -> Build type (Debug or Release)
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
+* `--use-zstd` -> Force link zstd while building LLVM (see [ZSTD](#build-dpc-toolchain-with-device-image-compression-support))
 
 You can use the following flags with `compile.py` (full list of available flags
 can be found by launching the script with `--help`):
@@ -309,17 +312,44 @@ For CUDA support also add the `--cuda` flag.
 Currently, this has only been tried on Linux, with CUDA 12.3, and using a 
 Grace Hopper platform with a ARM64 processor and an H100 GPU.
 
-### Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation
+### Build DPC++ toolchain with additional features enabled that require runtime/JIT compilation
 
-Support for the experimental SYCL extension for user-driven kernel fusion at
-runtime is enabled by default. The same mechanism is used to allow JIT
-compilation of AMD and Nvidia kernels.
+Support for runtime compilation of SYCL source code (via the
+`sycl_ext_oneapi_kernel_compiler` extension) is enabled by default. The same
+mechanism is used to allow JIT compilation of AMD and Nvidia kernels, including
+materialization of specialization constants.
 
-To disable support for these features, follow the instructions for the Linux
-DPC++ toolchain, but add the `--disable-jit` flag.
+To disable support for these features, add the `--disable-jit` flag.
 
-Both kernel fusion and JIT compilation of AMD and Nvidia kernels are currently
-not yet supported on the Windows platform.
+JIT compilation of AMD and Nvidia kernels is not yet supported on the Windows
+platform.
+
+### Build DPC++ toolchain with device image compression support
+
+Device image compression enables the compression of device code (SYCL Kernels) during compilation and decompressing them on-demand during the execution of the corresponding SYCL application.
+This reduces the size of fat binaries for both Just-in-Time (JIT) and Ahead-of-Time (AOT) compilation. Refer to the [blog post](https://www.intel.com/content/www/us/en/developer/articles/technical/sycl-compilation-device-image-compression.html) for more details on this feature.
+
+To enable device image compression, you need to build the DPC++ toolchain with the
+zstd compression library. By default, zstd is optional for DPC++ builds i.e. CMake will search for zstd installation but if not found, it will not fail the build
+and this feature will simply be disabled.
+
+To override this behavior and force the build to use zstd, you can use the `--use-zstd` flag in the `configure.py` script or by adding `-DLLVM_ENABLE_ZSTD=FORCE_ON` to the CMake configuration command.
+
+#### How to obtain zstd?
+
+Minimum zstd version that we have tested with is *1.4.8*.
+
+**Linux**:
+
+You can install zstd using the package manager of your distribution. For example, on Ubuntu, you can run:
+```sh
+sudo apt-get install libzstd-dev
+```
+Note that the libzstd-dev package provided on Ubuntu 24.04 has a bug ([link](https://bugs.launchpad.net/ubuntu/+source/libzstd/+bug/2086543)) and the zstd static library is not built with the `-fPIC` flag. Linking to this library will result in a build failure. For example: [Issue#15935](https://github.com/intel/llvm/issues/15935). As an alternative, zstd can be built from source either manually or by using the [build_zstd_1_5_6_ub24.sh](https://github.com/intel/llvm/blob/sycl/devops/scripts/build_zstd_1_5_6_ub24.sh) script.
+
+**Windows**
+
+For Windows, prebuilt zstd binaries can be obtained from the [facebook/zstd](https://github.com/facebook/zstd/releases/tag/v1.5.6) release page. After obtaining the zstd binaries, you can add the path to the zstd installation directory to the `PATH` environment variable.
 
 ### Build Doxygen documentation
 

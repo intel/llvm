@@ -81,7 +81,8 @@ struct TsanRuntimeData {
 
   uintptr_t GlobalShadowOffsetEnd = 0;
 
-  VectorClock Clock[kThreadSlotCount];
+  // The last one is to record global state
+  VectorClock Clock[kThreadSlotCount + 1];
 
   DeviceType DeviceTy = DeviceType::UNKNOWN;
 
@@ -93,6 +94,10 @@ struct TsanRuntimeData {
 
   TsanErrorReport Report[TSAN_MAX_NUM_REPORTS];
 };
+
+constexpr auto kSPIR_TsanDeviceGlobalMetadata = "__TsanDeviceGlobalMetadata";
+
+constexpr auto kSPIR_TsanSpirKernelMetadata = "__TsanKernelMetadata";
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer

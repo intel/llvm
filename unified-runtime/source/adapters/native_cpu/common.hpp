@@ -25,38 +25,20 @@ extern thread_local char ErrorMessage[MaxMessageSize];
                   __FUNCTION__, __FILE__, __LINE__);                           \
                                                                                \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;                                \
-  } while (false);
+  } while (false)
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   do {                                                                         \
     logger::warning("Not Implemented : {} - File : {} / Line : {}",            \
                     __FUNCTION__, __FILE__, __LINE__);                         \
     return UR_RESULT_SUCCESS;                                                  \
-  } while (false);
+  } while (false)
 
 #define CASE_UR_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
     logger::error("Unsupported UR case : {} in {}:{}({})", #not_supported,     \
                   __FUNCTION__, __LINE__, __FILE__);                           \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-
-/// ------ Error handling, matching OpenCL plugin semantics.
-/// Taken from other adapter
-namespace detail {
-namespace ur {
-
-// Report error and no return (keeps compiler from printing warnings).
-// TODO: Probably change that to throw a catchable exception,
-//       but for now it is useful to see every failure.
-//
-[[noreturn]] void die(const char *pMessage);
-} // namespace ur
-} // namespace detail
-
-// Base class to store common data
-struct _ur_object {
-  ur_shared_mutex Mutex;
-};
 
 // Todo: replace this with a common helper once it is available
 struct RefCounted {
@@ -65,6 +47,11 @@ struct RefCounted {
   uint32_t decrementReferenceCount() { return --_refCount; }
   RefCounted() : _refCount{1} {}
   uint32_t getReferenceCount() const { return _refCount; }
+};
+
+// Base class to store common data
+struct _ur_object : RefCounted {
+  ur_shared_mutex Mutex;
 };
 
 template <typename T> inline void decrementOrDelete(T *refC) {

@@ -14,7 +14,7 @@
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cbrt(float x) {
 
-  uint xi = as_uint(x);
+  uint xi = __clc_as_uint(x);
   uint axi = xi & EXSIGNBIT_SP32;
   uint xsign = axi ^ xi;
   xi = axi;
@@ -22,7 +22,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cbrt(float x) {
   int m = (xi >> EXPSHIFTBITS_SP32) - EXPBIAS_SP32;
 
   // Treat subnormals
-  uint xisub = as_uint(as_float(xi | 0x3f800000) - 1.0f);
+  uint xisub = __clc_as_uint(__clc_as_float(xi | 0x3f800000) - 1.0f);
   int msub = (xisub >> EXPSHIFTBITS_SP32) - 253;
   int c = m == -127;
   xi = c ? xisub : xi;
@@ -30,11 +30,11 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cbrt(float x) {
 
   int m3 = m / 3;
   int rem = m - m3 * 3;
-  float mf = as_float((m3 + EXPBIAS_SP32) << EXPSHIFTBITS_SP32);
+  float mf = __clc_as_float((m3 + EXPBIAS_SP32) << EXPSHIFTBITS_SP32);
 
   uint indx = (xi & 0x007f0000) + ((xi & 0x00008000) << 1);
   float f =
-      as_float((xi & MANTBITS_SP32) | 0x3f000000) - as_float(indx | 0x3f000000);
+      __clc_as_float((xi & MANTBITS_SP32) | 0x3f000000) - __clc_as_float(indx | 0x3f000000);
 
   indx >>= 16;
   float r = f * USE_TABLE(log_inv_tbl, indx);
@@ -68,7 +68,7 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cbrt(float x) {
 
   float z = __spirv_ocl_mad(poly, bH, __spirv_ocl_mad(poly, bT, bT)) + bH;
   z *= mf;
-  z = as_float(as_uint(z) | xsign);
+  z = __clc_as_float(__clc_as_uint(z) | xsign);
   c = axi >= EXPBITS_SP32 | axi == 0;
   z = c ? x : z;
   return z;
@@ -82,12 +82,12 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_cbrt, float);
 _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_cbrt(double x) {
 
   int return_x = __spirv_IsInf(x) | __spirv_IsNan(x) | x == 0.0;
-  ulong ux = as_ulong(__spirv_ocl_fabs(x));
-  int m = (as_int2(ux).hi >> 20) - 1023;
+  ulong ux = __clc_as_ulong(__spirv_ocl_fabs(x));
+  int m = (__clc_as_int2(ux).hi >> 20) - 1023;
 
   // Treat subnormals
-  ulong uxs = as_ulong(as_double(0x3ff0000000000000UL | ux) - 1.0);
-  int ms = m + (as_int2(uxs).hi >> 20) - 1022;
+  ulong uxs = __clc_as_ulong(__clc_as_double(0x3ff0000000000000UL | ux) - 1.0);
+  int ms = m + (__clc_as_int2(uxs).hi >> 20) - 1022;
 
   int c = m == -1023;
   ux = c ? uxs : ux;
@@ -96,13 +96,13 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_cbrt(double x) {
   int mby3 = m / 3;
   int rem = m - 3 * mby3;
 
-  double mf = as_double((ulong)(mby3 + 1023) << 52);
+  double mf = __clc_as_double((ulong)(mby3 + 1023) << 52);
 
   ux &= 0x000fffffffffffffUL;
-  double Y = as_double(0x3fe0000000000000UL | ux);
+  double Y = __clc_as_double(0x3fe0000000000000UL | ux);
 
   // nearest integer
-  int index = as_int2(ux).hi >> 11;
+  int index = __clc_as_int2(ux).hi >> 11;
   index = (0x100 | (index >> 1)) + (index & 1);
   double F = (double)index * 0x1.0p-9;
 

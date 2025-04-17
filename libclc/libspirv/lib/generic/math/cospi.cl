@@ -18,8 +18,8 @@
 
 _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cospi(float x)
 {
-    int ix = as_int(x) & 0x7fffffff;
-    float ax = as_float(ix);
+    int ix = __clc_as_int(x) & 0x7fffffff;
+    float ax = __clc_as_float(ix);
     int iax = (int)ax;
     float r = ax - iax;
     int xodd = iax & 0x1 ? 0x80000000 : 0;
@@ -56,11 +56,11 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_cospi(float x)
     e = c ? 1 : e;
 
     float2 t = __libclc__sincosf_piby4(a * M_PI_F);
-    int jr = s ^ as_int(e ? t.hi : t.lo);
+    int jr = s ^ __clc_as_int(e ? t.hi : t.lo);
 
     ir = ix < 0x4b000000 ? jr : ir;
 
-    return as_float(ir);
+    return __clc_as_float(ir);
 }
 
 
@@ -72,8 +72,8 @@ _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_cospi, float);
 
 _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_cospi(double x) {
 
-    long ix = as_long(x) & 0x7fffffffffffffffL;
-    double ax = as_double(ix);
+    long ix = __clc_as_long(x) & 0x7fffffffffffffffL;
+    double ax = __clc_as_double(ix);
     long iax = (long)ax;
     double r = ax - (double)iax;
     long xodd = iax & 0x1L ? 0x8000000000000000L : 0L;
@@ -112,11 +112,11 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_cospi(double x) {
     e = c ? 1 : e;
 
     double2 sc = __libclc__sincos_piby4(a * M_PI, 0.0);
-    long jr = s ^ as_long(e ? sc.hi : sc.lo);
+    long jr = s ^ __clc_as_long(e ? sc.hi : sc.lo);
 
     ir = ax < 0x1.0p+52 ? jr : ir;
 
-    return as_double(ir);
+    return __clc_as_double(ir);
 }
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_cospi, double);
 #endif

@@ -266,8 +266,8 @@ ur_result_t ur_program_handle_t_::getGlobalVariablePointer(
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithIL(ur_context_handle_t, const void *, size_t,
                       const ur_program_properties_t *, ur_program_handle_t *) {
-  detail::ur::die("urProgramCreateWithIL not implemented for HIP adapter"
-                  " please use urProgramCreateWithBinary instead");
+  die("urProgramCreateWithIL not implemented for HIP adapter"
+      " please use urProgramCreateWithBinary instead");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

@@ -24,9 +24,46 @@ extern "C" {
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterSetLoggerCallback
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterSetLoggerCallback_t)(
+    ur_adapter_handle_t, ur_logger_callback_t, void *, ur_logger_level_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterSetLoggerCallbackLevel
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterSetLoggerCallbackLevel_t)(
+    ur_adapter_handle_t, ur_logger_level_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of Adapter functions pointers
+typedef struct ur_adapter_dditable_t {
+  ur_pfnAdapterSetLoggerCallback_t pfnSetLoggerCallback;
+  ur_pfnAdapterSetLoggerCallbackLevel_t pfnSetLoggerCallbackLevel;
+} ur_adapter_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Adapter table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    /// [in] API version requested
+    ur_api_version_t version,
+    /// [in,out] pointer to table of DDI function pointers
+    ur_adapter_dditable_t *pDdiTable);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetAdapterProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetAdapterProcAddrTable_t)(
+    ur_api_version_t, ur_adapter_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urPlatformGet
-typedef ur_result_t(UR_APICALL *ur_pfnPlatformGet_t)(ur_adapter_handle_t *,
-                                                     uint32_t, uint32_t,
+typedef ur_result_t(UR_APICALL *ur_pfnPlatformGet_t)(ur_adapter_handle_t,
+                                                     uint32_t,
                                                      ur_platform_handle_t *,
                                                      uint32_t *);
 
@@ -1307,11 +1344,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolDestroyExp_t)(
     ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urUSMPoolSetThresholdExp
-typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolSetThresholdExp_t)(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t, size_t);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMPoolGetDefaultDevicePoolExp
 typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetDefaultDevicePoolExp_t)(
     ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t *);
@@ -1321,6 +1353,12 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetDefaultDevicePoolExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolGetInfoExp_t)(ur_usm_pool_handle_t,
                                                            ur_usm_pool_info_t,
                                                            void *, size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urUSMPoolSetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnUSMPoolSetInfoExp_t)(ur_usm_pool_handle_t,
+                                                           ur_usm_pool_info_t,
+                                                           void *, size_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urUSMPoolSetDevicePoolExp
@@ -1360,9 +1398,9 @@ typedef ur_result_t(UR_APICALL *ur_pfnUSMReleaseExp_t)(ur_context_handle_t,
 typedef struct ur_usm_exp_dditable_t {
   ur_pfnUSMPoolCreateExp_t pfnPoolCreateExp;
   ur_pfnUSMPoolDestroyExp_t pfnPoolDestroyExp;
-  ur_pfnUSMPoolSetThresholdExp_t pfnPoolSetThresholdExp;
   ur_pfnUSMPoolGetDefaultDevicePoolExp_t pfnPoolGetDefaultDevicePoolExp;
   ur_pfnUSMPoolGetInfoExp_t pfnPoolGetInfoExp;
+  ur_pfnUSMPoolSetInfoExp_t pfnPoolSetInfoExp;
   ur_pfnUSMPoolSetDevicePoolExp_t pfnPoolSetDevicePoolExp;
   ur_pfnUSMPoolGetDevicePoolExp_t pfnPoolGetDevicePoolExp;
   ur_pfnUSMPoolTrimToExp_t pfnPoolTrimToExp;
@@ -1965,6 +2003,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetDeviceProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Container for all DDI tables
 typedef struct ur_dditable_t {
+  ur_adapter_dditable_t Adapter;
   ur_platform_dditable_t Platform;
   ur_context_dditable_t Context;
   ur_event_dditable_t Event;

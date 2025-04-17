@@ -23,17 +23,17 @@ option(SYCL_UR_USE_FETCH_CONTENT
 set(SYCL_UR_SOURCE_DIR
   "" CACHE PATH "Path to root of Unified Runtime repository")
 
-option(SYCL_UMF_DISABLE_HWLOC
-  "Disable hwloc support in UMF" ON)
+option(SYCL_UR_BUILD_TESTS "Build tests for UR" OFF)
+set(UR_BUILD_TESTS "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
+# UR tests require the examples to be built
+set(UR_BUILD_EXAMPLES "${SYCL_UR_BUILD_TESTS}" CACHE BOOL "" FORCE)
 
-# Here we override the defaults to disable building tests from unified-runtime
-set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
-set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
+# Here we override the defaults to unified-runtime
 set(UR_BUILD_XPTI_LIBS OFF)
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
-set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE LIST
+set(UR_EXTERNAL_DEPENDENCIES "sycl-headers" CACHE STRING
   "List of external CMake targets for executables/libraries to depend on" FORCE)
 
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -90,8 +90,6 @@ if(IS_DIRECTORY "${UR_INTREE_SOURCE_DIR}")
   if(WIN32)
     set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
     set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
-  else()
-    set(UMF_DISABLE_HWLOC ${SYCL_UMF_DISABLE_HWLOC} CACHE INTERNAL "Disable hwloc for UMF")
   endif()
   add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR} ${UR_INTREE_BINARY_DIR})
 elseif(SYCL_UR_USE_FETCH_CONTENT)
@@ -149,8 +147,6 @@ elseif(SYCL_UR_USE_FETCH_CONTENT)
   if(WIN32)
     set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
     set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
-  else()
-    set(UMF_DISABLE_HWLOC ${SYCL_UMF_DISABLE_HWLOC} CACHE INTERNAL "Disable hwloc for UMF")
   endif()
 
   fetch_adapter_source(level_zero

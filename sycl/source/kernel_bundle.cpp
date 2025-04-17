@@ -481,7 +481,8 @@ exe_kb build_from_source(
     LogPtr = &Log;
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
-  std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
+  const std::shared_ptr<kernel_bundle_impl> &sourceImpl =
+      getSyclObjImpl(SourceKB);
   std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
       UniqueDevices, Options, LogPtr, KernelNames);
   auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(std::move(KBImpl));

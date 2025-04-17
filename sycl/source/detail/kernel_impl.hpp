@@ -75,10 +75,10 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    getAdapter()->call<UrApiKind::urKernelRetain>(MKernel);
     ur_native_handle_t nativeHandle = 0;
     getAdapter()->call<UrApiKind::urKernelGetNativeHandle>(MKernel,
                                                            &nativeHandle);
+    __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(nativeHandle));
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
@@ -207,16 +207,19 @@ public:
   /// \return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
+  bool isInteropOrSourceBased() const noexcept;
+  bool hasSYCLMetadata() const noexcept;
+
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
     const AdapterPtr &Adapter = MContext->getAdapter();
 
-    if (MContext->getBackend() == backend::opencl)
-      Adapter->call<UrApiKind::urKernelRetain>(MKernel);
-
     ur_native_handle_t NativeKernel = 0;
     Adapter->call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
+
+    if (MContext->getBackend() == backend::opencl)
+      __SYCL_OCL_CALL(clRetainKernel, ur::cast<cl_kernel>(NativeKernel));
 
     return NativeKernel;
   }
@@ -234,6 +237,7 @@ public:
 
   const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
   std::mutex *getCacheMutex() const { return MCacheMutex; }
+  std::string_view getName() const;
 
 private:
   ur_kernel_handle_t MKernel = nullptr;
@@ -246,6 +250,7 @@ private:
   std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
+  mutable std::string MName;
 
   bool isBuiltInKernel(const device &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
@@ -260,6 +265,8 @@ private:
   size_t queryMaxNumWorkGroups(queue Queue,
                                const range<Dimensions> &WorkGroupSize,
                                size_t DynamicLocalMemorySize) const;
+
+  void enableUSMIndirectAccess() const;
 };
 
 template <int Dimensions>

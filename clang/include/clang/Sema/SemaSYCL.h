@@ -64,7 +64,8 @@ public:
     kind_specialization_constants_buffer,
     kind_stream,
     kind_work_group_memory,
-    kind_last = kind_work_group_memory
+    kind_dynamic_work_group_memory,
+    kind_last = kind_dynamic_work_group_memory
   };
 
 public:

@@ -46,28 +46,21 @@ ur_usm_handle_t::ur_usm_handle_t(ur_context_handle_t hContext, size_t size,
       ptr(const_cast<void *>(ptr)) {}
 
 void *ur_usm_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::ignore = hDevice;
-  std::ignore = access;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = migrate;
+    ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
+    size_t /*offset*/, size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
   return ptr;
 }
 
 void *
-ur_usm_handle_t::mapHostPtr(ur_map_flags_t flags, size_t offset, size_t size,
+ur_usm_handle_t::mapHostPtr(ur_map_flags_t /*flags*/, size_t /*offset*/,
+                            size_t /*size*/,
                             std::function<void(void *src, void *dst, size_t)>) {
-  std::ignore = flags;
-  std::ignore = offset;
-  std::ignore = size;
   return ptr;
 }
 
 void ur_usm_handle_t::unmapHostPtr(
-    void *pMappedPtr, std::function<void(void *src, void *dst, size_t)>) {
-  std::ignore = pMappedPtr;
+    void * /*pMappedPtr*/, std::function<void(void *src, void *dst, size_t)>) {
   /* nop */
 }
 
@@ -110,7 +103,7 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
     device_access_mode_t accessMode, bool ownHostPtr)
     : ur_mem_buffer_t(hContext, size, accessMode) {
   this->ptr = usm_unique_ptr_t(hostPtr, [hContext, ownHostPtr](void *ptr) {
-    if (!ownHostPtr) {
+    if (!ownHostPtr || !checkL0LoaderTeardown()) {
       return;
     }
     ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
@@ -118,29 +111,20 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
 }
 
 void *ur_integrated_buffer_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::ignore = hDevice;
-  std::ignore = access;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = migrate;
+    ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
+    size_t /*offset*/, size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
   return ptr.get();
 }
 
 void *ur_integrated_buffer_handle_t::mapHostPtr(
-    ur_map_flags_t flags, size_t offset, size_t size,
-    std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::ignore = flags;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = migrate;
+    ur_map_flags_t /*flags*/, size_t /*offset*/, size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
   return ptr.get();
 }
 
 void ur_integrated_buffer_handle_t::unmapHostPtr(
-    void *pMappedPtr, std::function<void(void *src, void *dst, size_t)>) {
-  std::ignore = pMappedPtr;
+    void * /*pMappedPtr*/, std::function<void(void *src, void *dst, size_t)>) {
   /* nop */
 }
 
@@ -158,13 +142,15 @@ getSyncCommandListForCopy(ur_context_handle_t hContext,
 
 static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
                                      ur_device_handle_t hDevice, void *dst,
-                                     const void *src, size_t size) {
+                                     const void *src, size_t size) try {
   auto commandList = getSyncCommandListForCopy(hContext, hDevice);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (commandList.get(), dst, src, size, nullptr, 0, nullptr));
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 void *ur_discrete_buffer_handle_t::allocateOnDevice(ur_device_handle_t hDevice,
@@ -230,9 +216,10 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     hDevice = hDevice ? hDevice : hContext->getDevices()[0];
     devicePtr = allocateOnDevice(hDevice, size);
   } else {
+    assert(hDevice);
     deviceAllocations[hDevice->Id.value()] = usm_unique_ptr_t(
         devicePtr, [hContext = this->hContext, ownZePtr](void *ptr) {
-          if (!ownZePtr) {
+          if (!ownZePtr || !checkL0LoaderTeardown()) {
             return;
           }
           ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
@@ -257,13 +244,11 @@ void *ur_discrete_buffer_handle_t::getActiveDeviceAlloc(size_t offset) {
 }
 
 void *ur_discrete_buffer_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
+    ur_device_handle_t hDevice, device_access_mode_t /*access*/, size_t offset,
+    size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
   TRACK_SCOPE_LATENCY("ur_discrete_buffer_handle_t::getDevicePtr");
 
-  std::ignore = access;
-  std::ignore = size;
-  std::ignore = migrate;
   if (!activeAllocationDevice) {
     if (!hDevice) {
       hDevice = hContext->getDevices()[0];
@@ -358,6 +343,34 @@ void ur_discrete_buffer_handle_t::unmapHostPtr(
   hostAllocations.erase(hostAlloc);
 }
 
+ur_shared_buffer_handle_t::ur_shared_buffer_handle_t(
+    ur_context_handle_t hContext, void *sharedPtr, size_t size,
+    device_access_mode_t accesMode, bool ownDevicePtr)
+    : ur_mem_buffer_t(hContext, size, accesMode),
+      ptr(sharedPtr, [hContext, ownDevicePtr](void *ptr) {
+        if (!ownDevicePtr || !checkL0LoaderTeardown()) {
+          return;
+        }
+        ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+      }) {}
+
+void *ur_shared_buffer_handle_t::getDevicePtr(
+    ur_device_handle_t, device_access_mode_t, size_t offset, size_t,
+    std::function<void(void *src, void *dst, size_t)>) {
+  return reinterpret_cast<char *>(ptr.get()) + offset;
+}
+
+void *ur_shared_buffer_handle_t::mapHostPtr(
+    ur_map_flags_t, size_t offset, size_t,
+    std::function<void(void *src, void *dst, size_t)>) {
+  return reinterpret_cast<char *>(ptr.get()) + offset;
+}
+
+void ur_shared_buffer_handle_t::unmapHostPtr(
+    void *, std::function<void(void *src, void *dst, size_t)>) {
+  // nop
+}
+
 static bool useHostBuffer(ur_context_handle_t hContext) {
   // We treat integrated devices (physical memory shared with the CPU)
   // differently from discrete devices (those with distinct memories).
@@ -385,20 +398,20 @@ void *ur_mem_sub_buffer_t::getDevicePtr(
     ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
     size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->getDevicePtr(
-      hDevice, access, offset + this->offset, size, migrate);
+      hDevice, access, offset + this->offset, size, std::move(migrate));
 }
 
 void *ur_mem_sub_buffer_t::mapHostPtr(
     ur_map_flags_t flags, size_t offset, size_t size,
     std::function<void(void *src, void *dst, size_t)> migrate) {
   return hParent->getBuffer()->mapHostPtr(flags, offset + this->offset, size,
-                                          migrate);
+                                          std::move(migrate));
 }
 
 void ur_mem_sub_buffer_t::unmapHostPtr(
     void *pMappedPtr,
     std::function<void(void *src, void *dst, size_t)> migrate) {
-  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, migrate);
+  return hParent->getBuffer()->unmapHostPtr(pMappedPtr, std::move(migrate));
 }
 
 ur_shared_mutex &ur_mem_sub_buffer_t::getMutex() {
@@ -439,7 +452,7 @@ ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
   UR_CALL_THROWS(ur2zeImageDesc(pImageFormat, pImageDesc, zeImageDesc));
 }
 
-static void verifyImageRegion(ze_image_desc_t &zeImageDesc,
+static void verifyImageRegion([[maybe_unused]] ze_image_desc_t &zeImageDesc,
                               ze_image_region_t &zeRegion, size_t rowPitch,
                               size_t slicePitch) {
 #ifndef NDEBUG
@@ -452,8 +465,6 @@ static void verifyImageRegion(ze_image_desc_t &zeImageDesc,
         (zeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
          rowPitch == 4 * zeRegion.width)))
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
-#else
-  std::ignore = zeImageDesc;
 #endif
   if (!(slicePitch == 0 || slicePitch == rowPitch * zeRegion.height))
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
@@ -580,6 +591,10 @@ ur_result_t urMemBufferCreateWithNativeHandle(
         hContext, ptr, size, accessMode, ownNativeHandle);
     // if useHostBuffer(hContext) is true but the allocation is on device, we'll
     // treat it as discrete memory
+  } else if (memoryAttrs.type == ZE_MEMORY_TYPE_SHARED) {
+    // For shared allocation, we can use it directly
+    *phMem = ur_mem_handle_t_::create<ur_shared_buffer_handle_t>(
+        hContext, ptr, size, accessMode, ownNativeHandle);
   } else {
     if (memoryAttrs.type == ZE_MEMORY_TYPE_HOST) {
       // For host allocation, we need to copy the data to a device buffer
@@ -587,7 +602,8 @@ ur_result_t urMemBufferCreateWithNativeHandle(
       *phMem = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
           hContext, hDevice, nullptr, size, accessMode, ptr, ownNativeHandle);
     } else {
-      // For device/shared allocation, we can use it directly
+      // For device allocation, we can use it directly
+      assert(hDevice);
       *phMem = ur_mem_handle_t_::create<ur_discrete_buffer_handle_t>(
           hContext, hDevice, ptr, size, accessMode, nullptr, ownNativeHandle);
     }
@@ -705,16 +721,11 @@ ur_result_t urMemImageCreateWithNativeHandle(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t propName,
-                              size_t propSize, void *pPropValue,
-                              size_t *pPropSizeRet) {
+ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
+                              ur_image_info_t /*propName*/, size_t /*propSize*/,
+                              void * /*pPropValue*/,
+                              size_t * /*pPropSizeRet*/) {
   logger::error("{} function not implemented!", __FUNCTION__);
-
-  std::ignore = hMemory;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

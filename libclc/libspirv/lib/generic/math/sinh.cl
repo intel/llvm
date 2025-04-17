@@ -23,10 +23,10 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_sinh(float x) {
   const float max_sinh_arg = 0x1.65a9fap+6f;
   const float small_threshold = 0x1.0a2b24p+3f;
 
-  uint ux = as_uint(x);
+  uint ux = __clc_as_uint(x);
   uint aux = ux & EXSIGNBIT_SP32;
   uint xs = ux ^ aux;
-  float y = as_float(aux);
+  float y = __clc_as_float(aux);
 
   // We find the integer part y0 of y and the increment dy = y - y0. We then
   // compute z = sinh(y) = sinh(y0)cosh(dy) + cosh(y0)sinh(dy) where sinh(y0)
@@ -77,17 +77,17 @@ _CLC_OVERLOAD _CLC_DEF float __spirv_ocl_sinh(float x) {
 
   float2 tv = USE_TABLE(sinhcosh_tbl, ind);
   float z = __spirv_ocl_mad(tv.s1, sdy, tv.s0 * cdy);
-  z = as_float(xs | as_uint(z));
+  z = __clc_as_float(xs | __clc_as_uint(z));
 
   // When y is large enough so that the negative exponential is negligible,
   // so sinh(y) is approximated by sign(x)*exp(y)/2.
   float t = __spirv_ocl_exp(y - 0x1.62e500p-1f);
   float zsmall = __spirv_ocl_mad(0x1.a0210ep-18f, t, t);
-  zsmall = as_float(xs | as_uint(zsmall));
+  zsmall = __clc_as_float(xs | __clc_as_uint(zsmall));
   z = y >= small_threshold ? zsmall : z;
 
   // Corner cases
-  float zinf = as_float(PINFBITPATT_SP32 | xs);
+  float zinf = __clc_as_float(PINFBITPATT_SP32 | xs);
   z = y >= max_sinh_arg ? zinf : z;
   z = aux > PINFBITPATT_SP32 || aux < 0x38800000U ? x : z;
 
@@ -172,7 +172,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_sinh(double x) {
 
   // At this point sinh(dy) is approximated by dy + sdy.
   // Shift some significant bits from dy to sdy.
-  double sdy1 = as_double(as_ulong(dy) & 0xfffffffff8000000UL);
+  double sdy1 = __clc_as_double(__clc_as_ulong(dy) & 0xfffffffff8000000UL);
   double sdy2 = sdy + (dy - sdy1);
 
   double2 tv = USE_TABLE(cosh_tbl, ind);
@@ -199,7 +199,7 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_sinh(double x) {
   double t = __spirv_ocl_exp(y - 0x1.62e42fefa3800p-1);
   t = __spirv_ocl_fma(t, -0x1.ef35793c76641p-45, t);
   z = y >= small_threshold ? t : z;
-  z = y >= max_sinh_arg ? as_double(PINFBITPATT_DP64) : z;
+  z = y >= max_sinh_arg ? __clc_as_double(PINFBITPATT_DP64) : z;
 
   return __spirv_ocl_copysign(z, x);
 }

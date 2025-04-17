@@ -1,4 +1,3 @@
-// requires: cpu, gpu, accelerator
 // RUN: %{build} -Wno-error=incorrect-sub-group-size %O0 -o %t.out
 // RUN: %{run} %t.out
 
@@ -7,11 +6,10 @@
 
 [[sycl::device_has(sycl::aspect::cpu)]] void foo(){};
 [[sycl::device_has(sycl::aspect::gpu)]] void bar(){};
-[[sycl::device_has(sycl::aspect::accelerator)]] void baz(){};
 
 class KernelCPU;
 class KernelGPU;
-class KernelACC;
+
 class GoodWGSize;
 class WrongReqWGSize;
 
@@ -38,13 +36,6 @@ int main() {
         [&](sycl::handler &h) { h.single_task<KernelGPU>([=]() { bar(); }); });
     Q.wait();
     Compatible &= Dev.is_gpu();
-    Called = true;
-  }
-  if (sycl::is_compatible<KernelACC>(Dev)) {
-    Q.submit(
-        [&](sycl::handler &h) { h.single_task<KernelACC>([=]() { baz(); }); });
-    Q.wait();
-    Compatible &= Dev.is_accelerator();
     Called = true;
   }
 

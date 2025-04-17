@@ -36,9 +36,14 @@ struct ur_command_list_manager {
   ur_command_list_manager(ur_context_handle_t context,
                           ur_device_handle_t device,
                           v2::raii::command_list_unique_handle &&commandList,
-                          v2::event_flags_t flags = v2::EVENT_FLAGS_COUNTER,
-                          ur_queue_t_ *queue = nullptr);
+                          v2::event_flags_t flags, ur_queue_t_ *queue);
+  ur_command_list_manager(const ur_command_list_manager &src) = delete;
   ur_command_list_manager(ur_command_list_manager &&src) = default;
+
+  ur_command_list_manager &
+  operator=(const ur_command_list_manager &src) = delete;
+  ur_command_list_manager &operator=(ur_command_list_manager &&src) = default;
+
   ~ur_command_list_manager();
 
   ur_result_t appendKernelLaunch(ur_kernel_handle_t hKernel, uint32_t workDim,
@@ -128,8 +133,9 @@ struct ur_command_list_manager {
 
   ze_command_list_handle_t getZeCommandList();
 
-  wait_list_view getWaitListView(const ur_event_handle_t *phWaitEvents,
-                                 uint32_t numWaitEvents);
+  wait_list_view
+  getWaitListView(const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
+                  ur_event_handle_t additionalWaitEvent = nullptr);
   ze_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
                                    ur_command_t commandType);
 

@@ -14,6 +14,11 @@ struct testParametersFill {
 struct urCommandBufferFillCommandsTest
     : uur::command_buffer::urCommandBufferExpTestWithParam<testParametersFill> {
   void SetUp() override {
+    // This test fails due to a bug in the Level-Zero driver, it can be
+    // reenabled after CI machines get their drivers updated
+    // https://github.com/intel/llvm/issues/17856
+    UUR_KNOWN_FAILURE_ON(uur::LevelZeroV2{});
+
     UUR_RETURN_ON_FATAL_FAILURE(
         uur::command_buffer::urCommandBufferExpTestWithParam<
             testParametersFill>::SetUp());
@@ -115,6 +120,31 @@ TEST_P(urCommandBufferFillCommandsTest, Buffer) {
 
   ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
+  ASSERT_SUCCESS(urQueueFinish(queue));
+
+  verifyData(output, size);
+}
+
+TEST_P(urCommandBufferFillCommandsTest, ExecuteTwice) {
+  // TODO https://github.com/intel/llvm/issues/17734
+  // Fail on Level-Zero due to blocking wait code in graph_impl.cpp specific
+  // to the level-zero backend that needs moved into the Level-Zero v1 adapter.
+  UUR_KNOWN_FAILURE_ON(uur::LevelZero{});
+  ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
+      cmd_buf_handle, buffer, pattern.data(), pattern_size, 0, size, 0, nullptr,
+      0, nullptr, &sync_point, nullptr, nullptr));
+
+  std::vector<uint8_t> output(size, 1);
+  ASSERT_SUCCESS(urCommandBufferAppendMemBufferReadExp(
+      cmd_buf_handle, buffer, 0, size, output.data(), 1, &sync_point, 0,
+      nullptr, nullptr, nullptr, nullptr));
+
+  ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
+
+  ASSERT_SUCCESS(
+      urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
   ASSERT_SUCCESS(
       urEnqueueCommandBufferExp(queue, cmd_buf_handle, 0, nullptr, nullptr));
   ASSERT_SUCCESS(urQueueFinish(queue));

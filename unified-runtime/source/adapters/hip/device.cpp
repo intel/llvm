@@ -13,6 +13,7 @@
 #include "context.hpp"
 #include "event.hpp"
 
+#include <array>
 #include <hip/hip_runtime.h>
 #include <sstream>
 
@@ -224,7 +225,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return ReturnValue(uint64_t{MaxAlloc});
   }
-  case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
+  case UR_DEVICE_INFO_IMAGE_SUPPORT: {
     // Legacy images are not supported, bindless images should be used instead.
     return ReturnValue(ur_bool_t{false});
   }
@@ -846,26 +847,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_SUPPORT_EXP: {
     // HIP supports fetching 1D USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_SUPPORT_EXP: {
     // HIP does not support fetching 1D non-USM sampled image data.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_SUPPORT_EXP: {
     // HIP supports fetching 2D USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_SUPPORT_EXP: {
     // HIP supports fetching 2D non-USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_SUPPORT_EXP: {
     // HIP supports fetching 3D non-USM sampled image data.
     // TODO: DPC++ doesn't implement the required builtins for SYCL.
     return ReturnValue(ur_bool_t{false});
@@ -877,21 +878,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // feature is marked unsupported until those issues are resolved.
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_SUPPORT_EXP: {
     // HIP does not support unique addressing per dimension
     return ReturnValue(ur_bool_t{false});
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_SUPPORT_EXP: {
     // HIP supports sampling 1D USM sampled image data.
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_SUPPORT_EXP: {
     // HIP supports sampling 2D USM sampled image data.
     return ReturnValue(
         static_cast<ur_bool_t>(hDevice->supportsHardwareImages()));
   }
-  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_EXP: {
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_GATHER_SUPPORT_EXP: {
     // HIP doesn't support sampled image gather.
     return ReturnValue(static_cast<ur_bool_t>(false));
   }
@@ -1001,7 +1002,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(AddressBuffer,
                        strnlen(AddressBuffer, AddressBufferSize - 1) + 1);
   }
-  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORT:
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
     return ReturnValue(ur_bool_t{false});
@@ -1017,11 +1018,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_USM_POOL_SUPPORT:
-#ifdef UMF_ENABLE_POOL_TRACKING
     return ReturnValue(ur_bool_t{true});
-#else
-    return ReturnValue(ur_bool_t{false});
-#endif
+  case UR_DEVICE_INFO_BFLOAT16_CONVERSIONS_NATIVE:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return ReturnValue(false);
   case UR_DEVICE_INFO_IL_VERSION:
@@ -1038,7 +1037,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   case UR_DEVICE_INFO_IP_VERSION:
-  case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
+  case UR_DEVICE_INFO_CLUSTER_LAUNCH_SUPPORT_EXP:
+  case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS:
+  case UR_DEVICE_INFO_FAN_SPEED:
+  case UR_DEVICE_INFO_MIN_POWER_LIMIT:
+  case UR_DEVICE_INFO_MAX_POWER_LIMIT:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return ReturnValue(
@@ -1075,7 +1078,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUBGRAPH_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP: {
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_SUPPORT_EXP: {
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_USE_NATIVE_ASSERT:
@@ -1126,8 +1129,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
   size_t NumDevices = ReturnDevices ? hPlatform->Devices.size() : 0;
 
   try {
-    UR_ASSERT(pNumDevices || phDevices, UR_RESULT_ERROR_INVALID_VALUE);
-
     if (pNumDevices) {
       *pNumDevices = NumDevices;
     }
@@ -1174,9 +1175,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;
-  ur_adapter_handle_t AdapterHandle = &adapter;
-  ur_result_t Result =
-      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
+  ur_adapter_handle_t AdapterHandle = ur::hip::adapter;
+  ur_result_t Result = urPlatformGet(AdapterHandle, 0, nullptr, &NumPlatforms);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -1186,7 +1186,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   ur_platform_handle_t Platform = nullptr;
 
-  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, &Platform, nullptr);
+  Result = urPlatformGet(AdapterHandle, NumPlatforms, &Platform, nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
@@ -1209,9 +1209,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceSelectBinary(ur_device_handle_t, const ur_device_binary_t *pBinaries,
                      uint32_t NumBinaries, uint32_t *pSelectedBinary) {
-  // Ignore unused parameter
-  UR_ASSERT(NumBinaries > 0, UR_RESULT_ERROR_INVALID_ARGUMENT);
-
   // Look for an image for the HIP target, and return the first one that is
   // found
 #if defined(__HIP_PLATFORM_AMD__)

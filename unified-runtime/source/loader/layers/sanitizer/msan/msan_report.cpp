@@ -36,7 +36,7 @@ void ReportUsesUninitializedValue(const MsanErrorReport &Report,
         (void *)Report.Origin);
   } else {
     getContext()->logger.always(
-        "====WARNING: DeviceSanitizer: use-of-uninitialized-value)");
+        "====WARNING: DeviceSanitizer: use-of-uninitialized-value");
   }
 
   getContext()->logger.always(

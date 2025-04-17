@@ -127,6 +127,8 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   _ur_buffer(ur_context_handle_t Context, size_t Size,
              ur_device_handle_t Device, char *ZeMemHandle, bool OwnZeMemHandle);
 
+  ~_ur_buffer();
+
   // Returns a pointer to the USM allocation representing this PI buffer
   // on the specified Device. If Device is nullptr then the returned
   // USM allocation is on the device where this buffer was used the latest.
@@ -222,19 +224,15 @@ struct _ur_image final : ur_mem_handle_t_ {
 
   ur_result_t getImageZeHandle(char *&ZeHandle, access_mode_t,
                                ur_device_handle_t,
-                               const ur_event_handle_t *phWaitEvents,
-                               uint32_t numWaitEvents) {
-    std::ignore = phWaitEvents;
-    std::ignore = numWaitEvents;
+                               const ur_event_handle_t * /* phWaitEvents*/,
+                               uint32_t /*numWaitEvents*/) {
     ZeHandle = reinterpret_cast<char *>(ZeImage);
     return UR_RESULT_SUCCESS;
   }
   ur_result_t getImageZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
                                   ur_device_handle_t,
-                                  const ur_event_handle_t *phWaitEvents,
-                                  uint32_t numWaitEvents) {
-    std::ignore = phWaitEvents;
-    std::ignore = numWaitEvents;
+                                  const ur_event_handle_t * /*phWaitEvents*/,
+                                  uint32_t /*numWaitEvents*/) {
     ZeHandlePtr = reinterpret_cast<char **>(&ZeImage);
     return UR_RESULT_SUCCESS;
   }

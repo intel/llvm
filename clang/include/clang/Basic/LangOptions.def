@@ -238,7 +238,7 @@ BENIGN_LANGOPT(NoSignedZero      , 1, 0, "Permit Floating Point optimization wit
 BENIGN_LANGOPT(AllowRecip        , 1, 0, "Permit Floating Point reciprocal")
 BENIGN_LANGOPT(ApproxFunc        , 1, 0, "Permit Floating Point approximation")
 
-ENUM_LANGOPT(ComplexRange, ComplexRangeKind, 2, CX_None, "Enable use of range reduction for complex arithmetics.")
+ENUM_LANGOPT(ComplexRange, ComplexRangeKind, 3, CX_None, "Enable use of range reduction for complex arithmetics.")
 
 BENIGN_LANGOPT(ObjCGCBitmapPrint , 1, 0, "printing of GC's bitmap layout for __weak/__strong ivars")
 
@@ -320,6 +320,10 @@ LANGOPT(
     "SYCL compiler assumes value fits within MAX_INT for member function of "
     "get/operator[], get_id/operator[] and get_global_id/get_global_linear_id "
     "in SYCL class id, iterm and nd_iterm")
+LANGOPT(SYCLCUDACompat, 1, 0,
+        "Enable CUDA definitions and implicit includes when building for the "
+        "NVPTX backend. This mode can help SYCL program to run using the CUDA "
+        "infrastructure on Nvidia's platforms. ")
 ENUM_LANGOPT(SYCLRangeRounding, SYCLRangeRoundingPreference, 2,
     SYCLRangeRoundingPreference::On,
     "Preference for SYCL parallel_for range rounding")
@@ -394,6 +398,7 @@ LANGOPT(ObjCDisableDirectMethodsForTesting, 1, 0,
 LANGOPT(CFProtectionBranch , 1, 0, "Control-Flow Branch Protection enabled")
 ENUM_LANGOPT(CFBranchLabelScheme, CFBranchLabelSchemeKind, 2, CFBranchLabelSchemeKind::Default,
              "Control-Flow Branch Protection Label Scheme")
+LANGOPT(CFProtectionReturn, 1, 0, "Control-Flow Return Protection enabled")
 LANGOPT(FakeAddressSpaceMap , 1, 0, "OpenCL fake address space map")
 LANGOPT(OpenCLForceVectorABI, 1, 0, "OpenCL vector to scalar coercion disabling")
 ENUM_LANGOPT(AddressSpaceMapMangling , AddrSpaceMapMangling, 2, ASMM_Target, "OpenCL address space map mangling mode")
@@ -552,7 +557,7 @@ VALUE_LANGOPT(FuchsiaAPILevel, 32, 0, "Fuchsia API level")
 // on large _BitInts.
 BENIGN_VALUE_LANGOPT(MaxBitIntWidth, 32, 128, "Maximum width of a _BitInt")
 
-COMPATIBLE_LANGOPT(IncrementalExtensions, 1, 0, " True if we want to process statements"
+COMPATIBLE_LANGOPT(IncrementalExtensions, 1, 0, "True if we want to process statements "
         "on the global scope, ignore EOF token and continue later on (thus "
         "avoid tearing the Lexer and etc. down). Controlled by "
         "-fincremental-extensions.")

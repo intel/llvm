@@ -1,14 +1,22 @@
-# Copyright (C) 2022-2023 Intel Corporation
+# Copyright (C) 2022-2025 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.20.0 FATAL_ERROR)
 project(unified-runtime VERSION 0.12.0)
+cmake_policy(SET CMP0083 NEW) # PROPERTY POSITION_INDEPENDENT_CODE
 
 # Check if unified runtime is built as a standalone project.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR UR_STANDALONE_BUILD)
     set(UR_STANDALONE_BUILD TRUE)
+endif()
+
+# Ubuntu's gcc uses --enable-default-pie. For the sake of a consistent build
+# across different gcc versions, set it globally for all targets
+# https://wiki.ubuntu.com/ToolChain/CompilerFlags#A-fPIE
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
 include(GNUInstallDirs)
@@ -32,7 +40,6 @@ option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(UR_ENABLE_SANITIZER "enable device sanitizer" ON)
 option(UR_ENABLE_SYMBOLIZER "enable symoblizer for sanitizer" OFF)
 option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" ON)
-option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" ON)
 option(UR_BUILD_ADAPTER_L0 "Build the Level-Zero adapter" OFF)
 option(UR_BUILD_ADAPTER_OPENCL "Build the OpenCL adapter" OFF)
 option(UR_BUILD_ADAPTER_CUDA "Build the CUDA adapter" OFF)
@@ -48,7 +55,7 @@ option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
 option(UR_STATIC_LOADER "Build loader as a static library" OFF)
 option(UR_FORCE_LIBSTDCXX "Force use of libstdc++ in a build using libc++ on Linux" OFF)
 option(UR_ENABLE_LATENCY_HISTOGRAM "Enable latncy histogram" OFF)
-set(UR_EXTERNAL_DEPENDENCIES "" CACHE LIST
+set(UR_EXTERNAL_DEPENDENCIES "" CACHE STRING
     "List of external CMake targets for executables/libraries to depend on")
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")
@@ -150,9 +157,6 @@ if(UR_ENABLE_TRACING)
         endif()
 
         FetchContent_MakeAvailable(xpti)
-
-        # set -fPIC for xpti since we are linking it with a shared library
-        set_target_properties(xpti PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
         # fetch the xptifw dispatcher, mostly used for testing
         # these variables need to be set for xptifw to compile

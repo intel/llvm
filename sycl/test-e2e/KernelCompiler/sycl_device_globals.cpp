@@ -15,7 +15,6 @@
 // UNSUPPORTED-TRACKER: GSD-4287
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
 
 #include <sycl/detail/core.hpp>

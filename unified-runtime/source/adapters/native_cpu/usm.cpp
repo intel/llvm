@@ -39,28 +39,23 @@ static ur_result_t alloc_helper(ur_context_handle_t hContext,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
-               ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
-  std::ignore = pool;
+               ur_usm_pool_handle_t /*pool*/, size_t size, void **ppMem) {
 
   return alloc_helper(hContext, pUSMDesc, size, ppMem, UR_USM_TYPE_HOST);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
-                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
+urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t /*hDevice*/,
+                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t /*pool*/,
                  size_t size, void **ppMem) {
-  std::ignore = hDevice;
-  std::ignore = pool;
 
   return alloc_helper(hContext, pUSMDesc, size, ppMem, UR_USM_TYPE_DEVICE);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
-                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
+urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t /*hDevice*/,
+                 const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t /*pool*/,
                  size_t size, void **ppMem) {
-  std::ignore = hDevice;
-  std::ignore = pool;
 
   return alloc_helper(hContext, pUSMDesc, size, ppMem, UR_USM_TYPE_SHARED);
 }
@@ -105,54 +100,39 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urUSMPoolCreate(ur_context_handle_t hContext, ur_usm_pool_desc_t *pPoolDesc,
-                ur_usm_pool_handle_t *ppPool) {
-  std::ignore = hContext;
-  std::ignore = pPoolDesc;
-  std::ignore = ppPool;
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
+    ur_context_handle_t /*hContext*/, ur_usm_pool_desc_t * /*pPoolDesc*/,
+    ur_usm_pool_handle_t * /*ppPool*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMPoolRetain(ur_usm_pool_handle_t pPool) {
-  std::ignore = pPool;
+urUSMPoolRetain(ur_usm_pool_handle_t /*pPool*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMPoolRelease(ur_usm_pool_handle_t pPool) {
-  std::ignore = pPool;
+urUSMPoolRelease(ur_usm_pool_handle_t /*pPool*/) {
 
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
+    ur_usm_pool_handle_t /*hPool*/, ur_usm_pool_info_t /*propName*/,
+    size_t /*propSize*/, void * /*pPropValue*/, size_t * /*pPropSizeRet*/) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(
+    ur_context_handle_t /*Context*/, void * /*HostPtr*/, size_t /*Size*/) {
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urUSMPoolGetInfo(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
-                 size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
-  std::ignore = hPool;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
-
-  DIE_NO_IMPLEMENTATION;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
-                                                   void *HostPtr, size_t Size) {
-  std::ignore = Context;
-  std::ignore = HostPtr;
-  std::ignore = Size;
-  DIE_NO_IMPLEMENTATION;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
-                                                    void *HostPtr) {
-  std::ignore = Context;
-  std::ignore = HostPtr;
+urUSMReleaseExp(ur_context_handle_t /*Context*/, void * /*HostPtr*/) {
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -169,8 +149,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolDestroyExp(ur_context_handle_t,
   DIE_NO_IMPLEMENTATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetThresholdExp(
-    ur_context_handle_t, ur_device_handle_t, ur_usm_pool_handle_t, size_t) {
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolSetInfoExp(ur_usm_pool_handle_t,
+                                                        ur_usm_pool_info_t,
+                                                        void *, size_t) {
   DIE_NO_IMPLEMENTATION;
 }
 

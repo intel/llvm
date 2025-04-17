@@ -365,7 +365,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
   pDdiTable->pfnPoolCreateExp = urUSMPoolCreateExp;
   pDdiTable->pfnPoolDestroyExp = urUSMPoolDestroyExp;
   pDdiTable->pfnPoolGetDefaultDevicePoolExp = urUSMPoolGetDefaultDevicePoolExp;
-  pDdiTable->pfnPoolSetThresholdExp = urUSMPoolSetThresholdExp;
+  pDdiTable->pfnPoolSetInfoExp = urUSMPoolSetInfoExp;
   pDdiTable->pfnPoolGetInfoExp = urUSMPoolGetInfoExp;
   pDdiTable->pfnPoolSetDevicePoolExp = urUSMPoolSetDevicePoolExp;
   pDdiTable->pfnPoolGetDevicePoolExp = urUSMPoolGetDevicePoolExp;
@@ -456,6 +456,18 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
   pDdiTable->pfnBuildExp = urProgramBuildExp;
   pDdiTable->pfnCompileExp = urProgramCompileExp;
   pDdiTable->pfnLinkExp = urProgramLinkExp;
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetAdapterProcAddrTable(
+    ur_api_version_t version, ur_adapter_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnSetLoggerCallback = urAdapterSetLoggerCallback;
+  pDdiTable->pfnSetLoggerCallbackLevel = urAdapterSetLoggerCallbackLevel;
 
   return UR_RESULT_SUCCESS;
 }

@@ -156,11 +156,6 @@ hipError_t getHipVersionString(std::string &Version) {
   return Result;
 }
 
-void detail::ur::die(const char *pMessage) {
-  logger::always("ur_die: {}", pMessage);
-  std::terminate();
-}
-
 void detail::ur::assertion(bool Condition, const char *pMessage) {
   if (!Condition)
     die(pMessage);
