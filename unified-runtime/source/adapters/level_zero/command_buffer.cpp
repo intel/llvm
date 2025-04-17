@@ -1798,8 +1798,7 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
              (SignalCommandList->first, (*Event)->ZeEvent, 0, nullptr));
 
   /* The event needs to be retained since it will be used later by the
-     command-buffer. If not retained, it might be released when
-     ZeImmediateListHelper is reset. If there is an existing event from a
+     command-buffer. If there is an existing event from a
      previous submission of the command-buffer, release it since it is no longer
      needed. */
   if (CommandBuffer->CurrentSubmissionEvent) {
