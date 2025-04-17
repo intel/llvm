@@ -33,6 +33,19 @@ class handler_impl {
 public:
   handler_impl(queue_impl *SubmissionPrimaryQueue, bool EventNeeded)
       : MSubmissionPrimaryQueue(SubmissionPrimaryQueue),
+        MSubmissionSecondaryQueue(nullptr), // No secondary queue
+        MEventNeeded(EventNeeded) {};
+
+  // Constructor for the case when SecondaryQueue is specified.
+  // Not merging with the constructor above so that we have
+  // separate code paths for the two cases. Ideally, when
+  // secondary queue is not used, we should not have to incur
+  // any additional overhead of passing around null pointer
+  // (in SecondaryQueue param).
+  handler_impl(queue_impl *SubmissionPrimaryQueue,
+               queue_impl *SubmissionSecondaryQueue, bool EventNeeded)
+      : MSubmissionPrimaryQueue(SubmissionPrimaryQueue),
+        MSubmissionSecondaryQueue(SubmissionSecondaryQueue),
         MEventNeeded(EventNeeded) {};
 
   handler_impl(
@@ -67,10 +80,20 @@ public:
   /// Registers mutually exclusive submission states.
   HandlerSubmissionState MSubmissionState = HandlerSubmissionState::NO_STATE;
 
-  /// Shared pointer to the primary queue implementation. This is different from
+  /// Pointer to the primary queue implementation. This is different from
   /// the queue associated with the handler if the corresponding submission is
   /// a fallback from a previous submission.
   queue_impl *MSubmissionPrimaryQueue = nullptr;
+
+  /// Pointer to the secondary queue implementation. Nullptr if no
+  /// secondary queue fallback was given in the associated submission.
+  /// This is ONLY used in use_kernel_bundle method to check if the
+  /// context of the secondary queue is the same as the context of the
+  /// kernel bundle. SYCL pec requires us to throw an exception if
+  /// the contexts are different.
+  /// Secondary queue is optional and in our implementation, we do not
+  /// use secondary queue for fallback.
+  queue_impl *MSubmissionSecondaryQueue = nullptr;
 
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.
