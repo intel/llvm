@@ -38,33 +38,10 @@ class GromacsBench(Suite):
         return "Gromacs Bench"
 
     def benchmarks(self) -> list[Benchmark]:
-        models_rf = [
-            # "0001.5",
-            # "0003",
-            "0006",
-            # "0012",
-            # "0024",
-            # "0048",
-            # "0096",
-            # "0192",
-            # "0384",
+        return [
+            GromacsBenchmark(self, "0006", "pme"),
+            GromacsBenchmark(self, "0192", "rf"),
         ]
-        benches_rf = [GromacsBenchmark(self, model, "rf") for model in models_rf]
-        models_pme = [
-            # "0001.5",
-            # "0003",
-            # "0006",
-            # "0012",
-            # "0024",
-            # "0048",
-            # "0096",
-            "0192",
-            # "0384",
-        ]
-        benches_pme = [GromacsBenchmark(self, model, "pme") for model in models_pme]
-        # Add more models as needed
-
-        return benches_rf + benches_pme
 
     def setup(self):
         self.gromacs_src = git_clone(
@@ -97,20 +74,13 @@ class GromacsBench(Suite):
             f"cmake --build {self.gromacs_build_path} -j {options.build_jobs}",
             add_sycl=True,
         )
-        self.download_and_extract_grappa()
-
-    def download_and_extract_grappa(self):
-        grappa_tar_file = self.directory / self.grappa_file()
-
-        model = download(
+        download(
             self.directory,
             self.grappa_url(),
-            grappa_tar_file,
+            self.directory / self.grappa_file(),
             checksum="cc02be35ba85c8b044e47d097661dffa8bea57cdb3db8b5da5d01cdbc94fe6c8902652cfe05fb9da7f2af0698be283a2",
             untar=True,
         )
-        if options.verbose:
-            print(f"Grappa tar file downloaded and extracted to {model}")
 
     def teardown(self):
         pass
@@ -125,13 +95,31 @@ class GromacsBenchmark(Benchmark):
         self.grappa_dir = suite.grappa_dir
         self.gmx_path = suite.gromacs_build_path / "bin" / "gmx"
 
+        if self.type == "pme":
+            self.extra_args = [
+                "-pme",
+                "gpu",
+                "-pmefft",
+                "gpu",
+                "-notunepme",
+            ]
+        else:
+            self.extra_args = []
+
     def name(self):
         return f"gromacs-{self.model}-{self.type}"
 
     def setup(self):
-        model_dir = self.grappa_dir / self.model
         if self.type != "rf" and self.type != "pme":
             raise ValueError(f"Unknown benchmark type: {self.type}")
+
+        if not self.gmx_path.exists():
+            raise FileNotFoundError(f"gmx executable not found at {self.gmx_path}")
+
+        model_dir = self.grappa_dir / self.model
+
+        if not model_dir.exists():
+            raise FileNotFoundError(f"Model directory not found: {model_dir}")
 
         cmd_list = [
             str(self.gmx_path),
@@ -153,13 +141,7 @@ class GromacsBenchmark(Benchmark):
         )
 
     def run(self, env_vars):
-        if not self.gmx_path.exists():
-            raise FileNotFoundError(f"gmx executable not found at {self.gmx_path}")
-
         model_dir = self.grappa_dir / self.model
-
-        if not model_dir.exists():
-            raise FileNotFoundError(f"Model directory not found: {model_dir}")
 
         env_vars.update(
             {
@@ -169,17 +151,6 @@ class GromacsBenchmark(Benchmark):
         )
 
         # Run benchmark
-        if self.type == "pme":
-            pme_cmd_list = [
-                "-pme",
-                "gpu",
-                "-pmefft",
-                "gpu",
-                "-notunepme",
-            ]
-        else:
-            pme_cmd_list = []
-
         command = [
             str(self.gmx_path),
             "mdrun",
@@ -201,7 +172,7 @@ class GromacsBenchmark(Benchmark):
             "100",
             "-pin",
             "on",
-        ] + pme_cmd_list
+        ] + self.extra_args
 
         mdrun_output = self.run_bench(
             command,
@@ -212,11 +183,11 @@ class GromacsBenchmark(Benchmark):
         time = self._extract_execution_time(mdrun_output)
 
         if options.verbose:
-            print(f"[{self.name()}-RF] Time: {time:.3f} seconds")
+            print(f"[{self.name()}] Time: {time:.3f} seconds")
 
         return [
             Result(
-                label=f"{self.name()}-{self.type}",
+                label=f"{self.name()}",
                 value=time,
                 unit="s",
                 command=" ".join(map(str, command)),
