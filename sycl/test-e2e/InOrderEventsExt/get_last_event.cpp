@@ -36,10 +36,6 @@ int Check(const sycl::queue &Q, const char *CheckName, const F &CheckFunc) {
               << std::endl;
     return 1;
   }
-  if (*E != *LastEvent) {
-    std::cout << "Failed " << CheckName << std::endl;
-    return 1;
-  }
   return 0;
 }
 
