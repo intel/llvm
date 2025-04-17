@@ -143,8 +143,8 @@ template <typename... Ts> ReduTupleT<Ts...> makeReduTupleT(Ts... Elements) {
 #if __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT size_t reduGetMaxWGSize(const std::shared_ptr<queue_impl> &Queue,
                                       size_t LocalMemBytesPerWorkItem);
-__SYCL_EXPORT size_t reduGetPreferredWGSize(const std::shared_ptr<queue_impl> &Queue,
-                                            size_t LocalMemBytesPerWorkItem);
+__SYCL_EXPORT size_t reduGetPreferredWGSize(
+    const std::shared_ptr<queue_impl> &Queue, size_t LocalMemBytesPerWorkItem);
 #else
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
@@ -1241,7 +1241,8 @@ template <>
 struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH,
+                  const std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
@@ -1292,7 +1293,8 @@ struct NDRangeReduction<
     reduction::strategy::group_reduce_and_last_wg_detection> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH,
+                  const std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
@@ -1491,7 +1493,8 @@ void doTreeReductionOnTuple(size_t WorkSize, size_t LID,
 template <> struct NDRangeReduction<reduction::strategy::range_basic> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH,
+                  const std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     using reducer_type = typename Reduction::reducer_type;
@@ -1602,7 +1605,8 @@ template <>
 struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH,
+                  const std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
@@ -1638,7 +1642,8 @@ struct NDRangeReduction<
     reduction::strategy::local_mem_tree_and_atomic_cross_wg> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH,
+                  const std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     using reducer_type = typename Reduction::reducer_type;
@@ -1699,7 +1704,8 @@ struct NDRangeReduction<
     reduction::strategy::group_reduce_and_multiple_kernels> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH,
+                  const std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     static_assert(Reduction::has_identity,
@@ -1837,7 +1843,8 @@ struct NDRangeReduction<
 template <> struct NDRangeReduction<reduction::strategy::basic> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH,
+                  const std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     using element_type = typename Reduction::reducer_element_type;
@@ -2612,9 +2619,9 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 template <> struct NDRangeReduction<reduction::strategy::multi> {
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
-                  RestT... Rest) {
+  static void
+  run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+      nd_range<Dims> NDRange, PropertiesT &Properties, RestT... Rest) {
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
     auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
@@ -2656,7 +2663,8 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
 
   template <typename KernelName, int Dims, typename PropertiesT,
             typename KernelType, typename Reduction>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+  static void run(handler &CGH,
+                  const std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   Reduction &Redu, KernelType &KernelFunc) {
     auto Delegate = [&](auto Impl) {
@@ -2703,9 +2711,9 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
   }
   template <typename KernelName, int Dims, typename PropertiesT,
             typename... RestT>
-  static void run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
-                  nd_range<Dims> NDRange, PropertiesT &Properties,
-                  RestT... Rest) {
+  static void
+  run(handler &CGH, const std::shared_ptr<detail::queue_impl> &Queue,
+      nd_range<Dims> NDRange, PropertiesT &Properties, RestT... Rest) {
     return Impl<Strat::multi>::run<KernelName>(CGH, Queue, NDRange, Properties,
                                                Rest...);
   }

@@ -120,8 +120,8 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
 }
 
 #if __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT size_t reduGetPreferredWGSize(const std::shared_ptr<queue_impl> &Queue,
-                                            size_t LocalMemBytesPerWorkItem) {
+__SYCL_EXPORT size_t reduGetPreferredWGSize(
+    const std::shared_ptr<queue_impl> &Queue, size_t LocalMemBytesPerWorkItem) {
 #else
 __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
                                             size_t LocalMemBytesPerWorkItem) {

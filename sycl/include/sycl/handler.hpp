@@ -428,7 +428,8 @@ private:
   /// \param CallerNeedsEvent indicates if the event resulting from this handler
   ///        is needed by the caller.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  handler(const std::shared_ptr<detail::queue_impl> &Queue, bool CallerNeedsEvent);
+  handler(const std::shared_ptr<detail::queue_impl> &Queue,
+          bool CallerNeedsEvent);
 #else
   handler(std::shared_ptr<detail::queue_impl> Queue, bool CallerNeedsEvent);
 #endif
