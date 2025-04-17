@@ -46,7 +46,6 @@ ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
     uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
     ur_exp_command_buffer_command_handle_t *command) {
 
-  assert(CommandBuffer->IsUpdatable);
   auto platform = context->getPlatform();
   ze_command_list_handle_t zeCommandList =
       commandListLocked->getZeCommandList();
