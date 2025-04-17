@@ -265,7 +265,8 @@ public:
 
   private:
     void **MHintPtr;
-    std::unique_ptr<FastKernelSubcacheT> MCache = std::make_unique<FastKernelSubcacheT>();
+    std::unique_ptr<FastKernelSubcacheT> MCache =
+        std::make_unique<FastKernelSubcacheT>();
   };
 
   using FastKernelCacheT =
