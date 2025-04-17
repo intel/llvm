@@ -102,9 +102,11 @@ ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   isFinalized = true;
   return UR_RESULT_SUCCESS;
 }
+
 ur_event_handle_t ur_exp_command_buffer_handle_t_::getExecutionEventUnlocked() {
   return currentExecution;
 }
+
 void ur_exp_command_buffer_handle_t_::enableEvents() {
   for (auto &event : addedEvents) {
     event->markEventAsInUse();
