@@ -398,13 +398,13 @@ typedef KernelAndProgramCacheTest KernelAndProgramFastCacheTest;
 
 class MockKernelProgramCache : public detail::KernelProgramCache {
 public:
-  static detail::KernelProgramCache::KernelFastCacheT &
+  static detail::KernelProgramCache::FastKernelCacheT &
   getFastCache(detail::KernelProgramCache &cache) {
     return (reinterpret_cast<MockKernelProgramCache &>(cache)).get();
   }
 
-  detail::KernelProgramCache::KernelFastCacheT &get() {
-    return this->MKernelFastCache;
+  detail::KernelProgramCache::FastKernelCacheT &get() {
+    return this->MFastKernelCache;
   }
 };
 
@@ -419,7 +419,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositive) {
 
   //   Prg.build_with_kernel_type<CacheTestKernel>();
   //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
-  detail::KernelProgramCache::KernelFastCacheT &Cache =
+  detail::KernelProgramCache::FastKernelCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
 }
@@ -436,7 +436,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelPositiveBuildOpts) {
   //   Prg.build_with_kernel_type<CacheTestKernel>("-g");
 
   //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
-  detail::KernelProgramCache::KernelFastCacheT &Cache =
+  detail::KernelProgramCache::FastKernelCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 1U) << "Expect non-empty cache for kernels";
 }
@@ -453,7 +453,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeCompileOpts) {
   //   Prg.compile_with_kernel_type<CacheTestKernel>("-g");
   //   Prg.link();
   //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
-  detail::KernelProgramCache::KernelFastCacheT &Cache =
+  detail::KernelProgramCache::FastKernelCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
 }
@@ -470,7 +470,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkOpts) {
   //   Prg.compile_with_kernel_type<CacheTestKernel>();
   //   Prg.link("-g");
   //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
-  detail::KernelProgramCache::KernelFastCacheT &Cache =
+  detail::KernelProgramCache::FastKernelCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
 }
@@ -491,7 +491,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeLinkedProgs) {
   //   program Prg({Prg1, Prg2});
   //   kernel Ker = Prg.get_kernel<CacheTestKernel>();
 
-  detail::KernelProgramCache::KernelFastCacheT &Cache =
+  detail::KernelProgramCache::FastKernelCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
 }
@@ -508,7 +508,7 @@ TEST_F(KernelAndProgramFastCacheTest, DISABLED_KernelNegativeSource) {
   //   Prg.build_with_source("");
   //   kernel Ker = Prg.get_kernel("test");
 
-  detail::KernelProgramCache::KernelFastCacheT &Cache =
+  detail::KernelProgramCache::FastKernelCacheT &Cache =
       MockKernelProgramCache::getFastCache(CtxImpl->getKernelProgramCache());
   EXPECT_EQ(Cache.size(), 0U) << "Expect empty cache for kernels";
 }

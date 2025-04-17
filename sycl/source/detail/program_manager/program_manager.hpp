@@ -12,6 +12,7 @@
 #include <detail/device_global_map_entry.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/kernel_arg_mask.hpp>
+#include <detail/kernel_program_cache.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/common.hpp>
@@ -202,7 +203,8 @@ public:
              ur_program_handle_t>
   getOrCreateKernel(const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
-                    KernelNameStrRefT KernelName, const NDRDescT &NDRDesc = {});
+                    KernelNameStrRefT KernelName, void **KernelCacheHint,
+                    const NDRDescT &NDRDesc = {});
 
   ur_kernel_handle_t getCachedMaterializedKernel(
       KernelNameStrRefT KernelName,

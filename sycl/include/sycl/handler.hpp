@@ -15,6 +15,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/kernel_cache_hint.hpp>
 #include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
@@ -793,6 +794,7 @@ private:
       // later during finalize.
       setArgsToAssociatedAccessors();
     }
+    setKernelCacheHint(detail::getKernelCacheHint<KernelName>());
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
     // the associated kernel handler.
@@ -3749,6 +3751,8 @@ private:
   __SYCL_EXPORT friend void *ext::oneapi::experimental::async_malloc_from_pool(
       sycl::handler &h, size_t size,
       const ext::oneapi::experimental::memory_pool &pool);
+
+  void setKernelCacheHint(void **KernelCacheHint);
 
 protected:
   /// Registers event dependencies in this command group.

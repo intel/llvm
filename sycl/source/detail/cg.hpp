@@ -46,6 +46,7 @@ using EventImplPtr = std::shared_ptr<event_impl>;
 class stream_impl;
 class queue_impl;
 class kernel_bundle_impl;
+struct FastKernelCacheWrapperT;
 
 // The structure represents kernel argument.
 class ArgDesc {
@@ -257,6 +258,7 @@ public:
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
   KernelNameStrT MKernelName;
+  void **MKernelCacheHint;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
@@ -271,7 +273,7 @@ public:
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               KernelNameStrT KernelName,
+               KernelNameStrT KernelName, void **MKernelCacheHint,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
@@ -281,7 +283,8 @@ public:
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
+        MKernelName(std::move(KernelName)), MKernelCacheHint(MKernelCacheHint),
+        MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),

@@ -1111,6 +1111,7 @@ std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
 ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
                                   KernelNameStrRefT KernelName,
+                                  void **KernelCacheHint,
                                   const NDRDescT &NDRDesc) {
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
@@ -1122,9 +1123,9 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
   ur_device_handle_t UrDevice = DeviceImpl->getHandleRef();
 
-  auto key = std::make_pair(UrDevice, KernelName);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
-    auto ret_tuple = Cache.tryToGetKernelFast(key);
+    auto ret_tuple = Cache.tryToGetKernelFast(KernelName, UrDevice,
+                                              KernelCacheHint);
     constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
     constexpr size_t Program = 3; // see KernelFastCacheValT tuple
     if (std::get<Kernel>(ret_tuple)) {
@@ -1189,7 +1190,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   // kernel.
   ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
       KernelArgMaskPair.first);
-  Cache.saveKernel(key, ret_val);
+  Cache.saveKernel(KernelName, UrDevice, ret_val, KernelCacheHint);
   return ret_val;
 }
 
