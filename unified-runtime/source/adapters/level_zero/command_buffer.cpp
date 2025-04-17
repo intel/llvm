@@ -1508,6 +1508,25 @@ ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine,
 }
 
 /**
+ * Waits for any ongoing executions of the command-buffer to finish.
+ * @param CommandBuffer The command-buffer to wait for.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
+
+  if (ur_event_handle_t &CurrentSubmissionEvent =
+          CommandBuffer->CurrentSubmissionEvent) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
+    UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
+    CurrentSubmissionEvent = nullptr;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+/**
  * Waits for the all the dependencies of the command-buffer
  * @param[in] CommandBuffer The command-buffer.
  * @param[in] Queue The UR queue used to submit the command-buffer.
@@ -1754,6 +1773,16 @@ ur_result_t enqueueWaitEventPath(ur_exp_command_buffer_handle_t CommandBuffer,
   ZE2UR_CALL(zeCommandListAppendBarrier,
              (SignalCommandList->first, (*Event)->ZeEvent, 0, nullptr));
 
+  /* The event needs to be retained since it will be used later by the
+     command-buffer. If there is an existing event from a
+     previous submission of the command-buffer, release it since it is no longer
+     needed. */
+  if (CommandBuffer->CurrentSubmissionEvent) {
+    UR_CALL(urEventReleaseInternal(CommandBuffer->CurrentSubmissionEvent));
+  }
+  (*Event)->RefCount.increment();
+  CommandBuffer->CurrentSubmissionEvent = *Event;
+
   UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,
                                     false /*OKToBatchCommand*/));
 
@@ -1766,6 +1795,8 @@ ur_result_t urEnqueueCommandBufferExp(
     ur_event_handle_t *Event) {
 
   std::scoped_lock<ur_shared_mutex> Lock(UrQueue->Mutex);
+
+  UR_CALL(waitForOngoingExecution(CommandBuffer));
 
   const bool IsInternal = (Event == nullptr);
   const bool DoProfiling =
@@ -1794,8 +1825,6 @@ ur_result_t urEnqueueCommandBufferExp(
                                  EventWaitList, OutEvent, ZeCommandListHelper,
                                  DoProfiling));
   }
-  // Mark that synchronization will be required for later updates
-  CommandBuffer->NeedsUpdateSynchronization = true;
 
   return UR_RESULT_SUCCESS;
 }
@@ -2227,37 +2256,6 @@ ur_result_t updateCommandBuffer(
 
   ZE2UR_CALL(zeCommandListClose, (CommandBuffer->ZeComputeCommandList));
 
-  return UR_RESULT_SUCCESS;
-}
-
-/**
- * Waits for any ongoing executions of the command-buffer to finish before
- * updating.
- * @param CommandBuffer The command-buffer to wait for.
- * @return UR_RESULT_SUCCESS or an error code on failure
- */
-ur_result_t
-waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
-  // Calling function has taken a lock for the command-buffer so we can safely
-  // check and modify this value here.
-  // If command-buffer was recently synchronized we can return early.
-  if (!CommandBuffer->NeedsUpdateSynchronization) {
-    return UR_RESULT_SUCCESS;
-  }
-
-  if (CommandBuffer->UseImmediateAppendPath) {
-    if (ur_event_handle_t &CurrentSubmissionEvent =
-            CommandBuffer->CurrentSubmissionEvent) {
-      ZE2UR_CALL(zeEventHostSynchronize,
-                 (CurrentSubmissionEvent->ZeEvent, UINT64_MAX));
-      UR_CALL(urEventReleaseInternal(CurrentSubmissionEvent));
-      CurrentSubmissionEvent = nullptr;
-    }
-  } else if (ze_fence_handle_t &ZeFence = CommandBuffer->ZeActiveFence) {
-    ZE2UR_CALL(zeFenceHostSynchronize, (ZeFence, UINT64_MAX));
-  }
-  // Mark that command-buffer was recently synchronized
-  CommandBuffer->NeedsUpdateSynchronization = false;
   return UR_RESULT_SUCCESS;
 }
 
