@@ -3687,8 +3687,7 @@ private:
   bool HasAssociatedAccessor(detail::AccessorImplHost *Req,
                              access::target AccessTarget) const;
 
-  template <int Dims>
-  static sycl::range<3> padRange(const sycl::range<Dims> &Range) {
+  template <int Dims> static sycl::range<3> padRange(sycl::range<Dims> Range) {
     if constexpr (Dims == 3) {
       return Range;
     } else {
@@ -3699,7 +3698,7 @@ private:
     }
   }
 
-  template <int Dims> static sycl::id<3> padId(const sycl::id<Dims> &Id) {
+  template <int Dims> static sycl::id<3> padId(sycl::id<Dims> Id) {
     if constexpr (Dims == 3) {
       return Id;
     } else {
