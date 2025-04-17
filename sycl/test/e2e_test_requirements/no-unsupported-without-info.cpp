@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 282
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 273
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -86,10 +86,6 @@
 // CHECK-NEXT: Assert/check_resource_leak.cpp
 // CHECK-NEXT: Basic/buffer/buffer_create.cpp
 // CHECK-NEXT: Basic/build_log.cpp
-// CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
-// CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
-// CHECK-NEXT: Basic/free_function_queries/free_function_queries_sub_group.cpp
-// CHECK-NEXT: Basic/free_function_queries/free_function_queries_sub_group.cpp
 // CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
 // CHECK-NEXT: Basic/group_async_copy.cpp
 // CHECK-NEXT: Basic/host-task-dependency.cpp
@@ -97,7 +93,6 @@
 // CHECK-NEXT: Basic/kernel_info_attr.cpp
 // CHECK-NEXT: Basic/submit_time.cpp
 // CHECK-NEXT: DeviceImageDependencies/dynamic.cpp
-// CHECK-NEXT: DeviceImageDependencies/free_function_kernels.cpp
 // CHECK-NEXT: DeviceImageDependencies/math_device_lib.cpp
 // CHECK-NEXT: DeviceImageDependencies/objects.cpp
 // CHECK-NEXT: DeviceImageDependencies/singleDynamicLibrary.cpp
@@ -208,17 +203,13 @@
 // CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
 // CHECK-NEXT: InvokeSimd/Regression/ImplicitSubgroup/call_vadd_1d_spill.cpp
 // CHECK-NEXT: InvokeSimd/Regression/call_vadd_1d_spill.cpp
-// CHECK-NEXT: KernelAndProgram/build-log.cpp
 // CHECK-NEXT: KernelAndProgram/cache-build-result.cpp
-// CHECK-NEXT: KernelAndProgram/free_function_apis.cpp
-// CHECK-NEXT: KernelAndProgram/free_function_kernels.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options-env.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options.cpp
 // CHECK-NEXT: KernelAndProgram/level-zero-static-link-flow.cpp
 // CHECK-NEXT: KernelAndProgram/multiple-kernel-linking.cpp
 // CHECK-NEXT: KernelAndProgram/spec_constants_after_link.cpp
 // CHECK-NEXT: KernelAndProgram/spec_constants_after_link.cpp
-// CHECK-NEXT: KernelAndProgram/undefined-symbol.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_abc.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops.cpp
 // CHECK-NEXT: Matrix/SG32/element_wise_all_ops_half.cpp

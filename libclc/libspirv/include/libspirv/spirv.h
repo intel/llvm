@@ -46,8 +46,8 @@
 /* Supported builtins */
 #include <libspirv/spirv_builtins.h>
 
-/* Reinterpreting Types Using as_type() and as_typen() */
-#include <as_type.h>
+/* Reinterpreting Types Using __clc_as_type() and __clc_as_typen() */
+#include <clc/clc_as_type.h>
 
 /* Preprocessor Directives and Macros */
 #include <macros.h>

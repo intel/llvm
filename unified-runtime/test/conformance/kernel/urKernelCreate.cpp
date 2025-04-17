@@ -66,7 +66,8 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
       uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
   std::shared_ptr<std::vector<char>> il_binary;
-  uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
+  UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+      "foo", platform, il_binary));
 
   for (size_t i = 0; i < devices.size(); i++) {
     uur::raii::Program program;
@@ -74,8 +75,10 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
 
     const ur_program_properties_t properties = {
         UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr, 0, nullptr};
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, devices[i], *il_binary, &properties, program.ptr()));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, devices[i], *il_binary, &properties,
+            program.ptr()));
 
     ASSERT_SUCCESS(urProgramBuild(context, program.get(), nullptr));
     ASSERT_SUCCESS(
@@ -99,7 +102,8 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
       uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
   std::shared_ptr<std::vector<char>> il_binary;
-  uur::KernelsEnvironment::instance->LoadSource("foo", platform, il_binary);
+  UUR_RETURN_ON_FATAL_FAILURE(uur::KernelsEnvironment::instance->LoadSource(
+      "foo", platform, il_binary));
 
   for (size_t i = 0; i < devices.size(); i++) {
     uur::raii::Program program;
@@ -107,8 +111,10 @@ TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
 
     const ur_program_properties_t properties = {
         UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr, 0, nullptr};
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        platform, context, devices[i], *il_binary, &properties, program.ptr()));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            platform, context, devices[i], *il_binary, &properties,
+            program.ptr()));
 
     ASSERT_SUCCESS(urProgramCompile(context, program.get(), nullptr));
 

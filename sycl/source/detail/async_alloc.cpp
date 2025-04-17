@@ -65,7 +65,6 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
   // Async malloc must return a void* immediately.
   // Set up CommandGroup which is a no-op and pass the
   // event from the alloc.
-  h.impl->MAllocSize = size;
   h.impl->MAsyncAllocEvent = Event;
   h.setType(detail::CGType::AsyncAlloc);
 
@@ -112,8 +111,6 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
 
   // Async malloc must return a void* immediately.
   // Set up CommandGroup which is a no-op and pass the event from the alloc.
-  h.impl->MAllocSize = size;
-  h.impl->MMemPool = memPoolImpl;
   h.impl->MAsyncAllocEvent = Event;
   h.setType(detail::CGType::AsyncAlloc);
 

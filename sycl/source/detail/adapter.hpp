@@ -98,10 +98,10 @@ public:
   std::vector<ur_platform_handle_t> &getUrPlatforms() {
     std::call_once(PlatformsPopulated, [&]() {
       uint32_t platformCount = 0;
-      call<UrApiKind::urPlatformGet>(&MAdapter, 1, 0, nullptr, &platformCount);
+      call<UrApiKind::urPlatformGet>(MAdapter, 0, nullptr, &platformCount);
       UrPlatforms.resize(platformCount);
       if (platformCount) {
-        call<UrApiKind::urPlatformGet>(&MAdapter, 1, platformCount,
+        call<UrApiKind::urPlatformGet>(MAdapter, platformCount,
                                        UrPlatforms.data(), nullptr);
       }
       // We need one entry in this per platform
@@ -123,12 +123,12 @@ public:
   ///
   /// \sa adapter::checkUrResult
   template <UrApiKind UrApiOffset, typename... ArgsT>
-  ur_result_t call_nocheck(ArgsT... Args) const {
+  ur_result_t call_nocheck(ArgsT &&...Args) const {
     ur_result_t R = UR_RESULT_SUCCESS;
     if (!adapterReleased) {
       detail::UrFuncInfo<UrApiOffset> UrApiInfo;
       auto F = UrApiInfo.getFuncPtr(&UrFuncPtrs);
-      R = F(Args...);
+      R = F(std::forward<ArgsT>(Args)...);
     }
     return R;
   }
@@ -137,15 +137,15 @@ public:
   ///
   /// \throw sycl::runtime_exception if the call was not successful.
   template <UrApiKind UrApiOffset, typename... ArgsT>
-  void call(ArgsT... Args) const {
-    auto Err = call_nocheck<UrApiOffset>(Args...);
+  void call(ArgsT &&...Args) const {
+    auto Err = call_nocheck<UrApiOffset>(std::forward<ArgsT>(Args)...);
     checkUrResult(Err);
   }
 
   /// \throw sycl::exceptions(errc) if the call was not successful.
   template <sycl::errc errc, UrApiKind UrApiOffset, typename... ArgsT>
-  void call(ArgsT... Args) const {
-    auto Err = call_nocheck<UrApiOffset>(Args...);
+  void call(ArgsT &&...Args) const {
+    auto Err = call_nocheck<UrApiOffset>(std::forward<ArgsT>(Args)...);
     checkUrResult<errc>(Err);
   }
 

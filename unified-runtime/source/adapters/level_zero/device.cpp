@@ -1227,6 +1227,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_ASYNC_USM_ALLOCATIONS_SUPPORT_EXP:
+    return ReturnValue(true);
   case UR_DEVICE_INFO_CURRENT_CLOCK_THROTTLE_REASONS: {
     ur_device_throttle_reasons_flags_t ThrottleReasons = 0;
     if (!ParamValue) {
@@ -1536,7 +1538,6 @@ ur_result_t urDeviceCreateWithNativeHandle(
   if (Dev == nullptr)
     return UR_RESULT_ERROR_INVALID_VALUE;
 
-  Dev->IsInteropNativeHandle = true;
   *Device = Dev;
   return UR_RESULT_SUCCESS;
 }
@@ -1674,22 +1675,6 @@ bool ur_device_handle_t_::useRelaxedAllocationLimits() {
   }();
 
   return EnableRelaxedAllocationLimits;
-}
-
-bool ur_device_handle_t_::useDriverInOrderLists() {
-  // Use in-order lists implementation from L0 driver instead
-  // of adapter's implementation.
-
-  static const bool UseDriverInOrderLists = [&] {
-    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    // bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
-    //     1, 3, L0_DRIVER_INORDER_MIN_VERSION);
-    if (!UrRet)
-      return false;
-    return std::atoi(UrRet) != 0;
-  }();
-
-  return UseDriverInOrderLists;
 }
 
 bool ur_device_handle_t_::useDriverCounterBasedEvents() {

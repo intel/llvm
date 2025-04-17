@@ -23,11 +23,13 @@ runs:
   using: "composite"
   steps:
   - name: Checkout E2E tests
-    uses: ./devops/actions/cached_checkout
+    uses: actions/checkout@v4
     with:
       path: llvm
       ref: ${{ inputs.ref || github.sha }}
-      cache_path: "/__w/repo_cache/"
+      sparse-checkout: |
+        llvm/utils/lit
+        sycl/test-e2e
 
   - name: Download E2E Binaries
     if: inputs.testing_mode == 'run-only'
