@@ -18,6 +18,7 @@ class KernelD;
 class KernelE;
 class KernelF;
 class KernelG;
+class KernelH;
 
 } // namespace VirtualFunctionsTest
 
@@ -39,6 +40,7 @@ KERNEL_INFO(KernelD)
 KERNEL_INFO(KernelE)
 KERNEL_INFO(KernelF)
 KERNEL_INFO(KernelG)
+KERNEL_INFO(KernelH)
 
 #undef KERNEL_INFO
 
@@ -48,9 +50,13 @@ KERNEL_INFO(KernelG)
 
 static sycl::unittest::MockDeviceImage
 generateImage(std::initializer_list<std::string> KernelNames,
-              const std::string &VFSets, bool UsesVFSets, unsigned char Magic) {
+              const std::string &VFSets, bool UsesVFSets, unsigned char Magic,
+              bool IsDummyImage = false,
+              std::vector<sycl::aspect> Aspects = {}) {
   sycl::unittest::MockPropertySet PropSet;
-  std::vector<sycl::unittest::MockProperty> Props;
+
+  // Construct virtual function properties
+  std::vector<sycl::unittest::MockProperty> VFProps;
   uint64_t PropSize = VFSets.size();
   std::vector<char> Storage(/* bytes for size */ 8 + PropSize +
                             /* null terminator */ 1);
@@ -64,9 +70,22 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::MockProperty Prop(PropName, Storage,
                                     SYCL_PROPERTY_TYPE_BYTE_ARRAY);
 
-  Props.push_back(Prop);
-  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS, std::move(Props));
+  VFProps.push_back(Prop);
+  if (IsDummyImage)
+    VFProps.emplace_back("dummy-image", std::vector<char>(4),
+                         SYCL_PROPERTY_TYPE_UINT32);
 
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
+                 std::move(VFProps));
+
+  // Construct device requirement properties
+  std::vector<sycl::unittest::MockProperty> DeviceRequirmentsProps;
+  DeviceRequirmentsProps.emplace_back(sycl::unittest::makeAspectsProp(Aspects));
+
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
+                 std::move(DeviceRequirmentsProps));
+
+  // Assemble final device image
   std::vector<unsigned char> Bin{Magic};
 
   std::vector<sycl::unittest::MockOffloadEntry> Entries =
@@ -99,6 +118,9 @@ static constexpr unsigned PROGRAM_E0 = 37;
 static constexpr unsigned PROGRAM_F = 41;
 static constexpr unsigned PROGRAM_F0 = 47;
 static constexpr unsigned PROGRAM_F1 = 53;
+static constexpr unsigned PROGRAM_H = 59;
+static constexpr unsigned PROGRAM_H0 = 61;
+static constexpr unsigned PROGRAM_H0d = 67;
 
 // Device images with no entires are ignored by SYCL RT during registration.
 // Therefore, we have to provide some kernel names to make the test work, even
@@ -128,10 +150,16 @@ static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"KernelF"}, "set-f", /* uses vf set */ true, PROGRAM_F),
     generateImage({"DummyKernel7"}, "set-f", /* provides vf set */ false,
                   PROGRAM_F0),
-    generateImage({"KernelG"}, "set-f", /* uses vf set */ true, PROGRAM_F1)};
+    generateImage({"KernelG"}, "set-f", /* uses vf set */ true, PROGRAM_F1),
+    generateImage({"KernelH"}, "set-h", /* uses vf set */ true, PROGRAM_H,
+                  false, {}),
+    generateImage({"DummyKernel7"}, "set-h", /* provides vf set */ false,
+                  PROGRAM_H0, /* isDummy */ false, {sycl::aspect::fp64}),
+    generateImage({"DummyKernel7d"}, "set-h", /* provides vf set */ false,
+                  PROGRAM_H0d, /* isDummy */ true, {sycl::aspect::fp64})};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::MockDeviceImageArray<15> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
 
 TEST(VirtualFunctions, SingleKernelUsesSingleVFSet) {
   sycl::unittest::UrMock<> Mock;
@@ -260,6 +288,103 @@ TEST(VirtualFunctions, TwoKernelsShareTheSameSet) {
   ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 0u);
   ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
             PROGRAM_F * PROGRAM_F0 * PROGRAM_F1);
+}
+
+struct MockDeviceData {
+  std::string Extensions;
+  ur_device_handle_t getHandle() {
+    return reinterpret_cast<ur_device_handle_t>(this);
+  }
+  static MockDeviceData *fromHandle(ur_device_handle_t handle) {
+    return reinterpret_cast<MockDeviceData *>(handle);
+  }
+};
+
+MockDeviceData MockDevices[] = {
+    {"cl_khr_fp64"},
+    {""},
+};
+
+static ur_result_t redefinedDeviceGet(void *pParams) {
+  auto params = *static_cast<ur_device_get_params_t *>(pParams);
+  if (*params.ppNumDevices) {
+    **params.ppNumDevices = static_cast<uint32_t>(std::size(MockDevices));
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (*params.pphDevices) {
+    assert(*params.pNumEntries <= std::size(MockDevices));
+    for (uint32_t i = 0; i < *params.pNumEntries; ++i) {
+      (*params.pphDevices)[i] = MockDevices[i].getHandle();
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t redefinedDeviceGetInfo(void *pParams) {
+  auto *params = reinterpret_cast<ur_device_get_info_params_t *>(pParams);
+  if (*params->ppropName == UR_DEVICE_INFO_EXTENSIONS) {
+    const std::string &Extensions =
+        MockDeviceData::fromHandle(*params->phDevice)->Extensions;
+    if (*params->ppPropValue) {
+      assert(*params->ppropSize >= Extensions.size() + 1);
+      std::memcpy(*params->ppPropValue, Extensions.data(),
+                  Extensions.size() + 1);
+    }
+    if (*params->ppPropSizeRet &&
+        **params->ppPropSizeRet < Extensions.size() + 1)
+      **params->ppPropSizeRet = Extensions.size() + 1;
+    return UR_RESULT_SUCCESS;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+TEST(VirtualFunctions, DummyImages) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+  mock::getCallbacks().set_after_callback("urDeviceGet", &redefinedDeviceGet);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfo);
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(sycl::aspect_selector({sycl::aspect::fp64}));
+  EXPECT_TRUE(Q.get_device().has(sycl::aspect::fp64));
+
+  CapturedLinkingData.clear();
+
+  // KernelF uses set "set-h" that is also used by KernelG
+  Q.single_task<VirtualFunctionsTest::KernelH>([=]() {});
+  // When we submit this kernel, we expect that two programs were created (one
+  // for KernelH, another providing "set-h"
+  EXPECT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 2u);
+  // Both programs should be linked together.
+  EXPECT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
+  // The module providing set-h is set up to use fp64,
+  // and since the device support fp64, we link the
+  // non-dummy version that provides set-h.
+  EXPECT_TRUE(
+      CapturedLinkingData.LinkedProgramsContains({PROGRAM_H, PROGRAM_H0}));
+  EXPECT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
+            PROGRAM_H * PROGRAM_H0);
+
+  CapturedLinkingData.clear();
+
+  EXPECT_EQ(Plt.get_devices().size(), 2u);
+  sycl::queue Q2(sycl::aspect_selector({}, {sycl::aspect::fp64}));
+
+  // We now repeat what we did launching KernelH but on another
+  // device that does not support fp64.
+  Q2.single_task<VirtualFunctionsTest::KernelH>([=]() {});
+  EXPECT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 2u);
+  EXPECT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
+
+  // However, this time, we expect the dummy image to be linked
+  // as the device does not support fp64.
+  EXPECT_TRUE(
+      CapturedLinkingData.LinkedProgramsContains({PROGRAM_H, PROGRAM_H0d}));
+  EXPECT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
+            PROGRAM_H * PROGRAM_H0d);
 }
 
 // TODO: Add test cases for kernel_bundle usage
