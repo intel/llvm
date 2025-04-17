@@ -240,7 +240,7 @@ public:
       if (!MHintPtr)
         return;
       assert(*MHintPtr == nullptr);
-      *MHintPtr = &MCache;
+      *MHintPtr = MCache.get();
     }
     FastKernelCacheWrapper(const FastKernelCacheWrapper &) = delete;
     FastKernelCacheWrapper(FastKernelCacheWrapper &&Other)
@@ -257,15 +257,15 @@ public:
     ~FastKernelCacheWrapper() {
       if (!MHintPtr)
         return;
-      assert(*MHintPtr == &MCache);
+      assert(*MHintPtr == MCache.get());
       *MHintPtr = nullptr;
     }
 
-    FastKernelSubcacheT &get() { return MCache; }
+    FastKernelSubcacheT &get() { return *MCache; }
 
   private:
     void **MHintPtr;
-    FastKernelSubcacheT MCache;
+    std::unique_ptr<FastKernelSubcacheT> MCache = std::make_unique<FastKernelSubcacheT>();
   };
 
   using FastKernelCacheT =
