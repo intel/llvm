@@ -246,8 +246,9 @@ struct TestKernel {
         UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
         static_cast<uint32_t>(Metadatas.size()),
         Metadatas.empty() ? nullptr : Metadatas.data()};
-    ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-        Platform, Context, Device, *ILBinary, &Properties, &Program));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::KernelsEnvironment::instance->CreateProgram(
+            Platform, Context, Device, *ILBinary, &Properties, &Program));
 
     auto KernelNames =
         uur::KernelsEnvironment::instance->GetEntryPointNames(Name);

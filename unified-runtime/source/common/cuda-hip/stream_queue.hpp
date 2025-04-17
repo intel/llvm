@@ -21,7 +21,8 @@ using ur_stream_guard = std::unique_lock<std::mutex>;
 /// backend 'stream' objects.
 ///
 /// This class is specifically designed for the CUDA and HIP adapters.
-template <typename ST, int CS, int TS> struct stream_queue_t {
+template <typename ST, int CS, int TS, typename BarrierEventT>
+struct stream_queue_t {
   using native_type = ST;
   static constexpr int DefaultNumComputeStreams = CS;
   static constexpr int DefaultNumTransferStreams = TS;
@@ -61,6 +62,8 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
   std::mutex TransferStreamMutex;
   std::mutex BarrierMutex;
   bool HasOwnership;
+  BarrierEventT BarrierEvent = nullptr;
+  BarrierEventT BarrierTmpEvent = nullptr;
 
   stream_queue_t(bool IsOutOfOrder, ur_context_handle_t_ *Context,
                  ur_device_handle_t_ *Device, unsigned int Flags,
@@ -88,23 +91,22 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
     urContextRetain(Context);
   }
 
-  virtual ~stream_queue_t() { urContextRelease(Context); }
+  ~stream_queue_t() { urContextRelease(Context); }
 
-  virtual void computeStreamWaitForBarrierIfNeeded(native_type Strean,
-                                                   uint32_t StreamI) = 0;
-  virtual void transferStreamWaitForBarrierIfNeeded(native_type Stream,
-                                                    uint32_t StreamI) = 0;
-  virtual void createStreamWithPriority(native_type *Stream, unsigned int Flags,
-                                        int Priority) = 0;
-  virtual ur_queue_handle_t getEventQueue(const ur_event_handle_t) = 0;
-  virtual uint32_t getEventComputeStreamToken(const ur_event_handle_t) = 0;
-  virtual native_type getEventStream(const ur_event_handle_t) = 0;
+  void computeStreamWaitForBarrierIfNeeded(native_type Strean,
+                                           uint32_t StreamI);
+  void transferStreamWaitForBarrierIfNeeded(native_type Stream,
+                                            uint32_t StreamI);
+  void createStreamWithPriority(native_type *Stream, unsigned int Flags,
+                                int Priority);
+  ur_queue_handle_t getEventQueue(const ur_event_handle_t);
+  uint32_t getEventComputeStreamToken(const ur_event_handle_t);
+  native_type getEventStream(const ur_event_handle_t);
+  void createHostSubmitTimeStream();
 
   // get_next_compute/transfer_stream() functions return streams from
   // appropriate pools in round-robin fashion
   native_type getNextComputeStream(uint32_t *StreamToken = nullptr) {
-    if (getThreadLocalStream() != native_type{0})
-      return getThreadLocalStream();
     uint32_t StreamI;
     uint32_t Token;
     while (true) {
@@ -146,8 +148,6 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
                                    const ur_event_handle_t *EventWaitList,
                                    ur_stream_guard &Guard,
                                    uint32_t *StreamToken = nullptr) {
-    if (getThreadLocalStream() != native_type{0})
-      return getThreadLocalStream();
     for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
       uint32_t Token = getEventComputeStreamToken(EventWaitList[i]);
       if (getEventQueue(EventWaitList[i]) == this && canReuseStream(Token)) {
@@ -171,15 +171,7 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
     return getNextComputeStream(StreamToken);
   }
 
-  // Thread local stream will be used if ScopedStream is active
-  static native_type &getThreadLocalStream() {
-    static thread_local native_type stream{0};
-    return stream;
-  }
-
   native_type getNextTransferStream() {
-    if (getThreadLocalStream() != native_type{0})
-      return getThreadLocalStream();
     if (TransferStreams.empty()) { // for example in in-order queue
       return getNextComputeStream();
     }
@@ -350,4 +342,34 @@ template <typename ST, int CS, int TS> struct stream_queue_t {
   uint32_t getNextEventId() noexcept { return ++EventCount; }
 
   bool backendHasOwnership() const noexcept { return HasOwnership; }
+
+  // Interop handling, for regular interop we return the next compute stream,
+  // for native commands we use the interop_guard and return a thread local
+  // stream. Native commands require to only have one in-order stream to work.
+  native_type getInteropStream() {
+    if (getThreadLocalStream() != native_type{0})
+      return getThreadLocalStream();
+
+    return getNextComputeStream();
+  }
+
+  static native_type &getThreadLocalStream() {
+    static thread_local native_type stream{0};
+    return stream;
+  }
+
+  class interop_guard {
+    stream_queue_t *q;
+
+  public:
+    interop_guard(stream_queue_t *q, uint32_t NumEventsInWaitList,
+                  const ur_event_handle_t *EventWaitList)
+        : q{q} {
+      ur_stream_guard Guard;
+      q->getThreadLocalStream() =
+          q->getNextComputeStream(NumEventsInWaitList, EventWaitList, Guard);
+    }
+    native_type getStream() { return q->getThreadLocalStream(); }
+    ~interop_guard() { q->getThreadLocalStream() = native_type{0}; }
+  };
 };

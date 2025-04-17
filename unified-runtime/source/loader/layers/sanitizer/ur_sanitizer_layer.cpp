@@ -20,14 +20,16 @@ context_t *getContext() {
   try {
     return context_t::get_direct();
   } catch (...) {
-    die("Failed to get sanitizer context.");
+    // Cannot write logger here as that would also introduce a potential
+    // exception
+    std::terminate();
   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::context_t()
     : logger(logger::create_logger("sanitizer", false, false,
-                                   logger::Level::WARN)) {}
+                                   UR_LOGGER_LEVEL_WARN)) {}
 
 ur_result_t context_t::tearDown() {
   switch (enabledType) {

@@ -71,12 +71,11 @@ struct KernelsEnvironment : DevicesEnvironment {
   void LoadSource(const std::string &kernel_name, ur_platform_handle_t platform,
                   std::shared_ptr<std::vector<char>> &binary_out);
 
-  ur_result_t CreateProgram(ur_platform_handle_t hPlatform,
-                            ur_context_handle_t hContext,
-                            ur_device_handle_t hDevice,
-                            const std::vector<char> &binary,
-                            const ur_program_properties_t *properties,
-                            ur_program_handle_t *phProgram);
+  void CreateProgram(ur_platform_handle_t hPlatform,
+                     ur_context_handle_t hContext, ur_device_handle_t hDevice,
+                     const std::vector<char> &binary,
+                     const ur_program_properties_t *properties,
+                     ur_program_handle_t *phProgram);
 
   std::vector<std::string> GetEntryPointNames(std::string program);
 

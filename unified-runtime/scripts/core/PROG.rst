@@ -58,11 +58,16 @@ Initialization and Discovery
     ${x}AdapterGet(adapterCount, adapters.data(), nullptr);
 
     // Discover all the platform instances
-    uint32_t platformCount = 0;
-    ${x}PlatformGet(adapters.data(), adapterCount, 0, nullptr, &platformCount);
+    std::vector<${x}_platform_handle_t> platforms;
+    uint32_t totalPlatformCount = 0;
+    for (auto adapter : adapters) {
+        uint32_t adapterPlatformCount = 0;
+        ${x}PlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
 
-    std::vector<${x}_platform_handle_t> platforms(platformCount);
-    ${x}PlatformGet(adapters.data(), adapterCount, platform.size(), platforms.data(), &platformCount);
+        platforms.reserve(totalPlatformCount + adapterPlatformCount);
+        ${x}PlatformGet(adapter, adapterPlatformCount, &platforms[totalPlatformCount], &adapterPlatformCount);
+        totalPlatformCount += adapterPlatformCount;
+    }
 
     // Get number of total GPU devices in the platform
     uint32_t deviceCount = 0;
