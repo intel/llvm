@@ -54,15 +54,6 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
 private:
   using device_ptr_storage_t = std::vector<std::unique_ptr<char *>>;
 
-  ur_result_t checkUpdateParameters(
-      uint32_t numUpdateCommands,
-      const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands);
-
-  ur_result_t
-  updateKernelHandle(locked<ur_command_list_manager> &commandListLocked,
-                     ur_kernel_handle_t NewKernel,
-                     kernel_command_handle *Command);
-
   const ur_context_handle_t context;
   const ur_device_handle_t device;
   std::vector<std::unique_ptr<ur_exp_command_buffer_command_handle_t_>>
