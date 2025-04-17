@@ -121,8 +121,9 @@ bool isGenericBuiltin(StringRef FName) {
 }
 
 bool isKernel(const Function &F) {
-  return F.getCallingConv() == CallingConv::SPIR_KERNEL ||
-         F.getCallingConv() == CallingConv::AMDGPU_KERNEL;
+  const auto CC = F.getCallingConv();
+  return CC == CallingConv::SPIR_KERNEL || CC == CallingConv::AMDGPU_KERNEL ||
+         CC == CallingConv::PTX_Kernel;
 }
 
 bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
@@ -697,9 +698,13 @@ static bool mustPreserveGV(const GlobalValue &GV) {
     // kernels which are the entry points from host code to device code) that
     // cannot be imported which also means that there is no point of having it
     // visible outside of the current module.
-    if (AllowDeviceImageDependencies)
-      return F->getCallingConv() == CallingConv::SPIR_KERNEL ||
-             canBeImportedFunction(*F);
+    if (AllowDeviceImageDependencies) {
+      const auto CC = F->getCallingConv();
+      const bool SpirOrGPU = CC == CallingConv::SPIR_KERNEL ||
+                             CC == CallingConv::AMDGPU_KERNEL ||
+                             CC == CallingConv::PTX_Kernel;
+      return SpirOrGPU || canBeImportedFunction(*F);
+    }
 
     // Otherwise, we are being even more aggressive: SYCL modules are expected
     // to be self-contained, meaning that they have no external dependencies.
@@ -1447,7 +1452,7 @@ bool runPreSplitProcessingPipeline(Module &M) {
   // to keep the optimizer from wrongfully removing them. llvm.compiler.used
   // symbols are usually removed at backend lowering, but this is handled here
   // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
-  if (M.getTargetTriple().find("spir") != std::string::npos)
+  if (M.getTargetTriple().str().find("spir") != std::string::npos)
     MPM.addPass(RemoveDeviceGlobalFromLLVMCompilerUsed());
 
   // Sanitizer specific passes.

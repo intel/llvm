@@ -207,6 +207,9 @@ public:
   /// \return true if kernel was created from source.
   bool isCreatedFromSource() const;
 
+  bool isInteropOrSourceBased() const noexcept;
+  bool hasSYCLMetadata() const noexcept;
+
   const DeviceImageImplPtr &getDeviceImage() const { return MDeviceImageImpl; }
 
   ur_native_handle_t getNative() const {
@@ -234,6 +237,7 @@ public:
 
   const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
   std::mutex *getCacheMutex() const { return MCacheMutex; }
+  std::string_view getName() const;
 
 private:
   ur_kernel_handle_t MKernel = nullptr;
@@ -246,6 +250,7 @@ private:
   std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
   std::mutex *MCacheMutex = nullptr;
+  mutable std::string MName;
 
   bool isBuiltInKernel(const device &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
@@ -260,6 +265,8 @@ private:
   size_t queryMaxNumWorkGroups(queue Queue,
                                const range<Dimensions> &WorkGroupSize,
                                size_t DynamicLocalMemorySize) const;
+
+  void enableUSMIndirectAccess() const;
 };
 
 template <int Dimensions>

@@ -9,6 +9,9 @@
 //
 // REQUIRES: aspect-usm_host_allocations
 
+// UNSUPPORTED: level_zero_v2_adapter
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17847
+
 #include <level_zero/ze_api.h>
 #include <sycl/backend.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
@@ -21,6 +24,14 @@ namespace exp_ext = sycl::ext::oneapi::experimental;
 using namespace sycl;
 
 int main() {
+  // Initialize Level Zero driver is required if this test is linked
+  // statically with Level Zero loader, the driver will not be init otherwise.
+  ze_result_t result = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+  if (result != ZE_RESULT_SUCCESS) {
+    std::cout << "zeInit failed\n";
+    return 1;
+  }
+
   queue Queue{{sycl::property::queue::in_order{}}};
 
   const size_t Size = 128;

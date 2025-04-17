@@ -223,22 +223,6 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
         if (Queue->isInOrderQueue() && InOrderBarrierBySignal &&
             !Queue->isProfilingEnabled()) {
           if (EventWaitList.Length) {
-            if (CmdList->second.IsInOrderList) {
-              for (unsigned i = EventWaitList.Length; i-- > 0;) {
-                // If the event is a multidevice event, then given driver in
-                // order lists, we cannot include this into the wait event list
-                // due to driver limitations.
-                if (EventWaitList.UrEventList[i]->IsMultiDevice) {
-                  EventWaitList.Length--;
-                  if (EventWaitList.Length != i) {
-                    std::swap(EventWaitList.UrEventList[i],
-                              EventWaitList.UrEventList[EventWaitList.Length]);
-                    std::swap(EventWaitList.ZeEventList[i],
-                              EventWaitList.ZeEventList[EventWaitList.Length]);
-                  }
-                }
-              }
-            }
             ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                        (CmdList->first, EventWaitList.Length,
                         EventWaitList.ZeEventList));
@@ -318,6 +302,9 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
     // need to keep track of any active barriers if we have in-order queue.
     if (UseMultipleCmdlistBarriers && !Queue->isInOrderQueue()) {
       auto UREvent = reinterpret_cast<ur_event_handle_t>(ResultEvent);
+      // We must release the Active Barrier before we start the next one
+      // otherwise we will leak an event that won't be released.
+      UR_CALL(Queue->ActiveBarriers.clear());
       Queue->ActiveBarriers.add(UREvent);
     }
 
@@ -905,12 +892,21 @@ ur_result_t
 urEventRelease(/** [in] handle of the event object */ ur_event_handle_t Event) {
   Event->RefCountExternal--;
   bool isEventsWaitCompleted =
-      Event->CommandType == UR_COMMAND_EVENTS_WAIT && Event->Completed;
+      (Event->CommandType == UR_COMMAND_EVENTS_WAIT ||
+       Event->CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER) &&
+      Event->Completed;
   UR_CALL(urEventReleaseInternal(Event));
   // If this is a Completed Event Wait Out Event, then we need to cleanup the
   // event at user release and not at the time of completion.
+  // If the event is labelled as completed and no additional references are
+  // removed, then we still need to decrement the event, but not mark as
+  // completed.
   if (isEventsWaitCompleted) {
-    UR_CALL(CleanupCompletedEvent((Event), false, false));
+    if (Event->CleanedUp) {
+      UR_CALL(urEventReleaseInternal(Event));
+    } else {
+      UR_CALL(CleanupCompletedEvent((Event), false, false));
+    }
   }
 
   return UR_RESULT_SUCCESS;
@@ -1002,7 +998,6 @@ ur_result_t urEventCreateWithNativeHandle(
   UREvent->CleanedUp = true;
 
   *Event = reinterpret_cast<ur_event_handle_t>(UREvent);
-  UREvent->IsInteropNativeHandle = true;
 
   return UR_RESULT_SUCCESS;
 }
@@ -1091,7 +1086,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
  * leaks or resource mismanagement.
  */
 ur_event_handle_t_::~ur_event_handle_t_() {
-  if (this->ZeEvent && this->Completed) {
+  if (this->ZeEvent && this->Completed && checkL0LoaderTeardown()) {
     if (this->UrQueue && !this->UrQueue->isDiscardEvents())
       ZE_CALL_NOCHECK(zeEventDestroy, (this->ZeEvent));
   }
@@ -1122,12 +1117,15 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
   if (Event->OwnNativeHandle) {
     if (DisableEventsCaching) {
-      if (!Event->IsInteropNativeHandle ||
-          (Event->IsInteropNativeHandle && checkL0LoaderTeardown())) {
+      if (checkL0LoaderTeardown()) {
         auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
         // Gracefully handle the case that L0 was already unloaded.
-        if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        if (ZeResult && (ZeResult != ZE_RESULT_ERROR_UNINITIALIZED &&
+                         ZeResult != ZE_RESULT_ERROR_UNKNOWN))
           return ze2urResult(ZeResult);
+        if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+          ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+        }
       }
       Event->ZeEvent = nullptr;
       auto Context = Event->Context;
@@ -1506,8 +1504,9 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
   // the native driver implementation will already ensure in-order semantics.
   // The only exception is when a different immediate command was last used on
   // the same UR Queue.
-  if (CurQueue->Device->useDriverInOrderLists() && CurQueue->isInOrderQueue() &&
-      CurQueue->UsingImmCmdLists) {
+  if (CurQueue->Device->Platform->allowDriverInOrderLists(
+          true /*Only Allow Driver In Order List if requested*/) &&
+      CurQueue->isInOrderQueue() && CurQueue->UsingImmCmdLists) {
     auto QueueGroup = CurQueue->getQueueGroup(UseCopyEngine);
     uint32_t QueueGroupOrdinal, QueueIndex;
     auto NextIndex = QueueGroup.getQueueIndex(&QueueGroupOrdinal, &QueueIndex,
@@ -1536,7 +1535,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
     // For in-order queue and wait-list which is empty or has events only from
     // the same queue then we don't need to wait on any other additional events
-    if (CurQueue->Device->useDriverInOrderLists() &&
+    if (CurQueue->Device->Platform->allowDriverInOrderLists(
+            true /*Only Allow Driver In Order List if requested*/) &&
         CurQueue->isInOrderQueue() &&
         WaitListEmptyOrAllEventsFromSameQueue(CurQueue, EventListLength,
                                               EventList)) {

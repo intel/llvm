@@ -53,13 +53,9 @@ struct ur_program_handle_t_ {
         KernelMaxWorkGroupSizeMD{}, KernelMaxLinearWorkGroupSizeMD{},
         KernelReqdSubGroupSizeMD{} {
     urContextRetain(Context);
-    urDeviceRetain(Device);
   }
 
-  ~ur_program_handle_t_() {
-    urContextRelease(Context);
-    urDeviceRelease(Device);
-  }
+  ~ur_program_handle_t_() { urContextRelease(Context); }
 
   ur_result_t setMetadata(const ur_program_metadata_t *Metadata, size_t Length);
 

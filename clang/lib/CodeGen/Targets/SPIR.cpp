@@ -51,7 +51,7 @@ ABIArgInfo CommonSPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
     }
     // Pass all aggregate types allowed by Sema by value.
     if (isAggregateTypeForABI(Ty))
-      return getNaturalAlignIndirect(Ty);
+      return getNaturalAlignIndirect(Ty, getDataLayout().getAllocaAddrSpace());
   }
 
   return DefaultABIInfo::classifyArgumentType(Ty);
@@ -194,11 +194,12 @@ public:
         getABIInfo().getDataLayout().getAllocaAddrSpace());
   }
 
+  bool shouldEmitStaticExternCAliases() const override;
   unsigned getOpenCLKernelCallingConv() const override;
   llvm::Type *getOpenCLType(CodeGenModule &CGM, const Type *T) const override;
-
-  bool shouldEmitStaticExternCAliases() const override;
-  llvm::Type *getHLSLType(CodeGenModule &CGM, const Type *Ty) const override;
+  llvm::Type *
+  getHLSLType(CodeGenModule &CGM, const Type *Ty,
+              const SmallVector<int32_t> *Packoffsets = nullptr) const override;
   llvm::Type *getSPIRVImageTypeFromHLSLResource(
       const HLSLAttributedResourceType::Attributes &attributes,
       llvm::Type *ElementType, llvm::LLVMContext &Ctx) const;
@@ -302,8 +303,10 @@ ABIArgInfo SPIRVABIInfo::classifyKernelArgumentType(QualType Ty) const {
       // copied to be valid on the device.
       // This behavior follows the CUDA spec
       // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#global-function-argument-processing,
-      // and matches the NVPTX implementation.
-      return getNaturalAlignIndirect(Ty, /* byval */ true);
+      // and matches the NVPTX implementation. TODO: hardcoding to 0 should be
+      // revisited if HIPSPV / byval starts making use of the AS of an indirect
+      // arg.
+      return getNaturalAlignIndirect(Ty, /*AddrSpace=*/0, /*byval=*/true);
     }
   }
   return classifyArgumentType(Ty);
@@ -318,7 +321,8 @@ ABIArgInfo SPIRVABIInfo::classifyArgumentType(QualType Ty) const {
   // Records with non-trivial destructors/copy-constructors should not be
   // passed by value.
   if (auto RAA = getRecordArgABI(Ty, getCXXABI()))
-    return getNaturalAlignIndirect(Ty, RAA == CGCXXABI::RAA_DirectInMemory);
+    return getNaturalAlignIndirect(Ty, getDataLayout().getAllocaAddrSpace(),
+                                   RAA == CGCXXABI::RAA_DirectInMemory);
 
   if (const RecordType *RT = Ty->getAs<RecordType>()) {
     const RecordDecl *RD = RT->getDecl();
@@ -522,8 +526,9 @@ llvm::Type *CommonSPIRTargetCodeGenInfo::getOpenCLType(CodeGenModule &CGM,
   return nullptr;
 }
 
-llvm::Type *CommonSPIRTargetCodeGenInfo::getHLSLType(CodeGenModule &CGM,
-                                                     const Type *Ty) const {
+llvm::Type *CommonSPIRTargetCodeGenInfo::getHLSLType(
+    CodeGenModule &CGM, const Type *Ty,
+    const SmallVector<int32_t> *Packoffsets) const {
   auto *ResType = dyn_cast<HLSLAttributedResourceType>(Ty);
   if (!ResType)
     return nullptr;

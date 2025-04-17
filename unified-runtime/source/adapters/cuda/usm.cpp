@@ -242,8 +242,8 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
 
       // cuda backend has only one platform containing all devices
       ur_platform_handle_t platform;
-      ur_adapter_handle_t AdapterHandle = &adapter;
-      Result = urPlatformGet(&AdapterHandle, 1, 1, &platform, nullptr);
+      ur_adapter_handle_t AdapterHandle = ur::cuda::adapter;
+      Result = urPlatformGet(AdapterHandle, 1, &platform, nullptr);
 
       // get the device from the platform
       ur_device_handle_t Device = platform->Devices[DeviceIndex].get();
@@ -269,18 +269,14 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   return Result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
-                                                   void *HostPtr, size_t Size) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t, void *,
+                                                   size_t Size) {
   UR_ASSERT(Size > 0, UR_RESULT_ERROR_INVALID_VALUE);
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
-                                                    void *HostPtr) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t,
+                                                    void *) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -301,7 +297,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       break;
     }
     default: {
-      throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     }
     pNext = BaseDesc->pNext;
@@ -347,27 +343,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
     /// [out] pointer to USM memory pool
     ur_usm_pool_handle_t *Pool) {
   // Without pool tracking we can't free pool allocations.
-#ifdef UMF_ENABLE_POOL_TRACKING
   if (PoolDesc->flags & UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
   try {
     *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, PoolDesc));
-  } catch (const UsmAllocationException &Ex) {
-    return Ex.getError();
+  } catch (ur_result_t e) {
+    return e;
   } catch (umf_result_t e) {
     return umf::umf2urResult(e);
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
   return UR_RESULT_SUCCESS;
-#else
-  std::ignore = Context;
-  std::ignore = PoolDesc;
-  std::ignore = Pool;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRetain(
@@ -419,7 +408,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
     : Context{Context}, Device{Device} {
   if (!(PoolDesc->flags & UR_USM_POOL_FLAG_USE_NATIVE_MEMORY_POOL_EXP))
-    throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+    throw UR_RESULT_ERROR_INVALID_ARGUMENT;
 
   CUmemPoolProps MemPoolProps{};
   size_t threshold = 0;
@@ -440,14 +429,12 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                    // only reserved when it's needed for the
                                    // first time (cuMemAllocFromPoolAsync).
 #else
-      // Only error if the user set a value >0 for the maximum size.
+      // Only warn if the user set a value >0 for the maximum size.
       // Otherwise, do nothing.
-      if (Limits->maxPoolableSize > 0) {
-        setErrorMessage(
-            "The memory pool maximum size feature requires CUDA 12.2 or later.",
-            UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-        throw UsmAllocationException(UR_RESULT_ERROR_ADAPTER_SPECIFIC);
-      }
+      // Set maximum size is effectively ignored.
+      if (Limits->maxPoolableSize > 0)
+        logger::warning("The memory pool maximum size feature requires CUDA "
+                        "12.2 or later.\n");
 #endif
       maxSize = Limits->maxPoolableSize;
       size_t chunkSize = 33554432; // 32MB
@@ -460,7 +447,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       break;
     }
     default: {
-      throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
+      throw UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     }
     pNext = BaseDesc->pNext;
@@ -496,8 +483,8 @@ urUSMPoolCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   try {
     *pPool = reinterpret_cast<ur_usm_pool_handle_t>(
         new ur_usm_pool_handle_t_(Context, Device, pPoolDesc));
-  } catch (const UsmAllocationException &Ex) {
-    return Ex.getError();
+  } catch (ur_result_t e) {
+    return e;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
