@@ -234,31 +234,39 @@ public:
   using FastKernelSubcacheT =
       ::boost::unordered_flat_map<ur_device_handle_t, FastKernelCacheValT>;
 
-      class FastKernelCacheWrapper {
-        public:
-          FastKernelCacheWrapper(void **PtrPtr) : MHintPtr{PtrPtr} {
-            if (!MHintPtr)
-              return;
-            assert(*MHintPtr == nullptr);
-            *MHintPtr = &MCache;
-          }
-          FastKernelCacheWrapper(const FastKernelCacheWrapper &) = delete;
-          FastKernelCacheWrapper(FastKernelCacheWrapper &&Other) : MHintPtr{Other.MHintPtr}, MCache{std::move(Other.MCache)} {Other.MHintPtr = nullptr;}
-          FastKernelCacheWrapper &operator=(const FastKernelCacheWrapper &) = delete;
-          FastKernelCacheWrapper &operator=(FastKernelCacheWrapper &&Other) { MHintPtr = Other.MHintPtr; Other.MHintPtr = nullptr; MCache = std::move(Other.MCache); return *this; };
-          ~FastKernelCacheWrapper() {
-            if (!MHintPtr)
-              return;
-            assert(*MHintPtr == &MCache);
-            *MHintPtr = nullptr;
-          }
-      
-          FastKernelSubcacheT &get() { return MCache; }
-      
-        private:
-          void **MHintPtr;
-          FastKernelSubcacheT MCache;
-        };
+  class FastKernelCacheWrapper {
+  public:
+    FastKernelCacheWrapper(void **PtrPtr) : MHintPtr{PtrPtr} {
+      if (!MHintPtr)
+        return;
+      assert(*MHintPtr == nullptr);
+      *MHintPtr = &MCache;
+    }
+    FastKernelCacheWrapper(const FastKernelCacheWrapper &) = delete;
+    FastKernelCacheWrapper(FastKernelCacheWrapper &&Other)
+        : MHintPtr{Other.MHintPtr}, MCache{std::move(Other.MCache)} {
+      Other.MHintPtr = nullptr;
+    }
+    FastKernelCacheWrapper &operator=(const FastKernelCacheWrapper &) = delete;
+    FastKernelCacheWrapper &operator=(FastKernelCacheWrapper &&Other) {
+      MHintPtr = Other.MHintPtr;
+      Other.MHintPtr = nullptr;
+      MCache = std::move(Other.MCache);
+      return *this;
+    };
+    ~FastKernelCacheWrapper() {
+      if (!MHintPtr)
+        return;
+      assert(*MHintPtr == &MCache);
+      *MHintPtr = nullptr;
+    }
+
+    FastKernelSubcacheT &get() { return MCache; }
+
+  private:
+    void **MHintPtr;
+    FastKernelSubcacheT MCache;
+  };
 
   using FastKernelCacheT =
       ::boost::unordered_flat_map<KernelNameStrT, FastKernelCacheWrapper>;
