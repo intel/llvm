@@ -1,7 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
-// RUN: %{build} %device_asan_flags -DGPU -o %t_gpu.out
 // RUN: %{build} %device_asan_flags -o %t.out
-// RUN: %{run} not --crash %if gpu %{ %t_gpu.out %} %else %{ %t.out %} 2>&1 | FileCheck %s
+// RUN: %{run} not --crash %{ %t.out %} 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 
