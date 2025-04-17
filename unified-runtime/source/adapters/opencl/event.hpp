@@ -56,6 +56,7 @@ struct ur_event_handle_t_ {
                                           nullptr));
       UR_RETURN_ON_FAILURE(ur_queue_handle_t_::makeWithNative(
           native_queue, Context, nullptr, Queue));
+      urQueueRetain(Queue);
     }
 
     return UR_RESULT_SUCCESS;
