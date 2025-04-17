@@ -1538,12 +1538,6 @@ ur_result_t getZeCommandQueue(ur_queue_handle_t Queue, bool UseCopyEngine,
  */
 ur_result_t
 waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
-  // Calling function has taken a lock for the command-buffer so we can safely
-  // check and modify this value here.
-  // If command-buffer was recently synchronized we can return early.
-  if (!CommandBuffer->NeedsSynchronization) {
-    return UR_RESULT_SUCCESS;
-  }
 
   if (ur_event_handle_t &CurrentSubmissionEvent =
           CommandBuffer->CurrentSubmissionEvent) {
@@ -1553,8 +1547,6 @@ waitForOngoingExecution(ur_exp_command_buffer_handle_t CommandBuffer) {
     CurrentSubmissionEvent = nullptr;
   }
 
-  // Mark that command-buffer was recently synchronized
-  CommandBuffer->NeedsSynchronization = false;
   return UR_RESULT_SUCCESS;
 }
 
@@ -1858,8 +1850,6 @@ ur_result_t urEnqueueCommandBufferExp(
                                  EventWaitList, OutEvent, ZeCommandListHelper,
                                  DoProfiling));
   }
-  // Mark that synchronization will be required for later updates
-  CommandBuffer->NeedsSynchronization = true;
 
   return UR_RESULT_SUCCESS;
 }
