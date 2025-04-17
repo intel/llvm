@@ -236,7 +236,7 @@ public:
 
   class FastKernelCacheWrapper {
   public:
-    FastKernelCacheWrapper(void **PtrPtr) : MHintPtr{PtrPtr} {
+    FastKernelCacheWrapper(void **HintPtr) : MHintPtr{HintPtr} {
       if (!MHintPtr)
         return;
       assert(*MHintPtr == nullptr);
