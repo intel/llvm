@@ -485,8 +485,7 @@ public:
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
     traceKernel("Kernel inserted.", KernelName, true);
-    auto It =
-        MFastKernelCache.try_emplace(KernelName, KernelCacheHint);
+    auto It = MFastKernelCache.try_emplace(KernelName, KernelCacheHint);
     FastKernelSubcacheT &KernelSubcache = It.first->second.get();
     KernelSubcache.emplace(Device, std::move(CacheVal));
   }

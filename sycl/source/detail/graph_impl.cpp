@@ -797,8 +797,8 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
                                       CGExec->MLine, CGExec->MColumn);
   auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
       StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
-      CGExec->MKernelName.data(), CGExec->MKernelCacheHint,
-      nullptr, CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
+      CGExec->MKernelName.data(), CGExec->MKernelCacheHint, nullptr,
+      CGExec->MNDRDesc, CGExec->MKernelBundle, CGExec->MArgs);
   if (CmdTraceEvent)
     sycl::detail::emitInstrumentationGeneral(
         StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
@@ -1121,8 +1121,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           auto OutEvent = CreateNewEvent();
           sycl::detail::enqueueImpKernel(
               Queue, CG->MNDRDesc, CG->MArgs, CG->MKernelBundle,
-              CG->MSyclKernel, CG->MKernelName,
-              CG->MKernelCacheHint, RawEvents, OutEvent,
+              CG->MSyclKernel, CG->MKernelName, CG->MKernelCacheHint, RawEvents,
+              OutEvent,
               // TODO: Pass accessor mem allocations
               nullptr,
               // TODO: Extract from handler
