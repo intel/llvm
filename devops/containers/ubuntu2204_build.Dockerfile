@@ -30,7 +30,7 @@ RUN apt update && apt install -yqq rocm-dev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 
-COPY unified-runtime/third_party/requirements.txt /tmp/requirements.txt
+COPY llvm/unified-runtime/third_party/requirements.txt /tmp/requirements.txt
 RUN apt update && apt install -y python3-venv && \
     python3 -m venv /opt/unified-runtime/.venv && \
     /opt/unified-runtime/.venv/bin/pip install --upgrade pip && \
