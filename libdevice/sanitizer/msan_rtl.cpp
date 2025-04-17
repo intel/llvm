@@ -14,7 +14,7 @@
 
 DeviceGlobal<void *> __MsanLaunchInfo;
 #define GetMsanLaunchInfo                                                      \
-  ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
+  ((__SYCL_GLOBAL__ MsanRuntimeData *)__MsanLaunchInfo.get())
 
 namespace {
 
@@ -164,14 +164,11 @@ inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
   }
 
   if (as != ADDRESS_SPACE_GLOBAL || !(addr & DG2_DEVICE_USM_MASK))
-    return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-        ->CleanShadow;
+    return (uptr)GetMsanLaunchInfo->CleanShadow;
 
   // Device USM only
-  auto shadow_begin = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-                          ->GlobalShadowOffset;
-  auto shadow_end = ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
-                        ->GlobalShadowOffsetEnd;
+  auto shadow_begin = GetMsanLaunchInfo->GlobalShadowOffset;
+  auto shadow_end = GetMsanLaunchInfo->GlobalShadowOffsetEnd;
   if (addr < shadow_begin) {
     return addr + (shadow_begin - DG2_DEVICE_USM_BEGIN);
   } else {
