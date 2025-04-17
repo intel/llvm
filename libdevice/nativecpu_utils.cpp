@@ -323,12 +323,6 @@ DefineShuffleVec2to16(int32_t, i32, int32_t);
 DefineShuffleVec2to16(uint32_t, i32, int32_t);
 DefineShuffleVec2to16(float, f32, float);
 
-#define Define2ArgForward(Type, Name, Callee)                                  \
-  DEVICE_EXTERNAL Type Name(Type a, Type b) noexcept { return Callee(a, b); }  \
-  static_assert(true)
-
-Define2ArgForward(uint64_t, __spirv_ocl_u_min, std::min);
-
 #define GET_PROPS __attribute__((pure))
 #define GEN_u32(bname, muxname)                                                \
   DEVICE_EXTERN_C GET_PROPS uint32_t muxname();                                \
@@ -338,8 +332,6 @@ Define2ArgForward(uint64_t, __spirv_ocl_u_min, std::min);
 GEN_u32(__spirv_SubgroupLocalInvocationId, __mux_get_sub_group_local_id);
 GEN_u32(__spirv_SubgroupMaxSize, __mux_get_max_sub_group_size);
 GEN_u32(__spirv_SubgroupId, __mux_get_sub_group_id);
-GEN_u32(__spirv_NumSubgroups, __mux_get_num_sub_groups);
-GEN_u32(__spirv_SubgroupSize, __mux_get_sub_group_size);
 
 // I64_I32
 #define GEN_p(bname, muxname, arg)                                             \
@@ -352,8 +344,6 @@ GEN_u32(__spirv_SubgroupSize, __mux_get_sub_group_size);
   GEN_p(bname##_y, ncpu_name, 1);                                              \
   GEN_p(bname##_z, ncpu_name, 2)
 
-GEN_xyz(__spirv_GlobalInvocationId, __mux_get_global_id);
-GEN_xyz(__spirv_GlobalSize, __mux_get_global_size);
 GEN_xyz(__spirv_GlobalOffset, __mux_get_global_offset);
 GEN_xyz(__spirv_LocalInvocationId, __mux_get_local_id);
 GEN_xyz(__spirv_NumWorkgroups, __mux_get_num_groups);

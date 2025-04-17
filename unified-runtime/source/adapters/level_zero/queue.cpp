@@ -916,24 +916,14 @@ ur_result_t urQueueFlush(
 }
 
 ur_result_t urEnqueueKernelLaunchCustomExp(
-    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    const size_t *pLocalWorkSize, uint32_t numPropsInLaunchPropList,
-    const ur_exp_launch_property_t *launchPropList,
-    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hKernel;
-  std::ignore = workDim;
-  std::ignore = pGlobalWorkOffset;
-  std::ignore = pGlobalWorkSize;
-  std::ignore = pLocalWorkSize;
-  std::ignore = numPropsInLaunchPropList;
-  std::ignore = launchPropList;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
+    ur_queue_handle_t /*hQueue*/, ur_kernel_handle_t /*hKernel*/,
+    uint32_t /*workDim*/, const size_t * /*pGlobalWorkOffset*/,
+    const size_t * /*pGlobalWorkSize*/, const size_t * /*pLocalWorkSize*/,
+    uint32_t /*numPropsInLaunchPropList*/,
+    const ur_exp_launch_property_t * /*launchPropList*/,
+    uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
   logger::error("[UR][L0] {} function not implemented!",
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -2374,10 +2364,11 @@ ur_queue_handle_t_::insertActiveBarriers(ur_command_list_ptr_t &CmdList,
   Event->WaitList = ActiveBarriersWaitList;
   Event->OwnNativeHandle = true;
 
-  // If there are more active barriers, insert a barrier on the command-list. We
-  // do not need an event for finishing so we pass nullptr.
+  // If there are more active barriers, insert a barrier on the command-list.
+  // We need to signal the current active barrier event otherwise we will leak
+  // the Event object when we replace the active barrier.
   ZE2UR_CALL(zeCommandListAppendBarrier,
-             (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
+             (CmdList->first, Event->ZeEvent, ActiveBarriersWaitList.Length,
               ActiveBarriersWaitList.ZeEventList));
   return UR_RESULT_SUCCESS;
 }

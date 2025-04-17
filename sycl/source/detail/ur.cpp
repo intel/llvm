@@ -79,7 +79,9 @@ ur_code_location_t codeLocationCallback(void *);
 
 void urLoggerCallback([[maybe_unused]] ur_logger_level_t level, const char *msg,
                       [[maybe_unused]] void *userData) {
-  std::cerr << msg << std::endl;
+  if (level == UR_LOGGER_LEVEL_WARN) {
+    std::cerr << msg << std::endl;
+  }
 }
 
 namespace ur {
