@@ -33,6 +33,9 @@ RUN apt update && apt install -yqq rocm-dev && \
 COPY scripts/create-sycl-user.sh /user-setup.sh
 RUN /user-setup.sh
 
+# Install venv for UR pip requirements
+RUN apt update && apt install -y python3-venv
+
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
 USER sycl

@@ -20,6 +20,9 @@ RUN --mount=type=secret,id=github_token \
     install_driver_opt="dependencies.json dependencies-igc-dev.json --use-dev-igc"; \
     GITHUB_TOKEN=$(cat /run/secrets/github_token) /install_drivers.sh $install_driver_opt --all
 
+# Install venv for UR pip requirements
+RUN apt update && apt install -y python3-venv
+
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 
 USER sycl
