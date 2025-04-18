@@ -336,7 +336,8 @@ Builtin BuiltinInfo::analyzeBuiltin(const Function &F) const {
     int32_t Properties = eBuiltinPropertyNone;
 
     const Intrinsic::ID IntrID = (Intrinsic::ID)F.getIntrinsicID();
-    const AttributeList AS = Intrinsic::getAttributes(F.getContext(), IntrID);
+    const AttributeList AS = multi_llvm::Intrinsic::getAttributes(
+        F.getContext(), IntrID, F.getFunctionType());
     const bool NoSideEffect = F.onlyReadsMemory();
     bool SafeIntrinsic = false;
     switch (IntrID) {
