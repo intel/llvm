@@ -46,28 +46,21 @@ ur_usm_handle_t::ur_usm_handle_t(ur_context_handle_t hContext, size_t size,
       ptr(const_cast<void *>(ptr)) {}
 
 void *ur_usm_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::ignore = hDevice;
-  std::ignore = access;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = migrate;
+    ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
+    size_t /*offset*/, size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
   return ptr;
 }
 
 void *
-ur_usm_handle_t::mapHostPtr(ur_map_flags_t flags, size_t offset, size_t size,
+ur_usm_handle_t::mapHostPtr(ur_map_flags_t /*flags*/, size_t /*offset*/,
+                            size_t /*size*/,
                             std::function<void(void *src, void *dst, size_t)>) {
-  std::ignore = flags;
-  std::ignore = offset;
-  std::ignore = size;
   return ptr;
 }
 
 void ur_usm_handle_t::unmapHostPtr(
-    void *pMappedPtr, std::function<void(void *src, void *dst, size_t)>) {
-  std::ignore = pMappedPtr;
+    void * /*pMappedPtr*/, std::function<void(void *src, void *dst, size_t)>) {
   /* nop */
 }
 
@@ -118,29 +111,20 @@ ur_integrated_buffer_handle_t::ur_integrated_buffer_handle_t(
 }
 
 void *ur_integrated_buffer_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::ignore = hDevice;
-  std::ignore = access;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = migrate;
+    ur_device_handle_t /*hDevice*/, device_access_mode_t /*access*/,
+    size_t /*offset*/, size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
   return ptr.get();
 }
 
 void *ur_integrated_buffer_handle_t::mapHostPtr(
-    ur_map_flags_t flags, size_t offset, size_t size,
-    std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::ignore = flags;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = migrate;
+    ur_map_flags_t /*flags*/, size_t /*offset*/, size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
   return ptr.get();
 }
 
 void ur_integrated_buffer_handle_t::unmapHostPtr(
-    void *pMappedPtr, std::function<void(void *src, void *dst, size_t)>) {
-  std::ignore = pMappedPtr;
+    void * /*pMappedPtr*/, std::function<void(void *src, void *dst, size_t)>) {
   /* nop */
 }
 
@@ -260,13 +244,11 @@ void *ur_discrete_buffer_handle_t::getActiveDeviceAlloc(size_t offset) {
 }
 
 void *ur_discrete_buffer_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, device_access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
+    ur_device_handle_t hDevice, device_access_mode_t /*access*/, size_t offset,
+    size_t /*size*/,
+    std::function<void(void *src, void *dst, size_t)> /*migrate*/) {
   TRACK_SCOPE_LATENCY("ur_discrete_buffer_handle_t::getDevicePtr");
 
-  std::ignore = access;
-  std::ignore = size;
-  std::ignore = migrate;
   if (!activeAllocationDevice) {
     if (!hDevice) {
       hDevice = hContext->getDevices()[0];
@@ -470,7 +452,7 @@ ur_mem_image_t::ur_mem_image_t(ur_context_handle_t hContext,
   UR_CALL_THROWS(ur2zeImageDesc(pImageFormat, pImageDesc, zeImageDesc));
 }
 
-static void verifyImageRegion(ze_image_desc_t &zeImageDesc,
+static void verifyImageRegion([[maybe_unused]] ze_image_desc_t &zeImageDesc,
                               ze_image_region_t &zeRegion, size_t rowPitch,
                               size_t slicePitch) {
 #ifndef NDEBUG
@@ -483,8 +465,6 @@ static void verifyImageRegion(ze_image_desc_t &zeImageDesc,
         (zeImageDesc.format.layout == ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8 &&
          rowPitch == 4 * zeRegion.width)))
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
-#else
-  std::ignore = zeImageDesc;
 #endif
   if (!(slicePitch == 0 || slicePitch == rowPitch * zeRegion.height))
     throw UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
@@ -741,16 +721,11 @@ ur_result_t urMemImageCreateWithNativeHandle(
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t propName,
-                              size_t propSize, void *pPropValue,
-                              size_t *pPropSizeRet) {
+ur_result_t urMemImageGetInfo(ur_mem_handle_t /*hMemory*/,
+                              ur_image_info_t /*propName*/, size_t /*propSize*/,
+                              void * /*pPropValue*/,
+                              size_t * /*pPropSizeRet*/) {
   logger::error("{} function not implemented!", __FUNCTION__);
-
-  std::ignore = hMemory;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

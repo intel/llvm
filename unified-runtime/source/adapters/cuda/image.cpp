@@ -259,15 +259,13 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
+    const ur_usm_desc_t * /*pUSMDesc*/, ur_usm_pool_handle_t /*pool*/,
     size_t widthInBytes, size_t height, size_t elementSizeBytes, void **ppMem,
     size_t *pResultPitch) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
-  std::ignore = pUSMDesc;
-  std::ignore = pool;
 
   UR_ASSERT((height > 0), UR_RESULT_ERROR_INVALID_VALUE);
   UR_ASSERT((elementSizeBytes > 0), UR_RESULT_ERROR_INVALID_VALUE);

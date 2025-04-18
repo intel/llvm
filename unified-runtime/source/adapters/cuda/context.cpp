@@ -45,9 +45,8 @@ ur_context_handle_t_::getOwningURPool(umf_memory_pool_t *UMFPool) {
 ///
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
-                const ur_context_properties_t *pProperties,
+                const ur_context_properties_t * /*pProperties*/,
                 ur_context_handle_t *phContext) {
-  std::ignore = pProperties;
 
   std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {

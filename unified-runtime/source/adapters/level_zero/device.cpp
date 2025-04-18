@@ -1448,7 +1448,7 @@ ur_result_t urDevicePartition(
 
 ur_result_t urDeviceSelectBinary(
     /// [in] handle of the device to select binary for.
-    ur_device_handle_t Device,
+    ur_device_handle_t /*Device*/,
     /// [in] the array of binaries to select from.
     const ur_device_binary_t *Binaries,
     /// [in] the number of binaries passed in ppBinaries. Must greater than or
@@ -1458,7 +1458,6 @@ ur_result_t urDeviceSelectBinary(
     /// binaries. If a suitable binary was not found the function returns
     /// ${X}_INVALID_BINARY.
     uint32_t *SelectedBinary) {
-  std::ignore = Device;
   // TODO: this is a bare-bones implementation for choosing a device image
   // that would be compatible with the targeted device. An AOT-compiled
   // image is preferred over SPIR-V for known devices (i.e. Intel devices)

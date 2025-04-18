@@ -16,15 +16,10 @@
 #include <cstdint>
 #include <memory>
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
-                      size_t length, const ur_program_properties_t *pProperties,
-                      ur_program_handle_t *phProgram) {
-  std::ignore = hContext;
-  std::ignore = pIL;
-  std::ignore = length;
-  std::ignore = pProperties;
-  std::ignore = phProgram;
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
+    ur_context_handle_t /*hContext*/, const void * /*pIL*/, size_t /*length*/,
+    const ur_program_properties_t * /*pProperties*/,
+    ur_program_handle_t * /*phProgram*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
@@ -55,16 +50,14 @@ deserializeWGMetadata(const ur_program_metadata_t &MetadataElement,
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, uint32_t numDevices,
-    ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
-    const ur_program_properties_t *pProperties,
+    ur_device_handle_t *phDevices, size_t * /*pLengths*/,
+    const uint8_t **ppBinaries, const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
   if (numDevices > 1)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
   auto hDevice = phDevices[0];
   auto pBinary = ppBinaries[0];
-  std::ignore = pLengths;
-  std::ignore = pProperties;
 
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -118,22 +111,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinaryExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
-                                                   ur_program_handle_t hProgram,
-                                                   const char *pOptions) {
-  std::ignore = hContext;
-  std::ignore = hProgram;
-  std::ignore = pOptions;
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramBuild(ur_context_handle_t /*hContext*/,
+               ur_program_handle_t /*hProgram*/, const char * /*pOptions*/) {
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
-                 const char *pOptions) {
-  std::ignore = hContext;
-  std::ignore = hProgram;
-  std::ignore = pOptions;
+urProgramCompile(ur_context_handle_t /*hContext*/,
+                 ur_program_handle_t /*hProgram*/, const char * /*pOptions*/) {
 
   // Currently for Native CPU the program is offline compiled, so
   // urProgramCompile is a no-op.
@@ -141,16 +128,12 @@ urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramLink(ur_context_handle_t hContext, uint32_t count,
-              const ur_program_handle_t *phPrograms, const char *pOptions,
-              ur_program_handle_t *phProgram) {
+urProgramLink(ur_context_handle_t /*hContext*/, uint32_t /*count*/,
+              const ur_program_handle_t * /*phPrograms*/,
+              const char * /*pOptions*/, ur_program_handle_t *phProgram) {
   if (nullptr != phProgram) {
     *phProgram = nullptr;
   }
-  std::ignore = hContext;
-  std::ignore = count;
-  std::ignore = phPrograms;
-  std::ignore = pOptions;
 
   // Currently for Native CPU the program is already linked and all its
   // symbols are resolved, so this is a no-op.
@@ -199,24 +182,16 @@ urProgramRelease(ur_program_handle_t hProgram) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
-    ur_device_handle_t hDevice, ur_program_handle_t hProgram,
-    const char *pFunctionName, void **ppFunctionPointer) {
-  std::ignore = hDevice;
-  std::ignore = hProgram;
-  std::ignore = pFunctionName;
-  std::ignore = ppFunctionPointer;
+    ur_device_handle_t /*hDevice*/, ur_program_handle_t /*hProgram*/,
+    const char * /*pFunctionName*/, void ** /*ppFunctionPointer*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
-    ur_device_handle_t, ur_program_handle_t hProgram,
-    const char *pGlobalVariableName, size_t *pGlobalVariableSizeRet,
-    void **ppGlobalVariablePointerRet) {
-  std::ignore = hProgram;
-  std::ignore = pGlobalVariableName;
-  std::ignore = pGlobalVariableSizeRet;
-  std::ignore = ppGlobalVariablePointerRet;
+    ur_device_handle_t, ur_program_handle_t /*hProgram*/,
+    const char * /*pGlobalVariableName*/, size_t * /*pGlobalVariableSizeRet*/,
+    void ** /*ppGlobalVariablePointerRet*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
@@ -253,46 +228,32 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
-                      ur_program_build_info_t propName, size_t propSize,
-                      void *pPropValue, size_t *pPropSizeRet) {
-  std::ignore = hProgram;
-  std::ignore = hDevice;
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
+UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
+    ur_program_handle_t /*hProgram*/, ur_device_handle_t /*hDevice*/,
+    ur_program_build_info_t /*propName*/, size_t /*propSize*/,
+    void * /*pPropValue*/, size_t * /*pPropSizeRet*/) {
 
   CONTINUE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
-    ur_program_handle_t hProgram, uint32_t count,
-    const ur_specialization_constant_info_t *pSpecConstants) {
-  std::ignore = hProgram;
-  std::ignore = count;
-  std::ignore = pSpecConstants;
+    ur_program_handle_t /*hProgram*/, uint32_t /*count*/,
+    const ur_specialization_constant_info_t * /*pSpecConstants*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
-    ur_program_handle_t hProgram, ur_native_handle_t *phNativeProgram) {
-  std::ignore = hProgram;
-  std::ignore = phNativeProgram;
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramGetNativeHandle(ur_program_handle_t /*hProgram*/,
+                         ur_native_handle_t * /*phNativeProgram*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
-    ur_native_handle_t hNativeProgram, ur_context_handle_t hContext,
-    const ur_program_native_properties_t *pProperties,
-    ur_program_handle_t *phProgram) {
-  std::ignore = hNativeProgram;
-  std::ignore = hContext;
-  std::ignore = pProperties;
-  std::ignore = phProgram;
+    ur_native_handle_t /*hNativeProgram*/, ur_context_handle_t /*hContext*/,
+    const ur_program_native_properties_t * /*pProperties*/,
+    ur_program_handle_t * /*phProgram*/) {
 
   DIE_NO_IMPLEMENTATION;
 }

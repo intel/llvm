@@ -87,13 +87,9 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
-    ur_platform_handle_t hPlatform, const char *pFrontendOption,
+    ur_platform_handle_t /*hPlatform*/, const char *pFrontendOption,
     const char **ppPlatformOption) {
-  std::ignore = hPlatform;
-  std::ignore = pFrontendOption;
-  std::ignore = ppPlatformOption;
 
-  std::ignore = hPlatform;
   using namespace std::literals;
   if (pFrontendOption == nullptr)
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
@@ -112,10 +108,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   DIE_NO_IMPLEMENTATION;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
-    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
-  std::ignore = hPlatform;
-  std::ignore = phNativePlatform;
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetNativeHandle(ur_platform_handle_t /*hPlatform*/,
+                          ur_native_handle_t * /*phNativePlatform*/) {
 
   DIE_NO_IMPLEMENTATION;
 }

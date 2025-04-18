@@ -127,10 +127,9 @@ urPlatformGetApiVersion(ur_platform_handle_t, ur_api_version_t *pVersion) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
-    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
-  std::ignore = hPlatform;
-  std::ignore = phNativePlatform;
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetNativeHandle(ur_platform_handle_t /*hPlatform*/,
+                          ur_native_handle_t * /*phNativePlatform*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

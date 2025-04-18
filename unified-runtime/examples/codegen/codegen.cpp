@@ -69,7 +69,7 @@ get_platforms(std::vector<ur_adapter_handle_t> &adapters) {
     uint32_t adapterPlatformCount = 0;
     urPlatformGet(adapter, 0, nullptr, &adapterPlatformCount);
 
-    platforms.reserve(platformCount + adapterPlatformCount);
+    platforms.resize(platformCount + adapterPlatformCount);
     urPlatformGet(adapter, adapterPlatformCount, &platforms[platformCount],
                   &adapterPlatformCount);
     platformCount += adapterPlatformCount;
@@ -77,7 +77,6 @@ get_platforms(std::vector<ur_adapter_handle_t> &adapters) {
   if (!platformCount) {
     throw std::runtime_error("No platforms available.");
   }
-  platforms.resize(platformCount);
 
   return platforms;
 }

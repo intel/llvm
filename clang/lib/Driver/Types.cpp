@@ -301,19 +301,6 @@ bool types::isHIP(ID Id) {
   }
 }
 
-bool types::isFPGA(ID Id) {
-  switch (Id) {
-  default:
-    return false;
-
-  case TY_FPGA_AOCR:
-  case TY_FPGA_AOCX:
-  case TY_FPGA_AOCO:
-  case TY_FPGA_AOCR_EMU:
-    return true;
-  }
-}
-
 bool types::isArchive(ID Id) {
   switch (Id) {
   default:
@@ -399,8 +386,6 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
       .Case("cppm", TY_CXXModule)
       .Case("cxxm", TY_CXXModule)
       .Case("hlsl", TY_HLSL)
-      .Case("aocr", TY_FPGA_AOCR)
-      .Case("aocx", TY_FPGA_AOCX)
       .Default(TY_INVALID);
 }
 

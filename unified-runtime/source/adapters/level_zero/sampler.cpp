@@ -146,20 +146,15 @@ ur_result_t urSamplerRelease(
 
 ur_result_t urSamplerGetInfo(
     /// [in] handle of the sampler object
-    ur_sampler_handle_t Sampler,
+    ur_sampler_handle_t /*Sampler*/,
     /// [in] name of the sampler property to query
-    ur_sampler_info_t PropName,
+    ur_sampler_info_t /*PropName*/,
     /// [in] size in bytes of the sampler property value provided
-    size_t PropValueSize,
+    size_t /*PropValueSize*/,
     /// [out] value of the sampler property
-    void *PropValue,
+    void * /*PropValue*/,
     /// [out] size in bytes returned in sampler property value
-    size_t *PropSizeRet) {
-  std::ignore = Sampler;
-  std::ignore = PropName;
-  std::ignore = PropValueSize;
-  std::ignore = PropValue;
-  std::ignore = PropSizeRet;
+    size_t * /*PropSizeRet*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -167,11 +162,9 @@ ur_result_t urSamplerGetInfo(
 
 ur_result_t urSamplerGetNativeHandle(
     /// [in] handle of the sampler.
-    ur_sampler_handle_t Sampler,
+    ur_sampler_handle_t /*Sampler*/,
     /// [out] a pointer to the native handle of the sampler.
-    ur_native_handle_t *NativeSampler) {
-  std::ignore = Sampler;
-  std::ignore = NativeSampler;
+    ur_native_handle_t * /*NativeSampler*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -179,17 +172,13 @@ ur_result_t urSamplerGetNativeHandle(
 
 ur_result_t urSamplerCreateWithNativeHandle(
     /// [in] the native handle of the sampler.
-    ur_native_handle_t NativeSampler,
+    ur_native_handle_t /*NativeSampler*/,
     /// [in] handle of the context object
-    ur_context_handle_t Context,
+    ur_context_handle_t /*Context*/,
     /// [in][optional] pointer to native sampler properties struct.
-    const ur_sampler_native_properties_t *Properties,
+    const ur_sampler_native_properties_t * /*Properties*/,
     /// [out] pointer to the handle of the sampler object created.
-    ur_sampler_handle_t *Sampler) {
-  std::ignore = NativeSampler;
-  std::ignore = Context;
-  std::ignore = Properties;
-  std::ignore = Sampler;
+    ur_sampler_handle_t * /*Sampler*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

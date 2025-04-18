@@ -1331,9 +1331,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
-    ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
+    ur_usm_migration_flags_t /*flags*/, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = flags;
 
   void *HIPDevicePtr = const_cast<void *>(pMem);
   ur_device_handle_t Device = hQueue->getDevice();

@@ -1003,17 +1003,13 @@ ur_result_t urEventCreateWithNativeHandle(
 
 ur_result_t urEventSetCallback(
     /// [in] handle of the event object
-    ur_event_handle_t Event,
+    ur_event_handle_t /*Event*/,
     /// [in] execution status of the event
-    ur_execution_info_t ExecStatus,
+    ur_execution_info_t /*ExecStatus*/,
     /// [in] execution status of the event
-    ur_event_callback_t Notify,
+    ur_event_callback_t /*Notify*/,
     /// [in][out][optional] pointer to data to be passed to callback.
-    void *UserData) {
-  std::ignore = Event;
-  std::ignore = ExecStatus;
-  std::ignore = Notify;
-  std::ignore = UserData;
+    void * /*UserData*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

@@ -119,19 +119,21 @@ template <typename T> inline std::string toHex(T t) {
 ///                            to be printed immediately as they occur
 ///             - output: stderr
 inline Logger create_logger(std::string logger_name, bool skip_prefix,
-                            bool skip_linebreak, ur_logger_level_t level) {
+                            bool skip_linebreak,
+                            ur_logger_level_t default_log_level) {
   std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
                  ::toupper);
   const std::string env_var_name = "UR_LOG_" + logger_name;
   const auto default_flush_level = UR_LOGGER_LEVEL_ERROR;
   const std::string default_output = "stderr";
   auto flush_level = default_flush_level;
+  ur_logger_level_t level = default_log_level;
   std::unique_ptr<logger::Sink> sink;
 
   try {
     auto map = getenv_to_map(env_var_name.c_str());
     if (!map.has_value()) {
-      return Logger(level,
+      return Logger(default_log_level,
                     std::make_unique<logger::StderrSink>(
                         std::move(logger_name), skip_prefix, skip_linebreak));
     }
@@ -160,7 +162,7 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
     if (!map->empty()) {
       std::cerr << "Wrong logger environment variable parameter: '"
                 << map->begin()->first << "'. Default logger options are set.";
-      return Logger(level,
+      return Logger(default_log_level,
                     std::make_unique<logger::StderrSink>(
                         std::move(logger_name), skip_prefix, skip_linebreak));
     }
@@ -173,7 +175,7 @@ inline Logger create_logger(std::string logger_name, bool skip_prefix,
     std::cerr << "Error when creating a logger instance from the '"
               << env_var_name << "' environment variable:\n"
               << e.what() << std::endl;
-    return Logger(level,
+    return Logger(default_log_level,
                   std::make_unique<logger::StderrSink>(
                       std::move(logger_name), skip_prefix, skip_linebreak));
   }

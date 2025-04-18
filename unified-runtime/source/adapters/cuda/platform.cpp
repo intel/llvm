@@ -189,16 +189,14 @@ urPlatformGet(ur_adapter_handle_t, uint32_t, ur_platform_handle_t *phPlatforms,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
-    ur_platform_handle_t hDriver, ur_api_version_t *pVersion) {
-  std::ignore = hDriver;
+    ur_platform_handle_t /*hDriver*/, ur_api_version_t *pVersion) {
   *pVersion = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
-    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
-  std::ignore = hPlatform;
-  std::ignore = phNativePlatform;
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetNativeHandle(ur_platform_handle_t /*hPlatform*/,
+                          ur_native_handle_t * /*phNativePlatform*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -214,9 +212,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 // Return empty string for cuda.
 // TODO: Determine correct string to be passed.
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
-    ur_platform_handle_t hPlatform, const char *pFrontendOption,
+    ur_platform_handle_t /*hPlatform*/, const char *pFrontendOption,
     const char **ppPlatformOption) {
-  std::ignore = hPlatform;
   using namespace std::literals;
   if (pFrontendOption == nullptr)
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;

@@ -1198,7 +1198,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
 /// \return PI_SUCCESS if the function is executed successfully
 /// CUDA devices are always root devices so retain always returns success.
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urDeviceRetain(ur_device_handle_t /*hDevice*/) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -1210,7 +1211,8 @@ urDevicePartition(ur_device_handle_t, const ur_device_partition_properties_t *,
 
 /// \return UR_RESULT_SUCCESS always since CUDA devices are always root
 /// devices.
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceRelease(ur_device_handle_t) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urDeviceRelease(ur_device_handle_t /*hDevice*/) {
   return UR_RESULT_SUCCESS;
 }
 
@@ -1337,9 +1339,8 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
 /// \return If available, the first binary that is PTX
 ///
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
-    ur_device_handle_t hDevice, const ur_device_binary_t *pBinaries,
+    ur_device_handle_t /*hDevice*/, const ur_device_binary_t *pBinaries,
     uint32_t NumBinaries, uint32_t *pSelectedBinary) {
-  std::ignore = hDevice;
 
   // Look for an image for the NVPTX64 target, and return the first one that is
   // found

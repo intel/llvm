@@ -251,6 +251,13 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                 uint32_t NumEntries,
                                 ur_device_handle_t *phDevices,
                                 uint32_t *pNumDevices) {
+  constexpr std::pair<const ur_platform_backend_t, const char *> adapters[6] = {
+      {UR_PLATFORM_BACKEND_UNKNOWN, "*"},
+      {UR_PLATFORM_BACKEND_LEVEL_ZERO, "level_zero"},
+      {UR_PLATFORM_BACKEND_OPENCL, "opencl"},
+      {UR_PLATFORM_BACKEND_CUDA, "cuda"},
+      {UR_PLATFORM_BACKEND_HIP, "hip"},
+      {UR_PLATFORM_BACKEND_NATIVE_CPU, "native_cpu"}};
 
   if (!hPlatform) {
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
@@ -323,7 +330,9 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
   // (If we wished to preserve the ordering of terms, we could replace
   // `std::map` with `std::queue<std::pair<key_type_t, value_type_t>>` or
   // something similar.)
-  auto maybeEnvVarMap = getenv_to_map("ONEAPI_DEVICE_SELECTOR", false);
+  auto maybeEnvVarMap =
+      getenv_to_map("ONEAPI_DEVICE_SELECTOR", /* reject_empty= */ false,
+                    /* allow_duplicate= */ false, /* lower= */ true);
   logger::debug(
       "getenv_to_map parsed env var and {} a map",
       (maybeEnvVarMap.has_value() ? "produced" : "failed to produce"));
@@ -380,35 +389,6 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                         sizeof(ur_platform_backend_t), &platformBackend, 0)) {
     return UR_RESULT_ERROR_INVALID_PLATFORM;
   }
-  const std::string platformBackendName = // hPlatform->get_backend_name();
-      [&platformBackend]() constexpr {
-        switch (platformBackend) {
-        case UR_PLATFORM_BACKEND_UNKNOWN:
-          return "*"; // the only ODS string that matches
-          break;
-        case UR_PLATFORM_BACKEND_LEVEL_ZERO:
-          return "level_zero";
-          break;
-        case UR_PLATFORM_BACKEND_OPENCL:
-          return "opencl";
-          break;
-        case UR_PLATFORM_BACKEND_CUDA:
-          return "cuda";
-          break;
-        case UR_PLATFORM_BACKEND_HIP:
-          return "hip";
-          break;
-        case UR_PLATFORM_BACKEND_NATIVE_CPU:
-          return "*"; // the only ODS string that matches
-          break;
-        case UR_PLATFORM_BACKEND_FORCE_UINT32:
-          return ""; // no ODS string matches this
-          break;
-        default:
-          return ""; // no ODS string matches this
-          break;
-        }
-      }();
 
   using DeviceHardwareType = ur_device_type_t;
 
@@ -454,6 +434,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
   std::vector<DeviceSpec> acceptDeviceList;
   std::vector<DeviceSpec> discardDeviceList;
 
+  bool deviceIdsInUse = false;
   for (auto &termPair : mapODS) {
     std::string backend = termPair.first;
     // TODO: Figure out how to process all ODS errors rather than returning
@@ -482,18 +463,18 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     // Note the hPlatform -> platformBackend -> platformBackendName conversion
     // above guarantees minimal sanity for the comparison with backend from the
     // ODS string
-    if (backend.front() != '*' &&
-        !std::equal(platformBackendName.cbegin(), platformBackendName.cend(),
-                    backend.cbegin(), backend.cend(),
-                    [](const auto &a, const auto &b) {
-                      // case-insensitive comparison by converting both tolower
-                      return std::tolower(static_cast<unsigned char>(a)) ==
-                             std::tolower(static_cast<unsigned char>(b));
-                    })) {
-      // irrelevant term for current request: different backend -- silently
-      // ignore
-      logger::error("unrecognised backend '{}'", backend);
-      return UR_RESULT_ERROR_INVALID_VALUE;
+    if (backend.front() != '*') {
+      auto cend = &adapters[sizeof(adapters) / sizeof(adapters[0])];
+      auto found = std::find_if(adapters, cend,
+                                [&](auto &p) { return p.second == backend; });
+      if (found == cend) {
+        // It's not a legal backend
+        logger::error("unrecognised backend '{}'", backend);
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      } else if (found->first != platformBackend) {
+        // If it's a rule for a different backend, ignore it
+        continue;
+      }
     }
     if (termPair.second.size() == 0) {
       // malformed term: missing filterStrings -- output ERROR
@@ -578,6 +559,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
         deviceList.push_back(DeviceSpec{DevicePartLevel::ROOT, hardwareType,
                                         firstDeviceId, 0, 0, nullptr});
       }
+
+      if (deviceList.back().rootId != DeviceIdTypeALL) {
+        deviceIdsInUse = true;
+      }
     }
   }
 
@@ -621,7 +606,41 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
       return UR_RESULT_ERROR_DEVICE_NOT_FOUND;
     }
 
-    DeviceIdType deviceCount = 0;
+    uint32_t startIdCount = 0;
+    if (deviceIdsInUse) {
+      ur_adapter_handle_t adapter;
+      if (UR_RESULT_SUCCESS !=
+          urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_ADAPTER,
+                            sizeof(adapter), &adapter, nullptr)) {
+        return UR_RESULT_ERROR_INVALID_PLATFORM;
+      }
+
+      uint32_t numPlatforms;
+      if (UR_RESULT_SUCCESS !=
+          urPlatformGet(adapter, 0, nullptr, &numPlatforms)) {
+        return UR_RESULT_ERROR_INVALID_PLATFORM;
+      }
+      std::vector<ur_platform_handle_t> platforms;
+      platforms.resize(numPlatforms);
+      if (UR_RESULT_SUCCESS !=
+          urPlatformGet(adapter, numPlatforms, platforms.data(), nullptr)) {
+        return UR_RESULT_ERROR_INVALID_PLATFORM;
+      }
+
+      for (auto p : platforms) {
+        if (p == hPlatform) {
+          break;
+        }
+        uint32_t deviceCount;
+        if (UR_RESULT_SUCCESS !=
+            urDeviceGet(p, UR_DEVICE_TYPE_ALL, 0, nullptr, &deviceCount)) {
+          return UR_RESULT_ERROR_INVALID_PLATFORM;
+        }
+        startIdCount += deviceCount;
+      }
+    }
+
+    DeviceIdType deviceCount = startIdCount;
     std::transform(rootDeviceHandles.cbegin(), rootDeviceHandles.cend(),
                    std::back_inserter(rootDevices),
                    [&](ur_device_handle_t urDeviceHandle) {

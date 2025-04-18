@@ -56,7 +56,7 @@ int main(int, char *[]) {
       goto out;
     }
 
-    platforms.reserve(platformCount + adapterPlatformCount);
+    platforms.resize(platformCount + adapterPlatformCount);
     status = urPlatformGet(adapter, adapterPlatformCount,
                            &platforms[platformCount], &adapterPlatformCount);
     if (status != UR_RESULT_SUCCESS) {
@@ -66,7 +66,6 @@ int main(int, char *[]) {
     }
     platformCount += adapterPlatformCount;
   }
-  platforms.resize(platformCount);
 
   for (auto p : platforms) {
     ur_api_version_t api_version = {};

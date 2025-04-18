@@ -107,7 +107,7 @@ if(SYCL_BUILD_BACKEND_CUDA)
   endif()
 
   target_include_directories(cuda_trace_collector
-    PRIVATE
+    SYSTEM PRIVATE
     ${CUDAToolkit_CUPTI_INCLUDE_DIR}
   )
 

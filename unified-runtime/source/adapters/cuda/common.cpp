@@ -166,3 +166,13 @@ void setPluginSpecificMessage(CUresult cu_res) {
   setErrorMessage(message, UR_RESULT_ERROR_ADAPTER_SPECIFIC);
   free(message);
 }
+
+namespace umf {
+ur_result_t getProviderNativeError(const char *providerName, int32_t error) {
+  if (strcmp(providerName, "CUDA") == 0) {
+    return mapErrorUR(static_cast<CUresult>(error));
+  }
+
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace umf

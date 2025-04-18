@@ -111,10 +111,9 @@ ur_result_t urPlatformGetInfo(
 
 ur_result_t urPlatformGetApiVersion(
     /// [in] handle of the platform
-    ur_platform_handle_t Driver,
+    ur_platform_handle_t /*Driver*/,
     /// [out] api version
     ur_api_version_t *Version) {
-  std::ignore = Driver;
   *Version = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
@@ -133,10 +132,9 @@ ur_result_t urPlatformCreateWithNativeHandle(
     /// [in] the native handle of the platform.
     ur_native_handle_t NativePlatform, ur_adapter_handle_t,
     /// [in][optional] pointer to native platform properties struct.
-    const ur_platform_native_properties_t *Properties,
+    const ur_platform_native_properties_t * /*Properties*/,
     /// [out] pointer to the handle of the platform object created.
     ur_platform_handle_t *Platform) {
-  std::ignore = Properties;
   auto ZeDriver = ur_cast<ze_driver_handle_t>(NativePlatform);
 
   uint32_t NumPlatforms = 0;
@@ -173,13 +171,12 @@ ur_result_t urPlatformCreateWithNativeHandle(
 // frontend_option=-ftarget-compile-fast.
 ur_result_t urPlatformGetBackendOption(
     /// [in] handle of the platform instance.
-    ur_platform_handle_t Platform,
+    ur_platform_handle_t /*Platform*/,
     /// [in] string containing the frontend option.
     const char *FrontendOption,
     /// [out] returns the correct platform specific compiler option based on
     /// the frontend option.
     const char **PlatformOption) {
-  std::ignore = Platform;
   using namespace std::literals;
   if (FrontendOption == nullptr) {
     return UR_RESULT_SUCCESS;

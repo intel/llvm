@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -DUNSAFE -O0 -g -o %t1.out
-// RUN: env UR_LAYER_ASAN_OPTIONS=redzone:64 %{run} not %t1.out 2>&1 | FileCheck %s
+// RUN: env UR_LAYER_ASAN_OPTIONS=redzone:4000 %{run} not %t1.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -DSAFE -O0 -g -o %t2.out
 
 // clang-format off
@@ -21,10 +21,11 @@ int main() {
      h.single_task<class Test>([=]() { ++array[0]; });
 #endif
    }).wait();
+  // CHECK: <SANITIZER>[WARNING]: Increasing the redzone size may cause excessive memory overhead
   // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
   // CHECK: {{READ of size 1 at kernel <.*Test> LID\(0, 0, 0\) GID\(0, 0, 0\)}}
-  // CHECK: {{  #0 .* .*options-redzone.cpp:}}[[@LINE-7]]
-  // CHECK-MIN: The valid range of "redzone" is [16, 2048]. Setting to the minimum value 16.
+  // CHECK: {{  #0 .* .*options-redzone.cpp:}}[[@LINE-8]]
+  // CHECK-MIN: The valid range of "redzone" is [16, 18446744073709551615]. Setting to the minimum value 16.
 
   sycl::free(array, q);
   return 0;

@@ -380,8 +380,6 @@ static ur_result_t enqueueMemImageCommandHelper(
 
     // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
     // Check that SYCL RT did not want pitch larger than default.
-    std::ignore = RowPitch;
-    std::ignore = SlicePitch;
     UR_ASSERT(SrcMem->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
 #ifndef NDEBUG
@@ -1279,7 +1277,7 @@ ur_result_t urEnqueueUSMPrefetch(
     /// [in] size in bytes to be fetched
     size_t Size,
     /// [in] USM prefetch flags
-    ur_usm_migration_flags_t Flags,
+    ur_usm_migration_flags_t /*Flags*/,
     /// [in] size of the event wait list
     uint32_t NumEventsInWaitList,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -1290,7 +1288,6 @@ ur_result_t urEnqueueUSMPrefetch(
     /// [in,out][optional] return an event object that identifies this
     /// particular command instance.
     ur_event_handle_t *OutEvent) {
-  std::ignore = Flags;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -1408,39 +1405,29 @@ ur_result_t urEnqueueUSMAdvise(
 
 ur_result_t urEnqueueUSMFill2D(
     /// [in] handle of the queue to submit to.
-    ur_queue_handle_t Queue,
+    ur_queue_handle_t /*Queue*/,
     /// [in] pointer to memory to be filled.
-    void *Mem,
+    void * /*Mem*/,
     /// [in] the total width of the destination memory including padding.
-    size_t Pitch,
+    size_t /*Pitch*/,
     /// [in] the size in bytes of the pattern.
-    size_t PatternSize,
+    size_t /*PatternSize*/,
     /// [in] pointer with the bytes of the pattern to set.
-    const void *Pattern,
+    const void * /*Pattern*/,
     /// [in] the width in bytes of each row to fill.
-    size_t Width,
+    size_t /*Width*/,
     /// [in] the height of the columns to fill.
-    size_t Height,
+    size_t /*Height*/,
     /// [in] size of the event wait list
-    uint32_t NumEventsInWaitList,
+    uint32_t /*NumEventsInWaitList*/,
     /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     /// events that must be complete before the kernel execution. If
     /// nullptr, the numEventsInWaitList must be 0, indicating that no wait
     /// event.
-    const ur_event_handle_t *EventWaitList,
+    const ur_event_handle_t * /*EventWaitList*/,
     /// [in,out][optional] return an event object that identifies this
     /// particular kernel execution instance.
-    ur_event_handle_t *OutEvent) {
-  std::ignore = Queue;
-  std::ignore = Mem;
-  std::ignore = Pitch;
-  std::ignore = PatternSize;
-  std::ignore = Pattern;
-  std::ignore = Width;
-  std::ignore = Height;
-  std::ignore = NumEventsInWaitList;
-  std::ignore = EventWaitList;
-  std::ignore = OutEvent;
+    ur_event_handle_t * /*OutEvent*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1691,12 +1678,11 @@ ur_result_t urMemBufferPartition(
     /// [in] allocation and usage information flags
     ur_mem_flags_t Flags,
     /// [in] buffer creation type
-    ur_buffer_create_type_t BufferCreateType,
+    ur_buffer_create_type_t /*BufferCreateType*/,
     /// [in] pointer to buffer create region information
     const ur_buffer_region_t *BufferCreateInfo,
     /// [out] pointer to the handle of sub buffer created
     ur_mem_handle_t *RetMem) {
-  std::ignore = BufferCreateType;
   UR_ASSERT(Buffer && !Buffer->isImage() &&
                 !(static_cast<_ur_buffer *>(Buffer))->isSubBuffer(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -1872,24 +1858,19 @@ ur_result_t urMemGetInfo(
 
 ur_result_t urMemImageGetInfo(
     /// [in] handle to the image object being queried.
-    ur_mem_handle_t Memory,
+    ur_mem_handle_t /*Memory*/,
     /// [in] type of image info to retrieve.
-    ur_image_info_t ImgInfoType,
+    ur_image_info_t /*ImgInfoType*/,
     /// [in] the number of bytes of memory pointer to by pImgInfo.
-    size_t PropSize,
+    size_t /*PropSize*/,
     /// [out][optional] array of bytes holding the info. If propSize is less
     /// than the real number of bytes needed to return the info then the
     /// ::UR_RESULT_ERROR_INVALID_SIZE error is returned and pImgInfo is not
     /// used.
-    void *ImgInfo,
+    void * /*ImgInfo*/,
     /// [out][optional] pointer to the actual size in bytes of data queried by
     /// pImgInfo.
-    size_t *PropSizeRet) {
-  std::ignore = Memory;
-  std::ignore = ImgInfoType;
-  std::ignore = PropSize;
-  std::ignore = ImgInfo;
-  std::ignore = PropSizeRet;
+    size_t * /*PropSizeRet*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1928,43 +1909,25 @@ ur_result_t urEnqueueUSMFill(
 }
 
 /// Host Pipes
-ur_result_t urEnqueueReadHostPipe(ur_queue_handle_t hQueue,
-                                  ur_program_handle_t hProgram,
-                                  const char *pipe_symbol, bool blocking,
-                                  void *pDst, size_t size,
-                                  uint32_t numEventsInWaitList,
-                                  const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+ur_result_t urEnqueueReadHostPipe(ur_queue_handle_t /*hQueue*/,
+                                  ur_program_handle_t /*hProgram*/,
+                                  const char * /*pipe_symbol*/,
+                                  bool /*blocking*/, void * /*pDst*/,
+                                  size_t /*size*/,
+                                  uint32_t /*numEventsInWaitList*/,
+                                  const ur_event_handle_t * /*phEventWaitList*/,
+                                  ur_event_handle_t * /*phEvent*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
-                                   ur_program_handle_t hProgram,
-                                   const char *pipe_symbol, bool blocking,
-                                   void *pSrc, size_t size,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pSrc;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+ur_result_t urEnqueueWriteHostPipe(
+    ur_queue_handle_t /*hQueue*/, ur_program_handle_t /*hProgram*/,
+    const char * /*pipe_symbol*/, bool /*blocking*/, void * /*pSrc*/,
+    size_t /*size*/, uint32_t /*numEventsInWaitList*/,
+    const ur_event_handle_t * /*phEventWaitList*/,
+    ur_event_handle_t * /*phEvent*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

@@ -186,8 +186,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
                                // which is necessary before SubBuffer partition
   }
 
-  ReleaseGuard<ur_mem_handle_t> ReleaseGuard(hBuffer);
-
   std::unique_ptr<ur_mem_handle_t_> RetMemObj{nullptr};
   try {
     RetMemObj = std::unique_ptr<ur_mem_handle_t_>{
@@ -203,7 +201,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     return UR_RESULT_ERROR_UNKNOWN;
   }
 
-  ReleaseGuard.dismiss();
   *phMem = RetMemObj.release();
   return UR_RESULT_SUCCESS;
 }

@@ -283,12 +283,10 @@ ur_result_t ur_command_list_manager::appendUSMFill(
 }
 
 ur_result_t ur_command_list_manager::appendUSMPrefetch(
-    const void *pMem, size_t size, ur_usm_migration_flags_t flags,
+    const void *pMem, size_t size, ur_usm_migration_flags_t /*flags*/,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_command_list_manager::appendUSMPrefetch");
-
-  std::ignore = flags;
 
   auto zeSignalEvent = getSignalEvent(phEvent, UR_COMMAND_USM_PREFETCH);
 

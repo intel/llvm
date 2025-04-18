@@ -148,7 +148,6 @@ struct urL0EnqueueAllocMultiQueueMultiDeviceTest
     ASSERT_NE(hostAlloc, nullptr);
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queues[0], true, hostAlloc, ptr, size, 0,
                                       nullptr, nullptr));
-    std::ignore = pattern;
     for (size_t i = 0; i * sizeof(uint8_t) < size; i++) {
       ASSERT_EQ(*static_cast<uint8_t *>(hostAlloc), pattern);
     }

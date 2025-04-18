@@ -387,10 +387,9 @@ ur_result_t urUSMHostAlloc(
 
 ur_result_t urUSMFree(
     /// [in] handle of the context object
-    ur_context_handle_t hContext,
+    ur_context_handle_t /*hContext*/,
     /// [in] pointer to USM memory object
     void *pMem) try {
-  std::ignore = hContext;
   return umf::umf2urResult(umfFree(pMem));
 } catch (umf_result_t e) {
   return umf::umf2urResult(e);

@@ -654,10 +654,9 @@ ur_result_t urKernelSetArgValue(
     /// [in] size of argument type
     size_t ArgSize,
     /// [in][optional] argument properties
-    const ur_kernel_arg_value_properties_t *Properties,
+    const ur_kernel_arg_value_properties_t * /*Properties*/,
     /// [in] argument value represented as matching arg type.
     const void *PArgValue) {
-  std::ignore = Properties;
 
   UR_ASSERT(Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
@@ -706,8 +705,7 @@ ur_result_t urKernelSetArgLocal(
     /// [in] size of the local buffer to be allocated by the runtime
     size_t ArgSize,
     /// [in][optional] argument properties
-    const ur_kernel_arg_local_properties_t *Properties) {
-  std::ignore = Properties;
+    const ur_kernel_arg_local_properties_t * /*Properties*/) {
 
   UR_CALL(ur::level_zero::urKernelSetArgValue(Kernel, ArgIndex, ArgSize,
                                               nullptr, nullptr));
@@ -892,7 +890,7 @@ ur_result_t urKernelGetSubGroupInfo(
     /// [in] handle of the Kernel object
     ur_kernel_handle_t Kernel,
     /// [in] handle of the Device object
-    ur_device_handle_t Device,
+    ur_device_handle_t /*Device*/,
     /// [in] name of the SubGroup property to query
     ur_kernel_sub_group_info_t PropName,
     /// [in] size of the Kernel SubGroup property value
@@ -903,7 +901,6 @@ ur_result_t urKernelGetSubGroupInfo(
     /// [out][optional] pointer to the actual size in bytes of data being
     /// queried by propName.
     size_t *PropSizeRet) {
-  std::ignore = Device;
 
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
 
@@ -971,11 +968,10 @@ ur_result_t urKernelSetArgPointer(
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
     /// [in][optional] argument properties
-    const ur_kernel_arg_pointer_properties_t *Properties,
+    const ur_kernel_arg_pointer_properties_t * /*Properties*/,
     /// [in][optional] SVM pointer to memory location holding the argument
     /// value. If null then argument value is considered null.
     const void *ArgValue) {
-  std::ignore = Properties;
 
   // KernelSetArgValue is expecting a pointer to the argument
   UR_CALL(ur::level_zero::urKernelSetArgValue(
@@ -989,14 +985,12 @@ ur_result_t urKernelSetExecInfo(
     /// [in] name of the execution attribute
     ur_kernel_exec_info_t PropName,
     /// [in] size in byte the attribute value
-    size_t PropSize,
+    size_t /*PropSize*/,
     /// [in][optional] pointer to execution info properties
-    const ur_kernel_exec_info_properties_t *Properties,
+    const ur_kernel_exec_info_properties_t * /*Properties*/,
     /// [in][range(0, propSize)] pointer to memory location holding the property
     /// value.
     const void *PropValue) {
-  std::ignore = PropSize;
-  std::ignore = Properties;
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   for (auto &ZeKernel : Kernel->ZeKernels) {
@@ -1039,10 +1033,9 @@ ur_result_t urKernelSetArgSampler(
     /// [in] argument index in range [0, num args - 1]
     uint32_t ArgIndex,
     /// [in][optional] argument properties
-    const ur_kernel_arg_sampler_properties_t *Properties,
+    const ur_kernel_arg_sampler_properties_t * /*Properties*/,
     /// [in] handle of Sampler object.
     ur_sampler_handle_t ArgValue) {
-  std::ignore = Properties;
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
@@ -1062,7 +1055,6 @@ ur_result_t urKernelSetArgMemObj(
     const ur_kernel_arg_mem_obj_properties_t *Properties,
     /// [in][optional] handle of Memory object.
     ur_mem_handle_t ArgValue) {
-  std::ignore = Properties;
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   // The ArgValue may be a NULL pointer in which case a NULL value is used for
@@ -1168,15 +1160,12 @@ ur_result_t urKernelCreateWithNativeHandle(
 
 ur_result_t urKernelSetSpecializationConstants(
     /// [in] handle of the kernel object
-    ur_kernel_handle_t Kernel,
+    ur_kernel_handle_t /*Kernel*/,
     /// [in] the number of elements in the pSpecConstants array
-    uint32_t Count,
+    uint32_t /*Count*/,
     const ur_specialization_constant_info_t
         /// [in] array of specialization constant value descriptions
-        *SpecConstants) {
-  std::ignore = Kernel;
-  std::ignore = Count;
-  std::ignore = SpecConstants;
+        * /*SpecConstants*/) {
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

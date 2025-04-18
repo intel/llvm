@@ -79,44 +79,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
-    ur_event_handle_t hEvent, ur_native_handle_t *phNativeEvent) {
-  std::ignore = hEvent;
-  std::ignore = phNativeEvent;
+    ur_event_handle_t /*hEvent*/, ur_native_handle_t * /*phNativeEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
-    const ur_event_native_properties_t *pProperties,
-    ur_event_handle_t *phEvent) {
-  std::ignore = hNativeEvent;
-  std::ignore = hContext;
-  std::ignore = pProperties;
-  std::ignore = phEvent;
+    ur_native_handle_t /*hNativeEvent*/, ur_context_handle_t /*hContext*/,
+    const ur_event_native_properties_t * /*pProperties*/,
+    ur_event_handle_t * /*phEvent*/) {
+
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
+    ur_event_handle_t /*hEvent*/, ur_execution_info_t /*execStatus*/,
+    ur_event_callback_t /*pfnNotify*/, void * /*pUserData*/) {
 
   DIE_NO_IMPLEMENTATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urEventSetCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
-                   ur_event_callback_t pfnNotify, void *pUserData) {
-  std::ignore = hEvent;
-  std::ignore = execStatus;
-  std::ignore = pfnNotify;
-  std::ignore = pUserData;
-
-  DIE_NO_IMPLEMENTATION;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
-    ur_queue_handle_t hQueue, bool blocking, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = blocking;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+urEnqueueTimestampRecordingExp(ur_queue_handle_t /*hQueue*/, bool /*blocking*/,
+                               uint32_t /*numEventsInWaitList*/,
+                               const ur_event_handle_t * /*phEventWaitList*/,
+                               ur_event_handle_t * /*phEvent*/) {
 
   DIE_NO_IMPLEMENTATION;
 }

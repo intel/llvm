@@ -29,6 +29,34 @@ bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
   default:
     return false;
   }
+
+  ze_image_format_t ZeFormatDesc = {
+      ZeImageFormatLayout, ZeImageFormatType,
+      // TODO: are swizzles deducted from image_format->image_channel_order?
+      ZE_IMAGE_FORMAT_SWIZZLE_R, ZE_IMAGE_FORMAT_SWIZZLE_G,
+      ZE_IMAGE_FORMAT_SWIZZLE_B, ZE_IMAGE_FORMAT_SWIZZLE_A};
+
+  ze_image_type_t ZeImageType;
+  switch (ImageDesc->type) {
+  case UR_MEM_TYPE_IMAGE1D:
+    ZeImageType = ZE_IMAGE_TYPE_1D;
+    break;
+  case UR_MEM_TYPE_IMAGE2D:
+    ZeImageType = ZE_IMAGE_TYPE_2D;
+    break;
+  case UR_MEM_TYPE_IMAGE3D:
+    ZeImageType = ZE_IMAGE_TYPE_3D;
+    break;
+  case UR_MEM_TYPE_IMAGE1D_ARRAY:
+    ZeImageType = ZE_IMAGE_TYPE_1DARRAY;
+    break;
+  case UR_MEM_TYPE_IMAGE2D_ARRAY:
+    ZeImageType = ZE_IMAGE_TYPE_2DARRAY;
+    break;
+  default:
+    logger::error("ur2zeImageDescBindless: unsupported image type");
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 }
 
 } // namespace
@@ -36,11 +64,9 @@ bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
 namespace ur::level_zero {
 
 ur_result_t
-urBindlessImagesImageFreeExp(ur_context_handle_t hContext,
-                             ur_device_handle_t hDevice,
+urBindlessImagesImageFreeExp(ur_context_handle_t /*hContext*/,
+                             ur_device_handle_t /*hDevice*/,
                              ur_exp_image_mem_native_handle_t hImageMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
   UR_CALL(ur::level_zero::urMemRelease(
       reinterpret_cast<ur_mem_handle_t>(hImageMem)));
   return UR_RESULT_SUCCESS;
