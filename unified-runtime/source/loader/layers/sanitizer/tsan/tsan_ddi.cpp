@@ -140,8 +140,13 @@ ur_result_t urProgramBuild(
     const char *pOptions) {
   getContext()->logger.debug("==== urProgramBuild");
 
-  UR_CALL(
-      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions));
+  auto UrRes =
+      getContext()->urDdiTable.Program.pfnBuild(hContext, hProgram, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, hProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
 
   UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
 
@@ -163,9 +168,13 @@ ur_result_t urProgramLink(
     ur_program_handle_t *phProgram) {
   getContext()->logger.debug("==== urProgramLink");
 
-  UR_CALL(getContext()->urDdiTable.Program.pfnLink(hContext, count, phPrograms,
-                                                   pOptions, phProgram));
-
+  auto UrRes = getContext()->urDdiTable.Program.pfnLink(
+      hContext, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    auto Devices = GetDevices(hContext);
+    PrintUrBuildLogIfError(UrRes, *phProgram, Devices.data(), Devices.size());
+    return UrRes;
+  }
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
 
   return UR_RESULT_SUCCESS;
@@ -184,8 +193,12 @@ ur_result_t urProgramBuildExp(
     const char *pOptions) {
   getContext()->logger.debug("==== urProgramBuildExp");
 
-  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnBuildExp(hProgram, numDevices,
-                                                          phDevices, pOptions));
+  auto UrRes = getContext()->urDdiTable.ProgramExp.pfnBuildExp(
+      hProgram, numDevices, phDevices, pOptions);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, hProgram, phDevices, numDevices);
+    return UrRes;
+  }
   UR_CALL(getTsanInterceptor()->registerProgram(hProgram));
 
   return UR_RESULT_SUCCESS;
@@ -209,8 +222,12 @@ ur_result_t urProgramLinkExp(
     ur_program_handle_t *phProgram) {
   getContext()->logger.debug("==== urProgramLinkExp");
 
-  UR_CALL(getContext()->urDdiTable.ProgramExp.pfnLinkExp(
-      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram));
+  auto UrRes = getContext()->urDdiTable.ProgramExp.pfnLinkExp(
+      hContext, numDevices, phDevices, count, phPrograms, pOptions, phProgram);
+  if (UrRes != UR_RESULT_SUCCESS) {
+    PrintUrBuildLogIfError(UrRes, *phProgram, phDevices, numDevices);
+    return UrRes;
+  }
 
   UR_CALL(getTsanInterceptor()->registerProgram(*phProgram));
 
