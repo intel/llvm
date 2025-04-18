@@ -115,6 +115,10 @@ class ComputeBench(Suite):
         if options.ur is None:
             runtimes = [r for r in runtimes if r != RUNTIMES.UR]
 
+        # Filter out L0 if cuda backend
+        if options.ur_adapter == "cuda":
+            runtimes = [r for r in runtimes if r != RUNTIMES.LEVEL_ZERO]
+
         return runtimes
 
     def benchmarks(self) -> list[Benchmark]:
