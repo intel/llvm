@@ -65,8 +65,7 @@ NativeCPUTargetInfo::NativeCPUTargetInfo(const llvm::Triple &,
 }
 
 void NativeCPUTargetInfo::setAuxTarget(const TargetInfo *Aux) {
-  if (Aux) {
-    copyAuxTarget(Aux);
-    getTargetOpts() = Aux->getTargetOpts();
-  }
+  assert(Aux && "Cannot invoke setAuxTarget without a valid auxiliary target!");
+  copyAuxTarget(Aux);
+  getTargetOpts() = Aux->getTargetOpts();
 }
