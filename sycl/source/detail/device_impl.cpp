@@ -762,7 +762,7 @@ bool device_impl::compute_has_aspect(aspect Aspect) const {
         UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET |
         UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
 
-    return has(aspect::ext_oneapi_limited_graph) &&
+    return compute_has_aspect(aspect::ext_oneapi_limited_graph) &&
            (UpdateCapabilities & RequiredCapabilities) == RequiredCapabilities;
   }
   case aspect::ext_oneapi_limited_graph: {
