@@ -6,6 +6,7 @@
 from dataclasses import dataclass
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from utils.result import BenchmarkMetadata, BenchmarkTag, Result
 from options import options
@@ -68,7 +69,9 @@ class Benchmark(ABC):
             False
         ), f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
-    def run_bench(self, command, env_vars, ld_library=[], add_sycl=True):
+    def run_bench(
+        self, command, env_vars, ld_library=[], add_sycl=True, use_stdout=True
+    ):
         env_vars = env_vars.copy()
         if options.ur is not None:
             env_vars.update(
@@ -80,13 +83,18 @@ class Benchmark(ABC):
         ld_libraries = options.extra_ld_libraries.copy()
         ld_libraries.extend(ld_library)
 
-        return run(
+        result = run(
             command=command,
             env_vars=env_vars,
             add_sycl=add_sycl,
             cwd=options.benchmark_cwd,
             ld_library=ld_libraries,
-        ).stdout.decode()
+        )
+
+        if use_stdout:
+            return result.stdout.decode()
+        else:
+            return result.stderr.decode()
 
     def create_data_path(self, name, skip_data_dir=False):
         if skip_data_dir:
