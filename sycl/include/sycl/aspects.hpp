@@ -9,6 +9,7 @@
 
 #include <sycl/detail/defines.hpp>            // for __SYCL_TYPE
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <algorithm>
 
 namespace sycl {
 inline namespace _V1 {
@@ -25,6 +26,18 @@ enum class __SYCL_TYPE(aspect) aspect {
 #undef __SYCL_ASPECT_DEPRECATED_ALIAS
 #undef __SYCL_ASPECT_DEPRECATED
 #undef __SYCL_ASPECT
+
+namespace detail {
+constexpr int max_aspect_id = std::max({0
+#define __SYCL_ASPECT(ASPECT, ID) , ID
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) , ID
+// Alias isn't necessary as it will be handled by base entry.
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+#undef __SYCL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT
+});
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

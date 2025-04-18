@@ -354,7 +354,7 @@ ur_native_handle_t device_impl::getNative() const {
   return Handle;
 }
 
-bool device_impl::has(aspect Aspect) const {
+bool device_impl::compute_has_aspect(aspect Aspect) const {
   size_t return_size = 0;
 
   switch (Aspect) {
@@ -699,8 +699,8 @@ bool device_impl::has(aspect Aspect) const {
            (this->getBackend() == backend::ext_oneapi_cuda);
   }
   case aspect::ext_oneapi_tangle_group: {
-    // TODO: tangle_group is not currently supported for CUDA devices. Add when
-    //       implemented.
+    // TODO: tangle_group is not currently supported for CUDA devices. Add
+    // when implemented.
     return (this->getBackend() == backend::ext_oneapi_level_zero) ||
            (this->getBackend() == backend::opencl);
   }
@@ -830,6 +830,28 @@ bool device_impl::has(aspect Aspect) const {
   }
 
   return false; // This device aspect has not been implemented yet.
+}
+
+void device_impl::init_aspects() {
+  auto Name = get_info<info::device::name>();
+  MIsMock = (Name == "Mock device");
+  if (MIsMock)
+    return;
+
+#define __SYCL_ASPECT(ASPECT, ID) MAspects[ID] = compute_has_aspect(sycl::aspect::ASPECT);
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
+// Alias isn't necessary as it will be handled by base entry.
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+#undef __SYCL_ASPECT
+#undef __SYCL_ASPECT_DEPRECATED
+}
+
+bool device_impl::has(aspect Aspect) const {
+  if (!MIsMock)
+    return MAspects[(int)Aspect];
+
+  return compute_has_aspect(Aspect);
 }
 
 bool device_impl::useNativeAssert() const { return MUseNativeAssert; }

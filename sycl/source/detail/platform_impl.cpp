@@ -295,16 +295,23 @@ platform_impl::getDeviceImpl(ur_device_handle_t UrDevice) {
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
     ur_device_handle_t UrDevice,
     const std::shared_ptr<platform_impl> &PlatformImpl) {
-  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
-  // If we've already seen this device, return the impl
-  std::shared_ptr<device_impl> Result = getDeviceImplHelper(UrDevice);
-  if (Result)
-    return Result;
+  std::shared_ptr<device_impl> Result;
+  {
+    const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
+    // If we've already seen this device, return the impl
+    Result = getDeviceImplHelper(UrDevice);
+    if (Result)
+      return Result;
 
-  // Otherwise make the impl
-  Result = std::make_shared<device_impl>(UrDevice, PlatformImpl);
-  MDeviceCache.emplace_back(Result);
+    // Otherwise make the impl
+    Result = std::make_shared<device_impl>(UrDevice, PlatformImpl);
+    MDeviceCache.emplace_back(Result);
+  }
 
+  // Has to happen here and not in `device_impl`'s ctor because computing
+  // aspects needs an entry in `MDeviceCache` (questionably, but multiple APIs
+  // need to be fixed to avoid that) and this is when the entry is added.
+  Result->init_aspects();
   return Result;
 }
 

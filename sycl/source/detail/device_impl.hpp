@@ -298,10 +298,12 @@ public:
   /// Get device architecture
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
+  void init_aspects();
 private:
   explicit device_impl(ur_native_handle_t InteropDevice,
                        ur_device_handle_t Device, PlatformImplPtr Platform,
                        const AdapterPtr &Adapter);
+  bool compute_has_aspect(aspect Aspect) const;
 
   ur_device_handle_t MDevice = 0;
   ur_device_type_t MType;
@@ -313,6 +315,13 @@ private:
   mutable ext::oneapi::experimental::architecture MDeviceArch{};
   mutable std::once_flag MDeviceArchFlag;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
+
+  // Cache aspects during `DeviceImplPtr` creation (because that's what APIs in
+  // `device_info.hpp` accept and we need those to compute aspects). Also, mock
+  // implementations don't iplement all the aspects, so avoid such caching for
+  // the mock device.
+  std::array<bool, detail::max_aspect_id + 1> MAspects{false};
+  bool MIsMock = false;
 }; // class device_impl
 
 } // namespace detail
