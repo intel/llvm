@@ -7,9 +7,9 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
+#include <algorithm>
 #include <sycl/detail/defines.hpp>            // for __SYCL_TYPE
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <algorithm>
 
 namespace sycl {
 inline namespace _V1 {

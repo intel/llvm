@@ -299,6 +299,7 @@ public:
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
   void init_aspects();
+
 private:
   explicit device_impl(ur_native_handle_t InteropDevice,
                        ur_device_handle_t Device, PlatformImplPtr Platform,

@@ -838,7 +838,8 @@ void device_impl::init_aspects() {
   if (MIsMock)
     return;
 
-#define __SYCL_ASPECT(ASPECT, ID) MAspects[ID] = compute_has_aspect(sycl::aspect::ASPECT);
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  MAspects[ID] = compute_has_aspect(sycl::aspect::ASPECT);
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
 // Alias isn't necessary as it will be handled by base entry.
 #include <sycl/info/aspects.def>
