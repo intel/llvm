@@ -209,6 +209,7 @@ using EnvVarMap = std::map<std::string, std::vector<std::string>>;
 /// @param env_var_name name of an environment variable to be parsed
 /// @param reject_empy whether to throw an error on discovering an empty value
 /// @param allow_duplicate whether to allow multiple pairs with the same key
+/// @param lower convert keys to lowercase
 /// @return std::optional with a possible map with parsed parameters as keys and
 ///         vectors of strings containing parsed values as keys.
 ///         Otherwise, optional is set to std::nullopt when the environment
@@ -217,7 +218,8 @@ using EnvVarMap = std::map<std::string, std::vector<std::string>>;
 /// wrong format
 inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
                                               bool reject_empty = true,
-                                              bool allow_duplicate = false) {
+                                              bool allow_duplicate = false,
+                                              bool lower = false) {
   char main_delim = ';';
   char key_value_delim = ':';
   char values_delim = ',';
@@ -252,6 +254,10 @@ inline std::optional<EnvVarMap> getenv_to_map(const char *env_var_name,
     if (key.empty() || (reject_empty && values.empty()) ||
         (map.find(key) != map.end() && !allow_duplicate)) {
       throw_wrong_format_map(env_var_name, *env_var);
+    }
+
+    if (lower) {
+      std::transform(key.begin(), key.end(), key.begin(), tolower);
     }
 
     std::vector<std::string> values_vec;
