@@ -12,7 +12,7 @@ int main() {
   deviceQueue.submit([&](handler &h) { h.single_task<Test>([=] {}); });
 }
 
-// CHECK: define void @_ZTS4Test.NativeCPUKernel({{.*}}) [[ATTRS:#[0-9]+]]
+// CHECK: void @_ZTS4Test.NativeCPUKernel({{.*}} [[ATTRS:#[0-9]+]]
 // CHECK: [[ATTRS]] = {
 // NOAVX-NOT: "target-features"="{{[^"]*}}+avx{{[^"]*}}"
 // AVX-SAME: "target-features"="{{[^"]*}}+avx{{[^"]*}}"
