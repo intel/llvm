@@ -323,6 +323,9 @@ bool ThreadSanitizerOnSpirv::instrumentAllocInst(
     InstrumentationIRBuilder::ensureDebugInfo(*AtExit, *F);
     for (auto *Inst : AllocaInsts) {
       AllocaInst *AI = cast<AllocaInst>(Inst);
+      if (!AI->isStaticAlloca())
+        continue;
+
       if (auto AllocSize = AI->getAllocationSize(DL)) {
         AtExit->CreateCall(
             TsanCleanupPrivate,
