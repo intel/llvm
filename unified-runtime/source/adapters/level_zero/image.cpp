@@ -36,11 +36,9 @@ bool Is3ChannelOrder(ur_image_channel_order_t ChannelOrder) {
 namespace ur::level_zero {
 
 ur_result_t
-urBindlessImagesImageFreeExp(ur_context_handle_t hContext,
-                             ur_device_handle_t hDevice,
+urBindlessImagesImageFreeExp(ur_context_handle_t /*hContext*/,
+                             ur_device_handle_t /*hDevice*/,
                              ur_exp_image_mem_native_handle_t hImageMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
   UR_CALL(ur::level_zero::urMemRelease(
       reinterpret_cast<ur_mem_handle_t>(hImageMem)));
   return UR_RESULT_SUCCESS;

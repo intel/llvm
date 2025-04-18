@@ -19,8 +19,13 @@
 #include "usm.hpp"
 
 namespace umf {
-ur_result_t getProviderNativeError(const char *, int32_t) {
-  // TODO: implement when UMF supports HIP
+ur_result_t getProviderNativeError(const char *providerName,
+                                   int32_t nativeError) {
+  if (strcmp(providerName, "HIP") == 0) {
+    // HIP provider stores native errors of ur_result_t type
+    return static_cast<ur_result_t>(nativeError);
+  }
+
   return UR_RESULT_ERROR_UNKNOWN;
 }
 } // namespace umf

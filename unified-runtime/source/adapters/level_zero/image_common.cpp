@@ -985,7 +985,6 @@ ur_result_t urBindlessImagesSampledImageCreateExp(
 ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage) {
-
   UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   std::shared_lock<ur_shared_mutex> Lock(hDevice->Mutex);
@@ -994,9 +993,7 @@ ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
   if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
     hDevice->ZeOffsetToImageHandleMap.erase(item);
     Lock.release();
-    if (checkL0LoaderTeardown()) {
-      ZE2UR_CALL(zeImageDestroy, (item->second));
-    }
+    ZE2UR_CALL(zeImageDestroy, (item->second));
   } else {
     Lock.release();
     return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
