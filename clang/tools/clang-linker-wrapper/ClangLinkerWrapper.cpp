@@ -1551,7 +1551,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
     CmdArgs.push_back("-Wl,--no-undefined");
 
   if (IsSYCLKind && Triple.isNVPTX())
-    CmdArgs.push_back("-Wl,--lto-emit-asm");
+    CmdArgs.push_back("-S");
   for (StringRef InputFile : InputFiles)
     CmdArgs.push_back(InputFile);
 
