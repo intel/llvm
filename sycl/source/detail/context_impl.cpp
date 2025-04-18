@@ -341,13 +341,20 @@ void context_impl::addDeviceGlobalInitializer(
   std::lock_guard<std::mutex> Lock(MDeviceGlobalInitializersMutex);
   for (const device &Dev : Devs) {
     auto Key = std::make_pair(Program, getSyclObjImpl(Dev)->getHandleRef());
-    MDeviceGlobalInitializers.emplace(Key, BinImage);
+    auto [Iter, Inserted] = MDeviceGlobalInitializers.emplace(Key, BinImage);
+    if (Inserted && !Iter->second.MDeviceGlobalsFullyInitialized)
+      MDeviceGlobalNotInitializedCnt++;
   }
+  if (MDeviceGlobalNotInitializedCnt)
+    MAllDeviceGlobalsFullyInitialized = false;
 }
 
 std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     ur_program_handle_t NativePrg,
     const std::shared_ptr<queue_impl> &QueueImpl) {
+  if (MAllDeviceGlobalsFullyInitialized.load(std::memory_order_acquire))
+    return {};
+
   const AdapterPtr &Adapter = getAdapter();
   const DeviceImplPtr &DeviceImpl = QueueImpl->getDeviceImplPtr();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
@@ -369,7 +376,6 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
           [&Adapter](const ur_event_handle_t &Event) {
             return get_event_info<info::event::command_execution_status>(
                        Event, Adapter) == info::event_command_status::complete;
-            return false;
           });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
@@ -377,8 +383,11 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       // Remove them from the collection.
       InitEventsRef.erase(NewEnd, InitEventsRef.end());
       // If there are no more events, we can mark it as fully initialized.
-      if (InitEventsRef.empty())
+      if (InitEventsRef.empty()) {
         InitRef.MDeviceGlobalsFullyInitialized = true;
+        if (0 == --MDeviceGlobalNotInitializedCnt)
+          MAllDeviceGlobalsFullyInitialized = true;
+      }
       return InitEventsRef;
     } else if (InitRef.MDeviceGlobalsFullyInitialized) {
       // MDeviceGlobalsFullyInitialized could have been set while we were
@@ -402,6 +411,8 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
     // globals are trivially fully initialized and we can end early.
     if (DeviceGlobalEntries.empty()) {
       InitRef.MDeviceGlobalsFullyInitialized = true;
+      if (0 == --MDeviceGlobalNotInitializedCnt)
+        MAllDeviceGlobalsFullyInitialized = true;
       return {};
     }
 
