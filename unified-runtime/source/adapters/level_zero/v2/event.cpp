@@ -113,16 +113,22 @@ void ur_event_handle_t_::resetQueueAndCommand(ur_queue_t_ *hQueue,
                                               ur_command_t commandType) {
   this->hQueue = hQueue;
   this->commandType = commandType;
+
+  if (hQueue) {
+    UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
+                                        reinterpret_cast<void *>(&hDevice),
+                                        nullptr));
+  } else {
+    hDevice = nullptr;
+  }
+
   profilingData.reset();
 }
 
 void ur_event_handle_t_::recordStartTimestamp() {
-  assert(hQueue); // queue must be set before calling this
-
-  ur_device_handle_t hDevice;
-  UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
-                                      reinterpret_cast<void *>(&hDevice),
-                                      nullptr));
+  // queue and device must be set before calling this
+  assert(hQueue);
+  assert(hDevice);
 
   profilingData.recordStartTimestamp(hDevice);
 }
@@ -187,6 +193,8 @@ ur_queue_t_ *ur_event_handle_t_::getQueue() const { return hQueue; }
 ur_context_handle_t ur_event_handle_t_::getContext() const { return hContext; }
 
 ur_command_t ur_event_handle_t_::getCommandType() const { return commandType; }
+
+ur_device_handle_t ur_event_handle_t_::getDevice() const { return hDevice; }
 
 ur_event_handle_t_::ur_event_handle_t_(
     ur_context_handle_t hContext,
@@ -312,18 +320,13 @@ ur_result_t urEventGetProfilingInfo(
     }
   }
 
-  auto hQueue = hEvent->getQueue();
-  if (!hQueue) {
+  auto hDevice = hEvent->getDevice();
+  if (!hDevice) {
     // no command has been enqueued with this event yet
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
   ze_kernel_timestamp_result_t tsResult;
-
-  ur_device_handle_t hDevice;
-  UR_CALL_THROWS(hQueue->queueGetInfo(UR_QUEUE_INFO_DEVICE, sizeof(hDevice),
-                                      reinterpret_cast<void *>(&hDevice),
-                                      nullptr));
 
   auto zeTimerResolution = hDevice->ZeDeviceProperties->timerResolution;
   auto timestampMaxValue = hDevice->getTimestampMask();
