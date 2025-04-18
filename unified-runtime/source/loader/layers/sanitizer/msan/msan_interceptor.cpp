@@ -532,8 +532,8 @@ ur_result_t MsanInterceptor::prepareLaunch(
     } else {
       UR_LOG_L(getContext()->logger, Debug,
                "ShadowMemory(Local, WorkGroup={}, {} - {})", NumWG,
-          (void *)LaunchInfo.Data.Host.LocalShadowOffset,
-          (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
+               (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+               (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
     }
   }
 

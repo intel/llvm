@@ -111,9 +111,7 @@ private:
 
 #ifdef SRC_PATH_SIZE
 #define SHORT_FILE                                                             \
-  ((__FILE__ + SRC_PATH_SIZE < __FILE__ + sizeof(__FILE__))                    \
-       ? (__FILE__ + SRC_PATH_SIZE)                                            \
-       : __FILE__)
+  ((SRC_PATH_SIZE < sizeof(__FILE__)) ? (__FILE__ + SRC_PATH_SIZE) : __FILE__)
 #else
 #define SHORT_FILE __FILE__
 #endif
