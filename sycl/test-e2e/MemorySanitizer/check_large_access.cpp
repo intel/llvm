@@ -7,9 +7,6 @@
 // XFAIL: spirv-backend
 // XFAIL-TRACKER: https://github.com/llvm/llvm-project/issues/122075
 
-// XFAIL: linux && cpu && run-mode
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/17959
-
 #include "sycl/detail/core.hpp"
 #include <sycl/vector.hpp>
 
