@@ -203,13 +203,15 @@ and not recommended to use in production environment.
 **`--offload-compress`**
 
     Enables device image compression for SYCL offloading. Device images
-    are compressed using `zstd` compression algorithm and only if their size
+    are compressed using zstd compression algorithm and only if their size
     exceeds 512 bytes.
+    To use this option, DPC++ must be built with zstd support. Otherwise,
+    the compiler will throw an error during compilation.
     Default value is false.
 
 **`--offload-compression-level=<int>`**
 
-    `zstd` compression level used to compress device images when `--offload-
+    zstd compression level used to compress device images when `--offload-
     compress` is enabled.
     The default value is 10.
 

@@ -75,11 +75,9 @@ CreateDeviceMemoryProvidersPools(ur_platform_handle_t_ *Platform) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
-    ur_platform_handle_t hPlatform, ur_platform_info_t PlatformInfoType,
-    size_t Size, void *pPlatformInfo, size_t *pSizeRet) {
-
-  UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t PlatformInfoType,
+                  size_t Size, void *pPlatformInfo, size_t *pSizeRet) {
   UrReturnHelper ReturnValue(Size, pPlatformInfo, pSizeRet);
 
   switch (PlatformInfoType) {
@@ -114,14 +112,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
 /// Triggers the CUDA Driver initialization (cuInit) the first time, so this
 /// must be the first PI API called.
 UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
-              ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
+urPlatformGet(ur_adapter_handle_t, uint32_t, ur_platform_handle_t *phPlatforms,
+              uint32_t *pNumPlatforms) {
   try {
     static std::once_flag InitFlag;
     static uint32_t NumPlatforms = 1;
-
-    UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_SIZE);
 
     ur_result_t Result = UR_RESULT_SUCCESS;
 
@@ -194,16 +189,14 @@ urPlatformGet(ur_adapter_handle_t, uint32_t NumEntries,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
-    ur_platform_handle_t hDriver, ur_api_version_t *pVersion) {
-  std::ignore = hDriver;
+    ur_platform_handle_t /*hDriver*/, ur_api_version_t *pVersion) {
   *pVersion = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
-    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
-  std::ignore = hPlatform;
-  std::ignore = phNativePlatform;
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGetNativeHandle(ur_platform_handle_t /*hPlatform*/,
+                          ur_native_handle_t * /*phNativePlatform*/) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -219,9 +212,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 // Return empty string for cuda.
 // TODO: Determine correct string to be passed.
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
-    ur_platform_handle_t hPlatform, const char *pFrontendOption,
+    ur_platform_handle_t /*hPlatform*/, const char *pFrontendOption,
     const char **ppPlatformOption) {
-  std::ignore = hPlatform;
   using namespace std::literals;
   if (pFrontendOption == nullptr)
     return UR_RESULT_ERROR_INVALID_NULL_POINTER;
