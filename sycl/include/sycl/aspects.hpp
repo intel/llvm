@@ -28,7 +28,7 @@ enum class __SYCL_TYPE(aspect) aspect {
 #undef __SYCL_ASPECT
 
 namespace detail {
-constexpr int max_aspect_id = std::max({0
+constexpr int max_aspect_id = (std::max)({0
 #define __SYCL_ASPECT(ASPECT, ID) , ID
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) , ID
 // Alias isn't necessary as it will be handled by base entry.
