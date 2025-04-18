@@ -1174,11 +1174,13 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
   if (JA.isOffloading(Action::OFK_HIP))
     getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
-  if (JA.isOffloading(Action::OFK_SYCL))
-    getToolChain().addSYCLIncludeArgs(Args, CmdArgs);
 
   if (JA.isOffloading(Action::OFK_SYCL)) {
     getToolChain().addSYCLIncludeArgs(Args, CmdArgs);
+    if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
+      CmdArgs.push_back("-include");
+      CmdArgs.push_back("__clang_spirv_builtins.h");
+    }
     if (Inputs[0].getType() == types::TY_CUDA ||
         isSYCLCudaCompatEnabled(Args)) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
@@ -5938,6 +5940,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fno-sycl-esimd-force-stateless-mem");
 
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_range_rounding_EQ))
+      A->render(Args, CmdArgs);
+
+    if (Arg *A =
+            Args.getLastArg(options::OPT_fsycl_use_spirv_backend_for_spirv_gen))
       A->render(Args, CmdArgs);
 
     if (Arg *A = Args.getLastArg(options::OPT_fsycl_exp_range_rounding))
