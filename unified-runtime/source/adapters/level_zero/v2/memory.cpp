@@ -221,16 +221,19 @@ ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
 
 ur_discrete_buffer_handle_t::ur_discrete_buffer_handle_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, void *devicePtr,
-    size_t size, device_access_mode_t accessMode, void *writeBackMemory,
-    bool ownZePtr)
+    size_t size, device_access_mode_t accessMode, void *hostPtr, bool ownZePtr)
     : ur_mem_buffer_t(hContext, size, accessMode),
       deviceAllocations(hContext->getPlatform()->getNumDevices()),
-      activeAllocationDevice(hDevice), writeBackPtr(writeBackMemory),
+      activeAllocationDevice(hDevice), writeBackPtr(hostPtr),
       hostAllocations() {
 
   if (!devicePtr) {
     hDevice = hDevice ? hDevice : hContext->getDevices()[0];
     devicePtr = allocateOnDevice(hDevice, size);
+
+    if (hostPtr) {
+      UR_CALL_THROWS(migrateBufferTo(hDevice, hostPtr, size));
+    }
   } else {
     assert(hDevice);
     deviceAllocations[hDevice->Id.value()] = usm_unique_ptr_t(

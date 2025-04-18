@@ -54,6 +54,8 @@ int main() {
     // Check API
     void *HostBuffer1 = nullptr;
     zeMemAllocHost(ZeContext, &HostDesc, 10, 1, &HostBuffer1);
+    std::fill(static_cast<char *>(HostBuffer1),
+              static_cast<char *>(HostBuffer1) + 10, 'a');
 
     backend_input_t<backend::ext_oneapi_level_zero, buffer<char, 1>>
         HostBufferInteropInput1 = {
@@ -66,6 +68,9 @@ int main() {
 
     void *HostBuffer2 = nullptr;
     zeMemAllocHost(ZeContext, &HostDesc, 12 * sizeof(int), 1, &HostBuffer2);
+    std::fill(static_cast<int *>(HostBuffer2),
+              static_cast<int *>(HostBuffer2) + 12, 1);
+
     backend_input_t<backend::ext_oneapi_level_zero, buffer<int, 1>>
         HostBufferInteropInput2 = {
             HostBuffer2, ext::oneapi::level_zero::ownership::transfer};
@@ -81,11 +86,11 @@ int main() {
 
       CGH.single_task<class SimpleKernel1>([=]() {
         for (int i = 0; i < 10; i++) {
-          Acc1[i] = 'a';
+          Acc1[i] += 1;
         }
 
         for (int i = 0; i < 12; i++) {
-          Acc2[i] = 10;
+          Acc2[i] += 10;
         }
       });
     });
@@ -94,12 +99,12 @@ int main() {
     {
       auto HostAcc1 = HostBufferInterop1.get_host_access();
       for (int i = 0; i < 10; i++) {
-        assert(HostAcc1[i] == 'a');
+        assert(HostAcc1[i] == 'b');
       }
 
       auto HostAcc2 = HostBufferInterop2.get_host_access();
       for (int i = 0; i < 12; i++) {
-        assert(HostAcc2[i] == 10);
+        assert(HostAcc2[i] == 11);
       }
     }
 
@@ -208,6 +213,8 @@ int main() {
     void *SharedBuffer = nullptr;
     zeMemAllocShared(ZeContext, &DeviceDesc, &HostDesc, 12 * sizeof(int), 1,
                      nullptr, &SharedBuffer);
+    std::fill(static_cast<int *>(SharedBuffer),
+              static_cast<int *>(SharedBuffer) + 12, 1);
 
     backend_input_t<backend::ext_oneapi_level_zero, buffer<int, 1>>
         SharedBufferInteropInput = {
@@ -234,7 +241,7 @@ int main() {
           DeviceBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel5>([=]() {
         for (int i = 0; i < 12; i++) {
-          Acc1[i] = 77;
+          Acc1[i] += 77;
         }
         for (int i = 0; i < 12; i++) {
           Acc2[i] = 99;
@@ -245,7 +252,7 @@ int main() {
     {
       auto HostAcc1 = SharedBufferInterop.get_host_access();
       for (int i = 0; i < 12; i++) {
-        assert(HostAcc1[i] == 77);
+        assert(HostAcc1[i] == 78);
       }
       auto HostAcc2 = DeviceBufferInterop.get_host_access();
       for (int i = 0; i < 12; i++) {
