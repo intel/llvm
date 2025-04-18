@@ -66,7 +66,7 @@ auto get_native(const SyclObjectT &Obj)
 namespace detail {
 class queue_impl;
 
-inline event submitAssertCapture(queue &, event &, queue *,
+inline event submitAssertCapture(queue &, event &,
                                  const detail::code_location &);
 
 // Function to postprocess submitted command
@@ -375,8 +375,7 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
         sycl::ext::oneapi::experimental::empty_properties_t{},
-        detail::type_erased_cgfo_ty{CGF},
-        /*SecondaryQueuePtr=*/nullptr, CodeLoc);
+        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -392,11 +391,11 @@ public:
   /// group is being enqueued on.
   template <typename T>
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
-      T CGF, queue &SecondaryQueue,
+      T CGF, [[maybe_unused]] queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     return submit_with_event<__SYCL_USE_FALLBACK_ASSERT>(
         sycl::ext::oneapi::experimental::empty_properties_t{},
-        detail::type_erased_cgfo_ty{CGF}, &SecondaryQueue, CodeLoc);
+        detail::type_erased_cgfo_ty{CGF}, CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -3522,7 +3521,7 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-  friend event detail::submitAssertCapture(queue &, event &, queue *,
+  friend event detail::submitAssertCapture(queue &, event &,
                                            const detail::code_location &);
 #endif
 
@@ -3620,23 +3619,21 @@ private:
   template <bool UseFallbackAssert, typename PropertiesT>
   event submit_with_event(
       PropertiesT Props, const detail::type_erased_cgfo_ty &CGF,
-      [[maybe_unused]] queue *SecondaryQueuePtr,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::SubmissionInfo SI{};
     ProcessSubmitProperties(Props, SI);
     if constexpr (UseFallbackAssert)
       SI.PostProcessorFunc() =
-          [this, &SecondaryQueuePtr,
-           &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert, event &E) {
+          [this, &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert,
+                                     event &E) {
             if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
                 KernelUsesAssert && !device_has(aspect::accelerator)) {
               // __devicelib_assert_fail isn't supported by Device-side Runtime
               // Linking against fallback impl of __devicelib_assert_fail is
               // performed by program manager class
               // Fallback assert isn't supported for FPGA
-              submitAssertCapture(*this, E, SecondaryQueuePtr,
-                                  TlsCodeLocCapture.query());
+              submitAssertCapture(*this, E, TlsCodeLocCapture.query());
             }
           };
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
@@ -3660,7 +3657,7 @@ private:
     if constexpr (UseFallbackAssert) {
       // If post-processing is needed, fall back to the regular submit.
       // TODO: Revisit whether we can avoid this.
-      submit_with_event<UseFallbackAssert>(Props, CGF, nullptr, CodeLoc);
+      submit_with_event<UseFallbackAssert>(Props, CGF, CodeLoc);
     } else {
       detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
       detail::SubmissionInfo SI{};
@@ -3835,14 +3832,13 @@ class AssertInfoCopier;
  * Submit copy task for assert failure flag and host-task to check the flag
  * \param Event kernel's event to depend on i.e. the event represents the
  *              kernel to check for assertion failure
- * \param SecondaryQueue secondary queue for submit process, null if not used
  * \returns host tasks event
  *
  * This method doesn't belong to queue class to overcome msvc behaviour due to
  * which it gets compiled and exported without any integration header and, thus,
  * with no proper KernelInfo instance.
  */
-event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
+event submitAssertCapture(queue &Self, event &Event,
                           const detail::code_location &CodeLoc) {
   buffer<detail::AssertHappened, 1> Buffer{1};
 
@@ -3898,10 +3894,10 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 
   CopierEv = Self.submit_with_event<true>(
       sycl::ext::oneapi::experimental::empty_properties_t{}, CopierCGF,
-      SecondaryQueue, CodeLoc);
+      CodeLoc);
   CheckerEv = Self.submit_with_event<true>(
       sycl::ext::oneapi::experimental::empty_properties_t{}, CheckerCGF,
-      SecondaryQueue, CodeLoc);
+      CodeLoc);
 
   return CheckerEv;
 }
