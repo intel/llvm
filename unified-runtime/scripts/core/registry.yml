@@ -649,6 +649,9 @@ etors:
 - name: ADAPTER_SET_LOGGER_CALLBACK_LEVEL
   desc: Enumerator for $xAdapterSetLoggerCallbackLevel
   value: '267'
+- name: EVENT_HOST_SIGNAL
+  desc: Enumerator for $xEventHostSignal
+  value: '268'
 ---
 type: enum
 desc: Defines structure types

@@ -103,6 +103,7 @@
 		urEventGetInfo;
 		urEventGetNativeHandle;
 		urEventGetProfilingInfo;
+		urEventHostSignal;
 		urEventRelease;
 		urEventRetain;
 		urEventSetCallback;
@@ -310,6 +311,7 @@
 		urPrintEventGetInfoParams;
 		urPrintEventGetNativeHandleParams;
 		urPrintEventGetProfilingInfoParams;
+		urPrintEventHostSignalParams;
 		urPrintEventInfo;
 		urPrintEventNativeProperties;
 		urPrintEventReleaseParams;

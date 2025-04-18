@@ -232,6 +232,13 @@ ur_result_t urEventRelease(ur_event_handle_t hEvent) try {
   return exceptionToResult(std::current_exception());
 }
 
+ur_result_t urEventHostSignal(ur_event_handle_t hEvent) try {
+  auto ZeResult = ZE_CALL_NOCHECK(zeEventHostSignal, (hEvent->getZeEvent()));
+  return ze2urResult(ZeResult);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
 ur_result_t urEventWait(uint32_t numEvents,
                         const ur_event_handle_t *phEventWaitList) try {
   for (uint32_t i = 0; i < numEvents; ++i) {
@@ -395,7 +402,6 @@ urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
             v2::EVENT_FLAGS_COUNTER) == 0);
 
     *phEvent = hContext->getNativeEventsPool().allocate();
-    ZE2UR_CALL(zeEventHostSignal, ((*phEvent)->getZeEvent()));
   } else {
     *phEvent = new ur_event_handle_t_(hContext, hNativeEvent, pProperties);
   }

@@ -302,7 +302,7 @@ void queue_impl::addEvent(const event &Event) {
   const EventImplPtr &EImpl = getSyclObjImpl(Event);
   assert(EImpl && "Event implementation is missing");
   auto *Cmd = static_cast<Command *>(EImpl->getCommand());
-  if (Cmd != nullptr && EImpl->getHandle() == nullptr &&
+  if (Cmd != nullptr && (EImpl->getHandle() == nullptr || EImpl->isHost()) &&
       !EImpl->isDiscarded()) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
@@ -589,7 +589,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
             EventImplWeakPtrIt->lock()) {
       // A nullptr UR event indicates that urQueueFinish will not cover it,
       // either because it's a host task event or an unenqueued one.
-      if (nullptr == EventImplSharedPtr->getHandle()) {
+      if (nullptr == EventImplSharedPtr->getHandle() ||
+          EventImplSharedPtr->isHost()) {
         EventImplSharedPtr->wait(EventImplSharedPtr);
       }
     }
