@@ -58,10 +58,6 @@ public:
     return result;
   }
 
-  void reset(size_t value) {
-    std::fill(common_array, common_array + dimensions, value);
-  }
-
   size_t get(int dimension) const {
     check_dimension(dimension);
     return common_array[dimension];

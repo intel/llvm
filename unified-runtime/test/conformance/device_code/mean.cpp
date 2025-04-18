@@ -27,6 +27,9 @@ int main() {
         num_groups, group_size, [=](sycl::group<1> group) {
           auto group_id = group.get_group_id();
           group.parallel_for_work_item([&](sycl::h_item<1> item) {
+            // A recent (April 2025) pulldown of spirv-tools/llvm caused issues capturing `group_id` in the closure,
+            // so we create a new version in lambda itself in private memory.
+            auto group_id = group.get_group_id();
             auto local_id = item.get_local_id(0);
             auto in_index = (group_id * wg_size) + local_id;
             local_mem[local_id] = in_acc[in_index];

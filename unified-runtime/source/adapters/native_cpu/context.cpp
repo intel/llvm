@@ -9,7 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #include <memory>
-#include <tuple>
 
 #include "ur/ur.hpp"
 #include "ur_api.h"
