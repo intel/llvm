@@ -210,7 +210,10 @@ device_impl::get_device_info_string(ur_device_info_t InfoCode) const {
   }
   std::string result;
   // C++23's `resize_and_overwrite` would be better...
-  result.resize(resultSize);
+  //
+  // UR counts null terminator in the size, std::string doesn't. Adjust by "-1"
+  // for that.
+  result.resize(resultSize - 1);
   getAdapter()->call<UrApiKind::urDeviceGetInfo>(
       getHandleRef(), InfoCode, resultSize, result.data(), nullptr);
 
