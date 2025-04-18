@@ -208,11 +208,13 @@ device_impl::get_device_info_string(ur_device_info_t InfoCode) const {
   if (resultSize == 0) {
     return std::string();
   }
-  std::unique_ptr<char[]> result(new char[resultSize]);
+  std::string result;
+  // C++23's `resize_and_overwrite` would be better...
+  result.resize(resultSize);
   getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-      getHandleRef(), InfoCode, resultSize, result.get(), nullptr);
+      getHandleRef(), InfoCode, resultSize, result.data(), nullptr);
 
-  return std::string(result.get());
+  return result;
 }
 
 // Specialization for string return type, variable return size
