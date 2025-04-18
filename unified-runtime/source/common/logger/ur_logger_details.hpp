@@ -7,6 +7,9 @@
 #ifndef UR_LOGGER_DETAILS_HPP
 #define UR_LOGGER_DETAILS_HPP 1
 
+#include <string>
+#include <algorithm>
+
 #include "ur_level.hpp"
 #include "ur_sinks.hpp"
 
@@ -107,7 +110,7 @@ private:
 } // namespace logger
 
 #ifdef SRC_PATH_SIZE
-#define SHORT_FILE ((__FILE__) + (SRC_PATH_SIZE))
+#define SHORT_FILE ((__FILE__ + SRC_PATH_SIZE < __FILE__ + sizeof(__FILE__)) ? (__FILE__ + SRC_PATH_SIZE) : __FILE__)
 #else
 #define SHORT_FILE __FILE__
 #endif

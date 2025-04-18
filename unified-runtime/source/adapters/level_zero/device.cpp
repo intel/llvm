@@ -1794,7 +1794,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   if (numQueueGroups == 0) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
-  UR_LOG_LEGACY(Error,
+  UR_LOG_LEGACY(Info,
                 logger::LegacyMessage("NOTE: Number of queue groups = {}"),
                 "Number of queue groups = {}", numQueueGroups);
 

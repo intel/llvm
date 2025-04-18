@@ -59,7 +59,7 @@ LibLoader::loadAdapterLibrary(const char *name) {
         (strstr(err, name) == NULL || strstr(err, "required by") != NULL)) {
       // If the adapter cannot be loaded due to missing dependencies or any
       // other related error, it is considered as an error.
-      UR_LOG(Error, "failed to load adapter '{}' with error: {}", name, err);
+      UR_LOG(Info, "failed to load adapter '{}' with error: {}", name, err);
     } else {
       // Simply having the adapter library missing isn't an error.
       UR_LOG(Info, "failed to load adapter '{}' with error: {}", name,
