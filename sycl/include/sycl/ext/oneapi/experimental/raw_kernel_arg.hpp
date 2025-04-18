@@ -14,6 +14,9 @@ namespace sycl {
 inline namespace _V1 {
 
 class handler;
+namespace detail {
+class dynamic_parameter_impl;
+}
 
 namespace ext::oneapi::experimental {
 

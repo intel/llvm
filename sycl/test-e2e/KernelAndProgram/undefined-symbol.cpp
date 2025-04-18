@@ -1,6 +1,10 @@
-// for CUDA and HIP the failure happens at compile time, not during runtime
-// UNSUPPORTED: cuda || hip
-
+// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: The test looks for an exception thrown during the
+// compilation of the kernel, but for CUDA the failure is not thrown, but comes
+// from ptxas that crashes clang. The JIT part is not relevant, because the
+// flow is such that the AOT compilation still happens, it’s just that if we
+// request JIT, it will do the thing again at the run time.
+//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //

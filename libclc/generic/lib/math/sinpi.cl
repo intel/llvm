@@ -21,9 +21,8 @@
  */
 
 #include <clc/clc.h>
-#include <spirv/spirv.h>
-
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
+#include <libspirv/spirv.h>
 
 _CLC_OVERLOAD _CLC_DEF float sinpi(float x)
 {
@@ -42,5 +41,13 @@ _CLC_OVERLOAD _CLC_DEF double sinpi(double x)
 }
 
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, sinpi, double)
+
+#endif
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_UNARY_BUILTIN_FP16(sinpi)
 
 #endif

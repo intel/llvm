@@ -116,7 +116,7 @@ int main(int argc, char **argv) {
   // functions were inlined prior to incompatible functions pass. Now that the
   // inliner runs later in the pipeline we have to remove all of the target
   // features, so libclc functions will not be earmarked for deletion.
-  if (M->getTargetTriple().find("amdgcn") != std::string::npos) {
+  if (M->getTargetTriple().str().find("amdgcn") != std::string::npos) {
     AttributeMask AM;
     AM.addAttribute("target-features");
     AM.addAttribute("target-cpu");

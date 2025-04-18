@@ -27,6 +27,9 @@ struct TestCtx {
 
 static std::unique_ptr<TestCtx> TestContext;
 
+ur_exp_device_2d_block_array_capability_flags_t Flags2DBlockIO = 0;
+bool HasESIMDSupport = false;
+
 static ur_result_t redefinedDeviceGetInfo(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
   if (*params.ppropName == UR_DEVICE_INFO_UUID) {
@@ -72,6 +75,20 @@ static ur_result_t redefinedDeviceGetInfo(void *pParams) {
     }
   }
 
+  if (*params.ppropName == UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP) {
+    assert(*params.ppropSize ==
+           sizeof(ur_exp_device_2d_block_array_capability_flags_t));
+    if (*params.ppPropValue) {
+      *static_cast<ur_exp_device_2d_block_array_capability_flags_t *>(
+          *params.ppPropValue) = Flags2DBlockIO;
+    }
+  }
+
+  if (*params.ppropName == UR_DEVICE_INFO_ESIMD_SUPPORT) {
+    assert(*params.ppropSize == sizeof(bool));
+    if (*params.ppPropValue)
+      *static_cast<bool *>(*params.ppPropValue) = HasESIMDSupport;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -183,6 +200,42 @@ TEST_F(DeviceInfoTest, GetDeviceMemoryBusWidth) {
   EXPECT_EQ(MemoryBusWidth, 64u);
   EXPECT_EQ(sizeof(MemoryBusWidth), sizeof(uint32_t))
       << "Expect memory_bus_width to be of uint32_t size";
+}
+
+TEST_F(DeviceInfoTest, GetDeviceESIMD2DBlockIOSupport) {
+  context Ctx{Plt.get_devices()[0]};
+  TestContext.reset(new TestCtx(Ctx));
+
+  device Dev = Ctx.get_devices()[0];
+
+  HasESIMDSupport = true;
+  Flags2DBlockIO = UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD |
+                   UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE;
+  auto HasSupport =
+      Dev.get_info<ext::intel::esimd::info::device::has_2d_block_io_support>();
+  EXPECT_TRUE(HasSupport);
+
+  Flags2DBlockIO = UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD;
+  HasSupport =
+      Dev.get_info<ext::intel::esimd::info::device::has_2d_block_io_support>();
+  EXPECT_FALSE(HasSupport);
+
+  Flags2DBlockIO = UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE;
+  HasSupport =
+      Dev.get_info<ext::intel::esimd::info::device::has_2d_block_io_support>();
+  EXPECT_FALSE(HasSupport);
+
+  Flags2DBlockIO = 0;
+  HasSupport =
+      Dev.get_info<ext::intel::esimd::info::device::has_2d_block_io_support>();
+  EXPECT_FALSE(HasSupport);
+
+  Flags2DBlockIO = UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD |
+                   UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE;
+  HasESIMDSupport = false;
+  HasSupport =
+      Dev.get_info<ext::intel::esimd::info::device::has_2d_block_io_support>();
+  EXPECT_FALSE(HasSupport);
 }
 
 TEST_F(DeviceInfoTest, BuiltInKernelIDs) {

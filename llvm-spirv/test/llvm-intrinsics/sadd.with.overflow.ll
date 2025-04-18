@@ -27,7 +27,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 ; Function Attrs: nounwind
-define dso_local spir_func void @foo32(i32 %a, i32 %b, ptr nocapture %c) local_unnamed_addr #0 {
+define dso_local spir_func void @foo32(i32 %a, i32 %b, ptr captures(none) %c) local_unnamed_addr #0 {
 entry:
   %0 = tail call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 %a, i32 %b), !nosanitize !2
   %1 = extractvalue { i32, i1 } %0, 1, !nosanitize !2
@@ -50,7 +50,7 @@ declare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32) #1
 declare void @llvm.trap() #2
 
 ; Function Attrs: nounwind
-define dso_local spir_func void @foo64(i64 %a, i64 %b, ptr nocapture %c) local_unnamed_addr #0 {
+define dso_local spir_func void @foo64(i64 %a, i64 %b, ptr captures(none) %c) local_unnamed_addr #0 {
 entry:
   %0 = tail call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %a, i64 %b), !nosanitize !2
   %1 = extractvalue { i64, i1 } %0, 1, !nosanitize !2

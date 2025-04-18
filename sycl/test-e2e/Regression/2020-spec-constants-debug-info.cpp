@@ -8,6 +8,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 constexpr sycl::specialization_id<int> test_id_1{42};

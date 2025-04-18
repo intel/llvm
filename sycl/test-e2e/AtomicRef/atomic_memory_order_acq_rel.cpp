@@ -1,4 +1,4 @@
-// RUN: %{build} -O3 -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
+// RUN: %{build} -O3 -o %t.out %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
 // RUN: %{run} %t.out
 
 // NOTE: Tests fetch_add for acquire and release memory ordering.

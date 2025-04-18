@@ -5,11 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
 
 #include <cstring>
 #include <string>
-
-#pragma once
 
 namespace sycl {
 inline namespace _V1 {
@@ -58,6 +57,8 @@ public:
   }
 
   const char *c_str() const noexcept { return str ? str : ""; }
+  const char *data() const noexcept { return c_str(); }
+  bool empty() { return str ? str[0] : false; }
 
   friend bool operator==(const string &lhs, std::string_view rhs) noexcept {
     return rhs == lhs.c_str();

@@ -6,6 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 // This tests support of row major layout for matrix B which does automatic VNNI
+
+// UNSUPPORTED: target-nvidia, target-amd
+// UNSUPPORTED-INTENDED: aspect-ext_intel_matrix isn't currently supported for
+// other triples
+
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 // VNNI transform and sub-group size 32 are not supported yet on DG2 by IGC
@@ -16,12 +21,13 @@
 
 // Sub-group size 32 support for this test is not currently available in IGC
 // XFAIL: gpu
+// XFAIL-TRACKER: GSD-4181
 
-#include "../common.hpp"
+#include "common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 32
 
-#include "../joint_matrix_rowmajorA_rowmajorB_impl.hpp"
+#include "joint_matrix_rowmajorA_rowmajorB_impl.hpp"

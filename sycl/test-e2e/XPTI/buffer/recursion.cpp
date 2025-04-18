@@ -1,5 +1,5 @@
 // REQUIRES: xptifw, opencl
-// RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
+// RUN: %build_collector
 // RUN: %{build} -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
@@ -65,7 +65,7 @@ int main() {
   // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID2]]
   // CHECK:{{[0-9]+}}|Release buffer|[[USERID1]]|[[BEID1]]
   // CHECK:{{[0-9]+}}|Destruct buffer|[[USERID1]]
-  MismatchFound &= func(Queue, 2);
+  MismatchFound |= func(Queue, 2);
 
   return MismatchFound;
 }

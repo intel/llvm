@@ -6,7 +6,7 @@
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s
 
-; CHECK: @var = internal addrspace(3) global i32 undef
+; CHECK: @var = internal addrspace(3) global i32 poison
 ; CHECK: call spir_func void @0(ptr addrspace(3) @var)
 
 OpCapability Addresses

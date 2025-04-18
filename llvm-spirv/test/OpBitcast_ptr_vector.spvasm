@@ -1,0 +1,33 @@
+; Check support of OpBitcast with pointer operands
+; Converts to vectors of integers, which is supported by SPIR-V 1.5
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.5 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+               OpCapability Addresses
+               OpCapability Kernel
+               OpCapability Int64
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %kernel "test"
+       %uint = OpTypeInt 32 0
+      %uint2 = OpTypeVector %uint 2
+       %void = OpTypeVoid
+   %pptr_int = OpTypePointer Function %uint
+ %kernel_sig = OpTypeFunction %void
+     %kernel = OpFunction %void None %kernel_sig
+      %entry = OpLabel
+     %srcptr = OpVariable %pptr_int Function
+    %dstint2 = OpBitcast %uint2 %srcptr
+     %dstptr = OpBitcast %pptr_int %dstint2
+               OpReturn
+               OpFunctionEnd
+
+
+; CHECK-LLVM: [[SRCPTR:%[a-z0-9.]+]] = alloca i32, align 4
+; CHECK-LLVM: [[TMPLONG0:%[a-z0-9.]+]] = ptrtoint ptr [[SRCPTR]] to i64
+; CHECK-LLVM: [[DSTINT2:%[a-z0-9.]+]] = bitcast i64 [[TMPLONG0]] to <2 x i32>
+; CHECK-LLVM: [[TMPLONG1:%[a-z0-9.]+]] = bitcast <2 x i32> [[DSTINT2]] to i64
+; CHECK-LLVM: [[DSTPTR:%[a-z0-9.]+]] = inttoptr i64 [[TMPLONG1]] to ptr

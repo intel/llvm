@@ -1,0 +1,14 @@
+name: Benchmarks
+
+# This workflow is a WIP: this workflow file acts as a placeholder.
+#
+# This workflow is set to be merged into benchmark.yml
+
+on: [ workflow_dispatch ]
+
+jobs:
+  do-nothing:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'This workflow is a WIP.'
+

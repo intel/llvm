@@ -36,7 +36,7 @@ class TestDAP_extendedStackTrace(lldbdap_testcase.DAPTestCaseBase):
                 "DYLD_LIBRARY_PATH=/usr/lib/system/introspection",
                 "DYLD_INSERT_LIBRARIES=" + backtrace_recording_lib,
             ],
-            enableDisplayExtendedBacktrace=True,
+            displayExtendedBacktrace=True,
         )
         source = "main.m"
         breakpoint = line_number(source, "breakpoint 1")
@@ -66,11 +66,11 @@ class TestDAP_extendedStackTrace(lldbdap_testcase.DAPTestCaseBase):
         self.assertEqual(len(stackLabels), 2, "expected two label stack frames")
         self.assertRegex(
             stackLabels[0][1]["name"],
-            "Enqueued from com.apple.root.default-qos \(Thread \d\)",
+            r"Enqueued from com.apple.root.default-qos \(Thread \d\)",
         )
         self.assertRegex(
             stackLabels[1][1]["name"],
-            "Enqueued from com.apple.main-thread \(Thread \d\)",
+            r"Enqueued from com.apple.main-thread \(Thread \d\)",
         )
 
         for i, frame in stackLabels:

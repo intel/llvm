@@ -22,7 +22,6 @@
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
-#include <sycl/detail/type_list.hpp>                  // for is_contained
 #include <sycl/detail/type_traits.hpp>                // for const_if_const_AS
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
@@ -229,6 +228,18 @@ template <typename DataT, int Dimensions = 1,
 class accessor;
 
 namespace detail {
+
+template <typename... Ts>
+#ifndef __SYCL_DEVICE_ONLY__
+[[noreturn]]
+#endif
+void cannot_be_called_on_host([[maybe_unused]] const char *API,
+                              Ts &&.../* ignore */) {
+#ifndef __SYCL_DEVICE_ONLY__
+  std::fprintf(stderr, "%s cannot be called on host!\n", API);
+  std::abort();
+#endif
+}
 
 // A helper structure which is shared between buffer accessor and accessor_impl
 // TODO: Unify with AccessorImplDevice?
@@ -545,7 +556,11 @@ public:
   friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <typename, int, access::mode, access::target, access::placeholder,
             typename>
@@ -581,7 +596,11 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   LocalAccessorImplPtr impl;
 };
@@ -808,7 +827,7 @@ public:
 
   char padding[sizeof(detail::AccessorImplDevice<AdjustedDim>) +
                sizeof(PtrType) - sizeof(detail::AccessorBaseHost) -
-               sizeof(MAccData)];
+               sizeof(MAccData)] = {0};
 
   PtrType getQualifiedPtr() const noexcept {
     if constexpr (IsHostBuf)
@@ -840,7 +859,11 @@ private:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
 public:
   // 4.7.6.9.1. Interface for buffer command accessors
@@ -2193,7 +2216,7 @@ protected:
       : detail::LocalAccessorBaseHost{Impl} {}
 
   char padding[sizeof(detail::LocalAccessorBaseDevice<AdjustedDim>) +
-               sizeof(PtrType) - sizeof(detail::LocalAccessorBaseHost)];
+               sizeof(PtrType) - sizeof(detail::LocalAccessorBaseHost)] = {0};
   using detail::LocalAccessorBaseHost::getSize;
 
   PtrType getQualifiedPtr() const {
@@ -2213,8 +2236,6 @@ protected:
     const auto *this_const = this;
     (void)getSize();
     (void)this_const->getSize();
-    (void)getPtr();
-    (void)this_const->getPtr();
 #endif
   }
 
@@ -2233,7 +2254,11 @@ protected:
   detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 
   template <typename DataT_, int Dimensions_> friend class local_accessor;
 
@@ -2565,22 +2590,20 @@ public:
   __SYCL2020_DEPRECATED(
       "local_accessor::get_pointer() is deprecated, please use get_multi_ptr()")
   local_ptr<DataT> get_pointer() const noexcept {
-#ifndef __SYCL_DEVICE_ONLY__
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "get_pointer must not be called on the host for a local accessor");
-#endif
+#if __SYCL_DEVICE_ONLY__
     return local_ptr<DataT>(local_acc::getQualifiedPtr());
+#else
+    detail::cannot_be_called_on_host("local_accessor::get_pointer");
+#endif
   }
 
   template <access::decorated IsDecorated>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
-#ifndef __SYCL_DEVICE_ONLY__
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "get_multi_ptr must not be called on the host for a local accessor");
-#endif
+#if __SYCL_DEVICE_ONLY__
     return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
+#else
+    detail::cannot_be_called_on_host("local_accessor::get_multi_ptr");
+#endif
   }
 
   template <typename Property> bool has_property() const noexcept {
@@ -2651,7 +2674,11 @@ protected:
   friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
 #endif // __SYCL_DEVICE_ONLY__
 
 public:

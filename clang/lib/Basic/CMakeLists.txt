@@ -89,6 +89,7 @@ add_clang_library(clangBasic
   SourceManager.cpp
   SourceMgrAdapter.cpp
   Stack.cpp
+  StackExhaustionHandler.cpp
   TargetID.cpp
   TargetInfo.cpp
   Targets.cpp
@@ -107,6 +108,7 @@ add_clang_library(clangBasic
   Targets/MSP430.cpp
   Targets/Mips.cpp
   Targets/NVPTX.cpp
+  Targets/NativeCPU.cpp
   Targets/OSTargets.cpp
   Targets/PNaCl.cpp
   Targets/PPC.cpp
@@ -119,6 +121,7 @@ add_clang_library(clangBasic
   Targets/WebAssembly.cpp
   Targets/X86.cpp
   Targets/XCore.cpp
+  Targets/Xtensa.cpp
   TokenKinds.cpp
   TypeTraits.cpp
   Version.cpp

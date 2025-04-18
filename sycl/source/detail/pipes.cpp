@@ -6,6 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#define __SYCL_PIPES_CPP
+#endif
+
 #include <detail/event_impl.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -16,11 +20,11 @@ inline namespace _V1 {
 namespace ext {
 namespace intel {
 namespace experimental {
-
-__SYCL_EXPORT std::string pipe_base::get_pipe_name(const void *HostPipePtr) {
-  return sycl::_V1::detail::ProgramManager::getInstance()
-      .getHostPipeEntry(HostPipePtr)
-      ->MUniqueId;
+__SYCL_EXPORT sycl::detail::string
+pipe_base::get_pipe_name_impl(const void *HostPipePtr) {
+  return {std::string_view{sycl::_V1::detail::ProgramManager::getInstance()
+                               .getHostPipeEntry(HostPipePtr)
+                               ->MUniqueId}};
 }
 
 __SYCL_EXPORT bool pipe_base::wait_non_blocking(const event &E) {

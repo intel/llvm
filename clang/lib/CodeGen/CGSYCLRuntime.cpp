@@ -96,7 +96,10 @@ void CGSYCLRuntime::emitWorkGroupLocalVarDecl(CodeGenFunction &CGF,
                                               const VarDecl &D) {
 #ifndef NDEBUG
   SYCLScopeAttr *Scope = D.getAttr<SYCLScopeAttr>();
-  assert(Scope && Scope->isWorkGroup() && "work group scope expected");
+  if (!Scope)
+    if (auto *RD = D.getType()->getAsCXXRecordDecl())
+      Scope = RD->getAttr<SYCLScopeAttr>();
+  assert((Scope && Scope->isWorkGroup()) && "work group scope expected");
 #endif // NDEBUG
   // generate global variable in the address space selected by the clang CodeGen
   // (should be local)

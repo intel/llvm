@@ -41,8 +41,8 @@ private:
 public:
   // Blob (de)compression do not assume format/structure of the input buffer.
   // This function can be used in future for compression in on-disk cache.
-  static std::unique_ptr<char> CompressBlob(const char *src, size_t srcSize,
-                                            size_t &dstSize, int level) {
+  static std::unique_ptr<char[]> CompressBlob(const char *src, size_t srcSize,
+                                              size_t &dstSize, int level) {
     auto &instance = GetSingletonInstance();
 
     // Lazy initialize compression context.
@@ -61,7 +61,7 @@ public:
 
     // Get maximum size of the compressed buffer and allocate it.
     auto dstBufferSize = ZSTD_compressBound(srcSize);
-    auto dstBuffer = std::unique_ptr<char>(new char[dstBufferSize]);
+    auto dstBuffer = std::make_unique<char[]>(dstBufferSize);
 
     if (!dstBuffer)
       throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
@@ -93,8 +93,8 @@ public:
     return dstBufferSize;
   }
 
-  static std::unique_ptr<char> DecompressBlob(const char *src, size_t srcSize,
-                                              size_t &dstSize) {
+  static std::unique_ptr<char[]> DecompressBlob(const char *src, size_t srcSize,
+                                                size_t &dstSize) {
     auto &instance = GetSingletonInstance();
 
     // Lazy initialize decompression context.
@@ -116,7 +116,7 @@ public:
     auto dstBufferSize = GetDecompressedSize(src, srcSize);
 
     // Allocate buffer for decompressed data.
-    auto dstBuffer = std::unique_ptr<char>(new char[dstBufferSize]);
+    auto dstBuffer = std::make_unique<char[]>(dstBufferSize);
 
     if (!dstBuffer)
       throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),

@@ -8,28 +8,26 @@
 
 #pragma once
 
-#include <cstddef>                            // for size_t
-#include <memory>                             // for shared_ptr, hash, opera...
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
-#include <sycl/context.hpp>                   // for context
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_kernel_device_specif...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/string.hpp>
-#include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
-#include <sycl/device.hpp>              // for device
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
-#include <sycl/range.hpp>               // for range
 #include <ur_api.h>                     // for ur_native_handle_t
-#include <variant>                      // for hash
+
+#include <cstddef> // for size_t
+#include <memory>  // for shared_ptr, hash, opera...
+#include <variant> // for hash
 
 namespace sycl {
 inline namespace _V1 {
 // Forward declaration
 class context;
 class queue;
+class device;
+template <int Dimensions> class range;
 template <backend Backend> class backend_traits;
 template <bundle_state State> class kernel_bundle;
 template <backend BackendName, class SyclObjectT>
@@ -133,9 +131,21 @@ public:
   /// Queries the kernel object for SYCL backend-specific information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param>
+  template <typename Param
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+#if defined(_GLIBCXX_USE_CXX11_ABI) && _GLIBCXX_USE_CXX11_ABI == 0
+            ,
+            int = detail::emit_get_backend_info_error<kernel, Param>()
+#endif
+#endif
+            >
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  __SYCL_DEPRECATED(
+      "All current implementations of get_backend_info() are to be removed. "
+      "Use respective variants of get_info() instead.")
+#endif
   typename detail::is_backend_info_desc<Param>::return_type
-  get_backend_info() const;
+      get_backend_info() const;
 
   /// Query device-specific information from the kernel object using the
   /// info::kernel_device_specific descriptor.
@@ -180,8 +190,64 @@ public:
   /// \return depends on information being queried.
   template <typename Param>
   typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<1> &WorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<2> &WorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
   ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                       size_t DynamicLocalMemorySize) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG workgroup
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<3> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG workgroup
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<2> &WG) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WG workgroup
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<1> &WG) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
@@ -198,7 +264,11 @@ private:
   friend const decltype(Obj::impl) &
   detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  friend T detail::createSyclObjFromImpl(
+      std::add_rvalue_reference_t<decltype(T::impl)> ImplObj);
+  template <class T>
+  friend T detail::createSyclObjFromImpl(
+      std::add_lvalue_reference_t<const decltype(T::impl)> ImplObj);
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;

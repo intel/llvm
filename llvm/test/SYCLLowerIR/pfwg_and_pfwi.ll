@@ -20,17 +20,17 @@ define internal spir_func void @wibble(ptr addrspace(4) %arg, ptr byval(%struct.
 ; CHECK-NEXT:    [[TMP0:%.*]] = alloca ptr addrspace(4), align 8
 ; CHECK-NEXT:    [[TMP1:%.*]] = alloca [[STRUCT_FOO_0:%.*]], align 1
 ; CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0:[0-9]+]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0:[0-9]+]]
 ; CHECK-NEXT:    [[CMPZ3:%.*]] = icmp eq i64 [[TMP2]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ3]], label [[LEADER:%.*]], label [[MERGE:%.*]]
 ; CHECK:       leader:
 ; CHECK-NEXT:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 16 @ArgShadow, ptr align 8 [[ARG1:%.*]], i64 96, i1 false)
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 8 [[ARG1]], ptr addrspace(3) align 16 @ArgShadow, i64 96, i1 false)
 ; CHECK-NEXT:    [[TMP5:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[CMPZ:%.*]] = icmp eq i64 [[TMP5]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ]], label [[WG_LEADER:%.*]], label [[WG_CF:%.*]]
 ; CHECK:       wg_leader:
@@ -38,7 +38,7 @@ define internal spir_func void @wibble(ptr addrspace(4) %arg, ptr byval(%struct.
 ; CHECK-NEXT:    br label [[WG_CF]]
 ; CHECK:       wg_cf:
 ; CHECK-NEXT:    [[TMP6:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[CMPZ2:%.*]] = icmp eq i64 [[TMP6]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ2]], label [[TESTMAT:%.*]], label [[LEADERMAT:%.*]]
 ; CHECK:       TestMat:
@@ -47,11 +47,11 @@ define internal spir_func void @wibble(ptr addrspace(4) %arg, ptr byval(%struct.
 ; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD]], ptr addrspace(3) @WGCopy, align 8
 ; CHECK-NEXT:    br label [[LEADERMAT]]
 ; CHECK:       LeaderMat:
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[MAT_LD1:%.*]] = load ptr addrspace(4), ptr addrspace(3) @WGCopy, align 8
 ; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD1]], ptr [[TMP0]], align 8
 ; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 1 [[TMP1]], ptr addrspace(3) align 8 @WGCopy.1, i64 1, i1 false)
-; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
+; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[TMP9:%.*]] = addrspacecast ptr [[ARG1]] to ptr addrspace(4)
 ; CHECK-NEXT:    call spir_func void @bar(ptr addrspace(4) [[TMP9]], ptr byval([[STRUCT_FOO_0]]) align 1 [[TMP1]])
 ; CHECK-NEXT:    ret void

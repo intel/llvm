@@ -53,7 +53,7 @@ int main() {
   });
 
   // Make sure the following 3 are the same between the host and device compile.
-  // Note that these are NOT the same value as eachother, they differ by the
+  // Note that these are NOT the same value as each other, they differ by the
   // signature.
   // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUlvE_\00"
   // CHECK: private unnamed_addr [[$ADDRSPACE]]constant [17 x i8] c"_ZTSZ4mainEUliE_\00"

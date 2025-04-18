@@ -57,8 +57,9 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         make_error_code(errc::invalid),
         "Input context must be the same as the context of cl_mem");
 
-  if (MInteropContext->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urMemRetain>(MInteropMemObject);
+  if (MInteropContext->getBackend() == backend::opencl) {
+    __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(MemObject));
+  }
 }
 
 ur_mem_type_t getImageType(int Dimensions) {
@@ -112,8 +113,9 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         make_error_code(errc::invalid),
         "Input context must be the same as the context of cl_mem");
 
-  if (MInteropContext->getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urMemRetain>(MInteropMemObject);
+  if (MInteropContext->getBackend() == backend::opencl) {
+    __SYCL_OCL_CALL(clRetainMemObject, ur::cast<cl_mem>(MemObject));
+  }
 }
 
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {

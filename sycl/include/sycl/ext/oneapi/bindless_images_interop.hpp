@@ -28,6 +28,8 @@ enum class external_semaphore_handle_type {
   opaque_fd = 0,
   win32_nt_handle = 1,
   win32_nt_dx12_fence = 2,
+  timeline_fd = 3,
+  timeline_win32_nt_handle = 4,
 };
 
 /// Opaque external memory handle type

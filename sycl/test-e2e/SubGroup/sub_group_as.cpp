@@ -4,11 +4,16 @@
 // RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t2.out -Wno-deprecated-declarations
 // RUN: %{run} %t2.out
 
+// Depends on SPIR-V Backend & run-time drivers version.
+// XFAIL: spirv-backend && gpu
+// XFAIL-TRACKER: CMPLRLLVM-64705
+
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <sycl/detail/core.hpp>
+#include <sycl/sub_group.hpp>
 
 int main(int argc, char *argv[]) {
   sycl::queue queue;

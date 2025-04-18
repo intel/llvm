@@ -209,7 +209,12 @@ public:
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const;
 
-  bool isAssertFailSupported() const;
+  /// Indicates the SYCL device prefers to use its native assert
+  /// implementation.
+  ///
+  /// If this is false we will use the fallback assert implementation,
+  /// as detailed in doc/design/Assert.md
+  bool useNativeAssert() const;
 
   bool isRootDevice() const { return MRootDevice == nullptr; }
 
@@ -285,7 +290,7 @@ public:
 
   /// @brief  Get the platform impl serving this device
   /// @return PlatformImplPtr
-  PlatformImplPtr getPlatformImpl() const { return MPlatform; }
+  const PlatformImplPtr &getPlatformImpl() const { return MPlatform; }
 
   /// Get device info string
   std::string get_device_info_string(ur_device_info_t InfoCode) const;
@@ -302,7 +307,7 @@ private:
   ur_device_type_t MType;
   ur_device_handle_t MRootDevice = nullptr;
   PlatformImplPtr MPlatform;
-  bool MIsAssertFailSupported = false;
+  bool MUseNativeAssert = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
   mutable ext::oneapi::experimental::architecture MDeviceArch{};

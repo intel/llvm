@@ -1,0 +1,52 @@
+name: Aggregate compute-benchmark averages from historical data
+
+# The benchmarking workflow in sycl-linux-run-tests.yml passes or fails based on
+# how the benchmark results compare to a historical average: This historical
+# average is calculated in this workflow, which aggregates historical data and
+# produces measures of central tendency (median in this case) used for this
+# purpose.
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: |
+          Number of days from today to look back in historical results for:
+          This sets the age limit of data used in average calculation: Any
+          benchmark results created before `lookback_days` from today is
+          excluded from being aggregated in the historical average. 
+        type: number
+        required: true
+  workflow_call:
+    inputs:
+      lookback_days:
+        type: number
+        required: true
+    secrets:
+      LLVM_SYCL_BENCHMARK_TOKEN:
+        description: |
+          Github token used by the faceless account to push newly calculated
+          medians.
+        required: true
+
+
+permissions:
+  contents: read
+
+jobs:
+  aggregate:
+    name: Aggregate average (median) value for all metrics
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        sparse-checkout: |
+          devops/scripts/benchmarking
+          devops/benchmarking
+          devops/actions/benchmarking
+    - name: Aggregate benchmark results and produce historical average
+      uses: ./devops/actions/benchmarking/aggregate
+      with:
+        lookback_days: ${{ inputs.lookback_days }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.LLVM_SYCL_BENCHMARK_TOKEN }}

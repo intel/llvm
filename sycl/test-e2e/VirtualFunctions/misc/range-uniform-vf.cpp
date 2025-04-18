@@ -4,7 +4,10 @@
 // kernels when every work-item calls the same virtual function on the same
 // object.
 //
-// RUN: %{build} -o %t.out %helper-includes
+// TODO: Currently using the -Wno-deprecated-declarations flag due to issue
+// https://github.com/intel/llvm/issues/16839. Remove the flag as well as the
+// variable 'props' once the issue is resolved.
+// RUN: %{build} -o %t.out -Wno-deprecated-declarations %helper-includes
 // RUN: %{run} %t.out
 
 #include <sycl/builtins.hpp>
@@ -41,6 +44,21 @@ public:
   virtual float apply(float V) { return sycl::round(V); }
 };
 
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mDeviceStorage;
+  T2 mDataAcc;
+  KernelFunctor(T1 DeviceStorage, T2 DataAcc)
+      : mDeviceStorage(DeviceStorage), mDataAcc(DataAcc) {}
+
+  void operator()(sycl::id<1> It) const {
+    auto *Ptr = mDeviceStorage->template getAs<BaseOp>();
+    mDataAcc[It] = Ptr->apply(mDataAcc[It]);
+  }
+  auto get(oneapi::properties_tag) const {
+    return oneapi::properties{oneapi::assume_indirect_calls};
+  }
+};
+
 int main() try {
   using storage_t = obj_storage_t<FloorOp, CeilOp, RoundOp>;
 
@@ -67,10 +85,7 @@ int main() try {
 
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
-      CGH.parallel_for(R, props, [=](auto it) {
-        auto *Ptr = DeviceStorage->getAs<BaseOp>();
-        DataAcc[it] = Ptr->apply(DataAcc[it]);
-      });
+      CGH.parallel_for(R, props, KernelFunctor(DeviceStorage, DataAcc));
     });
 
     auto *Ptr = HostStorage.construct</* ret type = */ BaseOp>(TestCase);

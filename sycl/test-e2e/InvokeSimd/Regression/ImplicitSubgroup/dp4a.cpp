@@ -1,4 +1,4 @@
-// REQUIRES: gpu-intel-dg1 || gpu-intel-dg2 || arch-intel_gpu_pvc
+// REQUIRES: arch-intel_gpu_dg1 || gpu-intel-dg2 || arch-intel_gpu_pvc
 //
 // Check that full compilation works:
 // RUN: %clangxx -DIMPL_SUBGROUP -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %S/../dp4a.cpp -o %t.out

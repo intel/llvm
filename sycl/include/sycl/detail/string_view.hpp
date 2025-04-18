@@ -5,10 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#pragma once
+
+#include <sycl/detail/string.hpp>
 
 #include <string>
-
-#pragma once
 
 namespace sycl {
 inline namespace _V1 {
@@ -26,6 +27,7 @@ public:
   string_view(const string_view &strn) noexcept = default;
   string_view(string_view &&strn) noexcept = default;
   string_view(std::string_view strn) noexcept : str(strn.data()) {}
+  string_view(const sycl::detail::string &strn) noexcept : str(strn.c_str()) {}
 
   string_view &operator=(string_view &&strn) noexcept = default;
   string_view &operator=(const string_view &strn) noexcept = default;
@@ -35,15 +37,25 @@ public:
     return *this;
   }
 
-  const char *data() const noexcept { return str; }
+  string_view &operator=(const sycl::detail::string &strn) noexcept {
+    str = strn.c_str();
+    return *this;
+  }
 
-  friend bool operator==(const string_view &lhs,
-                         std::string_view rhs) noexcept {
+  const char *data() const noexcept { return str ? str : ""; }
+
+  friend bool operator==(string_view lhs, std::string_view rhs) noexcept {
     return rhs == lhs.data();
   }
-  friend bool operator==(std::string_view lhs,
-                         const string_view &rhs) noexcept {
+  friend bool operator==(std::string_view lhs, string_view rhs) noexcept {
     return lhs == rhs.data();
+  }
+
+  friend bool operator!=(string_view lhs, std::string_view rhs) noexcept {
+    return rhs != lhs.data();
+  }
+  friend bool operator!=(std::string_view lhs, string_view rhs) noexcept {
+    return lhs != rhs.data();
   }
 };
 

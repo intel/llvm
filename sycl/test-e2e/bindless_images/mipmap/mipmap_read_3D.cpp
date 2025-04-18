@@ -1,6 +1,7 @@
-// REQUIRES: cuda
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15727
+// REQUIRES: aspect-ext_oneapi_mipmap
+// UNSUPPORTED: target-amd
+// UNSUPPORTED-INTENDED: mipmap not currently supported on AMD
+
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
 

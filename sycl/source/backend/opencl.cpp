@@ -10,7 +10,6 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/queue_impl.hpp>
-#include <sycl/sycl.hpp>
 
 #include <memory>
 #include <string_view>
@@ -18,12 +17,15 @@
 namespace sycl {
 inline namespace _V1 {
 namespace opencl {
-using namespace detail;
 
 //----------------------------------------------------------------------------
 // Free functions to query OpenCL backend extensions
+
+namespace detail {
+using namespace sycl::detail;
+
 __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
-                                 const std::string &Extension) {
+                                 detail::string_view Extension) {
   if (SyclPlatform.get_backend() != sycl::backend::opencl) {
     throw sycl::exception(
         errc::backend_mismatch,
@@ -51,11 +53,12 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
       nullptr);
 
   std::string_view ExtensionsString(Result.get());
-  return ExtensionsString.find(Extension) != std::string::npos;
+  return ExtensionsString.find(std::string_view{Extension.data()}) !=
+         std::string::npos;
 }
 
 __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
-                                 const std::string &Extension) {
+                                 detail::string_view Extension) {
   if (SyclDevice.get_backend() != sycl::backend::opencl) {
     throw sycl::exception(
         errc::backend_mismatch,
@@ -83,8 +86,33 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
                                             ResultSize, Result.get(), nullptr);
 
   std::string_view ExtensionsString(Result.get());
-  return ExtensionsString.find(Extension) != std::string::npos;
+  return ExtensionsString.find(std::string_view{Extension.data()}) !=
+         std::string::npos;
 }
+} // namespace detail
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// Magic combination found by trial and error:
+__SYCL_EXPORT
+#if _WIN32
+inline
+#endif
+    bool
+    has_extension(const sycl::device &SyclDevice,
+                  const std::string &Extension) {
+  return detail::has_extension(SyclDevice, detail::string_view{Extension});
+}
+// Magic combination found by trial and error:
+__SYCL_EXPORT
+#if _WIN32
+inline
+#endif
+    bool
+    has_extension(const sycl::platform &SyclPlatform,
+                  const std::string &Extension) {
+  return detail::has_extension(SyclPlatform, detail::string_view{Extension});
+}
+#endif
 } // namespace opencl
 } // namespace _V1
 } // namespace sycl

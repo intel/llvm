@@ -30,11 +30,18 @@ VPValue *vputils::getOrCreateVPValueForSCEVExpr(VPlan &Plan, const SCEV *Expr,
   VPValue *Expanded = nullptr;
   if (auto *E = dyn_cast<SCEVConstant>(Expr))
     Expanded = Plan.getOrAddLiveIn(E->getValue());
-  else if (auto *E = dyn_cast<SCEVUnknown>(Expr))
-    Expanded = Plan.getOrAddLiveIn(E->getValue());
   else {
-    Expanded = new VPExpandSCEVRecipe(Expr, SE);
-    Plan.getPreheader()->appendRecipe(Expanded->getDefiningRecipe());
+    auto *U = dyn_cast<SCEVUnknown>(Expr);
+    // Skip SCEV expansion if Expr is a SCEVUnknown wrapping a non-instruction
+    // value. Otherwise the value may be defined in a loop and using it directly
+    // will break LCSSA form. The SCEV expansion takes care of preserving LCSSA
+    // form.
+    if (U && !isa<Instruction>(U->getValue())) {
+      Expanded = Plan.getOrAddLiveIn(U->getValue());
+    } else {
+      Expanded = new VPExpandSCEVRecipe(Expr, SE);
+      Plan.getEntry()->appendRecipe(Expanded->getDefiningRecipe());
+    }
   }
   Plan.addSCEVExpansion(Expr, Expanded);
   return Expanded;
@@ -71,4 +78,45 @@ const SCEV *vputils::getSCEVExprForVPValue(VPValue *V, ScalarEvolution &SE) {
       .Case<VPExpandSCEVRecipe>(
           [](const VPExpandSCEVRecipe *R) { return R->getSCEV(); })
       .Default([&SE](const VPRecipeBase *) { return SE.getCouldNotCompute(); });
+}
+
+bool vputils::isUniformAcrossVFsAndUFs(VPValue *V) {
+  using namespace VPlanPatternMatch;
+  // Live-ins are uniform.
+  if (V->isLiveIn())
+    return true;
+
+  VPRecipeBase *R = V->getDefiningRecipe();
+  if (R && V->isDefinedOutsideLoopRegions()) {
+    if (match(V->getDefiningRecipe(),
+              m_VPInstruction<VPInstruction::CanonicalIVIncrementForPart>(
+                  m_VPValue())))
+      return false;
+    return all_of(R->operands(), isUniformAcrossVFsAndUFs);
+  }
+
+  auto *CanonicalIV = R->getParent()->getPlan()->getCanonicalIV();
+  // Canonical IV chain is uniform.
+  if (V == CanonicalIV || V == CanonicalIV->getBackedgeValue())
+    return true;
+
+  return TypeSwitch<const VPRecipeBase *, bool>(R)
+      .Case<VPDerivedIVRecipe>([](const auto *R) { return true; })
+      .Case<VPReplicateRecipe>([](const auto *R) {
+        // Loads and stores that are uniform across VF lanes are handled by
+        // VPReplicateRecipe.IsUniform. They are also uniform across UF parts if
+        // all their operands are invariant.
+        // TODO: Further relax the restrictions.
+        return R->isUniform() &&
+               (isa<LoadInst, StoreInst>(R->getUnderlyingValue())) &&
+               all_of(R->operands(), isUniformAcrossVFsAndUFs);
+      })
+      .Case<VPScalarCastRecipe, VPWidenCastRecipe>([](const auto *R) {
+        // A cast is uniform according to its operand.
+        return isUniformAcrossVFsAndUFs(R->getOperand(0));
+      })
+      .Default([](const VPRecipeBase *) { // A value is considered non-uniform
+                                          // unless proven otherwise.
+        return false;
+      });
 }

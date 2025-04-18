@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -106,14 +107,12 @@ If the `sycl::nd_range` parameter used to launch a kernel is incompatible with
 the results of a kernel's launch queries, an implementation must throw a
 synchronous exception with the `errc::nd_range` error code.
 
-[NOTE]
-====
-The values returned by `ext_oneapi_get_info` account for all properties
-attached to a kernel (via the mechanisms defined in the
+[_Note_: The values returned by `ext_oneapi_get_info` account for all
+properties attached to a kernel (via the mechanisms defined in the
 sycl_ext_oneapi_kernel_properties extension), as well as the usage of features
-like group algorithms and work-group local memory. Developers should assume
-that the values will differ across kernels.
-====
+like group algorithms and work-group local memory.
+Developers should assume that the values will differ across
+kernels._{endnote}_]
 
 [source,c++]
 ----
@@ -121,46 +120,61 @@ namespace sycl {
 
 class kernel {
  public:
-  template <typename Param, typename... T>
-  /*return-type*/ ext_oneapi_get_info(T... args) const;
+
+  // Only available if Param is max_work_item_sizes<1>
+  template <typename Param>
+  id<1> ext_oneapi_get_info(sycl::queue q) const;
+
+  // Only available if Param is max_work_item_sizes<2>
+  template <typename Param>
+  id<2> ext_oneapi_get_info(sycl::queue q) const;
+
+  // Only available if Param is max_work_item_sizes<3>
+  template <typename Param>
+  id<3> ext_oneapi_get_info(sycl::queue q) const;
+
+  // Only available if Param is max_work_group_size
+  template <typename Param>
+  size_t ext_oneapi_get_info(sycl::queue q) const;
+
+  // Only available if Param is max_num_work_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r, size_t bytes = 0) const;
+
+  // Only available if Param is max_num_work_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<2> r, size_t bytes = 0) const;
+
+  // Only available if Param is max_num_work_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<3> r, size_t bytes = 0) const;
+
+  // Only available if Param is max_sub_group_size
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r) const;
+
+  // Only available if Param is max_sub_group_size
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<2> r) const;
+
+  // Only available if Param is max_sub_group_size
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<3> r) const;
+
+  // Only available if Param is num_sub_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r) const;
+
+  // Only available if Param is num_sub_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<2> r) const;
+
+  // Only available if Param is num_sub_groups
+  template <typename Param>
+  uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<3> r) const;
+
 };
 
-}
-----
-
-[source,c++]
-----
-template <typename Param, typename... T>
-/*return-type*/ ext_oneapi_get_info(T... args) const;
-----
-_Constraints_: Available only when the types `+T...+` described by the parameter
-pack match the types defined in the table below.
-
-_Preconditions_: `Param` must be one of the `info::kernel` descriptors defined
-in this extension.
-
-_Returns_: Information about the kernel that applies when the kernel is
-submitted with the configuration described by the parameter pack `+T...+`.
-The return type is defined in the table below.
-
-This extension adds several new queries to this interface, many of which
-already have equivalents in the `kernel_device_specific` or `device`
-namespaces.
-
-NOTE: These queries are queue- and not device-specific because it is
-anticipated that implementations will introduce finer-grained queue
-controls that impact the scheduling of kernels.
-
-NOTE: Allowing devices to return a value of 1 for these queries maximizes the
-chances that code written to use certain extension remains portable. However,
-the performance of kernels using only one work-group, sub-group or work-item
-may be limited on some (highly parallel) devices. If certain properties (e.g.
-forward progress guarantees, cross-work-group synchronization) are being used
-as part of a performance optimization, developers should check that the values
-returned by these queries is not 1.
-
-[source, c++]
-----
 namespace ext::oneapi::experimental::info::kernel {
 
 template <uint32_t Dimensions>
@@ -169,91 +183,156 @@ struct max_work_item_sizes;
 struct max_work_group_size;
 struct max_num_work_groups;
 
-}
-----
-
-[%header,cols="1,5,5,5"]
-|===
-|Kernel Descriptor
-|Argument Types
-|Return Type
-|Description
-
-|`template <uint32_t Dimensions>
- max_work_item_sizes`
-|`sycl::queue`
-|`id<Dimensions>`
-|Returns the maximum number of work-items that are permitted in each dimension
- of a work-group, when the kernel is submitted to the specified queue,
- accounting for any kernel properties or features. If the kernel can be
- submitted to the specified queue without an error, the minimum value returned
- by this query is 1, otherwise it is 0.
-
-|`max_work_group_size`
-|`sycl::queue`
-|`size_t`
-|Returns the maximum number of work-items that are permitted in a work-group,
-when the kernel is submitted to the specified queue, accounting for any
-kernel properties or features. If the kernel can be submitted to the specified
-queue without an error, the minimum value returned by this query is 1,
-otherwise it is 0.
-
-|`max_num_work_groups`
-|`sycl::queue`, `sycl::range`, `size_t`
-|`size_t`
-|Returns the maximum number of work-groups, when the kernel is submitted to the
-specified queue with the specified work-group size and the specified amount of
-dynamic work-group local memory (in bytes), accounting for any kernel
-properties or features. If the specified work-group size is 0, which is
-invalid, then the implementation will throw a synchronous exception with the
-`errc::invalid` error code. If the kernel can be submitted to the specified
-queue without an error, the minimum value returned by this query is 1,
-otherwise it is 0.
-
-|===
-
-A separate set of launch queries can be used to reason about how an
-implementation will launch a kernel on the specified queue. The values of these
-queries should also be checked if a kernel is expected to be launched in a
-specific way (e.g., if the kernel requires two sub-groups for correctness).
-
-[source, c++]
-----
-namespace ext::oneapi::experimental::info::kernel {
-
 struct max_sub_group_size;
 struct num_sub_groups;
 
-}
+} // namespace ext::oneapi::experimental::info::kernel
+
+} // namespace sycl
 ----
 
-[%header,cols="1,5,5,5"]
-|===
-|Kernel Descriptor
-|Argument Types
-|Return Type
-|Description
+==== Querying valid launch configurations
 
-|`max_sub_group_size`
-|`sycl::queue`, `sycl::range`
-|`uint32_t`
-|Returns the maximum sub-group size, when the kernel is submitted to the
+This extension adds several new queries for reasoning about the set of valid
+launch configurations for a given kernel, many of which already have
+equivalents in the `kernel_device_specific` or `device` namespaces.
+
+[_Note_: These queries are queue- and not device-specific because it is
+anticipated that implementations will introduce finer-grained queue
+controls that impact the scheduling of kernels._{endnote}_]
+
+[_Note_: Allowing devices to return a value of 1 for these queries maximizes
+the chances that code written to use certain extension remains portable.
+However, the performance of kernels using only one work-group, sub-group or
+work-item may be limited on some (highly parallel) devices.
+If certain properties (e.g. forward progress guarantees, cross-work-group
+synchronization) are being used as part of a performance optimization,
+developers should check that the values returned by these queries is not
+1._{endnote}_]
+
+'''
+
+[source,c++]
+----
+template <typename Param>
+id<1> ext_oneapi_get_info(sycl::queue q) const; // (1)
+
+template <typename Param>
+id<2> ext_oneapi_get_info(sycl::queue q) const; // (2)
+
+template <typename Param>
+id<3> ext_oneapi_get_info(sycl::queue q) const; // (3)
+----
+_Constraints (1)_: `Param` is `max_work_item_sizes<1>`.
+
+_Constraints (2)_: `Param` is `max_work_item_sizes<2>`.
+
+_Constraints (3)_: `Param` is `max_work_item_sizes<3>`.
+
+_Returns_: The maximum number of work-items that are permitted in each
+dimension of a work-group, when the kernel is submitted to the specified queue,
+accounting for any kernel properties or features.
+If the kernel can be submitted to the specified queue without an error, the
+minimum value returned by this query is 1, otherwise it is 0.
+
+'''
+
+[source,c++]
+----
+template <typename Param>
+size_t ext_oneapi_get_info(sycl::queue q) const;
+----
+_Constraints_: `Param` is `max_work_group_size`.
+
+_Returns_: The maximum number of work-items that are permitted in a work-group,
+when the kernel is submitted to the specified queue, accounting for any
+kernel properties or features.
+If the kernel can be submitted to the specified queue without an error, the
+minimum value returned by this query is 1, otherwise it is 0.
+
+'''
+
+[source,c++]
+----
+template <typename Param>
+size_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r, size_t bytes = 0) const;
+
+template <typename Param>
+size_t ext_oneapi_get_info(sycl::queue q, sycl::range<2> r, size_t bytes = 0) const;
+
+template <typename Param>
+size_t ext_oneapi_get_info(sycl::queue q, sycl::range<3> r, size_t bytes = 0) const;
+----
+_Constraints_: `Param` is `max_num_work_groups`.
+
+_Returns_: The maximum number of work-groups, when the kernel is submitted to
+the specified queue with the specified work-group size and the specified amount
+of dynamic work-group local memory (in bytes), accounting for any kernel
+properties or features.
+If the kernel can be submitted to the specified queue without an
+error, the minimum value returned by this query is 1, otherwise it is 0.
+
+_Throws_: A synchronous `exception` with the error code `errc::invalid` if the
+work-group size `r` is 0.
+
+
+==== Querying launch behavior
+
+A separate set of launch queries can be used to reason about how an
+implementation will launch a kernel on the specified queue.
+The values of these queries should also be checked if a kernel is expected to
+be launched in a specific way (e.g., if the kernel requires two sub-groups for
+correctness).
+
+'''
+
+[source,c++]
+----
+template <typename Param>
+uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r) const;
+
+template <typename Param>
+uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<2> r) const;
+
+template <typename Param>
+uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<3> r) const;
+----
+_Constraints_: `Param` is `max_sub_group_size`.
+
+_Returns_: The maximum sub-group size, when the kernel is submitted to the
 specified queue with the specified work-group size, accounting for any kernel
-properties or features. The return value of this query must match the value
-returned by `sub_group::get_max_local_range()` inside the kernel. If the kernel
-can be submitted to the specified queue without an error, the minimum value
-returned by this query is 1, otherwise it is 0.
+properties or features.
+The return value of this query must match the value returned by
+`sub_group::get_max_local_range()` inside the kernel.
+If the kernel can be submitted to the specified queue without an error, the
+minimum value returned by this query is 1, otherwise it is 0.
 
-|`num_sub_groups`
-|`sycl::queue`, `sycl::range`
-|`uint32_t`
-|Returns the number of sub-groups per work-group, when the kernel is submitted
-to the specified queue with the specified work-group size, accounting for any
-kernel properties or features. If the kernel can be submitted to the specified
-queue without an error, the minimum value returned by this query is 1,
-otherwise it is 0.
+_Throws_: A synchronous `exception` with the error code `errc::invalid` if the
+work-group size `r` is 0.
 
-|===
+'''
+
+[source,c++]
+----
+template <typename Param>
+uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<1> r) const;
+
+template <typename Param>
+uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<2> r) const;
+
+template <typename Param>
+uint32_t ext_oneapi_get_info(sycl::queue q, sycl::range<3> r) const;
+----
+_Constraints_: `Param` is `num_sub_groups`.
+
+_Returns_: The number of sub-groups per work-group, when the kernel is
+submitted to the specified queue with the specified work-group size, accounting
+for any kernel properties or features.
+If the kernel can be submitted to the specified queue without an error, the
+minimum value returned by this query is 1, otherwise it is 0.
+
+_Throws_: A synchronous `exception` with the error code `errc::invalid` if the
+work-group size `r` is 0.
 
 == Issues
 

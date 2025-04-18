@@ -4,7 +4,11 @@
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t2.out
 // RUN: %{run} %t2.out
 //
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: target-nvidia || target-amd
+
+// UNSUPPORTED: igc-dev
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17008
+
 #include "imf_utils.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/math.hpp>

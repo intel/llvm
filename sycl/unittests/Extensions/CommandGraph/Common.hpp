@@ -18,6 +18,8 @@
 
 #include <gtest/gtest.h>
 
+#include <sycl/ext/oneapi/experimental/async_alloc/async_alloc.hpp>
+
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 

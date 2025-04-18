@@ -2,7 +2,7 @@
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out %threads_lib
 //
 // Since this is a multi-threaded application enable memory tracking and
-// deferred release feature in the Level Zero plugin to avoid releasing memory
+// deferred release feature in the Level Zero adapter to avoid releasing memory
 // too early. This is necessary because currently SYCL RT sets indirect access
 // flag for all kernels and the Level Zero runtime doesn't support deferred
 // release yet.

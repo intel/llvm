@@ -1,5 +1,11 @@
-// REQUIRES: cuda
 // REQUIRES: aspect-ext_oneapi_bindless_images_shared_usm
+
+// This test is unstable (sometimes passes) on HIP-AMD platforms.
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: While rarely, urBindlessImagesSampledImageCreateExp for
+// USM image memory type (with linear sampler) sometimes returns an unsupported
+// feature result code (1:1 mapping from the native errc from the HIP runtime).
+// We think this is likely an issue in the ROCm drivers(could be arch-specific).
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out

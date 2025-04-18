@@ -1,5 +1,5 @@
 // REQUIRES: cuda || hip || level_zero
-// RUN:  %{build} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_61 %} -o %t.out
+// RUN:  %{build} %if target-nvidia %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_61 %} -o %t.out
 // RUN:  %{run} %t.out
 
 #include <cassert>

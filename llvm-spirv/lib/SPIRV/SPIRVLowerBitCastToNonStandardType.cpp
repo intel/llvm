@@ -65,7 +65,7 @@ static Value *removeBitCasts(Value *OldValue, Type *NewTy, NFIRBuilder &Builder,
     // If there's only one use, don't create a bitcast for any uses, since it
     // will be immediately replaced anyways.
     if (OldValue->hasOneUse()) {
-      OldValue->replaceAllUsesWith(UndefValue::get(OldValue->getType()));
+      OldValue->replaceAllUsesWith(PoisonValue::get(OldValue->getType()));
     } else {
       OldValue->replaceAllUsesWith(
           Builder.CreateBitCast(NewValue, OldValue->getType()));
@@ -95,7 +95,7 @@ static Value *removeBitCasts(Value *OldValue, Type *NewTy, NFIRBuilder &Builder,
   if (auto *BC = dyn_cast<BitCastInst>(OldValue)) {
     if (BC->getSrcTy() == NewTy) {
       if (BC->hasOneUse()) {
-        BC->replaceAllUsesWith(UndefValue::get(BC->getType()));
+        BC->replaceAllUsesWith(PoisonValue::get(BC->getType()));
         InstsToErase.push_back(BC);
       }
       return BC->getOperand(0);

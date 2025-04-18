@@ -199,7 +199,10 @@ public:
       "SYCL/specialization constants";
   static constexpr char SYCL_SPEC_CONSTANTS_DEFAULT_VALUES[] =
       "SYCL/specialization constants default values";
+  // TODO: remove SYCL_DEVICELIB_REQ_MASK when devicelib online linking path
+  // is totally removed.
   static constexpr char SYCL_DEVICELIB_REQ_MASK[] = "SYCL/devicelib req mask";
+  static constexpr char SYCL_DEVICELIB_METADATA[] = "SYCL/devicelib metadata";
   static constexpr char SYCL_KERNEL_PARAM_OPT_INFO[] = "SYCL/kernel param opt";
   static constexpr char SYCL_PROGRAM_METADATA[] = "SYCL/program metadata";
   static constexpr char SYCL_MISC_PROP[] = "SYCL/misc properties";
@@ -210,6 +213,11 @@ public:
   static constexpr char SYCL_DEVICE_REQUIREMENTS[] = "SYCL/device requirements";
   static constexpr char SYCL_HOST_PIPES[] = "SYCL/host pipes";
   static constexpr char SYCL_VIRTUAL_FUNCTIONS[] = "SYCL/virtual functions";
+  static constexpr char SYCL_IMPLICIT_LOCAL_ARG[] = "SYCL/implicit local arg";
+  static constexpr char SYCL_REGISTERED_KERNELS[] = "SYCL/registered kernels";
+
+  static constexpr char PROPERTY_REQD_WORK_GROUP_SIZE[] =
+      "reqd_work_group_size_uint64_t";
 
   /// Function for bulk addition of an entire property set in the given
   /// \p Category .
@@ -228,6 +236,17 @@ public:
   void add(StringRef Category, StringRef PropName, const T &PropVal) {
     auto &PropSet = PropSetMap[Category];
     PropSet.insert({PropName, PropertyValue(PropVal)});
+  }
+
+  void remove(StringRef Category, StringRef PropName) {
+    auto PropertySetIt = PropSetMap.find(Category);
+    if (PropertySetIt == PropSetMap.end())
+      return;
+    auto &PropertySet = PropertySetIt->second;
+    auto PropIt = PropertySet.find(PropName);
+    if (PropIt == PropertySet.end())
+      return;
+    PropertySet.erase(PropIt);
   }
 
   /// Parses from the given \p Buf a property set registry.

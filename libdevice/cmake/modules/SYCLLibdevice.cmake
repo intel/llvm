@@ -22,18 +22,24 @@ set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_obj-new-offload lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
 
-set(clang $<TARGET_FILE:clang>)
-set(llvm-ar $<TARGET_FILE:llvm-ar>)
-set(llvm-link $<TARGET_FILE:llvm-link>)
-set(llvm-opt $<TARGET_FILE:opt>)
-
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
   "spir64_x86_64-unknown-unknown,"
   "spir64_gen-unknown-unknown,"
-  "spir64_fpga-unknown-unknown,"
   "spir64-unknown-unknown,"
   "spirv64-unknown-unknown")
+
+string(CONCAT sycl_pvc_target_opt
+  "-fsycl-targets="
+  "intel_gpu_pvc")
+
+string(CONCAT sycl_cpu_target_opt
+  "-fsycl-targets="
+  "spir64_x86_64-unknown-unknown")
+
+string(CONCAT sycl_dg2_target_opt
+  "-fsycl-targets="
+  "spir64_gen-unknown-unknown")
 
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
@@ -43,6 +49,7 @@ set(compile_opts
   # we declare all functions as 'static'.
   -Wno-undefined-internal
   -sycl-std=2020
+  --target=${LLVM_HOST_TRIPLE}
   )
 
 set(SYCL_LIBDEVICE_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
@@ -79,7 +86,7 @@ endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND devicelib_arch amdgcn-amd-amdhsa)
   set(compile_opts_amdgcn-amd-amdhsa "-nogpulib" "-fsycl-targets=amdgcn-amd-amdhsa"
-  "-Xsycl-target-backend" "--offload-arch=gfx940")
+  "-Xsycl-target-backend" "--offload-arch=gfx942")
   set(opt_flags_amdgcn-amd-amdhsa "-O3" "--amdgpu-oclc-reflect-enable=false")
 endif()
 
@@ -134,7 +141,8 @@ function(compile_lib_ext filename)
 
   add_custom_command(
     OUTPUT ${devicelib-file}
-    COMMAND ${clang} ${ARG_OPTS}
+    COMMAND ${clang_exe} -I ${PROJECT_BINARY_DIR}/include
+            ${ARG_OPTS}
             ${CMAKE_CURRENT_SOURCE_DIR}/${ARG_SRC} -o ${devicelib-file}
     MAIN_DEPENDENCY ${ARG_SRC}
     DEPENDS ${ARG_DEPENDENCIES}
@@ -185,7 +193,7 @@ function(add_devicelibs filename)
   cmake_parse_arguments(ARG
     ""
     ""
-    "SRC;EXTRA_OPTS;DEPENDENCIES"
+    "SRC;EXTRA_OPTS;DEPENDENCIES;SKIP_ARCHS"
     ${ARGN})
 
   foreach(filetype IN LISTS filetypes)
@@ -197,6 +205,9 @@ function(add_devicelibs filename)
   endforeach()
 
   foreach(arch IN LISTS devicelib_arch)
+    if(arch IN_LIST ARG_SKIP_ARCHS)
+      continue()
+    endif()
     compile_lib(${filename}-${arch}
       FILETYPE bc
       SRC ${ARG_SRC}
@@ -209,18 +220,91 @@ function(add_devicelibs filename)
   endforeach()
 endfunction()
 
-# Set up the dependency lists for the libdevice libraries
-set(crt_obj_deps wrapper.h device.h spirv_vars.h sycl-compiler)
-set(complex_obj_deps device_complex.h device.h sycl-compiler)
-set(cmath_obj_deps device_math.h device.h sycl-compiler)
-set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h sycl-compiler)
-set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
-set(bfloat16_obj_deps sycl-headers sycl-compiler)
+# For native builds, sycl-compiler will already include everything we need.
+# For cross builds, we also need native versions of the tools.
+set(sycl-compiler_deps
+  sycl-compiler ${clang_target} ${append-file_target}
+  ${clang-offload-bundler_target} ${clang-offload-packager_target}
+  ${file-table-tform_target} ${llvm-foreach_target} ${llvm-spirv_target}
+  ${sycl-post-link_target})
+set(crt_obj_deps wrapper.h device.h spirv_vars.h ${sycl-compiler_deps})
+set(complex_obj_deps device_complex.h device.h ${sycl-compiler_deps})
+set(cmath_obj_deps device_math.h device.h ${sycl-compiler_deps})
+set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h ${sycl-compiler_deps})
+set(itt_obj_deps device_itt.h spirv_vars.h device.h ${sycl-compiler_deps})
+set(bfloat16_obj_deps sycl-headers ${sycl-compiler_deps})
 if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
-  set(sanitizer_obj_deps
+  set(asan_obj_deps
     device.h atomic.hpp spirv_vars.h
-    ${UR_SANITIZER_INCLUDE_DIR}/asan_libdevice.hpp
-    include/sanitizer_utils.hpp
+    ${UR_SANITIZER_INCLUDE_DIR}/asan/asan_libdevice.hpp
+    include/asan_rtl.hpp
+    include/sanitizer_defs.hpp
+    include/spir_global_var.hpp
+    ${sycl-compiler_deps})
+
+  set(sanitizer_generic_compile_opts ${compile_opts}
+                            -fno-sycl-instrument-device-code
+                            -I${UR_SANITIZER_INCLUDE_DIR}
+                            -I${CMAKE_CURRENT_SOURCE_DIR})
+
+  set(sanitizer_pvc_compile_opts_obj -fsycl -c
+                                ${sanitizer_generic_compile_opts}
+                                ${sycl_pvc_target_opt}
+                                -D__LIBDEVICE_PVC__)
+
+  set(sanitizer_cpu_compile_opts_obj -fsycl -c
+                                ${sanitizer_generic_compile_opts}
+                                ${sycl_cpu_target_opt}
+                                -D__LIBDEVICE_CPU__)
+
+  set(sanitizer_dg2_compile_opts_obj -fsycl -c
+                                ${sanitizer_generic_compile_opts}
+                                ${sycl_dg2_target_opt}
+                                -D__LIBDEVICE_DG2__)
+
+  set(sanitizer_pvc_compile_opts_bc  ${bc_device_compile_opts}
+                                ${sanitizer_generic_compile_opts}
+                                -D__LIBDEVICE_PVC__)
+
+  set(sanitizer_cpu_compile_opts_bc  ${bc_device_compile_opts}
+                                ${sanitizer_generic_compile_opts}
+                                -D__LIBDEVICE_CPU__)
+
+  set(sanitizer_dg2_compile_opts_bc  ${bc_device_compile_opts}
+                                ${sanitizer_generic_compile_opts}
+                                -D__LIBDEVICE_DG2__)
+
+  set(sanitizer_pvc_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_pvc_target_opt}
+                                            -D__LIBDEVICE_PVC__)
+
+  set(sanitizer_cpu_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_cpu_target_opt}
+                                            -D__LIBDEVICE_CPU__)
+
+  set(sanitizer_dg2_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_dg2_target_opt}
+                                            -D__LIBDEVICE_DG2__)
+  
+  set(msan_obj_deps
+    device.h atomic.hpp spirv_vars.h
+    ${UR_SANITIZER_INCLUDE_DIR}/msan/msan_libdevice.hpp
+    include/msan_rtl.hpp
+    include/sanitizer_defs.hpp
+    include/spir_global_var.hpp
+    sycl-compiler)
+
+  set(tsan_obj_deps
+    device.h atomic.hpp spirv_vars.h
+    ${UR_SANITIZER_INCLUDE_DIR}/tsan/tsan_libdevice.hpp
+    include/tsan_rtl.hpp
+    include/sanitizer_defs.hpp
     include/spir_global_var.hpp
     sycl-compiler)
 endif()
@@ -231,13 +315,25 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
   # Include NativeCPU UR adapter path to enable finding header file with state struct.
   # libsycl-nativecpu_utils is only needed as BC file by NativeCPU.
-  # Todo: add versions for other targets (for cross-compilation)
-  compile_lib(libsycl-nativecpu_utils
-    FILETYPE bc
-    SRC nativecpu_utils.cpp
-    DEPENDENCIES ${itt_obj_deps}
-    EXTRA_OPTS -I ${NATIVE_CPU_DIR} -fsycl-targets=native_cpu -fsycl-device-only
-               -fsycl-device-obj=llvmir)
+  add_custom_command(
+    OUTPUT ${bc_binary_dir}/nativecpu_utils.bc
+    COMMAND ${clang_exe} ${compile_opts} ${bc_device_compile_opts} -fsycl-targets=native_cpu
+      -I ${NATIVE_CPU_DIR}
+      ${CMAKE_CURRENT_SOURCE_DIR}/nativecpu_utils.cpp
+      -o ${bc_binary_dir}/nativecpu_utils.bc
+    MAIN_DEPENDENCY nativecpu_utils.cpp
+    DEPENDS ${sycl-compiler_deps}
+    VERBATIM)
+  add_custom_target(nativecpu_utils-bc DEPENDS ${bc_binary_dir}/nativecpu_utils.bc)
+  process_bc(libsycl-nativecpu_utils.bc
+    LIB_TGT libsycl-nativecpu_utils
+    IN_FILE ${bc_binary_dir}/nativecpu_utils.bc
+    OUT_DIR ${bc_binary_dir})
+  add_custom_target(libsycl-nativecpu_utils-bc DEPENDS ${bc_binary_dir}/libsycl-nativecpu_utils.bc)
+  add_dependencies(libsycldevice-bc libsycl-nativecpu_utils-bc)
+  install(FILES ${bc_binary_dir}/libsycl-nativecpu_utils.bc
+          DESTINATION ${install_dest_bc}
+          COMPONENT libsycldevice)
 endif()
 
 # Add all device libraries for each filetype except for the Intel math function
@@ -285,10 +381,58 @@ if(MSVC)
     DEPENDENCIES ${cmath_obj_deps})
 else()
   if(UR_SANITIZER_INCLUDE_DIR)
-    add_devicelibs(libsycl-sanitizer
-      SRC sanitizer_utils.cpp
-      DEPENDENCIES ${sanitizer_obj_deps}
-      EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})
+    # asan jit
+    add_devicelibs(libsycl-asan
+      SRC sanitizer/asan_rtl.cpp
+      DEPENDENCIES ${asan_obj_deps}
+      SKIP_ARCHS nvptx64-nvidia-cuda
+                 amdgcn-amd-amdhsa
+      EXTRA_OPTS -fno-sycl-instrument-device-code
+                 -I${UR_SANITIZER_INCLUDE_DIR}
+                 -I${CMAKE_CURRENT_SOURCE_DIR})
+
+    # asan aot
+    set(sanitizer_filetypes obj obj-new-offload bc)
+    set(asan_devicetypes pvc cpu dg2)
+
+    foreach(asan_ft IN LISTS sanitizer_filetypes)
+      foreach(asan_device IN LISTS asan_devicetypes)
+        compile_lib_ext(libsycl-asan-${asan_device}
+                        SRC sanitizer/asan_rtl.cpp
+                        FILETYPE ${asan_ft}
+                        DEPENDENCIES ${asan_obj_deps}
+                        OPTS ${sanitizer_${asan_device}_compile_opts_${asan_ft}})
+      endforeach()
+    endforeach()
+
+    # msan jit
+    add_devicelibs(libsycl-msan
+      SRC sanitizer/msan_rtl.cpp
+      DEPENDENCIES ${msan_obj_deps}
+      EXTRA_OPTS -fno-sycl-instrument-device-code
+                 -I${UR_SANITIZER_INCLUDE_DIR}
+                 -I${CMAKE_CURRENT_SOURCE_DIR})
+
+    # msan aot
+    set(msan_devicetypes pvc cpu)
+
+    foreach(msan_ft IN LISTS sanitizer_filetypes)
+      foreach(msan_device IN LISTS msan_devicetypes)
+        compile_lib_ext(libsycl-msan-${msan_device}
+                        SRC sanitizer/msan_rtl.cpp
+                        FILETYPE ${msan_ft}
+                        DEPENDENCIES ${msan_obj_deps}
+                        OPTS ${sanitizer_${msan_device}_compile_opts_${msan_ft}})
+      endforeach()
+    endforeach()
+
+    # tsan jit
+    add_devicelibs(libsycl-tsan
+      SRC sanitizer/tsan_rtl.cpp
+      DEPENDENCIES ${tsan_obj_deps}
+      EXTRA_OPTS -fno-sycl-instrument-device-code
+                 -I${UR_SANITIZER_INCLUDE_DIR}
+                 -I${CMAKE_CURRENT_SOURCE_DIR})
   endif()
 endif()
 
@@ -343,6 +487,7 @@ set(imf_fp64_fallback_src ${imf_fallback_src_dir}/imf_fp64_fallback.cpp)
 set(imf_bf16_fallback_src ${imf_fallback_src_dir}/imf_bf16_fallback.cpp)
 
 set(imf_host_cxx_flags -c
+  --target=${LLVM_HOST_TRIPLE}
   -D__LIBDEVICE_HOST_IMPL__
 )
 
@@ -436,13 +581,13 @@ function(add_lib_imf name)
 
   add_custom_command(
     OUTPUT ${ARG_DIR}/${name}.${${ARG_FTYPE}-suffix}
-    COMMAND ${clang} ${compile_opts} ${ARG_EXTRA_OPTS}
+    COMMAND ${clang_exe} ${compile_opts} ${ARG_EXTRA_OPTS}
             -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
             ${imf_${ARG_DTYPE}_fallback_src}
             -o
             ${ARG_DIR}/${name}.${${ARG_FTYPE}-suffix}
             DEPENDS ${imf_fallback_${ARG_DTYPE}_deps}
-            get_imf_fallback_${ARG_DTYPE} sycl-compiler
+            get_imf_fallback_${ARG_DTYPE} ${sycl-compiler_deps}
     VERBATIM)
 
   add_custom_target(${ARG_TGT_NAME}
@@ -485,7 +630,7 @@ foreach(arch IN LISTS devicelib_arch)
 
     append_to_property(
       ${bc_binary_dir}/libsycl-fallback-imf-${arch}-${dtype}.${bc-suffix}
-      PROPERTY_NAME ${arch})
+      PROPERTY_NAME BC_DEVICE_LIBS_${arch})
   endforeach()
 endforeach()
 
@@ -536,7 +681,7 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
     endif()
     add_custom_command(
       OUTPUT ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
-      COMMAND ${clang} ${${ftype}_host_compile_opts}
+      COMMAND ${clang_exe} ${${ftype}_host_compile_opts}
               ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
               -o ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
       MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
@@ -553,7 +698,7 @@ foreach(ftype IN ITEMS obj obj-new-offload)
     DEPENDS ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}})
   add_custom_command(
     OUTPUT ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}}
-    COMMAND ${llvm-ar} rcs
+    COMMAND ${llvm-ar_exe} rcs
             ${${ftype}_binary_dir}/${devicelib_host_static_${ftype}}
             ${${ftype}_binary_dir}/imf-fp32-host.${${ftype}-suffix}
             ${${ftype}_binary_dir}/fallback-imf-fp32-host.${${ftype}-suffix}
@@ -564,7 +709,7 @@ foreach(ftype IN ITEMS obj obj-new-offload)
     DEPENDS imf_fp32_host_${ftype} imf_fallback_fp32_host_${ftype}
     DEPENDS imf_fp64_host_${ftype} imf_fallback_fp64_host_${ftype}
     DEPENDS imf_bf16_host_${ftype} imf_fallback_bf16_host_${ftype}
-    DEPENDS sycl-compiler
+    DEPENDS ${llvm-ar_target}
     VERBATIM)
   add_dependencies(libsycldevice-obj imf_host_${ftype})
 

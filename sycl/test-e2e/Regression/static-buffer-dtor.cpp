@@ -13,10 +13,13 @@
 // RUN: %{run} %t.out
 
 // Failing on HIP AMD
-// UNSUPPORTED: hip_amd
+// UNSUPPORTED: hip
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+
+// UNSUPPORTED: windows && arch-intel_gpu_bmg_g21
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17255
 
 #include <sycl/detail/core.hpp>
 

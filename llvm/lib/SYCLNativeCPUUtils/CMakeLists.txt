@@ -3,7 +3,6 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  FixABIMuxBuiltinsSYCLNativeCPU.cpp
   FAtomicsNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -34,16 +33,16 @@ endif()
 
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
-    set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit d983db7aa87fc1a6f7cdb46e3ced63f6f145749e
-    # Merge: 1d3a925c 2c510ca2
+    set(OCK_GIT_INTERNAL_REPO "https://github.com/uxlfoundation/oneapi-construction-kit.git")
+    # commit ffef31717750d3f15bfd2f18d9cd7f4677fe9d3e
+    # Merge: 574307afde 0b00238554
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Tue Oct 15 15:50:57 2024 +0100
+    # Date:   Fri Apr 4 16:26:38 2025 +0100
     # 
-    #     Merge pull request #566 from hvdijk/fix-clang-format
+    #     Merge pull request #751 from hvdijk/llvm21-address-space
     #     
-    #     clang-format: fix output.
-    set(OCK_GIT_INTERNAL_TAG d983db7aa87fc1a6f7cdb46e3ced63f6f145749e)
+    #     [LLVM 21] Take address space into account for legality.
+    set(OCK_GIT_INTERNAL_TAG ffef31717750d3f15bfd2f18d9cd7f4677fe9d3e)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

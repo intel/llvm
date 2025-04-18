@@ -261,7 +261,7 @@ scalar component is mapped to a function call with index argument, i.e.:
 
   ; However SPIRV-LLVM translator will transform it to the following pattern:
   %1 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0)
-  %2 = insertelement <3 x i64> undef, i64 %1, i32 0
+  %2 = insertelement <3 x i64> poison, i64 %1, i32 0
   %3 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 1)
   %4 = insertelement <3 x i64> %2, i64 %3, i32 1
   %5 = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 2)

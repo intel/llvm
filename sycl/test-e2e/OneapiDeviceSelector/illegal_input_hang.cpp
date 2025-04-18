@@ -4,7 +4,7 @@
 #include <vector>
 
 // Check that the application does not hang when we attempt
-// to initialize plugins multiple times with invalid values
+// to initialize adapters multiple times with invalid values
 // of ONEAPI_DEVICE_SELECTOR.
 int main() {
   for (int I = 0; I < 3; ++I) {

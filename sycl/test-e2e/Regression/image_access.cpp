@@ -1,9 +1,6 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
-//
-// UNSUPPORTED: hip
-// CUDA doesn't fully support OpenCL spec conform images.
 
 //==-------------- image_access.cpp - SYCL image accessors test  -----------==//
 //

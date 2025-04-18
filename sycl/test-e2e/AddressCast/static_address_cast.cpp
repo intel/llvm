@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// OpGenericCastToPtr* intrinsics not implemented on AMD or NVIDIA
-// UNSUPPORTED: hip, cuda
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

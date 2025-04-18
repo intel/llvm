@@ -34,7 +34,7 @@
                OpBranch %20
          %20 = OpLabel
           %e = OpPhi %uint %a %19 %math %21
-         %16 = OpIAddCarry %_struct_7 %e %uint_1
+         %16 = OpUMulExtended %_struct_7 %e %uint_1
        %math = OpCompositeExtract %uint %16 0
          %17 = OpCompositeExtract %uint %16 1
          %ov = OpINotEqual %bool %17 %10
@@ -47,6 +47,6 @@
                OpFunctionEnd
 
 ; CHECK: %[[#Var:]] = alloca %structtype, align 8
-; CHECK: call spir_func void @_Z17__spirv_IAddCarryii(ptr sret(%structtype) %[[#Var:]]
+; CHECK: call spir_func void @_Z20__spirv_UMulExtendedii(ptr sret(%structtype) %[[#Var:]]
 ; CHECK: %[[#Load:]] = load %structtype, ptr %[[#Var]], align 4
 ; CHECK-2: extractvalue %structtype %[[#Load:]]

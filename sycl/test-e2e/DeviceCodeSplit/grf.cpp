@@ -14,6 +14,12 @@
 //   compiler option
 
 // REQUIRES: arch-intel_gpu_pvc
+// XFAIL: arch-intel_gpu_pvc && opencl
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16401
+
+// Flaky pass/fail behaviour.
+// UNSUPPORTED: spirv-backend
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t1.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
@@ -60,6 +66,15 @@ bool checkResult(const std::vector<float> &A, int Inc) {
   }
   return true;
 }
+
+template <typename T1, typename T2> struct KernelFunctor {
+  T1 mPA;
+  T2 mProp;
+  KernelFunctor(T1 PA, T2 Prop) : mPA(PA), mProp(Prop) {}
+
+  void operator()(id<1> i) const { mPA[i] += 2; }
+  auto get(properties_tag) const { return mProp; }
+};
 
 int main(void) {
   constexpr unsigned Size = 32;
@@ -116,8 +131,8 @@ int main(void) {
 
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
-      cgh.parallel_for<class SYCLKernelSpecifiedGRF>(
-          Size, prop, [=](id<1> i) { PA[i] += 2; });
+      cgh.parallel_for<class SYCLKernelSpecifiedGRF>(Size,
+                                                     KernelFunctor(PA, prop));
     });
     e.wait();
   } catch (sycl::exception const &e) {

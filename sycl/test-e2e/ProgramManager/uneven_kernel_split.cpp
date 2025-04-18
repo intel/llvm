@@ -1,5 +1,7 @@
-// REQUIRES: any-device-is-cpu, gpu, opencl-aot, ocloc
-// UNSUPPORTED: cuda, hip
+// REQUIRES: any-device-is-cpu, gpu, opencl-aot, ocloc, target-spir, opencl-cpu-rt
+
+// UNSUPPORTED: linux
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/17305
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -I %S/Inputs/ %S/uneven_kernel_split.cpp -c -o %t.o
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -I %S/Inputs/ %S/Inputs/gpu_kernel1.cpp -c -o %t1.o

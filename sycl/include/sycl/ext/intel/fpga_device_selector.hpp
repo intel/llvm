@@ -10,6 +10,7 @@
 
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/platform.hpp>
 
 #include <string>
 #include <string_view>

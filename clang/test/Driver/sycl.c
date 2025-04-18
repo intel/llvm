@@ -67,7 +67,6 @@
 // RUN: %clang_cl -### -fsycl-device-only -Od %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
 // RUN: %clangxx -### -fsycl-device-only -O1 %s 2>&1 | FileCheck %s --check-prefix=CHECK-INLINE
 // RUN: %clang_cl -### -fsycl-device-only -O2 %s 2>&1 | FileCheck %s --check-prefix=CHECK-INLINE
-// RUN: %clangxx -### -fsycl-device-only -fintelfpga %s 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-INLINE
 // CHECK-NOT-INLINE: "-fno-sycl-force-inline-kernel-lambda"
 // CHECK-INLINE-NOT: "-fno-sycl-force-inline-kernel-lambda"
 
@@ -99,20 +98,14 @@
 
 // -fsycl-help tests
 // RUN: mkdir -p %t-sycl-dir
-// RUN: touch %t-sycl-dir/aoc
-// RUN: chmod +x %t-sycl-dir/aoc
 // Test with a bad argument is expected to fail
 // RUN: not %clang -fsycl-help=foo %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-BADARG
 // RUN: %clang -### -fsycl-help=gen %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-GEN
-// RUN: env "PATH=%t-sycl-dir%{pathsep}%PATH%" %clang -### -fsycl-help=fpga %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-FPGA,SYCL-HELP-FPGA-OUT -DDIR=%t-sycl-dir
 // RUN: %clang -### -fsycl-help=x86_64 %s 2>&1 | FileCheck %s --check-prefix=SYCL-HELP-CPU
-// RUN: %clang -### -fsycl-help %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-GEN,SYCL-HELP-FPGA,SYCL-HELP-CPU
+// RUN: %clang -### -fsycl-help %s 2>&1 | FileCheck %s --check-prefixes=SYCL-HELP-GEN,SYCL-HELP-CPU
 // SYCL-HELP-BADARG: unsupported argument 'foo' to option '-fsycl-help='
 // SYCL-HELP-GEN: Emitting help information for ocloc
 // SYCL-HELP-GEN: Use triple of 'spir64_gen-unknown-unknown' to enable ahead of time compilation
-// SYCL-HELP-FPGA: Emitting help information for aoc
-// SYCL-HELP-FPGA: Use triple of 'spir64_fpga-unknown-unknown' to enable ahead of time compilation
-// SYCL-HELP-FPGA-OUT: "[[DIR]]{{[/\\]+}}aoc" "-help" "-sycl"
 // SYCL-HELP-CPU: Emitting help information for opencl-aot
 // SYCL-HELP-CPU: Use triple of 'spir64_x86_64-unknown-unknown' to enable ahead of time compilation
 
@@ -121,8 +114,6 @@
 // RUN: FileCheck %s -check-prefix SYCL_HELP_ORDER --input-file=%t.help-out
 // SYCL_HELP_ORDER: Emitting help information for ocloc
 // SYCL_HELP_ORDER: ocloc{{(\.exe)?}}" "--help"
-// SYCL_HELP_ORDER: Emitting help information for aoc
-// SYCL_HELP_ORDER: aoc{{(\.exe)?}}" "-help" "-sycl"
 // SYCL_HELP_ORDER: Emitting help information for opencl-aot
 // SYCL_HELP_ORDER: opencl-aot{{(\.exe)?}}" "--help"
 
@@ -154,6 +145,7 @@
 // RUN:   | FileCheck -check-prefix=DEBUG-WIN %s
 // RUN: %clang_cl -### -fsycl -Zi -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=DEBUG-WIN %s
-// DEBUG-WIN: {{.*}}"-fsycl-is-device"{{.*}}"-gcodeview"
+// DEBUG-WIN: {{.*}}"-fsycl-is-device"
+// DEBUG-WIN-NOT: "-gcodeview"
 // DEBUG-WIN: {{.*}}"-fsycl-is-host"{{.*}}"-gcodeview"
 // DEBUG-WIN-NOT: dwarf-version

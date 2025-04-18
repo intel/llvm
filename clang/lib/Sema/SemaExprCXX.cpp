@@ -18,10 +18,10 @@
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/DeclObjC.h"
+#include "clang/AST/DynamicRecursiveASTVisitor.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprObjC.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/AlignedAllocation.h"
@@ -503,17 +503,23 @@ bool Sema::checkLiteralOperatorId(const CXXScopeSpec &SS,
     const IdentifierInfo *II = Name.Identifier;
     ReservedIdentifierStatus Status = II->isReserved(PP.getLangOpts());
     SourceLocation Loc = Name.getEndLoc();
-    if (!PP.getSourceManager().isInSystemHeader(Loc)) {
-      if (auto Hint = FixItHint::CreateReplacement(
-              Name.getSourceRange(),
-              (StringRef("operator\"\"") + II->getName()).str());
-          isReservedInAllContexts(Status)) {
-        Diag(Loc, diag::warn_reserved_extern_symbol)
-            << II << static_cast<int>(Status) << Hint;
-      } else {
-        Diag(Loc, diag::warn_deprecated_literal_operator_id) << II << Hint;
-      }
-    }
+
+    auto Hint = FixItHint::CreateReplacement(
+        Name.getSourceRange(),
+        (StringRef("operator\"\"") + II->getName()).str());
+
+    // Only emit this diagnostic if we start with an underscore, else the
+    // diagnostic for C++11 requiring a space between the quotes and the
+    // identifier conflicts with this and gets confusing. The diagnostic stating
+    // this is a reserved name should force the underscore, which gets this
+    // back.
+    if (II->isReservedLiteralSuffixId() !=
+        ReservedLiteralSuffixIdStatus::NotStartsWithUnderscore)
+      Diag(Loc, diag::warn_deprecated_literal_operator_id) << II << Hint;
+
+    if (isReservedInAllContexts(Status))
+      Diag(Loc, diag::warn_reserved_extern_symbol)
+          << II << static_cast<int>(Status) << Hint;
   }
 
   if (!SS.isValid())
@@ -2156,7 +2162,8 @@ ExprResult Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
 
   // Per C++0x [expr.new]p5, the type being constructed may be a
   // typedef of an array type.
-  if (!ArraySize) {
+  // Dependent case will be handled separately.
+  if (!ArraySize && !AllocType->isDependentType()) {
     if (const ConstantArrayType *Array
                               = Context.getAsConstantArrayType(AllocType)) {
       ArraySize = IntegerLiteral::Create(Context, Array->getSize(),
@@ -3749,7 +3756,8 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
     } else if (!Pointee->isDependentType()) {
       // FIXME: This can result in errors if the definition was imported from a
       // module but is hidden.
-      if (!RequireCompleteType(StartLoc, Pointee,
+      if (Pointee->isEnumeralType() ||
+          !RequireCompleteType(StartLoc, Pointee,
                                LangOpts.CPlusPlus26
                                    ? diag::err_delete_incomplete
                                    : diag::warn_delete_incomplete,
@@ -3793,13 +3801,16 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
               .HasSizeT;
       }
 
-      if (!PointeeRD->hasIrrelevantDestructor())
+      if (!PointeeRD->hasIrrelevantDestructor()) {
         if (CXXDestructorDecl *Dtor = LookupDestructor(PointeeRD)) {
-          MarkFunctionReferenced(StartLoc,
-                                    const_cast<CXXDestructorDecl*>(Dtor));
-          if (DiagnoseUseOfDecl(Dtor, StartLoc))
-            return ExprError();
+          if (Dtor->isCalledByDelete(OperatorDelete)) {
+            MarkFunctionReferenced(StartLoc,
+                                   const_cast<CXXDestructorDecl *>(Dtor));
+            if (DiagnoseUseOfDecl(Dtor, StartLoc))
+              return ExprError();
+          }
         }
+      }
 
       CheckVirtualDtorCall(PointeeRD->getDestructor(), StartLoc,
                            /*IsDelete=*/true, /*CallCanBeVirtual=*/true,
@@ -3834,8 +3845,9 @@ Sema::ActOnCXXDelete(SourceLocation StartLoc, bool UseGlobal,
     bool IsVirtualDelete = false;
     if (PointeeRD) {
       if (CXXDestructorDecl *Dtor = LookupDestructor(PointeeRD)) {
-        CheckDestructorAccess(Ex.get()->getExprLoc(), Dtor,
-                              PDiag(diag::err_access_dtor) << PointeeElem);
+        if (Dtor->isCalledByDelete(OperatorDelete))
+          CheckDestructorAccess(Ex.get()->getExprLoc(), Dtor,
+                                PDiag(diag::err_access_dtor) << PointeeElem);
         IsVirtualDelete = Dtor->isVirtual();
       }
     }
@@ -4433,10 +4445,21 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
     break;
 
   case ICK_HLSL_Array_RValue:
-    FromType = Context.getArrayParameterType(FromType);
-    From = ImpCastExprToType(From, FromType, CK_HLSLArrayRValue, VK_PRValue,
-                             /*BasePath=*/nullptr, CCK)
-               .get();
+    if (ToType->isArrayParameterType()) {
+      FromType = Context.getArrayParameterType(FromType);
+      From = ImpCastExprToType(From, FromType, CK_HLSLArrayRValue, VK_PRValue,
+                               /*BasePath=*/nullptr, CCK)
+                 .get();
+    } else { // FromType must be ArrayParameterType
+      assert(FromType->isArrayParameterType() &&
+             "FromType must be ArrayParameterType in ICK_HLSL_Array_RValue \
+              if it is not ToType");
+      const ArrayParameterType *APT = cast<ArrayParameterType>(FromType);
+      FromType = APT->getConstantArrayType(Context);
+      From = ImpCastExprToType(From, FromType, CK_HLSLArrayRValue, VK_PRValue,
+                               /*BasePath=*/nullptr, CCK)
+                 .get();
+    }
     break;
 
   case ICK_Function_To_Pointer:
@@ -4785,7 +4808,8 @@ Sema::PerformImplicitConversion(Expr *From, QualType ToType,
         ToType->castAs<BlockPointerType>()->getPointeeType().getAddressSpace();
     LangAS AddrSpaceR =
         FromType->castAs<BlockPointerType>()->getPointeeType().getAddressSpace();
-    assert(Qualifiers::isAddressSpaceSupersetOf(AddrSpaceL, AddrSpaceR) &&
+    assert(Qualifiers::isAddressSpaceSupersetOf(AddrSpaceL, AddrSpaceR,
+                                                getASTContext()) &&
            "Invalid cast");
     CastKind Kind =
         AddrSpaceL != AddrSpaceR ? CK_AddressSpaceConversion : CK_BitCast;
@@ -5017,7 +5041,6 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
   case UTT_IsArray:
   case UTT_IsBoundedArray:
   case UTT_IsPointer:
-  case UTT_IsReferenceable:
   case UTT_IsLvalueReference:
   case UTT_IsRvalueReference:
   case UTT_IsMemberFunctionPointer:
@@ -5034,6 +5057,7 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
   case UTT_IsScalar:
   case UTT_IsCompound:
   case UTT_IsMemberPointer:
+  case UTT_IsTypedResourceElementCompatible:
     // Fall-through
 
     // These traits are modeled on type predicates in C++0x [meta.unary.prop]
@@ -5049,6 +5073,10 @@ static bool CheckUnaryTypeTraitTypeCompleteness(Sema &S, TypeTrait UTT,
 
   // This type trait always returns false, checking the type is moot.
   case UTT_IsInterfaceClass:
+    return true;
+
+  // We diagnose incomplete class types later.
+  case UTT_StructuredBindingSize:
     return true;
 
   // C++14 [meta.unary.prop]:
@@ -5663,8 +5691,6 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
     return T.isTriviallyRelocatableType(C);
   case UTT_IsBitwiseCloneable:
     return T.isBitwiseCloneableType(C);
-  case UTT_IsReferenceable:
-    return T.isReferenceable();
   case UTT_CanPassInRegs:
     if (CXXRecordDecl *RD = T->getAsCXXRecordDecl(); RD && !T.hasQualifiers())
       return RD->canPassInRegisters();
@@ -5715,7 +5741,15 @@ static bool EvaluateUnaryTypeTrait(Sema &Self, TypeTrait UTT,
     if (DiagnoseVLAInCXXTypeTrait(Self, TInfo,
                                   tok::kw___builtin_hlsl_is_intangible))
       return false;
-    return Self.HLSL().IsIntangibleType(T);
+    return T->isHLSLIntangibleType();
+
+  case UTT_IsTypedResourceElementCompatible:
+    assert(Self.getLangOpts().HLSL &&
+           "typed resource element compatible types are an HLSL-only feature");
+    if (T->isIncompleteType())
+      return false;
+
+    return Self.HLSL().IsTypedResourceElementCompatible(T);
   }
 }
 
@@ -5790,6 +5824,34 @@ static ExprResult CheckConvertibilityForTypeTraits(
     return ExprError();
 
   return Result;
+}
+
+static APValue EvaluateSizeTTypeTrait(Sema &S, TypeTrait Kind,
+                                      SourceLocation KWLoc,
+                                      ArrayRef<TypeSourceInfo *> Args,
+                                      SourceLocation RParenLoc,
+                                      bool IsDependent) {
+  if (IsDependent)
+    return APValue();
+
+  switch (Kind) {
+  case TypeTrait::UTT_StructuredBindingSize: {
+    QualType T = Args[0]->getType();
+    SourceRange ArgRange = Args[0]->getTypeLoc().getSourceRange();
+    std::optional<unsigned> Size =
+        S.GetDecompositionElementCount(T, ArgRange.getBegin());
+    if (!Size) {
+      S.Diag(KWLoc, diag::err_arg_is_not_destructurable) << T << ArgRange;
+      return APValue();
+    }
+    llvm::APSInt V =
+        S.getASTContext().MakeIntValue(*Size, S.getASTContext().getSizeType());
+    return APValue{V};
+    break;
+  }
+  default:
+    llvm_unreachable("Not a SizeT type trait");
+  }
 }
 
 static bool EvaluateBooleanTypeTrait(Sema &S, TypeTrait Kind,
@@ -5993,9 +6055,12 @@ bool Sema::CheckTypeTraitArity(unsigned Arity, SourceLocation Loc, size_t N) {
 
 enum class TypeTraitReturnType {
   Bool,
+  SizeT,
 };
 
 static TypeTraitReturnType GetReturnType(TypeTrait Kind) {
+  if (Kind == TypeTrait::UTT_StructuredBindingSize)
+    return TypeTraitReturnType::SizeT;
   return TypeTraitReturnType::Bool;
 }
 
@@ -6025,6 +6090,12 @@ ExprResult Sema::BuildTypeTrait(TypeTrait Kind, SourceLocation KWLoc,
                                            Dependent);
     return TypeTraitExpr::Create(Context, Context.getLogicalOperationType(),
                                  KWLoc, Kind, Args, RParenLoc, Result);
+  }
+  case TypeTraitReturnType::SizeT: {
+    APValue Result =
+        EvaluateSizeTTypeTrait(*this, Kind, KWLoc, Args, RParenLoc, Dependent);
+    return TypeTraitExpr::Create(Context, Context.getSizeType(), KWLoc, Kind,
+                                 Args, RParenLoc, Result);
   }
   }
   llvm_unreachable("unhandled type trait return type");
@@ -6633,7 +6704,7 @@ static bool TryClassUnification(Sema &Self, Expr *From, Expr *To,
     //         same type as, or a base class of, the class of T1, and
     //         [cv2 > cv1].
     if (FRec == TRec || FDerivedFromT) {
-      if (TTy.isAtLeastAsQualifiedAs(FTy)) {
+      if (TTy.isAtLeastAsQualifiedAs(FTy, Self.getASTContext())) {
         InitializedEntity Entity = InitializedEntity::InitializeTemporary(TTy);
         InitializationSequence InitSeq(Self, Entity, Kind, From);
         if (InitSeq) {
@@ -7355,8 +7426,8 @@ QualType Sema::FindCompositePointerType(SourceLocation Loc,
       if (Q1.getAddressSpace() == Q2.getAddressSpace()) {
         Quals.setAddressSpace(Q1.getAddressSpace());
       } else if (Steps.size() == 1) {
-        bool MaybeQ1 = Q1.isAddressSpaceSupersetOf(Q2);
-        bool MaybeQ2 = Q2.isAddressSpaceSupersetOf(Q1);
+        bool MaybeQ1 = Q1.isAddressSpaceSupersetOf(Q2, getASTContext());
+        bool MaybeQ2 = Q2.isAddressSpaceSupersetOf(Q1, getASTContext());
         if (MaybeQ1 == MaybeQ2) {
           // Exception for ptr size address spaces. Should be able to choose
           // either address space during comparison.
@@ -8181,7 +8252,7 @@ ExprResult Sema::BuildPseudoDestructorExpr(Expr *Base,
     return ExprError();
 
   if (!ObjectType->isDependentType() && !ObjectType->isScalarType() &&
-      !ObjectType->isVectorType()) {
+      !ObjectType->isVectorType() && !ObjectType->isMatrixType()) {
     if (getLangOpts().MSVCCompat && ObjectType->isVoidType())
       Diag(OpLoc, diag::ext_pseudo_dtor_on_void) << Base->getSourceRange();
     else {
@@ -8438,7 +8509,8 @@ ExprResult Sema::ActOnPseudoDestructorExpr(Scope *S, Expr *Base,
   QualType ObjectType;
   QualType T;
   TypeLocBuilder TLB;
-  if (CheckArrow(*this, ObjectType, Base, OpKind, OpLoc))
+  if (CheckArrow(*this, ObjectType, Base, OpKind, OpLoc) ||
+      DS.getTypeSpecType() == DeclSpec::TST_error)
     return ExprError();
 
   switch (DS.getTypeSpecType()) {
@@ -8688,7 +8760,7 @@ static void CheckIfAnyEnclosingLambdasMustCaptureAnyPotentialCaptures(
   while (isa_and_nonnull<CapturedDecl>(DC))
     DC = DC->getParent();
   assert(
-      CurrentLSI->CallOperator == DC &&
+      (CurrentLSI->CallOperator == DC || !CurrentLSI->AfterParameterList) &&
       "The current call operator must be synchronized with Sema's CurContext");
 #endif // NDEBUG
 
@@ -8812,13 +8884,13 @@ static ExprResult attemptRecovery(Sema &SemaRef,
 }
 
 namespace {
-class FindTypoExprs : public RecursiveASTVisitor<FindTypoExprs> {
+class FindTypoExprs : public DynamicRecursiveASTVisitor {
   llvm::SmallSetVector<TypoExpr *, 2> &TypoExprs;
 
 public:
   explicit FindTypoExprs(llvm::SmallSetVector<TypoExpr *, 2> &TypoExprs)
       : TypoExprs(TypoExprs) {}
-  bool VisitTypoExpr(TypoExpr *TE) {
+  bool VisitTypoExpr(TypoExpr *TE) override {
     TypoExprs.insert(TE);
     return true;
   }
@@ -9445,11 +9517,11 @@ Sema::BuildExprRequirement(
     ExprResult Constraint = SubstExpr(IDC, MLTAL);
     if (Constraint.isInvalid()) {
       return new (Context) concepts::ExprRequirement(
-          concepts::createSubstDiagAt(*this, IDC->getExprLoc(),
-                                      [&](llvm::raw_ostream &OS) {
-                                        IDC->printPretty(OS, /*Helper=*/nullptr,
-                                                         getPrintingPolicy());
-                                      }),
+          createSubstDiagAt(IDC->getExprLoc(),
+                            [&](llvm::raw_ostream &OS) {
+                              IDC->printPretty(OS, /*Helper=*/nullptr,
+                                               getPrintingPolicy());
+                            }),
           IsSimple, NoexceptLoc, ReturnTypeRequirement);
     }
     SubstitutedConstraintExpr =
@@ -9518,13 +9590,38 @@ Sema::ActOnStartRequiresExpr(SourceLocation RequiresKWLoc,
   PushDeclContext(BodyScope, Body);
 
   for (ParmVarDecl *Param : LocalParameters) {
-    if (Param->hasDefaultArg())
+    if (Param->getType()->isVoidType()) {
+      if (LocalParameters.size() > 1) {
+        Diag(Param->getBeginLoc(), diag::err_void_only_param);
+        Param->setType(Context.IntTy);
+      } else if (Param->getIdentifier()) {
+        Diag(Param->getBeginLoc(), diag::err_param_with_void_type);
+        Param->setType(Context.IntTy);
+      } else if (Param->getType().hasQualifiers()) {
+        Diag(Param->getBeginLoc(), diag::err_void_param_qualified);
+      }
+    } else if (Param->hasDefaultArg()) {
       // C++2a [expr.prim.req] p4
       //     [...] A local parameter of a requires-expression shall not have a
       //     default argument. [...]
       Diag(Param->getDefaultArgRange().getBegin(),
            diag::err_requires_expr_local_parameter_default_argument);
-    // Ignore default argument and move on
+      // Ignore default argument and move on
+    } else if (Param->isExplicitObjectParameter()) {
+      // C++23 [dcl.fct]p6:
+      //   An explicit-object-parameter-declaration is a parameter-declaration
+      //   with a this specifier. An explicit-object-parameter-declaration
+      //   shall appear only as the first parameter-declaration of a
+      //   parameter-declaration-list of either:
+      //   - a member-declarator that declares a member function, or
+      //   - a lambda-declarator.
+      //
+      // The parameter-declaration-list of a requires-expression is not such
+      // a context.
+      Diag(Param->getExplicitObjectParamThisLoc(),
+           diag::err_requires_expr_explicit_object_parameter);
+      Param->setExplicitObjectParameterLoc(SourceLocation());
+    }
 
     Param->setDeclContext(Body);
     // If this has an identifier, add it to the scope stack.

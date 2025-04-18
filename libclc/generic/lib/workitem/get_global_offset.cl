@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <clc/clc.h>
-#include <spirv/spirv.h>
+#include <libspirv/spirv.h>
 
 _CLC_DEF _CLC_OVERLOAD size_t get_global_offset(uint dim) {
   switch (dim) {

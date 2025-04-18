@@ -11,10 +11,20 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/device.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/queue.hpp>
+
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
+
+template <bundle_state State> class kernel_bundle;
+
+template <typename KernelName, bundle_state State>
+kernel_bundle<State> get_kernel_bundle(const context &,
+                                       const std::vector<device> &);
+
 namespace ext::oneapi {
 
 template <typename KernelName, typename Param>

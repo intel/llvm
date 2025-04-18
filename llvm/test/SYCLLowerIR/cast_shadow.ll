@@ -14,7 +14,7 @@ target triple = "nvptx64-nvidia-cuda"
 
 define internal void @wobble(ptr %arg, ptr byval(%struct.spam) %arg1) !work_group_scope !0 {
 ; CHECK:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 16 @[[SHADOW]], ptr [[ARG1:%.*]], i64 32, i1 false)
-; CHECK:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #0
+; CHECK:    call void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 272) #0
 ; CHECK:    call void @llvm.memcpy.p0.p3.i64(ptr [[TMP11:%.*]], ptr addrspace(3) align 16 @[[SHADOW]]
 ; CHECK:    call void @widget(ptr %arg1, ptr byval(%struct.quux) [[TMP2:%.*]])
 ;

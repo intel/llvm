@@ -1,4 +1,4 @@
-// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu  -fsycl -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
+// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu  -fsycl --no-offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
 
 // Test the correct placement of the offloading actions for compiling CUDA sources (*.cu) in SYCL.
 
@@ -26,7 +26,7 @@
 // DEFAULT-PHASES: |- 21: assembler, {20}, object, (host-cuda-sycl)
 // DEFAULT-PHASES: 22: clang-offload-bundler, {9, 21}, object, (host-cuda-sycl)
 
-// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda -fsycl-libspirv-path=%S/Inputs/SYCL/lib/nvidiacl -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES2
+// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda -fsycl-libspirv-path=%S/Inputs/SYCL/lib/nvidiacl -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES2
 
 // DEFAULT-PHASES2:                               +- 0: input, "{{.*}}", cuda, (host-cuda-sycl)
 // DEFAULT-PHASES2:                   +- 1: preprocessor, {0}, cuda-cpp-output, (host-cuda-sycl)

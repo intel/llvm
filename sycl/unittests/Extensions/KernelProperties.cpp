@@ -65,7 +65,8 @@ public:
 
 protected:
   void SetUp() override {
-    mock::getCallbacks().set_after_callback("urKernelGetInfo", after_urKernelGetInfo);
+    mock::getCallbacks().set_after_callback("urKernelGetInfo",
+                                            after_urKernelGetInfo);
   }
 
   sycl::unittest::UrMock<> Mock;
@@ -78,48 +79,45 @@ oneapiext::properties ForwardProgressProp{oneapiext::work_group_progress<
 
 TEST_F(KernelPropertiesTests, ParallelFor1DKernelObjForwardProgress) {
   RunForwardProgressTest([&](sycl::kernel &K) {
-    oneapiext::launch_config<sycl::range<1>, decltype(ForwardProgressProp)> LC{
-        {1}, ForwardProgressProp};
+    oneapiext::launch_config LC{sycl::range<1>{1}, ForwardProgressProp};
     oneapiext::parallel_for(Q, LC, K);
   });
 }
 
 TEST_F(KernelPropertiesTests, ParallelFor2DKernelObjForwardProgress) {
   RunForwardProgressTest([&](sycl::kernel &K) {
-    oneapiext::launch_config<sycl::range<2>, decltype(ForwardProgressProp)> LC{
-        {1, 1}, ForwardProgressProp};
+    oneapiext::launch_config LC{sycl::range<2>{1, 1}, ForwardProgressProp};
     oneapiext::parallel_for(Q, LC, K);
   });
 }
 
 TEST_F(KernelPropertiesTests, ParallelFor3DKernelObjForwardProgress) {
   RunForwardProgressTest([&](sycl::kernel &K) {
-    oneapiext::launch_config<sycl::range<3>, decltype(ForwardProgressProp)> LC{
-        {1, 1, 1}, ForwardProgressProp};
+    oneapiext::launch_config LC{sycl::range<3>{1, 1, 1}, ForwardProgressProp};
     oneapiext::parallel_for(Q, LC, K);
   });
 }
 
 TEST_F(KernelPropertiesTests, NDLaunch1DKernelObjForwardProgress) {
   RunForwardProgressTest([&](sycl::kernel &K) {
-    oneapiext::launch_config<sycl::nd_range<1>, decltype(ForwardProgressProp)>
-        LC{{{1}, {1}}, ForwardProgressProp};
+    oneapiext::launch_config LC{sycl::nd_range<1>{{1}, {1}},
+                                ForwardProgressProp};
     oneapiext::nd_launch(Q, LC, K);
   });
 }
 
 TEST_F(KernelPropertiesTests, NDLaunch2DKernelObjForwardProgress) {
   RunForwardProgressTest([&](sycl::kernel &K) {
-    oneapiext::launch_config<sycl::nd_range<2>, decltype(ForwardProgressProp)>
-        LC{{{1, 1}, {1, 1}}, ForwardProgressProp};
+    oneapiext::launch_config LC{sycl::nd_range<2>{{1, 1}, {1, 1}},
+                                ForwardProgressProp};
     oneapiext::nd_launch(Q, LC, K);
   });
 }
 
 TEST_F(KernelPropertiesTests, NDLaunch3DKernelObjForwardProgress) {
   RunForwardProgressTest([&](sycl::kernel &K) {
-    oneapiext::launch_config<sycl::nd_range<3>, decltype(ForwardProgressProp)>
-        LC{{{1, 1, 1}, {1, 1, 1}}, ForwardProgressProp};
+    oneapiext::launch_config LC{sycl::nd_range<3>{{1, 1, 1}, {1, 1, 1}},
+                                ForwardProgressProp};
     oneapiext::nd_launch(Q, LC, K);
   });
 }

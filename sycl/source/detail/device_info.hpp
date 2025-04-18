@@ -359,6 +359,11 @@ template <>
 struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
+    if (Dev->getBackend() != backend::opencl)
+      throw exception(make_error_code(errc::invalid),
+                      "info::device::execution_capabilities is available for "
+                      "backend::opencl only");
+
     ur_device_exec_capability_flag_t result;
     Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
         Dev->getHandleRef(),
@@ -712,12 +717,17 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
     {0x05010000, oneapi_exp_arch::intel_gpu_lnl_m},   // A0
     {0x05010001, oneapi_exp_arch::intel_gpu_lnl_m},   // A1
     {0x05010004, oneapi_exp_arch::intel_gpu_lnl_m},   // B0
+    {0x07800000, oneapi_exp_arch::intel_gpu_ptl_h},   // A0
+    {0x07800004, oneapi_exp_arch::intel_gpu_ptl_h},   // B0
+    {0x07804000, oneapi_exp_arch::intel_gpu_ptl_u},   // A0
+    {0x07804001, oneapi_exp_arch::intel_gpu_ptl_u},   // A1
 };
 
 // Only for Intel CPU architectures
 constexpr std::pair<const int, oneapi_exp_arch> IntelCPUArchitectures[] = {
     {8, oneapi_exp_arch::intel_cpu_spr},
     {9, oneapi_exp_arch::intel_cpu_gnr},
+    {10, oneapi_exp_arch::intel_cpu_dmr},
 };
 
 template <>
@@ -839,9 +849,28 @@ struct get_device_info_impl<
           {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
       };
+    else if (architecture::intel_cpu_dmr == DeviceArch)
+      return {
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 16, 0, 0, 0, matrix_type::tf32, matrix_type::tf32,
+           matrix_type::fp32, matrix_type::fp32},
+      };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
-             (architecture::intel_gpu_lnl_m == DeviceArch)) {
+             (architecture::intel_gpu_lnl_m == DeviceArch) ||
+             (architecture::intel_gpu_ptl_h == DeviceArch) ||
+             (architecture::intel_gpu_ptl_u == DeviceArch)) {
       std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
@@ -1412,6 +1441,32 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
 }
 
 template <>
+inline typename info::device::preferred_interop_user_sync::return_type
+get_device_info<info::device::preferred_interop_user_sync>(
+    const DeviceImplPtr &Dev) {
+  if (Dev->getBackend() != backend::opencl) {
+    throw sycl::exception(
+        errc::invalid,
+        "the info::device::preferred_interop_user_sync info descriptor can "
+        "only be queried with an OpenCL backend");
+  }
+  using Param = info::device::preferred_interop_user_sync;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline typename info::device::profile::return_type
+get_device_info<info::device::profile>(const DeviceImplPtr &Dev) {
+  if (Dev->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::invalid,
+                          "the info::device::profile info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  using Param = info::device::profile;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
 inline ext::intel::info::device::device_id::return_type
 get_device_info<ext::intel::info::device::device_id>(const DeviceImplPtr &Dev) {
   if (!Dev->has(aspect::ext_intel_device_id))
@@ -1560,6 +1615,100 @@ get_device_info<ext::intel::info::device::memory_bus_width>(
         make_error_code(errc::feature_not_supported),
         "The device does not have the ext_intel_memory_bus_width aspect");
   using Param = ext::intel::info::device::memory_bus_width;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::esimd::info::device::has_2d_block_io_support::return_type
+get_device_info<ext::intel::esimd::info::device::has_2d_block_io_support>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_esimd))
+    return false;
+
+  ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities;
+  Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      Dev->getHandleRef(),
+      UrInfoCode<
+          ext::intel::esimd::info::device::has_2d_block_io_support>::value,
+      sizeof(BlockArrayCapabilities), &BlockArrayCapabilities, nullptr);
+  return (BlockArrayCapabilities &
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD) &&
+         (BlockArrayCapabilities &
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
+}
+
+template <>
+inline ext::intel::info::device::current_clock_throttle_reasons::return_type
+get_device_info<ext::intel::info::device::current_clock_throttle_reasons>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_current_clock_throttle_reasons))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the "
+                    "ext_intel_current_clock_throttle_reasons aspect");
+
+  ur_device_throttle_reasons_flags_t UrThrottleReasons;
+  Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      Dev->getHandleRef(),
+      UrInfoCode<
+          ext::intel::info::device::current_clock_throttle_reasons>::value,
+      sizeof(UrThrottleReasons), &UrThrottleReasons, nullptr);
+  std::vector<ext::intel::throttle_reason> ThrottleReasons;
+  constexpr std::pair<ur_device_throttle_reasons_flags_t,
+                      ext::intel::throttle_reason>
+      UR2SYCLMappings[] = {{UR_DEVICE_THROTTLE_REASONS_FLAG_POWER_CAP,
+                            ext::intel::throttle_reason::power_cap},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_CURRENT_LIMIT,
+                            ext::intel::throttle_reason::current_limit},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_THERMAL_LIMIT,
+                            ext::intel::throttle_reason::thermal_limit},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_PSU_ALERT,
+                            ext::intel::throttle_reason::psu_alert},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_SW_RANGE,
+                            ext::intel::throttle_reason::sw_range},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_HW_RANGE,
+                            ext::intel::throttle_reason::hw_range},
+                           {UR_DEVICE_THROTTLE_REASONS_FLAG_OTHER,
+                            ext::intel::throttle_reason::other}};
+
+  for (const auto &[UrFlag, SyclReason] : UR2SYCLMappings) {
+    if (UrThrottleReasons & UrFlag) {
+      ThrottleReasons.push_back(SyclReason);
+    }
+  }
+  return ThrottleReasons;
+}
+
+template <>
+inline ext::intel::info::device::fan_speed::return_type
+get_device_info<ext::intel::info::device::fan_speed>(const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_fan_speed))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the ext_intel_fan_speed aspect");
+  using Param = ext::intel::info::device::fan_speed;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::max_power_limit::return_type
+get_device_info<ext::intel::info::device::max_power_limit>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_power_limits))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_power_limits aspect");
+  using Param = ext::intel::info::device::max_power_limit;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::min_power_limit::return_type
+get_device_info<ext::intel::info::device::min_power_limit>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_power_limits))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_power_limits aspect");
+  using Param = ext::intel::info::device::min_power_limit;
   return get_device_info_impl<Param::return_type, Param>::get(Dev);
 }
 

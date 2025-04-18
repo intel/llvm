@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/context.hpp>                               // for context
 #include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
 #include <sycl/device.hpp>                                // for device
@@ -910,6 +911,31 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 #endif
 }
 
+template <typename DataT>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_oneapi_bindless_images_gather)]]
+#endif
+std::enable_if_t<std::is_same_v<DataT, float4> || std::is_same_v<DataT, int4> ||
+                     std::is_same_v<DataT, uint4>,
+                 DataT> gather_image(const sampled_image_handle &imageHandle
+                                     [[maybe_unused]],
+                                     const float2 &coords [[maybe_unused]],
+                                     const unsigned i [[maybe_unused]]) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  return __invoke__SampledImageGather<DataT>(
+      CONVERT_HANDLE_TO_SAMPLED_IMAGE(imageHandle.raw_handle, float2::size()),
+      coords, i);
+#else
+  return {0, 0, 0, 0};
+#endif
+#else
+  throw exception{make_error_code(errc::feature_not_supported),
+                  "gather_image is not supported on the host"};
+#endif
+}
+
 /**
  *  @brief   Sample data from a sampled image using its handle
  *
@@ -1571,97 +1597,6 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc,
-    event DepEvent, const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvent);
-        CGH.ext_oneapi_copy(Src, Dest, ImageDesc);
-      },
-      TlsCodeLocCapture.query());
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc,
-    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        CGH.ext_oneapi_copy(Src, Dest, ImageDesc);
-      },
-      TlsCodeLocCapture.query());
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc,
-    const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, ImageDesc); },
-      TlsCodeLocCapture.query());
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) {
-        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
-                            DestImgDesc, CopyExtent);
-      },
-      CodeLoc);
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent, event DepEvent,
-    const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvent);
-        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
-                            DestImgDesc, CopyExtent);
-      },
-      CodeLoc);
-}
-
-inline event queue::ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
-    const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return submit(
-      [&](handler &CGH) {
-        CGH.depends_on(DepEvents);
-        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
-                            DestImgDesc, CopyExtent);
-      },
-      CodeLoc);
-}
-
-inline event queue::ext_oneapi_copy(
     const void *Src, sycl::range<3> SrcOffset, void *Dest,
     sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
@@ -1703,6 +1638,391 @@ inline event queue::ext_oneapi_copy(
         CGH.depends_on(DepEvents);
         CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
                             DeviceRowPitch, HostExtent, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc, DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc, DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, Dest, DestImgDesc, DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                            DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc,
+                            DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, event DepEvent, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc,
+                            DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent, event DepEvent,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvent);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, DestRowPitch, CopyExtent);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, const std::vector<event> &DepEvents,
+    const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcImgDesc, SrcRowPitch, Dest, DestImgDesc,
+                            DestRowPitch);
+      },
+      TlsCodeLocCapture.query());
+}
+
+inline event queue::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent,
+    const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
+  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, SrcRowPitch, Dest,
+                            DestOffset, DestImgDesc, DestRowPitch, CopyExtent);
       },
       TlsCodeLocCapture.query());
 }

@@ -1,7 +1,5 @@
 // RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s %if !windows %{--check-prefix=CHECK-RELEASE%}
-//
-// XFAIL: hip_nvidia
 
 //==------------------- ReleaseResourcesTests.cpp --------------------------==//
 //

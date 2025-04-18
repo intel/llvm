@@ -377,9 +377,9 @@ public:
     return nullptr;
   }
 
-  /// TranslateOffloadTargetArgs - Create a new derived argument list for
-  /// that contains the Offload target specific flags passed via
-  /// -Xopenmp-target -opt=val OR -Xopenmp-target=<triple> -opt=val
+  /// TranslateOffloadTargetArgs - Create a new derived argument list that
+  /// contains the Offload target specific flags passed via -Xopenmp-target
+  /// -opt=val OR -Xopenmp-target=<triple> -opt=val
   /// Also handles -Xsycl-target OR -Xsycl-target=<triple>
   virtual llvm::opt::DerivedArgList *TranslateOffloadTargetArgs(
       const llvm::opt::DerivedArgList &Args, bool SameTripleAsHost,
@@ -705,6 +705,13 @@ public:
   /// Add warning options that need to be passed to cc1 for this target.
   virtual void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const;
 
+  // Get the list of extra macro defines requested by the multilib
+  // configuration.
+  virtual SmallVector<std::string>
+  getMultilibMacroDefinesStr(llvm::opt::ArgList &Args) const {
+    return {};
+  };
+
   // GetRuntimeLibType - Determine the runtime library type to use with the
   // given compilation arguments.
   virtual RuntimeLibType
@@ -782,7 +789,7 @@ public:
                                  llvm::opt::ArgStringList &CC1Args) const;
 
   /// Add arguments to use system-specific SYCL includes.
-  virtual void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+  virtual void addSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                                   llvm::opt::ArgStringList &CC1Args) const;
 
   /// Add arguments to use MCU GCC toolchain includes.
@@ -834,7 +841,7 @@ public:
         return llvm::Triple("nvptx-nvidia-cuda");
       if (TT.getArch() == llvm::Triple::nvptx64)
         return llvm::Triple("nvptx64-nvidia-cuda");
-      if (TT.getArch() == llvm::Triple::amdgcn)
+      if (TT.isAMDGCN())
         return llvm::Triple("amdgcn-amd-amdhsa");
     }
     return TT;

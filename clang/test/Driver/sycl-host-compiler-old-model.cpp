@@ -62,6 +62,16 @@
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_NOARG %s
 // HOST_COMPILER_NOARG: missing argument to '-fsycl-host-compiler='
 
+/// error for -fsycl-host-compiler and -fsycl-unnamed-lambda combination 
+// RUN: not %clangxx -fsycl --no-offload-new-driver -fsycl-host-compiler=g++ -fsycl-unnamed-lambda -c -### %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=HOST_COMPILER_AND_UNNAMED_LAMBDA %s
+// HOST_COMPILER_AND_UNNAMED_LAMBDA: error: cannot specify '-fsycl-unnamed-lambda' along with '-fsycl-host-compiler'
+
+// -fsycl-host-compiler implies -fno-sycl-unnamed-lambda
+// RUN: %clangxx -### -fsycl --no-offload-new-driver -fsycl-host-compiler=g++ -c -### %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=IMPLY-NO-SYCL-UNNAMED-LAMBDA %s
+// IMPLY-NO-SYCL-UNNAMED-LAMBDA: clang{{.*}} "-fno-sycl-unnamed-lambda"
+
 /// Warning should not be emitted when using -fsycl-host-compiler when linking
 // RUN: touch %t.o
 // RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-host-compiler=g++ %t.o -### 2>&1 \

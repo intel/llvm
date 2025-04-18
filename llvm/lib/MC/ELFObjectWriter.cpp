@@ -18,7 +18,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/ADT/iterator.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -40,22 +39,17 @@
 #include "llvm/MC/StringTableBuilder.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compression.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/EndianStream.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LEB128.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -68,6 +62,8 @@ using namespace llvm;
 namespace {
 namespace stats {
 
+STATISTIC(ELFHeaderBytes, "Total size of ELF headers");
+STATISTIC(SectionHeaderBytes, "Total size of section headers table");
 STATISTIC(AllocTextBytes, "Total size of SHF_ALLOC text sections");
 STATISTIC(AllocROBytes, "Total size of SHF_ALLOC readonly sections");
 STATISTIC(AllocRWBytes, "Total size of SHF_ALLOC read-write sections");
@@ -75,9 +71,12 @@ STATISTIC(StrtabBytes, "Total size of SHT_STRTAB sections");
 STATISTIC(SymtabBytes, "Total size of SHT_SYMTAB sections");
 STATISTIC(RelocationBytes, "Total size of relocation sections");
 STATISTIC(DynsymBytes, "Total size of SHT_DYNSYM sections");
-STATISTIC(DebugBytes, "Total size of debug info sections");
+STATISTIC(
+    DebugBytes,
+    "Total size of debug info sections (not including those written to .dwo)");
 STATISTIC(UnwindBytes, "Total size of unwind sections");
 STATISTIC(OtherBytes, "Total size of uncategorized sections");
+STATISTIC(DwoBytes, "Total size of sections written to .dwo file");
 
 } // namespace stats
 
@@ -945,6 +944,7 @@ void ELFWriter::writeSectionHeader(uint32_t GroupSymbolIndex, uint64_t Offset,
 }
 
 void ELFWriter::writeSectionHeaders(const MCAssembler &Asm) {
+  uint64_t Start = W.OS.tell();
   const unsigned NumSections = SectionTable.size();
 
   // Null section first.
@@ -972,7 +972,9 @@ void ELFWriter::writeSectionHeaders(const MCAssembler &Asm) {
       return Section->getFlags() & Flag;
     };
 
-    if (Section->getName().starts_with(".debug")) {
+    if (Mode == DwoOnly) {
+      stats::DwoBytes += Size;
+    } else if (Section->getName().starts_with(".debug")) {
       stats::DebugBytes += Size;
     } else if (Section->getName().starts_with(".eh_frame")) {
       stats::UnwindBytes += Size;
@@ -1008,6 +1010,8 @@ void ELFWriter::writeSectionHeaders(const MCAssembler &Asm) {
 
     writeSectionHeader(GroupSymbolIndex, Offsets.first, Size, *Section);
   }
+
+  stats::SectionHeaderBytes += W.OS.tell() - Start;
 }
 
 uint64_t ELFWriter::writeObject(MCAssembler &Asm) {
@@ -1022,6 +1026,8 @@ uint64_t ELFWriter::writeObject(MCAssembler &Asm) {
 
   // Write out the ELF header ...
   writeHeader(Asm);
+
+  stats::ELFHeaderBytes += W.OS.tell() - StartOffset;
 
   // ... then the sections ...
   SmallVector<std::pair<MCSectionELF *, SmallVector<unsigned>>, 0> Groups;
@@ -1218,7 +1224,8 @@ void ELFObjectWriter::executePostLayoutBinding(MCAssembler &Asm) {
       continue;
     }
 
-    if (Renames.count(&Symbol) && Renames[&Symbol] != Alias) {
+    if (auto It = Renames.find(&Symbol);
+        It != Renames.end() && It->second != Alias) {
       Asm.getContext().reportError(S.Loc, Twine("multiple versions for ") +
                                               Symbol.getName());
       continue;
@@ -1254,14 +1261,6 @@ bool ELFObjectWriter::shouldRelocateWithSymbol(const MCAssembler &Asm,
   switch (Kind) {
   default:
     break;
-  // The .odp creation emits a relocation against the symbol ".TOC." which
-  // create a R_PPC64_TOC relocation. However the relocation symbol name
-  // in final object creation should be NULL, since the symbol does not
-  // really exist, it is just the reference to TOC base for the current
-  // object file. Since the symbol is undefined, returning false results
-  // in a relocation with a null section which is the desired result.
-  case MCSymbolRefExpr::VK_PPC_TOCBASE:
-    return false;
 
   // These VariantKind cause the relocation to refer to something other than
   // the symbol itself, like a linker generated table. Since the address of
@@ -1271,17 +1270,22 @@ bool ELFObjectWriter::shouldRelocateWithSymbol(const MCAssembler &Asm,
   case MCSymbolRefExpr::VK_PLT:
   case MCSymbolRefExpr::VK_GOTPCREL:
   case MCSymbolRefExpr::VK_GOTPCREL_NORELAX:
-  case MCSymbolRefExpr::VK_PPC_GOT_LO:
-  case MCSymbolRefExpr::VK_PPC_GOT_HI:
-  case MCSymbolRefExpr::VK_PPC_GOT_HA:
     return true;
   }
 
   // An undefined symbol is not in any section, so the relocation has to point
   // to the symbol itself.
   assert(Sym && "Expected a symbol");
-  if (Sym->isUndefined())
-    return true;
+  if (Sym->isUndefined()) {
+    // The .odp creation emits a relocation against the symbol ".TOC." which
+    // create a R_PPC64_TOC relocation. However the relocation symbol name
+    // in final object creation should be NULL, since the symbol does not
+    // really exist, it is just the reference to TOC base for the current
+    // object file. Since the symbol is undefined, returning false results
+    // in a relocation with a null section which is the desired result.
+    return !(Type == ELF::R_PPC64_TOC &&
+             TargetObjectWriter->getEMachine() == ELF::EM_PPC64);
+  }
 
   // For memory-tagged symbols, ensure that the relocation uses the symbol. For
   // tagged symbols, we emit an empty relocation (R_AARCH64_NONE) in a special
@@ -1461,6 +1465,9 @@ void ELFObjectWriter::recordRelocation(MCAssembler &Asm,
     return;
   }
 
+  if (Fixup.getValue())
+    fixSymbolsInTLSFixups(Asm, Fixup.getValue());
+
   const MCSymbolELF *RenamedSymA = SymA;
   if (SymA) {
     if (const MCSymbolELF *R = Renames.lookup(SymA))
@@ -1493,6 +1500,53 @@ bool ELFObjectWriter::isSymbolRefDifferenceFullyResolvedImpl(
       return false;
   }
   return &SymA.getSection() == FB.getParent();
+}
+
+void ELFObjectWriter::fixSymbolsInTLSFixups(MCAssembler &Asm,
+                                            const MCExpr *expr) {
+  switch (expr->getKind()) {
+  case MCExpr::Target:
+    cast<MCTargetExpr>(expr)->fixELFSymbolsInTLSFixups(Asm);
+    break;
+  case MCExpr::Constant:
+    break;
+
+  case MCExpr::Binary: {
+    const MCBinaryExpr *be = cast<MCBinaryExpr>(expr);
+    fixSymbolsInTLSFixups(Asm, be->getLHS());
+    fixSymbolsInTLSFixups(Asm, be->getRHS());
+    break;
+  }
+
+  case MCExpr::SymbolRef: {
+    const MCSymbolRefExpr &symRef = *cast<MCSymbolRefExpr>(expr);
+    switch (symRef.getKind()) {
+    default:
+      return;
+    case MCSymbolRefExpr::VK_GOTTPOFF:
+    case MCSymbolRefExpr::VK_INDNTPOFF:
+    case MCSymbolRefExpr::VK_NTPOFF:
+    case MCSymbolRefExpr::VK_GOTNTPOFF:
+    case MCSymbolRefExpr::VK_TLSCALL:
+    case MCSymbolRefExpr::VK_TLSDESC:
+    case MCSymbolRefExpr::VK_TLSGD:
+    case MCSymbolRefExpr::VK_TLSLD:
+    case MCSymbolRefExpr::VK_TLSLDM:
+    case MCSymbolRefExpr::VK_TPOFF:
+    case MCSymbolRefExpr::VK_TPREL:
+    case MCSymbolRefExpr::VK_DTPOFF:
+    case MCSymbolRefExpr::VK_DTPREL:
+      break;
+    }
+    Asm.registerSymbol(symRef.getSymbol());
+    cast<MCSymbolELF>(symRef.getSymbol()).setType(ELF::STT_TLS);
+    break;
+  }
+
+  case MCExpr::Unary:
+    fixSymbolsInTLSFixups(Asm, cast<MCUnaryExpr>(expr)->getSubExpr());
+    break;
+  }
 }
 
 uint64_t ELFObjectWriter::writeObject(MCAssembler &Asm) {

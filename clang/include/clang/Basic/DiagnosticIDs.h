@@ -37,7 +37,7 @@ namespace clang {
       DIAG_SIZE_DRIVER        =  400,
       DIAG_SIZE_FRONTEND      =  200,
       DIAG_SIZE_SERIALIZATION =  120,
-      DIAG_SIZE_LEX           =  400,
+      DIAG_SIZE_LEX           =  500,
       DIAG_SIZE_PARSE         =  700,
       DIAG_SIZE_AST           =  300,
       DIAG_SIZE_COMMENT       =  100,
@@ -295,22 +295,22 @@ public:
       switch (Level) {
       case DiagnosticIDs::Level::Ignored:
         return {diag::Severity::Ignored, std::string(Message), CLASS_WARNING,
-                /*ShowInSystemHeader*/ true};
+                /*ShowInSystemHeader*/ true, /*ShowInSystemMacro=*/true};
       case DiagnosticIDs::Level::Note:
         return {diag::Severity::Fatal, std::string(Message), CLASS_NOTE,
-                /*ShowInSystemHeader*/ true};
+                /*ShowInSystemHeader*/ true, /*ShowInSystemMacro=*/true};
       case DiagnosticIDs::Level::Remark:
         return {diag::Severity::Remark, std::string(Message), CLASS_REMARK,
-                /*ShowInSystemHeader*/ true};
+                /*ShowInSystemHeader*/ true, /*ShowInSystemMacro=*/true};
       case DiagnosticIDs::Level::Warning:
         return {diag::Severity::Warning, std::string(Message), CLASS_WARNING,
-                /*ShowInSystemHeader*/ true};
+                /*ShowInSystemHeader*/ true, /*ShowInSystemMacro=*/true};
       case DiagnosticIDs::Level::Error:
         return {diag::Severity::Error, std::string(Message), CLASS_ERROR,
-                /*ShowInSystemHeader*/ true};
+                /*ShowInSystemHeader*/ true, /*ShowInSystemMacro=*/true};
       case DiagnosticIDs::Level::Fatal:
         return {diag::Severity::Fatal, std::string(Message), CLASS_ERROR,
-                /*ShowInSystemHeader*/ true};
+                /*ShowInSystemHeader*/ true, /*ShowInSystemMacro=*/true};
       }
       llvm_unreachable("Fully covered switch above!");
     }());

@@ -1,6 +1,9 @@
 // REQUIRES: gpu, level_zero
 
-// RUN: %{build} -o %t.out
+// TODO: Currently using the -Wno-deprecated-declarations flag due to issue
+// https://github.com/intel/llvm/issues/16320. Remove the flag once the issue is
+// resolved.
+// RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <numeric>
@@ -36,6 +39,14 @@ struct NegativeKernelFunctor {
   auto get(properties_tag) const { return properties{}; }
 };
 
+struct RangeKernelFunctor {
+
+  RangeKernelFunctor() {}
+
+  void operator()(id<2> i) const {}
+  auto get(properties_tag) const { return properties{cache_config(large_slm)}; }
+};
+
 int main() {
   sycl::property_list q_prop{sycl::property::queue::in_order()};
   queue q{q_prop};
@@ -43,25 +54,13 @@ int main() {
   sycl::ext::oneapi::experimental::properties properties{
       cache_config(large_slm)};
 
-  // CHECK: single_task
-  // CHECK: ZE ---> zeKernelSetCacheConfig
-  std::cout << "single_task" << std::endl;
-  q.single_task(properties, [=]() {}).wait();
-
   // CHECK: parallel_for with sycl::range
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "parallel_for with sycl::range" << std::endl;
-  q.parallel_for(range<2>{16, 16}, properties, [=](id<2> i) {}).wait();
-
-  // CHECK: parallel_for with sycl::nd_range
-  // CHECK: ZE ---> zeKernelSetCacheConfig
-  std::cout << "parallel_for with sycl::nd_range" << std::endl;
-  q.parallel_for(nd_range<2>{range<2>(4, 4), range<2>(2, 2)}, properties,
-                 [=](nd_item<2> i) {})
-      .wait();
+  q.parallel_for(range<2>{16, 16}, RangeKernelFunctor{}).wait();
 
   // CHECK: parallel_for_work_group(range, func)
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "parallel_for_work_group(range, func)" << std::endl;
   q.submit([&](handler &cgh) {
     cgh.parallel_for_work_group<class hpar_range>(
@@ -70,7 +69,7 @@ int main() {
   });
 
   // CHECK: parallel_for_work_group(range, range, func)
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "parallel_for_work_group(range, range, func)" << std::endl;
   q.submit([&](handler &cgh) {
     cgh.parallel_for_work_group<class hpar_range_range>(
@@ -88,7 +87,7 @@ int main() {
   buffer<int> sum_buf{&sum_result, 1};
 
   // CHECK: parallel_for with reduction
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "parallel_for with reduction" << std::endl;
   q.submit([&](handler &cgh) {
     auto input_values = values_buf.get_access<access_mode::read>(cgh);
@@ -98,25 +97,25 @@ int main() {
   });
 
   // CHECK: KernelFunctor single_task
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "KernelFunctor single_task" << std::endl;
   q.single_task(KernelFunctor{}).wait();
 
   // CHECK: KernelFunctor parallel_for
-  // CHECK: ZE ---> zeKernelSetCacheConfig
+  // CHECK: zeKernelSetCacheConfig
   std::cout << "KernelFunctor parallel_for" << std::endl;
   q.parallel_for(nd_range<2>{range<2>(4, 4), range<2>(2, 2)}, KernelFunctorND{})
       .wait();
 
   // CHECK: negative parallel_for with sycl::nd_range
-  // CHECK-NOT: ZE ---> zeKernelSetCacheConfig
+  // CHECK-NOT: zeKernelSetCacheConfig
   std::cout << "negative parallel_for with sycl::nd_range" << std::endl;
   q.parallel_for(nd_range<2>{range<2>(4, 4), range<2>(2, 2)},
                  [=](nd_item<2> i) {})
       .wait();
 
   // CHECK: negative parallel_for with KernelFunctor
-  // CHECK-NOT: ZE ---> zeKernelSetCacheConfig
+  // CHECK-NOT: zeKernelSetCacheConfig
   std::cout << "negative parallel_for with KernelFunctor" << std::endl;
   q.parallel_for(nd_range<2>{range<2>(4, 4), range<2>(2, 2)},
                  NegativeKernelFunctor{})

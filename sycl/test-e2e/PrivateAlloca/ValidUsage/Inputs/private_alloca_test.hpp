@@ -5,6 +5,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/experimental/alloca.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/specialization_id.hpp>
 
 template <typename ElementType, typename SizeType,

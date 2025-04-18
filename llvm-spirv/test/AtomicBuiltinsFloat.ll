@@ -4,6 +4,10 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_KHR_untyped_pointers -o - | FileCheck %s
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: spirv-val %t.spv
+
 ; CHECK-LABEL: Label
 ; CHECK: Store
 ; CHECK-COUNT-3: AtomicStore

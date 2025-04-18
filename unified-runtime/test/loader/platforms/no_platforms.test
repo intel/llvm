@@ -1,0 +1,6 @@
+RUN: UR_ADAPTERS_FORCE_LOAD="invalid.so" UR_LOG_TEST="level:info;output:stdout;flush:debug" platforms-test
+
+REQUIRES: linux
+
+CHECK: <TEST>[INFO]: urLoaderInit succeeded.
+CHECK: <TEST>[INFO]: urPlatformGet found 0 platforms

@@ -31,11 +31,8 @@ enum class HandlerSubmissionState : std::uint8_t {
 
 class handler_impl {
 public:
-  handler_impl(std::shared_ptr<queue_impl> SubmissionPrimaryQueue,
-               std::shared_ptr<queue_impl> SubmissionSecondaryQueue,
-               bool EventNeeded)
-      : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
-        MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)),
+  handler_impl(queue_impl *SubmissionPrimaryQueue, bool EventNeeded)
+      : MSubmissionPrimaryQueue(SubmissionPrimaryQueue),
         MEventNeeded(EventNeeded) {};
 
   handler_impl(
@@ -73,13 +70,7 @@ public:
   /// Shared pointer to the primary queue implementation. This is different from
   /// the queue associated with the handler if the corresponding submission is
   /// a fallback from a previous submission.
-  std::shared_ptr<queue_impl> MSubmissionPrimaryQueue;
-
-  /// Shared pointer to the secondary queue implementation. Nullptr if no
-  /// secondary queue fallback was given in the associated submission. This is
-  /// equal to the queue associated with the handler if the corresponding
-  /// submission is a fallback from a previous submission.
-  std::shared_ptr<queue_impl> MSubmissionSecondaryQueue;
+  queue_impl *MSubmissionPrimaryQueue = nullptr;
 
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.
@@ -121,6 +112,7 @@ public:
 
   bool MKernelIsCooperative = false;
   bool MKernelUsesClusterLaunch = false;
+  uint32_t MKernelWorkGroupMemorySize = 0;
 
   // Extra information for bindless image copy
   ur_image_desc_t MSrcImageDesc = {};
@@ -151,10 +143,6 @@ public:
   std::vector<std::pair<
       ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
       MDynamicParameters;
-
-  // Track whether an NDRange was used when submitting a kernel (as opposed to a
-  // range), needed for graph update
-  bool MNDRangeUsed = false;
 
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
@@ -199,7 +187,18 @@ public:
   bool MIsTopCodeLoc = true;
 
   /// List of work group memory objects associated with this handler
-  std::vector<std::shared_ptr<detail::work_group_memory_impl>> MWorkGroupMemoryObjects;
+  std::vector<std::shared_ptr<detail::work_group_memory_impl>>
+      MWorkGroupMemoryObjects;
+
+  /// Potential event mode for the result event of the command.
+  ext::oneapi::experimental::event_mode_enum MEventMode =
+      ext::oneapi::experimental::event_mode_enum::none;
+
+  /// Event computed from async alloc which is passed through for processing.
+  ur_event_handle_t MAsyncAllocEvent = nullptr;
+
+  // Allocation ptr to be freed asynchronously.
+  void *MFreePtr = nullptr;
 };
 
 } // namespace detail

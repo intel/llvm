@@ -7,7 +7,7 @@
 
 #include "Inputs/sycl.hpp"
 
-// CHECK: define{{.*}} void @_Z3fooDB4096_S_(ptr addrspace(4) {{.*}} sret(i4096) align 8 %agg.result, ptr {{.*}} byval(i4096) align 8 %[[ARG1:[0-9]+]], ptr {{.*}} byval(i4096) align 8 %[[ARG2:[0-9]+]])
+// CHECK: define{{.*}} void @_Z3fooDB4096_S_(ptr {{.*}} sret(i4096) align 8 %agg.result, ptr {{.*}} byval(i4096) align 8 %[[ARG1:[0-9]+]], ptr {{.*}} byval(i4096) align 8 %[[ARG2:[0-9]+]])
 signed _BitInt(4096) foo(signed _BitInt(4096) a, signed _BitInt(4096) b) {
   // CHECK: %a.addr.ascast = addrspacecast ptr %a.addr to ptr addrspace(4)
   // CHECK: %b.addr.ascast = addrspacecast ptr %b.addr to ptr addrspace(4)

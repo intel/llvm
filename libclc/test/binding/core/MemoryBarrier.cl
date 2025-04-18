@@ -11,11 +11,11 @@
 
 // RUN: %clang -emit-llvm -S -o - %s | FileCheck %s
 
-#include <spirv/spirv_types.h>
+#include <libspirv/spirv_types.h>
 
 // CHECK-NOT: declare {{.*}} @_Z
 // CHECK-NOT: call {{[^ ]*}} bitcast
 __attribute__((overloadable)) void
-test___spirv_MemoryBarrier(__clc_uint32_t args_0, __clc_uint32_t args_1) {
+test___spirv_MemoryBarrier(__clc_int32_t args_0, __clc_int32_t args_1) {
   __spirv_MemoryBarrier(args_0, args_1);
 }

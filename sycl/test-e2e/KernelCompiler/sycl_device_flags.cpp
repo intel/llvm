@@ -1,4 +1,4 @@
-//==------------------- df.cpp --- kernel_compiler extension tests   -------==//
+//==--- sycl_device_flags.cpp --- kernel_compiler extension tests ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,9 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: level_zero
-// UNSUPPORTED: windows
+// REQUIRES: aspect-usm_device_allocations
 
-// IGC shader dump not available on Windows.
+// UNSUPPORTED: windows
+// UNSUPPORTED-INTENDED:  IGC shader dump not available on Windows.
 
 // RUN: %{build} -o %t.out
 // RUN: env IGC_DumpToCustomDir=%T.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out %T.dump/
@@ -29,6 +30,7 @@
 // clang-format on
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 // TODO: remove SYCL_EXTERNAL once it is no longer needed.
@@ -107,11 +109,12 @@ int main(int argc, char *argv[]) {
     std::cerr << "Usage: " << argv[0] << " <dump_directory>" << std::endl;
     return 1;
   }
-  std::string dump_dir = argv[1];
 
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  std::string dump_dir = argv[1];
 
   sycl::queue q;
   sycl::context ctx = q.get_context();
@@ -126,9 +129,8 @@ int main(int argc, char *argv[]) {
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource);
 
-  // Flags with and without space, inner quotes.
-  std::vector<std::string> flags{"-Xs '-doubleGRF'",
-                                 "-Xs'-Xfinalizer \"-printregusage\"'"};
+  std::vector<std::string> flags{"-Xs", "-doubleGRF",
+                                 "-XsXfinalizer \"-printregusage\""};
   exe_kb kbExe =
       syclex::build(kbSrc, syclex::properties{syclex::build_options{flags}});
 

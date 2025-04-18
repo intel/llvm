@@ -136,11 +136,11 @@ GlobalHandler &GlobalHandler::instance() {
 }
 
 template <typename T, typename... Types>
-T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types... Args) {
+T &GlobalHandler::getOrCreate(InstWithLock<T> &IWL, Types &&...Args) {
   const LockGuard Lock{IWL.Lock};
 
   if (!IWL.Inst)
-    IWL.Inst = std::make_unique<T>(Args...);
+    IWL.Inst = std::make_unique<T>(std::forward<Types>(Args)...);
 
   return *IWL.Inst;
 }
@@ -182,40 +182,58 @@ void GlobalHandler::registerSchedulerUsage(bool ModifyCounter) {
 }
 
 ProgramManager &GlobalHandler::getProgramManager() {
-  return getOrCreate(MProgramManager);
+  static ProgramManager &PM = getOrCreate(MProgramManager);
+  return PM;
 }
 
 std::unordered_map<PlatformImplPtr, ContextImplPtr> &
 GlobalHandler::getPlatformToDefaultContextCache() {
+  // The optimization with static reference is not done because
+  // there are public methods of the GlobalHandler
+  // that can set the MPlatformToDefaultContextCache back to nullptr.
+  // So one time initialization is not possible and we need
+  // to call getOrCreate on every access.
   return getOrCreate(MPlatformToDefaultContextCache);
 }
 
 std::mutex &GlobalHandler::getPlatformToDefaultContextCacheMutex() {
-  return getOrCreate(MPlatformToDefaultContextCacheMutex);
+  static std::mutex &PlatformToDefaultContextCacheMutex =
+      getOrCreate(MPlatformToDefaultContextCacheMutex);
+  return PlatformToDefaultContextCacheMutex;
 }
 
-Sync &GlobalHandler::getSync() { return getOrCreate(MSync); }
+Sync &GlobalHandler::getSync() {
+  static Sync &sync = getOrCreate(MSync);
+  return sync;
+}
 
 std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
-  return getOrCreate(MPlatformCache);
+  static std::vector<PlatformImplPtr> &PlatformCache =
+      getOrCreate(MPlatformCache);
+  return PlatformCache;
 }
 
 std::mutex &GlobalHandler::getPlatformMapMutex() {
-  return getOrCreate(MPlatformMapMutex);
+  static std::mutex &PlatformMapMutex = getOrCreate(MPlatformMapMutex);
+  return PlatformMapMutex;
 }
 
 std::mutex &GlobalHandler::getFilterMutex() {
-  return getOrCreate(MFilterMutex);
+  static std::mutex &FilterMutex = getOrCreate(MFilterMutex);
+  return FilterMutex;
 }
 
 std::vector<AdapterPtr> &GlobalHandler::getAdapters() {
+  static std::vector<AdapterPtr> &adapters = getOrCreate(MAdapters);
   enableOnCrashStackPrinting();
-  return getOrCreate(MAdapters);
+  return adapters;
 }
 
 ods_target_list &
 GlobalHandler::getOneapiDeviceSelectorTargets(const std::string &InitValue) {
-  return getOrCreate(MOneapiDeviceSelectorTargets, InitValue);
+  static ods_target_list &OneapiDeviceSelectorTargets =
+      getOrCreate(MOneapiDeviceSelectorTargets, InitValue);
+  return OneapiDeviceSelectorTargets;
 }
 
 XPTIRegistry &GlobalHandler::getXPTIRegistry() {
@@ -223,9 +241,8 @@ XPTIRegistry &GlobalHandler::getXPTIRegistry() {
 }
 
 ThreadPool &GlobalHandler::getHostTaskThreadPool() {
-  int Size = SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get();
-  ThreadPool &TP = getOrCreate(MHostTaskThreadPool, Size);
-
+  static ThreadPool &TP = getOrCreate(
+      MHostTaskThreadPool, SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get());
   return TP;
 }
 

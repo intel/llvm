@@ -19,6 +19,7 @@ config.host_arch = "@HOST_ARCH@"
 config.python_executable = "@PYTHON_EXECUTABLE@"
 config.test_run_dir = "@CMAKE_CURRENT_BINARY_DIR@"
 config.spirv_tools_found = "@SPIRV_TOOLS_FOUND@"
+config.libspirv_dis = "@SPIRV_ENABLE_LIBSPIRV_DIS@"
 config.spirv_tools_have_spirv_as = @SPIRV_TOOLS_SPIRV_AS_FOUND@
 config.spirv_tools_have_spirv_dis = @SPIRV_TOOLS_SPIRV_DIS_FOUND@
 config.spirv_tools_have_spirv_link = @SPIRV_TOOLS_SPIRV_LINK_FOUND@

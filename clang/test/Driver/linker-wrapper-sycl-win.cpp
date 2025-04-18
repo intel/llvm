@@ -90,8 +90,8 @@
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}clang.exe"{{.*}} -o [[CLANGOUT:.*]] --target=nvptx64-nvidia-cuda -march={{.*}}
-// CHK-CMDS-AOT-NV-NEXT: "{{.*}}ptxas"{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
-// CHK-CMDS-AOT-NV-NEXT: "{{.*}}fatbinary"{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
+// CHK-CMDS-AOT-NV-NEXT: "{{.*}}ptxas{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
+// CHK-CMDS-AOT-NV-NEXT: "{{.*}}fatbinary{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
 // CHK-CMDS-AOT-NV-NEXT: offload-wrapper: input: [[FATBINOUT]], output: [[WRAPPEROUT:.*]].bc
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}clang.exe"{{.*}} -c -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
@@ -116,3 +116,17 @@
 // Error handling when --linker-path is not provided for clang-linker-wrapper
 // RUN: not clang-linker-wrapper 2>&1 | FileCheck --check-prefix=LINKER-PATH-NOT-PROVIDED %s
 // LINKER-PATH-NOT-PROVIDED: linker path missing, must pass 'linker-path'
+
+/// Check --device-lib-dir for sycl-post-link tool
+// ------
+// Generate .o file as linker wrapper input.
+
+// RUN: %clang %s -fsycl -fsycl-targets=spir64-unknown-unknown -c --offload-new-driver -o %t5.o
+//
+// Run clang-linker-wrapper test
+//
+// RUN: clang-linker-wrapper -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-pc-windows-msvc" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t5.o -sycl-device-libraries=libsycl-crt.new.o -sycl-device-library-location=%S/Inputs/SYCL/lib --dry-run 2>&1 | FileCheck -check-prefix=CHK-CMDS-DEVICE-LIB-DIR %s
+// CHK-CMDS-DEVICE-LIB-DIR: "{{.*}}spirv-to-ir-wrapper.exe" {{.*}} --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: "{{.*}}llvm-link.exe" {{.*}} --suppress-warnings
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: "{{.*}}llvm-link.exe" -only-needed {{.*}} --suppress-warnings
+// CHK-CMDS-DEVICE-LIB-DIR-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} --device-lib-dir={{.*}}/Inputs/SYCL/lib {{.*}} SYCL_POST_LINK_OPTIONS {{.*}}

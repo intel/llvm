@@ -1,6 +1,15 @@
 // REQUIRES: sg-8
+// UNSUPPORTED: target-nvidia || target-amd
+// UNSUPPORTED-INTENDED: subgroup size requirement implicitly make nvptx/amdgcn
+// not supported
+
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
+
+// Timeout on CPU. Enable when fixed.
+// Depends on SPIR-V Backend & run-time drivers version.
+// UNSUPPORTED: spirv-backend && cpu
+// UNSUPPORTED-TRACKER: CMPLRLLVM-64705
 
 // The test verifies sort API extension.
 // Currently it checks the following combinations:

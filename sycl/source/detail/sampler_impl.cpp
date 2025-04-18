@@ -9,6 +9,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/sampler_impl.hpp>
 #include <sycl/property_list.hpp>
+#include <sycl/sampler.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -23,12 +24,13 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
   verifyProps(MPropList);
 }
 
-sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
-  const AdapterPtr &Adapter = getSyclObjImpl(syclContext)->getAdapter();
+sampler_impl::sampler_impl(cl_sampler clSampler,
+                           const ContextImplPtr &syclContext) {
+  const AdapterPtr &Adapter = syclContext->getAdapter();
   ur_sampler_handle_t Sampler{};
   Adapter->call<UrApiKind::urSamplerCreateWithNativeHandle>(
       reinterpret_cast<ur_native_handle_t>(clSampler),
-      getSyclObjImpl(syclContext)->getHandleRef(), nullptr, &Sampler);
+      syclContext->getHandleRef(), nullptr, &Sampler);
 
   MContextToSampler[syclContext] = Sampler;
   bool NormalizedCoords;
@@ -84,7 +86,7 @@ sampler_impl::~sampler_impl() {
     for (auto &Iter : MContextToSampler) {
       // TODO catch an exception and add it to the list of asynchronous
       // exceptions
-      const AdapterPtr &Adapter = getSyclObjImpl(Iter.first)->getAdapter();
+      const AdapterPtr &Adapter = Iter.first->getAdapter();
       Adapter->call<UrApiKind::urSamplerRelease>(Iter.second);
     }
   } catch (std::exception &e) {
@@ -92,10 +94,11 @@ sampler_impl::~sampler_impl() {
   }
 }
 
-ur_sampler_handle_t sampler_impl::getOrCreateSampler(const context &Context) {
+ur_sampler_handle_t
+sampler_impl::getOrCreateSampler(const ContextImplPtr &ContextImpl) {
   {
     std::lock_guard<std::mutex> Lock(MMutex);
-    auto It = MContextToSampler.find(Context);
+    auto It = MContextToSampler.find(ContextImpl);
     if (It != MContextToSampler.end())
       return It->second;
   }
@@ -132,10 +135,10 @@ ur_sampler_handle_t sampler_impl::getOrCreateSampler(const context &Context) {
 
   ur_result_t errcode_ret = UR_RESULT_SUCCESS;
   ur_sampler_handle_t resultSampler = nullptr;
-  const AdapterPtr &Adapter = getSyclObjImpl(Context)->getAdapter();
+  const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
   errcode_ret = Adapter->call_nocheck<UrApiKind::urSamplerCreate>(
-      getSyclObjImpl(Context)->getHandleRef(), &desc, &resultSampler);
+      ContextImpl->getHandleRef(), &desc, &resultSampler);
 
   if (errcode_ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE)
     throw sycl::exception(sycl::errc::feature_not_supported,
@@ -143,7 +146,7 @@ ur_sampler_handle_t sampler_impl::getOrCreateSampler(const context &Context) {
 
   Adapter->checkUrResult(errcode_ret);
   std::lock_guard<std::mutex> Lock(MMutex);
-  MContextToSampler[Context] = resultSampler;
+  MContextToSampler[ContextImpl] = resultSampler;
 
   return resultSampler;
 }

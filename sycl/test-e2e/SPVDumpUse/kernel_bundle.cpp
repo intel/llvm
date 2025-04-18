@@ -1,4 +1,4 @@
-// REQUIRES: opencl || level_zero
+// REQUIRES: target-spir
 //
 // SYCL_USE_KERNEL_SPV assumes no dead arguments elimination, need to produce
 // SPV under the same conditions.
@@ -14,6 +14,7 @@
 // FIXME: SYCL_USE_KERNEL_SPV is ignored for kernel_bundles.
 // RUN: env SYCL_USE_KERNEL_SPV=%t1.sycl_spir64.spv %{run-unfiltered-devices} %t2.out | FileCheck %s --check-prefix TWO
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 using namespace sycl;
 

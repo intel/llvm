@@ -12,7 +12,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-DAG: {{[0-9]*}} Capability Linkage
 ; Function Attrs: nounwind
-define spir_func void @func_export(ptr addrspace(1) nocapture %a) #0 {
+define spir_func void @func_export(ptr addrspace(1) captures(none) %a) #0 {
 entry:
 ; CHECK-DAG: {{[0-9]*}} Capability Int64
   %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #3

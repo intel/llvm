@@ -33,6 +33,7 @@ public:
   barrier(barrier &&other) noexcept = delete;
   barrier &operator=(const barrier &other) = delete;
   barrier &operator=(barrier &&other) noexcept = delete;
+  ~barrier() = default;
 
   void initialize(uint32_t expected_count) {
 #ifdef __SYCL_DEVICE_ONLY__

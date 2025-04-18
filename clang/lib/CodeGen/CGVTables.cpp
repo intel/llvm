@@ -20,7 +20,6 @@
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/CodeGen/ConstantInitBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/Support/Format.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include <algorithm>
 #include <cstdio>
@@ -772,6 +771,10 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
   case VTableComponent::CK_DeletingDtorPointer: {
     GlobalDecl GD = component.getGlobalDecl();
 
+    const bool IsThunk =
+        nextVTableThunkIndex < layout.vtable_thunks().size() &&
+        layout.vtable_thunks()[nextVTableThunkIndex].first == componentIndex;
+
     if (CGM.getLangOpts().CUDA) {
       // Emit NULL for methods we can't codegen on this
       // side. Otherwise we'd end up with vtable with unresolved
@@ -783,9 +786,12 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
           CGM.getLangOpts().CUDAIsDevice
               ? MD->hasAttr<CUDADeviceAttr>()
               : (MD->hasAttr<CUDAHostAttr>() || !MD->hasAttr<CUDADeviceAttr>());
-      if (!CanEmitMethod)
+      if (!CanEmitMethod) {
+        if (IsThunk)
+          nextVTableThunkIndex++;
         return builder.add(
             llvm::ConstantExpr::getNullValue(CGM.GlobalsInt8PtrTy));
+      }
       // Method is acceptable, continue processing as usual.
     }
 
@@ -803,6 +809,12 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
     }
 
     auto getSpecialVirtualFn = [&](StringRef name) -> llvm::Constant * {
+      // There is no guarantee that special function for handling pure virtual
+      // calls will be provided by a SYCL backend compiler and therefore we
+      // simply emit nullptr here.
+      if (CGM.getLangOpts().SYCLIsDevice)
+        return llvm::ConstantPointerNull::get(CGM.GlobalsInt8PtrTy);
+
       // FIXME(PR43094): When merging comdat groups, lld can select a local
       // symbol as the signature symbol even though it cannot be accessed
       // outside that symbol's TU. The relative vtables ABI would make
@@ -844,9 +856,7 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
       fnPtr = DeletedVirtualFn;
 
     // Thunks.
-    } else if (nextVTableThunkIndex < layout.vtable_thunks().size() &&
-               layout.vtable_thunks()[nextVTableThunkIndex].first ==
-                   componentIndex) {
+    } else if (IsThunk) {
       auto &thunkInfo = layout.vtable_thunks()[nextVTableThunkIndex].second;
 
       nextVTableThunkIndex++;

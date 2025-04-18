@@ -5,7 +5,7 @@
 // function definitions and therefore we won't mark construct kernel as using
 // virtual functions and link operation at runtime will fail due to undefined
 // references to virtual functions from vtable.
-// XFAIL: *
+// XFAIL: run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15071
 //
 // This test covers a scenario where virtual functions defintion and their uses

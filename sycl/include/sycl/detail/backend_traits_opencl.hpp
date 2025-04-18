@@ -16,23 +16,27 @@
 #pragma once
 
 #include <sycl/backend_types.hpp>         // for backend
-#include <sycl/context.hpp>               // for context
 #include <sycl/detail/backend_traits.hpp> // for BackendInput, BackendReturn
 #include <sycl/detail/cl.h>               // for _cl_event, cl_event, cl_de...
 #include <sycl/detail/ur.hpp>             // for assertion and ur handles
 #include <sycl/device.hpp>                // for device
 #include <sycl/event.hpp>                 // for event
-#include <sycl/handler.hpp>               // for buffer
-#include <sycl/kernel.hpp>                // for kernel
-#include <sycl/kernel_bundle.hpp>         // for kernel_bundle
-#include <sycl/kernel_bundle_enums.hpp>   // for bundle_state
-#include <sycl/platform.hpp>              // for platform
-#include <sycl/queue.hpp>                 // for queue
+#include <sycl/ext/oneapi/experimental/graph.hpp> // for command_graph
+#include <sycl/kernel.hpp>                        // for kernel
+#include <sycl/kernel_bundle_enums.hpp>           // for bundle_state
+#include <sycl/platform.hpp>                      // for platform
 
 #include <vector> // for vector
 
 namespace sycl {
 inline namespace _V1 {
+
+template <bundle_state State> class kernel_bundle;
+class queue;
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
+class context;
+
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
@@ -54,13 +58,15 @@ template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
 };
 
-template <typename DataT, int Dimensions, typename AllocatorT>
-struct BackendInput<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+template <typename DataT, int Dimensions, typename AllocatorT, typename Enable>
+struct BackendInput<backend::opencl,
+                    buffer<DataT, Dimensions, AllocatorT, Enable>> {
   using type = cl_mem;
 };
 
-template <typename DataT, int Dimensions, typename AllocatorT>
-struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+template <typename DataT, int Dimensions, typename AllocatorT, typename Enable>
+struct BackendReturn<backend::opencl,
+                     buffer<DataT, Dimensions, AllocatorT, Enable>> {
   using type = std::vector<cl_mem>;
 };
 
@@ -125,6 +131,17 @@ template <> struct BackendInput<backend::opencl, kernel> {
 
 template <> struct BackendReturn<backend::opencl, kernel> {
   using type = cl_kernel;
+};
+
+using graph = ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::executable>;
+template <> struct BackendReturn<backend::opencl, graph> {
+#ifndef cl_khr_command_buffer
+  // Old cl_ext.h OpenCL-Header files might not have the command-buffer
+  // extension defined.
+  typedef struct _cl_command_buffer_khr *cl_command_buffer_khr;
+#endif
+  using type = cl_command_buffer_khr;
 };
 
 template <> struct InteropFeatureSupportMap<backend::opencl> {

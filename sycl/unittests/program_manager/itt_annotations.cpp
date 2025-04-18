@@ -5,11 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
-#define SYCL2020_DISABLE_DEPRECATION_WARNINGS
-
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <helpers/ScopedEnvVar.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
@@ -19,24 +17,7 @@
 
 #include <helpers/TestKernel.hpp>
 
-// Same as defined in config.def
-static constexpr auto ITTProfileEnvVarName = "INTEL_ENABLE_OFFLOAD_ANNOTATIONS";
-
-static void set_env(const char *name, const char *value) {
-#ifdef _WIN32
-  (void)_putenv_s(name, value);
-#else
-  (void)setenv(name, value, /*overwrite*/ 1);
-#endif
-}
-
-static void unset_env(const char *name) {
-#ifdef _WIN32
-  (void)_putenv_s(name, "");
-#else
-  unsetenv(name);
-#endif
-}
+using namespace sycl::unittest;
 
 bool HasITTEnabled = false;
 
@@ -53,16 +34,10 @@ static ur_result_t redefinedProgramSetSpecializationConstants(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-static void reset() {
-  using namespace sycl::detail;
-  HasITTEnabled = false;
-  SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset();
-}
-
 TEST(ITTNotify, UseKernelBundle) {
-  set_env(ITTProfileEnvVarName, "1");
-
-  reset();
+  ScopedEnvVar Var("INTEL_ENABLE_OFFLOAD_ANNOTATIONS", "1",
+                   SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset);
+  HasITTEnabled = false;
 
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
@@ -88,10 +63,9 @@ TEST(ITTNotify, UseKernelBundle) {
 }
 
 TEST(ITTNotify, VarNotSet) {
-  unset_env(ITTProfileEnvVarName);
-
-  reset();
-
+  ScopedEnvVar Var("INTEL_ENABLE_OFFLOAD_ANNOTATIONS", nullptr,
+                   SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::reset);
+  HasITTEnabled = false;
   sycl::unittest::UrMock<> Mock;
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_before_callback(

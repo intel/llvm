@@ -12,6 +12,7 @@
 
 #include <detail/queue_impl.hpp>
 #include <gtest/gtest.h>
+#include <helpers/KernelInteropCommon.hpp>
 #include <helpers/UrMock.hpp>
 
 namespace {
@@ -33,15 +34,18 @@ TEST(PiInteropTest, CheckRetain) {
   mock::getCallbacks().set_before_callback("urQueueRetain",
                                            &redefinedQueueRetain);
   queue Q{Ctx, default_selector()};
-  EXPECT_TRUE(QueueRetainCalled == 0);
+  EXPECT_EQ(QueueRetainCalled, 0);
+  EXPECT_EQ(mockOpenCLNumQueueRetains(), 0ul);
 
   cl_command_queue OCLQ = get_native<backend::opencl>(Q);
-  EXPECT_TRUE(QueueRetainCalled == 1);
+  EXPECT_EQ(QueueRetainCalled, 0);
+  EXPECT_EQ(mockOpenCLNumQueueRetains(), 1ul);
 
   // The make_queue should not call to urQueueRetain. The
   // urQueueCreateWithNativeHandle should do the "retain" if needed.
   queue Q1 = make_queue<backend::opencl>(OCLQ, Ctx);
-  EXPECT_TRUE(QueueRetainCalled == 1);
+  EXPECT_EQ(QueueRetainCalled, 0);
+  EXPECT_EQ(mockOpenCLNumQueueRetains(), 1ul);
 }
 
 } // namespace
