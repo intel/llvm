@@ -190,30 +190,6 @@ private:
                                        const InputInfoList &InputFiles) const;
 };
 
-/// Directly call FPGA Compiler and Linker
-namespace fpga {
-
-class LLVM_LIBRARY_VISIBILITY BackendCompiler : public Tool {
-public:
-  BackendCompiler(const ToolChain &TC)
-      : Tool("fpga::BackendCompiler", "fpga compiler", TC) {}
-
-  bool hasIntegratedCPP() const override { return false; }
-
-  void ConstructJob(Compilation &C, const JobAction &JA,
-                    const InputInfo &Output, const InputInfoList &Inputs,
-                    const llvm::opt::ArgList &TCArgs,
-                    const char *LinkingOutput) const override;
-
-private:
-  void constructOpenCLAOTCommand(Compilation &C, const JobAction &JA,
-                                 const InputInfo &Output,
-                                 const InputInfoList &InputFiles,
-                                 const llvm::opt::ArgList &Args) const;
-};
-
-} // end namespace fpga
-
 namespace gen {
 
 class LLVM_LIBRARY_VISIBILITY BackendCompiler : public Tool {
