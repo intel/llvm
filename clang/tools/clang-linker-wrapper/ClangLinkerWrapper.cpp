@@ -1630,7 +1630,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
-    return generic::clang(InputFiles, Args, IsSYCLKind);
+    return generic::clang(InputFiles, Args);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
@@ -1660,7 +1660,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     return StringRef("");
   }
   case Triple::loongarch64:
-    return generic::clang(InputFiles, Args);
+    return generic::clang(InputFiles, Args, IsSYCLKind);
   default:
     if (Triple.str() == "native_cpu" && IsSYCLKind)
       return generic::clang(InputFiles, Args);
