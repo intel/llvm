@@ -17,9 +17,11 @@
 #ifndef MULTI_LLVM_MULTI_INTRINSIC_H_INCLUDED
 #define MULTI_LLVM_MULTI_INTRINSIC_H_INCLUDED
 
+#include <llvm/IR/Intrinsics.h>
 #include <multi_llvm/llvm_version.h>
 
 namespace multi_llvm {
+
 static inline auto GetOrInsertIntrinsicDeclaration(
     llvm::Module *M, llvm::Intrinsic::ID id,
     llvm::ArrayRef<llvm::Type *> Tys = {}) {
@@ -29,6 +31,30 @@ static inline auto GetOrInsertIntrinsicDeclaration(
   return llvm::Intrinsic::getDeclaration(M, id, Tys);
 #endif
 }
+
+// Drop getAttributes workaround when LLVM 20 is minimum version
+// This can also be simplified once DPC++ catches up with getAttributes
+// with FunctionType as the last argument.
+namespace detail {
+template <typename... T>
+auto getAttributes(T... args)
+    -> decltype(llvm::Intrinsic::getAttributes(args...)) {
+  return llvm::Intrinsic::getAttributes(args...);
+}
+template <typename... T>
+auto getAttributes(T... args, llvm::FunctionType *)
+    -> decltype(llvm::Intrinsic::getAttributes(args...)) {
+  return llvm::Intrinsic::getAttributes(args...);
+}
+}  // namespace detail
+
+namespace Intrinsic {
+static inline auto getAttributes(llvm::LLVMContext &C, llvm::Intrinsic::ID ID,
+                                 llvm::FunctionType *FT) {
+  return detail::getAttributes<llvm::LLVMContext &, llvm::Intrinsic::ID>(C, ID,
+                                                                         FT);
+}
+}  // namespace Intrinsic
 
 }  // namespace multi_llvm
 
