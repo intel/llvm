@@ -60,6 +60,21 @@ uint64_t event_profiling_data_t::getEventEndTimestamp() {
   return adjustedEventEndTimestamp;
 }
 
+void event_profiling_data_t::reset() {
+  // This ensures that the event is consider as not timestamped.
+  // We can't touch the recordEventEndTimestamp
+  // as it may still be overwritten by the driver.
+  // In case event is resued and recordStartTimestamp
+  // is called again, adjustedEventEndTimestamp will always be updated correctly
+  // to the new value as we wait for the event to be signaled.
+  // If the event is reused on another queue, this means that the original
+  // queue must have been destroyed (and the even pool released back to the
+  // context) and the timstamp is already wrriten, so there's no race-condition
+  // possible.
+  adjustedEventStartTimestamp = 0;
+  adjustedEventEndTimestamp = 0;
+}
+
 void event_profiling_data_t::recordStartTimestamp(ur_device_handle_t hDevice) {
   zeTimerResolution = hDevice->ZeDeviceProperties->timerResolution;
   timestampMaxValue = hDevice->getTimestampMask();
@@ -98,7 +113,7 @@ void ur_event_handle_t_::resetQueueAndCommand(ur_queue_t_ *hQueue,
                                               ur_command_t commandType) {
   this->hQueue = hQueue;
   this->commandType = commandType;
-  profilingData = event_profiling_data_t(getZeEvent());
+  profilingData.reset();
 }
 
 void ur_event_handle_t_::recordStartTimestamp() {
@@ -141,33 +156,17 @@ ur_result_t ur_event_handle_t_::retain() {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_event_handle_t_::releaseDeferred() {
-  assert(zeEventQueryStatus(getZeEvent()) == ZE_RESULT_SUCCESS);
-  assert(RefCount.load() == 0);
-
-  return this->forceRelease();
-}
-
 ur_result_t ur_event_handle_t_::release() {
   if (!RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
-  // Need to take a lock before checking if the event is timestamped.
-  std::unique_lock<ur_shared_mutex> lock(Mutex);
-
-  if (isTimestamped() && !getEventEndTimestamp()) {
-    // L0 will write end timestamp to this event some time in the future,
-    // so we can't release it yet.
-    assert(hQueue);
-    hQueue->deferEventFree(this);
-    return UR_RESULT_SUCCESS;
+  if (event_pool) {
+    event_pool->free(this);
+  } else {
+    std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
+    delete this;
   }
-
-  // Need to unlock now, as forceRelease might deallocate memory backing
-  // the Mutex.
-  lock.unlock();
-
-  return this->forceRelease();
+  return UR_RESULT_SUCCESS;
 }
 
 bool ur_event_handle_t_::isTimestamped() const {
@@ -208,16 +207,6 @@ ur_event_handle_t_::ur_event_handle_t_(
                                                zeEventGetPool */
           ,
           nullptr) {}
-
-ur_result_t ur_event_handle_t_::forceRelease() {
-  if (event_pool) {
-    event_pool->free(this);
-  } else {
-    std::get<v2::raii::ze_event_handle_t>(hZeEvent).release();
-    delete this;
-  }
-  return UR_RESULT_SUCCESS;
-}
 
 namespace ur::level_zero {
 ur_result_t urEventRetain(ur_event_handle_t hEvent) try {

@@ -35,6 +35,10 @@ struct event_profiling_data_t {
   bool recordingStarted() const;
   bool recordingEnded() const;
 
+  // clear the profiling data, allowing the event to be reused
+  // for a new command
+  void reset();
+
 private:
   ze_event_handle_t hZeEvent;
 
@@ -63,9 +67,6 @@ public:
 
   // Set the queue and command that this event is associated with
   void resetQueueAndCommand(ur_queue_t_ *hQueue, ur_command_t commandType);
-
-  // releases event immediately
-  ur_result_t forceRelease();
 
   void reset();
   ze_event_handle_t getZeEvent() const;
