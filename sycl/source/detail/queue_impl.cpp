@@ -318,9 +318,15 @@ event queue_impl::submit_impl(const detail::type_erased_cgfo_ty &CGF,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
                               const SubmissionInfo &SubmitInfo) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  detail::handler_impl HandlerImplVal(PrimaryQueue.get(), CallerNeedsEvent);
+  detail::handler_impl *HandlerImpl = &HandlerImplVal;
+  handler Handler(HandlerImpl, Self);
+#else
   handler Handler(Self, PrimaryQueue.get(), SecondaryQueue.get(),
                   CallerNeedsEvent);
   auto &HandlerImpl = detail::getSyclObjImpl(Handler);
+#endif
   if (xptiTraceEnabled()) {
     Handler.saveCodeLoc(Loc, IsTopCodeLoc);
   }
