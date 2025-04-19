@@ -27,12 +27,12 @@ namespace {
 
 namespace v2 {
 
-DECLARE_DESTROY_FUNCTION(zeKernelDestroy);
-DECLARE_DESTROY_FUNCTION(zeEventDestroy);
-DECLARE_DESTROY_FUNCTION(zeEventPoolDestroy);
-DECLARE_DESTROY_FUNCTION(zeContextDestroy);
-DECLARE_DESTROY_FUNCTION(zeCommandListDestroy);
-DECLARE_DESTROY_FUNCTION(zeImageDestroy);
+DECLARE_DESTROY_FUNCTION(zeKernelDestroy)
+DECLARE_DESTROY_FUNCTION(zeEventDestroy)
+DECLARE_DESTROY_FUNCTION(zeEventPoolDestroy)
+DECLARE_DESTROY_FUNCTION(zeContextDestroy)
+DECLARE_DESTROY_FUNCTION(zeCommandListDestroy)
+DECLARE_DESTROY_FUNCTION(zeImageDestroy)
 namespace raii {
 
 template <typename ZeHandleT, ze_result_t (*destroy)(ZeHandleT)>
