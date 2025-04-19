@@ -1374,7 +1374,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     // mem_advise.
     if (!Device->getManagedMemSupport()) {
       releaseEvent();
-      logger::warning("mem_advise ignored as device does not support "
+      UR_LOG(Warning, "mem_advise ignored as device does not support "
                       "managed memory access.");
       return UR_RESULT_SUCCESS;
     }
@@ -1389,7 +1389,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     // async prefetch requires USM pointer (or hip SVM) to work.
     if (!attribs.isManaged) {
       releaseEvent();
-      logger::warning("Prefetch hint ignored as prefetch only works with USM.");
+      UR_LOG(Warning, "Prefetch hint ignored as prefetch only works with USM.");
       return UR_RESULT_SUCCESS;
     }
 
@@ -1444,7 +1444,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     // mem_advise.
     if (!Device->getManagedMemSupport()) {
       releaseEvent();
-      logger::warning("mem_advise ignored as device does not support "
+      UR_LOG(Warning, "mem_advise ignored as device does not support "
                       "managed memory access.");
       return UR_RESULT_SUCCESS;
     }
@@ -1461,7 +1461,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                   UR_USM_ADVICE_FLAG_DEFAULT)) {
       if (!Device->getConcurrentManagedAccess()) {
         releaseEvent();
-        logger::warning("mem_advise ignored as device does not support "
+        UR_LOG(Warning, "mem_advise ignored as device does not support "
                         "concurrent memory access.");
         return UR_RESULT_SUCCESS;
       }
@@ -1481,7 +1481,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     if (auto ptrAttribs = getPointerAttributes(pMem);
         !ptrAttribs || !ptrAttribs->isManaged) {
       releaseEvent();
-      logger::warning("mem_advise is ignored as the pointer argument is not "
+      UR_LOG(Warning, "mem_advise is ignored as the pointer argument is not "
                       "a shared USM pointer.");
       return UR_RESULT_SUCCESS;
     }
@@ -1510,7 +1510,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       // the runtime.
       if (Result == UR_RESULT_ERROR_INVALID_ENUMERATION) {
         releaseEvent();
-        logger::warning("mem_advise is ignored as the advice argument is not "
+        UR_LOG(Warning, "mem_advise is ignored as the advice argument is not "
                         "supported by this device.");
         return UR_RESULT_SUCCESS;
       }
