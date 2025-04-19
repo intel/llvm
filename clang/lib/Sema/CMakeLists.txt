@@ -112,7 +112,11 @@ add_clang_library(clangSema
 
   DEPENDS
   ClangOpenCLBuiltinsImpl
+<<<<<<< HEAD
   ClangSPIRVBuiltinsImpl
+=======
+  acc_gen
+>>>>>>> eec1af21c0828544fc49ee1a982a9cdef455b92a
   omp_gen
   ClangDriverOptions
   acc_gen
