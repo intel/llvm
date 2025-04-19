@@ -92,8 +92,8 @@ git clone --config core.autocrlf=false https://github.com/intel/llvm -b sycl
 ## Build DPC++ toolchain
 
 The easiest way to get started is to use the buildbot
-[configure](../../buildbot/configure.py) and
-[compile](../../buildbot/compile.py) scripts.
+[configure](https://github.com/intel/llvm/blob/sycl/buildbot/configure.py) and
+[compile](https://github.com/intel/llvm/blob/sycl/buildbot/compile.py) scripts.
 
 In case you want to configure CMake manually the up-to-date reference for
 variables is in these files. Note that the CMake variables set by default by the [configure.py](../../buildbot/configure.py) script are the ones commonly used by
@@ -237,20 +237,20 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$DPCPP_HOME/llvm/build/lib ./a.out
 
 ### Build DPC++ toolchain with support for HIP AMD
 
-There is beta support for oneAPI DPC++ for HIP on AMD devices. It is not feature
-complete and it still contains known and unknown bugs. Currently it has only
-been tried on Linux, with ROCm 4.2.0, 4.3.0, 4.5.2, 5.3.0, and 5.4.3, using the
-AMD Radeon Pro W6800 (gtx1030), MI50 (gfx906), MI100 (gfx908) and MI250x
-(gfx90a) devices. The backend is tested by a relevant device/toolkit prior to a
-oneAPI plugin release. Go to the plugin release
-[pages](https://developer.codeplay.com/products/oneapi/amd) for further details.
-
 To enable support for HIP devices, follow the instructions for the Linux DPC++
 toolchain, but add the `--hip` flag to `configure.py`.
 
 Enabling this flag requires an installation of ROCm on the system, for
 instruction on how to install this refer to
 [AMD ROCm Installation Guide for Linux](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
+
+ROCm versions above 5.7 are recommended as earlier versions don't have graph
+support. DPC++ aims to support new ROCm versions as they come out, so there may
+be a delay but generally the latest ROCm version should work. The ROCm support
+is mostly tested on AMD Radeon Pro W6800 (gfx1030), and MI250x (gfx90a), however
+other architectures supported by LLVM may work just fine. The full list of ROCm
+versions tested prior to oneAPI releases are listed on the plugin release
+[pages](https://developer.codeplay.com/products/oneapi/amd).
 
 The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it is
 installed somewhere else, the directory must be provided through the CMake
@@ -280,7 +280,10 @@ by default when configuring for HIP. For more details on building LLD refer to
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
-There is experimental support for oneAPI DPC++ for HIP on Nvidia devices.
+HIP applications can be built to target Nvidia GPUs, so in theory it is possible
+to build the DPC++ HIP support for Nvidia, however this is not supported, so it
+may not work.
+
 There is no continuous integration for this and there are no guarantees for
 supported platforms or configurations.
 
@@ -292,13 +295,12 @@ To enable support for HIP NVIDIA devices, follow the instructions for the Linux
 DPC++ toolchain, but add the `--hip` and `--hip-platform NVIDIA` flags to
 `configure.py`.
 
-Enabling this flag requires HIP to be installed, more specifically
-[HIP NVCC](https://rocmdocs.amd.com/en/latest/Installation_Guide/HIP-Installation.html#nvidia-platform),
-as well as the CUDA Runtime API to be installed, see
-[NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
-
-Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0, with
-CUDA 11, and using a GeForce 1060 device.
+Enabling this flag requires HIP to be installed, specifically for Nvidia, see
+the Nvidia tab on the HIP installation docs
+[here](https://rocm.docs.amd.com/projects/HIP/en/latest/install/install.html),
+as well as the CUDA Runtime API to be installed, see [NVIDIA CUDA Installation
+Guide for
+Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 
 ### Build DPC++ toolchain with support for ARM processors
 
@@ -736,14 +738,6 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 The results are correct!
 ```
 
-**NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR`
-environment variable.
-
-```bash
-ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
-```
-
 **NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
 using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
 [Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc))
@@ -776,6 +770,14 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   -Xcuda-ptxas --maxrregcount=128 -Xcuda-ptxas --verbose \
   -Xsycl-target-backend --cuda-gpu-arch=sm_80
 ```
+
+Additionally AMD and Nvidia targets also support aliases for the target to
+simplify passing the specific architectures, for example
+`-fsycl-targets=nvidia_gpu_sm_80` is equivalent to
+`-fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend
+--cuda-gpu-arch=sm_80`, the full list of available aliases is documented in the
+ [Users Manual](UsersManual.md#generic-options), for the `-fsycl-targets`
+ option.
 
 To build simple-sycl-app ahead of time for GPU, CPU or Accelerator devices,
 specify the target architecture.  The examples provided use a supported
@@ -945,11 +947,14 @@ int CUDASelector(const sycl::device &Device) {
 
 ### HIP back-end limitations
 
-* Requires a ROCm compatible operating system, for full details of supported
-  Operating System for ROCm, please refer to the
-  [ROCm Supported Operating Systems](https://github.com/RadeonOpenCompute/ROCm#supported-operating-systems).
-* Support is still in a beta state, but the backend is being actively developed.
-* Global offsets are currently not supported.
+* Requires a ROCm compatible system and GPU, see for
+  [Linux](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html#supported-skus)
+  and for
+  [Windows](https://rocm.docs.amd.com/projects/install-on-windows/en/latest/reference/system-requirements.html#supported-skus).
+* Windows for HIP is not supported by DPC++ at the moment so it may not work.
+* `printf` within kernels is not supported.
+* C++ standard library functions using complex types are not supported,
+  `sycl::complex` should be used instead.
 
 ## Find More
 
