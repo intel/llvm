@@ -6,7 +6,6 @@
 
 // TODO: Fails at JIT compilation for some reason.
 // UNSUPPORTED: hip
-#define SYCL_FALLBACK_ASSERT 1
 
 #include <sycl/detail/core.hpp>
 
