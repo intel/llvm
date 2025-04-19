@@ -120,7 +120,7 @@ int main() {
 #endif
 
     // Allocate memory to check queries
-    void *dummyPtr = syclexp::async_malloc_from_pool(Q, 2048, MemPool1);
+    void *dummyPtr = syclexp::async_malloc_from_pool(Q, 4096, MemPool1);
 
     ReservedSizeCurrent = MemPool1.get_reserved_size_current();
     UsedSizeCurrent = MemPool1.get_used_size_current();
@@ -137,6 +137,20 @@ int main() {
            "Pool reserved size has not increased despite allocating memory!");
     assert(UsedSizeCurrent > 0 &&
            "Pool used size has not increased despite allocating memory!");
+
+    // Pool trimming
+    // Implementation may or may not trim to exact amount. We know it will not
+    // trim to below that amount - amount previously reserved must be greater
+    // than minBytesToKeep
+    size_t minBytesToKeep = 3072;
+    MemPool1.trim_to(minBytesToKeep);
+    ReservedSizeCurrent = MemPool1.get_reserved_size_current();
+#ifdef VERBOSE_PRINT
+    std::cout << "Memory pool current reserved size after trimming: "
+              << ReservedSizeCurrent << std::endl;
+#endif
+    assert(ReservedSizeCurrent >= minBytesToKeep &&
+           "Pool reserved size current has decreased too far after trimming!");
 
     // Free that allocation and wait to release back to OS
     syclexp::async_free(Q, dummyPtr);
