@@ -2537,7 +2537,7 @@ ExprResult Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
                               : &OpaqueAllocationSize);
     if (isAlignedAllocation(IAP.PassAlignment))
       CallArgs.emplace_back(&DesiredAlignment);
-    CallArgs.insert(CallArgs.end(), PlacementArgs.begin(), PlacementArgs.end());
+    llvm::append_range(CallArgs, PlacementArgs);
 
     DiagnoseSentinelCalls(OperatorNew, PlacementLParen, CallArgs);
 
@@ -2978,7 +2978,7 @@ bool Sema::FindAllocationFunctions(
   if (IncludeAlignParam)
     AllocArgs.push_back(&Align);
 
-  AllocArgs.insert(AllocArgs.end(), PlaceArgs.begin(), PlaceArgs.end());
+  llvm::append_range(AllocArgs, PlaceArgs);
 
   // Find the allocation function.
   {
