@@ -46,7 +46,7 @@ TEST_P(urEventCreateWithNativeHandleTest, SuccessWithProperties) {
   // we always get the native handle from a UR object, and transferring
   // ownership from one UR object to another isn't allowed.
   ur_event_native_properties_t props = {
-      UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES, nullptr, false};
+      nullptr, UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES, false};
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urEventCreateWithNativeHandle(native_event, context, &props, evt.ptr()));
   ASSERT_NE(evt, nullptr);

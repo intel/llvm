@@ -11,8 +11,8 @@ static ur_image_format_t image_format{UR_IMAGE_CHANNEL_ORDER_RGBA,
                                       UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32};
 
 static ur_image_desc_t image_desc{
-    UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
     nullptr, ///< [in][optional] pointer to extension-specific structure
+    UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
     UR_MEM_TYPE_IMAGE3D, ///< [in] memory object type
     1,                   ///< [in] image width
     1,                   ///< [in] image height
@@ -97,8 +97,8 @@ TEST_P(urMemImageCreateTestWith1DMemoryTypeParam, Success) {
   }
 
   ur_image_desc_t image_desc_with_param{
-      UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
       nullptr,    ///< [in][optional] pointer to extension-specific structure
+      UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
       getParam(), ///< [in] memory object type
       1,          ///< [in] image width
       0,          ///< [in] image height
@@ -133,8 +133,8 @@ TEST_P(urMemImageCreateTestWith2DMemoryTypeParam, Success) {
   }
 
   ur_image_desc_t image_desc_with_param{
-      UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
       nullptr,    ///< [in][optional] pointer to extension-specific structure
+      UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
       getParam(), ///< [in] memory object type
       1,          ///< [in] image width
       1,          ///< [in] image height
@@ -155,8 +155,8 @@ TEST_P(urMemImageCreateTestWith2DMemoryTypeParam, Success) {
 
 TEST_P(urMemImageCreateTest, SuccessWith3DImageType) {
   ur_image_desc_t image_desc_with_param{
-      UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
       nullptr, ///< [in][optional] pointer to extension-specific structure
+      UR_STRUCTURE_TYPE_IMAGE_DESC, ///< [in] type of this structure
       UR_MEM_TYPE_IMAGE3D, ///< [in] memory object type
       1,                   ///< [in] image width
       1,                   ///< [in] image height

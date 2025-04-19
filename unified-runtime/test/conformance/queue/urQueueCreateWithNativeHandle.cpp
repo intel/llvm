@@ -40,7 +40,7 @@ TEST_P(urQueueCreateWithNativeHandleTest, SuccessWithProperties) {
   // and perform some query on it to verify that it works.
   ur_queue_handle_t q = nullptr;
   ur_queue_native_properties_t properties = {
-      UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES, nullptr, false};
+      nullptr, UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES, false};
   ASSERT_SUCCESS(urQueueCreateWithNativeHandle(native_handle, context, device,
                                                &properties, &q));
   ASSERT_NE(q, nullptr);

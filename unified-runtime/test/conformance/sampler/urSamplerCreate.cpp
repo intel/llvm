@@ -21,8 +21,8 @@ struct urSamplerCreateTestWithParam
     }
 
     ur_sampler_desc_t sampler_desc{
-        UR_STRUCTURE_TYPE_SAMPLER_DESC, /* stype */
         nullptr,                        /* pNext */
+        UR_STRUCTURE_TYPE_SAMPLER_DESC, /* stype */
         {},                             /* normalizedCoords */
         {},                             /* addressing mode */
         {},                             /* filterMode */
@@ -71,8 +71,8 @@ TEST_P(urSamplerCreateTestWithParam, Success) {
   }
 
   ur_sampler_desc_t sampler_desc{
-      UR_STRUCTURE_TYPE_SAMPLER_DESC, /* stype */
       nullptr,                        /* pNext */
+      UR_STRUCTURE_TYPE_SAMPLER_DESC, /* stype */
       normalized,                     /* normalizedCoords */
       addr_mode,                      /* addressing mode */
       filter_mode,                    /* filterMode */
@@ -88,8 +88,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE(urSamplerCreateTest);
 
 TEST_P(urSamplerCreateTest, InvalidNullHandleContext) {
   ur_sampler_desc_t sampler_desc{
-      UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
       nullptr,                          /* pNext */
+      UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* stype */
       true,                             /* normalizedCoords */
       UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
       UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
@@ -101,8 +101,8 @@ TEST_P(urSamplerCreateTest, InvalidNullHandleContext) {
 
 TEST_P(urSamplerCreateTest, InvalidEnumerationAddrMode) {
   ur_sampler_desc_t sampler_desc{
-      UR_STRUCTURE_TYPE_SAMPLER_DESC,          /* stype */
       nullptr,                                 /* pNext */
+      UR_STRUCTURE_TYPE_SAMPLER_DESC,          /* stype */
       true,                                    /* normalizedCoords */
       UR_SAMPLER_ADDRESSING_MODE_FORCE_UINT32, /* addressing mode */
       UR_SAMPLER_FILTER_MODE_LINEAR,           /* filterMode */
@@ -114,8 +114,8 @@ TEST_P(urSamplerCreateTest, InvalidEnumerationAddrMode) {
 
 TEST_P(urSamplerCreateTest, InvalidEnumerationFilterMode) {
   ur_sampler_desc_t sampler_desc{
-      UR_STRUCTURE_TYPE_SAMPLER_DESC,      /* stype */
       nullptr,                             /* pNext */
+      UR_STRUCTURE_TYPE_SAMPLER_DESC,      /* stype */
       true,                                /* normalizedCoords */
       UR_SAMPLER_ADDRESSING_MODE_CLAMP,    /* addressing mode */
       UR_SAMPLER_FILTER_MODE_FORCE_UINT32, /* filterMode */
@@ -127,8 +127,8 @@ TEST_P(urSamplerCreateTest, InvalidEnumerationFilterMode) {
 
 TEST_P(urSamplerCreateTest, InvalidNullPointer) {
   ur_sampler_desc_t sampler_desc{
-      UR_STRUCTURE_TYPE_SAMPLER_DESC,      /* stype */
       nullptr,                             /* pNext */
+      UR_STRUCTURE_TYPE_SAMPLER_DESC,      /* stype */
       true,                                /* normalizedCoords */
       UR_SAMPLER_ADDRESSING_MODE_CLAMP,    /* addressing mode */
       UR_SAMPLER_FILTER_MODE_FORCE_UINT32, /* filterMode */

@@ -55,8 +55,8 @@ TEST_P(urQueueCreateWithParamTest, SuccessWithProperties) {
 
   ur_queue_handle_t queue = nullptr;
   ur_queue_properties_t props = {
-      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
       /*.pNext =*/nullptr,
+      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
       /*.flags =*/queryFlag,
   };
   ASSERT_SUCCESS(urQueueCreate(context, device, &props, &queue));
@@ -89,8 +89,8 @@ TEST_P(urQueueCreateWithParamTest, MatchingDeviceHandles) {
   }
 
   ur_queue_properties_t props = {
-      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
       /*.pNext =*/nullptr,
+      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
       /*.flags =*/queryFlag,
   };
 
@@ -173,8 +173,8 @@ TEST_P(urQueueCreateTest, InvalidNullPointerQueue) {
 
 TEST_P(urQueueCreateTest, InvalidQueueProperties) {
   ur_queue_properties_t props = {
-      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
       /*.pNext =*/nullptr,
+      /*.stype =*/UR_STRUCTURE_TYPE_QUEUE_PROPERTIES,
       /*.flags =*/UR_QUEUE_FLAG_FORCE_UINT32,
   };
 
