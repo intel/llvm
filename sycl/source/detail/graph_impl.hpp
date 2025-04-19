@@ -17,6 +17,7 @@
 #include <detail/accessor_impl.hpp>
 #include <detail/cg.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/graph_memory_pool.hpp>
 #include <detail/host_task.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
@@ -73,6 +74,11 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
     return node_type::subgraph;
   case sycl::detail::CGType::EnqueueNativeCommand:
     return node_type::native_command;
+  case sycl::detail::CGType::AsyncAlloc:
+    return node_type::async_malloc;
+  case sycl::detail::CGType::AsyncFree:
+    return node_type::async_free;
+
   default:
     assert(false && "Invalid Graph Node Type");
     return node_type::empty;
@@ -470,6 +476,21 @@ public:
 
     default:
       return false;
+    }
+  }
+
+  /// Returns true if this node should be enqueued to the backend, if not only
+  /// its dependencies are considered.
+  bool requiresEnqueue() const {
+    switch (MNodeType) {
+    case node_type::empty:
+    case node_type::ext_oneapi_barrier:
+    case node_type::async_malloc:
+    case node_type::async_free:
+      return false;
+
+    default:
+      return true;
     }
   }
 
@@ -919,6 +940,12 @@ public:
   /// @return Context associated with graph.
   sycl::context getContext() const { return MContext; }
 
+  /// Query for the context impl tied to this graph.
+  /// @return shared_ptr ref for the context impl associated with graph.
+  const std::shared_ptr<sycl::detail::context_impl> &getContextImplPtr() const {
+    return sycl::detail::getSyclObjImpl(MContext);
+  }
+
   /// Query for the device_impl tied to this graph.
   /// @return device_impl shared ptr reference associated with graph.
   const DeviceImplPtr &getDeviceImplPtr() const {
@@ -1139,6 +1166,32 @@ public:
 
   unsigned long long getID() const { return MID; }
 
+  /// Get the memory pool used for graph-owned allocations.
+  graph_mem_pool &getMemPool() { return MGraphMemPool; }
+
+  /// Mark that an executable graph was created from this modifiable graph, used
+  /// for tracking live graphs for graph-owned allocations.
+  void markExecGraphCreated() { MExecGraphCount++; }
+
+  /// Mark that an executable graph created from this modifiable graph was
+  /// destroyed, used for tracking live graphs for graph-owned allocations.
+  void markExecGraphDestroyed() {
+    while (true) {
+      size_t CurrentVal = MExecGraphCount;
+      if (CurrentVal == 0) {
+        break;
+      }
+      if (MExecGraphCount.compare_exchange_strong(CurrentVal, CurrentVal - 1) ==
+          false) {
+        continue;
+      }
+    }
+  }
+
+  /// Get the number of unique executable graph instances currently alive for
+  /// this graph.
+  size_t getExecGraphCount() const { return MExecGraphCount; }
+
 private:
   /// Check the graph for cycles by performing a depth-first search of the
   /// graph. If a node is visited more than once in a given path through the
@@ -1206,10 +1259,17 @@ private:
   std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MBarrierDependencyMap;
+  /// Graph memory pool for handling graph-owned memory allocations for this
+  /// graph.
+  graph_mem_pool MGraphMemPool;
 
   unsigned long long MID;
   // Used for std::hash in order to create a unique hash for the instance.
   inline static std::atomic<unsigned long long> NextAvailableID = 0;
+
+  // The number of live executable graphs that have been created from this
+  // modifiable graph
+  std::atomic<size_t> MExecGraphCount = 0;
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -1333,6 +1393,14 @@ public:
       const std::vector<std::shared_ptr<node_impl>> &Nodes) const;
 
   unsigned long long getID() const { return MID; }
+
+  /// Do any work required during finalization to finalize graph-owned memory
+  /// allocations.
+  void finalizeMemoryAllocations() {
+    // This call allocates physical memory and maps all virtual device
+    // allocations
+    MGraphImpl->getMemPool().allocateAndMapAll();
+  }
 
 private:
   /// Create a command-group for the node and add it to command-buffer by going

@@ -121,7 +121,9 @@ enum class node_type {
   memadvise = 7,
   ext_oneapi_barrier = 8,
   host_task = 9,
-  native_command = 10
+  native_command = 10,
+  async_malloc = 11,
+  async_free = 12
 };
 
 /// Class representing a node in the graph, returned by command_graph::add().
@@ -428,6 +430,10 @@ public:
   /// provided nodes.
   /// @param Nodes The nodes to use for updating the graph.
   void update(const std::vector<node> &Nodes);
+
+  /// Return the total amount of memory required by this graph for graph-owned
+  /// memory allocations.
+  size_t get_required_mem_size() const;
 
   /// Common Reference Semantics
   friend bool operator==(const executable_command_graph &LHS,
