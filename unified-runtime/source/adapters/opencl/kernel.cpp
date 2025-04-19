@@ -152,11 +152,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     cl_int ClResult =
         clGetKernelInfo(hKernel->CLKernel, mapURKernelInfoToCL(propName),
                         propSize, pPropValue, &CheckPropSize);
-    if (ClResult == CL_INVALID_VALUE) {
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-    }
     if (pPropValue && CheckPropSize != propSize) {
       return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    if (ClResult == CL_INVALID_VALUE) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
     CL_RETURN_ON_FAILURE(ClResult);
     if (pPropSizeRet) {
