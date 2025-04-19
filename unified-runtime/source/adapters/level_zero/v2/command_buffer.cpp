@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_buffer.hpp"
+#include "../command_buffer_command.hpp"
 #include "../helpers/kernel_helpers.hpp"
 #include "../ur_interface_loader.hpp"
 #include "logger/ur_logger.hpp"
@@ -37,7 +38,33 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList),
           v2::EVENT_FLAGS_COUNTER, nullptr),
-      isUpdatable(desc ? desc->isUpdatable : false) {}
+      isUpdatable(desc ? desc->isUpdatable : false), context(context),
+      device(device) {}
+
+ur_result_t ur_exp_command_buffer_handle_t_::createCommandHandle(
+    locked<ur_command_list_manager> &commandListLocked,
+    ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pGlobalWorkSize,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
+    ur_exp_command_buffer_command_handle_t *command) {
+
+  auto platform = context->getPlatform();
+  ze_command_list_handle_t zeCommandList =
+      commandListLocked->getZeCommandList();
+  auto getZeKernelWrapped = [&](ur_kernel_handle_t kernel,
+                                ze_kernel_handle_t &zeKernel) {
+    zeKernel = kernel->getZeHandle(device);
+    return UR_RESULT_SUCCESS;
+  };
+  std::unique_ptr<kernel_command_handle> newCommand;
+  UR_CALL(createCommandHandleUnlocked(this, zeCommandList, hKernel, workDim,
+                                      pGlobalWorkSize, numKernelAlternatives,
+                                      kernelAlternatives, platform,
+                                      getZeKernelWrapped, newCommand));
+  *command = newCommand.get();
+
+  commandHandles.push_back(std::move(newCommand));
+  return UR_RESULT_SUCCESS;
+}
 
 ur_result_t ur_exp_command_buffer_handle_t_::finalizeCommandBuffer() {
   // It is not allowed to append to command list from multiple threads.
@@ -70,6 +97,71 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
     currentExecution->release();
   }
 }
+
+ur_result_t ur_exp_command_buffer_handle_t_::applyUpdateCommands(
+    uint32_t numUpdateCommands,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *updateCommands) {
+  auto commandListLocked = commandListManager.lock();
+  if (!isFinalized) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+  UR_CALL(validateCommandDescUnlocked(
+      this, device, context->getPlatform()->ZeDriverGlobalOffsetExtensionFound,
+      numUpdateCommands, updateCommands));
+
+  if (currentExecution) {
+    // TODO: Move synchronization to command buffer enqueue
+    // it would require to remember the update commands and perform update
+    // before appending to the queue
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (currentExecution->getZeEvent(), UINT64_MAX));
+    currentExecution->release();
+    currentExecution = nullptr;
+  }
+
+  auto getZeKernelWrapped = [&](ur_kernel_handle_t kernel,
+                                ze_kernel_handle_t &zeKernel) {
+    zeKernel = kernel->getZeHandle(device);
+    return UR_RESULT_SUCCESS;
+  };
+  device_ptr_storage_t zeHandles;
+  auto getMemPtr = [&](ur_mem_handle_t memObj,
+                       const ur_kernel_arg_mem_obj_properties_t *properties,
+                       char **&zeHandlePtr) {
+    char *ptr;
+    if (memObj->isImage()) {
+      auto imageObj = memObj->getImage();
+      ptr = reinterpret_cast<char *>(imageObj->getZeImage());
+    } else {
+      auto memBuffer = memObj->getBuffer();
+      auto urAccessMode = ur_mem_buffer_t::device_access_mode_t::read_write;
+      if (properties != nullptr) {
+        urAccessMode =
+            ur_mem_buffer_t::getDeviceAccessMode(properties->memoryAccess);
+      }
+      ptr = ur_cast<char *>(memBuffer->getDevicePtr(
+          device, urAccessMode, 0, memBuffer->getSize(),
+          [&](void *src, void *dst, size_t size) {
+            ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
+                              (commandListLocked->getZeCommandList(), dst, src,
+                               size, nullptr, 0, nullptr));
+          }));
+    }
+    zeHandles.push_back(std::make_unique<char *>(ptr));
+    zeHandlePtr = zeHandles[zeHandles.size() - 1].get();
+    return UR_RESULT_SUCCESS;
+  };
+
+  auto platform = context->getPlatform();
+  ze_command_list_handle_t zeCommandList =
+      commandListLocked->getZeCommandList();
+  UR_CALL(updateCommandBufferUnlocked(getZeKernelWrapped, getMemPtr,
+                                      zeCommandList, platform, device,
+                                      numUpdateCommands, updateCommands));
+  ZE2UR_CALL(zeCommandListClose, (zeCommandList));
+
+  return UR_RESULT_SUCCESS;
+}
 namespace ur::level_zero {
 
 ur_result_t
@@ -86,9 +178,14 @@ urCommandBufferCreateExp(ur_context_handle_t context, ur_device_handle_t device,
   using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
   uint32_t queueGroupOrdinal =
       device->QueueGroup[queue_group_type::Compute].ZeOrdinal;
+  v2::command_list_desc_t listDesc;
+  listDesc.IsInOrder = true;
+  listDesc.Ordinal = queueGroupOrdinal;
+  listDesc.CopyOffloadEnable = true;
+  listDesc.Mutable = commandBufferDesc->isUpdatable;
   v2::raii::command_list_unique_handle zeCommandList =
-      context->getCommandListCache().getRegularCommandList(
-          device->ZeDevice, true, queueGroupOrdinal, true);
+      context->getCommandListCache().getRegularCommandList(device->ZeDevice,
+                                                           listDesc);
 
   *commandBuffer = new ur_exp_command_buffer_handle_t_(
       context, device, std::move(zeCommandList), commandBufferDesc);
@@ -130,19 +227,32 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t commandBuffer, ur_kernel_handle_t hKernel,
     uint32_t workDim, const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-    uint32_t /*numKernelAlternatives*/,
-    ur_kernel_handle_t * /*kernelAlternatives*/,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *kernelAlternatives,
     uint32_t /*numSyncPointsInWaitList*/,
     const ur_exp_command_buffer_sync_point_t * /*syncPointWaitList*/,
     uint32_t /*numEventsInWaitList*/,
     const ur_event_handle_t * /*eventWaitList*/,
     ur_exp_command_buffer_sync_point_t * /*retSyncPoint*/,
     ur_event_handle_t * /*event*/,
-    ur_exp_command_buffer_command_handle_t * /*command*/) try {
+    ur_exp_command_buffer_command_handle_t *command) try {
   // TODO: These parameters aren't implemented in V1 yet, and are a fair amount
   // of work. Need to know semantics: should they be checked before kernel
   // execution (difficult) or before kernel appending to list (easy fix).
+
+  if (command != nullptr && !commandBuffer->isUpdatable) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  if (numKernelAlternatives > 0 && command == nullptr) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
+
   auto commandListLocked = commandBuffer->commandListManager.lock();
+  if (command != nullptr) {
+    UR_CALL(commandBuffer->createCommandHandle(
+        commandListLocked, hKernel, workDim, pGlobalWorkSize,
+        numKernelAlternatives, kernelAlternatives, command));
+  }
   UR_CALL(commandListLocked->appendKernelLaunch(
       hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 0,
       nullptr, nullptr));
@@ -464,4 +574,34 @@ urCommandBufferGetNativeHandleExp(ur_exp_command_buffer_handle_t hCommandBuffer,
   *phNativeCommandBuffer = reinterpret_cast<ur_native_handle_t>(ZeCommandList);
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, uint32_t numUpdateCommands,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t
+        *pUpdateKernelLaunch) {
+  UR_CALL(hCommandBuffer->applyUpdateCommands(numUpdateCommands,
+                                              pUpdateKernelLaunch));
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urCommandBufferUpdateSignalEventExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    ur_event_handle_t *phEvent) {
+  // needs to be implemented together with signal event handling
+  (void)hCommand;
+  (void)phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urCommandBufferUpdateWaitEventsExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList) {
+  // needs to be implemented together with wait event handling
+  (void)hCommand;
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 } // namespace ur::level_zero
