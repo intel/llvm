@@ -5337,7 +5337,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           UnusedReturnSizePtr =
               EmitLifetimeStart(size, SRetPtr.getBasePointer());
         else
-          UnusedReturnSizePtr = EmitLifetimeStart(size, SRetAlloca.getPointer());
+          UnusedReturnSizePtr =
+              EmitLifetimeStart(size, SRetAlloca.getPointer());
       }
     }
     if (IRFunctionArgs.hasSRetArg()) {
@@ -5936,7 +5937,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       pushFullExprCleanup<CallLifetimeEnd>(NormalEHLifetimeMarker, SRetAlloca,
                                            UnusedReturnSizePtr);
   }
-
 
   llvm::BasicBlock *InvokeDest = CannotThrow ? nullptr : getInvokeDest();
 

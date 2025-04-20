@@ -1354,9 +1354,9 @@ bool ItaniumCXXABI::classifyReturnType(CGFunctionInfo &FI) const {
     unsigned AddressSpace = CGM.getCodeGenOpts().UseAllocaASForSrets
                                 ? CGM.getDataLayout().getAllocaAddrSpace()
                                 : CGM.getTypes().getTargetAddressSpace(Ret);
-    FI.getReturnInfo() = ABIArgInfo::getIndirect(
-        Align, /*AddrSpace=*/AddressSpace,
-        /*ByVal=*/false);
+    FI.getReturnInfo() =
+        ABIArgInfo::getIndirect(Align, /*AddrSpace=*/AddressSpace,
+                                /*ByVal=*/false);
     return true;
   }
   return false;

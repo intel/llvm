@@ -1177,9 +1177,9 @@ bool MicrosoftCXXABI::classifyReturnType(CGFunctionInfo &FI) const {
     unsigned AddressSpace = CGM.getCodeGenOpts().UseAllocaASForSrets
                                 ? CGM.getDataLayout().getAllocaAddrSpace()
                                 : CGM.getTypes().getTargetAddressSpace(Ret);
-    FI.getReturnInfo() = ABIArgInfo::getIndirect(
-        Align, /*AddrSpace=*/AddressSpace,
-        /*ByVal=*/false);
+    FI.getReturnInfo() =
+        ABIArgInfo::getIndirect(Align, /*AddrSpace=*/AddressSpace,
+                                /*ByVal=*/false);
 
     // MSVC always passes `this` before the `sret` parameter.
     FI.getReturnInfo().setSRetAfterThis(FI.isInstanceMethod());
