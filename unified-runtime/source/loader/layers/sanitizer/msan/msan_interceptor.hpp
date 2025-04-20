@@ -134,7 +134,7 @@ struct ProgramInfo {
 
 struct ContextInfo {
   ur_context_handle_t Handle;
-  size_t MaxAllocatedSize = 1024;
+  size_t CleanShadowSize = 1024;
   std::atomic<int32_t> RefCount = 1;
 
   std::vector<ur_device_handle_t> DeviceList;
@@ -148,8 +148,71 @@ struct ContextInfo {
   ~ContextInfo();
 };
 
+struct MsanRuntimeDataWrapper {
+  MsanRuntimeData Host{};
+
+  MsanRuntimeData *DevicePtr = nullptr;
+
+  ur_context_handle_t Context{};
+
+  ur_device_handle_t Device{};
+
+  MsanRuntimeDataWrapper(ur_context_handle_t Context, ur_device_handle_t Device)
+      : Context(Context), Device(Device) {}
+
+  ~MsanRuntimeDataWrapper();
+
+  MsanRuntimeData *getDevicePtr() {
+    if (DevicePtr == nullptr) {
+      ur_result_t Result = getContext()->urDdiTable.USM.pfnDeviceAlloc(
+          Context, Device, nullptr, nullptr, sizeof(MsanRuntimeData),
+          (void **)&DevicePtr);
+      if (Result != UR_RESULT_SUCCESS) {
+        getContext()->logger.error(
+            "Failed to alloc device usm for msan runtime data: {}", Result);
+      }
+    }
+    return DevicePtr;
+  }
+
+  ur_result_t syncFromDevice(ur_queue_handle_t Queue) {
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, ur_cast<void *>(&Host), getDevicePtr(),
+        sizeof(MsanRuntimeData), 0, nullptr, nullptr));
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  ur_result_t syncToDevice(ur_queue_handle_t Queue) {
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, getDevicePtr(), ur_cast<void *>(&Host),
+        sizeof(MsanRuntimeData), 0, nullptr, nullptr));
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  ur_result_t
+  importLocalArgsInfo(ur_queue_handle_t Queue,
+                      const std::vector<MsanLocalArgsInfo> &LocalArgs) {
+    assert(!LocalArgs.empty());
+
+    Host.NumLocalArgs = LocalArgs.size();
+    const size_t LocalArgsInfoSize =
+        sizeof(MsanLocalArgsInfo) * Host.NumLocalArgs;
+    UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+        Context, Device, nullptr, nullptr, LocalArgsInfoSize,
+        ur_cast<void **>(&Host.LocalArgs)));
+
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+        Queue, true, Host.LocalArgs, &LocalArgs[0], LocalArgsInfoSize, 0,
+        nullptr, nullptr));
+
+    return UR_RESULT_SUCCESS;
+  }
+};
+
 struct USMLaunchInfo {
-  MsanLaunchInfo *Data = nullptr;
+  MsanRuntimeDataWrapper Data;
 
   ur_context_handle_t Context = nullptr;
   ur_device_handle_t Device = nullptr;
@@ -161,8 +224,9 @@ struct USMLaunchInfo {
   USMLaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
                 const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                 const size_t *GlobalWorkOffset, uint32_t WorkDim)
-      : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
-        GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim) {
+      : Data(Context, Device), Context(Context), Device(Device),
+        GlobalWorkSize(GlobalWorkSize), GlobalWorkOffset(GlobalWorkOffset),
+        WorkDim(WorkDim) {
     if (LocalWorkSize) {
       this->LocalWorkSize =
           std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
@@ -171,9 +235,6 @@ struct USMLaunchInfo {
   ~USMLaunchInfo();
 
   ur_result_t initialize();
-  ur_result_t
-  importLocalArgsInfo(ur_queue_handle_t Queue,
-                      const std::vector<MsanLocalArgsInfo> &LocalArgs);
 };
 
 struct DeviceGlobalInfo {

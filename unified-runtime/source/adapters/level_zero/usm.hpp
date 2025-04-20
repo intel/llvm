@@ -187,17 +187,13 @@ public:
     return UMF_RESULT_SUCCESS;
   }
   void *malloc(size_t Size) noexcept { return aligned_malloc(Size, 0); }
-  void *calloc(size_t Num, size_t Size) noexcept {
-    std::ignore = Num;
-    std::ignore = Size;
+  void *calloc(size_t /*Num*/, size_t /*Size*/) noexcept {
 
     // Currently not needed
     umf::getPoolLastStatusRef<USMProxyPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
     return nullptr;
   }
-  void *realloc(void *Ptr, size_t Size) noexcept {
-    std::ignore = Ptr;
-    std::ignore = Size;
+  void *realloc(void * /*Ptr*/, size_t /*Size*/) noexcept {
 
     // Currently not needed
     umf::getPoolLastStatusRef<USMProxyPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
@@ -211,8 +207,7 @@ public:
     }
     return Ptr;
   }
-  size_t malloc_usable_size(void *Ptr) noexcept {
-    std::ignore = Ptr;
+  size_t malloc_usable_size(void * /*Ptr*/) noexcept {
 
     // Currently not needed
     return 0;
