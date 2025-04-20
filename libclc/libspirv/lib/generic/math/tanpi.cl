@@ -8,7 +8,7 @@
 
 #include <libspirv/spirv.h>
 
-#include <math/clc_tanpi.h>
+#include <clc/math/clc_tanpi.h>
 
 #define __CLC_FUNC __spirv_ocl_tanpi
 #define __CLC_SW_FUNC __clc_tanpi
