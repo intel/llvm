@@ -70,9 +70,7 @@ enum QueueOrder { Ordered, OOO };
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
   optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
-#endif
   ext::oneapi::experimental::event_mode_enum MEventMode =
       ext::oneapi::experimental::event_mode_enum::none;
 };
@@ -342,13 +340,16 @@ public:
   /// group is being enqueued on.
   event submit(const detail::type_erased_cgfo_ty &CGF,
                const std::shared_ptr<queue_impl> &Self,
-               [[maybe_unused]] const std::shared_ptr<queue_impl> &SecondQueue,
+               const std::shared_ptr<queue_impl> &SecondQueue,
                const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     event ResEvent;
     SubmissionInfo SI{};
     if (PostProcess)
       SI.PostProcessorFunc() = *PostProcess;
+
+    SI.SecondaryQueue() = SecondQueue;
+
     return submit_with_event(CGF, Self, SI, Loc, IsTopCodeLoc);
   }
 
@@ -365,9 +366,19 @@ public:
                           const std::shared_ptr<queue_impl> &Self,
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
-    event ResEvent =
-        submit_impl(CGF, Self, Self, nullptr,
-                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
+
+    event ResEvent;
+    if (SubmitInfo.SecondaryQueue()) {
+      const std::shared_ptr<queue_impl> &SecondQueue =
+          SubmitInfo.SecondaryQueue();
+      ResEvent =
+          submit_impl(CGF, Self, Self, SecondQueue,
+                      /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
+    } else {
+      ResEvent =
+          submit_impl(CGF, Self, Self, nullptr,
+                      /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
+    }
     return discard_or_return(ResEvent);
   }
 
