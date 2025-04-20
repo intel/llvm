@@ -480,7 +480,7 @@ CODEGENOPT(DisableSYCLEarlyOpts, 1, 0)
 /// which do not contain "user" code.
 CODEGENOPT(OptimizeSYCLFramework, 1, 0)
 
-/// Whether to use alloca address spate for `sret` arguments.
+/// Whether to use alloca address space for `sret` arguments.
 CODEGENOPT(UseAllocaASForSrets, 1, 0)
 
 /// Turn on fp64 partial emulation for kernels with only fp64 conversion

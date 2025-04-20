@@ -5811,6 +5811,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
         CmdArgs.push_back("-fsycl-optimize-non-user-code");
       }
+
+      // Disable this option for SYCL by default.
+      // TODO:  This needs to be re-enabled once we have a real fix.
+      if (!Args.hasArg(options::OPT_foffload_use_alloca_addrspace_for_srets) &&
+          !Args.hasArg(options::OPT_fno_offload_use_alloca_addrspace_for_srets))
+        CmdArgs.push_back("-fno-offload-use-alloca-addrspace-for-srets");
+
       // Add any predefined macros associated with intel_gpu* type targets
       // passed in with -fsycl-targets
       // TODO: Macros are populated during device compilations and saved for
@@ -6363,6 +6370,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Render the CodeGen options that need to be passed.
     Args.addOptOutFlag(CmdArgs, options::OPT_foptimize_sibling_calls,
                        options::OPT_fno_optimize_sibling_calls);
+
+    Args.addOptOutFlag(CmdArgs,
+                       options::OPT_foffload_use_alloca_addrspace_for_srets,
+                       options::OPT_fno_offload_use_alloca_addrspace_for_srets);
 
     RenderFloatingPointOptions(TC, D, isOptimizationLevelFast(Args), Args,
                                CmdArgs, JA, NoOffloadFP32PrecDiv,

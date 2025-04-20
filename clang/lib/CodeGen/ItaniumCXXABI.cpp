@@ -1352,7 +1352,7 @@ bool ItaniumCXXABI::classifyReturnType(CGFunctionInfo &FI) const {
     QualType Ret = FI.getReturnType();
     auto Align = CGM.getContext().getTypeAlignInChars(Ret);
     unsigned AddressSpace = CGM.getCodeGenOpts().UseAllocaASForSrets
-                                ? FI.getReturnInfo().getIndirectAddrSpace()
+                                ? CGM.getDataLayout().getAllocaAddrSpace()
                                 : CGM.getTypes().getTargetAddressSpace(Ret);
     FI.getReturnInfo() = ABIArgInfo::getIndirect(
         Align, /*AddrSpace=*/AddressSpace,
