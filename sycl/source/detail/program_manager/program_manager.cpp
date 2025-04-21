@@ -756,35 +756,42 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
     }
   }
 
-  while (!WorkList.empty()) {
-    std::string SetName = WorkList.front();
-    WorkList.pop();
+  {
+    // Guard read access to m_VFSet2BinImage:
+    // TODO: a better solution should be sought in the future, i.e. a different
+    // mutex than m_KernelIDsMutex, check lock check pattern, etc.
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
-    // There could be more than one device image that uses the same set
-    // of virtual functions, or provides virtual funtions from the same
-    // set.
-    for (RTDeviceBinaryImage *BinImage : m_VFSet2BinImage[SetName]) {
-      // Here we can encounter both uses-virtual-functions-set and
-      // virtual-functions-set properties, but their handling is the same: we
-      // just grab all sets they reference and add them for consideration if
-      // we haven't done so already.
-      for (const sycl_device_binary_property &VFProp :
-           BinImage->getVirtualFunctions()) {
-        std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
-        for (const auto &SetName : detail::split_string(StrValue, ',')) {
-          if (HandledSets.insert(SetName).second)
-            WorkList.push(SetName);
+    while (!WorkList.empty()) {
+      std::string SetName = WorkList.front();
+      WorkList.pop();
+
+      // There could be more than one device image that uses the same set
+      // of virtual functions, or provides virtual funtions from the same
+      // set.
+      for (RTDeviceBinaryImage *BinImage : m_VFSet2BinImage.at(SetName)) {
+        // Here we can encounter both uses-virtual-functions-set and
+        // virtual-functions-set properties, but their handling is the same: we
+        // just grab all sets they reference and add them for consideration if
+        // we haven't done so already.
+        for (const sycl_device_binary_property &VFProp :
+             BinImage->getVirtualFunctions()) {
+          std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+          for (const auto &SetName : detail::split_string(StrValue, ',')) {
+            if (HandledSets.insert(SetName).second)
+              WorkList.push(SetName);
+          }
         }
-      }
 
-      // TODO: Complete this part about handling of incompatible device images.
-      // If device image uses the same virtual function set, then we only
-      // link it if it is compatible.
-      // However, if device image provides virtual function set and it is
-      // incompatible, then we should link its "dummy" version to avoid link
-      // errors about unresolved external symbols.
-      if (doesDevSupportDeviceRequirements(Dev, *BinImage))
-        DeviceImagesToLink.insert(BinImage);
+        // TODO: Complete this part about handling of incompatible device images.
+        // If device image uses the same virtual function set, then we only
+        // link it if it is compatible.
+        // However, if device image provides virtual function set and it is
+        // incompatible, then we should link its "dummy" version to avoid link
+        // errors about unresolved external symbols.
+        if (doesDevSupportDeviceRequirements(Dev, *BinImage))
+          DeviceImagesToLink.insert(BinImage);
+      }
     }
   }
 
