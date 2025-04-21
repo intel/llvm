@@ -5684,7 +5684,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // We want to compile sycl kernels.
       CmdArgs.push_back("-fsycl-is-device");
       CmdArgs.push_back("-fdeclare-spirv-builtins");
-      
+
       // Disable this option for SYCL by default.
       // TODO:  This needs to be re-enabled once we have a real fix.
       CmdArgs.push_back("-fno-offload-use-alloca-addrspace-for-srets");
