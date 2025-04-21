@@ -1087,55 +1087,28 @@ struct get_device_info_impl<
     return static_cast<size_t>((std::numeric_limits<int>::max)());
   }
 };
-template <>
+template <int Dims>
 struct get_device_info_impl<
-    id<1>, ext::oneapi::experimental::info::device::max_work_groups<1>> {
-  static id<1> get(const DeviceImplPtr &Dev) {
-    size_t result[3];
+    id<Dims>, ext::oneapi::experimental::info::device::max_work_groups<Dims>> {
+  static id<Dims> get(const DeviceImplPtr &Dev) {
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(result), &result, nullptr);
-    return id<1>(std::min(Limit, result[0]));
-  }
-};
 
-template <>
-struct get_device_info_impl<
-    id<2>, ext::oneapi::experimental::info::device::max_work_groups<2>> {
-  static id<2> get(const DeviceImplPtr &Dev) {
     size_t result[3];
-    size_t Limit =
-        get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
-                                         max_global_work_groups>::get(Dev);
     Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
         Dev->getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
         sizeof(result), &result, nullptr);
-    return id<2>(std::min(Limit, result[1]), std::min(Limit, result[0]));
-  }
-};
-
-template <>
-struct get_device_info_impl<
-    id<3>, ext::oneapi::experimental::info::device::max_work_groups<3>> {
-  static id<3> get(const DeviceImplPtr &Dev) {
-    size_t result[3];
-    size_t Limit =
-        get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
-                                         max_global_work_groups>::get(Dev);
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(result), &result, nullptr);
-    return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
-                 std::min(Limit, result[0]));
+    static_assert(1 <= Dims && Dims <= 3);
+    if constexpr (Dims == 1)
+      return id<1>(std::min(Limit, result[0]));
+    else if constexpr (Dims == 2)
+      return id<2>(std::min(Limit, result[1]), std::min(Limit, result[0]));
+    else
+      return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
+                   std::min(Limit, result[0]));
   }
 };
 
