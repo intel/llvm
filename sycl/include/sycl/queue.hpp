@@ -3670,8 +3670,8 @@ private:
 
     if constexpr (UseFallbackAssert)
       SI.PostProcessorFunc() =
-          [this, &SecondaryQueuePtr,
-           &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert, event &E) {
+          [this, &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert,
+                                     event &E) {
             if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
                 KernelUsesAssert && !device_has(aspect::accelerator)) {
               // __devicelib_assert_fail isn't supported by Device-side Runtime
