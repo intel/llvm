@@ -227,12 +227,6 @@ template <typename Param> struct get_device_info_impl<std::string, Param> {
   }
 };
 
-// Specialization for parent device
-template <typename ReturnT>
-struct get_device_info_impl<ReturnT, info::device::parent_device> {
-  static ReturnT get(const DeviceImplPtr &Dev);
-};
-
 // Specialization for fp_config types, checks the corresponding fp type support
 template <typename Param>
 struct get_device_info_impl<std::vector<info::fp_config>, Param> {
@@ -248,14 +242,6 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
         Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
         nullptr);
     return read_fp_bitfield(result);
-  }
-};
-
-// Specialization for device version
-template <> struct get_device_info_impl<std::string, info::device::version> {
-  static std::string get(const DeviceImplPtr &Dev) {
-    return Dev->get_device_info_string(
-        UrInfoCode<info::device::version>::value);
   }
 };
 
