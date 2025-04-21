@@ -5987,7 +5987,7 @@ SortAndUniqueProtocols(SmallVectorImpl<ObjCProtocolDecl *> &Protocols) {
     P = P->getCanonicalDecl();
 
   // Remove duplicates.
-  auto ProtocolsEnd = std::unique(Protocols.begin(), Protocols.end());
+  auto ProtocolsEnd = llvm::unique(Protocols);
   Protocols.erase(ProtocolsEnd, Protocols.end());
 }
 

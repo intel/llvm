@@ -1688,8 +1688,7 @@ StructType *IRMover::StructTypeKeyInfo::getTombstoneKey() {
 }
 
 unsigned IRMover::StructTypeKeyInfo::getHashValue(const KeyTy &Key) {
-  return hash_combine(hash_combine_range(Key.ETypes.begin(), Key.ETypes.end()),
-                      Key.IsPacked);
+  return hash_combine(hash_combine_range(Key.ETypes), Key.IsPacked);
 }
 
 unsigned IRMover::StructTypeKeyInfo::getHashValue(const StructType *ST) {
