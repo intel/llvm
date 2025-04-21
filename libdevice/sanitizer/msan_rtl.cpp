@@ -142,12 +142,12 @@ inline uptr __msan_get_shadow_cpu(uptr addr) {
 #define CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as)                             \
   do {                                                                         \
     if (as == ADDRESS_SPACE_GENERIC) {                                         \
-      auto old = addr;                                                      \
+      auto old = addr;                                                         \
       ConvertGenericPointer(addr, as);                                         \
-      MSAN_DEBUG(__spirv_ocl_printf(__msan_print_generic_to, old, addr, as)); \
-    }                                                                          \
-    if (as == ADDRESS_SPACE_GENERIC) {                                         \
-      return GetMsanLaunchInfo->CleanShadow;                                   \
+      MSAN_DEBUG(__spirv_ocl_printf(__msan_print_generic_to, old, addr, as));  \
+      if (as == ADDRESS_SPACE_GENERIC) {                                       \
+        return GetMsanLaunchInfo->CleanShadow;                                 \
+      }                                                                        \
     }                                                                          \
   } while (0)
 

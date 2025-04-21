@@ -71,10 +71,10 @@ inline uptr MemToShadow_CPU(uptr addr) {
     if (as == ADDRESS_SPACE_GENERIC) {                                         \
       uptr old = addr;                                                         \
       ConvertGenericPointer(addr, as);                                         \
-      ASAN_DEBUG(__spirv_ocl_printf(__generic_to, old, addr, as));
-} // namespace                                                                          \
-    if (as == ADDRESS_SPACE_GENERIC) {                                         \
-      return 0;                                                                \
+      ASAN_DEBUG(__spirv_ocl_printf(__generic_to, old, addr, as));             \
+      if (as == ADDRESS_SPACE_GENERIC) {                                       \
+        return 0;                                                              \
+      }                                                                        \
     }                                                                          \
   } while (0)
 

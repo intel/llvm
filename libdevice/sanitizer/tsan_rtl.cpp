@@ -73,12 +73,12 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow_CPU(uptr addr, uint32_t) {
 #define CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as)                             \
   do {                                                                         \
     if (as == ADDRESS_SPACE_GENERIC) {                                         \
-      auto old = addr;                                                      \
+      auto old = addr;                                                         \
       ConvertGenericPointer(addr, as);                                         \
-      TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_generic_to, old, addr, as)); \
-    }                                                                          \
-    if (as == ADDRESS_SPACE_GENERIC) {                                         \
-      return nullptr;                                                          \
+      TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_generic_to, old, addr, as));  \
+      if (as == ADDRESS_SPACE_GENERIC) {                                       \
+        return nullptr;                                                        \
+      }                                                                        \
     }                                                                          \
   } while (0)
 
