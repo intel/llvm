@@ -294,9 +294,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
   // not a power of 2, we need to do on the host side and copy it into the
   // target allocation.
   clHostMemAllocINTEL_fn HostMemAlloc = nullptr;
-  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
-      CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
-      cl_ext::HostMemAllocName, &HostMemAlloc));
+  bool HostAllocSupported =
+      cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
+          CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
+          cl_ext::HostMemAllocName, &HostMemAlloc);
 
   clEnqueueMemcpyINTEL_fn USMMemcpy = nullptr;
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
@@ -309,8 +310,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       cl_ext::MemBlockingFreeName, &USMFree));
 
   cl_int ClErr = CL_SUCCESS;
-  auto HostBuffer =
-      static_cast<uint8_t *>(HostMemAlloc(CLContext, nullptr, size, 0, &ClErr));
+  auto HostBuffer = HostAllocSupported
+                        ? static_cast<uint8_t *>(
+                              HostMemAlloc(CLContext, nullptr, size, 0, &ClErr))
+                        : static_cast<uint8_t *>(malloc(size));
   CL_RETURN_ON_FAILURE(ClErr);
 
   auto *End = HostBuffer + size;
