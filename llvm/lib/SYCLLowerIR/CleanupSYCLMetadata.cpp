@@ -24,7 +24,8 @@
 using namespace llvm;
 
 namespace {
-void cleanupSYCLCompilerModuleMetadata(const Module &M, llvm::StringRef MD) {
+
+void cleanupSYCLCompilerMetadata(const Module &M, llvm::StringRef MD) {
   NamedMDNode *Node = M.getNamedMetadata(MD);
   if (!Node)
     return;
@@ -64,13 +65,7 @@ PreservedAnalyses CleanupSYCLMetadataPass::run(Module &M,
   SmallVector<StringRef, 2> ModuleMDToRemove = {"sycl_aspects",
                                                 "sycl_types_that_use_aspects"};
   for (const auto &MD : ModuleMDToRemove)
-    cleanupSYCLCompilerModuleMetadata(M, MD);
-
-  // Cleanup no longer needed function metadata.
-  for (auto &F : M) {
-    if (F.getMetadata("srcloc"))
-      F.setMetadata("srcloc", nullptr);
-  }
+    cleanupSYCLCompilerMetadata(M, MD);
 
   return PreservedAnalyses::all();
 }
