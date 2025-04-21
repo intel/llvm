@@ -86,8 +86,13 @@ public:
   sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
   const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::queue_impl> &SecondaryQueue();
   const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
+#endif
+
+  bool GetIsSecondaryQContextEqualsPrimaryQ() const;
+  void SetIsSecondaryQContextEqualsPrimaryQ(bool val);
 
   ext::oneapi::experimental::event_mode_enum &EventMode();
   const ext::oneapi::experimental::event_mode_enum &EventMode() const;
@@ -3643,6 +3648,7 @@ private:
   ///
   /// \param Props is a property list with submission properties.
   /// \param CGF is a function object containing command group.
+  /// \param SecondaryQueuePtr is a pointer to the secondary queue
   /// \param CodeLoc is the code location of the submit call (default argument)
   /// \return a SYCL event object for the submitted command group.
   //
@@ -3659,7 +3665,8 @@ private:
     ProcessSubmitProperties(Props, SI);
 
     if (SecondaryQueuePtr)
-      SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
+      SI.SetIsSecondaryQContextEqualsPrimaryQ(
+          SecondaryQueuePtr->get_context() == get_context());
 
     if constexpr (UseFallbackAssert)
       SI.PostProcessorFunc() =
@@ -3870,7 +3877,6 @@ class AssertInfoCopier;
  * Submit copy task for assert failure flag and host-task to check the flag
  * \param Event kernel's event to depend on i.e. the event represents the
  *              kernel to check for assertion failure
- * \param SecondaryQueue secondary queue for submit process, null if not used
  * \returns host tasks event
  *
  * This method doesn't belong to queue class to overcome msvc behaviour due to

@@ -33,7 +33,6 @@ class handler_impl {
 public:
   handler_impl(queue_impl *SubmissionPrimaryQueue, bool EventNeeded)
       : MSubmissionPrimaryQueue(SubmissionPrimaryQueue),
-        MSubmissionSecondaryQueue(nullptr), // No secondary queue
         MEventNeeded(EventNeeded) {};
 
   // Constructor for the case when SecondaryQueue is specified.
@@ -43,9 +42,9 @@ public:
   // any additional overhead of passing around null pointer
   // (in SecondaryQueue param).
   handler_impl(queue_impl *SubmissionPrimaryQueue,
-               queue_impl *SubmissionSecondaryQueue, bool EventNeeded)
+               bool IsSecondaryQCtxEqualsPrimaryQ, bool EventNeeded)
       : MSubmissionPrimaryQueue(SubmissionPrimaryQueue),
-        MSubmissionSecondaryQueue(SubmissionSecondaryQueue),
+        MIsSecondaryQCtxEqualsPrimaryQ(IsSecondaryQCtxEqualsPrimaryQ),
         MEventNeeded(EventNeeded) {};
 
   handler_impl(
@@ -85,15 +84,11 @@ public:
   /// a fallback from a previous submission.
   queue_impl *MSubmissionPrimaryQueue = nullptr;
 
-  /// Pointer to the secondary queue implementation. Nullptr if no
-  /// secondary queue fallback was given in the associated submission.
-  /// This is ONLY used in use_kernel_bundle method to check if the
-  /// context of the secondary queue is the same as the context of the
-  /// kernel bundle. SYCL pec requires us to throw an exception if
-  /// the contexts are different.
-  /// Secondary queue is optional and in our implementation, we do not
-  /// use secondary queue for fallback.
-  queue_impl *MSubmissionSecondaryQueue = nullptr;
+  /// Spec requires us to throw if the secondary queue's context is different
+  /// from the kernel_bundles's context. We use MIsSecondaryQCtxEqualsPrimaryQ
+  /// and with MSubmissionPrimaryQueue in use_kernel_bundle method
+  /// to determine if we need to throw.
+  bool MIsSecondaryQCtxEqualsPrimaryQ = true;
 
   /// Bool stores information about whether the event resulting from the
   /// corresponding work is required.

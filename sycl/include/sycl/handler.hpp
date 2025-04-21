@@ -448,8 +448,7 @@ private:
           bool CallerNeedsEvent);
 #endif
   __SYCL_DLL_LOCAL handler(std::shared_ptr<detail::queue_impl> Queue,
-                           detail::queue_impl *PrimaryQueue,
-                           detail::queue_impl *SecondaryQueue,
+                           bool IsSecondaryQContextEqualsPrimaryQ,
                            bool CallerNeedsEvent);
 
   /// Constructs SYCL handler from Graph.
