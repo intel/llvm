@@ -71,17 +71,7 @@ int main() {
       property::queue::in_order{},
       sycl::ext::oneapi::property::queue::discard_events{}};
   queue Q2{Props};
-
-  bool ExceptionThrown = false;
-  try {
-    TestFunc(Q2);
-  } catch (sycl::exception &E) {
-    ExceptionThrown = true;
-  }
-
-  // Feature is not supported for OpenCL, exception must be thrown.
-  if (Q2.get_device().get_backend() == backend::opencl)
-    return ExceptionThrown ? 0 : -1;
+  TestFunc(Q2);
 
   return 0;
 }

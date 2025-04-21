@@ -2161,6 +2161,16 @@ code `invalid` if a user tries to add them to a graph.
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
+==== sycl_ext_oneapi_discard_queue_events
+
+When recording a `sycl::queue` which has been created with the
+`ext::oneapi::property::queue::discard_event` property, it is invalid to
+use these events returned from queue submissions to create graph edges. This is
+in-keeping with the
+link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events]
+specification wording that `handler::depends_on()` throws an exception when
+passed an invalid event.
+
 ==== sycl_ext_oneapi_enqueue_barrier
 
 The new handler methods, and queue shortcuts, defined by

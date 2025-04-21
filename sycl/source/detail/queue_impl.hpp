@@ -700,7 +700,6 @@ public:
 #endif
 
 protected:
-
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);

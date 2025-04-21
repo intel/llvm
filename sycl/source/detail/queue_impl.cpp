@@ -402,8 +402,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
     // handler rather than by-passing the scheduler.
     if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
                                 ExpandedDepEvents, MContext)) {
-      if (!CallerNeedsEvent &&
-          supportsDiscardingPiEvents()) {
+      if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
