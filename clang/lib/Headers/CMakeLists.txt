@@ -320,6 +320,7 @@ set(files
   ${ppc_files}
   ${ppc_htm_files}
   ${riscv_files}
+  ${spirv_files}
   ${systemz_files}
   ${ve_files}
   ${x86_files}
@@ -439,7 +440,7 @@ endfunction(clang_generate_header)
 # Copy header files from the source directory to the build directory
 foreach( f ${files} ${cuda_wrapper_files} ${cuda_wrapper_bits_files}
            ${ppc_wrapper_files} ${openmp_wrapper_files} ${zos_wrapper_files} ${hlsl_files}
-	   ${llvm_libc_wrapper_files} ${llvm_offload_wrapper_files} ${spirv_files})
+	   ${llvm_libc_wrapper_files} ${llvm_offload_wrapper_files})
   copy_header_to_output_dir(${CMAKE_CURRENT_SOURCE_DIR} ${f})
 endforeach( f )
 

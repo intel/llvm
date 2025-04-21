@@ -82,6 +82,7 @@ namespace dynamic_as_cast {
 // CHECK-SAME: ptr dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::multi_ptr") align 8 captures(none) [[AGG_RESULT:%.*]], ptr noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 captures(none) [[P:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] {{.*}}{
 // CHECK-NEXT:  [[ENTRY:.*:]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[P]], align 8, !tbaa [[TBAA8]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata ![[SCOPE:[0-9]+]])
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[TMP1]], i32 noundef 5) #[[ATTR5:[0-9]+]]
 // CHECK-NEXT:    store ptr addrspace(1) [[CALL_I_I_I]], ptr [[AGG_RESULT]], align 8, !tbaa [[TBAA13]], !alias.scope [[META49:![0-9]+]]
@@ -93,6 +94,7 @@ SYCL_EXTERNAL auto to_global_decorated(decorated_generic_ptr<int> p) {
 // CHECK-LABEL: define dso_local spir_func void @_ZN15dynamic_as_cast23to_global_not_decoratedEPi(
 // CHECK-SAME: ptr dead_on_unwind noalias writable writeonly sret(%"class.sycl::_V1::multi_ptr.1") align 8 captures(none) [[AGG_RESULT:%.*]], ptr addrspace(4) noundef [[P:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] {{.*}}{
 // CHECK-NEXT:  [[ENTRY:.*:]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata ![[SCOPE:[0-9]+]])
 // CHECK-NEXT:    [[CALL_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[P]], i32 noundef 5) #[[ATTR5]]
 // CHECK-NEXT:    store ptr addrspace(1) [[CALL_I_I]], ptr [[AGG_RESULT]], align 8, !tbaa [[TBAA21]], !alias.scope [[META55:![0-9]+]]
 // CHECK-NEXT:    ret void

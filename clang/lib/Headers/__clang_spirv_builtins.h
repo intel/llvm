@@ -37,6 +37,12 @@
 #define __generic __attribute__((opencl_generic))
 #endif
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define __SPIRV_SYCL_DEVICE __attribute__((sycl_device))
+#else
+#define __SPIRV_SYCL_DEVICE
+#endif
+
 // Check if SPIR-V builtins are supported.
 // As the translator doesn't use the LLVM intrinsics (which would be emitted if
 // we use the SPIR-V builtins) we can't rely on the SPIRV32/SPIRV64 etc macros
@@ -57,59 +63,59 @@
 
 // OpGenericCastToPtrExplicit
 
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __global void *__spirv_GenericCastToPtrExplicit_ToGlobal(__generic void *,
                                                          int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __global const void *
 __spirv_GenericCastToPtrExplicit_ToGlobal(__generic const void *,
                                           int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __global volatile void *
 __spirv_GenericCastToPtrExplicit_ToGlobal(__generic volatile void *,
                                           int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __global const volatile void *
 __spirv_GenericCastToPtrExplicit_ToGlobal(__generic const volatile void *,
                                           int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __local void *__spirv_GenericCastToPtrExplicit_ToLocal(__generic void *,
                                                        int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __local const void *
 __spirv_GenericCastToPtrExplicit_ToLocal(__generic const void *,
                                          int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __local volatile void *
 __spirv_GenericCastToPtrExplicit_ToLocal(__generic volatile void *,
                                          int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __local const volatile void *
 __spirv_GenericCastToPtrExplicit_ToLocal(__generic const volatile void *,
                                          int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __private void *__spirv_GenericCastToPtrExplicit_ToPrivate(__generic void *,
                                                            int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __private const void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(__generic const void *,
                                            int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __private volatile void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(__generic volatile void *,
                                            int) SPIRV_NOEXCEPT;
-extern __SPIRV_overloadable
+extern __SPIRV_SYCL_DEVICE __SPIRV_overloadable
 _SPIRV_BUILTIN_ALIAS(__builtin_spirv_generic_cast_to_ptr_explicit)
 __private const volatile void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(__generic const volatile void *,
