@@ -5685,6 +5685,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-is-device");
       CmdArgs.push_back("-fdeclare-spirv-builtins");
       
+      // Disable this option for SYCL by default.
+      // TODO:  This needs to be re-enabled once we have a real fix.
+      CmdArgs.push_back("-fno-offload-use-alloca-addrspace-for-srets");
+
       // Set O2 optimization level by default
       if (!Args.getLastArg(options::OPT_O_Group))
         CmdArgs.push_back("-O2");
@@ -5811,10 +5815,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
         CmdArgs.push_back("-fsycl-optimize-non-user-code");
       }
-
-      // Disable this option for SYCL by default.
-      // TODO:  This needs to be re-enabled once we have a real fix.
-      CmdArgs.push_back("-fno-offload-use-alloca-addrspace-for-srets");
 
       // Add any predefined macros associated with intel_gpu* type targets
       // passed in with -fsycl-targets

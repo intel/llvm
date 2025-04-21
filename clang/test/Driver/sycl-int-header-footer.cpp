@@ -2,7 +2,7 @@
 // RUN:  %clangxx -fsycl --offload-new-driver -I cmdline/dir -include dummy.h %/s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER %s -DSRCDIR=%/S -DCMDDIR=cmdline/dir
 
-// FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]"{{.*}} "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
+// FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
 // FOOTER: clang{{.*}} "-fsycl-is-host"
 // FOOTER-SAME: "-include-internal-header" "[[INTHEADER]]"
 // FOOTER-SAME: "-include" "dummy.h"{{.*}} "-I" "cmdline/dir"
@@ -11,7 +11,7 @@
 /// Preprocessed file creation with integration footer
 // RUN: %clangxx -fsycl --offload-new-driver -E %/s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PREPROC_GEN %s
-// FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]"{{.*}} "-sycl-std={{.*}}" "-o" "[[PREPROC_DEVICE:.+\.ii]]"
+// FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}" "-o" "[[PREPROC_DEVICE:.+\.ii]]"
 // FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-host"
 // FOOTER_PREPROC_GEN-SAME: "-include-internal-header" "[[INTHEADER]]"
 // FOOTER_PREPROC_GEN-SAME: "-dependency-filter" "[[INTHEADER]]"
@@ -28,7 +28,7 @@
 /// Check that integration footer can be disabled
 // RUN:  %clangxx -fsycl --offload-new-driver -fno-sycl-use-footer %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix NO-FOOTER --implicit-check-not "-fsycl-int-footer" %s
-// NO-FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]"{{.*}} "-sycl-std={{.*}}"
+// NO-FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-sycl-std={{.*}}"
 // NO-FOOTER: clang{{.*}} "-fsycl-is-host"{{.*}} "-include-internal-header" "[[INTHEADER]]"
 
 /// Check phases without integration footer
