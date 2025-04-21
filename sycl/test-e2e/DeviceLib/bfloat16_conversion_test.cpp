@@ -6,10 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: linux
+// REQUIRES: linux, zstd
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
 
 // RUN: %{build} -DBUILD_EXE -L%T -o %t1.out -l%basename_t -Wl,-rpath=%T
+// RUN: %{run} %t1.out
+
+// Check with device image compression.
+// RUN: %{build} --offload-compress -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t_compress.so
+// RUN: %{build} --offload-compress -DBUILD_EXE -L%T -o %t1.out -l%basename_t_compress -Wl,-rpath=%T
 // RUN: %{run} %t1.out
 
 // UNSUPPORTED: target-nvidia || target-amd
