@@ -58,7 +58,6 @@ void *async_malloc(sycl::handler &h, sycl::usm::alloc kind, size_t size) {
     // size may be modified to reflect the aligned size based on device
     // granularity.
     alloc = Graph->getMemPool().malloc(size, kind);
-
   } else {
     auto &Q = h.MQueue->getHandleRef();
     Adapter->call<sycl::errc::runtime,
@@ -112,7 +111,6 @@ __SYCL_EXPORT void *async_malloc_from_pool(sycl::handler &h, size_t size,
     // Memory pool is passed as the graph may use some properties of it.
     alloc = Graph->getMemPool().malloc(size, pool.get_alloc_kind(),
                                        sycl::detail::getSyclObjImpl(pool));
-
   } else {
     auto &Q = h.MQueue->getHandleRef();
     Adapter->call<sycl::errc::runtime,
