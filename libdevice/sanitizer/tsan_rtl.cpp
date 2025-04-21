@@ -60,21 +60,6 @@ inline constexpr uptr RoundDownTo(uptr x, uptr boundary) {
 
 inline constexpr uptr Min(uptr a, uptr b) { return a < b ? a : b; }
 
-inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
-  auto old = addr;
-  if ((addr = (uptr)ToPrivate((void *)old))) {
-    as = ADDRESS_SPACE_PRIVATE;
-  } else if ((addr = (uptr)ToLocal((void *)old))) {
-    as = ADDRESS_SPACE_LOCAL;
-  } else {
-    // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
-    // but this can really simplify the generic pointer conversion logic
-    as = ADDRESS_SPACE_GLOBAL;
-    addr = old;
-  }
-  TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_generic_to, old, addr, as));
-}
-
 inline Epoch IncrementEpoch(Sid sid) {
   return atomicAdd(&TsanLaunchInfo->Clock[sid].clk_[sid], 1);
 }
@@ -85,10 +70,20 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow_CPU(uptr addr, uint32_t) {
       TsanLaunchInfo->GlobalShadowOffset);
 }
 
+#define CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as)                             \
+  do {                                                                         \
+    if (as == ADDRESS_SPACE_GENERIC) {                                         \
+      auto old = addr;                                                      \
+      ConvertGenericPointer(addr, as);                                         \
+      TSAN_DEBUG(__spirv_ocl_printf(__tsan_print_generic_to, old, addr, as)); \
+    }                                                                          \
+    if (as == ADDRESS_SPACE_GENERIC) {                                         \
+      return nullptr;                                                          \
+    }                                                                          \
+  } while (0)
+
 inline __SYCL_GLOBAL__ RawShadow *MemToShadow_PVC(uptr addr, uint32_t as) {
-  if (as == ADDRESS_SPACE_GENERIC) {
-    ConvertGenericPointer(addr, as);
-  }
+  CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as);
 
   if (as != ADDRESS_SPACE_GLOBAL)
     return nullptr;

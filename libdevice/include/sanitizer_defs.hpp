@@ -64,4 +64,19 @@ __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
 }
 
+inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
+  auto old = addr;
+  if ((addr = (uptr)ToPrivate((void *)old))) {
+    as = ADDRESS_SPACE_PRIVATE;
+  } else if ((addr = (uptr)ToLocal((void *)old))) {
+    as = ADDRESS_SPACE_LOCAL;
+  } else if ((addr = (uptr)ToGlobal((void *)old))) {
+    as = ADDRESS_SPACE_GLOBAL;
+  } else {
+    as = ADDRESS_SPACE_GENERIC;
+    addr = old;
+  }
+}
+
+
 #endif // __SPIR__ || __SPIRV__

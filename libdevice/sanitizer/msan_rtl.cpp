@@ -74,21 +74,6 @@ inline size_t WorkGroupLinearId() {
          __spirv_BuiltInWorkgroupId.z;
 }
 
-inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
-  auto old = addr;
-  if ((addr = (uptr)ToPrivate((void *)old))) {
-    as = ADDRESS_SPACE_PRIVATE;
-  } else if ((addr = (uptr)ToLocal((void *)old))) {
-    as = ADDRESS_SPACE_LOCAL;
-  } else {
-    // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
-    // but this can really simplify the generic pointer conversion logic
-    as = ADDRESS_SPACE_GLOBAL;
-    addr = old;
-  }
-  MSAN_DEBUG(__spirv_ocl_printf(__msan_print_generic_to, old, addr, as));
-}
-
 void __msan_internal_report_save(const uint32_t size,
                                  const char __SYCL_CONSTANT__ *file,
                                  const uint32_t line,
@@ -154,10 +139,20 @@ inline uptr __msan_get_shadow_cpu(uptr addr) {
   return addr ^ 0x500000000000ULL;
 }
 
+#define CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as)                             \
+  do {                                                                         \
+    if (as == ADDRESS_SPACE_GENERIC) {                                         \
+      auto old = addr;                                                      \
+      ConvertGenericPointer(addr, as);                                         \
+      MSAN_DEBUG(__spirv_ocl_printf(__msan_print_generic_to, old, addr, as)); \
+    }                                                                          \
+    if (as == ADDRESS_SPACE_GENERIC) {                                         \
+      return GetMsanLaunchInfo->CleanShadow;                                   \
+    }                                                                          \
+  } while (0)
+
 inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
-  if (as == ADDRESS_SPACE_GENERIC) {
-    ConvertGenericPointer(addr, as);
-  }
+  CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as);
 
   if (as != ADDRESS_SPACE_GLOBAL || !(addr & DG2_DEVICE_USM_MASK))
     return (uptr)((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())
@@ -176,9 +171,7 @@ inline uptr __msan_get_shadow_dg2(uptr addr, uint32_t as) {
 }
 
 inline uptr __msan_get_shadow_pvc(uptr addr, uint32_t as) {
-  if (as == ADDRESS_SPACE_GENERIC) {
-    ConvertGenericPointer(addr, as);
-  }
+  CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as);
 
   // Device USM only
   if (as == ADDRESS_SPACE_GLOBAL && (addr & PVC_DEVICE_USM_MASK)) {

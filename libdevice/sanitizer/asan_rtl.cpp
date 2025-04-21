@@ -61,40 +61,25 @@ namespace {
 void __asan_report_unknown_device();
 void __asan_print_shadow_memory(uptr addr, uptr shadow_address, uint32_t as);
 
-__SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
-}
-__SYCL_LOCAL__ void *ToLocal(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToLocal(ptr, 4);
-}
-__SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
-  return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
-}
-
-inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
-  auto old = addr;
-  if ((addr = (uptr)ToPrivate((void *)old))) {
-    as = ADDRESS_SPACE_PRIVATE;
-  } else if ((addr = (uptr)ToLocal((void *)old))) {
-    as = ADDRESS_SPACE_LOCAL;
-  } else {
-    // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
-    // but this can really simplify the generic pointer conversion logic
-    as = ADDRESS_SPACE_GLOBAL;
-    addr = old;
-  }
-  ASAN_DEBUG(__spirv_ocl_printf(__generic_to, old, addr, as));
-}
-
 inline uptr MemToShadow_CPU(uptr addr) {
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
   return launch_info->GlobalShadowOffset + (addr >> ASAN_SHADOW_SCALE);
 }
 
+#define CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as)                             \
+  do {                                                                         \
+    if (as == ADDRESS_SPACE_GENERIC) {                                         \
+      uptr old = addr;                                                         \
+      ConvertGenericPointer(addr, as);                                         \
+      ASAN_DEBUG(__spirv_ocl_printf(__generic_to, old, addr, as));
+} // namespace                                                                          \
+    if (as == ADDRESS_SPACE_GENERIC) {                                         \
+      return 0;                                                                \
+    }                                                                          \
+  } while (0)
+
 inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
-  if (as == ADDRESS_SPACE_GENERIC) {
-    ConvertGenericPointer(addr, as);
-  }
+  CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as);
 
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
   if (as == ADDRESS_SPACE_GLOBAL) { // global
@@ -172,9 +157,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
 }
 
 inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
-  if (as == ADDRESS_SPACE_GENERIC) {
-    ConvertGenericPointer(addr, as);
-  }
+  CONVERT_GENERIC_PTR_EARLY_RETURN(addr, as);
 
   auto launch_info = (__SYCL_GLOBAL__ const AsanRuntimeData *)__AsanLaunchInfo;
   if (as == ADDRESS_SPACE_GLOBAL) { // global
