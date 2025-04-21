@@ -107,6 +107,10 @@ jit_compiler::jit_compiler()
   Available = checkJITLibrary();
 }
 
+#ifndef _WIN32
+// These helpers are not Windows-specific, but they are only used by
+// `materializeSpecConstants`, which isn't available on Windows.
+
 static ::jit_compiler::BinaryFormat
 translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   switch (Type) {
@@ -120,7 +124,7 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   }
 }
 
-::jit_compiler::BinaryFormat getTargetFormat(const QueueImplPtr &Queue) {
+static ::jit_compiler::BinaryFormat getTargetFormat(const QueueImplPtr &Queue) {
   auto Backend = Queue->getDeviceImplPtr()->getBackend();
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
@@ -136,6 +140,7 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
         "Backend unsupported by kernel fusion");
   }
 }
+#endif // _WIN32
 
 ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     const QueueImplPtr &Queue, const RTDeviceBinaryImage *BinImage,

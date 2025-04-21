@@ -178,6 +178,13 @@ TEST_P(urDeviceGetSelectedTest, InvalidGarbageBackendString) {
   ASSERT_EQ(count, 0);
 }
 
+TEST_P(urDeviceGetSelectedTest, SuccessCaseSensitive) {
+  setenv("ONEAPI_DEVICE_SELECTOR", "OpEnCl:0", 1);
+  uint32_t count = 0;
+  ASSERT_SUCCESS(
+      urDeviceGetSelected(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
+}
+
 TEST_P(urDeviceGetSelectedTest, InvalidMissingFilterStrings) {
   setenv("ONEAPI_DEVICE_SELECTOR", "*", 1);
   uint32_t count = 0;
