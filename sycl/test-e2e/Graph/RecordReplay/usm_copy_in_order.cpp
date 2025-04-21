@@ -67,14 +67,15 @@ int main() {
   // memcpy from 2.0 Y values to Z
   Queue.submit([&](handler &CGH) { CGH.memcpy(Z, Y, N * sizeof(int)); });
 
+  std::vector<int> Output(N);
+  Queue.memcpy(Output.data(), Z, N * sizeof(int));
+
   Graph.end_recording();
 
   auto ExecGraph = Graph.finalize();
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
-
-  std::vector<int> Output(N);
-  Queue.memcpy(Output.data(), Z, N * sizeof(int)).wait();
+  Queue.wait_and_throw();
 
   const int Expected = 2;
   for (size_t i = 0; i < N; i++) {
