@@ -8827,6 +8827,8 @@ def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
   HelpText<"Perform device compilation for Native CPU.">,
   Visibility<[CC1Option]>,
   MarshallingInfoFlag<LangOpts<"SYCLIsNativeCPU">>;
+// TODO: This option can be removed once a fix goes in that can
+// work with the community changes for using the alloca address space.
 defm offload_use_alloca_addrspace_for_srets : BoolFOption<"offload-use-alloca-addrspace-for-srets",
   CodeGenOpts<"UseAllocaASForSrets">,
   DefaultTrue,
