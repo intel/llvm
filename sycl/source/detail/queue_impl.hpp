@@ -862,8 +862,9 @@ protected:
   ///
   /// \param CGF is a function object containing command group.
   /// \param Self is a pointer to this queue.
-  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
-  ///        same as Self.
+  /// \param IsSecondaryQContextEqualsPrimaryQ is a boolean indicating whether
+  ///        the context of the secondary queue is the same as the context of
+  ///        the primary queue.
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
   /// \param Loc is the code location of the submit call (default argument)
