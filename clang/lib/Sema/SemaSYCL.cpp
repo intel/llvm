@@ -6491,12 +6491,10 @@ static void PrintNSClosingBraces(raw_ostream &OS, const DeclContext *DC) {
 
 class FreeFunctionPrinter {
   raw_ostream &O;
-  const PrintingPolicy &Policy;
   bool NSInserted = false;
 
 public:
-  FreeFunctionPrinter(raw_ostream &O, const PrintingPolicy &Policy)
-      : O(O), Policy(Policy) {}
+  FreeFunctionPrinter(raw_ostream &O) : O(O) {}
 
   /// Emits the function declaration of a free function.
   /// \param FD The function declaration to print.
@@ -6878,7 +6876,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     // template arguments that match default template arguments while printing
     // template-ids, even if the source code doesn't reference them.
     Policy.EnforceDefaultTemplateArgs = true;
-    FreeFunctionPrinter FFPrinter(O, Policy);
+    FreeFunctionPrinter FFPrinter(O);
     if (FTD) {
       FTD->print(O, Policy);
       O << ";\n";
