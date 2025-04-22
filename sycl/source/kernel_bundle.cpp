@@ -405,6 +405,16 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
   return false;
 }
 
+bool is_source_kernel_bundle_supported(backend BE, source_language Language,
+                                       const device &Dev) {
+  if (Language == source_language::opencl)
+    return is_source_kernel_bundle_supported(BE, Language) &&
+           Dev.ext_oneapi_supports_cl_c_version(
+               sycl::ext::oneapi::experimental::opencl_c_1_0);
+
+  return is_source_kernel_bundle_supported(BE, Language);
+}
+
 /////////////////////////
 // syclex::detail::create_kernel_bundle_from_source
 /////////////////////////
