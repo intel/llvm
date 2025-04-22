@@ -154,6 +154,11 @@ inline Sid GetCurrentSid_GPU() {
 }
 
 inline Sid GetCurrentSid() {
+#if defined(__LIBDEVICE_CPU__)
+  return GetCurrentSid_CPU();
+#elif defined(__LIBDEVICE_PVC__)
+  return GetCurrentSid_GPU();
+#else
   if (TsanLaunchInfo->DeviceTy == DeviceType::CPU) {
     return GetCurrentSid_CPU();
   } else if (TsanLaunchInfo->DeviceTy != DeviceType::UNKNOWN) {
@@ -163,6 +168,7 @@ inline Sid GetCurrentSid() {
                                   (int)TsanLaunchInfo->DeviceTy));
     return 0;
   }
+#endif
 }
 
 inline RawShadow LoadShadow(const __SYCL_GLOBAL__ RawShadow *p) {
@@ -432,10 +438,7 @@ __tsan_unaligned_read16(uptr addr, uint32_t as,
   __tsan_unaligned_read8(addr + 8, as, file, line, func);
 }
 
-DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, uint32_t size) {
-  if (TsanLaunchInfo->DeviceTy != DeviceType::CPU)
-    return;
-
+static inline void __tsan_cleanup_private_cpu_impl(uptr addr, uint32_t size) {
   if (size) {
     addr = RoundDownTo(addr, kShadowCell);
     size = RoundUpTo(size, kShadowCell);
@@ -447,6 +450,19 @@ DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, uint32_t size) {
     for (uptr i = 0; i < size / kShadowCell * kShadowCnt; i++)
       Begin[i] = 0;
   }
+}
+
+DEVICE_EXTERN_C_NOINLINE void __tsan_cleanup_private(uptr addr, uint32_t size) {
+#if defined(__LIBDEVICE_CPU__)
+  __tsan_cleanup_private_cpu_impl(addr, size);
+#elif defined(__LIBDEVICE_PVC__)
+  return;
+#else
+  if (TsanLaunchInfo->DeviceTy != DeviceType::CPU)
+    return;
+
+  __tsan_cleanup_private_cpu_impl(addr, size);
+#endif
 }
 
 DEVICE_EXTERN_C_INLINE void __tsan_device_barrier() {
@@ -476,10 +492,7 @@ DEVICE_EXTERN_C_INLINE void __tsan_device_barrier() {
                              __spv::MemorySemanticsMask::WorkgroupMemory);
 }
 
-DEVICE_EXTERN_C_INLINE void __tsan_group_barrier() {
-  if (TsanLaunchInfo->DeviceTy == DeviceType::CPU)
-    return;
-
+static inline void __tsan_group_barrier_impl() {
   Sid sid = GetCurrentSid();
   __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
                          __spv::MemorySemanticsMask::SequentiallyConsistent |
@@ -504,6 +517,18 @@ DEVICE_EXTERN_C_INLINE void __tsan_group_barrier() {
                          __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory);
+}
+
+DEVICE_EXTERN_C_INLINE void __tsan_group_barrier() {
+#if defined(__LIBDEVICE_CPU__)
+  return;
+#elif defined(__LIBDEVICE_PVC__)
+  __tsan_group_barrier_impl();
+#else
+  if (TsanLaunchInfo->DeviceTy == DeviceType::CPU)
+    return;
+  __tsan_group_barrier_impl();
+#endif
 }
 
 #endif // __SPIR__ || __SPIRV__
