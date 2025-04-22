@@ -228,8 +228,11 @@ if(UR_USE_DEBUG_POSTFIX AND NOT TARGET install-unified-runtime-libraries)
         COMMAND ${CMAKE_COMMAND}
             -DCOMPONENT=umfd
             -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-        DEPENDS unified-runtime-libraries build_umfd
+        DEPENDS unified-runtime-libraries
     )
+    if(TARGET build_umfd)
+        add_dependencies(install-unified-runtime-libraries build_umfd)
+    endif()
 endif()
 
 include(FetchContent)
