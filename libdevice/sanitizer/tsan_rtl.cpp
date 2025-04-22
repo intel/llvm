@@ -115,6 +115,11 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow_PVC(uptr addr, uint32_t as) {
 inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
   __SYCL_GLOBAL__ RawShadow *shadow_ptr = nullptr;
 
+#if defined(__LIBDEVICE_CPU__)
+  shadow_ptr = MemToShadow_CPU(addr, as);
+#elif defined(__LIBDEVICE_PVC__)
+  shadow_ptr = MemToShadow_PVC(addr, as);
+#else
   if (TsanLaunchInfo->DeviceTy == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr, as);
   } else if (TsanLaunchInfo->DeviceTy == DeviceType::GPU_PVC) {
@@ -124,6 +129,7 @@ inline __SYCL_GLOBAL__ RawShadow *MemToShadow(uptr addr, uint32_t as) {
                                   (int)TsanLaunchInfo->DeviceTy));
     return nullptr;
   }
+#endif
 
   return shadow_ptr;
 }
