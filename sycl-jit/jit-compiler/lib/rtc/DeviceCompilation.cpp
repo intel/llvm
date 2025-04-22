@@ -714,7 +714,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
     //       `invoke_simd` is supported.
 
     SmallVector<ModuleDesc, 2> ESIMDSplits =
-        splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+        splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints,
+                     AllowDeviceImageDependencies);
     for (auto &ES : ESIMDSplits) {
       MDesc = std::move(ES);
 
@@ -739,7 +740,8 @@ jit_compiler::performPostLink(ModuleUPtr Module,
           /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
           /*DeviceGlobals=*/true};
       PropertySetRegistry Properties =
-          computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
+          computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq,
+                                  AllowDeviceImageDependencies);
 
       // When the split mode is none, the required work group size will be added
       // to the whole module, which will make the runtime unable to launch the
