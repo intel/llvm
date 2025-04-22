@@ -55,6 +55,7 @@ namespace {
 struct WaitInfo {
   std::vector<ur_event_handle_t> events;
   WaitInfo() = default;
+  static_assert(std::is_pointer_v<ur_event_handle_t>);
   WaitInfo(uint32_t numEvents, const ur_event_handle_t *WaitList)
       : events(WaitList, WaitList + numEvents) {}
   void wait() const { urEventWait(events.size(), events.data()); }
