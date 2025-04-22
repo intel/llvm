@@ -103,8 +103,8 @@ public:
 
   NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
            sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, LocalSize{LocalSize},
-        GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
+      : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
+        Dims{size_t(DimsArg)} {}
 
   NDRDescT(sycl::range<3> NumWorkItems, sycl::id<3> Offset, int DimsArg)
       : GlobalSize{NumWorkItems}, GlobalOffset{Offset}, Dims{size_t(DimsArg)} {}
