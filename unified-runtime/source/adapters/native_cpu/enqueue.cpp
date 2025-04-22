@@ -206,13 +206,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   } else {
     // We are running a parallel_for over an nd_range
-    const auto numWG0_per_thread = numWG0 / numParallelThreads;
 
-    if (numWG0_per_thread) {
-      for (size_t t = 0, WG0_start = 0; t < numParallelThreads; t++) {
-        IndexT first = {WG0_start, 0, 0};
-        WG0_start += numWG0_per_thread;
-        IndexT last = {WG0_start, numWG1, numWG2};
+    const IndexT numWG = {numWG0, numWG1, numWG2};
+    IndexT groupsPerThread;
+    for (size_t t = 0; t < 3; t++)
+      groupsPerThread[t] = numWG[t] / numParallelThreads;
+    size_t dim = 0;
+    if (groupsPerThread[0] == 0) {
+      if (groupsPerThread[1])
+        dim = 1;
+      else if (groupsPerThread[2])
+        dim = 2;
+    }
+    IndexT first = {0, 0, 0}, last = numWG;
+    size_t wg_start = 0;
+    if (groupsPerThread[dim]) {
+      for (size_t t = 0; t < numParallelThreads; t++) {
+        first[dim] = wg_start;
+        wg_start += groupsPerThread[dim];
+        last[dim] = wg_start;
         futures.emplace_back(
             tp.schedule_task([state, numParallelThreads, &kernel = *kernel,
                               first, last](size_t threadId) mutable {
@@ -221,62 +233,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                             last);
             }));
       }
-      size_t start_wg0_remainder = numWG0_per_thread * numParallelThreads;
-      if (start_wg0_remainder < numWG0) {
-        IndexT first = {start_wg0_remainder, 0, 0};
-        IndexT last = {numWG0, numWG1, numWG2};
-        futures.emplace_back(
-            tp.schedule_task([state, numParallelThreads, &kernel = *kernel,
-                              first, last](size_t threadId) mutable {
-              execute_range(state, kernel,
-                            kernel.getArgs(numParallelThreads, threadId), first,
-                            last);
-            }));
-      }
-
-    } else {
-      // Here we try to create groups of workgroups in order to reduce
-      // synchronization overhead
-
-      // todo: deal with overflow
-      auto numGroups = numWG2 * numWG1 * numWG0;
-      auto groupsPerThread = numGroups / numParallelThreads;
-
-      IndexT first = {0, 0, 0};
-      size_t counter = 0;
-      if (groupsPerThread) {
-        for (unsigned g2 = 0; g2 < numWG2; g2++) {
-          for (unsigned g1 = 0; g1 < numWG1; g1++) {
-            for (unsigned g0 = 0; g0 < numWG0; g0++) {
-              if (counter == 0)
-                first = {g0, g1, g2};
-              if (++counter == groupsPerThread) {
-                IndexT last = {g0 + 1, g1 + 1, g2 + 1};
-                futures.emplace_back(tp.schedule_task(
-                    [state, numParallelThreads, &kernel = *kernel, first,
-                     last](size_t threadId) mutable {
-                      execute_range(
-                          state, kernel,
+    }
+    if (wg_start < numWG[dim]) {
+      first[dim] = wg_start;
+      last[dim] = numWG[dim];
+      futures.emplace_back(
+          tp.schedule_task([state, numParallelThreads, &kernel = *kernel, first,
+                            last](size_t threadId) mutable {
+            execute_range(state, kernel,
                           kernel.getArgs(numParallelThreads, threadId), first,
                           last);
-                    }));
-                counter = 0;
-              }
-            }
-          }
-        }
-      }
-      if (numGroups % numParallelThreads) {
-        // we have a remainder
-        IndexT last = {numWG0, numWG1, numWG2};
-        futures.emplace_back(
-            tp.schedule_task([state, numParallelThreads, &kernel = *kernel,
-                              first, last](size_t threadId) mutable {
-              execute_range(state, kernel,
-                            kernel.getArgs(numParallelThreads, threadId), first,
-                            last);
-            }));
-      }
+          }));
     }
   }
 
