@@ -251,7 +251,7 @@ def check_igc_tag_and_add_feature():
 
 def quote_path(path):
     if platform.system() == "Windows":
-        return f'"{path}"'
+        return f'"{path}"' if path else ""
     return shlex.quote(path)
 
 # Call the function to perform the check and add the feature
