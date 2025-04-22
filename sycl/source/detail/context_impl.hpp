@@ -29,7 +29,6 @@ inline namespace _V1 {
 // Forward declaration
 class device;
 namespace detail {
-using PlatformImplPtr = std::shared_ptr<detail::platform_impl>;
 class context_impl {
 public:
   /// Constructs a context_impl using a single SYCL devices.
@@ -89,8 +88,10 @@ public:
   /// \return the Adapter associated with the platform of this context.
   const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
 
+  // TODO: Think more about `const`
   /// \return the PlatformImpl associated with this context.
-  const PlatformImplPtr &getPlatformImpl() const { return MPlatform; }
+  const platform_impl &getPlatformImpl() const { return *MPlatform; }
+  platform_impl &getPlatformImpl() { return *MPlatform; }
 
   /// Queries this context for information.
   ///
@@ -257,7 +258,8 @@ private:
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
   ur_context_handle_t MContext;
-  PlatformImplPtr MPlatform;
+  // TODO: Make it a reference instead, but that needs a bit more refactoring:
+  platform_impl *MPlatform = nullptr;
   property_list MPropList;
   CachedLibProgramsT MCachedLibPrograms;
   std::mutex MCachedLibProgramsMutex;

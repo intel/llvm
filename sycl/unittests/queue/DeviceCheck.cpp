@@ -117,8 +117,9 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
   {
     ParentDevice = nullptr;
     device Device = detail::createSyclObjFromImpl<device>(
-        std::make_shared<detail::device_impl>(reinterpret_cast<ur_device_handle_t>(0x01),
-                                              detail::getSyclObjImpl(Plt)));
+        std::make_shared<detail::device_impl>(
+            reinterpret_cast<ur_device_handle_t>(0x01),
+            *detail::getSyclObjImpl(Plt).get()));
     queue Q{Device};
     EXPECT_NE(Q.get_context(), DefaultCtx);
     try {

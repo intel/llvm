@@ -30,14 +30,13 @@ namespace detail {
 
 // Forward declaration
 class platform_impl;
-using PlatformImplPtr = std::shared_ptr<platform_impl>;
 
 // TODO: Make code thread-safe
 class device_impl {
 public:
   /// Constructs a SYCL device instance using the provided
   /// UR device instance.
-  explicit device_impl(ur_device_handle_t Device, PlatformImplPtr Platform);
+  explicit device_impl(ur_device_handle_t Device, platform_impl &Platform);
 
   ~device_impl();
 
@@ -278,9 +277,9 @@ public:
   /// Get the backend of this device
   backend getBackend() const { return MPlatform->getBackend(); }
 
+  // TODO: const-correctness
   /// @brief  Get the platform impl serving this device
-  /// @return PlatformImplPtr
-  const PlatformImplPtr &getPlatformImpl() const { return MPlatform; }
+  platform_impl &getPlatformImpl() const { return *MPlatform; }
 
   /// Get device info string
   std::string get_device_info_string(ur_device_info_t InfoCode) const;
@@ -292,7 +291,7 @@ private:
   ur_device_handle_t MDevice = 0;
   ur_device_type_t MType;
   ur_device_handle_t MRootDevice = nullptr;
-  PlatformImplPtr MPlatform;
+  platform_impl *MPlatform = nullptr;
   bool MUseNativeAssert = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;

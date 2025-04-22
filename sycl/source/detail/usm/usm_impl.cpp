@@ -592,10 +592,10 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
   // The device is not necessarily a member of the context, it could be a
   // member's descendant instead. Fetch the corresponding device from the cache.
-  const std::shared_ptr<detail::platform_impl> &PltImpl =
+  detail::platform_impl &PltImpl =
       detail::getSyclObjImpl(Ctxt)->getPlatformImpl();
   std::shared_ptr<detail::device_impl> DevImpl =
-      PltImpl->getDeviceImpl(DeviceId);
+      PltImpl.getDeviceImpl(DeviceId);
   if (DevImpl)
     return detail::createSyclObjFromImpl<device>(DevImpl);
   throw exception(make_error_code(errc::runtime),

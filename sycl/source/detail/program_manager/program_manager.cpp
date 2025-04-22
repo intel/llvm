@@ -369,7 +369,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
   const detail::DeviceImplPtr &DeviceImpl = detail::getSyclObjImpl(Devs[0]);
-  const detail::PlatformImplPtr &PlatformImpl = DeviceImpl->getPlatformImpl();
+  const platform_impl &PlatformImpl = DeviceImpl->getPlatformImpl();
 
   // Add optimization flags.
   auto str = getUint32PropAsOptStr(Img, "optLevel");
@@ -388,7 +388,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     const char *backend_option = nullptr;
     // Empty string is returned in backend_option when no appropriate backend
     // option is available for a given frontend option.
-    PlatformImpl->getBackendOption(optLevelStr, &backend_option);
+    PlatformImpl.getBackendOption(optLevelStr, &backend_option);
     if (backend_option && backend_option[0] != '\0') {
       if (!CompileOpts.empty())
         CompileOpts += " ";
@@ -396,8 +396,8 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     }
   }
   bool IsIntelGPU =
-      (PlatformImpl->getBackend() == backend::ext_oneapi_level_zero ||
-       PlatformImpl->getBackend() == backend::opencl) &&
+      (PlatformImpl.getBackend() == backend::ext_oneapi_level_zero ||
+       PlatformImpl.getBackend() == backend::opencl) &&
       std::all_of(Devs.begin(), Devs.end(), [](const device &Dev) {
         return Dev.is_gpu() &&
                Dev.get_info<info::device::vendor_id>() == 0x8086;
@@ -408,7 +408,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
         Pos != std::string::npos) {
       const char *BackendOption = nullptr;
       if (IsIntelGPU)
-        PlatformImpl->getBackendOption(TargetCompileFast, &BackendOption);
+        PlatformImpl.getBackendOption(TargetCompileFast, &BackendOption);
       auto OptLen = strlen(TargetCompileFast);
       if (IsIntelGPU && BackendOption && BackendOption[0] != '\0')
         CompileOpts.replace(Pos, OptLen, BackendOption);
@@ -451,8 +451,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     for (const std::string_view Opt : ReplaceOpts) {
       if (auto Pos = CompileOpts.find(Opt); Pos != std::string::npos) {
         const char *BackendOption = nullptr;
-        PlatformImpl->getBackendOption(std::string(Opt).c_str(),
-                                       &BackendOption);
+        PlatformImpl.getBackendOption(std::string(Opt).c_str(), &BackendOption);
         CompileOpts.replace(Pos, Opt.length(), BackendOption);
       }
     }
@@ -1149,7 +1148,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
         Program, KernelName.data(), &Kernel);
 
     // Only set UR_USM_INDIRECT_ACCESS if the platform can handle it.
-    if (ContextImpl->getPlatformImpl()->supports_usm()) {
+    if (ContextImpl->getPlatformImpl().supports_usm()) {
       // Some UR Adapters (like OpenCL) require this call to enable USM
       // For others, UR will turn this into a NOP.
       const ur_bool_t UrTrue = true;
@@ -1656,7 +1655,7 @@ getDeviceLibPrograms(const ContextImplPtr Context,
       Devices.begin(), Devices.end(), [&Context](ur_device_handle_t Device) {
         std::string DevExtList =
             Context->getPlatformImpl()
-                ->getDeviceImpl(Device)
+                .getDeviceImpl(Device)
                 ->get_device_info_string(
                     UrInfoCode<info::device::extensions>::value);
         return (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
@@ -1667,7 +1666,7 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   for (auto Device : Devices) {
     std::string DevExtList =
         Context->getPlatformImpl()
-            ->getDeviceImpl(Device)
+            .getDeviceImpl(Device)
             ->get_device_info_string(
                 UrInfoCode<info::device::extensions>::value);
 
@@ -3199,7 +3198,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
                                              &Kernel);
 
     // Only set UR_USM_INDIRECT_ACCESS if the platform can handle it.
-    if (Ctx->getPlatformImpl()->supports_usm()) {
+    if (Ctx->getPlatformImpl().supports_usm()) {
       bool EnableAccess = true;
       Adapter->call<UrApiKind::urKernelSetExecInfo>(
           Kernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),

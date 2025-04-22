@@ -29,7 +29,8 @@ platform::platform(cl_platform_id PlatformId) {
   Adapter->call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
       detail::ur::cast<ur_native_handle_t>(PlatformId), Adapter->getUrAdapter(),
       /* pProperties = */ nullptr, &UrPlatform);
-  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
+  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter)
+             .getSharedPtrToSelf();
 }
 
 // protected constructor for internal use
@@ -88,9 +89,10 @@ platform::get_backend_info() const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::khr_get_default_context() const {
+  // TODO: Is this still relevant?
   // Keeping the default context for platforms in the global cache to avoid
   // shared_ptr based circular dependency between platform and context classes
-  std::unordered_map<detail::PlatformImplPtr, detail::ContextImplPtr>
+  std::unordered_map<detail::platform_impl *, detail::ContextImplPtr>
       &PlatformToDefaultContextCache =
           detail::GlobalHandler::instance().getPlatformToDefaultContextCache();
 
@@ -98,10 +100,10 @@ context platform::khr_get_default_context() const {
       detail::GlobalHandler::instance()
           .getPlatformToDefaultContextCacheMutex()};
 
-  auto It = PlatformToDefaultContextCache.find(impl);
+  auto It = PlatformToDefaultContextCache.find(impl.get());
   if (PlatformToDefaultContextCache.end() == It)
     std::tie(It, std::ignore) = PlatformToDefaultContextCache.insert(
-        {impl, detail::getSyclObjImpl(context{get_devices()})});
+        {impl.get(), detail::getSyclObjImpl(context{get_devices()})});
 
   return detail::createSyclObjFromImpl<context>(It->second);
 }

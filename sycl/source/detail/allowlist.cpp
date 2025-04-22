@@ -375,8 +375,9 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
 
   // Get platform's backend and put it to DeviceDesc
   DeviceDescT DeviceDesc;
-  auto PlatformImpl = platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
-  backend Backend = PlatformImpl->getBackend();
+  platform_impl &PlatformImpl =
+      platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
+  backend Backend = PlatformImpl.getBackend();
 
   for (const auto &SyclBe : getSyclBeMap()) {
     if (SyclBe.second == Backend) {
@@ -395,7 +396,7 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
 
   int InsertIDx = 0;
   for (ur_device_handle_t Device : UrDevices) {
-    auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
+    auto DeviceImpl = PlatformImpl.getOrMakeDeviceImpl(Device, PlatformImpl);
     // get DeviceType value and put it to DeviceDesc
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
     Adapter->call<UrApiKind::urDeviceGetInfo>(

@@ -37,12 +37,16 @@ inline namespace _V1 {
 // Forward declaration
 class device;
 class context;
+class platform;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
 class platform_impl;
+template <class T>
+std::enable_if_t<std::is_same_v<T, platform>, platform>
+createSyclObjFromImpl(platform_impl &);
 
 /// Allows to enable/disable "Default Context" extension
 ///
@@ -231,6 +235,9 @@ private:
   template <class Obj>
   friend const decltype(Obj::impl) &
   detail::getSyclObjImpl(const Obj &SyclObject);
+  template <class T>
+  friend std::enable_if_t<std::is_same_v<T, platform>, platform>
+  detail::createSyclObjFromImpl(detail::platform_impl &);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

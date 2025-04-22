@@ -89,9 +89,9 @@ __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
       NativeHandle, Adapter->getUrAdapter(), nullptr, &UrDevice);
 
   // Construct the SYCL device from UR device.
-  auto Platform = platform_impl::getPlatformFromUrDevice(UrDevice, Adapter);
+  auto &Platform = platform_impl::getPlatformFromUrDevice(UrDevice, Adapter);
   return detail::createSyclObjFromImpl<device>(
-      Platform->getOrMakeDeviceImpl(UrDevice, Platform));
+      Platform.getOrMakeDeviceImpl(UrDevice, Platform));
 }
 
 __SYCL_EXPORT context make_context(ur_native_handle_t NativeHandle,
@@ -288,9 +288,9 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   std::transform(
       ProgramDevices.begin(), ProgramDevices.end(), std::back_inserter(Devices),
       [&Adapter](const auto &Dev) {
-        auto Platform =
+        platform_impl &Platform =
             detail::platform_impl::getPlatformFromUrDevice(Dev, Adapter);
-        auto DeviceImpl = Platform->getOrMakeDeviceImpl(Dev, Platform);
+        auto DeviceImpl = Platform.getOrMakeDeviceImpl(Dev, Platform);
         return createSyclObjFromImpl<device>(DeviceImpl);
       });
 

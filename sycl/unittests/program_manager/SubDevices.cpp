@@ -105,7 +105,7 @@ TEST(SubDevices, DISABLED_BuildProgramForSubdevices) {
   // Initialize root device
   rootDevice = sycl::detail::getSyclObjImpl(device)->getHandleRef();
   // Initialize sub-devices
-  auto PltImpl = sycl::detail::getSyclObjImpl(Plt);
+  auto &PltImpl = *sycl::detail::getSyclObjImpl(Plt).get();
   auto subDev1 =
       std::make_shared<sycl::detail::device_impl>(urSubDev1, PltImpl);
   auto subDev2 =

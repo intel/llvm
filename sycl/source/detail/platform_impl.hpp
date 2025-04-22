@@ -171,9 +171,8 @@ public:
   /// \param PlatormImpl is the Platform for that Device
   ///
   /// \return a shared_ptr<device_impl> corresponding to the device
-  std::shared_ptr<device_impl>
-  getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
-                      const std::shared_ptr<platform_impl> &PlatformImpl);
+  std::shared_ptr<device_impl> getOrMakeDeviceImpl(ur_device_handle_t UrDevice,
+                                                   platform_impl &PlatformImpl);
 
   /// Queries the cache to see if the specified UR platform has been seen
   /// before.  If so, return the cached platform_impl, otherwise create a new
@@ -182,9 +181,8 @@ public:
   /// \param UrPlatform is the UR Platform handle representing the platform
   /// \param Adapter is the UR adapter providing the backend for the platform
   /// \return the platform_impl representing the UR platform
-  static std::shared_ptr<platform_impl>
-  getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                        const AdapterPtr &Adapter);
+  static platform_impl &getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
+                                              const AdapterPtr &Adapter);
 
   /// Queries the cache for the specified platform based on an input device.
   /// If found, returns the the cached platform_impl, otherwise creates a new
@@ -195,9 +193,11 @@ public:
   /// \param Adapter is the UR adapter providing the backend for the device and
   /// platform
   /// \return the platform_impl that contains the input device
-  static std::shared_ptr<platform_impl>
-  getPlatformFromUrDevice(ur_device_handle_t UrDevice,
-                          const AdapterPtr &Adapter);
+  static platform_impl &getPlatformFromUrDevice(ur_device_handle_t UrDevice,
+                                                const AdapterPtr &Adapter);
+
+  // Temporary while we're reducing usage of `std::shared_ptr`s.
+  std::shared_ptr<platform_impl> getSharedPtrToSelf() { return Self.lock(); }
 
   // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
   // ensure every device is a root one.
@@ -223,8 +223,25 @@ private:
 
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;
+
+  // Temporary while we're reducing usage of `std::shared_ptr`s.
+  std::weak_ptr<platform_impl> Self;
 };
 
+} // namespace detail
+} // namespace _V1
+} // namespace sycl
+
+#include <sycl/platform.hpp>
+
+namespace sycl {
+inline namespace _V1 {
+namespace detail {
+template <class T>
+std::enable_if_t<std::is_same_v<T, platform>, platform>
+createSyclObjFromImpl(platform_impl &p) {
+  return platform{p.getSharedPtrToSelf()};
+}
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
