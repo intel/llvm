@@ -39,8 +39,10 @@ class GromacsBench(Suite):
 
     def benchmarks(self) -> list[Benchmark]:
         return [
-            GromacsBenchmark(self, "0006", "pme"),
-            GromacsBenchmark(self, "0192", "rf"),
+            GromacsBenchmark(self, "0006", "pme", "graphs"),
+            GromacsBenchmark(self, "0006", "pme", "eager"),
+            GromacsBenchmark(self, "0192", "rf", "graphs"),
+            GromacsBenchmark(self, "0192", "rf", "eager"),
         ]
 
     def setup(self):
@@ -87,13 +89,14 @@ class GromacsBench(Suite):
 
 
 class GromacsBenchmark(Benchmark):
-    def __init__(self, suite, model, type):
+    def __init__(self, suite, model, type, option):
         self.suite = suite
         self.model = model  # The model name (e.g., "0001.5")
         self.type = type
         self.gromacs_src = suite.gromacs_src
         self.grappa_dir = suite.grappa_dir
         self.gmx_path = suite.gromacs_build_path / "bin" / "gmx"
+        self.option = option
 
         if self.type == "pme":
             self.extra_args = [
@@ -107,11 +110,14 @@ class GromacsBenchmark(Benchmark):
             self.extra_args = []
 
     def name(self):
-        return f"gromacs-{self.model}-{self.type}"
+        return f"gromacs-{self.model}-{self.type}-{self.option}"
 
     def setup(self):
         if self.type != "rf" and self.type != "pme":
             raise ValueError(f"Unknown benchmark type: {self.type}")
+
+        if self.option != "graphs" and self.option != "eager":
+            raise ValueError(f"Unknown option: {self.option}")
 
         if not self.gmx_path.exists():
             raise FileNotFoundError(f"gmx executable not found at {self.gmx_path}")
@@ -143,12 +149,10 @@ class GromacsBenchmark(Benchmark):
     def run(self, env_vars):
         model_dir = self.grappa_dir / self.model
 
-        env_vars.update(
-            {
-                "SYCL_CACHE_PERSISTENT": "1",
-                "GMX_CUDA_GRAPH": "1",
-            }
-        )
+        env_vars.update({"SYCL_CACHE_PERSISTENT": "1"})
+
+        if self.option == "graphs":
+            env_vars.update({"GMX_CUDA_GRAPH": "1"})
 
         # Run benchmark
         command = [
