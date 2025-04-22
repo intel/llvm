@@ -69,7 +69,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     : commandListManager(
           context, device,
           std::forward<v2::raii::command_list_unique_handle>(commandList),
-          v2::EVENT_FLAGS_COUNTER, nullptr),
+          v2::EVENT_FLAGS_COUNTER, nullptr, false),
       isUpdatable(desc ? desc->isUpdatable : false), context(context),
       device(device) {}
 

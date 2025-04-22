@@ -19,10 +19,11 @@ ur_command_list_manager::ur_command_list_manager(
     ur_context_handle_t context, ur_device_handle_t device,
     v2::raii::command_list_unique_handle &&commandList, v2::event_flags_t flags,
     ur_queue_t_ *queue, bool isImmediateCommandList)
-    : context(context), device(device),
-      zeCommandList(std::move(commandList)), queue(queue) {
-  auto& eventPoolTmp = isImmediateCommandList ? context->getEventPoolCacheImmediate()
-                                       : context->getEventPoolCacheRegular();
+    : context(context), device(device), zeCommandList(std::move(commandList)),
+      queue(queue) {
+  auto &eventPoolTmp = isImmediateCommandList
+                           ? context->getEventPoolCacheImmediate()
+                           : context->getEventPoolCacheRegular();
   eventPool = eventPoolTmp.borrow(device->Id.value(), flags);
   UR_CALL_THROWS(ur::level_zero::urContextRetain(context));
   UR_CALL_THROWS(ur::level_zero::urDeviceRetain(device));
@@ -164,7 +165,7 @@ wait_list_view ur_command_list_manager::getWaitListView(
   uint32_t numWaitEventsEnabled = 0;
   if (queue != nullptr) {
     for (uint32_t i = 0; i < numWaitEvents; i++) {
-      if (phWaitEvents[i]->isEnabled()) {
+      if (phWaitEvents[i]->getIsEventInUse()) {
         numWaitEventsEnabled++;
       }
     }
@@ -175,7 +176,7 @@ wait_list_view ur_command_list_manager::getWaitListView(
       numWaitEvents + (additionalWaitEvent != nullptr ? 1 : 0);
   waitList.resize(totalNumWaitEvents);
   for (uint32_t i = 0; i < numWaitEvents; i++) {
-    if (!phWaitEvents[i]->isEnabled()) {
+    if (queue != nullptr && !phWaitEvents[i]->getIsEventInUse()) {
       // We skip events on enqueue if they are not enabled
       // TODO: This is a workaround for the underlying inconsistency
       // between normal and counter events in L0 driver
