@@ -51,7 +51,10 @@ ABIArgInfo CommonSPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
     }
     // Pass all aggregate types allowed by Sema by value.
     if (isAggregateTypeForABI(Ty))
-      return getNaturalAlignIndirect(Ty);
+      return getNaturalAlignIndirect(Ty,
+                                     getCodeGenOpts().UseAllocaASForSrets
+                                         ? getDataLayout().getAllocaAddrSpace()
+                                         : CGT.getTargetAddressSpace(Ty));
   }
 
   return DefaultABIInfo::classifyArgumentType(Ty);
@@ -129,7 +132,11 @@ ABIArgInfo CommonSPIRABIInfo::classifyRegcallArgumentType(QualType Ty) const {
     // Records with non-trivial destructors/copy-constructors should not be
     // passed by value.
     if (auto RAA = getRecordArgABI(Ty, getCXXABI()))
-      return getNaturalAlignIndirect(Ty, RAA == CGCXXABI::RAA_DirectInMemory);
+      return getNaturalAlignIndirect(Ty,
+                                     getCodeGenOpts().UseAllocaASForSrets
+                                         ? getDataLayout().getAllocaAddrSpace()
+                                         : CGT.getTargetAddressSpace(Ty),
+                                     RAA == CGCXXABI::RAA_DirectInMemory);
 
     // Ignore empty structs/unions.
     if (isEmptyRecord(getContext(), Ty, true))
@@ -320,7 +327,10 @@ ABIArgInfo SPIRVABIInfo::classifyArgumentType(QualType Ty) const {
   // Records with non-trivial destructors/copy-constructors should not be
   // passed by value.
   if (auto RAA = getRecordArgABI(Ty, getCXXABI()))
-    return getNaturalAlignIndirect(Ty, getDataLayout().getAllocaAddrSpace(),
+    return getNaturalAlignIndirect(Ty,
+                                   getCodeGenOpts().UseAllocaASForSrets
+                                       ? getDataLayout().getAllocaAddrSpace()
+                                       : CGT.getTargetAddressSpace(Ty),
                                    RAA == CGCXXABI::RAA_DirectInMemory);
 
   if (const RecordType *RT = Ty->getAs<RecordType>()) {

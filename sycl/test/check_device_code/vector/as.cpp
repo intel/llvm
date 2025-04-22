@@ -14,7 +14,7 @@
 
 template SYCL_EXTERNAL sycl::vec<int, 4> sycl::vec<float, 4>::as<sycl::vec<int, 4>>() const;
 // CHECK-LABEL: define weak_odr dso_local spir_func void @_ZNK4sycl3_V13vecIfLi4EE2asINS1_IiLi4EEEEET_v(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable sret(%"class.sycl::_V1::vec") align 16 [[AGG_RESULT:%.*]], ptr addrspace(4) noundef align 16 dereferenceable_or_null(16) [[THIS:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] comdat align 2 !srcloc [[META5:![0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias writable sret(%"class.sycl::_V1::vec") align 16 [[AGG_RESULT:%.*]], ptr addrspace(4) noundef align 16 dereferenceable_or_null(16) [[THIS:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] comdat align 2 !sycl_fixed_targets [[META6:![0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) noundef align 16 dereferenceable(16) [[AGG_RESULT]], ptr addrspace(4) noundef align 16 dereferenceable(16) [[THIS]], i64 16, i1 false)
 // CHECK-NEXT:    ret void

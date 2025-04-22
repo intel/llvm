@@ -970,7 +970,7 @@ void X86_32ABIInfo::computeInfo(CGFunctionInfo &FI) const {
   } else
     State.FreeRegs = DefaultNumRegisterParameters;
 
-  if (!::classifyReturnType(getCXXABI(), FI, *this)) {
+  if (!::classifyReturnType(getCXXABI(), FI, *this, CGT)) {
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType(), State);
   } else if (FI.getReturnInfo().isIndirect()) {
     // The C++ ABI is not aware of register usage, so we have to check if the
@@ -2964,7 +2964,7 @@ void X86_64ABIInfo::computeInfo(CGFunctionInfo &FI) const {
   unsigned FreeSSERegs = IsRegCall ? 16 : 8;
   unsigned NeededInt = 0, NeededSSE = 0, MaxVectorWidth = 0;
 
-  if (!::classifyReturnType(getCXXABI(), FI, *this)) {
+  if (!::classifyReturnType(getCXXABI(), FI, *this, CGT)) {
     if (IsRegCall && FI.getReturnType()->getTypePtr()->isRecordType() &&
         !FI.getReturnType()->getTypePtr()->isUnionType()) {
       FI.getReturnInfo() = classifyRegCallStructType(

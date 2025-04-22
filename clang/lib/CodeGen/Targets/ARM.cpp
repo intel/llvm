@@ -231,7 +231,7 @@ void WindowsARMTargetCodeGenInfo::setTargetAttributes(
 }
 
 void ARMABIInfo::computeInfo(CGFunctionInfo &FI) const {
-  if (!::classifyReturnType(getCXXABI(), FI, *this))
+  if (!::classifyReturnType(getCXXABI(), FI, *this, CGT))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType(), FI.isVariadic(),
                                             FI.getCallingConvention());
 

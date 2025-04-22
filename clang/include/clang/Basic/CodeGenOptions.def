@@ -477,6 +477,11 @@ CODEGENOPT(DisableSYCLEarlyOpts, 1, 0)
 /// which do not contain "user" code.
 CODEGENOPT(OptimizeSYCLFramework, 1, 0)
 
+/// Whether to use alloca address space for `sret` arguments.
+/// TODO: This option can be removed once a fix goes in that can
+/// work with the community changes for using the alloca address space.
+CODEGENOPT(UseAllocaASForSrets, 1, 0)
+
 /// Turn on fp64 partial emulation for kernels with only fp64 conversion
 /// operations and no fp64 computation operations (requires Intel GPU backend
 /// supporting fp64 partial emulation)
