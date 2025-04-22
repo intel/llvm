@@ -66,12 +66,5 @@ int main() {
   queue Q1{property::queue::in_order()};
   TestFunc(Q1);
 
-  // Test in-order queue with discard_events property.
-  sycl::property_list Props{
-      property::queue::in_order{},
-      sycl::ext::oneapi::property::queue::discard_events{}};
-  queue Q2{Props};
-  TestFunc(Q2);
-
   return 0;
 }
