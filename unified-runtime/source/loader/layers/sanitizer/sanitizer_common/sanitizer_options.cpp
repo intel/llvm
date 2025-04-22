@@ -29,7 +29,7 @@ void SanitizerOptions::Init(const std::string &EnvName,
     std::stringstream SS;
     SS << "<SANITIZER>[ERROR]: ";
     SS << e.what();
-    UR_LOG_L(Logger, Quiet, SS.str().c_str());
+    UR_LOG_L(Logger, QUIET, SS.str().c_str());
     die("Sanitizer failed to parse options.\n");
   }
 
@@ -52,7 +52,7 @@ void SanitizerOptions::Init(const std::string &EnvName,
   MinRZSize =
       IsPowerOfTwo(MinRZSize) ? MinRZSize : RoundUpToPowerOfTwo(MinRZSize);
   if (MinRZSize > 16) {
-    UR_LOG_L(Logger, Warning,
+    UR_LOG_L(Logger, WARN,
              "Increasing the redzone size may cause excessive memory overhead");
   }
 }

@@ -54,7 +54,7 @@ void AsanStats::Print(ur_context_handle_t Context) {
 void AsanStats::UpdateUSMMalloced(uptr MallocedSize, uptr RedzoneSize) {
   UsmMalloced += MallocedSize;
   UsmMallocedRedzones += RedzoneSize;
-  UR_LOG_L(getContext()->logger, Debug,
+  UR_LOG_L(getContext()->logger, DEBUG,
            "Stats: UpdateUSMMalloced(UsmMalloced={}, UsmMallocedRedzones={})",
            UsmMalloced, UsmMallocedRedzones);
   UpdateOverhead();
@@ -62,7 +62,7 @@ void AsanStats::UpdateUSMMalloced(uptr MallocedSize, uptr RedzoneSize) {
 
 void AsanStats::UpdateUSMFreed(uptr FreedSize) {
   UsmFreed += FreedSize;
-  UR_LOG_L(getContext()->logger, Debug, "Stats: UpdateUSMFreed(UsmFreed={})",
+  UR_LOG_L(getContext()->logger, DEBUG, "Stats: UpdateUSMFreed(UsmFreed={})",
            UsmFreed);
 }
 
@@ -72,7 +72,7 @@ void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
   if (getContext()->Options.MaxQuarantineSizeMB) {
     UsmFreed -= FreedSize;
   }
-  UR_LOG_L(getContext()->logger, Debug,
+  UR_LOG_L(getContext()->logger, DEBUG,
            "Stats: UpdateUSMRealFreed(UsmMalloced={}, UsmMallocedRedzones={})",
            UsmMalloced, UsmMallocedRedzones);
   UpdateOverhead();
@@ -80,14 +80,14 @@ void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
 
 void AsanStats::UpdateShadowMalloced(uptr ShadowSize) {
   ShadowMalloced += ShadowSize;
-  UR_LOG_L(getContext()->logger, Debug,
+  UR_LOG_L(getContext()->logger, DEBUG,
            "Stats: UpdateShadowMalloced(ShadowMalloced={})", ShadowMalloced);
   UpdateOverhead();
 }
 
 void AsanStats::UpdateShadowFreed(uptr ShadowSize) {
   ShadowMalloced -= ShadowSize;
-  UR_LOG_L(getContext()->logger, Debug,
+  UR_LOG_L(getContext()->logger, DEBUG,
            "Stats: UpdateShadowFreed(ShadowMalloced={})", ShadowMalloced);
   UpdateOverhead();
 }

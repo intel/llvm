@@ -20,7 +20,7 @@ namespace {
 // given context.
 void checkImmediateAppendSupport(ur_context_handle_t context) {
   if (!context->getPlatform()->ZeCommandListImmediateAppendExt.Supported) {
-    UR_LOG(Error,
+    UR_LOG(ERROR,
            "Adapter v2 is used but the current driver does not support "
            "the zeCommandListImmediateAppendCommandListsExp entrypoint.");
     throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

@@ -439,7 +439,7 @@ ur_result_t urProgramLinkExp(
         ZeModuleDesc.pInputModule = ZeExtModuleDesc.pInputModules[0];
         ZeModuleDesc.pConstants = ZeExtModuleDesc.pConstants[0];
       } else {
-        UR_LOG(Error,
+        UR_LOG(ERROR,
                "urProgramLink: level_zero driver does not have static linking "
                "support.");
         return UR_RESULT_ERROR_INVALID_VALUE;
@@ -893,7 +893,7 @@ ur_result_t urProgramGetBuildInfo(
     // program.
     return ReturnValue("");
   } else {
-    UR_LOG(Error, "urProgramGetBuildInfo: unsupported ParamName");
+    UR_LOG(ERROR, "urProgramGetBuildInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   return UR_RESULT_SUCCESS;
@@ -908,7 +908,7 @@ ur_result_t urProgramSetSpecializationConstant(
     size_t /*SpecSize*/,
     /// [in] pointer to the specialization value bytes
     const void * /*SpecValue*/) {
-  UR_LOG_LEGACY(Error,
+  UR_LOG_LEGACY(ERROR,
                 logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;

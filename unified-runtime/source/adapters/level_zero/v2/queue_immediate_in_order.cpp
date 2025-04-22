@@ -129,7 +129,7 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
     }
   }
   default:
-    UR_LOG(Error,
+    UR_LOG(ERROR,
            "Unsupported ParamName in urQueueGetInfo: "
            "ParamName=ParamName={}(0x{})",
            propName, logger::toHex(propName));
@@ -190,7 +190,7 @@ ur_queue_immediate_in_order_t::~ur_queue_immediate_in_order_t() {
   try {
     UR_CALL_THROWS(queueFinish());
   } catch (...) {
-    UR_LOG(Error, "Failed to finish queue on destruction");
+    UR_LOG(ERROR, "Failed to finish queue on destruction");
   }
 }
 

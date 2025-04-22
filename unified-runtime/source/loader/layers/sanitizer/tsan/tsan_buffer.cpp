@@ -105,7 +105,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
                                                 Size, AllocType::DEVICE_USM,
                                                 ur_cast<void **>(&Allocation));
     if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, Error,
+      UR_LOG_L(getContext()->logger, ERROR,
                "Failed to allocate {} bytes memory for buffer {}", Size, this);
       return URes;
     }
@@ -115,7 +115,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
           Queue, true, Allocation, HostPtr, Size, 0, nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, Error,
+        UR_LOG_L(getContext()->logger, ERROR,
                  "Failed to copy {} bytes data from host "
                  "pointer {} to buffer {}",
                  Size, HostPtr, this);
@@ -142,7 +142,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
       URes = getContext()->urDdiTable.USM.pfnHostAlloc(
           Context, &USMDesc, Pool, Size, ur_cast<void **>(&HostAllocation));
       if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, Error,
+        UR_LOG_L(getContext()->logger, ERROR,
                  "Failed to allocate {} bytes host "
                  "USM for buffer {} migration",
                  Size, this);
@@ -157,7 +157,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
           Queue, true, HostAllocation, LastSyncedDevice.MemHandle, Size, 0,
           nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, Error,
+        UR_LOG_L(getContext()->logger, ERROR,
                  "Failed to migrate memory buffer data");
         return URes;
       }
@@ -169,7 +169,7 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
       URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
           Queue, true, Allocation, HostAllocation, Size, 0, nullptr, nullptr);
       if (URes != UR_RESULT_SUCCESS) {
-        UR_LOG_L(getContext()->logger, Error,
+        UR_LOG_L(getContext()->logger, ERROR,
                  "Failed to migrate memory buffer data");
         return URes;
       }
@@ -185,7 +185,7 @@ ur_result_t MemBuffer::free() {
   for (const auto &[_, Ptr] : Allocations) {
     ur_result_t URes = getContext()->urDdiTable.USM.pfnFree(Context, Ptr);
     if (URes != UR_RESULT_SUCCESS) {
-      UR_LOG_L(getContext()->logger, Error, "Failed to free buffer handle {}",
+      UR_LOG_L(getContext()->logger, ERROR, "Failed to free buffer handle {}",
                Ptr);
       return URes;
     }
