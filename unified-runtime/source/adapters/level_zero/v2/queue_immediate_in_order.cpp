@@ -138,11 +138,6 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
-void ur_queue_immediate_in_order_t::deferEventFree(ur_event_handle_t hEvent) {
-  auto commandListLocked = commandListManager.lock();
-  deferredEvents.push_back(hEvent);
-}
-
 ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
     ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
   std::ignore = pDesc;
@@ -160,12 +155,6 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
       "ur_queue_immediate_in_order_t::zeCommandListHostSynchronize");
   ZE2UR_CALL(zeCommandListHostSynchronize,
              (commandListLocked->getZeCommandList(), UINT64_MAX));
-
-  // Free deferred events
-  for (auto &hEvent : deferredEvents) {
-    UR_CALL(hEvent->releaseDeferred());
-  }
-  deferredEvents.clear();
 
   // Free deferred kernels
   for (auto &hKernel : submittedKernels) {
