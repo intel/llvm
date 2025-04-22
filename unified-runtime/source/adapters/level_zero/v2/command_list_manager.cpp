@@ -20,7 +20,7 @@ ur_command_list_manager::ur_command_list_manager(
     v2::raii::command_list_unique_handle &&commandList, v2::event_flags_t flags,
     ur_queue_t_ *queue, bool isImmediateCommandList)
     : context(context), device(device), zeCommandList(std::move(commandList)),
-      queue(queue) {
+      queue(queue), isImmediateCommandList(isImmediateCommandList) {
   auto &eventPoolTmp = isImmediateCommandList
                            ? context->getEventPoolCacheImmediate()
                            : context->getEventPoolCacheRegular();
@@ -163,7 +163,7 @@ wait_list_view ur_command_list_manager::getWaitListView(
     const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
     ur_event_handle_t additionalWaitEvent) {
   uint32_t numWaitEventsEnabled = 0;
-  if (queue != nullptr) {
+  if (isImmediateCommandList) {
     for (uint32_t i = 0; i < numWaitEvents; i++) {
       if (phWaitEvents[i]->getIsEventInUse()) {
         numWaitEventsEnabled++;
@@ -176,9 +176,10 @@ wait_list_view ur_command_list_manager::getWaitListView(
       numWaitEvents + (additionalWaitEvent != nullptr ? 1 : 0);
   waitList.resize(totalNumWaitEvents);
   for (uint32_t i = 0; i < numWaitEvents; i++) {
-    if (queue != nullptr && !phWaitEvents[i]->getIsEventInUse()) {
-      // We skip events on enqueue if they are not enabled
-      // TODO: This is a workaround for the underlying inconsistency
+    if (isImmediateCommandList && !phWaitEvents[i]->getIsEventInUse()) {
+      // We skip events on adding to immediate command list if they are not
+      // enabled
+      // TODO: This is a partial workaround for the underlying inconsistency
       // between normal and counter events in L0 driver
       // (the events that are not in use should be signaled by default, see
       // /test/conformance/exp_command_buffer/kernel_event_sync.cpp

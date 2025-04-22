@@ -53,6 +53,7 @@ struct ur_exp_command_buffer_handle_t_ : public ur_object {
 
   void enableEvents();
   void registerEvent(ur_event_handle_t event);
+
 private:
   const ur_context_handle_t context;
   const ur_device_handle_t device;

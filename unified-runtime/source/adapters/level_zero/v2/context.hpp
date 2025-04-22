@@ -34,8 +34,12 @@ struct ur_context_handle_t_ : ur_object {
   getP2PDevices(ur_device_handle_t hDevice) const;
 
   v2::event_pool &getNativeEventsPool() { return nativeEventsPool; }
-  v2::event_pool_cache &getEventPoolCacheImmediate() { return eventPoolCacheImmediate; }
-  v2::event_pool_cache &getEventPoolCacheRegular() { return eventPoolCacheRegular; }
+  v2::event_pool_cache &getEventPoolCacheImmediate() {
+    return eventPoolCacheImmediate;
+  }
+  v2::event_pool_cache &getEventPoolCacheRegular() {
+    return eventPoolCacheRegular;
+  }
   v2::command_list_cache_t &getCommandListCache() { return commandListCache; }
 
   // Checks if Device is covered by this context.

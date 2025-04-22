@@ -605,7 +605,8 @@ ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMAdvise");
 
   auto commandListLocked = commandListManager.lock();
-  UR_CALL(commandListLocked->appendUSMAdvise(pMem, size, advice, 0, nullptr, phEvent));
+  UR_CALL(commandListLocked->appendUSMAdvise(pMem, size, advice, 0, nullptr,
+                                             phEvent));
   return UR_RESULT_SUCCESS;
 }
 
