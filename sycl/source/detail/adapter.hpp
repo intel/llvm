@@ -47,7 +47,6 @@ public:
 
   Adapter(ur_adapter_handle_t adapter, backend UseBackend)
       : MAdapter(adapter), MBackend(UseBackend),
-        TracingMutex(std::make_shared<std::mutex>()),
         MAdapterMutex(std::make_shared<std::mutex>()) {
 
 #ifdef _WIN32
@@ -123,12 +122,12 @@ public:
   ///
   /// \sa adapter::checkUrResult
   template <UrApiKind UrApiOffset, typename... ArgsT>
-  ur_result_t call_nocheck(ArgsT... Args) const {
+  ur_result_t call_nocheck(ArgsT &&...Args) const {
     ur_result_t R = UR_RESULT_SUCCESS;
     if (!adapterReleased) {
       detail::UrFuncInfo<UrApiOffset> UrApiInfo;
       auto F = UrApiInfo.getFuncPtr(&UrFuncPtrs);
-      R = F(Args...);
+      R = F(std::forward<ArgsT>(Args)...);
     }
     return R;
   }
@@ -137,15 +136,15 @@ public:
   ///
   /// \throw sycl::runtime_exception if the call was not successful.
   template <UrApiKind UrApiOffset, typename... ArgsT>
-  void call(ArgsT... Args) const {
-    auto Err = call_nocheck<UrApiOffset>(Args...);
+  void call(ArgsT &&...Args) const {
+    auto Err = call_nocheck<UrApiOffset>(std::forward<ArgsT>(Args)...);
     checkUrResult(Err);
   }
 
   /// \throw sycl::exceptions(errc) if the call was not successful.
   template <sycl::errc errc, UrApiKind UrApiOffset, typename... ArgsT>
-  void call(ArgsT... Args) const {
-    auto Err = call_nocheck<UrApiOffset>(Args...);
+  void call(ArgsT &&...Args) const {
+    auto Err = call_nocheck<UrApiOffset>(std::forward<ArgsT>(Args)...);
     checkUrResult<errc>(Err);
   }
 
@@ -212,7 +211,6 @@ public:
 private:
   ur_adapter_handle_t MAdapter;
   backend MBackend;
-  std::shared_ptr<std::mutex> TracingMutex;
   // Mutex to guard UrPlatforms and LastDeviceIds.
   // Note that this is a temporary solution until we implement the global
   // Device/Platform cache later.
