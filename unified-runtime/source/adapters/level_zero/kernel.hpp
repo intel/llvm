@@ -13,7 +13,7 @@
 #include "memory.hpp"
 #include <unordered_set>
 
-struct ur_kernel_handle_t_ : _ur_object {
+struct ur_kernel_handle_t_ : ur_object {
   ur_kernel_handle_t_(bool OwnZeHandle, ur_program_handle_t Program)
       : Context{nullptr}, Program{Program}, ZeKernel{nullptr},
         SubmissionsCount{0}, MemAllocs{} {

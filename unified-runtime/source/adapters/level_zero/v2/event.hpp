@@ -46,7 +46,7 @@ private:
   uint64_t timestampMaxValue = 0;
 };
 
-struct ur_event_handle_t_ : _ur_object {
+struct ur_event_handle_t_ : ur_object {
 public:
   // cache_borrowed_event is used for pooled events, whilst ze_event_handle_t is
   // used for native events
