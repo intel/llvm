@@ -5815,7 +5815,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
         CmdArgs.push_back("-fsycl-optimize-non-user-code");
       }
-
       // Add any predefined macros associated with intel_gpu* type targets
       // passed in with -fsycl-targets
       // TODO: Macros are populated during device compilations and saved for
