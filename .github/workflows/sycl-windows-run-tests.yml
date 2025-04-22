@@ -209,12 +209,12 @@ jobs:
         rm e2econf_files.txt
 
     - name: Pack E2E test binaries
-      if: ${{ always() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
+      if: ${{ always() && !cancelled() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
       shell: bash
       run: |
         tar -czf e2e_bin.tar.gz -C build-e2e .
     - name: Upload E2E test binaries
-      if: ${{ always() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
+      if: ${{ always() && !cancelled() && inputs.tests_selector == 'e2e' && inputs.e2e_testing_mode == 'build-only' }}
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.e2e_binaries_artifact }}
