@@ -1113,9 +1113,13 @@ private:
         if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable()) {
           return createStringError(
               inconvertibleErrorCode(),
-              "'--offload-compress' option is specified but zstd "
-              "is not available. The device image will not be "
-              "compressed.");
+              "'--offload-compress' is specified but the compiler is "
+              "built without zstd support.\n"
+              "If you are using a custom DPC++ build, please refer to "
+              "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+              "GetStartedGuide.md#build-dpc-toolchain-with-device-image-"
+              "compression-support"
+              " for more information on how to build with zstd support.");
         }
 
         // Don't compress if the user explicitly specifies the binary image
@@ -1325,7 +1329,7 @@ public:
       MySymPropReader =
           std::make_unique<SymPropReader>(SymPropBCFiles, ToolName);
 
-    M.setTargetTriple(Target);
+    M.setTargetTriple(Triple(Target));
     // Look for llvm-objcopy in the same directory, from which
     // clang-offload-wrapper is invoked. This helps OpenMP offload
     // LIT tests.

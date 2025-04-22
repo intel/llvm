@@ -186,15 +186,13 @@ template <typename ReturnT, typename Param> struct get_device_info_impl {
 // Specialization for platform
 template <typename Param> struct get_device_info_impl<platform, Param> {
   static platform get(const DeviceImplPtr &Dev) {
-    typename sycl_to_ur<platform>::type result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
     // TODO: Change UrDevice to device_impl.
     // Use the Adapter from the device_impl class after adapter details
     // are added to the class.
-    return createSyclObjFromImpl<platform>(
-        platform_impl::getOrMakePlatformImpl(result, Dev->getAdapter()));
+    return createSyclObjFromImpl<platform>(platform_impl::getOrMakePlatformImpl(
+        get_device_info_impl<typename sycl_to_ur<platform>::type, Param>::get(
+            Dev),
+        Dev->getAdapter()));
   }
 };
 
@@ -208,11 +206,16 @@ device_impl::get_device_info_string(ur_device_info_t InfoCode) const {
   if (resultSize == 0) {
     return std::string();
   }
-  std::unique_ptr<char[]> result(new char[resultSize]);
+  std::string result;
+  // C++23's `resize_and_overwrite` would be better...
+  //
+  // UR counts null terminator in the size, std::string doesn't. Adjust by "-1"
+  // for that.
+  result.resize(resultSize - 1);
   getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-      getHandleRef(), InfoCode, resultSize, result.get(), nullptr);
+      getHandleRef(), InfoCode, resultSize, result.data(), nullptr);
 
-  return std::string(result.get());
+  return result;
 }
 
 // Specialization for string return type, variable return size
@@ -220,12 +223,6 @@ template <typename Param> struct get_device_info_impl<std::string, Param> {
   static std::string get(const DeviceImplPtr &Dev) {
     return Dev->get_device_info_string(UrInfoCode<Param>::value);
   }
-};
-
-// Specialization for parent device
-template <typename ReturnT>
-struct get_device_info_impl<ReturnT, info::device::parent_device> {
-  static ReturnT get(const DeviceImplPtr &Dev);
 };
 
 // Specialization for fp_config types, checks the corresponding fp type support
@@ -238,19 +235,8 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
             typename check_fp_support<Param>::type>::get(Dev)) {
       return {};
     }
-    ur_device_fp_capability_flags_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
-        nullptr);
-    return read_fp_bitfield(result);
-  }
-};
-
-// Specialization for device version
-template <> struct get_device_info_impl<std::string, info::device::version> {
-  static std::string get(const DeviceImplPtr &Dev) {
-    return Dev->get_device_info_string(
-        UrInfoCode<info::device::version>::value);
+    return read_fp_bitfield(
+        get_device_info_impl<ur_device_fp_capability_flags_t, Param>::get(Dev));
   }
 };
 
@@ -259,11 +245,9 @@ template <>
 struct get_device_info_impl<std::vector<info::fp_config>,
                             info::device::single_fp_config> {
   static std::vector<info::fp_config> get(const DeviceImplPtr &Dev) {
-    ur_device_fp_capability_flags_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<info::device::single_fp_config>::value,
-        sizeof(result), &result, nullptr);
-    return read_fp_bitfield(result);
+    return read_fp_bitfield(
+        get_device_info_impl<ur_device_fp_capability_flags_t,
+                             info::device::single_fp_config>::get(Dev));
   }
 };
 
@@ -272,11 +256,9 @@ struct get_device_info_impl<std::vector<info::fp_config>,
 // command_end will be calculated. See MFallbackProfiling
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
-    ur_queue_flags_t Properties;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(), UrInfoCode<info::device::queue_profiling>::value,
-        sizeof(Properties), &Properties, nullptr);
-    return Properties & UR_QUEUE_FLAG_PROFILING_ENABLE;
+    return get_device_info_impl<ur_queue_flags_t,
+                                info::device::queue_profiling>::get(Dev) &
+           UR_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
 
@@ -285,12 +267,10 @@ template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
-    ur_memory_order_capability_flag_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::atomic_memory_order_capabilities>::value,
-        sizeof(result), &result, nullptr);
-    return readMemoryOrderBitfield(result);
+    return readMemoryOrderBitfield(
+        get_device_info_impl<
+            ur_memory_order_capability_flag_t,
+            info::device::atomic_memory_order_capabilities>::get(Dev));
   }
 };
 
@@ -299,12 +279,10 @@ template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_fence_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
-    ur_memory_order_capability_flag_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::atomic_fence_order_capabilities>::value,
-        sizeof(result), &result, nullptr);
-    return readMemoryOrderBitfield(result);
+    return readMemoryOrderBitfield(
+        get_device_info_impl<
+            ur_memory_order_capability_flag_t,
+            info::device::atomic_fence_order_capabilities>::get(Dev));
   }
 };
 
@@ -313,12 +291,9 @@ template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    size_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::atomic_memory_scope_capabilities>::value,
-        sizeof(result), &result, nullptr);
-    return readMemoryScopeBitfield(result);
+    return readMemoryScopeBitfield(
+        get_device_info_impl<
+            size_t, info::device::atomic_memory_scope_capabilities>::get(Dev));
   }
 };
 
@@ -327,12 +302,9 @@ template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_fence_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    size_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::atomic_fence_scope_capabilities>::value,
-        sizeof(result), &result, nullptr);
-    return readMemoryScopeBitfield(result);
+    return readMemoryScopeBitfield(
+        get_device_info_impl<
+            size_t, info::device::atomic_fence_scope_capabilities>::get(Dev));
   }
 };
 
@@ -364,12 +336,9 @@ struct get_device_info_impl<std::vector<info::execution_capability>,
                       "info::device::execution_capabilities is available for "
                       "backend::opencl only");
 
-    ur_device_exec_capability_flag_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::execution_capabilities>::value, sizeof(result),
-        &result, nullptr);
-    return read_execution_bitfield(result);
+    return read_execution_bitfield(
+        get_device_info_impl<ur_device_exec_capability_flag_t,
+                             info::device::execution_capabilities>::get(Dev));
   }
 };
 
@@ -466,12 +435,10 @@ struct get_device_info_impl<std::vector<info::partition_affinity_domain>,
                             info::device::partition_affinity_domains> {
   static std::vector<info::partition_affinity_domain>
   get(const DeviceImplPtr &Dev) {
-    ur_device_affinity_domain_flags_t result;
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<info::device::partition_affinity_domains>::value,
-        sizeof(result), &result, nullptr);
-    return read_domain_bitfield(result);
+    return read_domain_bitfield(
+        get_device_info_impl<
+            ur_device_affinity_domain_flags_t,
+            info::device::partition_affinity_domains>::get(Dev));
   }
 };
 
@@ -1120,55 +1087,28 @@ struct get_device_info_impl<
     return static_cast<size_t>((std::numeric_limits<int>::max)());
   }
 };
-template <>
+template <int Dims>
 struct get_device_info_impl<
-    id<1>, ext::oneapi::experimental::info::device::max_work_groups<1>> {
-  static id<1> get(const DeviceImplPtr &Dev) {
-    size_t result[3];
+    id<Dims>, ext::oneapi::experimental::info::device::max_work_groups<Dims>> {
+  static id<Dims> get(const DeviceImplPtr &Dev) {
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(result), &result, nullptr);
-    return id<1>(std::min(Limit, result[0]));
-  }
-};
 
-template <>
-struct get_device_info_impl<
-    id<2>, ext::oneapi::experimental::info::device::max_work_groups<2>> {
-  static id<2> get(const DeviceImplPtr &Dev) {
     size_t result[3];
-    size_t Limit =
-        get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
-                                         max_global_work_groups>::get(Dev);
     Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
         Dev->getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
         sizeof(result), &result, nullptr);
-    return id<2>(std::min(Limit, result[1]), std::min(Limit, result[0]));
-  }
-};
-
-template <>
-struct get_device_info_impl<
-    id<3>, ext::oneapi::experimental::info::device::max_work_groups<3>> {
-  static id<3> get(const DeviceImplPtr &Dev) {
-    size_t result[3];
-    size_t Limit =
-        get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
-                                         max_global_work_groups>::get(Dev);
-    Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
-        Dev->getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-        sizeof(result), &result, nullptr);
-    return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
-                 std::min(Limit, result[0]));
+    static_assert(1 <= Dims && Dims <= 3);
+    if constexpr (Dims == 1)
+      return id<1>(std::min(Limit, result[0]));
+    else if constexpr (Dims == 2)
+      return id<2>(std::min(Limit, result[1]), std::min(Limit, result[0]));
+    else
+      return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
+                   std::min(Limit, result[0]));
   }
 };
 

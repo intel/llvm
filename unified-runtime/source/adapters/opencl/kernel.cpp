@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "kernel.hpp"
+#include "adapter.hpp"
 #include "common.hpp"
 #include "device.hpp"
 #include "memory.hpp"
@@ -280,7 +281,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     CL_RETURN_ON_FAILURE(clGetKernelInfo(hKernel->CLKernel, CL_KERNEL_CONTEXT,
                                          sizeof(Context), &Context, nullptr));
     UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext(
-        Context, cl_ext::ExtFuncPtrCache->clGetKernelSubGroupInfoKHRCache,
+        Context, ur::cl::getAdapter()->fnCache.clGetKernelSubGroupInfoKHRCache,
         cl_ext::GetKernelSubGroupInfoName, &GetKernelSubGroupInfo));
   } else {
     GetKernelSubGroupInfo = clGetKernelSubGroupInfo;
@@ -364,7 +365,7 @@ static ur_result_t usmSetIndirectAccess(ur_kernel_handle_t hKernel) {
                                        nullptr));
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clHostMemAllocINTELCache,
+      CLContext, ur::cl::getAdapter()->fnCache.clHostMemAllocINTELCache,
       cl_ext::HostMemAllocName, &HFunc));
 
   if (HFunc) {
@@ -374,7 +375,7 @@ static ur_result_t usmSetIndirectAccess(ur_kernel_handle_t hKernel) {
   }
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clDeviceMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clDeviceMemAllocINTELCache,
+      CLContext, ur::cl::getAdapter()->fnCache.clDeviceMemAllocINTELCache,
       cl_ext::DeviceMemAllocName, &DFunc));
 
   if (DFunc) {
@@ -384,7 +385,7 @@ static ur_result_t usmSetIndirectAccess(ur_kernel_handle_t hKernel) {
   }
 
   UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clSharedMemAllocINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clSharedMemAllocINTELCache,
+      CLContext, ur::cl::getAdapter()->fnCache.clSharedMemAllocINTELCache,
       cl_ext::SharedMemAllocName, &SFunc));
 
   if (SFunc) {
@@ -436,7 +437,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
   UR_RETURN_ON_FAILURE(
       cl_ext::getExtFuncFromContext<clSetKernelArgMemPointerINTEL_fn>(
           CLContext,
-          cl_ext::ExtFuncPtrCache->clSetKernelArgMemPointerINTELCache,
+          ur::cl::getAdapter()->fnCache.clSetKernelArgMemPointerINTELCache,
           cl_ext::SetKernelArgMemPointerName, &FuncPtr));
 
   if (FuncPtr) {

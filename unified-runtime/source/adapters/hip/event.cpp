@@ -298,9 +298,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
 /// \param[out] phEvent Set to the UR event object created from native handle.
 UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_native_handle_t hNativeEvent, ur_context_handle_t hContext,
-    const ur_event_native_properties_t *pProperties,
+    const ur_event_native_properties_t * /*pProperties*/,
     ur_event_handle_t *phEvent) {
-  std::ignore = pProperties;
 
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 

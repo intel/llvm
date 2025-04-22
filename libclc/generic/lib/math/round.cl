@@ -1,7 +1,7 @@
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
-#include <libspirv/spirv.h>
+#include <clc/math/clc_round.h>
 
-#define __CLC_BUILTIN __spirv_ocl_round
+#undef __CLC_FUNCTION
 #define __CLC_FUNCTION round
 #include <clc/math/unary_builtin.inc>

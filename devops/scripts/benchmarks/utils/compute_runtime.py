@@ -135,6 +135,8 @@ class ComputeRuntime:
         self.igc_install = os.path.join(options.workdir, "igc-install")
         configure_command = [
             "cmake",
+            "-DCMAKE_C_FLAGS=-Wno-error",
+            "-DCMAKE_CXX_FLAGS=-Wno-error",
             f"-B {self.igc_build}",
             f"-S {self.igc_repo}",
             f"-DCMAKE_INSTALL_PREFIX={self.igc_install}",
