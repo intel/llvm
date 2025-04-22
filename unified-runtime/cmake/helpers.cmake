@@ -220,14 +220,15 @@ function(install_ur_library name)
     )
 endfunction()
 
-if(NOT TARGET install-unified-runtime-libraries)
+if(UR_USE_DEBUG_POSTFIX AND NOT TARGET install-unified-runtime-libraries)
     add_custom_target(install-unified-runtime-libraries
         COMMAND ${CMAKE_COMMAND}
             -DCOMPONENT=unified-runtime
             -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
-        # TODO: Also install debug UMF runtime libraries component
-        DEPENDS unified-runtime-libraries
-        # TODO: Add dependency on building debug UMF libraries
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMPONENT=umfd
+            -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
+        DEPENDS unified-runtime-libraries build_umfd
     )
 endif()
 

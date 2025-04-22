@@ -332,7 +332,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
     BINARY_DIR ${URD_BINARY_DIR}
     INSTALL_DIR ${URD_INSTALL_DIR}
     INSTALL_COMMAND ${CMAKE_COMMAND}
-      --build <BINARY_DIR>
+      --build <BINARY_DIR> --config Debug
       --target install-unified-runtime-libraries
     CMAKE_CACHE_ARGS
       -DCMAKE_BUILD_TYPE:STRING=Debug
@@ -355,69 +355,73 @@ if(CMAKE_SYSTEM_NAME STREQUAL Windows)
       -DUR_BUILD_ADAPTER_HIP:BOOL=${UR_BUILD_ADAPTER_HIP}
       -DUR_BUILD_ADAPTER_NATIVE_CPU:BOOL=${UR_BUILD_ADAPTER_NATIVE_CPU}
       -DUMF_BUILD_EXAMPLES:BOOL=${UMF_BUILD_EXAMPLES}
-      -DUMF_BUILD_SAHRED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
+      -DUMF_BUILD_SHARED_LIBRARY:BOOL=${UMF_BUILD_SHARED_LIBRARY}
       -DUMF_LINK_HWLOC_STATICALLY:BOOL=${UMF_LINK_HWLOC_STATICALLY}
       -DUMF_DISABLE_HWLOC:BOOL=${UMF_DISABLE_HWLOC}
-      # TODO: Enable d suffix in UMF
-      # -DUMF_USE_DEBUG_POSTFIX=ON
+      # Enable d suffix in UMF
+      -DUMF_USE_DEBUG_POSTFIX:BOOL=ON
   )
 
   # Copy the debug UR runtime libraries to <build>/bin & <build>/lib for use in
   # the parent build, e.g. integration testing.
   set(URD_COPY_FILES)
-  macro(urd_copy_library_to_build library)
+  macro(urd_copy_library_to_build library shared)
+    if(${shared})
+      list(APPEND URD_COPY_FILES
+        ${LLVM_BINARY_DIR}/bin/${library}.dll
+      )
+      add_custom_command(
+        OUTPUT
+          ${LLVM_BINARY_DIR}/bin/${library}.dll
+        COMMAND ${CMAKE_COMMAND} -E copy
+          ${URD_INSTALL_DIR}/bin/${library}.dll
+          ${LLVM_BINARY_DIR}/bin/${library}.dll
+      )
+    endif()
+
     list(APPEND URD_COPY_FILES
-      ${LLVM_BINARY_DIR}/bin/${library}.dll
       ${LLVM_BINARY_DIR}/lib/${library}.lib
     )
     add_custom_command(
       OUTPUT
-        ${LLVM_BINARY_DIR}/bin/${library}.dll
         ${LLVM_BINARY_DIR}/lib/${library}.lib
-      COMMAND ${CMAKE_COMMAND} -E copy
-        ${URD_INSTALL_DIR}/bin/${library}.dll
-        ${LLVM_BINARY_DIR}/bin/${library}.dll
       COMMAND ${CMAKE_COMMAND} -E copy
         ${URD_INSTALL_DIR}/lib/${library}.lib
         ${LLVM_BINARY_DIR}/lib/${library}.lib
     )
   endmacro()
 
-  urd_copy_library_to_build(ur_loaderd)
-  foreach(adapter ${SYCL_ENABLE_BACKENDS})
-    urd_copy_library_to_build(ur_adapter_${adapter}d)
+  urd_copy_library_to_build(ur_loaderd "NOT;${UR_STATIC_LOADER}")
+  foreach(adatper ${SYCL_ENABLE_BACKENDS})
+    if(adapter MATCHES "level_zero")
+      set(shared "NOT;${UR_STATIC_ADAPTER_L0}")
+    else()
+      set(shared TRUE)
+    endif()
+    urd_copy_library_to_build(ur_adapter_${adatper}d "${shared}")
   endforeach()
-  # TODO: Also copy umfd.dll/umfd.lib
-  # urd_copy_library_to_build(umfd)
+  # Also copy umfd.dll/umfd.lib
+  urd_copy_library_to_build(umfd ${UMF_BUILD_SHARED_LIBRARY})
 
-  add_custom_target(unified-runtimed-copy-to-build DEPENDS ${URD_COPY_FILES})
-  add_dependencies(unified-runtimed-copy-to-build unified-runtimed)
+  add_custom_target(unified-runtimed-build ALL DEPENDS ${URD_COPY_FILES})
+  add_dependencies(unified-runtimed-build unified-runtimed)
 
   # Add the debug UR runtime libraries to the parent install.
   install(
     FILES ${URD_INSTALL_DIR}/bin/ur_loaderd.dll
     DESTINATION "bin" COMPONENT unified-runtime-loader)
-  install(
-    FILES ${URD_INSTALL_DIR}/lib/ur_loaderd.lib
-    DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader)
-
   foreach(adapter ${SYCL_ENABLE_BACKENDS})
     install(
       FILES ${URD_INSTALL_DIR}/bin/ur_adapter_${adapter}d.dll
       DESTINATION "bin" COMPONENT ur_adapter_${adapter})
-    install(
-      FILES ${URD_INSTALL_DIR}/lib/ur_adapter_${adapter}d.lib
-      DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT ur_adapter_${adapter})
     add_dependencies(install-sycl-ur-adapter-${adapter} unified-runtimed)
   endforeach()
-
-  # TODO: Also install umfd.dll/umfd.lib
-  # install(
-  #   FILES ${URD_INSTALL_DIR}/bin/umfd.dll
-  #   DESTINATION "bin" COMPONENT unified-memory-framework)
-  # install(
-  #   FILES ${URD_INSTALL_DIR}/lib/umfd.lib
-  #   DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework)
+  if(UMF_BUILD_SHARED_LIBRARY)
+    # Also install umfd.dll
+    install(
+      FILES ${URD_INSTALL_DIR}/bin/umfd.dll
+      DESTINATION "bin" COMPONENT unified-memory-framework)
+  endif()
 endif()
 
 install(TARGETS umf
