@@ -234,9 +234,6 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_sync_point_t * /*retSyncPoint*/,
     ur_event_handle_t * /*event*/,
     ur_exp_command_buffer_command_handle_t *command) try {
-  // TODO: These parameters aren't implemented in V1 yet, and are a fair amount
-  // of work. Need to know semantics: should they be checked before kernel
-  // execution (difficult) or before kernel appending to list (easy fix).
 
   if (command != nullptr && !commandBuffer->isUpdatable) {
     return UR_RESULT_ERROR_INVALID_OPERATION;

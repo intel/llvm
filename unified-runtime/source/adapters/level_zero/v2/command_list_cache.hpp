@@ -45,9 +45,8 @@ struct command_list_desc_t {
   bool IsInOrder;
   uint32_t Ordinal;
   bool CopyOffloadEnable;
-  // The mutable command list is not supported by immediate command lists
-  // and because of that this field will be ignored in immediate command list
-  // case
+  // The mutable command lists are not supported by immediate command lists
+  // so this field will be ignored during creation of immediate command list
   bool Mutable;
 };
 
